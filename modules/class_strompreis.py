@@ -1,12 +1,13 @@
 import json
 from datetime import datetime, timedelta, timezone
+import numpy as np
 
 class HourlyElectricityPriceForecast:
     class PriceData:
         def __init__(self, total, energy, tax, starts_at, currency, level):
-            self.total = total
-            self.energy = energy
-            self.tax = tax
+            self.total = total/1000.0
+            self.energy = energy/1000.0
+            self.tax = tax/1000.0
             self.starts_at = datetime.strptime(starts_at, '%Y-%m-%dT%H:%M:%S.%f%z')
 
             self.currency = currency
@@ -38,8 +39,9 @@ class HourlyElectricityPriceForecast:
 
     def get_prices_for_date(self, query_date):
         query_date = datetime.strptime(query_date, '%Y-%m-%d').date()
-        prices_for_date = [price for price in self.price_data if price.starts_at.date() == query_date]
-        return prices_for_date
+        prices_for_date = [price.get_total() for price in self.price_data if price.starts_at.date() == query_date]
+        
+        return np.array(prices_for_date)
 
     def get_price_for_datetime(self, query_datetime):
         query_datetime = datetime.strptime(query_datetime, '%Y-%m-%d %H').replace(minute=0, second=0, microsecond=0)
@@ -48,7 +50,7 @@ class HourlyElectricityPriceForecast:
         for price in self.price_data:
             #print(price.starts_at.replace(minute=0, second=0, microsecond=0) , "  ", query_datetime, " == ",price.starts_at.replace(minute=0, second=0, microsecond=0) == query_datetime)
             if price.starts_at.replace(minute=0, second=0, microsecond=0) == query_datetime:
-                return price
+                return np.array(price)
         return None
 
 

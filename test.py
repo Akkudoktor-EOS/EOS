@@ -5,14 +5,18 @@ from  modules.class_load import *
 from  modules.class_ems import *
 from  modules.class_pv_forecast import *
 from modules.class_akku import *
+from modules.class_strompreis import *
 from pprint import pprint
+import matplotlib.pyplot as plt
+from modules.visualize import *
+
 
 
 
 date = "2024-02-16"
-akku_size = 100 # Wh
-year_energy = 200*1000 #Wh
-
+akku_size = 1000 # Wh
+year_energy = 2000*1000 #Wh
+einspeiseverguetung_cent_pro_wh = np.full(24, 7/1000.0)
 
 akku = PVAkku(akku_size)
 
@@ -27,11 +31,20 @@ PVforecast = PVForecast(r'.\test_data\pvprognose.json')
 pv_forecast = PVforecast.get_forecast_for_date(date)
 pprint(pv_forecast.shape)
 
+# Strompreise
+filepath = r'.\test_data\strompreis.json'  # Pfad zur JSON-Datei anpassen
+price_forecast = HourlyElectricityPriceForecast(filepath)
+specific_date_prices = price_forecast.get_prices_for_date(date) 
 
 
-ems = EnergieManagementSystem(akku, specific_date_load, pv_forecast)
+# EMS / Stromzähler Bilanz
+ems = EnergieManagementSystem(akku, specific_date_load, pv_forecast, specific_date_prices, einspeiseverguetung_cent_pro_wh)
 o = ems.simuliere()
 pprint(o)
+
+
+visualisiere_ergebnisse(specific_date_load, pv_forecast, specific_date_prices, o)
+
 
 # for data in forecast.get_forecast_data():
     # print(data.get_date_time(), data.get_dc_power(), data.get_ac_power(), data.get_windspeed_10m(), data.get_temperature())for data in forecast.get_forecast_data():
