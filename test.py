@@ -13,6 +13,7 @@ from modules.visualize import *
 from deap import base, creator, tools, algorithms
 import numpy as np
 import random
+import os
 
 
 date = "2024-02-16"
@@ -32,13 +33,13 @@ leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
 pprint(leistung_haushalt.shape)
 
 # PV Forecast
-PVforecast = PVForecast(r'.\test_data\pvprognose.json')
+PVforecast = PVForecast(os.path.join(r'test_data', r'pvprognose.json'))
 pv_forecast = PVforecast.get_forecast_for_date(date)
 temperature_forecast = PVforecast.get_temperature_forecast_for_date(date)
 pprint(pv_forecast.shape)
 
 # Strompreise
-filepath = r'.\test_data\strompreis.json'  # Pfad zur JSON-Datei anpassen
+filepath = os.path.join (r'test_data', r'strompreis.json')  # Pfad zur JSON-Datei anpassen
 price_forecast = HourlyElectricityPriceForecast(filepath)
 specific_date_prices = price_forecast.get_prices_for_date(date) 
 
