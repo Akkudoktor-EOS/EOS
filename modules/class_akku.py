@@ -1,14 +1,26 @@
+import numpy as np
 class PVAkku:
     def __init__(self, kapazitaet_wh):
         # Kapazität des Akkus in Wh
         self.kapazitaet_wh = kapazitaet_wh
         # Initialer Ladezustand des Akkus in Wh
         self.soc_wh = 0
+        self.discharge_array = np.full(24, 1)
+
+    def reset(self):
+        self.soc_wh = 0
+        self.discharge_array = np.full(24, 1)
+        
+    def set_discharge_per_hour(self, discharge_array):
+        assert(len(discharge_array) == 24)
+        self.discharge_array = discharge_array
 
     def ladezustand_in_prozent(self):
         return (self.soc_wh / self.kapazitaet_wh) * 100
 
-    def energie_abgeben(self, wh):
+    def energie_abgeben(self, wh, hour):
+        if self.discharge_array[hour] == 0:
+            return 0.0
         if self.soc_wh >= wh:
             self.soc_wh -= wh
             return wh

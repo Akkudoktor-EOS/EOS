@@ -57,7 +57,12 @@ def visualisiere_ergebnisse(last, pv_forecast, strompreise, ergebnisse):
     # Zusammenfassende Finanzen
     plt.subplot(3, 2, 3)
     gesamtkosten = ergebnisse['Gesamtkosten_Euro']
-    plt.bar('Gesamtkosten', gesamtkosten, color='red' if gesamtkosten > 0 else 'green')
+    gesamteinnahmen = ergebnisse['Gesamteinnahmen_Euro']
+    gesamtbilanz = ergebnisse['Gesamtbilanz_Euro']
+    plt.bar('GesamtKosten', gesamtkosten, color='red' if gesamtkosten > 0 else 'green')
+    plt.bar('GesamtEinnahmen', gesamteinnahmen, color='red' if gesamtkosten > 0 else 'green')
+    plt.bar('GesamtBilanz', gesamtbilanz, color='red' if gesamtkosten > 0 else 'green')
+    
     plt.title('Gesamtkosten')
     plt.ylabel('Euro')
 
@@ -67,3 +72,4 @@ def visualisiere_ergebnisse(last, pv_forecast, strompreise, ergebnisse):
 
     plt.tight_layout()
     plt.show()
+

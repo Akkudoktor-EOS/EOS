@@ -39,6 +39,12 @@ class EnergieManagementSystem:
         self.pv_prognose_wh = pv_prognose_wh
         self.strompreis_cent_pro_wh = strompreis_cent_pro_wh  # Strompreis in Cent pro Wh
         self.einspeiseverguetung_cent_pro_wh = einspeiseverguetung_cent_pro_wh  # Einspeisevergütung in Cent pro Wh
+    def set_akku_discharge_hours(self, ds):
+        self.akku.set_discharge_per_hour(ds)
+        
+    def reset(self):
+        self.akku.reset()
+        
     def simuliere(self):
         eigenverbrauch_wh_pro_stunde = []
         netzeinspeisung_wh_pro_stunde = []
@@ -67,7 +73,7 @@ class EnergieManagementSystem:
             else:
                 netzeinspeisung_wh_pro_stunde.append(0.0)
                 benötigte_energie = verbrauch - erzeugung
-                aus_akku = self.akku.energie_abgeben(benötigte_energie)
+                aus_akku = self.akku.energie_abgeben(benötigte_energie, stunde)
                 stündlicher_netzbezug_wh = benötigte_energie - aus_akku
                 netzbezug_wh_pro_stunde.append(stündlicher_netzbezug_wh)
                 eigenverbrauch_wh_pro_stunde.append(erzeugung)
@@ -86,7 +92,10 @@ class EnergieManagementSystem:
             'Kosten_Euro_pro_Stunde': kosten_euro_pro_stunde,
             'akku_soc_pro_stunde': akku_soc_pro_stunde,
             'Einnahmen_Euro_pro_Stunde': einnahmen_euro_pro_stunde,
-            'Gesamtkosten_Euro': gesamtkosten_euro
+            'Gesamtbilanz_Euro': gesamtkosten_euro,
+            'Gesamteinnahmen_Euro': sum(einnahmen_euro_pro_stunde),
+            'Gesamtkosten_Euro': sum(kosten_euro_pro_stunde)
+            
         }
 
     # def simuliere(self):
