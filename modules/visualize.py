@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def visualisiere_ergebnisse(last, pv_forecast, strompreise, ergebnisse):
+def visualisiere_ergebnisse(last,leistung_haushalt,leistung_wp, pv_forecast, strompreise, ergebnisse):
     stunden = np.arange(1, 25)  # 1 bis 24 Stunden
 
     # Last und PV-Erzeugung
@@ -10,6 +10,8 @@ def visualisiere_ergebnisse(last, pv_forecast, strompreise, ergebnisse):
     
     plt.subplot(3, 1, 1)
     plt.plot(stunden, last, label='Last (Wh)', marker='o')
+    plt.plot(stunden, leistung_haushalt, label='leistung_haushalt (Wh)', marker='o')
+    plt.plot(stunden, leistung_wp, label='leistung_wp (Wh)', marker='o')
     plt.plot(stunden, pv_forecast, label='PV-Erzeugung (Wh)', marker='x')
     plt.title('Last und PV-Erzeugung')
     plt.xlabel('Stunde des Tages')
@@ -19,10 +21,10 @@ def visualisiere_ergebnisse(last, pv_forecast, strompreise, ergebnisse):
 
     # Strompreise
     plt.subplot(3, 1, 2)
-    plt.plot(stunden, strompreise, label='Strompreis (Cent/Wh)', color='purple', marker='s')
+    plt.plot(stunden, strompreise, label='Strompreis (€/Wh)', color='purple', marker='s')
     plt.title('Strompreise')
     plt.xlabel('Stunde des Tages')
-    plt.ylabel('Preis (Cent/Wh)')
+    plt.ylabel('Preis (€/Wh)')
     plt.legend()
     plt.grid(True)
 

@@ -68,7 +68,7 @@ class EnergieManagementSystem:
                 self.akku.energie_laden(geladene_energie)
                 netzeinspeisung_wh_pro_stunde.append(überschuss - geladene_energie)
                 eigenverbrauch_wh_pro_stunde.append(verbrauch)
-                stündliche_einnahmen_euro = (überschuss - geladene_energie) * self.einspeiseverguetung_cent_pro_wh[stunde] / 100
+                stündliche_einnahmen_euro = (überschuss - geladene_energie) * self.einspeiseverguetung_cent_pro_wh[stunde] 
                 netzbezug_wh_pro_stunde.append(0.0)
             else:
                 netzeinspeisung_wh_pro_stunde.append(0.0)
@@ -77,7 +77,7 @@ class EnergieManagementSystem:
                 stündlicher_netzbezug_wh = benötigte_energie - aus_akku
                 netzbezug_wh_pro_stunde.append(stündlicher_netzbezug_wh)
                 eigenverbrauch_wh_pro_stunde.append(erzeugung)
-                stündliche_kosten_euro = stündlicher_netzbezug_wh * strompreis / 100
+                stündliche_kosten_euro = stündlicher_netzbezug_wh * strompreis 
             akku_soc_pro_stunde.append(self.akku.ladezustand_in_prozent())
             kosten_euro_pro_stunde.append(stündliche_kosten_euro)
             einnahmen_euro_pro_stunde.append(stündliche_einnahmen_euro)
