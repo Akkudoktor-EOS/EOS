@@ -6,6 +6,7 @@ from  modules.class_ems import *
 from  modules.class_pv_forecast import *
 from modules.class_akku import *
 from modules.class_strompreis import *
+from modules.class_heatpump import * 
 from pprint import pprint
 import matplotlib.pyplot as plt
 from modules.visualize import *
@@ -19,27 +20,21 @@ akku_size = 1000 # Wh
 year_energy = 2000*1000 #Wh
 einspeiseverguetung_cent_pro_wh = np.full(24, 7/1000.0)
 
+max_heizleistung = 5000  # 5 kW Heizleistung
+wp = Waermepumpe(max_heizleistung)
 
 akku = PVAkku(akku_size)
 discharge_array = np.full(24,1)
-# discharge_array[12] = 0
-# discharge_array[13] = 0
-# discharge_array[14] = 0
-# discharge_array[15] = 0
-# discharge_array[16] = 0
-# discharge_array[17] = 0
-# discharge_array[18] = 1
-# akku.set_discharge_per_hour(discharge_array)
 
 # Load Forecast
 lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
-specific_date_load = lf.get_daily_stats(date)[0,...]  # Datum anpassen
-
-pprint(specific_date_load.shape)
+leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
+pprint(leistung_haushalt.shape)
 
 # PV Forecast
 PVforecast = PVForecast(r'.\test_data\pvprognose.json')
 pv_forecast = PVforecast.get_forecast_for_date(date)
+temperature_forecast = PVforecast.get_temperature_forecast_for_date(date)
 pprint(pv_forecast.shape)
 
 # Strompreise
@@ -47,9 +42,15 @@ filepath = r'.\test_data\strompreis.json'  # Pfad zur JSON-Datei anpassen
 price_forecast = HourlyElectricityPriceForecast(filepath)
 specific_date_prices = price_forecast.get_prices_for_date(date) 
 
+# WP
+leistung_wp = wp.simulate_24h(temperature_forecast)
+# pprint(leistung_haushalt)
+# pprint(leistung_wp)
+# sys.exit()
+load = leistung_haushalt + leistung_wp
 
 # EMS / Stromzähler Bilanz
-ems = EnergieManagementSystem(akku, specific_date_load, pv_forecast, specific_date_prices, einspeiseverguetung_cent_pro_wh)
+ems = EnergieManagementSystem(akku, load, pv_forecast, specific_date_prices, einspeiseverguetung_cent_pro_wh)
 o = ems.simuliere()
 pprint(o["Gesamtbilanz_Euro"])
 
@@ -105,7 +106,7 @@ pprint(o["Gesamtbilanz_Euro"])
 
 
 
-visualisiere_ergebnisse(specific_date_load, pv_forecast, specific_date_prices, o)
+visualisiere_ergebnisse(load,leistung_haushalt,leistung_wp, pv_forecast, specific_date_prices, o)
 
 
 # for data in forecast.get_forecast_data():

@@ -63,7 +63,15 @@ class PVForecast:
             daily_forecast.append(d.get_ac_power())
         
         return np.array(daily_forecast)
-
+    
+    def get_temperature_forecast_for_date(self, input_date_str):
+        input_date = datetime.strptime(input_date_str, "%Y-%m-%d")
+        daily_forecast_obj = [data for data in self.forecast_data if datetime.strptime(data.get_date_time(), "%Y-%m-%dT%H:%M:%S.%f%z").date() == input_date.date()]
+        daily_forecast = []
+        for d in daily_forecast_obj:
+            daily_forecast.append(d.get_temperature())
+        
+        return np.array(daily_forecast)
 
 
 
