@@ -16,44 +16,42 @@ import random
 import os
 
 
-date = "2024-02-26"
-akku_size = 1000 # Wh
-year_energy = 2000*1000 #Wh
-einspeiseverguetung_cent_pro_wh = np.full(24, 7/1000.0)
+prediction_hours = 48
+date = (datetime.now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
+date_now = datetime.now().strftime("%Y-%m-%d")
 
-max_heizleistung = 5000  # 5 kW Heizleistung
+akku_size = 30000 # Wh
+year_energy = 2000*1000 #Wh
+einspeiseverguetung_cent_pro_wh = np.full(prediction_hours, 7/(1000.0*100.0)) # € / Wh
+
+max_heizleistung = 1000  # 5 kW Heizleistung
 wp = Waermepumpe(max_heizleistung)
 
-akku = PVAkku(akku_size)
-discharge_array = np.full(24,1)
+akku = PVAkku(akku_size,prediction_hours)
+discharge_array = np.full(prediction_hours,1)
 
 # Load Forecast
 ###############
 lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
-leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
-pprint(leistung_haushalt.shape)
+#leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
+leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0,...].flatten()
+
 
 # PV Forecast
 ###############
 #PVforecast = PVForecast(filepath=os.path.join(r'test_data', r'pvprognose.json'))
 PVforecast = PVForecast(url="https://api.akkudoktor.net/forecast?lat=52.52&lon=13.405&power=5400&azimuth=-10&tilt=7&powerInvertor=2500&horizont=20,40,30,30&power=4800&azimuth=-90&tilt=7&powerInvertor=2500&horizont=20,40,45,50&power=1480&azimuth=-90&tilt=70&powerInvertor=1120&horizont=60,45,30,70&power=1600&azimuth=5&tilt=60&powerInvertor=1200&horizont=60,45,30,70&past_days=5&cellCoEff=-0.36&inverterEfficiency=0.8&albedo=0.25&timezone=Europe%2FBerlin&hourly=relativehumidity_2m%2Cwindspeed_10m")
-pv_forecast = PVforecast.get_forecast_for_date(date)
-temperature_forecast = PVforecast.get_temperature_forecast_for_date(date)
-pprint(pv_forecast.shape)
+pv_forecast = PVforecast.get_pv_forecast_for_date_range(date_now,date) #get_forecast_for_date(date)
+
+temperature_forecast = PVforecast.get_temperature_for_date_range(date_now,date)
 
 
 # Strompreise
 ###############
 filepath = os.path.join (r'test_data', r'strompreise_akkudokAPI.json')  # Pfad zur JSON-Datei anpassen
 #price_forecast = HourlyElectricityPriceForecast(source=filepath)
-price_forecast = HourlyElectricityPriceForecast(source="https://api.akkudoktor.net/prices?start="+date+"&end="+date+"")
-
-
-
-
-specific_date_prices = price_forecast.get_price_for_date(date) 
-pprint(f"Preise für {date}: {specific_date_prices}")
-
+price_forecast = HourlyElectricityPriceForecast(source="https://api.akkudoktor.net/prices?start="+date_now+"&end="+date+"")
+specific_date_prices = price_forecast.get_price_for_daterange(date_now,date)
 
 # WP
 leistung_wp = wp.simulate_24h(temperature_forecast)
@@ -64,9 +62,10 @@ load = leistung_haushalt + leistung_wp
 
 # EMS / Stromzähler Bilanz
 ems = EnergieManagementSystem(akku, load, pv_forecast, specific_date_prices, einspeiseverguetung_cent_pro_wh)
-o = ems.simuliere()
+o = ems.simuliere_ab_jetzt()
+pprint(o)
 pprint(o["Gesamtbilanz_Euro"])
-
+#sys.exit()
 
 # Optimierung
 
@@ -77,7 +76,7 @@ def evaluate(individual):
     #akku.set_discharge_per_hour(individual)
     ems.reset()
     ems.set_akku_discharge_hours(individual)
-    o = ems.simuliere()
+    o = ems.simuliere_ab_jetzt()
     gesamtbilanz = o["Gesamtbilanz_Euro"]
     #print(individual, " ",gesamtbilanz)
     return (gesamtbilanz,)
@@ -88,7 +87,7 @@ creator.create("Individual", list, fitness=creator.FitnessMin)
 
 toolbox = base.Toolbox()
 toolbox.register("attr_bool", random.randint, 0, 1)
-toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_bool, 24)
+toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_bool, prediction_hours)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
 toolbox.register("evaluate", evaluate)
@@ -114,7 +113,7 @@ best_solution = optimize()
 print("Beste Lösung:", best_solution)
 
 ems.set_akku_discharge_hours(best_solution)
-o = ems.simuliere()
+o = ems.simuliere_ab_jetzt()
 pprint(o["Gesamtbilanz_Euro"])
 
 

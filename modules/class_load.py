@@ -12,22 +12,7 @@ class LoadForecast:
         self.data_year_energy = None
         self.year_energy = year_energy
         self.load_data()
-        
 
-    # def get_prices_for_date(self, query_date):
-        # query_date = datetime.strptime(query_date, '%Y-%m-%d').date()
-        # prices_for_date = [price for price in self.price_data if price.starts_at.date() == query_date]
-        # return prices_for_date
-
-    # def get_price_for_datetime(self, query_datetime):
-        # query_datetime = datetime.strptime(query_datetime, '%Y-%m-%d %H').replace(minute=0, second=0, microsecond=0)
-        # query_datetime = query_datetime.replace(tzinfo=timezone(timedelta(hours=1)))
-
-        # for price in self.price_data:
-            # #print(price.starts_at.replace(minute=0, second=0, microsecond=0) , "  ", query_datetime, " == ",price.starts_at.replace(minute=0, second=0, microsecond=0) == query_datetime)
-            # if price.starts_at.replace(minute=0, second=0, microsecond=0) == query_datetime:
-                # return price
-        # return None
     def get_daily_stats(self, date_str):
         """
         Gibt den 24-Stunden-Verlauf mit Erwartungswert und Standardabweichung für ein gegebenes Datum zurück.
@@ -65,6 +50,27 @@ class LoadForecast:
         hourly_stats = self.data_year_energy[day_of_year - 1, :, hour]  # Zugriff auf die spezifische Stunde
         
         return hourly_stats
+
+    def get_stats_for_date_range(self, start_date_str, end_date_str):
+        """
+        Gibt die Erwartungswerte und Standardabweichungen für einen Zeitraum zurück.
+
+        :param start_date_str: Startdatum als String im Format "YYYY-MM-DD"
+        :param end_date_str: Enddatum als String im Format "YYYY-MM-DD"
+        :return: Ein Array mit den aggregierten Daten für den Zeitraum
+        """
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+        
+        start_day_of_year = start_date.timetuple().tm_yday
+        end_day_of_year = end_date.timetuple().tm_yday
+
+        # Beachten, dass bei Schaltjahren der Tag des Jahres angepasst werden muss
+        stats_for_range = self.data_year_energy[start_day_of_year-1:end_day_of_year]  # -1 da die Indizierung bei 0 beginnt
+        
+        # Hier kannst du entscheiden, wie du die Daten über den Zeitraum aggregieren möchtest
+        # Zum Beispiel könntest du Mittelwerte, Summen oder andere Statistiken über diesen Zeitraum berechnen
+        return stats_for_range
 
 
 
