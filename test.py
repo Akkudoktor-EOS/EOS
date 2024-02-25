@@ -16,7 +16,7 @@ import random
 import os
 
 
-date = "2024-02-16"
+date = "2024-02-26"
 akku_size = 1000 # Wh
 year_energy = 2000*1000 #Wh
 einspeiseverguetung_cent_pro_wh = np.full(24, 7/1000.0)
@@ -33,11 +33,13 @@ leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
 pprint(leistung_haushalt.shape)
 
 # PV Forecast
-PVforecast = PVForecast(os.path.join(r'test_data', r'pvprognose.json'))
+#PVforecast = PVForecast(filepath=os.path.join(r'test_data', r'pvprognose.json'))
+
+PVforecast = PVForecast(url="https://api.akkudoktor.net/forecast?lat=52.52&lon=13.405&power=5400&azimuth=-10&tilt=7&powerInvertor=2500&horizont=20,40,30,30&power=4800&azimuth=-90&tilt=7&powerInvertor=2500&horizont=20,40,45,50&power=1480&azimuth=-90&tilt=70&powerInvertor=1120&horizont=60,45,30,70&power=1600&azimuth=5&tilt=60&powerInvertor=1200&horizont=60,45,30,70&past_days=5&cellCoEff=-0.36&inverterEfficiency=0.8&albedo=0.25&timezone=Europe%2FBerlin&hourly=relativehumidity_2m%2Cwindspeed_10m")
 pv_forecast = PVforecast.get_forecast_for_date(date)
 temperature_forecast = PVforecast.get_temperature_forecast_for_date(date)
-pprint(pv_forecast.shape)
-
+pprint(pv_forecast)
+sys.exit()
 # Strompreise
 filepath = os.path.join (r'test_data', r'strompreis.json')  # Pfad zur JSON-Datei anpassen
 price_forecast = HourlyElectricityPriceForecast(filepath)
@@ -45,10 +47,10 @@ specific_date_prices = price_forecast.get_prices_for_date(date)
 
 # WP
 leistung_wp = wp.simulate_24h(temperature_forecast)
-# pprint(leistung_haushalt)
-# pprint(leistung_wp)
-# sys.exit()
+
+# LOAD
 load = leistung_haushalt + leistung_wp
+
 
 # EMS / Stromzähler Bilanz
 ems = EnergieManagementSystem(akku, load, pv_forecast, specific_date_prices, einspeiseverguetung_cent_pro_wh)

@@ -45,7 +45,7 @@ class EnergieManagementSystem:
     def reset(self):
         self.akku.reset()
         
-    def simuliere(self):
+    def simuliere(self, start_stunde):
         eigenverbrauch_wh_pro_stunde = []
         netzeinspeisung_wh_pro_stunde = []
         netzbezug_wh_pro_stunde = []
@@ -53,10 +53,18 @@ class EnergieManagementSystem:
         einnahmen_euro_pro_stunde = []
         akku_soc_pro_stunde = []
 
-        for stunde in range(len(self.lastkurve_wh)):
+        ende = len(self.lastkurve_wh)  # Berechnet das Ende basierend auf der Länge der Lastkurve
+        for stunde in range(start_stunde, ende):
+            # Anpassung, um sicherzustellen, dass Indizes korrekt sind
             verbrauch = self.lastkurve_wh[stunde]
             erzeugung = self.pv_prognose_wh[stunde]
-            strompreis = self.strompreis_cent_pro_wh[stunde]
+            strompreis = self.strompreis_cent_pro_wh[stunde] if stunde < len(self.strompreis_cent_pro_wh) else self.strompreis_cent_pro_wh[-1]
+
+
+        # for stunde in range(len(self.lastkurve_wh)):
+            # verbrauch = self.lastkurve_wh[stunde]
+            # erzeugung = self.pv_prognose_wh[stunde]
+            # strompreis = self.strompreis_cent_pro_wh[stunde]
 
             stündlicher_netzbezug_wh = 0
             stündliche_kosten_euro = 0
