@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 
 def visualisiere_ergebnisse(last,leistung_haushalt,leistung_wp, pv_forecast, strompreise, ergebnisse):
-    stunden = np.arange(1, 25)  # 1 bis 24 Stunden
+    stunden = np.arange(1, len(last)+1)  # 1 bis 24 Stunden
 
     # Last und PV-Erzeugung
     plt.figure(figsize=(14, 10))
@@ -20,8 +20,9 @@ def visualisiere_ergebnisse(last,leistung_haushalt,leistung_wp, pv_forecast, str
     plt.grid(True)
 
     # Strompreise
+    stundenp = np.arange(1, len(strompreise)+1)
     plt.subplot(3, 1, 2)
-    plt.plot(stunden, strompreise, label='Strompreis (€/Wh)', color='purple', marker='s')
+    plt.plot(stundenp, strompreise, label='Strompreis (€/Wh)', color='purple', marker='s')
     plt.title('Strompreise')
     plt.xlabel('Stunde des Tages')
     plt.ylabel('Preis (€/Wh)')
@@ -30,15 +31,15 @@ def visualisiere_ergebnisse(last,leistung_haushalt,leistung_wp, pv_forecast, str
 
 
     plt.figure(figsize=(18, 12))
-
+    stunden = np.arange(1, len(ergebnisse['Eigenverbrauch_Wh_pro_Stunde'])+1)
     # Eigenverbrauch, Netzeinspeisung und Netzbezug
     plt.subplot(3, 2, 1)
     plt.plot(stunden, ergebnisse['Eigenverbrauch_Wh_pro_Stunde'], label='Eigenverbrauch (Wh)', marker='o')
     plt.plot(stunden, ergebnisse['Netzeinspeisung_Wh_pro_Stunde'], label='Netzeinspeisung (Wh)', marker='x')
     plt.plot(stunden, ergebnisse['akku_soc_pro_stunde'], label='Akku (%)', marker='x')
     plt.plot(stunden, ergebnisse['Netzbezug_Wh_pro_Stunde'], label='Netzbezug (Wh)', marker='^')
-    plt.plot(stunden, pv_forecast, label='PV-Erzeugung (Wh)', marker='x')
-    plt.plot(stunden, last, label='Last (Wh)', marker='o')
+    #plt.plot(stunden, pv_forecast, label='PV-Erzeugung (Wh)', marker='x')
+    #plt.plot(stunden, last, label='Last (Wh)', marker='o')
     
     plt.title('Energiefluss pro Stunde')
     plt.xlabel('Stunde')

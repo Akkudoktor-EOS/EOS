@@ -117,6 +117,35 @@ class PVForecast:
         
         return np.array(daily_forecast)
 
+    def get_pv_forecast_for_date_range(self, start_date_str, end_date_str):
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+        date_range_forecast = []
+        
+        for data in self.forecast_data:
+            data_date = datetime.strptime(data.get_date_time(), "%Y-%m-%dT%H:%M:%S.%f%z").date()
+            if start_date <= data_date <= end_date:
+                date_range_forecast.append(data)
+        
+        ac_power_forecast = np.array([data.get_ac_power() for data in date_range_forecast])
+
+        return ac_power_forecast
+        
+    def get_temperature_for_date_range(self, start_date_str, end_date_str):
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+        date_range_forecast = []
+        
+        for data in self.forecast_data:
+            data_date = datetime.strptime(data.get_date_time(), "%Y-%m-%dT%H:%M:%S.%f%z").date()
+            if start_date <= data_date <= end_date:
+                date_range_forecast.append(data)
+                
+        forecast_data = date_range_forecast
+        temperature_forecast = [data.get_temperature() for data in forecast_data]
+        return np.array(temperature_forecast)
+        
+
 
 
 
