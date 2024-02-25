@@ -28,22 +28,32 @@ akku = PVAkku(akku_size)
 discharge_array = np.full(24,1)
 
 # Load Forecast
+###############
 lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
 leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
 pprint(leistung_haushalt.shape)
 
 # PV Forecast
+###############
 #PVforecast = PVForecast(filepath=os.path.join(r'test_data', r'pvprognose.json'))
-
 PVforecast = PVForecast(url="https://api.akkudoktor.net/forecast?lat=52.52&lon=13.405&power=5400&azimuth=-10&tilt=7&powerInvertor=2500&horizont=20,40,30,30&power=4800&azimuth=-90&tilt=7&powerInvertor=2500&horizont=20,40,45,50&power=1480&azimuth=-90&tilt=70&powerInvertor=1120&horizont=60,45,30,70&power=1600&azimuth=5&tilt=60&powerInvertor=1200&horizont=60,45,30,70&past_days=5&cellCoEff=-0.36&inverterEfficiency=0.8&albedo=0.25&timezone=Europe%2FBerlin&hourly=relativehumidity_2m%2Cwindspeed_10m")
 pv_forecast = PVforecast.get_forecast_for_date(date)
 temperature_forecast = PVforecast.get_temperature_forecast_for_date(date)
-pprint(pv_forecast)
-sys.exit()
+pprint(pv_forecast.shape)
+
+
 # Strompreise
-filepath = os.path.join (r'test_data', r'strompreis.json')  # Pfad zur JSON-Datei anpassen
-price_forecast = HourlyElectricityPriceForecast(filepath)
-specific_date_prices = price_forecast.get_prices_for_date(date) 
+###############
+filepath = os.path.join (r'test_data', r'strompreise_akkudokAPI.json')  # Pfad zur JSON-Datei anpassen
+#price_forecast = HourlyElectricityPriceForecast(source=filepath)
+price_forecast = HourlyElectricityPriceForecast(source="https://api.akkudoktor.net/prices?start="+date+"&end="+date+"")
+
+
+
+
+specific_date_prices = price_forecast.get_price_for_date(date) 
+pprint(f"Preise für {date}: {specific_date_prices}")
+
 
 # WP
 leistung_wp = wp.simulate_24h(temperature_forecast)
