@@ -43,7 +43,23 @@ class HourlyElectricityPriceForecast:
     def get_price_for_date(self, date_str):
         """Gibt alle Preise für das spezifizierte Datum zurück."""
         date_prices = [entry["marketpriceEurocentPerKWh"] for entry in self.prices if date_str in entry['start']]
-        return date_prices
+        return np.array(date_prices)/(1000.0*100.0)
+    
+    def get_price_for_daterange(self, start_date_str, end_date_str):
+        """Gibt alle Preise zwischen dem Start- und Enddatum zurück."""
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+        price_list = []
+
+        while start_date <= end_date:
+            date_str = start_date.strftime("%Y-%m-%d")
+            daily_prices = self.get_price_for_date(date_str)
+            if daily_prices.size > 0:
+                price_list.extend(daily_prices)
+            start_date += timedelta(days=1)
+
+        return np.array(price_list)
+
 
 
     
