@@ -14,7 +14,7 @@ class EnergieManagementSystem:
         # print("\n\nLastprognose:",self.lastkurve_wh.shape)
         # print("PV Prognose:",self.pv_prognose_wh.shape)
         # print("Preis Prognose:",self.strompreis_cent_pro_wh.shape)
-    
+        # sys.exit()
     
     def set_akku_discharge_hours(self, ds):
         self.akku.set_discharge_per_hour(ds)
