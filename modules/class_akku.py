@@ -1,12 +1,15 @@
 import numpy as np
 class PVAkku:
-    def __init__(self, kapazitaet_wh, hours):
+    def __init__(self, kapazitaet_wh, hours, lade_effizienz=0.9, entlade_effizienz=0.9):
         # Kapazität des Akkus in Wh
         self.kapazitaet_wh = kapazitaet_wh
         # Initialer Ladezustand des Akkus in Wh
         self.soc_wh = 0
         self.hours = hours
         self.discharge_array = np.full(self.hours, 1)
+        # Lade- und Entladeeffizienz
+        self.lade_effizienz = lade_effizienz
+        self.entlade_effizienz = entlade_effizienz        
 
     def reset(self):
         self.soc_wh = 0
@@ -22,19 +25,27 @@ class PVAkku:
     def energie_abgeben(self, wh, hour):
         if self.discharge_array[hour] == 0:
             return 0.0
-        if self.soc_wh >= wh:
-            self.soc_wh -= wh
-            return wh
-        else:
-            abgegebene_energie = self.soc_wh
-            self.soc_wh = 0
-            return abgegebene_energie
+        soc_tmp = self.soc_wh
+        # Berechnung der tatsächlichen Entlademenge unter Berücksichtigung der Entladeeffizienz
+        effektive_entlademenge = wh / self.entlade_effizienz
+        # Aktualisierung des Ladezustands ohne negativ zu werden
+        self.soc_wh = max(self.soc_wh - effektive_entlademenge, 0)
+        return soc_tmp-self.soc_wh
+        
+        # if self.soc_wh >= wh:
+            # self.soc_wh -= wh
+            # return wh
+        # else:
+            # abgegebene_energie = self.soc_wh
+            # self.soc_wh = 0
+            # return abgegebene_energie
 
     def energie_laden(self, wh):
-        if self.soc_wh + wh <= self.kapazitaet_wh:
-            self.soc_wh += wh
-        else:
-            self.soc_wh = self.kapazitaet_wh
+        # Berechnung der tatsächlichen Lademenge unter Berücksichtigung der Ladeeffizienz
+        effektive_lademenge = wh * self.lade_effizienz
+        # Aktualisierung des Ladezustands ohne die Kapazität zu überschreiten
+        self.soc_wh = min(self.soc_wh + effektive_lademenge, self.kapazitaet_wh)
+
 
 
 
