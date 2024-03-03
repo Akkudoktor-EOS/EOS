@@ -6,6 +6,7 @@ from pprint import pprint
 class EAuto:
     def __init__(self, soc=None, capacity = None, power_charge = None, load_allowed = None):
         self.soc = soc
+        self.init_soc = soc
         self.akku_kapazitaet = capacity
         self.ladegeschwindigkeit = power_charge
         self.laden_moeglich = None
@@ -14,9 +15,13 @@ class EAuto:
         self.laden_moeglich = load_allowed
         self.berechne_ladevorgang()
 
+    def reset(self):
+        self.soc = self.init_soc
+        self.stuendlicher_soc = []
+        
     def set_laden_moeglich(self, laden_moeglich):
         self.laden_moeglich = laden_moeglich
-        self.stuendlicher_soc = [self.soc]  # Beginnt mit dem aktuellen SoC
+        self.stuendlicher_soc = []  # Beginnt mit dem aktuellen SoC
         self.stuendliche_last = []  # Zurücksetzen der stündlichen Last
 
     def berechne_ladevorgang(self):
