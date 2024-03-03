@@ -3,8 +3,11 @@ import matplotlib.pyplot as plt
 
 
 def visualisiere_ergebnisse(last,leistung_haushalt,leistung_wp, pv_forecast, strompreise, ergebnisse):
-    stunden = np.arange(1, len(last)+1)  # 1 bis 24 Stunden
+    
+    #print(last)
 
+
+    stunden = np.arange(1, len(last)+1)  # 1 bis 24 Stunden
     # Last und PV-Erzeugung
     plt.figure(figsize=(14, 10))
     

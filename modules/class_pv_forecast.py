@@ -31,16 +31,23 @@ class ForecastData:
         return self.temperature
 
 class PVForecast:
-    def __init__(self, filepath=None, url=None, cache_dir='cache'):
+    def __init__(self, filepath=None, url=None, cache_dir='cache', prediction_hours = 48):
         self.meta = {}
         self.forecast_data = []
         self.cache_dir = cache_dir
+        self.prediction_hours = prediction_hours
+        
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir)
         if filepath:
             self.load_data_from_file(filepath)
         elif url:
             self.load_data_with_caching(url)
+            
+        # Überprüfung nach dem Laden der Daten
+        if len(self.forecast_data) < self.prediction_hours:
+            raise ValueError(f"Die Vorhersage muss mindestens {self.prediction_hours} Stunden umfassen, aber es wurden nur {len(self.forecast_data)} Stunden vorhergesagt.")
+
 
 
     def process_data(self, data):
@@ -72,7 +79,9 @@ class PVForecast:
             self.load_data_from_url(url)
 
     def load_data_with_caching(self, url):
-        cache_file = os.path.join(self.cache_dir, self.generate_cache_filename(url))
+        date =  datetime.now().strftime("%Y-%m-%d")
+
+        cache_file = os.path.join(self.cache_dir, self.generate_cache_filename(url,date))
         if os.path.exists(cache_file):
             with open(cache_file, 'r') as file:
                 data = json.load(file)
@@ -89,11 +98,11 @@ class PVForecast:
                 return
         self.process_data(data)
 
-    def generate_cache_filename(self, url):
+    def generate_cache_filename(self, url,date):
         # Erzeugt einen SHA-256 Hash der URL als Dateinamen
-        hash_object = hashlib.sha256(url.encode())
-        hex_dig = hash_object.hexdigest()
-        return f"cache_{hex_dig}.json"
+        cache_key = hashlib.sha256(f"{url}{date}".encode('utf-8')).hexdigest()
+        #cache_path = os.path.join(self.cache_dir, cache_key)
+        return f"cache_{cache_key}.json"
 
     def get_forecast_data(self):
         return self.forecast_data
@@ -121,15 +130,16 @@ class PVForecast:
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
         end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
         date_range_forecast = []
-        
+
         for data in self.forecast_data:
             data_date = datetime.strptime(data.get_date_time(), "%Y-%m-%dT%H:%M:%S.%f%z").date()
+            #print(data.get_date_time())
             if start_date <= data_date <= end_date:
                 date_range_forecast.append(data)
         
         ac_power_forecast = np.array([data.get_ac_power() for data in date_range_forecast])
 
-        return ac_power_forecast
+        return np.array(ac_power_forecast)[:self.prediction_hours]
         
     def get_temperature_for_date_range(self, start_date_str, end_date_str):
         start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
@@ -143,7 +153,7 @@ class PVForecast:
                 
         forecast_data = date_range_forecast
         temperature_forecast = [data.get_temperature() for data in forecast_data]
-        return np.array(temperature_forecast)
+        return np.array(temperature_forecast)[:self.prediction_hours]
         
 
 
@@ -154,3 +164,4 @@ if __name__ == '__main__':
     forecast = PVForecast(r'..\test_data\pvprognose.json')
     for data in forecast.get_forecast_data():
         print(data.get_date_time(), data.get_dc_power(), data.get_ac_power(), data.get_windspeed_10m(), data.get_temperature())
+
