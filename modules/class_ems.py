@@ -1,6 +1,6 @@
 from datetime import datetime
 from pprint import pprint
-
+from modules.class_generic_load import *
 
 
 class EnergieManagementSystem:
@@ -10,11 +10,7 @@ class EnergieManagementSystem:
         self.pv_prognose_wh = pv_prognose_wh
         self.strompreis_cent_pro_wh = strompreis_cent_pro_wh  # Strompreis in Cent pro Wh
         self.einspeiseverguetung_cent_pro_wh = einspeiseverguetung_cent_pro_wh  # Einspeisevergütung in Cent pro Wh
-        
-        # print("\n\nLastprognose:",self.lastkurve_wh.shape)
-        # print("PV Prognose:",self.pv_prognose_wh.shape)
-        # print("Preis Prognose:",self.strompreis_cent_pro_wh.shape)
-        # sys.exit()
+   
     
     def set_akku_discharge_hours(self, ds):
         self.akku.set_discharge_per_hour(ds)
@@ -42,6 +38,9 @@ class EnergieManagementSystem:
         einnahmen_euro_pro_stunde = []
         akku_soc_pro_stunde = []
 
+        #print(gesamtlast_pro_stunde)
+        #sys.exit()
+        
         ende = min( len(self.lastkurve_wh),len(self.pv_prognose_wh), len(self.strompreis_cent_pro_wh))
         #print(ende)
         # Berechnet das Ende basierend auf der Länge der Lastkurve

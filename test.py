@@ -7,6 +7,8 @@ from  modules.class_pv_forecast import *
 from modules.class_akku import *
 from modules.class_strompreis import *
 from modules.class_heatpump import * 
+from modules.class_generic_load import *
+from modules.class_load_container import * 
 from pprint import pprint
 import matplotlib.pyplot as plt
 from modules.visualize import *
@@ -16,8 +18,9 @@ import random
 import os
 
 
+
 prediction_hours = 48
-date = (datetime.now().date() + timedelta(days=1)).strftime("%Y-%m-%d")
+date = (datetime.now().date() + timedelta(hours = prediction_hours)).strftime("%Y-%m-%d")
 date_now = datetime.now().strftime("%Y-%m-%d")
 
 akku_size = 30000 # Wh
@@ -25,16 +28,28 @@ year_energy = 2000*1000 #Wh
 einspeiseverguetung_cent_pro_wh = np.full(prediction_hours, 7/(1000.0*100.0)) # € / Wh
 
 max_heizleistung = 1000  # 5 kW Heizleistung
-wp = Waermepumpe(max_heizleistung)
+wp = Waermepumpe(max_heizleistung,prediction_hours)
 
 akku = PVAkku(akku_size,prediction_hours)
 discharge_array = np.full(prediction_hours,1)
+
+
+#Gesamtlast
+#############
+gesamtlast = Gesamtlast()
+
 
 # Load Forecast
 ###############
 lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
 #leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
 leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0,...].flatten()
+gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
+
+# Generic Load
+##############
+# zusatzlast1 = generic_load()
+# zusatzlast1.setze_last(24+12, 0.5, 2000)  # Startet um 1 Uhr, dauert 0.5 Stunden, mit 2 kW
 
 
 # PV Forecast
@@ -42,8 +57,8 @@ leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0,...].flatten()
 #PVforecast = PVForecast(filepath=os.path.join(r'test_data', r'pvprognose.json'))
 PVforecast = PVForecast(url="https://api.akkudoktor.net/forecast?lat=52.52&lon=13.405&power=5400&azimuth=-10&tilt=7&powerInvertor=2500&horizont=20,40,30,30&power=4800&azimuth=-90&tilt=7&powerInvertor=2500&horizont=20,40,45,50&power=1480&azimuth=-90&tilt=70&powerInvertor=1120&horizont=60,45,30,70&power=1600&azimuth=5&tilt=60&powerInvertor=1200&horizont=60,45,30,70&past_days=5&cellCoEff=-0.36&inverterEfficiency=0.8&albedo=0.25&timezone=Europe%2FBerlin&hourly=relativehumidity_2m%2Cwindspeed_10m")
 pv_forecast = PVforecast.get_pv_forecast_for_date_range(date_now,date) #get_forecast_for_date(date)
-
 temperature_forecast = PVforecast.get_temperature_for_date_range(date_now,date)
+
 
 
 # Strompreise
@@ -54,18 +69,25 @@ price_forecast = HourlyElectricityPriceForecast(source="https://api.akkudoktor.n
 specific_date_prices = price_forecast.get_price_for_daterange(date_now,date)
 
 # WP
+##############
 leistung_wp = wp.simulate_24h(temperature_forecast)
+gesamtlast.hinzufuegen("Heatpump", leistung_wp)
 
-# LOAD
-load = leistung_haushalt + leistung_wp
-
+# print(gesamtlast.gesamtlast_berechnen())
+# sys.exit()
 
 # EMS / Stromzähler Bilanz
-ems = EnergieManagementSystem(akku, load, pv_forecast, specific_date_prices, einspeiseverguetung_cent_pro_wh)
+ems = EnergieManagementSystem(akku, gesamtlast.gesamtlast_berechnen(), pv_forecast, specific_date_prices, einspeiseverguetung_cent_pro_wh)
+
+
 o = ems.simuliere_ab_jetzt()
 pprint(o)
 pprint(o["Gesamtbilanz_Euro"])
-#sys.exit()
+
+visualisiere_ergebnisse(gesamtlast.gesamtlast_berechnen(),leistung_haushalt,leistung_wp, pv_forecast, specific_date_prices, o)
+
+
+sys.exit()
 
 # Optimierung
 
