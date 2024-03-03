@@ -10,6 +10,8 @@ class EnergieManagementSystem:
         self.strompreis_cent_pro_wh = strompreis_cent_pro_wh  # Strompreis in Cent pro Wh
         self.einspeiseverguetung_cent_pro_wh = einspeiseverguetung_cent_pro_wh  # Einspeisevergütung in Cent pro Wh
    
+    def set_gesamtlast(self,load):
+        self.lastkurve_wh = load
     
     def set_akku_discharge_hours(self, ds):
         self.akku.set_discharge_per_hour(ds)
