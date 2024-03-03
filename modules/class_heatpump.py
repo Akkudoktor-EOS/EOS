@@ -5,8 +5,9 @@ from pprint import pprint
 
 # Lade die .npz-Datei beim Start der Anwendung
 class Waermepumpe:
-    def __init__(self, max_heizleistung):
+    def __init__(self, max_heizleistung, prediction_hours):
         self.max_heizleistung = max_heizleistung
+        self.prediction_hours = prediction_hours
 
     def cop_berechnen(self, aussentemperatur):
         cop = 3.0 + (aussentemperatur-0) * 0.1
@@ -26,6 +27,11 @@ class Waermepumpe:
 
     def simulate_24h(self, temperaturen):
         leistungsdaten = []
+        
+        # Überprüfen, ob das Temperaturarray die richtige Größe hat
+        if len(temperaturen) != self.prediction_hours:
+            raise ValueError("Das Temperaturarray muss genau "+str(self.prediction_hours)+" Einträge enthalten, einen für jede Stunde des Tages.")
+        
         for temp in temperaturen:
             elektrische_leistung = self.elektrische_leistung_berechnen(temp)
             leistungsdaten.append(elektrische_leistung)

@@ -79,7 +79,7 @@ class LoadForecast:
             data = np.load(self.filepath)
             self.data = np.array(list(zip(data["yearly_profiles"],data["yearly_profiles_std"])))
             self.data_year_energy = self.data * self.year_energy
-            pprint(self.data_year_energy)
+            #pprint(self.data_year_energy)
 
     def get_price_data(self):
         # load_profiles_exp_l = load_profiles_exp*year_energy
