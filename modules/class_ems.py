@@ -1,6 +1,5 @@
 from datetime import datetime
 from pprint import pprint
-from modules.class_generic_load import *
 
 
 class EnergieManagementSystem:

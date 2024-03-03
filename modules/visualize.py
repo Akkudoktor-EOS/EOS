@@ -1,26 +1,35 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+import matplotlib.pyplot as plt
+from modules.class_load_container import Gesamtlast  # Stellen Sie sicher, dass dies dem tatsächlichen Importpfad entspricht
 
 
-def visualisiere_ergebnisse(last,leistung_haushalt,leistung_wp, pv_forecast, strompreise, ergebnisse):
-    
-    #print(last)
 
 
-    stunden = np.arange(1, len(last)+1)  # 1 bis 24 Stunden
+def visualisiere_ergebnisse(gesamtlast,leistung_haushalt,leistung_wp, pv_forecast, strompreise, ergebnisse):
+   
+
     # Last und PV-Erzeugung
     plt.figure(figsize=(14, 10))
     
     plt.subplot(3, 1, 1)
-    plt.plot(stunden, last, label='Last (Wh)', marker='o')
-    plt.plot(stunden, leistung_haushalt, label='leistung_haushalt (Wh)', marker='o')
-    plt.plot(stunden, leistung_wp, label='leistung_wp (Wh)', marker='o')
-    plt.plot(stunden, pv_forecast, label='PV-Erzeugung (Wh)', marker='x')
-    plt.title('Last und PV-Erzeugung')
-    plt.xlabel('Stunde des Tages')
-    plt.ylabel('Energie (Wh)')
-    plt.legend()
+    stunden = np.arange(1, len(next(iter(gesamtlast.lasten.values()))) + 1)
+    
+    
+    # Einzellasten plotten
+    for name, last_array in gesamtlast.lasten.items():
+        plt.plot(stunden, last_array, label=f'{name} (Wh)', marker='o')
+    
+    # Gesamtlast berechnen und plotten
+    gesamtlast_array = gesamtlast.gesamtlast_berechnen()
+    plt.plot(stunden, gesamtlast_array, label='Gesamtlast (Wh)', marker='o', linewidth=2, linestyle='--')
+    
+    plt.xlabel('Stunde')
+    plt.ylabel('Last (Wh)')
+    plt.title('Lastprofile')
     plt.grid(True)
+    plt.legend()
 
     # Strompreise
     stundenp = np.arange(1, len(strompreise)+1)

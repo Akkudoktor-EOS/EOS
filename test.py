@@ -7,8 +7,9 @@ from  modules.class_pv_forecast import *
 from modules.class_akku import *
 from modules.class_strompreis import *
 from modules.class_heatpump import * 
-from modules.class_generic_load import *
 from modules.class_load_container import * 
+from modules.class_eauto import * 
+
 from pprint import pprint
 import matplotlib.pyplot as plt
 from modules.visualize import *
@@ -33,6 +34,13 @@ wp = Waermepumpe(max_heizleistung,prediction_hours)
 akku = PVAkku(akku_size,prediction_hours)
 discharge_array = np.full(prediction_hours,1)
 
+laden_moeglich = np.full(prediction_hours,1)
+eauto = EAuto(soc=60, capacity = 60000, power_charge = 7000, load_allowed = laden_moeglich)
+
+
+
+
+
 
 #Gesamtlast
 #############
@@ -45,12 +53,6 @@ lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
 #leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
 leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0,...].flatten()
 gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
-
-# Generic Load
-##############
-# zusatzlast1 = generic_load()
-# zusatzlast1.setze_last(24+12, 0.5, 2000)  # Startet um 1 Uhr, dauert 0.5 Stunden, mit 2 kW
-
 
 # PV Forecast
 ###############
@@ -73,21 +75,26 @@ specific_date_prices = price_forecast.get_price_for_daterange(date_now,date)
 leistung_wp = wp.simulate_24h(temperature_forecast)
 gesamtlast.hinzufuegen("Heatpump", leistung_wp)
 
-# print(gesamtlast.gesamtlast_berechnen())
-# sys.exit()
+
+# EAuto
+######################
+leistung_eauto = eauto.get_stuendliche_last()
+gesamtlast.hinzufuegen("eauto", leistung_eauto)
+
+print(gesamtlast.gesamtlast_berechnen())
 
 # EMS / Stromzähler Bilanz
 ems = EnergieManagementSystem(akku, gesamtlast.gesamtlast_berechnen(), pv_forecast, specific_date_prices, einspeiseverguetung_cent_pro_wh)
 
 
-o = ems.simuliere_ab_jetzt()
+o = ems.simuliere(0)#ems.simuliere_ab_jetzt()
 pprint(o)
 pprint(o["Gesamtbilanz_Euro"])
 
-visualisiere_ergebnisse(gesamtlast.gesamtlast_berechnen(),leistung_haushalt,leistung_wp, pv_forecast, specific_date_prices, o)
+visualisiere_ergebnisse(gesamtlast,leistung_haushalt,leistung_wp, pv_forecast, specific_date_prices, o)
 
 
-sys.exit()
+#sys.exit()
 
 # Optimierung
 
