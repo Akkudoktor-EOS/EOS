@@ -10,14 +10,14 @@ Das Projekt erfordert Python 3.8 oder neuer. Alle notwendigen Abhängigkeiten k�
 git clone [URL des Repositories]
 cd [Projektverzeichnis]
 pip install -r requirements.txt
-
+```
 ## Nutzung
 
 Um das System zu nutzen, führen Sie `test.py` aus, das eine Simulation für einen vorgegebenen Zeitraum durchführt. Die Konfiguration der Simulation, einschließlich der Vorhersagedaten und der Systemparameter, kann in den jeweiligen Klassen angepasst werden.
 
 ```bash
 python test.py
-
+```
 ## Klassen und Funktionalitäten
 
 In diesem Projekt werden verschiedene Klassen verwendet, um die Komponenten eines Energiesystems zu simulieren und zu optimieren. Jede Klasse repräsentiert einen spezifischen Aspekt des Systems, wie nachfolgend beschrieben:
