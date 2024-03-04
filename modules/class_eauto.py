@@ -30,8 +30,9 @@ class EAuto:
             return
         
         for moeglich in self.laden_moeglich:
-            if moeglich == 1 and self.soc < 100:
-                geladene_energie = min(self.ladegeschwindigkeit, (100 - self.soc) / 100 * self.akku_kapazitaet)
+            if moeglich > 0.0 and self.soc < 100:
+                # Berechnung der geladenen Energie basierend auf dem Anteil der Lademöglichkeit
+                geladene_energie = min(self.ladegeschwindigkeit * moeglich, (100 - self.soc) / 100 * self.akku_kapazitaet)
                 self.soc += geladene_energie / self.akku_kapazitaet * 100
                 self.soc = min(100, self.soc)
                 self.stuendliche_last.append(geladene_energie)
@@ -41,6 +42,24 @@ class EAuto:
             
         # Umwandlung der stündlichen Last in ein NumPy-Array
         self.stuendliche_last = np.array(self.stuendliche_last)
+
+    # def berechne_ladevorgang(self):
+        # if self.laden_moeglich is None:
+            # print("Lademöglichkeit wurde nicht gesetzt.")
+            # return
+        
+        # for moeglich in self.laden_moeglich:
+            # if moeglich > 1 and self.soc < 100:
+                # geladene_energie = min(self.ladegeschwindigkeit, (100 - self.soc) / 100 * self.akku_kapazitaet)
+                # self.soc += geladene_energie / self.akku_kapazitaet * 100
+                # self.soc = min(100, self.soc)
+                # self.stuendliche_last.append(geladene_energie)
+            # else:
+                # self.stuendliche_last.append(0)  # Keine Ladung in dieser Stunde
+            # self.stuendlicher_soc.append(self.soc)
+            
+        # # Umwandlung der stündlichen Last in ein NumPy-Array
+        # self.stuendliche_last = np.array(self.stuendliche_last)
 
     def get_stuendliche_last(self):
         """Gibt das NumPy-Array mit der stündlichen Last zurück."""
