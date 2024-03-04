@@ -4,9 +4,10 @@ import numpy as np
 from pprint import pprint
 
 class Gesamtlast:
-    def __init__(self):
+    def __init__(self, prediction_hours=24):
         self.lasten = {}  # Enthält Namen und Lasten-Arrays für verschiedene Quellen
-    
+        self.prediction_hours=prediction_hours
+        
     def hinzufuegen(self, name, last_array):
         """
         Fügt ein Array von Lasten für eine bestimmte Quelle hinzu.
@@ -14,7 +15,10 @@ class Gesamtlast:
         :param name: Name der Lastquelle (z.B. "Haushalt", "Wärmepumpe")
         :param last_array: Array von Lasten, wobei jeder Eintrag einer Stunde entspricht
         """
+        if(len(last_array) != self.prediction_hours):
+                raise ValueError(f"Gesamtlast Inkonsistente Längen bei den Arrays: ", name," ", len(last_array)  ) 
         self.lasten[name] = last_array
+    
     
     def gesamtlast_berechnen(self):
         """

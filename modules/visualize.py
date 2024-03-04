@@ -63,11 +63,11 @@ def visualisiere_ergebnisse(gesamtlast,leistung_haushalt,leistung_wp, pv_forecas
 
     ax1 = plt.subplot(3, 2, 5)
     for hour, value in enumerate(discharge_hours):
-        if value == 1:
-            ax1.axvspan(hour, hour+1, color='red', alpha=0.3, label='Entlademöglichkeit' if hour == 0 else "")
+        #if value == 1:
+        ax1.axvspan(hour, hour+1, color='red',ymax=value, alpha=0.3, label='Entlademöglichkeit' if hour == 0 else "")
     for hour, value in enumerate(laden_moeglich):
-        if value == 1:
-            ax1.axvspan(hour, hour+1, color='green', alpha=0.3, label='Lademöglichkeit' if hour == 0 else "")
+        #if value == 1:
+        ax1.axvspan(hour, hour+1, color='green',ymax=value, alpha=0.3, label='Lademöglichkeit' if hour == 0 else "")
     ax1.legend(loc='upper left')
 
 
