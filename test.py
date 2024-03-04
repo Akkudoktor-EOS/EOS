@@ -37,7 +37,7 @@ discharge_array = np.full(prediction_hours,1) #np.array([1, 0, 1, 0, 1, 1, 1, 1,
 laden_moeglich = np.full(prediction_hours,1) # np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0])
 #np.full(prediction_hours,1)
 eauto = EAuto(soc=10, capacity = 60000, power_charge = 7000, load_allowed = laden_moeglich)
-min_soc_eauto = 20
+min_soc_eauto = 100
 hohe_strafe = 10.0
 
 
@@ -102,13 +102,18 @@ o = ems.simuliere(0)#ems.simuliere_ab_jetzt()
 
 # Optimierung
 
-# Fitness-Funktion (muss Ihre EnergieManagementSystem-Logik integrieren)
-def evaluate(individual):
+def evaluate_inner(individual):
+    #print(individual)
+    discharge_hours_bin = individual[0::2]
+    eautocharge_hours_float = individual[1::2]
+    
+    #print(discharge_hours_bin)
+    #print(len(eautocharge_hours_float))
     ems.reset()
     eauto.reset()
-    ems.set_akku_discharge_hours(individual[:prediction_hours])
+    ems.set_akku_discharge_hours(discharge_hours_bin)
 
-    eauto.set_laden_moeglich(individual[prediction_hours:])
+    eauto.set_laden_moeglich(eautocharge_hours_float)
     eauto.berechne_ladevorgang()
     leistung_eauto = eauto.get_stuendliche_last()
     gesamtlast.hinzufuegen("eauto", leistung_eauto)
@@ -116,6 +121,11 @@ def evaluate(individual):
     ems.set_gesamtlast(gesamtlast.gesamtlast_berechnen())
     
     o = ems.simuliere(0)
+    return o, eauto
+
+# Fitness-Funktion (muss Ihre EnergieManagementSystem-Logik integrieren)
+def evaluate(individual):
+    o,eauto = evaluate_inner(individual)
     gesamtbilanz = o["Gesamtbilanz_Euro"]
     
     # Überprüfung, ob der Mindest-SoC erreicht wird
@@ -124,11 +134,11 @@ def evaluate(individual):
     #if final_soc < min_soc_eauto:
     # Fügt eine Strafe hinzu, wenn der Mindest-SoC nicht erreicht wird
     strafe = max(0,(min_soc_eauto - final_soc) * hohe_strafe ) # `hohe_strafe` ist ein vorher festgelegter Strafwert
-    gesamtbilanz += strafe
-    #if strafe > 0.0:
-    #    print(min_soc_eauto," - ",final_soc,"*10 = ",strafe)
-    
+    gesamtbilanz += strafe    
     return (gesamtbilanz,)
+
+
+
 
 
 # Werkzeug-Setup
@@ -136,8 +146,13 @@ creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 creator.create("Individual", list, fitness=creator.FitnessMin)
 
 toolbox = base.Toolbox()
+
 toolbox.register("attr_bool", random.randint, 0, 1)
-toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.attr_bool, prediction_hours*2)
+toolbox.register("attr_bool", random.randint, 0, 1)
+toolbox.register("individual", tools.initCycle, creator.Individual, (toolbox.attr_bool,toolbox.attr_bool), n=prediction_hours)
+
+
+
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
 toolbox.register("evaluate", evaluate)
@@ -155,31 +170,69 @@ def optimize():
     stats.register("min", np.min)
     stats.register("max", np.max)
     
-    algorithms.eaSimple(population, toolbox, cxpb=0.4, mutpb=0.3, ngen=100, 
-                        stats=stats, halloffame=hof, verbose=True)
+    algorithms.eaMuPlusLambda(population, toolbox, 50, 100, cxpb=0.5, mutpb=0.5, ngen=500,             stats=stats, halloffame=hof, verbose=True)
+    #algorithms.eaSimple(population, toolbox, cxpb=0.2, mutpb=0.2, ngen=1000,             stats=stats, halloffame=hof, verbose=True)
+    return hof[0]
+    
+    
+start_solution = optimize()
+    
+    
+print("Start Lösung:", start_solution)
+
+
+
+
+# Werkzeug-Setup
+creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+creator.create("Individual", list, fitness=creator.FitnessMin)
+
+toolbox = base.Toolbox()
+
+
+
+
+toolbox.register("attr_bool", random.randint, 0, 1)
+toolbox.register("attr_float", random.uniform, 0.0, 1.0)
+toolbox.register("individual", tools.initCycle, creator.Individual, (toolbox.attr_bool,toolbox.attr_float), n=prediction_hours)
+
+start_individual = toolbox.individual()
+start_individual[:] = start_solution
+
+toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+
+toolbox.register("evaluate", evaluate)
+toolbox.register("mate", tools.cxTwoPoint)
+toolbox.register("mutate", tools.mutFlipBit, indpb=0.05)
+toolbox.register("select", tools.selTournament, tournsize=3)
+
+# Genetischer Algorithmus
+def optimize():
+    population = toolbox.population(n=1000)
+    population[0] = start_individual
+    hof = tools.HallOfFame(1)
+    
+    stats = tools.Statistics(lambda ind: ind.fitness.values)
+    stats.register("avg", np.mean)
+    stats.register("min", np.min)
+    stats.register("max", np.max)
+    
+    algorithms.eaMuPlusLambda(population, toolbox, 100, 200, cxpb=0.5, mutpb=0.2, ngen=1000,   stats=stats, halloffame=hof, verbose=True)
+    #algorithms.eaSimple(population, toolbox, cxpb=0.2, mutpb=0.2, ngen=1000,             stats=stats, halloffame=hof, verbose=True)
     return hof[0]
 
 best_solution = optimize()
 print("Beste Lösung:", best_solution)
 
 #ems.set_akku_discharge_hours(best_solution)
-ems.reset()
-eauto.reset()
-ems.set_akku_discharge_hours(best_solution[:prediction_hours])
-eauto.set_laden_moeglich(best_solution[prediction_hours:])
-eauto.berechne_ladevorgang()
-leistung_eauto = eauto.get_stuendliche_last()
-gesamtlast.hinzufuegen("eauto", leistung_eauto)
-ems.set_gesamtlast(gesamtlast.gesamtlast_berechnen())
-
-o = ems.simuliere(0)
+o,eauto = evaluate_inner(best_solution)
 
 soc_eauto = eauto.get_stuendlicher_soc()
 print(soc_eauto)
 pprint(o)
 pprint(eauto.get_stuendlicher_soc())
 
-visualisiere_ergebnisse(gesamtlast,leistung_haushalt,leistung_wp, pv_forecast, specific_date_prices, o,soc_eauto,best_solution[:prediction_hours],best_solution[prediction_hours:] )
+visualisiere_ergebnisse(gesamtlast,leistung_haushalt,leistung_wp, pv_forecast, specific_date_prices, o,soc_eauto,best_solution[0::2],best_solution[1::2] )
 
 
 # for data in forecast.get_forecast_data():
