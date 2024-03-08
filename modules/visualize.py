@@ -3,7 +3,7 @@ from modules.class_load_container import Gesamtlast  # Stellen Sie sicher, dass 
 import matplotlib.pyplot as plt
 
 
-def visualisiere_ergebnisse(gesamtlast,leistung_haushalt,leistung_wp, pv_forecast, strompreise, ergebnisse, soc_eauto, discharge_hours, laden_moeglich):
+def visualisiere_ergebnisse(gesamtlast,leistung_haushalt,leistung_wp, pv_forecast, strompreise, ergebnisse, soc_eauto, discharge_hours, laden_moeglich, temperature):
     # Last und PV-Erzeugung
     plt.figure(figsize=(14, 10))
     
@@ -70,7 +70,17 @@ def visualisiere_ergebnisse(gesamtlast,leistung_haushalt,leistung_wp, pv_forecas
         ax1.axvspan(hour, hour+1, color='green',ymax=value, alpha=0.3, label='Lademöglichkeit' if hour == 0 else "")
     ax1.legend(loc='upper left')
 
-
+    ax1 = plt.subplot(3, 2, 6)
+    ax1.plot(stunden, temperature, label='Temperatur °C', marker='x')
+    
+    
+    ax2 = ax1.twinx()
+    ax2.plot(stunden, leistung_wp, label='Wärmepumpe W', marker='x')
+    plt.legend(loc='upper left')
+    
+    
+    
+    
     
     
     plt.grid(True)

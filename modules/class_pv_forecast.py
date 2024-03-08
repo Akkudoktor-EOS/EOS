@@ -52,16 +52,35 @@ class PVForecast:
 
     def process_data(self, data):
         self.meta = data.get('meta', {})
-        values = data.get('values', [])[0]
-        for value in values:
+        all_values = data.get('values', [])
+
+        # Berechnung der Summe der DC- und AC-Leistungen für jeden Zeitstempel
+        for i in range(len(all_values[0])):  # Annahme, dass alle Listen gleich lang sind
+            sum_dc_power = sum(values[i]['dcPower'] for values in all_values)
+            sum_ac_power = sum(values[i]['power'] for values in all_values)
+            
+            # Erstellen eines ForecastData-Objekts mit den summierten Werten
             forecast = ForecastData(
-                date_time=value.get('datetime'),
-                dc_power=value.get('dcPower'),
-                ac_power=value.get('power'),
-                windspeed_10m=value.get('windspeed_10m'),
-                temperature=value.get('temperature')
+                date_time=all_values[0][i].get('datetime'),
+                dc_power=sum_dc_power,
+                ac_power=sum_ac_power,
+                # Optional: Weitere Werte wie Windspeed und Temperature, falls benötigt
+                windspeed_10m=all_values[0][i].get('windspeed_10m'),
+                temperature=all_values[0][i].get('temperature')
             )
-            self.forecast_data.append(forecast)
+            
+            self.forecast_data.append(forecast)        
+
+        # values = data.get('values', [])[0]
+        # for value in values:
+            # forecast = ForecastData(
+                # date_time=value.get('datetime'),
+                # dc_power=value.get('dcPower'),
+                # ac_power=value.get('power'),
+                # windspeed_10m=value.get('windspeed_10m'),
+                # temperature=value.get('temperature')
+            # )
+            # self.forecast_data.append(forecast)
 
     def load_data_from_file(self, filepath):
         with open(filepath, 'r') as file:
