@@ -2,6 +2,19 @@
 
 Dieses Projekt bietet eine umfassende Lösung zur Simulation und Optimierung eines Energiesystems, das auf erneuerbaren Energiequellen basiert. Mit Fokus auf Photovoltaik (PV)-Anlagen, Batteriespeichern (Akkus), Lastmanagement (Verbraucheranforderungen), Wärmepumpen, Elektrofahrzeugen und der Berücksichtigung von Strompreisdaten ermöglicht dieses System die Vorhersage und Optimierung des Energieflusses und der Kosten über einen bestimmten Zeitraum.
 
+## Todo
+- `Backend:` Startzeitpunkt festlegen können, Optimierung startet ab dann
+- `Backend:` Flask Server
+- `Backend:` Mehr Optimierungsparameter
+- `Frontend:` User Management
+- `Frontend:` Grafische Ausgabe
+- `Frontend:` Speichern von User Einstellungen (PV Anlage usw.)
+- `Frontend:` Festeingestellte E-Autos / Wärmepumpen in DB
+- `Simulation:` Wärmepumpe allgemeineren Ansatz
+- `Simulation:` Strompreisvorhersage > 1D (Timeseries Forecast)
+- 
+
+
 ## Installation
 
 Das Projekt erfordert Python 3.8 oder neuer. Alle notwendigen Abhängigkeiten können über `pip` installiert werden. Klonen Sie das Repository und installieren Sie die erforderlichen Pakete mit:
@@ -42,14 +55,3 @@ Diese Klassen arbeiten zusammen, um eine detaillierte Simulation und Optimierung
 
 Jede Klasse ist so gestaltet, dass sie leicht angepasst und erweitert werden kann, um zusätzliche Funktionen oder Verbesserungen zu integrieren. Beispielsweise können neue Methoden zur genaueren Modellierung des Verhaltens von PV-Anlagen oder Batteriespeichern hinzugefügt werden. Entwickler sind eingeladen, das System nach ihren Bedürfnissen zu modifizieren und zu erweitern.
 
-## Todo
-- Backend: Startzeitpunkt festlegen können, Optimierung startet ab dann
-- Backend: Flask Server
-- Backend: Mehr Optimierungsparameter
-- Frontend: User Management
-- Frontend: Grafische Ausgabe
-- Frontend: Speichern von User Einstellungen (PV Anlage usw.)
-- Frontend: Festeingestellte E-Autos / Wärmepumpen in DB
-- Simulation: Wärmepumpe allgemeineren Ansatz
-- Simulation: Strompreisvorhersage > 1D (Timeseries Forecast)
-- 
