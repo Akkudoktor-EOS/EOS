@@ -41,3 +41,15 @@ Diese Klassen arbeiten zusammen, um eine detaillierte Simulation und Optimierung
 ### Anpassung und Erweiterung
 
 Jede Klasse ist so gestaltet, dass sie leicht angepasst und erweitert werden kann, um zusätzliche Funktionen oder Verbesserungen zu integrieren. Beispielsweise können neue Methoden zur genaueren Modellierung des Verhaltens von PV-Anlagen oder Batteriespeichern hinzugefügt werden. Entwickler sind eingeladen, das System nach ihren Bedürfnissen zu modifizieren und zu erweitern.
+
+## Todo
+- Backend: Startzeitpunkt festlegen können, Optimierung startet ab dann
+- Backend: Flask Server
+- Backend: Mehr Optimierungsparameter
+- Frontend: User Management
+- Frontend: Grafische Ausgabe
+- Frontend: Speichern von User Einstellungen (PV Anlage usw.)
+- Frontend: Festeingestellte E-Autos / Wärmepumpen in DB
+- Simulation: Wärmepumpe allgemeineren Ansatz
+- Simulation: Strompreisvorhersage > 1D (Timeseries Forecast)
+- 
