@@ -3,7 +3,6 @@
 Dieses Projekt bietet eine umfassende Lösung zur Simulation und Optimierung eines Energiesystems, das auf erneuerbaren Energiequellen basiert. Mit Fokus auf Photovoltaik (PV)-Anlagen, Batteriespeichern (Akkus), Lastmanagement (Verbraucheranforderungen), Wärmepumpen, Elektrofahrzeugen und der Berücksichtigung von Strompreisdaten ermöglicht dieses System die Vorhersage und Optimierung des Energieflusses und der Kosten über einen bestimmten Zeitraum.
 
 ## Todo
-- `Backend:` Startzeitpunkt festlegen können, Optimierung startet ab dann
 - `Backend:` Flask Server
 - `Backend:` Mehr Optimierungsparameter
 - `Frontend:` User Management
