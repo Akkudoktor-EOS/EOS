@@ -3,20 +3,23 @@ from pprint import pprint
 
 
 class EnergieManagementSystem:
-    def __init__(self, akku, lastkurve_wh, pv_prognose_wh, strompreis_cent_pro_wh, einspeiseverguetung_cent_pro_wh):
+    def __init__(self, akku=None,  pv_prognose_wh=None, strompreis_cent_pro_wh=None, einspeiseverguetung_cent_pro_wh=None, eauto=None, gesamtlast=None):
         self.akku = akku
-        self.lastkurve_wh = lastkurve_wh
+        #self.lastkurve_wh = lastkurve_wh
+        self.gesamtlast = gesamtlast
         self.pv_prognose_wh = pv_prognose_wh
         self.strompreis_cent_pro_wh = strompreis_cent_pro_wh  # Strompreis in Cent pro Wh
         self.einspeiseverguetung_cent_pro_wh = einspeiseverguetung_cent_pro_wh  # Einspeisevergütung in Cent pro Wh
-   
-    def set_gesamtlast(self,load):
-        self.lastkurve_wh = load
+        self.eauto = eauto
     
     def set_akku_discharge_hours(self, ds):
         self.akku.set_discharge_per_hour(ds)
+    
+    def set_eauto_charge_hours(self, ds):
+        self.eauto.set_charge_per_hour(ds)
         
     def reset(self):
+        self.eauto.reset()
         self.akku.reset()
 
     def simuliere_ab_jetzt(self):
@@ -38,29 +41,46 @@ class EnergieManagementSystem:
         kosten_euro_pro_stunde = []
         einnahmen_euro_pro_stunde = []
         akku_soc_pro_stunde = []
-
-        #print(gesamtlast_pro_stunde)
-        #sys.exit()
+        eauto_soc_pro_stunde = []
+        verluste_wh_pro_stunde = []
+        lastkurve_wh = self.gesamtlast.gesamtlast_berechnen()
         
-        ende = min( len(self.lastkurve_wh),len(self.pv_prognose_wh), len(self.strompreis_cent_pro_wh))
+        
+        ende = min( len(lastkurve_wh),len(self.pv_prognose_wh), len(self.strompreis_cent_pro_wh))
         #print(ende)
         # Berechnet das Ende basierend auf der Länge der Lastkurve
         for stunde in range(start_stunde, ende):
             
             # Anpassung, um sicherzustellen, dass Indizes korrekt sind
-            verbrauch = self.lastkurve_wh[stunde]
+            verbrauch = lastkurve_wh[stunde]
             erzeugung = self.pv_prognose_wh[stunde]
             strompreis = self.strompreis_cent_pro_wh[stunde] if stunde < len(self.strompreis_cent_pro_wh) else self.strompreis_cent_pro_wh[-1]
-            #print(verbrauch," ",erzeugung," ",strompreis)
+            verluste_wh_pro_stunde.append(0.0)
+            #eauto_soc = self.eauto.get_stuendlicher_soc()[stunde]
+            
+
+            # Logik für die E-Auto-Ladung bzw. Entladung
+            if self.eauto:  # Falls ein E-Auto vorhanden ist
+                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(None,stunde)
+                verbrauch = verbrauch + geladene_menge_eauto
+                verluste_wh_pro_stunde[-1] += verluste_eauto
+                #print("verluste_eauto:",verluste_eauto)
+                #eauto_soc_pro_stunde.append(eauto_soc)
+                # Fügen Sie hier zusätzliche Logik für E-Auto ein, z.B. Ladung über Nacht
+
+
             
             stündlicher_netzbezug_wh = 0
             stündliche_kosten_euro = 0
             stündliche_einnahmen_euro = 0
+            eauto_soc = self.eauto.ladezustand_in_prozent()
 
             if erzeugung > verbrauch:
                 überschuss = erzeugung - verbrauch
-                geladene_energie = min(überschuss, self.akku.kapazitaet_wh - self.akku.soc_wh)
-                self.akku.energie_laden(geladene_energie)
+                #geladene_energie = min(überschuss, self.akku.kapazitaet_wh - self.akku.soc_wh)
+                geladene_energie, verluste_laden_akku = self.akku.energie_laden(überschuss, stunde)
+                verluste_wh_pro_stunde[-1] += verluste_laden_akku
+                #print("verluste_laden_akku:",verluste_laden_akku)
                 netzeinspeisung_wh_pro_stunde.append(überschuss - geladene_energie)
                 eigenverbrauch_wh_pro_stunde.append(verbrauch)
                 stündliche_einnahmen_euro = (überschuss - geladene_energie) * self.einspeiseverguetung_cent_pro_wh[stunde] 
@@ -68,23 +88,30 @@ class EnergieManagementSystem:
             else:
                 netzeinspeisung_wh_pro_stunde.append(0.0)
                 benötigte_energie = verbrauch - erzeugung
-                aus_akku = self.akku.energie_abgeben(benötigte_energie, stunde)
+                aus_akku, akku_entladeverluste = self.akku.energie_abgeben(benötigte_energie, stunde)
+                verluste_wh_pro_stunde[-1] += akku_entladeverluste
+                #print("akku_entladeverluste:",akku_entladeverluste)
+                
                 stündlicher_netzbezug_wh = benötigte_energie - aus_akku
                 netzbezug_wh_pro_stunde.append(stündlicher_netzbezug_wh)
-                eigenverbrauch_wh_pro_stunde.append(erzeugung)
+                eigenverbrauch_wh_pro_stunde.append(erzeugung+aus_akku)
                 stündliche_kosten_euro = stündlicher_netzbezug_wh * strompreis 
+            
+            #print(self.akku.ladezustand_in_prozent())
+            eauto_soc_pro_stunde.append(eauto_soc)
             akku_soc_pro_stunde.append(self.akku.ladezustand_in_prozent())
             kosten_euro_pro_stunde.append(stündliche_kosten_euro)
             einnahmen_euro_pro_stunde.append(stündliche_einnahmen_euro)
 
-        # Berechnung der Gesamtbilanzen
+
         gesamtkosten_euro = sum(kosten_euro_pro_stunde) - sum(einnahmen_euro_pro_stunde)
         expected_length = ende - start_stunde
-        array_names = ['Eigenverbrauch_Wh_pro_Stunde', 'Netzeinspeisung_Wh_pro_Stunde', 'Netzbezug_Wh_pro_Stunde', 'Kosten_Euro_pro_Stunde', 'akku_soc_pro_stunde', 'Einnahmen_Euro_pro_Stunde']
-        all_arrays = [eigenverbrauch_wh_pro_stunde, netzeinspeisung_wh_pro_stunde, netzbezug_wh_pro_stunde, kosten_euro_pro_stunde, akku_soc_pro_stunde, einnahmen_euro_pro_stunde]
+        array_names = ['Eigenverbrauch_Wh_pro_Stunde', 'Netzeinspeisung_Wh_pro_Stunde', 'Netzbezug_Wh_pro_Stunde', 'Kosten_Euro_pro_Stunde', 'akku_soc_pro_stunde', 'Einnahmen_Euro_pro_Stunde','E-Auto_SoC_pro_Stunde', "Verluste_Pro_Stunde"]
+        all_arrays = [eigenverbrauch_wh_pro_stunde, netzeinspeisung_wh_pro_stunde, netzbezug_wh_pro_stunde, kosten_euro_pro_stunde, akku_soc_pro_stunde, einnahmen_euro_pro_stunde,eauto_soc_pro_stunde,verluste_wh_pro_stunde]
 
         inconsistent_arrays = [name for name, arr in zip(array_names, all_arrays) if len(arr) != expected_length]
-
+        #print(inconsistent_arrays)
+        
         if inconsistent_arrays:
             raise ValueError(f"Inkonsistente Längen bei den Arrays: {', '.join(inconsistent_arrays)}. Erwartete Länge: {expected_length}, gefunden: {[len(all_arrays[array_names.index(name)]) for name in inconsistent_arrays]}")
 
@@ -96,8 +123,12 @@ class EnergieManagementSystem:
             'akku_soc_pro_stunde': akku_soc_pro_stunde,
             'Einnahmen_Euro_pro_Stunde': einnahmen_euro_pro_stunde,
             'Gesamtbilanz_Euro': gesamtkosten_euro,
+            'E-Auto_SoC_pro_Stunde':eauto_soc_pro_stunde,
             'Gesamteinnahmen_Euro': sum(einnahmen_euro_pro_stunde),
-            'Gesamtkosten_Euro': sum(kosten_euro_pro_stunde)
+            'Gesamtkosten_Euro': sum(kosten_euro_pro_stunde),
+            "Verluste_Pro_Stunde":verluste_wh_pro_stunde,
+            "Gesamt_Verluste":sum(verluste_wh_pro_stunde)
+            
             
         }
         
