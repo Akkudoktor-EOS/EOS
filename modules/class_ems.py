@@ -128,8 +128,6 @@ class EnergieManagementSystem:
             'Gesamtkosten_Euro': sum(kosten_euro_pro_stunde),
             "Verluste_Pro_Stunde":verluste_wh_pro_stunde,
             "Gesamt_Verluste":sum(verluste_wh_pro_stunde)
-            
-            
         }
         
         return out
