@@ -14,6 +14,37 @@ class PVAkku:
         self.entlade_effizienz = entlade_effizienz        
         self.max_ladeleistung_w = max_ladeleistung_w if max_ladeleistung_w else self.kapazitaet_wh
 
+    def to_dict(self):
+        return {
+            "kapazitaet_wh": self.kapazitaet_wh,
+            "start_soc_prozent": self.start_soc_prozent,
+            "soc_wh": self.soc_wh,
+            "hours": self.hours,
+            "discharge_array": self.discharge_array.tolist(),  # Umwandlung von np.array in Liste
+            "charge_array": self.charge_array.tolist(),
+            "lade_effizienz": self.lade_effizienz,
+            "entlade_effizienz": self.entlade_effizienz,
+            "max_ladeleistung_w": self.max_ladeleistung_w
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        # Erstellung eines neuen Objekts mit Basisdaten
+        obj = cls(
+            kapazitaet_wh=data["kapazitaet_wh"],
+            hours=data["hours"],
+            lade_effizienz=data["lade_effizienz"],
+            entlade_effizienz=data["entlade_effizienz"],
+            max_ladeleistung_w=data["max_ladeleistung_w"],
+            start_soc_prozent=data["start_soc_prozent"]
+        )
+        # Setzen von Arrays
+        obj.discharge_array = np.array(data["discharge_array"])
+        obj.charge_array = np.array(data["charge_array"])
+        obj.soc_wh = data["soc_wh"]  # Setzt den aktuellen Ladezustand, der möglicherweise von start_soc_prozent abweicht
+        
+        return obj
+
 
     def reset(self):
         self.soc_wh = (self.start_soc_prozent / 100) * self.kapazitaet_wh
@@ -22,11 +53,11 @@ class PVAkku:
         
     def set_discharge_per_hour(self, discharge_array):
         assert(len(discharge_array) == self.hours)
-        self.discharge_array = discharge_array
+        self.discharge_array = np.array(discharge_array)
 
     def set_charge_per_hour(self, charge_array):
         assert(len(charge_array) == self.hours)
-        self.charge_array = charge_array
+        self.charge_array = np.array(charge_array)
 
     def ladezustand_in_prozent(self):
         return (self.soc_wh / self.kapazitaet_wh) * 100
