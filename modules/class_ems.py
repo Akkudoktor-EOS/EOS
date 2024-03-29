@@ -81,9 +81,10 @@ class EnergieManagementSystem:
                 geladene_energie, verluste_laden_akku = self.akku.energie_laden(überschuss, stunde)
                 verluste_wh_pro_stunde[-1] += verluste_laden_akku
                 #print("verluste_laden_akku:",verluste_laden_akku)
-                netzeinspeisung_wh_pro_stunde.append(überschuss - geladene_energie)
+                netzeinspeisung_wh_pro_stunde.append(überschuss - geladene_energie-verluste_laden_akku)
                 eigenverbrauch_wh_pro_stunde.append(verbrauch)
-                stündliche_einnahmen_euro = (überschuss - geladene_energie) * self.einspeiseverguetung_cent_pro_wh[stunde] 
+                stündliche_einnahmen_euro = (überschuss - geladene_energie-verluste_laden_akku) * self.einspeiseverguetung_cent_pro_wh[stunde] 
+                #print(überschuss," ", geladene_energie," ",verluste_laden_akku)
                 netzbezug_wh_pro_stunde.append(0.0)
             else:
                 netzeinspeisung_wh_pro_stunde.append(0.0)
