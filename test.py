@@ -74,7 +74,10 @@ filepath = os.path.join (r'test_data', r'strompreise_akkudokAPI.json')  # Pfad z
 #price_forecast = HourlyElectricityPriceForecast(source=filepath)
 price_forecast = HourlyElectricityPriceForecast(source="https://api.akkudoktor.net/prices?start="+date_now+"&end="+date+"")
 specific_date_prices = price_forecast.get_price_for_daterange(date_now,date)
-
+# print("13:",specific_date_prices[13]) 
+# print("14:",specific_date_prices[14]) 
+# print("15:",specific_date_prices[15]) 
+# sys.exit()
 # WP
 ##############
 leistung_wp = wp.simulate_24h(temperature_forecast)

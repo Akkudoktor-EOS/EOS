@@ -11,6 +11,8 @@ from modules.class_load_container import *
 from modules.class_eauto import * 
 
 from pprint import pprint
+import matplotlib
+matplotlib.use('Agg')  # Setzt das Backend auf Agg
 import matplotlib.pyplot as plt
 from modules.visualize import *
 from deap import base, creator, tools, algorithms
@@ -83,7 +85,7 @@ def optimize():
     stats.register("min", np.min)
     stats.register("max", np.max)
     
-    algorithms.eaMuPlusLambda(population, toolbox, 50, 100, cxpb=0.5, mutpb=0.5, ngen=500,             stats=stats, halloffame=hof, verbose=True)
+    algorithms.eaMuPlusLambda(population, toolbox, 100, 200, cxpb=0.3, mutpb=0.3, ngen=500,             stats=stats, halloffame=hof, verbose=True)
     #algorithms.eaSimple(population, toolbox, cxpb=0.2, mutpb=0.2, ngen=1000,             stats=stats, halloffame=hof, verbose=True)
     return hof[0]
 
@@ -180,7 +182,7 @@ def durchfuehre_simulation(parameter):
     
     #print(o)
     
-    #visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, prediction_hours)
+    visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, prediction_hours)
     
     #print(eauto)
     return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto}
