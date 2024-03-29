@@ -4,6 +4,17 @@ import numpy as np
 import json, os
 from datetime import datetime
 import hashlib, requests
+import pytz
+
+# Beispiel: Umwandlung eines UTC-Zeitstempels in lokale Zeit
+utc_time = datetime.strptime('2024-03-28T01:00:00.000Z', '%Y-%m-%dT%H:%M:%S.%fZ')
+utc_time = utc_time.replace(tzinfo=pytz.utc)
+
+# Ersetzen Sie 'Europe/Berlin' mit Ihrer eigenen Zeitzone
+local_time = utc_time.astimezone(pytz.timezone('Europe/Berlin'))
+print(local_time)
+
+
 
 class HourlyElectricityPriceForecast:
     def __init__(self, source, cache_dir='cache', abgaben=0.00019):
@@ -48,8 +59,12 @@ class HourlyElectricityPriceForecast:
     
     def get_price_for_daterange(self, start_date_str, end_date_str):
         """Gibt alle Preise zwischen dem Start- und Enddatum zurück."""
-        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-        end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+        start_date_utc = datetime.strptime(start_date_str, "%Y-%m-%d").replace(tzinfo=pytz.utc)
+        end_date_utc = datetime.strptime(end_date_str, "%Y-%m-%d").replace(tzinfo=pytz.utc)
+        start_date = start_date_utc.astimezone(pytz.timezone('Europe/Berlin'))
+        end_date = end_date_utc.astimezone(pytz.timezone('Europe/Berlin'))
+
+        
         price_list = []
 
         while start_date <= end_date:
