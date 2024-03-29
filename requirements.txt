@@ -1,0 +1,6 @@
+flask
+numpy
+requests
+pytz
+matplotlib
+deap
