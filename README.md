@@ -3,7 +3,6 @@
 Dieses Projekt bietet eine umfassende Lösung zur Simulation und Optimierung eines Energiesystems, das auf erneuerbaren Energiequellen basiert. Mit Fokus auf Photovoltaik (PV)-Anlagen, Batteriespeichern (Akkus), Lastmanagement (Verbraucheranforderungen), Wärmepumpen, Elektrofahrzeugen und der Berücksichtigung von Strompreisdaten ermöglicht dieses System die Vorhersage und Optimierung des Energieflusses und der Kosten über einen bestimmten Zeitraum.
 
 ## Todo
-- `Backend:` Flask Server
 - `Backend:` Mehr Optimierungsparameter
 - `Frontend:` User Management
 - `Frontend:` Grafische Ausgabe
@@ -11,7 +10,7 @@ Dieses Projekt bietet eine umfassende Lösung zur Simulation und Optimierung ein
 - `Frontend:` Festeingestellte E-Autos / Wärmepumpen in DB
 - `Simulation:` Wärmepumpe allgemeineren Ansatz
 - `Simulation:` Strompreisvorhersage > 1D (Timeseries Forecast)
-- 
+- `Dynamische Lasten:` z.B. eine Spülmaschine, welche gesteuert werdeb jabb,
 
 
 ## Installation
@@ -41,8 +40,6 @@ In diesem Projekt werden verschiedene Klassen verwendet, um die Komponenten eine
 - `Load`: Modelliert die Lastanforderungen des Haushalts oder Unternehmens, ermöglicht die Vorhersage des zukünftigen Energiebedarfs.
 
 - `HeatPump`: Simuliert eine Wärmepumpe, einschließlich ihres Energieverbrauchs und ihrer Effizienz unter verschiedenen Betriebsbedingungen.
-
-- `EAuto`: Repräsentiert ein Elektrofahrzeug mit spezifischen Ladeanforderungen und -zeiten, optimiert die Ladevorgänge basierend auf Energieverfügbarkeit und -kosten.
 
 - `Strompreis`: Bietet Informationen zu den Strompreisen, ermöglicht die Optimierung des Energieverbrauchs und der -erzeugung basierend auf Tarifinformationen.
 
