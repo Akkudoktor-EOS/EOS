@@ -76,8 +76,8 @@ toolbox.register("select", tools.selTournament, tournsize=3)
 
 
 # Genetischer Algorithmus
-def optimize():
-    population = toolbox.population(n=500)
+def optimize(start_solution=None):
+    population = toolbox.population(n=100)
     hof = tools.HallOfFame(1)
     
     stats = tools.Statistics(lambda ind: ind.fitness.values)
@@ -85,8 +85,13 @@ def optimize():
     stats.register("min", np.min)
     stats.register("max", np.max)
     
-    algorithms.eaMuPlusLambda(population, toolbox, 100, 200, cxpb=0.3, mutpb=0.3, ngen=500,             stats=stats, halloffame=hof, verbose=True)
-    #algorithms.eaSimple(population, toolbox, cxpb=0.2, mutpb=0.2, ngen=1000,             stats=stats, halloffame=hof, verbose=True)
+    print("Start:",start_solution)
+    
+    if start_solution is not None and start_solution != -1:
+            population.insert(0, creator.Individual(start_solution))     
+    
+    #algorithms.eaMuPlusLambda(population, toolbox, 100, 200, cxpb=0.3, mutpb=0.3, ngen=500,             stats=stats, halloffame=hof, verbose=True)
+    algorithms.eaSimple(population, toolbox, cxpb=0.5, mutpb=0.8, ngen=200,             stats=stats, halloffame=hof, verbose=True)
     return hof[0]
 
 
@@ -104,7 +109,7 @@ def durchfuehre_simulation(parameter):
     ############
     date = (datetime.now().date() + timedelta(hours = prediction_hours)).strftime("%Y-%m-%d")
     date_now = datetime.now().strftime("%Y-%m-%d")
-
+    
     akku_size = parameter['pv_akku_cap'] # Wh
     year_energy = parameter['year_energy'] #2000*1000 #Wh
     
@@ -124,6 +129,7 @@ def durchfuehre_simulation(parameter):
     eauto.set_charge_per_hour(laden_moeglich)
     min_soc_eauto = parameter['eauto_min_soc']
 
+    start_params = parameter['start_solution']
 
     gesamtlast = Gesamtlast()
 
@@ -171,9 +177,10 @@ def durchfuehre_simulation(parameter):
     
     toolbox.register("evaluate", evaluate_wrapper)
 
-    
-
-    start_solution = optimize()
+    print()
+    print("START:",start_params)
+    print()
+    start_solution = optimize(start_params)
     best_solution = start_solution
     o = evaluate_inner(best_solution, ems)
     eauto = ems.eauto.to_dict()
@@ -185,7 +192,7 @@ def durchfuehre_simulation(parameter):
     visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, prediction_hours)
     
     #print(eauto)
-    return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto}
+    return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto,"start_solution":best_solution}
 
 
 
@@ -196,7 +203,7 @@ def simulation():
         parameter = request.json
         
         # Erforderliche Parameter prüfen
-        erforderliche_parameter = [ 'pv_akku_cap', 'year_energy',"einspeiseverguetung_euro_pro_wh", 'max_heizleistung', 'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc"]
+        erforderliche_parameter = [ 'pv_akku_cap', 'year_energy',"einspeiseverguetung_euro_pro_wh", 'max_heizleistung', 'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution"]
         for p in erforderliche_parameter:
             if p not in parameter:
                 return jsonify({"error": f"Fehlender Parameter: {p}"}), 400
