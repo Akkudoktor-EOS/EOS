@@ -3,13 +3,13 @@ from pprint import pprint
 
 
 class EnergieManagementSystem:
-    def __init__(self, akku=None,  pv_prognose_wh=None, strompreis_cent_pro_wh=None, einspeiseverguetung_cent_pro_wh=None, eauto=None, gesamtlast=None):
+    def __init__(self, akku=None,  pv_prognose_wh=None, strompreis_euro_pro_wh=None, einspeiseverguetung_euro_pro_wh=None, eauto=None, gesamtlast=None):
         self.akku = akku
         #self.lastkurve_wh = lastkurve_wh
         self.gesamtlast = gesamtlast
         self.pv_prognose_wh = pv_prognose_wh
-        self.strompreis_cent_pro_wh = strompreis_cent_pro_wh  # Strompreis in Cent pro Wh
-        self.einspeiseverguetung_cent_pro_wh = einspeiseverguetung_cent_pro_wh  # Einspeisevergütung in Cent pro Wh
+        self.strompreis_euro_pro_wh = strompreis_euro_pro_wh  # Strompreis in Cent pro Wh
+        self.einspeiseverguetung_euro_pro_wh = einspeiseverguetung_euro_pro_wh  # Einspeisevergütung in Cent pro Wh
         self.eauto = eauto
     
     def set_akku_discharge_hours(self, ds):
@@ -46,7 +46,7 @@ class EnergieManagementSystem:
         lastkurve_wh = self.gesamtlast.gesamtlast_berechnen()
         
         
-        ende = min( len(lastkurve_wh),len(self.pv_prognose_wh), len(self.strompreis_cent_pro_wh))
+        ende = min( len(lastkurve_wh),len(self.pv_prognose_wh), len(self.strompreis_euro_pro_wh))
         #print(ende)
         # Berechnet das Ende basierend auf der Länge der Lastkurve
         for stunde in range(start_stunde, ende):
@@ -54,7 +54,7 @@ class EnergieManagementSystem:
             # Anpassung, um sicherzustellen, dass Indizes korrekt sind
             verbrauch = lastkurve_wh[stunde]
             erzeugung = self.pv_prognose_wh[stunde]
-            strompreis = self.strompreis_cent_pro_wh[stunde] if stunde < len(self.strompreis_cent_pro_wh) else self.strompreis_cent_pro_wh[-1]
+            strompreis = self.strompreis_euro_pro_wh[stunde] if stunde < len(self.strompreis_euro_pro_wh) else self.strompreis_euro_pro_wh[-1]
             verluste_wh_pro_stunde.append(0.0)
             #eauto_soc = self.eauto.get_stuendlicher_soc()[stunde]
             
@@ -83,7 +83,7 @@ class EnergieManagementSystem:
                 #print("verluste_laden_akku:",verluste_laden_akku)
                 netzeinspeisung_wh_pro_stunde.append(überschuss - geladene_energie-verluste_laden_akku)
                 eigenverbrauch_wh_pro_stunde.append(verbrauch)
-                stündliche_einnahmen_euro = (überschuss - geladene_energie-verluste_laden_akku) * self.einspeiseverguetung_cent_pro_wh[stunde] 
+                stündliche_einnahmen_euro = (überschuss - geladene_energie-verluste_laden_akku) * self.einspeiseverguetung_euro_pro_wh[stunde] 
                 #print(überschuss," ", geladene_energie," ",verluste_laden_akku)
                 netzbezug_wh_pro_stunde.append(0.0)
             else:

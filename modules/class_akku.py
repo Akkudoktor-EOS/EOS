@@ -1,6 +1,6 @@
 import numpy as np
 class PVAkku:
-    def __init__(self, kapazitaet_wh=None, hours=None, lade_effizienz=0.9, entlade_effizienz=0.9,max_ladeleistung_w=None,start_soc_prozent=0):
+    def __init__(self, kapazitaet_wh=None, hours=None, lade_effizienz=0.9, entlade_effizienz=0.9,max_ladeleistung_w=None,start_soc_prozent=0,min_soc_prozent=0,max_soc_prozent=100):
         # Kapazität des Akkus in Wh
         self.kapazitaet_wh = kapazitaet_wh
         # Initialer Ladezustand des Akkus in Wh
@@ -13,6 +13,9 @@ class PVAkku:
         self.lade_effizienz = lade_effizienz
         self.entlade_effizienz = entlade_effizienz        
         self.max_ladeleistung_w = max_ladeleistung_w if max_ladeleistung_w else self.kapazitaet_wh
+        self.min_soc_prozent = min_soc_prozent
+        self.max_soc_prozent = max_soc_prozent
+        
 
     def to_dict(self):
         return {
@@ -94,13 +97,16 @@ class PVAkku:
         wh = wh if wh is not None else self.max_ladeleistung_w
 
         # Berechnung der tatsächlichen Lademenge unter Berücksichtigung der Ladeeffizienz
-        effektive_lademenge = min(wh, self.max_ladeleistung_w) * self.lade_effizienz
+        effektive_lademenge = min(wh, self.max_ladeleistung_w) 
 
         # Aktualisierung des Ladezustands ohne die Kapazität zu überschreiten
-        geladene_menge = min(self.kapazitaet_wh - self.soc_wh, effektive_lademenge)
+        geladene_menge_ohne_verlust = min(self.kapazitaet_wh - self.soc_wh, effektive_lademenge)
+        
+        geladene_menge = geladene_menge_ohne_verlust * self.lade_effizienz
+        
         self.soc_wh += geladene_menge
     
-        verluste_wh = geladene_menge* (1.0-self.lade_effizienz)
+        verluste_wh = geladene_menge_ohne_verlust* (1.0-self.lade_effizienz)
         
         return geladene_menge, verluste_wh
         # effektive_lademenge = wh * self.lade_effizienz
