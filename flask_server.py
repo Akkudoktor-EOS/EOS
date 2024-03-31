@@ -1,6 +1,5 @@
 from flask import Flask, jsonify, request
 import numpy as np
-from datetime import datetime
 from  modules.class_load import *
 from  modules.class_ems import *
 from  modules.class_pv_forecast import *
@@ -8,23 +7,37 @@ from modules.class_akku import *
 from modules.class_strompreis import *
 from modules.class_heatpump import * 
 from modules.class_load_container import * 
-from modules.class_eauto import * 
-
+from modules.class_sommerzeit import *
+from modules.visualize import *
+import os
+from flask import Flask, send_from_directory
 from pprint import pprint
 import matplotlib
 matplotlib.use('Agg')  # Setzt das Backend auf Agg
 import matplotlib.pyplot as plt
-from modules.visualize import *
+import string
+from datetime import datetime
 from deap import base, creator, tools, algorithms
 import numpy as np
 import random
 import os
 
-
-start_hour = datetime.now().hour
+# if ist_dst_wechsel(datetime.now()):
+    # prediction_hours = 23  # Anpassung auf 23 Stunden für DST-Wechseltage
+# else:
+    # prediction_hours = 24  # Standardwert für Tage ohne DST-Wechsel
 prediction_hours = 24
+start_hour = datetime.now().hour
 hohe_strafe = 10.0
+# print(prediction_hours)
+# sys.exit()
 
+def isfloat(num):
+    try:
+        float(num)
+        return True
+    except ValueError:
+        return False
 
 
 def evaluate_inner(individual, ems):
@@ -91,7 +104,7 @@ def optimize(start_solution=None):
             population.insert(0, creator.Individual(start_solution))     
     
     #algorithms.eaMuPlusLambda(population, toolbox, 100, 200, cxpb=0.3, mutpb=0.3, ngen=500,             stats=stats, halloffame=hof, verbose=True)
-    algorithms.eaSimple(population, toolbox, cxpb=0.5, mutpb=0.8, ngen=200,             stats=stats, halloffame=hof, verbose=True)
+    algorithms.eaSimple(population, toolbox, cxpb=0.8, mutpb=0.8, ngen=400,             stats=stats, halloffame=hof, verbose=True)
     return hof[0]
 
 
@@ -104,6 +117,8 @@ app = Flask(__name__)
 # Ersetzen Sie diese Logik durch Ihren eigentlichen Optimierungscode
 def durchfuehre_simulation(parameter):
 
+    start_hour = datetime.now().hour
+
     ############
     # Parameter 
     ############
@@ -113,7 +128,7 @@ def durchfuehre_simulation(parameter):
     akku_size = parameter['pv_akku_cap'] # Wh
     year_energy = parameter['year_energy'] #2000*1000 #Wh
     
-    einspeiseverguetung_cent_pro_wh = np.full(prediction_hours, parameter["einspeiseverguetung_euro_pro_wh"])  #=  # € / Wh 7/(1000.0*100.0)
+    einspeiseverguetung_euro_pro_wh = np.full(prediction_hours, parameter["einspeiseverguetung_euro_pro_wh"])  #=  # € / Wh 7/(1000.0*100.0)
 
     max_heizleistung = parameter['max_heizleistung'] #1000  # 5 kW Heizleistung
     wp = Waermepumpe(max_heizleistung,prediction_hours)
@@ -146,7 +161,13 @@ def durchfuehre_simulation(parameter):
     ###############
     #PVforecast = PVForecast(filepath=os.path.join(r'test_data', r'pvprognose.json'))
     PVforecast = PVForecast(prediction_hours = prediction_hours, url=pv_forecast_url)
+    #print("PVPOWER",parameter['pvpowernow'])
+    if isfloat(parameter['pvpowernow']):
+        PVforecast.update_ac_power_measurement(date_time=datetime.now(), ac_power_measurement=float(parameter['pvpowernow']))
+        #PVforecast.print_ac_power_and_measurement()
     pv_forecast = PVforecast.get_pv_forecast_for_date_range(date_now,date) #get_forecast_for_date(date)
+    
+    
 
     temperature_forecast = PVforecast.get_temperature_for_date_range(date_now,date)
 
@@ -165,7 +186,7 @@ def durchfuehre_simulation(parameter):
     leistung_wp = wp.simulate_24h(temperature_forecast)
     gesamtlast.hinzufuegen("Heatpump", leistung_wp)
 
-    ems = EnergieManagementSystem(akku=akku, gesamtlast = gesamtlast, pv_prognose_wh=pv_forecast, strompreis_cent_pro_wh=specific_date_prices, einspeiseverguetung_cent_pro_wh=einspeiseverguetung_cent_pro_wh, eauto=eauto)
+    ems = EnergieManagementSystem(akku=akku, gesamtlast = gesamtlast, pv_prognose_wh=pv_forecast, strompreis_euro_pro_wh=specific_date_prices, einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh, eauto=eauto)
     o = ems.simuliere(start_hour)
     
 
@@ -189,7 +210,9 @@ def durchfuehre_simulation(parameter):
     
     #print(o)
     
-    visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, prediction_hours)
+    visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, prediction_hours,einspeiseverguetung_euro_pro_wh)
+    
+    os.system("scp visualisierungsergebnisse.pdf andreas@192.168.1.135:")
     
     #print(eauto)
     return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto,"start_solution":best_solution}
@@ -203,7 +226,7 @@ def simulation():
         parameter = request.json
         
         # Erforderliche Parameter prüfen
-        erforderliche_parameter = [ 'pv_akku_cap', 'year_energy',"einspeiseverguetung_euro_pro_wh", 'max_heizleistung', 'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution"]
+        erforderliche_parameter = [ 'pv_akku_cap', 'year_energy',"einspeiseverguetung_euro_pro_wh", 'max_heizleistung', 'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution","pvpowernow"]
         for p in erforderliche_parameter:
             if p not in parameter:
                 return jsonify({"error": f"Fehlender Parameter: {p}"}), 400
@@ -216,6 +239,10 @@ def simulation():
         ergebnis = durchfuehre_simulation(parameter)
         
         return jsonify(ergebnis)
+
+@app.route('/visualisierungsergebnisse.pdf')
+def get_pdf():
+    return send_from_directory('', 'visualisierungsergebnisse.pdf')
 
 
 
