@@ -1,14 +1,15 @@
 import numpy as np
+from modules.class_sommerzeit import *
 from modules.class_load_container import Gesamtlast  # Stellen Sie sicher, dass dies dem tatsächlichen Importpfad entspricht
 import matplotlib
 matplotlib.use('Agg')  # Setzt das Backend auf Agg
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from datetime import datetime
 
 
-
-def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  discharge_hours, laden_moeglich, temperature, start_hour, prediction_hours):
+def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  discharge_hours, laden_moeglich, temperature, start_hour, prediction_hours,einspeiseverguetung_euro_pro_wh):
 
     #####################
     # 24h 
@@ -18,7 +19,7 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
         
         # Last und PV-Erzeugung
         plt.figure(figsize=(14, 14))
-        plt.subplot(3, 2, 1)
+        plt.subplot(3, 3, 1)
         stunden = np.arange(0, prediction_hours)
         
         
@@ -56,8 +57,19 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
         plt.legend()
         plt.grid(True)
 
-        # Temperatur Forecast
+        # Vergütung
+        stundenp = np.arange(0, len(strompreise))
         plt.subplot(3, 2, 4)
+        plt.plot(stunden, einspeiseverguetung_euro_pro_wh, label='Vergütung €/Wh', marker='x')
+        plt.title('Vergütung')
+        plt.xlabel('Stunde des Tages')
+        plt.ylabel('€/Wh')
+        plt.legend()
+        plt.grid(True)
+
+
+        # Temperatur Forecast
+        plt.subplot(3, 2, 5)
         plt.title('Temperatur Forecast °C')
         plt.plot(stunden, temperature, label='Temperatur °C', marker='x')
         plt.xlabel('Stunde des Tages')
@@ -74,7 +86,13 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
         #####################    
         
         plt.figure(figsize=(14, 10))
-        stunden = np.arange(start_hour, prediction_hours)
+        
+        if ist_dst_wechsel(datetime.now()):
+                stunden = np.arange(start_hour, prediction_hours-1)
+        else:
+                stunden = np.arange(start_hour, prediction_hours-1)
+        
+        
         # Eigenverbrauch, Netzeinspeisung und Netzbezug
         plt.subplot(3, 2, 1)
         plt.plot(stunden, ergebnisse['Eigenverbrauch_Wh_pro_Stunde'], label='Eigenverbrauch (Wh)', marker='o')
@@ -106,6 +124,7 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
 
         pdf.savefig()  # Speichert den aktuellen Figure-State im PDF
         plt.close()  # Schließt die aktuelle Figure, um Speicher freizugeben
+        
         
         
         
