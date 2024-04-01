@@ -46,8 +46,12 @@ class EnergieManagementSystem:
         lastkurve_wh = self.gesamtlast.gesamtlast_berechnen()
         
         
+        assert len(lastkurve_wh) == len(self.pv_prognose_wh) == len(self.strompreis_euro_pro_wh), f"Arraygrößen stimmen nicht überein: Lastkurve = {len(lastkurve_wh)}, PV-Prognose = {len(self.pv_prognose_wh)}, Strompreis = {len(self.strompreis_euro_pro_wh)}"
+
         ende = min( len(lastkurve_wh),len(self.pv_prognose_wh), len(self.strompreis_euro_pro_wh))
-        #print(ende)
+#        print(len(lastkurve_wh), " ",len(self.pv_prognose_wh)," ", len(self.strompreis_euro_pro_wh))
+        
+        # sys.exit()
         # Berechnet das Ende basierend auf der Länge der Lastkurve
         for stunde in range(start_stunde, ende):
             
