@@ -54,7 +54,24 @@ class HourlyElectricityPriceForecast:
     
     def get_price_for_date(self, date_str):
         """Gibt alle Preise für das spezifizierte Datum zurück."""
+        #date_prices = [entry["marketpriceEurocentPerKWh"]+self.abgaben for entry in self.prices if date_str in entry['end']]
+        """Gibt alle Preise für das spezifizierte Datum zurück, inklusive des Preises von 0:00 des vorherigen Tages."""
+        # Datumskonversion von String zu datetime-Objekt
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+        
+        # Berechnung des Vortages
+        previous_day = date_obj - timedelta(days=1)
+        previous_day_str = previous_day.strftime('%Y-%m-%d')
+        
+        # Extrahieren des Preises von 0:00 des vorherigen Tages
+        last_price_of_previous_day = [entry["marketpriceEurocentPerKWh"]+self.abgaben for entry in self.prices if previous_day_str in entry['end']][-1]
+        
+        # Extrahieren aller Preise für das spezifizierte Datum
         date_prices = [entry["marketpriceEurocentPerKWh"]+self.abgaben for entry in self.prices if date_str in entry['end']]
+        
+        # Hinzufügen des letzten Preises des vorherigen Tages am Anfang der Liste
+        date_prices.insert(0, last_price_of_previous_day)
+
         return np.array(date_prices)/(1000.0*100.0) + self.abgaben
     
     def get_price_for_daterange(self, start_date_str, end_date_str):
@@ -71,7 +88,7 @@ class HourlyElectricityPriceForecast:
             date_str = start_date.strftime("%Y-%m-%d")
             daily_prices = self.get_price_for_date(date_str)
             #print(len(self.get_price_for_date(date_str)))
-            if daily_prices.size > 0:
+            if daily_prices.size ==24:
                 price_list.extend(daily_prices)
             start_date += timedelta(days=1)
         

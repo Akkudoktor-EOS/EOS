@@ -36,7 +36,7 @@ def isfloat(num):
     try:
         float(num)
         return True
-    except ValueError:
+    except:
         return False
 
 
@@ -230,10 +230,6 @@ def simulation():
         for p in erforderliche_parameter:
             if p not in parameter:
                 return jsonify({"error": f"Fehlender Parameter: {p}"}), 400
-
-        # Optional Typen der Parameter prüfen und sicherstellen, dass sie den Erwartungen entsprechen
-        # if not isinstance(parameter['start_hour'], int):
-            # return jsonify({"error": "start_hour muss vom Typ int sein"}), 400
 
         # Simulation durchführen
         ergebnis = durchfuehre_simulation(parameter)
