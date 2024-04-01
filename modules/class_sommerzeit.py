@@ -15,12 +15,11 @@ def ist_dst_wechsel(tag, timezone="Europe/Berlin"):
     # Prüfe, ob die UTC-Offsets unterschiedlich sind (DST-Wechsel)
     dst_wechsel = aktueller_tag_localized.dst() != naechster_tag_localized.dst()
 
-    return dst_wechsel, aktueller_tag_localized.dst(), naechster_tag_localized.dst()
+    return dst_wechsel
 
-
-# Beispielverwendung
-start_datum = datetime.datetime(2024, 3, 31)  # Datum der DST-Umstellung
-if ist_dst_wechsel(start_datum):
-    prediction_hours = 23  # Anpassung auf 23 Stunden für DST-Wechseltage
-else:
-    prediction_hours = 24  # Standardwert für Tage ohne DST-Wechsel
+# # Beispielverwendung
+# start_datum = datetime.datetime(2024, 3, 31)  # Datum der DST-Umstellung
+# if ist_dst_wechsel(start_datum):
+    # prediction_hours = 23  # Anpassung auf 23 Stunden für DST-Wechseltage
+# else:
+    # prediction_hours = 24  # Standardwert für Tage ohne DST-Wechsel

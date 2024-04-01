@@ -90,9 +90,11 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
         if ist_dst_wechsel(datetime.now()):
                 stunden = np.arange(start_hour, prediction_hours-1)
         else:
-                stunden = np.arange(start_hour, prediction_hours-1)
+                stunden = np.arange(start_hour, prediction_hours)
         
-        
+        print(ist_dst_wechsel(datetime.now())," ",datetime.now())
+        print(start_hour," ",prediction_hours," ",stunden)
+        print(ergebnisse['Eigenverbrauch_Wh_pro_Stunde'])
         # Eigenverbrauch, Netzeinspeisung und Netzbezug
         plt.subplot(3, 2, 1)
         plt.plot(stunden, ergebnisse['Eigenverbrauch_Wh_pro_Stunde'], label='Eigenverbrauch (Wh)', marker='o')
