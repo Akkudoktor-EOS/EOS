@@ -9,6 +9,7 @@ from modules.class_heatpump import *
 from modules.class_load_container import * 
 from modules.class_sommerzeit import *
 from modules.visualize import *
+from modules.class_haushaltsgeraet import *
 import os
 from flask import Flask, send_from_directory
 from pprint import pprint
@@ -32,52 +33,93 @@ def isfloat(num):
 
 class optimization_problem:
     def __init__(self, prediction_hours=24, strafe = 10):
-        
-        # Werkzeug-Setup
-        creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-        creator.create("Individual", list, fitness=creator.FitnessMin)
-        self.toolbox = base.Toolbox()
         self.prediction_hours = prediction_hours#
         self.strafe = strafe
+        self.opti_param = None
+
+    def setup_deap_environment(self,opti_param):
+        self.opti_param = opti_param
+        if "FitnessMin" in creator.__dict__:
+                del creator.FitnessMin
+        if "Individual" in creator.__dict__:
+                del creator.Individual
+
+        creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+        creator.create("Individual", list, fitness=creator.FitnessMin)
         
         # PARAMETER
+        self.toolbox = base.Toolbox()
+
+
         self.toolbox.register("attr_bool", random.randint, 0, 1)
-        self.toolbox.register("attr_bool", random.randint, 0, 1)
-        self.toolbox.register("individual", tools.initCycle, creator.Individual, (self.toolbox.attr_bool,self.toolbox.attr_bool), n=self.prediction_hours)
+        self.toolbox.register("attr_int", random.randint, 0, 23)
+        
+        ###################
+        # Haushaltsgeraete
+        if opti_param["haushaltsgeraete"]>0:   
+                def create_individual():
+                        attrs = [self.toolbox.attr_bool() for _ in range(2*self.prediction_hours)] + [self.toolbox.attr_int()]
+                        return creator.Individual(attrs)
+
+        else:
+                def create_individual():
+                        attrs = [self.toolbox.attr_bool() for _ in range(2*self.prediction_hours)] 
+                        return creator.Individual(attrs)
+
+        
+        self.toolbox.register("individual", create_individual)#tools.initCycle, creator.Individual, (self.toolbox.attr_bool,self.toolbox.attr_bool), n=self.prediction_hours+1)
         self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
         self.toolbox.register("mate", tools.cxTwoPoint)
         self.toolbox.register("mutate", tools.mutFlipBit, indpb=0.05)
         self.toolbox.register("select", tools.selTournament, tournsize=3)    
         
-        return
-        
     def evaluate_inner(self,individual, ems,start_hour):
+        ems.reset()
         
+        
+        # Haushaltsgeraete
+        if self.opti_param["haushaltsgeraete"]>0:   
+                spuelstart_int = individual[-1]
+                individual = individual[:-1]
+                ems.set_haushaltsgeraet_start(spuelstart_int,global_start_hour=start_hour)
+                
         discharge_hours_bin = individual[0::2]
         eautocharge_hours_float = individual[1::2]
+
         
-        ems.reset()
         ems.set_akku_discharge_hours(discharge_hours_bin)
         ems.set_eauto_charge_hours(eautocharge_hours_float)
+        
+        
         o = ems.simuliere(start_hour)
 
         return o
 
     # Fitness-Funktion (muss Ihre EnergieManagementSystem-Logik integrieren)
-    def evaluate(self,individual,ems,parameter,start_hour):
-        o = self.evaluate_inner(individual,ems,start_hour)
-        
+    def evaluate(self,individual,ems,parameter,start_hour,worst_case):
+        try:
+                o = self.evaluate_inner(individual,ems,start_hour)
+        except: 
+                return (100000.0,)
+                
         gesamtbilanz = o["Gesamtbilanz_Euro"]
+        if worst_case:
+                gesamtbilanz = gesamtbilanz * -1.0
         
         # Überprüfung, ob der Mindest-SoC erreicht wird
         final_soc = ems.eauto.ladezustand_in_prozent()  # Nimmt den SoC am Ende des Optimierungszeitraums
         
         
         strafe = 0.0
-        strafe = max(0,(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) * self.strafe ) 
-        
-        gesamtbilanz += strafe    
-        gesamtbilanz += o["Gesamt_Verluste"]/1000.0
+        if worst_case:
+                strafe = abs(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) * self.strafe  
+                gesamtbilanz += strafe    
+
+                gesamtbilanz -= o["Gesamt_Verluste"]/1000.0
+        else:
+                strafe = max(0,(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) * self.strafe ) 
+                gesamtbilanz += strafe    
+                gesamtbilanz += o["Gesamt_Verluste"]/1000.0
         return (gesamtbilanz,)
 
 
@@ -104,7 +146,7 @@ class optimization_problem:
         return hof[0]
 
 
-    def optimierung_ems(self,parameter=None, start_hour=None):
+    def optimierung_ems(self,parameter=None, start_hour=None,worst_case=False):
 
         ############
         # Parameter 
@@ -130,10 +172,18 @@ class optimization_problem:
         eauto = PVAkku(kapazitaet_wh=parameter["eauto_cap"], hours=self.prediction_hours, lade_effizienz=parameter["eauto_charge_efficiency"], entlade_effizienz=1.0, max_ladeleistung_w=parameter["eauto_charge_power"] ,start_soc_prozent=parameter["eauto_soc"])
         eauto.set_charge_per_hour(laden_moeglich)
         min_soc_eauto = parameter['eauto_min_soc']
-
         start_params = parameter['start_solution']
-
         gesamtlast = Gesamtlast()
+        
+        ###############
+        # spuelmaschine
+        ##############
+        if parameter["haushaltsgeraet_dauer"] >0:
+                spuelmaschine = Haushaltsgeraet(hours=self.prediction_hours, verbrauch_kwh=parameter["haushaltsgeraet_wh"], dauer_h=parameter["haushaltsgeraet_dauer"])
+                spuelmaschine.set_startzeitpunkt(start_hour)  # Startet jetzt
+        else: 
+                spuelmaschine = None
+
 
         ###############
         # Load Forecast
@@ -173,29 +223,49 @@ class optimization_problem:
         leistung_wp = wp.simulate_24h(temperature_forecast)
         gesamtlast.hinzufuegen("Heatpump", leistung_wp)
 
-        ems = EnergieManagementSystem(akku=akku, gesamtlast = gesamtlast, pv_prognose_wh=pv_forecast, strompreis_euro_pro_wh=specific_date_prices, einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh, eauto=eauto)
+        ems = EnergieManagementSystem(akku=akku, gesamtlast = gesamtlast, pv_prognose_wh=pv_forecast, strompreis_euro_pro_wh=specific_date_prices, einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh, eauto=eauto, haushaltsgeraet=spuelmaschine)
         o = ems.simuliere(start_hour)
     
+        ###############
+        # Optimizer Init
+        ##############
+        opti_param = {}
+        opti_param["haushaltsgeraete"] = 0
+        if spuelmaschine != None:
+                opti_param["haushaltsgeraete"] = 1
+                
+        self.setup_deap_environment(opti_param)
 
         def evaluate_wrapper(individual):
-            return self.evaluate(individual, ems, parameter,start_hour)
+            return self.evaluate(individual, ems, parameter,start_hour,worst_case)
         
         self.toolbox.register("evaluate", evaluate_wrapper)
         start_solution = self.optimize(start_params)
         best_solution = start_solution
         o = self.evaluate_inner(best_solution, ems,start_hour)
         eauto = ems.eauto.to_dict()
+        spuelstart_int = None
+        # Haushaltsgeraete
+        if self.opti_param["haushaltsgeraete"]>0:   
+                spuelstart_int = best_solution[-1]
+                best_solution = best_solution[:-1]
         discharge_hours_bin = best_solution[0::2]
         eautocharge_hours_float = best_solution[1::2]
         
-        #print(o)
+
+     
         
-        visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh)
+        print(o)
+        if worst_case:
+                visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh,filename="visualisierungsergebnisse_worst.pdf")
+                os.system("scp visualisierungsergebnisse_worst.pdf andreas@192.168.1.135:")
+        else:
+                visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh)
         
-        os.system("scp visualisierungsergebnisse.pdf andreas@192.168.1.135:")
+                os.system("scp visualisierungsergebnisse.pdf andreas@192.168.1.135:")
         
         #print(eauto)
-        return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto,"start_solution":best_solution}
+        return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto,"start_solution":best_solution,"spuelstart":spuelstart_int}
 
 
 
