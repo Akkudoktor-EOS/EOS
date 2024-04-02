@@ -18,221 +18,46 @@ import matplotlib.pyplot as plt
 import string
 from datetime import datetime
 from deap import base, creator, tools, algorithms
+from modules.class_optimize import *
 import numpy as np
 import random
 import os
 
-# if ist_dst_wechsel(datetime.now()):
-    # prediction_hours = 23  # Anpassung auf 23 Stunden für DST-Wechseltage
-# else:
-    # prediction_hours = 24  # Standardwert für Tage ohne DST-Wechsel
-prediction_hours = 24
-start_hour = datetime.now().hour
-hohe_strafe = 10.0
-# print(prediction_hours)
-# sys.exit()
-
-def isfloat(num):
-    try:
-        float(num)
-        return True
-    except:
-        return False
-
-
-def evaluate_inner(individual, ems):
-    
-    discharge_hours_bin = individual[0::2]
-    eautocharge_hours_float = individual[1::2]
-    
-    #print(discharge_hours_bin)
-    #print(len(eautocharge_hours_float))
-    ems.reset()
-    ems.set_akku_discharge_hours(discharge_hours_bin)
-    ems.set_eauto_charge_hours(eautocharge_hours_float)
-    o = ems.simuliere(start_hour)
-
-    return o
-
-# Fitness-Funktion (muss Ihre EnergieManagementSystem-Logik integrieren)
-def evaluate(individual,ems,parameter):
-    o = evaluate_inner(individual,ems)
-    
-    gesamtbilanz = o["Gesamtbilanz_Euro"]
-    
-    # Überprüfung, ob der Mindest-SoC erreicht wird
-    final_soc = ems.eauto.ladezustand_in_prozent()  # Nimmt den SoC am Ende des Optimierungszeitraums
-    
-    
-    strafe = 0.0
-    strafe = max(0,(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) * hohe_strafe ) 
-    
-    # print(ems.eauto.charge_array)
-    # print(ems.eauto.ladezustand_in_prozent())    
-    # print(strafe)    
-    gesamtbilanz += strafe    
-    gesamtbilanz += o["Gesamt_Verluste"]/1000.0
-    return (gesamtbilanz,)
-
-# Werkzeug-Setup
-creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-creator.create("Individual", list, fitness=creator.FitnessMin)
-toolbox = base.Toolbox()
-toolbox.register("attr_bool", random.randint, 0, 1)
-toolbox.register("attr_bool", random.randint, 0, 1)
-toolbox.register("individual", tools.initCycle, creator.Individual, (toolbox.attr_bool,toolbox.attr_bool), n=prediction_hours)
-toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-toolbox.register("mate", tools.cxTwoPoint)
-toolbox.register("mutate", tools.mutFlipBit, indpb=0.05)
-toolbox.register("select", tools.selTournament, tournsize=3)
-
-
-
-# Genetischer Algorithmus
-def optimize(start_solution=None):
-    population = toolbox.population(n=100)
-    hof = tools.HallOfFame(1)
-    
-    stats = tools.Statistics(lambda ind: ind.fitness.values)
-    stats.register("avg", np.mean)
-    stats.register("min", np.min)
-    stats.register("max", np.max)
-    
-    print("Start:",start_solution)
-    
-    if start_solution is not None and start_solution != -1:
-            population.insert(0, creator.Individual(start_solution))     
-    
-    #algorithms.eaMuPlusLambda(population, toolbox, 100, 200, cxpb=0.3, mutpb=0.3, ngen=500,             stats=stats, halloffame=hof, verbose=True)
-    algorithms.eaSimple(population, toolbox, cxpb=0.8, mutpb=0.8, ngen=400,             stats=stats, halloffame=hof, verbose=True)
-    return hof[0]
-
-
-
-
-
 app = Flask(__name__)
 
-# Dummy-Funktion für die Durchführung der Simulation/Optimierung
-# Ersetzen Sie diese Logik durch Ihren eigentlichen Optimierungscode
-def durchfuehre_simulation(parameter):
 
-    start_hour = datetime.now().hour
-
-    ############
-    # Parameter 
-    ############
-    date = (datetime.now().date() + timedelta(hours = prediction_hours)).strftime("%Y-%m-%d")
-    date_now = datetime.now().strftime("%Y-%m-%d")
-    
-    akku_size = parameter['pv_akku_cap'] # Wh
-    year_energy = parameter['year_energy'] #2000*1000 #Wh
-    
-    einspeiseverguetung_euro_pro_wh = np.full(prediction_hours, parameter["einspeiseverguetung_euro_pro_wh"])  #=  # € / Wh 7/(1000.0*100.0)
-
-    max_heizleistung = parameter['max_heizleistung'] #1000  # 5 kW Heizleistung
-    wp = Waermepumpe(max_heizleistung,prediction_hours)
-
-    pv_forecast_url = parameter['pv_forecast_url'] #"https://api.akkudoktor.net/forecast?lat=52.52&lon=13.405&power=5000&azimuth=-10&tilt=7&powerInvertor=10000&horizont=20,27,22,20&power=4800&azimuth=-90&tilt=7&powerInvertor=10000&horizont=30,30,30,50&power=1400&azimuth=-40&tilt=60&powerInvertor=2000&horizont=60,30,0,30&power=1600&azimuth=5&tilt=45&powerInvertor=1400&horizont=45,25,30,60&past_days=5&cellCoEff=-0.36&inverterEfficiency=0.8&albedo=0.25&timezone=Europe%2FBerlin&hourly=relativehumidity_2m%2Cwindspeed_10m"
-
-    akku = PVAkku(kapazitaet_wh=akku_size,hours=prediction_hours,start_soc_prozent=parameter["pv_soc"])
-    discharge_array = np.full(prediction_hours,1) #np.array([1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0])   #
-    laden_moeglich = np.full(prediction_hours,1) # np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0])
-    
-    
-    eauto = PVAkku(kapazitaet_wh=parameter["eauto_cap"], hours=prediction_hours, lade_effizienz=parameter["eauto_charge_efficiency"], entlade_effizienz=1.0, max_ladeleistung_w=parameter["eauto_charge_power"] ,start_soc_prozent=parameter["eauto_soc"])
-    eauto.set_charge_per_hour(laden_moeglich)
-    min_soc_eauto = parameter['eauto_min_soc']
-
-    start_params = parameter['start_solution']
-
-    gesamtlast = Gesamtlast()
-
-    ###############
-    # Load Forecast
-    ###############
-    lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
-    #leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
-    leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0,...].flatten()
-    gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
-
-    ###############
-    # PV Forecast
-    ###############
-    #PVforecast = PVForecast(filepath=os.path.join(r'test_data', r'pvprognose.json'))
-    PVforecast = PVForecast(prediction_hours = prediction_hours, url=pv_forecast_url)
-    #print("PVPOWER",parameter['pvpowernow'])
-    if isfloat(parameter['pvpowernow']):
-        PVforecast.update_ac_power_measurement(date_time=datetime.now(), ac_power_measurement=float(parameter['pvpowernow']))
-        #PVforecast.print_ac_power_and_measurement()
-    pv_forecast = PVforecast.get_pv_forecast_for_date_range(date_now,date) #get_forecast_for_date(date)
-    
-    
-
-    temperature_forecast = PVforecast.get_temperature_for_date_range(date_now,date)
+opt_class = optimization_problem(prediction_hours=24, strafe=10)
 
 
-    ###############
-    # Strompreise   
-    ###############
-    filepath = os.path.join (r'test_data', r'strompreise_akkudokAPI.json')  # Pfad zur JSON-Datei anpassen
-    #price_forecast = HourlyElectricityPriceForecast(source=filepath)
-    price_forecast = HourlyElectricityPriceForecast(source="https://api.akkudoktor.net/prices?start="+date_now+"&end="+date+"")
-    specific_date_prices = price_forecast.get_price_for_daterange(date_now,date)
-
-    ###############
-    # WP
-    ##############
-    leistung_wp = wp.simulate_24h(temperature_forecast)
-    gesamtlast.hinzufuegen("Heatpump", leistung_wp)
-
-    ems = EnergieManagementSystem(akku=akku, gesamtlast = gesamtlast, pv_prognose_wh=pv_forecast, strompreis_euro_pro_wh=specific_date_prices, einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh, eauto=eauto)
-    o = ems.simuliere(start_hour)
-    
-
-    
-    
-    def evaluate_wrapper(individual):
-        return evaluate(individual, ems, parameter)
-    
-    
-    toolbox.register("evaluate", evaluate_wrapper)
-
-    print()
-    print("START:",start_params)
-    print()
-    start_solution = optimize(start_params)
-    best_solution = start_solution
-    o = evaluate_inner(best_solution, ems)
-    eauto = ems.eauto.to_dict()
-    discharge_hours_bin = best_solution[0::2]
-    eautocharge_hours_float = best_solution[1::2]
-    
-    #print(o)
-    
-    visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, prediction_hours,einspeiseverguetung_euro_pro_wh)
-    
-    os.system("scp visualisierungsergebnisse.pdf andreas@192.168.1.135:")
-    
-    #print(eauto)
-    return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto,"start_solution":best_solution}
-
-
-
-
-@app.route('/simulation', methods=['POST'])
-def simulation():
+@app.route('/optimize', methods=['POST'])
+def flask_optimize():
     if request.method == 'POST':
         parameter = request.json
         
         # Erforderliche Parameter prüfen
-        erforderliche_parameter = [ 'pv_akku_cap', 'year_energy',"einspeiseverguetung_euro_pro_wh", 'max_heizleistung', 'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution","pvpowernow"]
+        erforderliche_parameter = [ 'pv_akku_cap', 'year_energy',"einspeiseverguetung_euro_pro_wh", 'max_heizleistung', 'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution","pvpowernow","haushaltsgeraet_dauer","haushaltsgeraet_wh"]
         for p in erforderliche_parameter:
             if p not in parameter:
                 return jsonify({"error": f"Fehlender Parameter: {p}"}), 400
 
         # Simulation durchführen
-        ergebnis = durchfuehre_simulation(parameter)
+        ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=datetime.now().hour)
+        
+        return jsonify(ergebnis)
+
+@app.route('/optimize_worst_case', methods=['POST'])
+def flask_optimize_worst_case():
+    if request.method == 'POST':
+        parameter = request.json
+        
+        # Erforderliche Parameter prüfen
+        erforderliche_parameter = [ 'pv_akku_cap', 'year_energy',"einspeiseverguetung_euro_pro_wh", 'max_heizleistung', 'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution","pvpowernow","haushaltsgeraet_dauer","haushaltsgeraet_wh"]
+        for p in erforderliche_parameter:
+            if p not in parameter:
+                return jsonify({"error": f"Fehlender Parameter: {p}"}), 400
+
+        # Simulation durchführen
+        ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=datetime.now().hour, worst_case=True)
         
         return jsonify(ergebnis)
 

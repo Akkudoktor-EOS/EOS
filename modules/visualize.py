@@ -9,12 +9,12 @@ from matplotlib.backends.backend_pdf import PdfPages
 from datetime import datetime
 
 
-def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  discharge_hours, laden_moeglich, temperature, start_hour, prediction_hours,einspeiseverguetung_euro_pro_wh):
+def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  discharge_hours, laden_moeglich, temperature, start_hour, prediction_hours,einspeiseverguetung_euro_pro_wh, filename="visualisierungsergebnisse.pdf"):
 
     #####################
     # 24h 
     #####################
-    with PdfPages('visualisierungsergebnisse.pdf') as pdf:
+    with PdfPages(filename) as pdf:
 
         
         # Last und PV-Erzeugung
@@ -98,6 +98,7 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
         # Eigenverbrauch, Netzeinspeisung und Netzbezug
         plt.subplot(3, 2, 1)
         plt.plot(stunden, ergebnisse['Eigenverbrauch_Wh_pro_Stunde'], label='Eigenverbrauch (Wh)', marker='o')
+        plt.plot(stunden, ergebnisse['Haushaltsgeraet_wh_pro_stunde'], label='Haushaltsgerät (Wh)', marker='o')
         plt.plot(stunden, ergebnisse['Netzeinspeisung_Wh_pro_Stunde'], label='Netzeinspeisung (Wh)', marker='x')
         plt.plot(stunden, ergebnisse['Netzbezug_Wh_pro_Stunde'], label='Netzbezug (Wh)', marker='^')
         plt.plot(stunden, ergebnisse['Verluste_Pro_Stunde'], label='Verluste (Wh)', marker='^')
