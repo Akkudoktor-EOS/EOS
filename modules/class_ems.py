@@ -3,7 +3,7 @@ from pprint import pprint
 
 
 class EnergieManagementSystem:
-    def __init__(self, akku=None,  pv_prognose_wh=None, strompreis_euro_pro_wh=None, einspeiseverguetung_euro_pro_wh=None, eauto=None, gesamtlast=None):
+    def __init__(self, akku=None,  pv_prognose_wh=None, strompreis_euro_pro_wh=None, einspeiseverguetung_euro_pro_wh=None, eauto=None, gesamtlast=None, haushaltsgeraet=None):
         self.akku = akku
         #self.lastkurve_wh = lastkurve_wh
         self.gesamtlast = gesamtlast
@@ -11,12 +11,17 @@ class EnergieManagementSystem:
         self.strompreis_euro_pro_wh = strompreis_euro_pro_wh  # Strompreis in Cent pro Wh
         self.einspeiseverguetung_euro_pro_wh = einspeiseverguetung_euro_pro_wh  # Einspeisevergütung in Cent pro Wh
         self.eauto = eauto
+        self.haushaltsgeraet = haushaltsgeraet
+        
     
     def set_akku_discharge_hours(self, ds):
         self.akku.set_discharge_per_hour(ds)
     
     def set_eauto_charge_hours(self, ds):
         self.eauto.set_charge_per_hour(ds)
+
+    def set_haushaltsgeraet_start(self, ds, global_start_hour=0):
+        self.haushaltsgeraet.set_startzeitpunkt(ds,global_start_hour=global_start_hour)
         
     def reset(self):
         self.eauto.reset()
@@ -43,24 +48,27 @@ class EnergieManagementSystem:
         akku_soc_pro_stunde = []
         eauto_soc_pro_stunde = []
         verluste_wh_pro_stunde = []
+        haushaltsgeraet_wh_pro_stunde = []
         lastkurve_wh = self.gesamtlast.gesamtlast_berechnen()
         
         
         assert len(lastkurve_wh) == len(self.pv_prognose_wh) == len(self.strompreis_euro_pro_wh), f"Arraygrößen stimmen nicht überein: Lastkurve = {len(lastkurve_wh)}, PV-Prognose = {len(self.pv_prognose_wh)}, Strompreis = {len(self.strompreis_euro_pro_wh)}"
 
         ende = min( len(lastkurve_wh),len(self.pv_prognose_wh), len(self.strompreis_euro_pro_wh))
-#        print(len(lastkurve_wh), " ",len(self.pv_prognose_wh)," ", len(self.strompreis_euro_pro_wh))
-        
-        # sys.exit()
+
         # Berechnet das Ende basierend auf der Länge der Lastkurve
         for stunde in range(start_stunde, ende):
             
             # Anpassung, um sicherzustellen, dass Indizes korrekt sind
-            verbrauch = lastkurve_wh[stunde]
+            verbrauch = lastkurve_wh[stunde] 
+            if self.haushaltsgeraet != None:
+                verbrauch = verbrauch + self.haushaltsgeraet.get_last_fuer_stunde(stunde)
+                haushaltsgeraet_wh_pro_stunde.append(self.haushaltsgeraet.get_last_fuer_stunde(stunde))
+            else: 
+                haushaltsgeraet_wh_pro_stunde.append(0)
             erzeugung = self.pv_prognose_wh[stunde]
             strompreis = self.strompreis_euro_pro_wh[stunde] if stunde < len(self.strompreis_euro_pro_wh) else self.strompreis_euro_pro_wh[-1]
             verluste_wh_pro_stunde.append(0.0)
-            #eauto_soc = self.eauto.get_stuendlicher_soc()[stunde]
             
 
             # Logik für die E-Auto-Ladung bzw. Entladung
@@ -68,16 +76,14 @@ class EnergieManagementSystem:
                 geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(None,stunde)
                 verbrauch = verbrauch + geladene_menge_eauto
                 verluste_wh_pro_stunde[-1] += verluste_eauto
-                #print("verluste_eauto:",verluste_eauto)
-                #eauto_soc_pro_stunde.append(eauto_soc)
-                # Fügen Sie hier zusätzliche Logik für E-Auto ein, z.B. Ladung über Nacht
+                eauto_soc = self.eauto.ladezustand_in_prozent()
 
 
             
             stündlicher_netzbezug_wh = 0
             stündliche_kosten_euro = 0
             stündliche_einnahmen_euro = 0
-            eauto_soc = self.eauto.ladezustand_in_prozent()
+            
 
             if erzeugung > verbrauch:
                 überschuss = erzeugung - verbrauch
@@ -102,8 +108,9 @@ class EnergieManagementSystem:
                 eigenverbrauch_wh_pro_stunde.append(erzeugung+aus_akku)
                 stündliche_kosten_euro = stündlicher_netzbezug_wh * strompreis 
             
-            #print(self.akku.ladezustand_in_prozent())
-            eauto_soc_pro_stunde.append(eauto_soc)
+            if self.eauto:
+                eauto_soc_pro_stunde.append(eauto_soc)
+            
             akku_soc_pro_stunde.append(self.akku.ladezustand_in_prozent())
             kosten_euro_pro_stunde.append(stündliche_kosten_euro)
             einnahmen_euro_pro_stunde.append(stündliche_einnahmen_euro)
@@ -132,7 +139,8 @@ class EnergieManagementSystem:
             'Gesamteinnahmen_Euro': sum(einnahmen_euro_pro_stunde),
             'Gesamtkosten_Euro': sum(kosten_euro_pro_stunde),
             "Verluste_Pro_Stunde":verluste_wh_pro_stunde,
-            "Gesamt_Verluste":sum(verluste_wh_pro_stunde)
+            "Gesamt_Verluste":sum(verluste_wh_pro_stunde),
+            "Haushaltsgeraet_wh_pro_stunde":haushaltsgeraet_wh_pro_stunde
         }
         
         return out
