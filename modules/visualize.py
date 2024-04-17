@@ -9,7 +9,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from datetime import datetime
 
 
-def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  discharge_hours, laden_moeglich, temperature, start_hour, prediction_hours,einspeiseverguetung_euro_pro_wh, filename="visualisierungsergebnisse.pdf"):
+def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  discharge_hours, laden_moeglich, temperature, start_hour, prediction_hours,einspeiseverguetung_euro_pro_wh, filename="visualisierungsergebnisse.pdf", extra_data=None):
 
     #####################
     # 24h 
@@ -118,6 +118,7 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
         ax1 = plt.subplot(3, 2, 3)
         for hour, value in enumerate(discharge_hours):
             #if value == 1:
+            print(hour)
             ax1.axvspan(hour, hour+1, color='red',ymax=value, alpha=0.3, label='Entlademöglichkeit' if hour == 0 else "")
         for hour, value in enumerate(laden_moeglich):
             #if value == 1:
@@ -167,6 +168,58 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
         pdf.savefig()  # Speichert die komplette Figure im PDF
         plt.close()  # Schließt die Figure
         
+        
+
+
+        plt.figure(figsize=(14, 10))
+        plt.subplot(1, 2, 1)
+        f1 = np.array(extra_data["verluste"])
+        f2 = np.array(extra_data["bilanz"])
+        n1 = np.array(extra_data["nebenbedingung"])
+        scatter = plt.scatter(f1, f2, c=n1, cmap='viridis')
+
+        # Farblegende hinzufügen
+        plt.colorbar(scatter, label='Nebenbedingung')
+
+        pdf.savefig()  # Speichert die komplette Figure im PDF
+        plt.close()  # Schließt die Figure
+
+        
+        plt.figure(figsize=(14, 10))
+        filtered_verluste = np.array([v for v, n in zip(extra_data["verluste"], extra_data["nebenbedingung"]) if n < 0.01])
+        filtered_bilanz = np.array([b for b, n in zip(extra_data["bilanz"], extra_data["nebenbedingung"]) if n< 0.01])
+        
+        beste_verluste = min(filtered_verluste)
+        schlechteste_verluste = max(filtered_verluste)
+        beste_bilanz = min(filtered_bilanz)
+        schlechteste_bilanz = max(filtered_bilanz)
+
+        data = [filtered_verluste, filtered_bilanz]
+        labels = ['Verluste', 'Bilanz']
+        # Plot-Erstellung
+        fig, axs = plt.subplots(1, 2, figsize=(10, 6), sharey=False)  # Zwei Subplots, getrennte y-Achsen
+
+        # Erster Boxplot für Verluste
+        #axs[0].boxplot(data[0])
+        axs[0].violinplot(data[0],
+                  showmeans=True,
+                  showmedians=True)
+        axs[0].set_title('Verluste')
+        axs[0].set_xticklabels(['Verluste'])
+
+        # Zweiter Boxplot für Bilanz
+        axs[1].violinplot(data[1],
+                  showmeans=True,
+                  showmedians=True)
+        axs[1].set_title('Bilanz')
+        axs[1].set_xticklabels(['Bilanz'])
+
+        # Feinabstimmung
+        plt.tight_layout()
+        
+        
+        pdf.savefig()  # Speichert den aktuellen Figure-State im PDF
+        plt.close() 
         
         # plt.figure(figsize=(14, 10))
         # # Kosten und Einnahmen pro Stunde
