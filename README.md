@@ -10,6 +10,7 @@ Dieses Projekt bietet eine umfassende Lösung zur Simulation und Optimierung ein
 - `Frontend:` Festeingestellte E-Autos / Wärmepumpen in DB
 - `Simulation:` Wärmepumpe allgemeineren Ansatz
 - `Simulation:` Strompreisvorhersage > 1D (Timeseries Forecast)
+- `Simulation:` Lastverteilung 1h Werte -> Minuten (Tabelle) 
 - `Dynamische Lasten:` z.B. eine Spülmaschine, welche gesteuert werdeb jabb,
 
 
