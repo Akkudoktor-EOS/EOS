@@ -110,16 +110,17 @@ class optimization_problem:
         final_soc = ems.eauto.ladezustand_in_prozent()  # Nimmt den SoC am Ende des Optimierungszeitraums
         
         
+        eauto_roi = max(0,(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) ) 
+        
+        individual.extra_data = (o["Gesamtbilanz_Euro"],o["Gesamt_Verluste"], eauto_roi )
+        
+        
+        
         strafe = 0.0
-        if worst_case:
-                strafe = abs(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) * self.strafe  
-                gesamtbilanz += strafe    
-
-                gesamtbilanz -= o["Gesamt_Verluste"]/1000.0
-        else:
-                strafe = max(0,(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) * self.strafe ) 
-                gesamtbilanz += strafe    
-                gesamtbilanz += o["Gesamt_Verluste"]/1000.0
+        strafe = max(0,(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) * self.strafe ) 
+        gesamtbilanz += strafe    
+        gesamtbilanz += o["Gesamt_Verluste"]/1000.0
+                
         return (gesamtbilanz,)
 
 
@@ -128,7 +129,7 @@ class optimization_problem:
 
     # Genetischer Algorithmus
     def optimize(self,start_solution=None):
-        population = self.toolbox.population(n=100)
+        population = self.toolbox.population(n=300)
         hof = tools.HallOfFame(1)
         
         stats = tools.Statistics(lambda ind: ind.fitness.values)
@@ -141,9 +142,19 @@ class optimization_problem:
         if start_solution is not None and start_solution != -1:
                 population.insert(0, creator.Individual(start_solution))     
         
-        #algorithms.eaMuPlusLambda(population, self.toolbox, 100, 200, cxpb=0.3, mutpb=0.3, ngen=500,             stats=stats, halloffame=hof, verbose=True)
-        algorithms.eaSimple(population, self.toolbox, cxpb=0.8, mutpb=0.8, ngen=400,             stats=stats, halloffame=hof, verbose=True)
-        return hof[0]
+        #algorithms.eaMuPlusLambda(population, self.toolbox, 100, 200, cxpb=0.4, mutpb=0.5, ngen=500,             stats=stats, halloffame=hof, verbose=True)
+        algorithms.eaSimple(population, self.toolbox, cxpb=0.4, mutpb=0.4, ngen=400,             stats=stats, halloffame=hof, verbose=True)
+        
+        member = {"bilanz":[],"verluste":[],"nebenbedingung":[]}
+        for ind in population:
+                if hasattr(ind, 'extra_data'):
+                        extra_value1, extra_value2,extra_value3 = ind.extra_data
+                        member["bilanz"].append(extra_value1)
+                        member["verluste"].append(extra_value2)
+                        member["nebenbedingung"].append(extra_value3)
+        
+        
+        return hof[0], member
 
 
     def optimierung_ems(self,parameter=None, start_hour=None,worst_case=False):
@@ -240,7 +251,7 @@ class optimization_problem:
             return self.evaluate(individual, ems, parameter,start_hour,worst_case)
         
         self.toolbox.register("evaluate", evaluate_wrapper)
-        start_solution = self.optimize(start_params)
+        start_solution, extra_data = self.optimize(start_params)
         best_solution = start_solution
         o = self.evaluate_inner(best_solution, ems,start_hour)
         eauto = ems.eauto.to_dict()
@@ -256,13 +267,8 @@ class optimization_problem:
      
         
         print(o)
-        if worst_case:
-                visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh,filename="visualisierungsergebnisse_worst.pdf")
-                os.system("scp visualisierungsergebnisse_worst.pdf andreas@192.168.1.135:")
-        else:
-                visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh)
-        
-                os.system("scp visualisierungsergebnisse.pdf andreas@192.168.1.135:")
+        visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh,extra_data=extra_data)
+        os.system("scp visualisierungsergebnisse.pdf andreas@192.168.1.135:")
         
         #print(eauto)
         return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto,"start_solution":best_solution,"spuelstart":spuelstart_int}
