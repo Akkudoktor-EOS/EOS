@@ -56,6 +56,7 @@ class optimization_problem:
         
         ###################
         # Haushaltsgeraete
+        print("Haushalt:",opti_param["haushaltsgeraete"])
         if opti_param["haushaltsgeraete"]>0:   
                 def create_individual():
                         attrs = [self.toolbox.attr_bool() for _ in range(2*self.prediction_hours)] + [self.toolbox.attr_int()]
