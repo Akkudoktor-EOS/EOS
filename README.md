@@ -12,6 +12,7 @@ Dieses Projekt bietet eine umfassende Lösung zur Simulation und Optimierung ein
 - `Simulation:` Strompreisvorhersage > 1D (Timeseries Forecast)
 - `Simulation:` Lastverteilung 1h Werte -> Minuten (Tabelle) 
 - `Dynamische Lasten:` z.B. eine Spülmaschine, welche gesteuert werdeb jabb,
+- `Simulation:` AC Chargen möglich
 
 
 ## Installation
