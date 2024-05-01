@@ -3,8 +3,8 @@ from pprint import pprint
 
 
 class EnergieManagementSystem:
-    def __init__(self, akku=None,  pv_prognose_wh=None, strompreis_euro_pro_wh=None, einspeiseverguetung_euro_pro_wh=None, eauto=None, gesamtlast=None, haushaltsgeraet=None):
-        self.akku = akku
+    def __init__(self,  pv_prognose_wh=None, strompreis_euro_pro_wh=None, einspeiseverguetung_euro_pro_wh=None, eauto=None, gesamtlast=None, haushaltsgeraet=None, wechselrichter=None):
+        self.akku = wechselrichter.akku
         #self.lastkurve_wh = lastkurve_wh
         self.gesamtlast = gesamtlast
         self.pv_prognose_wh = pv_prognose_wh
@@ -12,6 +12,8 @@ class EnergieManagementSystem:
         self.einspeiseverguetung_euro_pro_wh = einspeiseverguetung_euro_pro_wh  # Einspeisevergütung in Cent pro Wh
         self.eauto = eauto
         self.haushaltsgeraet = haushaltsgeraet
+        self.wechselrichter = wechselrichter
+        
         
     
     def set_akku_discharge_hours(self, ds):
@@ -83,30 +85,45 @@ class EnergieManagementSystem:
             stündlicher_netzbezug_wh = 0
             stündliche_kosten_euro = 0
             stündliche_einnahmen_euro = 0
-            
 
-            if erzeugung > verbrauch:
-                überschuss = erzeugung - verbrauch
-                #geladene_energie = min(überschuss, self.akku.kapazitaet_wh - self.akku.soc_wh)
-                geladene_energie, verluste_laden_akku = self.akku.energie_laden(überschuss, stunde)
-                verluste_wh_pro_stunde[-1] += verluste_laden_akku
-                #print("verluste_laden_akku:",verluste_laden_akku)
-                netzeinspeisung_wh_pro_stunde.append(überschuss - geladene_energie-verluste_laden_akku)
-                eigenverbrauch_wh_pro_stunde.append(verbrauch)
-                stündliche_einnahmen_euro = (überschuss - geladene_energie-verluste_laden_akku) * self.einspeiseverguetung_euro_pro_wh[stunde] 
-                #print(überschuss," ", geladene_energie," ",verluste_laden_akku)
-                netzbezug_wh_pro_stunde.append(0.0)
-            else:
-                netzeinspeisung_wh_pro_stunde.append(0.0)
-                benötigte_energie = verbrauch - erzeugung
-                aus_akku, akku_entladeverluste = self.akku.energie_abgeben(benötigte_energie, stunde)
-                verluste_wh_pro_stunde[-1] += akku_entladeverluste
-                #print("akku_entladeverluste:",akku_entladeverluste)
+            #Wieviel kann der WR 
+            netzeinspeisung, netzbezug,  verluste, eigenverbrauch = self.wechselrichter.energie_verarbeiten(erzeugung, verbrauch, stunde)
+            
+            # Speichern
+            netzeinspeisung_wh_pro_stunde.append(netzeinspeisung)
+            stündliche_einnahmen_euro = netzeinspeisung* self.einspeiseverguetung_euro_pro_wh[stunde] 
+            
+            stündliche_kosten_euro = netzbezug * strompreis 
+            netzbezug_wh_pro_stunde.append(netzbezug)
+            verluste_wh_pro_stunde[-1] += verluste
+            eigenverbrauch_wh_pro_stunde.append(eigenverbrauch)
+            
+            
+            
+            # Mehr erzeugt als verbraucht
+            # if erzeugung > verbrauch:
+                # überschuss = erzeugung - verbrauch
+                # #geladene_energie = min(überschuss, self.akku.kapazitaet_wh - self.akku.soc_wh)
+                # geladene_energie, verluste_laden_akku = self.akku.energie_laden(überschuss, stunde)
+                # verluste_wh_pro_stunde[-1] += verluste_laden_akku
+                # #print("verluste_laden_akku:",verluste_laden_akku)
+                # netzeinspeisung_wh_pro_stunde.append(überschuss - geladene_energie-verluste_laden_akku)
+                # eigenverbrauch_wh_pro_stunde.append(verbrauch)
+                # stündliche_einnahmen_euro = (überschuss - geladene_energie-verluste_laden_akku) * self.einspeiseverguetung_euro_pro_wh[stunde] 
+                # #print(überschuss," ", geladene_energie," ",verluste_laden_akku)
+                # netzbezug_wh_pro_stunde.append(0.0)
+            # # Noch Netzbezug nötig
+            # else:
+                # netzeinspeisung_wh_pro_stunde.append(0.0)
+                # benötigte_energie = verbrauch - erzeugung
+                # aus_akku, akku_entladeverluste = self.akku.energie_abgeben(benötigte_energie, stunde)
+                # verluste_wh_pro_stunde[-1] += akku_entladeverluste
+                # #print("akku_entladeverluste:",akku_entladeverluste)
                 
-                stündlicher_netzbezug_wh = benötigte_energie - aus_akku
-                netzbezug_wh_pro_stunde.append(stündlicher_netzbezug_wh)
-                eigenverbrauch_wh_pro_stunde.append(erzeugung+aus_akku)
-                stündliche_kosten_euro = stündlicher_netzbezug_wh * strompreis 
+                # stündlicher_netzbezug_wh = benötigte_energie - aus_akku
+                # netzbezug_wh_pro_stunde.append(stündlicher_netzbezug_wh)
+                # eigenverbrauch_wh_pro_stunde.append(erzeugung+aus_akku)
+                # stündliche_kosten_euro = stündlicher_netzbezug_wh * strompreis 
             
             if self.eauto:
                 eauto_soc_pro_stunde.append(eauto_soc)
