@@ -109,15 +109,15 @@ class PVAkku:
         verluste_wh = geladene_menge_ohne_verlust* (1.0-self.lade_effizienz)
         
         # Zusätzliche Verluste, wenn die Energiezufuhr die Kapazitätsgrenze überschreitet
-        zusatz_verluste_wh = 0
-        if effektive_lademenge > geladene_menge_ohne_verlust:
-            zusatz_verluste_wh = (effektive_lademenge - geladene_menge_ohne_verlust) * self.lade_effizienz
+        # zusatz_verluste_wh = 0
+        # if effektive_lademenge > geladene_menge_ohne_verlust:
+            # zusatz_verluste_wh = (effektive_lademenge - geladene_menge_ohne_verlust) * self.lade_effizienz
         
-        # Gesamtverluste berechnen
-        gesamt_verluste_wh = verluste_wh + zusatz_verluste_wh
+        # # Gesamtverluste berechnen
+        # gesamt_verluste_wh = verluste_wh + zusatz_verluste_wh
         
         
-        return geladene_menge, gesamt_verluste_wh
+        return geladene_menge, verluste_wh
         # effektive_lademenge = wh * self.lade_effizienz
         # self.soc_wh = min(self.soc_wh + effektive_lademenge, self.kapazitaet_wh)
 
