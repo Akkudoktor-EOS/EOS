@@ -130,7 +130,7 @@ class optimization_problem:
 
     # Genetischer Algorithmus
     def optimize(self,start_solution=None):
-        population = self.toolbox.population(n=300)
+        population = self.toolbox.population(n=200)
         hof = tools.HallOfFame(1)
         
         stats = tools.Statistics(lambda ind: ind.fitness.values)
@@ -144,7 +144,7 @@ class optimization_problem:
                 population.insert(0, creator.Individual(start_solution))     
         
         #algorithms.eaMuPlusLambda(population, self.toolbox, 100, 200, cxpb=0.4, mutpb=0.5, ngen=500,             stats=stats, halloffame=hof, verbose=True)
-        algorithms.eaSimple(population, self.toolbox, cxpb=0.4, mutpb=0.4, ngen=400,             stats=stats, halloffame=hof, verbose=True)
+        algorithms.eaSimple(population, self.toolbox, cxpb=0.4, mutpb=0.4, ngen=100,             stats=stats, halloffame=hof, verbose=True)
         
         member = {"bilanz":[],"verluste":[],"nebenbedingung":[]}
         for ind in population:
@@ -269,7 +269,7 @@ class optimization_problem:
         
         print(o)
         visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh,extra_data=extra_data)
-        os.system("scp visualisierungsergebnisse.pdf andreas@192.168.1.135:")
+        os.system("cp visualisierungsergebnisse.pdf ~/")
         
         #print(eauto)
         return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto,"start_solution":best_solution,"spuelstart":spuelstart_int}
