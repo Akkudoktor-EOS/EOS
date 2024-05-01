@@ -1,6 +1,6 @@
 import numpy as np
 class PVAkku:
-    def __init__(self, kapazitaet_wh=None, hours=None, lade_effizienz=0.9, entlade_effizienz=0.9,max_ladeleistung_w=None,start_soc_prozent=0,min_soc_prozent=0,max_soc_prozent=100):
+    def __init__(self, kapazitaet_wh=None, hours=None, lade_effizienz=0.8, entlade_effizienz=1.0,max_ladeleistung_w=None,start_soc_prozent=0,min_soc_prozent=0,max_soc_prozent=100):
         # Kapazität des Akkus in Wh
         self.kapazitaet_wh = kapazitaet_wh
         # Initialer Ladezustand des Akkus in Wh
