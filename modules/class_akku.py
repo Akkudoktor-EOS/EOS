@@ -72,6 +72,10 @@ class PVAkku:
         # Berechnung der maximal abgebenden Energiemenge unter Berücksichtigung der Entladeeffizienz
         max_abgebbar_wh = self.soc_wh * self.entlade_effizienz
         
+        # Berücksichtigen der maximalen Entladeleistung des Akkus
+        max_abgebbar_wh = min(max_abgebbar_wh, self.max_ladeleistung_w)
+        
+        
         # Tatsächlich abgegebene Energie darf nicht mehr sein als angefragt und nicht mehr als maximal abgebbar
         tatsaechlich_abgegeben_wh = min(wh, max_abgebbar_wh)
         
