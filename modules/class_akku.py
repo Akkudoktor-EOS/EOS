@@ -105,12 +105,15 @@ class PVAkku:
 
         # Aktualisierung des Ladezustands ohne die Kapazität zu überschreiten
         geladene_menge_ohne_verlust = min(self.kapazitaet_wh - self.soc_wh, effektive_lademenge)
-        
+
         geladene_menge = geladene_menge_ohne_verlust * self.lade_effizienz
+
         
         self.soc_wh += geladene_menge
     
         verluste_wh = geladene_menge_ohne_verlust* (1.0-self.lade_effizienz)
+        
+
         
         # Zusätzliche Verluste, wenn die Energiezufuhr die Kapazitätsgrenze überschreitet
         # zusatz_verluste_wh = 0
