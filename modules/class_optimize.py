@@ -38,7 +38,7 @@ class optimization_problem:
         self.strafe = strafe
         self.opti_param = None
 
-    def setup_deap_environment(self,opti_param):
+    def setup_deap_environment(self,opti_param, start_hour):
         self.opti_param = opti_param
         if "FitnessMin" in creator.__dict__:
                 del creator.FitnessMin
@@ -50,14 +50,12 @@ class optimization_problem:
         
         # PARAMETER
         self.toolbox = base.Toolbox()
-
-
         self.toolbox.register("attr_bool", random.randint, 0, 1)
-        self.toolbox.register("attr_int", random.randint, 0, 23)
+        self.toolbox.register("attr_int", random.randint, start_hour, 23)
         
         ###################
         # Haushaltsgeraete
-        print("Haushalt:",opti_param["haushaltsgeraete"])
+        #print("Haushalt:",opti_param["haushaltsgeraete"])
         if opti_param["haushaltsgeraete"]>0:   
                 def create_individual():
                         attrs = [self.toolbox.attr_bool() for _ in range(2*self.prediction_hours)] + [self.toolbox.attr_int()]
@@ -78,6 +76,7 @@ class optimization_problem:
     def evaluate_inner(self,individual, ems,start_hour):
         ems.reset()
         
+        #print("Spuel:",self.opti_param)
         
         # Haushaltsgeraete
         if self.opti_param["haushaltsgeraete"]>0:   
@@ -193,6 +192,7 @@ class optimization_problem:
         ###############
         # spuelmaschine
         ##############
+        print(parameter)
         if parameter["haushaltsgeraet_dauer"] >0:
                 spuelmaschine = Haushaltsgeraet(hours=self.prediction_hours, verbrauch_kwh=parameter["haushaltsgeraet_wh"], dauer_h=parameter["haushaltsgeraet_dauer"])
                 spuelmaschine.set_startzeitpunkt(start_hour)  # Startet jetzt
@@ -251,14 +251,14 @@ class optimization_problem:
         if spuelmaschine != None:
                 opti_param["haushaltsgeraete"] = 1
                 
-        self.setup_deap_environment(opti_param)
+        self.setup_deap_environment(opti_param, start_hour)
 
         def evaluate_wrapper(individual):
             return self.evaluate(individual, ems, parameter,start_hour,worst_case)
         
         self.toolbox.register("evaluate", evaluate_wrapper)
         start_solution, extra_data = self.optimize(start_params)
-        best_solution = start_params
+        best_solution = start_solution
         o = self.evaluate_inner(best_solution, ems,start_hour)
         eauto = ems.eauto.to_dict()
         spuelstart_int = None
