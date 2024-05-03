@@ -4,3 +4,6 @@ requests
 pytz
 matplotlib
 deap
+scipy 
+sklearn
+pandas
