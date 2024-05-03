@@ -1,0 +1,34 @@
+Energie Optimierungs System
+
+Copyright (c) 2024 Dr. Andreas Schmitz, c/o Grosch Postflex #1662, Emsdettener Str. 10, 48268 Greven
+
+This product includes software developed under the Apache License, Version 2.0.
+
+The source code of this product is publicly available and is distributed under the Apache License, Version 2.0, which allows users to use, modify, and redistribute it under the terms of the License.
+
+COPYRIGHT NOTICES AND LICENSING TERMS:
+Please see the LICENSE and README files for information on copyright and licensing.
+
+THIRD-PARTY COMPONENTS:
+This product may include software components that are subject to other open source licenses. Details on these components and their licenses can be found in the respective subdirectories.
+
+PATENT NOTICE:
+This product may utilize technologies covered under international patents and/or pending patent applications.
+
+ADDITIONAL ATTRIBUTIONS:
+The following is a list of licensors and other acknowledgements for third-party software that may be contained within this system:
+- Flask, licensed under the BSD License, see https://flask.palletsprojects.com/
+- NumPy, licensed under the BSD License, see https://numpy.org/
+- Requests, licensed under the Apache License 2.0, see https://requests.readthedocs.io/
+- pytz, licensed under the MIT License, see https://pythonhosted.org/pytz/
+- matplotlib, licensed under the matplotlib License (a variant of the Python Software Foundation License), see https://matplotlib.org/
+- DEAP, licensed under the GNU Lesser General Public License v3.0, see https://deap.readthedocs.io/
+- SciPy, licensed under the BSD License, see https://scipy.org/
+- scikit-learn (sklearn), licensed under the BSD License, see https://scikit-learn.org/
+- pandas, licensed under the BSD License, see https://pandas.pydata.org/
+
+
+DISCLAIMER:
+This product is provided "as is", without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose and noninfringement. In no event shall the authors or copyright holders be liable for any claim, damages or other liability, whether in an action of contract, tort or otherwise, arising from, out of or in connection with the software or the use or other dealings in the software.
+
+For further information, please contact info@akkudoktor.net
