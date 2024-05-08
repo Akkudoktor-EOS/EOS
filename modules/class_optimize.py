@@ -70,7 +70,7 @@ class optimization_problem:
         self.toolbox.register("individual", create_individual)#tools.initCycle, creator.Individual, (self.toolbox.attr_bool,self.toolbox.attr_bool), n=self.prediction_hours+1)
         self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
         self.toolbox.register("mate", tools.cxTwoPoint)
-        self.toolbox.register("mutate", tools.mutFlipBit, indpb=0.05)
+        self.toolbox.register("mutate", tools.mutFlipBit, indpb=0.1)
         self.toolbox.register("select", tools.selTournament, tournsize=3)    
         
     def evaluate_inner(self,individual, ems,start_hour):
@@ -131,7 +131,7 @@ class optimization_problem:
 
     # Genetischer Algorithmus
     def optimize(self,start_solution=None):
-        population = self.toolbox.population(n=1000)
+        population = self.toolbox.population(n=400)
         hof = tools.HallOfFame(1)
         
         stats = tools.Statistics(lambda ind: ind.fitness.values)
@@ -145,7 +145,7 @@ class optimization_problem:
                 population.insert(0, creator.Individual(start_solution))     
         
         #algorithms.eaMuPlusLambda(population, self.toolbox, 100, 200, cxpb=0.2, mutpb=0.2, ngen=500,             stats=stats, halloffame=hof, verbose=True)
-        algorithms.eaSimple(population, self.toolbox, cxpb=0.2, mutpb=0.2, ngen=200,             stats=stats, halloffame=hof, verbose=True)
+        algorithms.eaSimple(population, self.toolbox, cxpb=0.1, mutpb=0.1, ngen=400,             stats=stats, halloffame=hof, verbose=True)
         
         member = {"bilanz":[],"verluste":[],"nebenbedingung":[]}
         for ind in population:
@@ -159,14 +159,19 @@ class optimization_problem:
         return hof[0], member
 
 
-    def optimierung_ems(self,parameter=None, start_hour=None,worst_case=False):
+    def optimierung_ems(self,parameter=None, start_hour=None,worst_case=False, startdate=None):
 
         
         ############
         # Parameter 
         ############
-        date = (datetime.now().date() + timedelta(hours = self.prediction_hours)).strftime("%Y-%m-%d")
-        date_now = datetime.now().strftime("%Y-%m-%d")
+        if startdate == None:
+                date = (datetime.now().date() + timedelta(hours = self.prediction_hours)).strftime("%Y-%m-%d")
+                date_now = datetime.now().strftime("%Y-%m-%d")
+        else:
+                date = (startdate + timedelta(hours = self.prediction_hours)).strftime("%Y-%m-%d")
+                date_now = startdate.strftime("%Y-%m-%d")
+        #print("Start_date:",date_now)
         
         akku_size = parameter['pv_akku_cap'] # Wh
         year_energy = parameter['year_energy'] #2000*1000 #Wh
@@ -187,7 +192,7 @@ class optimization_problem:
         eauto.set_charge_per_hour(laden_moeglich)
         min_soc_eauto = parameter['eauto_min_soc']
         start_params = parameter['start_solution']
-        gesamtlast = Gesamtlast()
+        gesamtlast = Gesamtlast(prediction_hours=self.prediction_hours)
         
         ###############
         # spuelmaschine
@@ -205,7 +210,12 @@ class optimization_problem:
         ###############
         lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
         #leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
-        leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0,...].flatten()
+        
+        leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0] # Nur Erwartungswert!
+        
+        
+
+        
         gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
 
         ###############
@@ -229,8 +239,11 @@ class optimization_problem:
         ###############
         filepath = os.path.join (r'test_data', r'strompreise_akkudokAPI.json')  # Pfad zur JSON-Datei anpassen
         #price_forecast = HourlyElectricityPriceForecast(source=filepath)
-        price_forecast = HourlyElectricityPriceForecast(source="https://api.akkudoktor.net/prices?start="+date_now+"&end="+date+"")
+        price_forecast = HourlyElectricityPriceForecast(source="https://api.akkudoktor.net/prices?start="+date_now+"&end="+date+"", prediction_hours=self.prediction_hours)
         specific_date_prices = price_forecast.get_price_for_daterange(date_now,date)
+        #print(price_forecast)
+        print(specific_date_prices)
+        #print("https://api.akkudoktor.net/prices?start="+date_now+"&end="+date)
 
         ###############
         # WP

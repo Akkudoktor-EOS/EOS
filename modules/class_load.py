@@ -67,12 +67,19 @@ class LoadForecast:
 
         # Beachten, dass bei Schaltjahren der Tag des Jahres angepasst werden muss
         stats_for_range = self.data_year_energy[start_day_of_year:end_day_of_year]  # -1 da die Indizierung bei 0 beginnt
+        # print(start_day_of_year,"-",end_day_of_year)
+        # print(stats_for_range.shape)
+        stats_for_range =stats_for_range.swapaxes(1, 0)
+
+        stats_for_range = stats_for_range.reshape(stats_for_range.shape[0],-1)
+        # print(stats_for_range.shape)
+        # print(stats_for_range)        
         # print()
         # print(stats_for_range)
         # print(start_day_of_year, " ",end_day_of_year)
         # Hier kannst du entscheiden, wie du die Daten über den Zeitraum aggregieren möchtest
         # Zum Beispiel könntest du Mittelwerte, Summen oder andere Statistiken über diesen Zeitraum berechnen
-        return stats_for_range[0]
+        return stats_for_range
 
 
 
