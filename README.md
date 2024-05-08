@@ -13,6 +13,10 @@ Dieses Projekt bietet eine umfassende Lösung zur Simulation und Optimierung ein
 - `Simulation:` Lastverteilung 1h Werte -> Minuten (Tabelle) 
 - `Dynamische Lasten:` z.B. eine Spülmaschine, welche gesteuert werdeb jabb,
 - `Simulation:` AC Chargen möglich
+- `Optimierung:` E-Auto Akku voll = in der 0/1 Liste keine Möglichkeit mehr auf 1 (aktuell ist der Optimierung das egalm ändert ja nichts) Optimierungsparameter reduzieren
+- `Backend:` Visual Cleaner (z.B. E-Auto Akku = 100%, dann sollte die Lademöglichkeit auf 0 stehen. Zumindest bei der Ausgabe sollte das "sauber" sein)
+- `Backend:` Cache regelmäßig leeren können (API)
+
 
 
 ## Installation
