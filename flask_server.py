@@ -27,7 +27,7 @@ import os
 app = Flask(__name__)
 
 
-opt_class = optimization_problem(prediction_hours=24, strafe=10)
+opt_class = optimization_problem(prediction_hours=48, strafe=10)
 soc_predictor = BatterySocPredictor.load_model('battery_model.pkl')
 
 
@@ -69,7 +69,7 @@ def flask_optimize():
                 return jsonify({"error": f"Fehlender Parameter: {p}"}), 400
 
         # Simulation durchführen
-        ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=datetime.now().hour)
+        ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=datetime.now().hour) # , startdate = datetime.now().date() - timedelta(days = 1)
         
         return jsonify(ergebnis)
 
