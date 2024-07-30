@@ -10,7 +10,7 @@ class Wechselrichter:
         eigenverbrauch = 0.0
         #eigenverbrauch = min(erzeugung, verbrauch)  # Direkt verbrauchte Energie
 
-        if erzeugung > verbrauch:
+        if erzeugung >= verbrauch:
             if verbrauch > self.max_leistung_wh:
 
                 verluste += erzeugung - self.max_leistung_wh
@@ -29,7 +29,7 @@ class Wechselrichter:
                 restleistung_nach_verbrauch = erzeugung-verbrauch #min(self.max_leistung_wh - verbrauch, erzeugung-verbrauch)
                 # Akku
                 geladene_energie, verluste_laden_akku = self.akku.energie_laden(restleistung_nach_verbrauch, hour)
-                rest_überschuss = restleistung_nach_verbrauch - geladene_energie
+                rest_überschuss = restleistung_nach_verbrauch - (geladene_energie+verluste_laden_akku)
                 # if hour == 12:
                     # print("Erzeugung:",erzeugung)
                     # print("Last:",verbrauch)
@@ -38,12 +38,14 @@ class Wechselrichter:
                     # print("RestÜberschuss"," - ",rest_überschuss)
                     # print("RestLesitung WR:",self.max_leistung_wh - verbrauch)
                 # Einspeisung, restliche WR Kapazität
+               
                 if rest_überschuss > self.max_leistung_wh - verbrauch:
                     netzeinspeisung = self.max_leistung_wh - verbrauch
                     verluste += rest_überschuss - netzeinspeisung
                 else:
                     netzeinspeisung = rest_überschuss
-                
+                #if hour ==10:
+                #    print(rest_überschuss," ",restleistung_nach_verbrauch, " Gela:",geladene_energie," Ver:",verluste_laden_akku)
                 verluste += verluste_laden_akku
 
                 
