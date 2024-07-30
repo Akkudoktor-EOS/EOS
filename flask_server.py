@@ -8,6 +8,7 @@ from modules.class_strompreis import *
 from modules.class_heatpump import * 
 from modules.class_load_container import * 
 from modules.class_sommerzeit import *
+from modules.class_soc_calc import *
 from modules.visualize import *
 from modules.class_battery_soc_predictor import *
 import os
@@ -23,38 +24,56 @@ from modules.class_optimize import *
 import numpy as np
 import random
 import os
+from config import *
 
 app = Flask(__name__)
 
-
 opt_class = optimization_problem(prediction_hours=48, strafe=10)
-soc_predictor = BatterySocPredictor.load_model('battery_model.pkl')
+
+
 
 
 @app.route('/soc', methods=['GET'])
 def flask_soc():
-    if request.method == 'GET':
-        # URL-Parameter lesen
-        voltage = request.args.get('voltage')
-        current = request.args.get('current')
-        
-        # Erforderliche Parameter prüfen
-        if voltage is None or current is None:
-            missing_params = []
-            if voltage is None:
-                missing_params.append('voltage')
-            if current is None:
-                missing_params.append('current')
-            return jsonify({"error": f"Fehlende Parameter: {', '.join(missing_params)}"}), 400
 
-        # Werte in ein numpy Array umwandeln
-        x = np.array( [[float(voltage), float(current)]] )
+    # MariaDB Verbindungsdetails
+    config = db_config
+
+    # Parameter festlegen
+    voltage_high_threshold = 55.4  # 100% SoC
+    voltage_low_threshold = 46.5  # 0% SoC
+    current_low_threshold = 2  # Niedriger Strom für beide Zustände
+    gap = 30  # Zeitlücke in Minuten zum  Gruppieren von Maxima/Minima
+    bat_capacity = 33 * 1000 / 48 
+
+    # Zeitpunkt X definieren
+    zeitpunkt_x = (datetime.now() - timedelta(weeks=3)).strftime('%Y-%m-%d %H:%M:%S')
+
+
+    # BatteryDataProcessor instanziieren und verwenden
+    processor = BatteryDataProcessor(config, voltage_high_threshold, voltage_low_threshold, current_low_threshold, gap,bat_capacity)
+    processor.connect_db()
+    processor.fetch_data(zeitpunkt_x)
+    processor.process_data()
+    last_points_100_df, last_points_0_df = processor.find_soc_points()
+    soc_df, integration_results = processor.calculate_resetting_soc(last_points_100_df, last_points_0_df)
+    #soh_df = processor.calculate_soh(integration_results)
+    processor.update_database_with_soc(soc_df)
+    #processor.plot_data(last_points_100_df, last_points_0_df, soc_df)
+    processor.disconnect_db()
         
-        # Simulation durchführen
-        ergebnis = soc_predictor.predict(x)
-        print(ergebnis)
-        
-        return jsonify(ergebnis)
+    return jsonify("Done")
+
+
+@app.route('/strompreis', methods=['GET'])
+def flask_strompreis():
+        date_now,date = get_start_enddate(prediction_hours,startdate=datetime.now().date())
+        filepath = os.path.join (r'test_data', r'strompreise_akkudokAPI.json')  # Pfad zur JSON-Datei anpassen
+        #price_forecast = HourlyElectricityPriceForecast(source=filepath)
+        price_forecast = HourlyElectricityPriceForecast(source="https://api.akkudoktor.net/prices?start="+date_now+"&end="+date+"", prediction_hours=prediction_hours)
+        specific_date_prices = price_forecast.get_price_for_daterange(date_now,date)
+        #print(specific_date_prices)
+        return jsonify(specific_date_prices.tolist())
 
 
 @app.route('/optimize', methods=['POST'])
@@ -63,7 +82,7 @@ def flask_optimize():
         parameter = request.json
         
         # Erforderliche Parameter prüfen
-        erforderliche_parameter = [ 'pv_akku_cap', 'year_energy',"einspeiseverguetung_euro_pro_wh", 'max_heizleistung', 'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution","pvpowernow","haushaltsgeraet_dauer","haushaltsgeraet_wh"]
+        erforderliche_parameter = [ 'strompreis_euro_pro_wh','pv_akku_cap', 'year_energy',"einspeiseverguetung_euro_pro_wh", 'max_heizleistung', 'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution","pvpowernow","haushaltsgeraet_dauer","haushaltsgeraet_wh"]
         for p in erforderliche_parameter:
             if p not in parameter:
                 return jsonify({"error": f"Fehlender Parameter: {p}"}), 400

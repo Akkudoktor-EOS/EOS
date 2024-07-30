@@ -4,7 +4,6 @@ from  modules.class_load import *
 from  modules.class_ems import *
 from  modules.class_pv_forecast import *
 from modules.class_akku import *
-from modules.class_strompreis import *
 from modules.class_heatpump import * 
 from modules.class_load_container import * 
 from modules.class_inverter import * 
@@ -237,11 +236,7 @@ class optimization_problem:
         ###############
         # Strompreise   
         ###############
-        filepath = os.path.join (r'test_data', r'strompreise_akkudokAPI.json')  # Pfad zur JSON-Datei anpassen
-        #price_forecast = HourlyElectricityPriceForecast(source=filepath)
-        price_forecast = HourlyElectricityPriceForecast(source="https://api.akkudoktor.net/prices?start="+date_now+"&end="+date+"", prediction_hours=self.prediction_hours)
-        specific_date_prices = price_forecast.get_price_for_daterange(date_now,date)
-        #print(price_forecast)
+        specific_date_prices = parameter["strompreis_euro_pro_wh"]
         print(specific_date_prices)
         #print("https://api.akkudoktor.net/prices?start="+date_now+"&end="+date)
 
@@ -289,8 +284,22 @@ class optimization_problem:
         visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh,extra_data=extra_data)
         os.system("cp visualisierungsergebnisse.pdf ~/")
         
+           # 'Eigenverbrauch_Wh_pro_Stunde': eigenverbrauch_wh_pro_stunde,
+            # 'Netzeinspeisung_Wh_pro_Stunde': netzeinspeisung_wh_pro_stunde,
+            # 'Netzbezug_Wh_pro_Stunde': netzbezug_wh_pro_stunde,
+            # 'Kosten_Euro_pro_Stunde': kosten_euro_pro_stunde,
+            # 'akku_soc_pro_stunde': akku_soc_pro_stunde,
+            # 'Einnahmen_Euro_pro_Stunde': einnahmen_euro_pro_stunde,
+            # 'Gesamtbilanz_Euro': gesamtkosten_euro,
+            # 'E-Auto_SoC_pro_Stunde':eauto_soc_pro_stunde,
+            # 'Gesamteinnahmen_Euro': sum(einnahmen_euro_pro_stunde),
+            # 'Gesamtkosten_Euro': sum(kosten_euro_pro_stunde),
+            # "Verluste_Pro_Stunde":verluste_wh_pro_stunde,
+            # "Gesamt_Verluste":sum(verluste_wh_pro_stunde),
+            # "Haushaltsgeraet_wh_pro_stunde":haushaltsgeraet_wh_pro_stunde        
+        
         #print(eauto)
-        return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto,"start_solution":best_solution,"spuelstart":spuelstart_int}
+        return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto,"start_solution":best_solution,"spuelstart":spuelstart_int,"simulation_data":o}
 
 
 

@@ -29,7 +29,7 @@ def repeat_to_shape(array, target_shape):
 
 
 class HourlyElectricityPriceForecast:
-    def __init__(self, source, cache_dir='cache', abgaben=0.000, prediction_hours=24): #228
+    def __init__(self, source, cache_dir='cache', abgaben=0.000228, prediction_hours=24): #228
         self.cache_dir = cache_dir
         if not os.path.exists(self.cache_dir):
             os.makedirs(self.cache_dir)
