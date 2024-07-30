@@ -102,6 +102,29 @@ def flask_gesamtlast():
         #print(specific_date_prices)
         return jsonify(last.tolist())
 
+@app.route('/pvforecast', methods=['GET'])
+def flask_pvprognose():
+    if request.method == 'GET':
+        url = request.args.get("url")
+        ac_power_measurement = request.args.get("ac_power_measurement")
+        date_now,date = get_start_enddate(prediction_hours,startdate=datetime.now().date())
+        
+        ###############
+        # PV Forecast
+        ###############
+        PVforecast = PVForecast(prediction_hours = prediction_hours, url=url)
+        #print("PVPOWER",parameter['pvpowernow'])
+        if isfloat(ac_power_measurement):
+            PVforecast.update_ac_power_measurement(date_time=datetime.now(), ac_power_measurement=float(ac_power_measurement) )
+            #PVforecast.print_ac_power_and_measurement()
+        
+        pv_forecast = PVforecast.get_pv_forecast_for_date_range(date_now,date) #get_forecast_for_date(date)
+        temperature_forecast = PVforecast.get_temperature_for_date_range(date_now,date)
+
+        #print(specific_date_prices)
+        ret = {"temperature":temperature_forecast.tolist(),"pvpower":pv_forecast.tolist()}
+        return jsonify(ret)
+
 
 @app.route('/optimize', methods=['POST'])
 def flask_optimize():
@@ -109,7 +132,7 @@ def flask_optimize():
         parameter = request.json
         
         # Erforderliche Parameter prüfen
-        erforderliche_parameter = [ 'strompreis_euro_pro_wh', "gesamtlast",'pv_akku_cap', "einspeiseverguetung_euro_pro_wh",  'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution","pvpowernow","haushaltsgeraet_dauer","haushaltsgeraet_wh"]
+        erforderliche_parameter = [ 'strompreis_euro_pro_wh', "gesamtlast",'pv_akku_cap', "einspeiseverguetung_euro_pro_wh",  'pv_forecast','temperature_forecast', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution","haushaltsgeraet_dauer","haushaltsgeraet_wh"]
         for p in erforderliche_parameter:
             if p not in parameter:
                 return jsonify({"error": f"Fehlender Parameter: {p}"}), 400
@@ -133,3 +156,8 @@ if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0")
 
 
+# PV Forecast:
+#   object {
+#    pvpower: array[48]
+#    temperature: array[48]
+#   }
