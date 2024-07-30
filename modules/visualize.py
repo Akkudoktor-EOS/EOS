@@ -22,13 +22,13 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
         plt.subplot(3, 3, 1)
         stunden = np.arange(0, prediction_hours)
         
-        
+        gesamtlast_array = np.array(gesamtlast)
         # Einzellasten plotten
-        for name, last_array in gesamtlast.lasten.items():
-            plt.plot(stunden, last_array, label=f'{name} (Wh)', marker='o')
+        #for name, last_array in gesamtlast.lasten.items():
+        plt.plot(stunden, gesamtlast_array, label=f'Last (Wh)', marker='o')
         
         # Gesamtlast berechnen und plotten
-        gesamtlast_array = gesamtlast.gesamtlast_berechnen()
+        gesamtlast_array = np.array(gesamtlast)
         plt.plot(stunden, gesamtlast_array, label='Gesamtlast (Wh)', marker='o', linewidth=2, linestyle='--')
         plt.xlabel('Stunde')
         plt.ylabel('Last (Wh)')
