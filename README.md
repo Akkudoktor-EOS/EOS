@@ -72,25 +72,25 @@ Beschreibt die Struktur und Datentypen des JSON-Objekts, das an den Flask-Server
 - **Beschreibung**: Ein Array von Floats, das den Strompreis in Euro pro Wattstunde für verschiedene Zeitintervalle darstellt.
 - **Typ**: Array
 - **Element-Typ**: Float
-- **Länge**: bis zu 48 
+- **Länge**: 48  
 
 ### gesamtlast
 - **Beschreibung**: Ein Array von Floats, das die Gesamtlast (Verbrauch) in Watt für verschiedene Zeitintervalle darstellt.
 - **Typ**: Array
 - **Element-Typ**: Float
-- **Länge**: bis zu 48
+- **Länge**: 48
 
 ### pv_forecast
 - **Beschreibung**: Ein Array von Floats, das die prognostizierte Photovoltaik-Leistung in Watt für verschiedene Zeitintervalle darstellt.
 - **Typ**: Array
 - **Element-Typ**: Float
-- **Länge**: bis zu 48
+- **Länge**: 48
 
 ### temperature_forecast
 - **Beschreibung**: Ein Array von Floats, das die Temperaturvorhersage in Grad Celsius für verschiedene Zeitintervalle darstellt.
 - **Typ**: Array
 - **Element-Typ**: Float
-- **Länge**: bis zu 48
+- **Länge**: 48
 
 ### pv_soc
 - **Beschreibung**: Ein Integer, der den aktuellen Ladezustand (State of Charge) der Photovoltaikanlage in Prozent darstellt.
@@ -136,14 +136,15 @@ Beschreibt die Struktur und Datentypen des JSON-Objekts, das an den Flask-Server
 - **Beschreibung**: Ein Integer, der die Dauer der Nutzung des Haushaltsgeräts in Stunden darstellt.
 - **Typ**: Integer
 
+
+
+
+
+
+
 # JSON-Output Beschreibung
 
-Dieses Dokument beschreibt die Struktur und Datentypen des JSON-Outputs, den der Flask-Server zurückgibt.
-
-
-
-
-
+Dieses Dokument beschreibt die Struktur und Datentypen des JSON-Outputs, den der Flask-Server zurückgibt. Hier mit einem Prognosezeitraum von 48h
 
 ## Felder des JSON-Outputs (Stand 30.7.2024)
 
@@ -189,15 +190,15 @@ Dieses Dokument beschreibt die Struktur und Datentypen des JSON-Outputs, den der
   - **E-Auto_SoC_pro_Stunde**: Ein Array von Floats, das den Ladezustand des Elektroautos für jede Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Eigenverbrauch_Wh_pro_Stunde**: Ein Array von Floats, das den Eigenverbrauch in Wattstunden pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Einnahmen_Euro_pro_Stunde**: Ein Array von Floats, das die Einnahmen in Euro pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Gesamt_Verluste**: Die gesamten Verluste in Wattstunden.
     - **Typ**: Float
   - **Gesamtbilanz_Euro**: Die gesamte Bilanz in Euro.
@@ -209,42 +210,42 @@ Dieses Dokument beschreibt die Struktur und Datentypen des JSON-Outputs, den der
   - **Haushaltsgeraet_wh_pro_stunde**: Ein Array von Floats, das den Energieverbrauch eines Haushaltsgeräts in Wattstunden pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Kosten_Euro_pro_Stunde**: Ein Array von Floats, das die Kosten in Euro pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Netzbezug_Wh_pro_Stunde**: Ein Array von Floats, das den Netzbezug in Wattstunden pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Netzeinspeisung_Wh_pro_Stunde**: Ein Array von Floats, das die Netzeinspeisung in Wattstunden pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Verluste_Pro_Stunde**: Ein Array von Floats, das die Verluste pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **akku_soc_pro_stunde**: Ein Array von Floats, das den Ladezustand des Akkus in Prozent pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
 
 ### simulation_data
 - **Beschreibung**: Ein Objekt, das die simulierten Daten enthält.
   - **E-Auto_SoC_pro_Stunde**: Ein Array von Floats, das den simulierten Ladezustand des Elektroautos pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Eigenverbrauch_Wh_pro_Stunde**: Ein Array von Floats, das den simulierten Eigenverbrauch in Wattstunden pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Einnahmen_Euro_pro_Stunde**: Ein Array von Floats, das die simulierten Einnahmen in Euro pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Gesamt_Verluste**: Die gesamten simulierten Verluste in Wattstunden.
     - **Typ**: Float
   - **Gesamtbilanz_Euro**: Die gesamte simulierte Bilanz in Euro.
@@ -256,27 +257,27 @@ Dieses Dokument beschreibt die Struktur und Datentypen des JSON-Outputs, den der
   - **Haushaltsgeraet_wh_pro_stunde**: Ein Array von Floats, das den simulierten Energieverbrauch eines Haushaltsgeräts in Wattstunden pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Kosten_Euro_pro_Stunde**: Ein Array von Floats, das die simulierten Kosten in Euro pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Netzbezug_Wh_pro_Stunde**: Ein Array von Floats, das den simulierten Netzbezug in Wattstunden pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Netzeinspeisung_Wh_pro_Stunde**: Ein Array von Floats, das die simulierte Netzeinspeisung in Wattstunden pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **Verluste_Pro_Stunde**: Ein Array von Floats, das die simulierten Verluste pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
   - **akku_soc_pro_stunde**: Ein Array von Floats, das den simulierten Ladezustand des Akkus in Prozent pro Stunde darstellt.
     - **Typ**: Array
     - **Element-Typ**: Float
-    - **Länge**: bis zu 48
+    - **Länge**: 35
 
 ### spuelstart
 - **Beschreibung**: Kann `null` sein oder ein Objekt enthalten, das den Spülstart darstellt (wenn vorhanden).
@@ -285,8 +286,5 @@ Dieses Dokument beschreibt die Struktur und Datentypen des JSON-Outputs, den der
 ### start_solution
 - **Beschreibung**: Ein Array von Binärwerten (0 oder 1), das eine mögliche Startlösung für die Simulation darstellt.
 - **Typ**: Array
-- **Element-Typ**: Integer (0 oder
-
-
-
-
+- **Element-Typ**: Integer (0 oder 1)
+- **Länge**: 48
