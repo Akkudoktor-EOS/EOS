@@ -62,3 +62,77 @@ Diese Klassen arbeiten zusammen, um eine detaillierte Simulation und Optimierung
 
 Jede Klasse ist so gestaltet, dass sie leicht angepasst und erweitert werden kann, um zusätzliche Funktionen oder Verbesserungen zu integrieren. Beispielsweise können neue Methoden zur genaueren Modellierung des Verhaltens von PV-Anlagen oder Batteriespeichern hinzugefügt werden. Entwickler sind eingeladen, das System nach ihren Bedürfnissen zu modifizieren und zu erweitern.
 
+
+# Input für den Flask Server (Stand 30.07.204)
+Beschreibt die Struktur und Datentypen des JSON-Objekts, das an den Flask-Server gesendet wird. Hier mit einem Prognosezeitraum von 48 Stunden!
+
+## Felder des JSON-Objekts
+
+### strompreis_euro_pro_wh
+- **Beschreibung**: Ein Array von Floats, das den Strompreis in Euro pro Wattstunde für verschiedene Zeitintervalle darstellt.
+- **Typ**: Array
+- **Element-Typ**: Float
+- **Länge**: bis zu 48 
+
+### gesamtlast
+- **Beschreibung**: Ein Array von Floats, das die Gesamtlast (Verbrauch) in Watt für verschiedene Zeitintervalle darstellt.
+- **Typ**: Array
+- **Element-Typ**: Float
+- **Länge**: bis zu 48
+
+### pv_forecast
+- **Beschreibung**: Ein Array von Floats, das die prognostizierte Photovoltaik-Leistung in Watt für verschiedene Zeitintervalle darstellt.
+- **Typ**: Array
+- **Element-Typ**: Float
+- **Länge**: bis zu 48
+
+### temperature_forecast
+- **Beschreibung**: Ein Array von Floats, das die Temperaturvorhersage in Grad Celsius für verschiedene Zeitintervalle darstellt.
+- **Typ**: Array
+- **Element-Typ**: Float
+- **Länge**: bis zu 48
+
+### pv_soc
+- **Beschreibung**: Ein Integer, der den aktuellen Ladezustand (State of Charge) der Photovoltaikanlage in Prozent darstellt.
+- **Typ**: Integer
+
+### pv_akku_cap
+- **Beschreibung**: Ein Integer, der die Kapazität des Photovoltaik-Akkus in Wattstunden darstellt.
+- **Typ**: Integer
+
+### einspeiseverguetung_euro_pro_wh
+- **Beschreibung**: Ein Float, der die Einspeisevergütung in Euro pro Wattstunde darstellt.
+- **Typ**: Float
+
+### eauto_min_soc
+- **Beschreibung**: Ein Integer, der den minimalen Ladezustand (State of Charge) des Elektroautos in Prozent darstellt.
+- **Typ**: Integer
+
+### eauto_cap
+- **Beschreibung**: Ein Integer, der die Kapazität des Elektroauto-Akkus in Wattstunden darstellt.
+- **Typ**: Integer
+
+### eauto_charge_efficiency
+- **Beschreibung**: Ein Float, der die Ladeeffizienz des Elektroautos darstellt.
+- **Typ**: Float
+
+### eauto_charge_power
+- **Beschreibung**: Ein Integer, der die Ladeleistung des Elektroautos in Watt darstellt.
+- **Typ**: Integer
+
+### eauto_soc
+- **Beschreibung**: Ein Integer, der den aktuellen Ladezustand (State of Charge) des Elektroautos in Prozent darstellt.
+- **Typ**: Integer
+
+### start_solution
+- **Beschreibung**: Kann null sein oder eine vorherige Lösung enthalten (wenn vorhanden).
+- **Typ**: null oder object
+
+### haushaltsgeraet_wh
+- **Beschreibung**: Ein Integer, der den Energieverbrauch eines Haushaltsgeräts in Wattstunden darstellt.
+- **Typ**: Integer
+
+### haushaltsgeraet_dauer
+- **Beschreibung**: Ein Integer, der die Dauer der Nutzung des Haushaltsgeräts in Stunden darstellt.
+- **Typ**: Integer
+
