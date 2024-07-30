@@ -38,7 +38,7 @@ https://api.akkudoktor.net/
 Um das System zu nutzen, führen Sie `test.py` aus, das eine Simulation für einen vorgegebenen Zeitraum durchführt. Die Konfiguration der Simulation, einschließlich der Vorhersagedaten und der Systemparameter, kann in den jeweiligen Klassen angepasst werden.
 
 ```bash
-python test.py
+python flask_server.py 
 ```
 ## Klassen und Funktionalitäten
 
