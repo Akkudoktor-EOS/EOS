@@ -51,7 +51,7 @@ class EnergieManagementSystem:
         eauto_soc_pro_stunde = []
         verluste_wh_pro_stunde = []
         haushaltsgeraet_wh_pro_stunde = []
-        lastkurve_wh = self.gesamtlast.gesamtlast_berechnen()
+        lastkurve_wh = self.gesamtlast
         
         
         assert len(lastkurve_wh) == len(self.pv_prognose_wh) == len(self.strompreis_euro_pro_wh), f"Arraygrößen stimmen nicht überein: Lastkurve = {len(lastkurve_wh)}, PV-Prognose = {len(self.pv_prognose_wh)}, Strompreis = {len(self.strompreis_euro_pro_wh)}"
