@@ -4,6 +4,7 @@ from  modules.class_load import *
 from  modules.class_ems import *
 from  modules.class_pv_forecast import *
 from modules.class_akku import *
+
 from modules.class_heatpump import * 
 from modules.class_load_container import * 
 from modules.class_inverter import * 
@@ -173,12 +174,8 @@ class optimization_problem:
         #print("Start_date:",date_now)
         
         akku_size = parameter['pv_akku_cap'] # Wh
-        year_energy = parameter['year_energy'] #2000*1000 #Wh
-        
+       
         einspeiseverguetung_euro_pro_wh = np.full(self.prediction_hours, parameter["einspeiseverguetung_euro_pro_wh"])  #=  # € / Wh 7/(1000.0*100.0)
-
-        max_heizleistung = parameter['max_heizleistung'] #1000  # 5 kW Heizleistung
-        wp = Waermepumpe(max_heizleistung,self.prediction_hours)
 
         pv_forecast_url = parameter['pv_forecast_url'] #"https://api.akkudoktor.net/forecast?lat=52.52&lon=13.405&power=5000&azimuth=-10&tilt=7&powerInvertor=10000&horizont=20,27,22,20&power=4800&azimuth=-90&tilt=7&powerInvertor=10000&horizont=30,30,30,50&power=1400&azimuth=-40&tilt=60&powerInvertor=2000&horizont=60,30,0,30&power=1600&azimuth=5&tilt=45&powerInvertor=1400&horizont=45,25,30,60&past_days=5&cellCoEff=-0.36&inverterEfficiency=0.8&albedo=0.25&timezone=Europe%2FBerlin&hourly=relativehumidity_2m%2Cwindspeed_10m"
 
@@ -191,7 +188,6 @@ class optimization_problem:
         eauto.set_charge_per_hour(laden_moeglich)
         min_soc_eauto = parameter['eauto_min_soc']
         start_params = parameter['start_solution']
-        gesamtlast = Gesamtlast(prediction_hours=self.prediction_hours)
         
         ###############
         # spuelmaschine
@@ -204,18 +200,12 @@ class optimization_problem:
                 spuelmaschine = None
 
 
-        ###############
-        # Load Forecast
-        ###############
-        lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
-        #leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
-        
-        leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0] # Nur Erwartungswert!
+
         
         
 
         
-        gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
+
 
         ###############
         # PV Forecast
@@ -240,15 +230,10 @@ class optimization_problem:
         print(specific_date_prices)
         #print("https://api.akkudoktor.net/prices?start="+date_now+"&end="+date)
 
-        ###############
-        # WP
-        ##############
-        leistung_wp = wp.simulate_24h(temperature_forecast)
-        gesamtlast.hinzufuegen("Heatpump", leistung_wp)
 
         wr = Wechselrichter(5000, akku)
 
-        ems = EnergieManagementSystem(gesamtlast = gesamtlast, pv_prognose_wh=pv_forecast, strompreis_euro_pro_wh=specific_date_prices, einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh, eauto=eauto, haushaltsgeraet=spuelmaschine,wechselrichter=wr)
+        ems = EnergieManagementSystem(gesamtlast = parameter["gesamtlast"], pv_prognose_wh=pv_forecast, strompreis_euro_pro_wh=specific_date_prices, einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh, eauto=eauto, haushaltsgeraet=spuelmaschine,wechselrichter=wr)
         o = ems.simuliere(start_hour)
     
         ###############
@@ -281,7 +266,7 @@ class optimization_problem:
      
         print(parameter)
         print(best_solution)
-        visualisiere_ergebnisse(gesamtlast, pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh,extra_data=extra_data)
+        visualisiere_ergebnisse(parameter["gesamtlast"], pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh,extra_data=extra_data)
         os.system("cp visualisierungsergebnisse.pdf ~/")
         
            # 'Eigenverbrauch_Wh_pro_Stunde': eigenverbrauch_wh_pro_stunde,

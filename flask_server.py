@@ -76,13 +76,40 @@ def flask_strompreis():
         return jsonify(specific_date_prices.tolist())
 
 
+@app.route('/gesamtlast', methods=['GET'])
+def flask_gesamtlast():
+    if request.method == 'GET':
+        year_energy = float(request.args.get("year_energy"))
+        date_now,date = get_start_enddate(prediction_hours,startdate=datetime.now().date())
+        ###############
+        # Load Forecast
+        ###############
+        lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
+        #leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
+        leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0] # Nur Erwartungswert!        
+        
+        gesamtlast = Gesamtlast(prediction_hours=prediction_hours)        
+        gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
+
+        # ###############
+        # # WP
+        # ##############
+        # leistung_wp = wp.simulate_24h(temperature_forecast)
+        # gesamtlast.hinzufuegen("Heatpump", leistung_wp)
+                
+        last = gesamtlast.gesamtlast_berechnen()
+        print(last)
+        #print(specific_date_prices)
+        return jsonify(last.tolist())
+
+
 @app.route('/optimize', methods=['POST'])
 def flask_optimize():
     if request.method == 'POST':
         parameter = request.json
         
         # Erforderliche Parameter prüfen
-        erforderliche_parameter = [ 'strompreis_euro_pro_wh','pv_akku_cap', 'year_energy',"einspeiseverguetung_euro_pro_wh", 'max_heizleistung', 'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution","pvpowernow","haushaltsgeraet_dauer","haushaltsgeraet_wh"]
+        erforderliche_parameter = [ 'strompreis_euro_pro_wh', "gesamtlast",'pv_akku_cap', "einspeiseverguetung_euro_pro_wh",  'pv_forecast_url', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution","pvpowernow","haushaltsgeraet_dauer","haushaltsgeraet_wh"]
         for p in erforderliche_parameter:
             if p not in parameter:
                 return jsonify({"error": f"Fehlender Parameter: {p}"}), 400
