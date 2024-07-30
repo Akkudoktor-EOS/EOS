@@ -42,7 +42,7 @@ class EnergieManagementSystem:
 
 
     def simuliere(self, start_stunde):
-        eigenverbrauch_wh_pro_stunde = []
+        last_wh_pro_stunde = []
         netzeinspeisung_wh_pro_stunde = []
         netzbezug_wh_pro_stunde = []
         kosten_euro_pro_stunde = []
@@ -95,7 +95,7 @@ class EnergieManagementSystem:
             stündliche_kosten_euro = netzbezug * strompreis 
             netzbezug_wh_pro_stunde.append(netzbezug)
             verluste_wh_pro_stunde[-1] += verluste
-            eigenverbrauch_wh_pro_stunde.append(eigenverbrauch)
+            last_wh_pro_stunde.append(eigenverbrauch)
             
 
             
@@ -111,7 +111,7 @@ class EnergieManagementSystem:
         gesamtkosten_euro = sum(kosten_euro_pro_stunde) - sum(einnahmen_euro_pro_stunde)
         expected_length = ende - start_stunde
         array_names = ['Eigenverbrauch_Wh_pro_Stunde', 'Netzeinspeisung_Wh_pro_Stunde', 'Netzbezug_Wh_pro_Stunde', 'Kosten_Euro_pro_Stunde', 'akku_soc_pro_stunde', 'Einnahmen_Euro_pro_Stunde','E-Auto_SoC_pro_Stunde', "Verluste_Pro_Stunde"]
-        all_arrays = [eigenverbrauch_wh_pro_stunde, netzeinspeisung_wh_pro_stunde, netzbezug_wh_pro_stunde, kosten_euro_pro_stunde, akku_soc_pro_stunde, einnahmen_euro_pro_stunde,eauto_soc_pro_stunde,verluste_wh_pro_stunde]
+        all_arrays = [last_wh_pro_stunde, netzeinspeisung_wh_pro_stunde, netzbezug_wh_pro_stunde, kosten_euro_pro_stunde, akku_soc_pro_stunde, einnahmen_euro_pro_stunde,eauto_soc_pro_stunde,verluste_wh_pro_stunde]
 
         inconsistent_arrays = [name for name, arr in zip(array_names, all_arrays) if len(arr) != expected_length]
         #print(inconsistent_arrays)
@@ -120,7 +120,7 @@ class EnergieManagementSystem:
             raise ValueError(f"Inkonsistente Längen bei den Arrays: {', '.join(inconsistent_arrays)}. Erwartete Länge: {expected_length}, gefunden: {[len(all_arrays[array_names.index(name)]) for name in inconsistent_arrays]}")
 
         out = {
-            'Eigenverbrauch_Wh_pro_Stunde': eigenverbrauch_wh_pro_stunde,
+            'Last_Wh_pro_Stunde': last_wh_pro_stunde,
             'Netzeinspeisung_Wh_pro_Stunde': netzeinspeisung_wh_pro_stunde,
             'Netzbezug_Wh_pro_Stunde': netzbezug_wh_pro_stunde,
             'Kosten_Euro_pro_Stunde': kosten_euro_pro_stunde,

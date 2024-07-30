@@ -92,12 +92,12 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
         else:
                 stunden = np.arange(start_hour, prediction_hours)
         
-        print(ist_dst_wechsel(datetime.now())," ",datetime.now())
-        print(start_hour," ",prediction_hours," ",stunden)
-        print(ergebnisse['Eigenverbrauch_Wh_pro_Stunde'])
+        # print(ist_dst_wechsel(datetime.now())," ",datetime.now())
+        # print(start_hour," ",prediction_hours," ",stunden)
+        # print(ergebnisse['Eigenverbrauch_Wh_pro_Stunde'])
         # Eigenverbrauch, Netzeinspeisung und Netzbezug
         plt.subplot(3, 2, 1)
-        plt.plot(stunden, ergebnisse['Eigenverbrauch_Wh_pro_Stunde'], label='Eigenverbrauch (Wh)', marker='o')
+        plt.plot(stunden, ergebnisse['Last_Wh_pro_Stunde'], label='Last (Wh)', marker='o')
         plt.plot(stunden, ergebnisse['Haushaltsgeraet_wh_pro_stunde'], label='Haushaltsgerät (Wh)', marker='o')
         plt.plot(stunden, ergebnisse['Netzeinspeisung_Wh_pro_Stunde'], label='Netzeinspeisung (Wh)', marker='x')
         plt.plot(stunden, ergebnisse['Netzbezug_Wh_pro_Stunde'], label='Netzbezug (Wh)', marker='^')
@@ -124,7 +124,7 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
             #if value == 1:
             ax1.axvspan(hour, hour+1, color='green',ymax=value, alpha=0.3, label='Lademöglichkeit' if hour == 0 else "")
         ax1.legend(loc='upper left')
-
+        ax1.set_xlim(0, prediction_hours)  
 
         pdf.savefig()  # Speichert den aktuellen Figure-State im PDF
         plt.close()  # Schließt die aktuelle Figure, um Speicher freizugeben

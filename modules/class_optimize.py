@@ -177,8 +177,6 @@ class optimization_problem:
        
         einspeiseverguetung_euro_pro_wh = np.full(self.prediction_hours, parameter["einspeiseverguetung_euro_pro_wh"])  #=  # € / Wh 7/(1000.0*100.0)
 
-        pv_forecast_url = parameter['pv_forecast_url'] #"https://api.akkudoktor.net/forecast?lat=50.8588&lon=7.3747&power=5000&azimuth=-10&tilt=7&powerInvertor=10000&horizont=20,27,22,20&power=4800&azimuth=-90&tilt=7&powerInvertor=10000&horizont=30,30,30,50&power=1400&azimuth=-40&tilt=60&powerInvertor=2000&horizont=60,30,0,30&power=1600&azimuth=5&tilt=45&powerInvertor=1400&horizont=45,25,30,60&past_days=5&cellCoEff=-0.36&inverterEfficiency=0.8&albedo=0.25&timezone=Europe%2FBerlin&hourly=relativehumidity_2m%2Cwindspeed_10m"
-
         akku = PVAkku(kapazitaet_wh=akku_size,hours=self.prediction_hours,start_soc_prozent=parameter["pv_soc"], max_ladeleistung_w=5000)
         discharge_array = np.full(self.prediction_hours,1) #np.array([1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0])   #
         laden_moeglich = np.full(self.prediction_hours,1) # np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0])
@@ -211,16 +209,13 @@ class optimization_problem:
         # PV Forecast
         ###############
         #PVforecast = PVForecast(filepath=os.path.join(r'test_data', r'pvprognose.json'))
-        PVforecast = PVForecast(prediction_hours = self.prediction_hours, url=pv_forecast_url)
-        #print("PVPOWER",parameter['pvpowernow'])
-        if isfloat(parameter['pvpowernow']):
-            PVforecast.update_ac_power_measurement(date_time=datetime.now(), ac_power_measurement=float(parameter['pvpowernow']))
-            #PVforecast.print_ac_power_and_measurement()
-        pv_forecast = PVforecast.get_pv_forecast_for_date_range(date_now,date) #get_forecast_for_date(date)
-        
-        
-
-        temperature_forecast = PVforecast.get_temperature_for_date_range(date_now,date)
+        # PVforecast = PVForecast(prediction_hours = self.prediction_hours, url=pv_forecast_url)
+        # #print("PVPOWER",parameter['pvpowernow'])
+        # if isfloat(parameter['pvpowernow']):
+            # PVforecast.update_ac_power_measurement(date_time=datetime.now(), ac_power_measurement=float(parameter['pvpowernow']))
+            # #PVforecast.print_ac_power_and_measurement()
+        pv_forecast = parameter['pv_forecast'] #PVforecast.get_pv_forecast_for_date_range(date_now,date) #get_forecast_for_date(date)
+        temperature_forecast = parameter['temperature_forecast'] #PVforecast.get_temperature_for_date_range(date_now,date)
 
 
         ###############
