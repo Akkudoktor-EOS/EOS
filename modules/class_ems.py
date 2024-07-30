@@ -60,7 +60,6 @@ class EnergieManagementSystem:
 
         # Berechnet das Ende basierend auf der Länge der Lastkurve
         for stunde in range(start_stunde, ende):
-            
             # Anpassung, um sicherzustellen, dass Indizes korrekt sind
             verbrauch = lastkurve_wh[stunde] 
             if self.haushaltsgeraet != None:
@@ -104,6 +103,7 @@ class EnergieManagementSystem:
                 eauto_soc_pro_stunde.append(eauto_soc)
             
             akku_soc_pro_stunde.append(self.akku.ladezustand_in_prozent())
+         
             kosten_euro_pro_stunde.append(stündliche_kosten_euro)
             einnahmen_euro_pro_stunde.append(stündliche_einnahmen_euro)
 
