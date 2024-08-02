@@ -93,7 +93,7 @@ Beschreibt die Struktur und Datentypen des JSON-Objekts, das an den Flask-Server
 - **Länge**: 48
 
 ### pv_soc
-- **Beschreibung**: Ein Integer, der den aktuellen Ladezustand (State of Charge) der Photovoltaikanlage in Prozent darstellt.
+- **Beschreibung**: Ein Integer, der den Ladezustand des PV Akkus zum START der aktuellen Stunde anzeigt, das ist nicht der aktuelle!!! 
 - **Typ**: Integer
 
 ### pv_akku_cap
