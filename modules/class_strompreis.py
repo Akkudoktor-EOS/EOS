@@ -125,6 +125,6 @@ class HourlyElectricityPriceForecast:
                 price_list.extend(daily_prices)
             start_date += timedelta(days=1)
         
-        price_list = repeat_to_shape(np.array(price_list),(self.prediction_hours,))
-        
+        if self.prediction_hours>0:
+            price_list = repeat_to_shape(np.array(price_list),(self.prediction_hours,))        
         return price_list
