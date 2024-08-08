@@ -95,7 +95,7 @@ class EnergieManagementSystem:
             stündliche_kosten_euro = netzbezug * strompreis 
             netzbezug_wh_pro_stunde.append(netzbezug)
             verluste_wh_pro_stunde[-1] += verluste
-            last_wh_pro_stunde.append(eigenverbrauch)
+            last_wh_pro_stunde.append(eigenverbrauch+netzbezug)
             
 
             
