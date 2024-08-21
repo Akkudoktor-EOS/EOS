@@ -56,7 +56,8 @@ class Wechselrichter:
             benötigte_energie = verbrauch - erzeugung
             max_akku_leistung = self.akku.max_ladeleistung_w
             
-            rest_ac_leistung = max(max_akku_leistung - erzeugung,0)
+            #rest_ac_leistung = max(max_akku_leistung - erzeugung,0)
+            rest_ac_leistung = max(self.max_leistung_wh - erzeugung,0)
             
             if benötigte_energie < rest_ac_leistung:
                 aus_akku, akku_entladeverluste = self.akku.energie_abgeben(benötigte_energie, hour)
