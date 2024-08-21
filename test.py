@@ -323,7 +323,7 @@ start_solution= [
         1,
         1
     ]
-parameter= {'pv_soc': 92.4052, 'pv_akku_cap': 30000, 'year_energy': 4100000, 'einspeiseverguetung_euro_pro_wh': 7e-05, 'max_heizleistung': 1000,"gesamtlast":gesamtlast, 'pv_forecast': pv_forecast, "temperature_forecast":temperature_forecast, "strompreis_euro_pro_wh":strompreis_euro_pro_wh, 'eauto_min_soc': 100, 'eauto_cap': 60000, 'eauto_charge_efficiency': 0.95, 'eauto_charge_power': 5500, 'eauto_soc': 77, 'pvpowernow': 211.137503624, 'start_solution': start_solution, 'haushaltsgeraet_wh': 937, 'haushaltsgeraet_dauer': 0}
+parameter= {'pv_soc': 92.4052, 'pv_akku_cap': 30000, 'year_energy': 4100000, 'einspeiseverguetung_euro_pro_wh': 7e-05, 'max_heizleistung': 1000,"gesamtlast":gesamtlast, 'pv_forecast': pv_forecast, "temperature_forecast":temperature_forecast, "strompreis_euro_pro_wh":strompreis_euro_pro_wh, 'eauto_min_soc': 100, 'eauto_cap': 60000, 'eauto_charge_efficiency': 0.95, 'eauto_charge_power': 6900, 'eauto_soc': 30, 'pvpowernow': 211.137503624, 'start_solution': start_solution, 'haushaltsgeraet_wh': 937, 'haushaltsgeraet_dauer': 0}
 
 
 
