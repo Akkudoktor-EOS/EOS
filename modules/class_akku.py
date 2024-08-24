@@ -93,15 +93,21 @@ class PVAkku:
 
         # return soc_tmp-self.soc_wh
 
+
+
     def energie_laden(self, wh, hour):
         if hour is not None and self.charge_array[hour] == 0:
             return 0,0  # Ladevorgang in dieser Stunde nicht erlaubt
 
         # Wenn kein Wert für wh angegeben wurde, verwende die maximale Ladeleistung
         wh = wh if wh is not None else self.max_ladeleistung_w
+        
+        # Relativ zur maximalen Ladeleistung (zwischen 0 und 1)
+        relative_ladeleistung = self.charge_array[hour]
+        effektive_ladeleistung = relative_ladeleistung * self.max_ladeleistung_w
 
         # Berechnung der tatsächlichen Lademenge unter Berücksichtigung der Ladeeffizienz
-        effektive_lademenge = min(wh, self.max_ladeleistung_w) 
+        effektive_lademenge = min(wh, effektive_ladeleistung) 
 
         # Aktualisierung des Ladezustands ohne die Kapazität zu überschreiten
         geladene_menge_ohne_verlust = min(self.kapazitaet_wh - self.soc_wh, effektive_lademenge)
@@ -112,21 +118,45 @@ class PVAkku:
         self.soc_wh += geladene_menge
     
         verluste_wh = geladene_menge_ohne_verlust* (1.0-self.lade_effizienz)
+
+
+        return geladene_menge, verluste_wh
+
+
+    # def energie_laden(self, wh, hour):
+        # if hour is not None and self.charge_array[hour] == 0:
+            # return 0,0  # Ladevorgang in dieser Stunde nicht erlaubt
+
+        # # Wenn kein Wert für wh angegeben wurde, verwende die maximale Ladeleistung
+        # wh = wh if wh is not None else self.max_ladeleistung_w
+
+        # # Berechnung der tatsächlichen Lademenge unter Berücksichtigung der Ladeeffizienz
+        # effektive_lademenge = min(wh, self.max_ladeleistung_w) 
+
+        # # Aktualisierung des Ladezustands ohne die Kapazität zu überschreiten
+        # geladene_menge_ohne_verlust = min(self.kapazitaet_wh - self.soc_wh, effektive_lademenge)
+
+        # geladene_menge = geladene_menge_ohne_verlust * self.lade_effizienz
+
+        
+        # self.soc_wh += geladene_menge
+    
+        # verluste_wh = geladene_menge_ohne_verlust* (1.0-self.lade_effizienz)
         
 
         
-        # Zusätzliche Verluste, wenn die Energiezufuhr die Kapazitätsgrenze überschreitet
-        # zusatz_verluste_wh = 0
-        # if effektive_lademenge > geladene_menge_ohne_verlust:
-            # zusatz_verluste_wh = (effektive_lademenge - geladene_menge_ohne_verlust) * self.lade_effizienz
+        # # Zusätzliche Verluste, wenn die Energiezufuhr die Kapazitätsgrenze überschreitet
+        # # zusatz_verluste_wh = 0
+        # # if effektive_lademenge > geladene_menge_ohne_verlust:
+            # # zusatz_verluste_wh = (effektive_lademenge - geladene_menge_ohne_verlust) * self.lade_effizienz
         
-        # # Gesamtverluste berechnen
-        # gesamt_verluste_wh = verluste_wh + zusatz_verluste_wh
+        # # # Gesamtverluste berechnen
+        # # gesamt_verluste_wh = verluste_wh + zusatz_verluste_wh
         
         
-        return geladene_menge, verluste_wh
-        # effektive_lademenge = wh * self.lade_effizienz
-        # self.soc_wh = min(self.soc_wh + effektive_lademenge, self.kapazitaet_wh)
+        # return geladene_menge, verluste_wh
+        # # effektive_lademenge = wh * self.lade_effizienz
+        # # self.soc_wh = min(self.soc_wh + effektive_lademenge, self.kapazitaet_wh)
 
 
 

@@ -33,13 +33,36 @@ def isfloat(num):
         return False
 
 class optimization_problem:
-    def __init__(self, prediction_hours=24, strafe = 10):
+    def __init__(self, prediction_hours=24, strafe = 10, optimization_hours= 24):
         self.prediction_hours = prediction_hours#
         self.strafe = strafe
         self.opti_param = None
+        self.fixed_eauto_hours = prediction_hours-optimization_hours
+
+
+
+    def split_individual(self, individual):
+        """
+        Teilt das gegebene Individuum in die verschiedenen Parameter auf: 
+        - Entladeparameter (discharge_hours_bin)
+        - Ladeparameter (eautocharge_hours_float)
+        - Haushaltsgeräte (spuelstart_int, falls vorhanden)
+        """
+        # Extrahiere die Entlade- und Ladeparameter direkt aus dem Individuum
+        discharge_hours_bin = individual[:self.prediction_hours]  # Erste 24 Werte sind Bool (Entladen)
+        eautocharge_hours_float = individual[self.prediction_hours:self.prediction_hours * 2]  # Nächste 24 Werte sind Float (Laden)
+
+        spuelstart_int = None
+        if self.opti_param and self.opti_param.get("haushaltsgeraete", 0) > 0:
+            spuelstart_int = individual[-1]  # Letzter Wert ist Startzeit für Haushaltsgerät
+
+        return discharge_hours_bin, eautocharge_hours_float, spuelstart_int
+
 
     def setup_deap_environment(self,opti_param, start_hour):
         self.opti_param = opti_param
+  
+        
         if "FitnessMin" in creator.__dict__:
                 del creator.FitnessMin
         if "Individual" in creator.__dict__:
@@ -51,6 +74,7 @@ class optimization_problem:
         # PARAMETER
         self.toolbox = base.Toolbox()
         self.toolbox.register("attr_bool", random.randint, 0, 1)
+        self.toolbox.register("attr_float", random.uniform, 0, 1)  # Für kontinuierliche Werte zwischen 0 und 1 (z.B. für E-Auto-Ladeleistung)
         self.toolbox.register("attr_int", random.randint, start_hour, 23)
         
         ###################
@@ -58,12 +82,15 @@ class optimization_problem:
         #print("Haushalt:",opti_param["haushaltsgeraete"])
         if opti_param["haushaltsgeraete"]>0:   
                 def create_individual():
-                        attrs = [self.toolbox.attr_bool() for _ in range(2*self.prediction_hours)] + [self.toolbox.attr_int()]
+                        attrs = [self.toolbox.attr_bool() for _ in range(self.prediction_hours)]  # 24 Bool-Werte für Entladen
+                        attrs += [self.toolbox.attr_float() for _ in range(self.prediction_hours)]  # 24 Float-Werte für Laden
+                        attrs.append(self.toolbox.attr_int())  # Haushaltsgerät-Startzeit
                         return creator.Individual(attrs)
 
         else:
                 def create_individual():
-                        attrs = [self.toolbox.attr_bool() for _ in range(2*self.prediction_hours)] 
+                        attrs = [self.toolbox.attr_bool() for _ in range(self.prediction_hours)]  # 24 Bool-Werte für Entladen
+                        attrs += [self.toolbox.attr_float() for _ in range(self.prediction_hours)]  # 24 Float-Werte für Laden
                         return creator.Individual(attrs)
 
         
@@ -77,18 +104,24 @@ class optimization_problem:
         ems.reset()
         
         #print("Spuel:",self.opti_param)
-        
+
+        discharge_hours_bin, eautocharge_hours_float, spuelstart_int = self.split_individual(individual)        
+
         # Haushaltsgeraete
         if self.opti_param["haushaltsgeraete"]>0:   
-                spuelstart_int = individual[-1]
-                individual = individual[:-1]
                 ems.set_haushaltsgeraet_start(spuelstart_int,global_start_hour=start_hour)
-                
-        discharge_hours_bin = individual[0::2]
-        eautocharge_hours_float = individual[1::2]
+
+
 
         
         ems.set_akku_discharge_hours(discharge_hours_bin)
+        
+        # Setze die festen Werte für die letzten x Stunden
+        for i in range(self.prediction_hours - self.fixed_eauto_hours, self.prediction_hours):
+            eautocharge_hours_float[i] = 0.0  # Setze die letzten x Stunden auf einen festen Wert (oder vorgegebenen Wert)
+
+        
+        
         ems.set_eauto_charge_hours(eautocharge_hours_float)
         
         
@@ -107,6 +140,15 @@ class optimization_problem:
         gesamtbilanz = o["Gesamtbilanz_Euro"]
         if worst_case:
                 gesamtbilanz = gesamtbilanz * -1.0
+        
+        
+        # E-Auto nur die ersten self.fixed_eauto_hours 
+        eautocharge_hours_float = individual[self.prediction_hours:self.prediction_hours * 2]
+        for i in range(self.prediction_hours - self.fixed_eauto_hours, self.prediction_hours):
+            if eautocharge_hours_float[i] != 0.0:  # Wenn die letzten x Stunden von einem festen Wert abweichen
+                gesamtbilanz += self.strafe  # Bestrafe den Optimierer
+
+        
         
         # Überprüfung, ob der Mindest-SoC erreicht wird
         final_soc = ems.eauto.ladezustand_in_prozent()  # Nimmt den SoC am Ende des Optimierungszeitraums
@@ -226,7 +268,7 @@ class optimization_problem:
         #print("https://api.akkudoktor.net/prices?start="+date_now+"&end="+date)
 
 
-        wr = Wechselrichter(5000, akku)
+        wr = Wechselrichter(10000, akku)
 
         ems = EnergieManagementSystem(gesamtlast = parameter["gesamtlast"], pv_prognose_wh=pv_forecast, strompreis_euro_pro_wh=specific_date_prices, einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh, eauto=eauto, haushaltsgeraet=spuelmaschine,wechselrichter=wr)
         o = ems.simuliere(start_hour)
@@ -250,18 +292,12 @@ class optimization_problem:
         o = self.evaluate_inner(best_solution, ems,start_hour)
         eauto = ems.eauto.to_dict()
         spuelstart_int = None
-        # Haushaltsgeraete
-        if self.opti_param["haushaltsgeraete"]>0:   
-                spuelstart_int = best_solution[-1]
-                best_solution = best_solution[:-1]
-        discharge_hours_bin = best_solution[0::2]
-        eautocharge_hours_float = best_solution[1::2]
+        discharge_hours_bin, eautocharge_hours_float, spuelstart_int = self.split_individual(best_solution)     
         
-
      
         print(parameter)
         print(best_solution)
-        visualisiere_ergebnisse(parameter["gesamtlast"], pv_forecast, specific_date_prices, o,best_solution[0::2],best_solution[1::2] , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh,extra_data=extra_data)
+        visualisiere_ergebnisse(parameter["gesamtlast"], pv_forecast, specific_date_prices, o,discharge_hours_bin,eautocharge_hours_float , temperature_forecast, start_hour, self.prediction_hours,einspeiseverguetung_euro_pro_wh,extra_data=extra_data)
         os.system("cp visualisierungsergebnisse.pdf ~/")
         
            # 'Eigenverbrauch_Wh_pro_Stunde': eigenverbrauch_wh_pro_stunde,

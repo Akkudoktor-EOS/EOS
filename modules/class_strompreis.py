@@ -118,8 +118,6 @@ class HourlyElectricityPriceForecast:
         while start_date < end_date:
             date_str = start_date.strftime("%Y-%m-%d")
             daily_prices = self.get_price_for_date(date_str)
-            print(date_str," ",daily_prices)
-            print(len(self.get_price_for_date(date_str)))
             
             if daily_prices.size ==24:
                 price_list.extend(daily_prices)
