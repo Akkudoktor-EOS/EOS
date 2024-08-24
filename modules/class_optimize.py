@@ -163,7 +163,7 @@ class optimization_problem:
         strafe = 0.0
         strafe = max(0,(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) * self.strafe ) 
         gesamtbilanz += strafe    
-        gesamtbilanz += o["Gesamt_Verluste"]/10000.0
+        #gesamtbilanz += o["Gesamt_Verluste"]/10000.0
                 
         return (gesamtbilanz,)
 
@@ -186,8 +186,8 @@ class optimization_problem:
         if start_solution is not None and start_solution != -1:
                 population.insert(0, creator.Individual(start_solution))     
         
-        #algorithms.eaMuPlusLambda(population, self.toolbox, 100, 200, cxpb=0.2, mutpb=0.2, ngen=500,             stats=stats, halloffame=hof, verbose=True)
-        algorithms.eaSimple(population, self.toolbox, cxpb=0.1, mutpb=0.1, ngen=400,             stats=stats, halloffame=hof, verbose=True)
+        algorithms.eaMuPlusLambda(population, self.toolbox, 100, 200, cxpb=0.2, mutpb=0.2, ngen=1000,             stats=stats, halloffame=hof, verbose=True)
+        #algorithms.eaSimple(population, self.toolbox, cxpb=0.2, mutpb=0.2, ngen=1000,             stats=stats, halloffame=hof, verbose=True)
         
         member = {"bilanz":[],"verluste":[],"nebenbedingung":[]}
         for ind in population:
