@@ -327,7 +327,7 @@ parameter= {'pv_soc': 92.4052, 'pv_akku_cap': 30000, 'year_energy': 4100000, 'ei
 
 
 
-opt_class = optimization_problem(prediction_hours=48, strafe=10)
+opt_class = optimization_problem(prediction_hours=48, strafe=10,optimization_hours=24)
 ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)
 
 
