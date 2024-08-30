@@ -159,10 +159,15 @@ class optimization_problem:
         individual.extra_data = (o["Gesamtbilanz_Euro"],o["Gesamt_Verluste"], eauto_roi )
         
         
-        
+        restenergie_akku = ems.akku.aktueller_energieinhalt()
+        restwert_akku = restenergie_akku*parameter["preis_euro_pro_wh_akku"]
+        # print(restenergie_akku)
+        # print(parameter["preis_euro_pro_wh_akku"])
+        # print(restwert_akku)
+        # print()
         strafe = 0.0
         strafe = max(0,(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) * self.strafe ) 
-        gesamtbilanz += strafe    
+        gesamtbilanz += strafe    - restwert_akku
         #gesamtbilanz += o["Gesamt_Verluste"]/10000.0
                 
         return (gesamtbilanz,)
