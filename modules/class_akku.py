@@ -122,6 +122,17 @@ class PVAkku:
 
         return geladene_menge, verluste_wh
 
+    def aktueller_energieinhalt(self):
+        """
+        Diese Methode gibt die aktuelle Restenergie unter Berücksichtigung des Wirkungsgrades zurück.
+        Sie berücksichtigt dabei die Lade- und Entladeeffizienz.
+        """
+        # Berechnung der Restenergie unter Berücksichtigung der Entladeeffizienz
+        nutzbare_energie = self.soc_wh * self.entlade_effizienz
+        return nutzbare_energie
+
+
+
 
     # def energie_laden(self, wh, hour):
         # if hour is not None and self.charge_array[hour] == 0:
