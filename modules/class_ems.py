@@ -1,5 +1,17 @@
 from datetime import datetime
 from pprint import pprint
+import numpy as np
+
+def replace_nan_with_none(data):
+    if isinstance(data, dict):
+        return {key: replace_nan_with_none(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [replace_nan_with_none(element) for element in data]
+    elif isinstance(data, float) and np.isnan(data):
+        return None
+    else:
+        return data
+
 
 
 class EnergieManagementSystem:
@@ -58,10 +70,29 @@ class EnergieManagementSystem:
 
         ende = min( len(lastkurve_wh),len(self.pv_prognose_wh), len(self.strompreis_euro_pro_wh))
 
+        # Endzustände auf NaN setzen, damit diese übersprungen werden für die Stunde
+        last_wh_pro_stunde.append(np.nan)
+        netzeinspeisung_wh_pro_stunde.append(np.nan)
+        netzbezug_wh_pro_stunde.append(np.nan) 
+        kosten_euro_pro_stunde.append(np.nan) 
+        akku_soc_pro_stunde.append(self.akku.ladezustand_in_prozent()) 
+        einnahmen_euro_pro_stunde.append(np.nan) 
+        eauto_soc_pro_stunde.append(self.eauto.ladezustand_in_prozent())
+        verluste_wh_pro_stunde.append(np.nan)
+        haushaltsgeraet_wh_pro_stunde.append(np.nan)
+        
         # Berechnet das Ende basierend auf der Länge der Lastkurve
-        for stunde in range(start_stunde, ende):
+        for stunde in range(start_stunde+1, ende):
+        
+            # Zustand zu Beginn der Stunde (Anfangszustand)
+            akku_soc_start = self.akku.ladezustand_in_prozent()  # Anfangszustand Akku-SoC
+            if self.eauto:
+                eauto_soc_start = self.eauto.ladezustand_in_prozent()  # Anfangszustand E-Auto-SoC
+
+
+        
             # Anpassung, um sicherzustellen, dass Indizes korrekt sind
-            verbrauch = lastkurve_wh[stunde] 
+            verbrauch = lastkurve_wh[stunde]   # Verbrauch für die Stunde
             if self.haushaltsgeraet != None:
                 verbrauch = verbrauch + self.haushaltsgeraet.get_last_fuer_stunde(stunde)
                 haushaltsgeraet_wh_pro_stunde.append(self.haushaltsgeraet.get_last_fuer_stunde(stunde))
@@ -69,8 +100,8 @@ class EnergieManagementSystem:
                 haushaltsgeraet_wh_pro_stunde.append(0)
             erzeugung = self.pv_prognose_wh[stunde]
             strompreis = self.strompreis_euro_pro_wh[stunde] if stunde < len(self.strompreis_euro_pro_wh) else self.strompreis_euro_pro_wh[-1]
-            verluste_wh_pro_stunde.append(0.0)
             
+            verluste_wh_pro_stunde.append(0.0)
 
             # Logik für die E-Auto-Ladung bzw. Entladung
             if self.eauto:  # Falls ein E-Auto vorhanden ist
@@ -108,7 +139,7 @@ class EnergieManagementSystem:
             einnahmen_euro_pro_stunde.append(stündliche_einnahmen_euro)
 
 
-        gesamtkosten_euro = sum(kosten_euro_pro_stunde) - sum(einnahmen_euro_pro_stunde)
+        gesamtkosten_euro = np.nansum(kosten_euro_pro_stunde) - np.nansum(einnahmen_euro_pro_stunde)
         expected_length = ende - start_stunde
         array_names = ['Eigenverbrauch_Wh_pro_Stunde', 'Netzeinspeisung_Wh_pro_Stunde', 'Netzbezug_Wh_pro_Stunde', 'Kosten_Euro_pro_Stunde', 'akku_soc_pro_stunde', 'Einnahmen_Euro_pro_Stunde','E-Auto_SoC_pro_Stunde', "Verluste_Pro_Stunde"]
         all_arrays = [last_wh_pro_stunde, netzeinspeisung_wh_pro_stunde, netzbezug_wh_pro_stunde, kosten_euro_pro_stunde, akku_soc_pro_stunde, einnahmen_euro_pro_stunde,eauto_soc_pro_stunde,verluste_wh_pro_stunde]
@@ -128,11 +159,13 @@ class EnergieManagementSystem:
             'Einnahmen_Euro_pro_Stunde': einnahmen_euro_pro_stunde,
             'Gesamtbilanz_Euro': gesamtkosten_euro,
             'E-Auto_SoC_pro_Stunde':eauto_soc_pro_stunde,
-            'Gesamteinnahmen_Euro': sum(einnahmen_euro_pro_stunde),
-            'Gesamtkosten_Euro': sum(kosten_euro_pro_stunde),
+            'Gesamteinnahmen_Euro': np.nansum(einnahmen_euro_pro_stunde),
+            'Gesamtkosten_Euro': np.nansum(kosten_euro_pro_stunde),
             "Verluste_Pro_Stunde":verluste_wh_pro_stunde,
-            "Gesamt_Verluste":sum(verluste_wh_pro_stunde),
+            "Gesamt_Verluste":np.nansum(verluste_wh_pro_stunde),
             "Haushaltsgeraet_wh_pro_stunde":haushaltsgeraet_wh_pro_stunde
         }
+        
+        out = replace_nan_with_none(out)
         
         return out
