@@ -154,8 +154,16 @@ class optimization_problem:
         final_soc = ems.eauto.ladezustand_in_prozent()  # Nimmt den SoC am Ende des Optimierungszeitraums
         
         
-        eauto_roi = max(0,(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) ) 
+         
         
+        if (parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) <= 0.0:
+                #print (parameter['eauto_min_soc']," " ,ems.eauto.ladezustand_in_prozent()," ",(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()))
+                for i in range(0, self.prediction_hours):
+                    if eautocharge_hours_float[i] != 0.0:  # Wenn die letzten x Stunden von einem festen Wert abweichen
+                        gesamtbilanz += self.strafe  # Bestrafe den Optimierer
+
+        
+        eauto_roi =  (parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent())
         individual.extra_data = (o["Gesamtbilanz_Euro"],o["Gesamt_Verluste"], eauto_roi )
         
         
@@ -191,7 +199,7 @@ class optimization_problem:
         if start_solution is not None and start_solution != -1:
                 population.insert(0, creator.Individual(start_solution))     
         
-        algorithms.eaMuPlusLambda(population, self.toolbox, 100, 200, cxpb=0.2, mutpb=0.2, ngen=1000,             stats=stats, halloffame=hof, verbose=True)
+        algorithms.eaMuPlusLambda(population, self.toolbox, mu=200, lambda_=300, cxpb=0.3, mutpb=0.4, ngen=500,   stats=stats, halloffame=hof, verbose=True)
         #algorithms.eaSimple(population, self.toolbox, cxpb=0.2, mutpb=0.2, ngen=1000,             stats=stats, halloffame=hof, verbose=True)
         
         member = {"bilanz":[],"verluste":[],"nebenbedingung":[]}
