@@ -113,7 +113,8 @@ def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  d
         plt.subplot(3, 2, 2)
         plt.plot(stunden, ergebnisse['akku_soc_pro_stunde'], label='PV Akku (%)', marker='x')
         plt.plot(stunden, ergebnisse['E-Auto_SoC_pro_Stunde'], label='E-Auto Akku (%)', marker='x')
-        plt.legend(loc='upper left')
+        plt.legend(loc='upper left', bbox_to_anchor=(1, 1))  # Legende außerhalb des Plots platzieren
+        plt.grid(True, which='both', axis='x')  # Grid für jede Stunde
 
         ax1 = plt.subplot(3, 2, 3)
         for hour, value in enumerate(discharge_hours):
