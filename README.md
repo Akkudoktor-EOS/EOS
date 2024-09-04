@@ -30,7 +30,7 @@ pip install -r requirements.txt
 ```
 ## Nutzung
 
-config.example.py anpassen und dann in config.py umbennenen
+`config.example.py` anpassen und dann in config.py umbennenen
 Um das System zu nutzen, führen Sie `flask_server.py` aus, damit wird der Server gestartet
 
 
