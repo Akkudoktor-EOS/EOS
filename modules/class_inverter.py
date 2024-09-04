@@ -30,7 +30,7 @@ class Wechselrichter:
                 # Akku
                 geladene_energie, verluste_laden_akku = self.akku.energie_laden(restleistung_nach_verbrauch, hour)
                 rest_überschuss = restleistung_nach_verbrauch - (geladene_energie+verluste_laden_akku)
-                # if hour == 12:
+                # if hour == 1:
                     # print("Erzeugung:",erzeugung)
                     # print("Last:",verbrauch)
                     # print("Akku:",geladene_energie)
@@ -44,8 +44,8 @@ class Wechselrichter:
                     verluste += rest_überschuss - netzeinspeisung
                 else:
                     netzeinspeisung = rest_überschuss
-                #if hour ==10:
-                #    print(rest_überschuss," ",restleistung_nach_verbrauch, " Gela:",geladene_energie," Ver:",verluste_laden_akku)
+                #if hour ==14:
+                #    print("Erz:",erzeugung," Last:",verbrauch, " RestPV:",rest_überschuss," ",restleistung_nach_verbrauch, " Gela:",geladene_energie," Ver:",verluste_laden_akku," Einsp:",netzeinspeisung)
                 verluste += verluste_laden_akku
 
                 
@@ -71,73 +71,4 @@ class Wechselrichter:
             eigenverbrauch = erzeugung + aus_akku
 
 
-        # if erzeugung > verbrauch:
-            # if verbrauch > self.max_leistung_wh:
-                
-            # else: 
-            
-            
-                # überschuss = self.max_leistung_wh - verbrauch
-                
-                # geladene_energie, verluste_laden_akku = self.akku.energie_laden(überschuss, hour)
-                # rest_überschuss = überschuss - geladene_energie
-                # verluste += verluste_laden_akku
-                
-                # if (rest_überschuss > self.max_leistung_wh):
-                    # netzeinspeisung  = self.max_leistung_wh
-                    # verluste += rest_überschuss - self.max_leistung_wh
-                # else:
-                    # netzeinspeisung = rest_überschuss
-                
-                # eigenverbrauch = verbrauch
- 
-        # else:
-            # benötigte_energie = verbrauch - erzeugung
-            # max_akku_leistung = self.akku.max_ladeleistung_w
-            
-            # rest_ac_leistung = max(max_akku_leistung - erzeugung,0)
-            
-            # if benötigte_energie < rest_ac_leistung:
-                # aus_akku, akku_entladeverluste = self.akku.energie_abgeben(benötigte_energie, hour)
-            # else: 
-                # aus_akku, akku_entladeverluste = self.akku.energie_abgeben(rest_ac_leistung, hour)
-            
-            
-            # verluste += akku_entladeverluste
-
-            # netzbezug = benötigte_energie - aus_akku
-            # eigenverbrauch = erzeugung + aus_akku
-
-            # # Berechnung der gesamten verarbeiteten Energie
-            # total_verarbeitet = eigenverbrauch
-            # if total_verarbeitet > self.max_leistung_wh:
-                # verluste += total_verarbeitet - self.max_leistung_wh
-
         return netzeinspeisung, netzbezug, verluste, eigenverbrauch
-
-
-    # def energie_verarbeiten(self, erzeugung, verbrauch, hour):
-    
-        # verluste = 0
-        # netzeinspeisung = 0
-        # netzbezug = 0.0
-        # eigenverbrauch = 0.0
-        
-        # if erzeugung > verbrauch:
-            # überschuss = erzeugung - verbrauch
-            # geladene_energie, verluste_laden_akku = self.akku.energie_laden(überschuss, hour)
-            # verluste += verluste_laden_akku
-
-            # netzeinspeisung = überschuss - geladene_energie-verluste_laden_akku
-            # eigenverbrauch = verbrauch
-            # netzbezug = 0.0
-        # # Noch Netzbezug nötig
-        # else:
-            # netzeinspeisung = 0.0
-            # benötigte_energie = verbrauch - erzeugung
-            # aus_akku, akku_entladeverluste = self.akku.energie_abgeben(benötigte_energie, hour)
-            # verluste += akku_entladeverluste
-            # netzbezug = benötigte_energie - aus_akku
-            # eigenverbrauch = erzeugung+aus_akku
-
-        # return netzeinspeisung, netzbezug, verluste, eigenverbrauch  # Keine Einspeisung, Netzbezug, aus Akku, Verluste, Eigenverbrauch
