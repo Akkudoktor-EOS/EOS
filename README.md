@@ -28,14 +28,11 @@ git clone [URL des Repositories]
 cd [Projektverzeichnis]
 pip install -r requirements.txt
 ```
-
-## PV Prognose API
-Für die nötige PV Prognose bitte folgende API nutzen: 
-https://api.akkudoktor.net/
-
 ## Nutzung
 
-Um das System zu nutzen, führen Sie `test.py` aus, das eine Simulation für einen vorgegebenen Zeitraum durchführt. Die Konfiguration der Simulation, einschließlich der Vorhersagedaten und der Systemparameter, kann in den jeweiligen Klassen angepasst werden.
+config.example.py anpassen und dann in config.py umbennenen
+Um das System zu nutzen, führen Sie `flask_server.py` aus, damit wird der Server gestartet
+
 
 ```bash
 python flask_server.py 
