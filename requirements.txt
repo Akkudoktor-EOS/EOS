@@ -1,3 +1,4 @@
+python 3.12
 flask
 numpy
 requests
@@ -5,5 +6,8 @@ pytz
 matplotlib
 deap
 scipy 
-sklearn
+scikit-learn
 pandas
+tensorflow
+joblib1.4.0
+mariadb

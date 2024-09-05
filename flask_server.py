@@ -167,7 +167,7 @@ def flask_gesamtlast():
         print(last)
         return jsonify(last.tolist())
 
-
+             
 @app.route('/gesamtlast_simple', methods=['GET'])
 def flask_gesamtlast_simple():
     if request.method == 'GET':
