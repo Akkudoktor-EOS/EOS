@@ -28,6 +28,11 @@ git clone [URL des Repositories]
 cd [Projektverzeichnis]
 pip install -r requirements.txt
 ```
+
+Bei pip install mariadb Fehler: 
+sudo apt-get install -y libmariadb-dev
+pip install mariadb
+
 ## Nutzung
 
 `config.example.py` anpassen und dann in config.py umbennenen
