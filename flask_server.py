@@ -169,7 +169,7 @@ def flask_gesamtlast():
 
 
 @app.route('/gesamtlast_simple', methods=['GET'])
-def flask_gesamtlast():
+def flask_gesamtlast_simple():
     if request.method == 'GET':
         year_energy = float(request.args.get("year_energy"))
         date_now,date = get_start_enddate(prediction_hours,startdate=datetime.now().date())
