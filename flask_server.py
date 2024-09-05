@@ -10,7 +10,7 @@ from modules.class_load_container import *
 from modules.class_sommerzeit import *
 from modules.class_soc_calc import *
 from modules.visualize import *
-from modules.class_battery_soc_predictor import *
+#from modules.class_battery_soc_predictor import *
 from modules.class_load_corrector import *
 import os
 from flask import Flask, send_from_directory
