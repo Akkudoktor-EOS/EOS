@@ -168,31 +168,31 @@ def flask_gesamtlast():
         return jsonify(last.tolist())
 
 
-# # @app.route('/gesamtlast', methods=['GET'])
-# # def flask_gesamtlast():
-    # # if request.method == 'GET':
-        # # year_energy = float(request.args.get("year_energy"))
-        # # date_now,date = get_start_enddate(prediction_hours,startdate=datetime.now().date())
-        # # ###############
-        # # # Load Forecast
-        # # ###############
-        # # lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
-        # # #leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
-        # # leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0] # Nur Erwartungswert!        
+@app.route('/gesamtlast_simple', methods=['GET'])
+def flask_gesamtlast():
+    if request.method == 'GET':
+        year_energy = float(request.args.get("year_energy"))
+        date_now,date = get_start_enddate(prediction_hours,startdate=datetime.now().date())
+        ###############
+        # Load Forecast
+        ###############
+        lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
+        #leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
+        leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0] # Nur Erwartungswert!        
         
-        # # gesamtlast = Gesamtlast(prediction_hours=prediction_hours)        
-        # # gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
+        gesamtlast = Gesamtlast(prediction_hours=prediction_hours)        
+        gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
 
-        # # # ###############
-        # # # # WP
-        # # # ##############
-        # # # leistung_wp = wp.simulate_24h(temperature_forecast)
-        # # # gesamtlast.hinzufuegen("Heatpump", leistung_wp)
+        # ###############
+        # # WP
+        # ##############
+        # leistung_wp = wp.simulate_24h(temperature_forecast)
+        # gesamtlast.hinzufuegen("Heatpump", leistung_wp)
                 
-        # # last = gesamtlast.gesamtlast_berechnen()
-        # # print(last)
-        # # #print(specific_date_prices)
-        # # return jsonify(last.tolist())
+        last = gesamtlast.gesamtlast_berechnen()
+        print(last)
+        #print(specific_date_prices)
+        return jsonify(last.tolist())
 
 @app.route('/pvforecast', methods=['GET'])
 def flask_pvprognose():
