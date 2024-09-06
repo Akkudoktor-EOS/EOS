@@ -21,6 +21,9 @@ Dieses Projekt bietet eine umfassende Lösung zur Simulation und Optimierung ein
 
 ## Installation
 
+Gute Install Anleitung: 
+https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/
+
 Das Projekt erfordert Python 3.8 oder neuer. Alle notwendigen Abhängigkeiten können über `pip` installiert werden. Klonen Sie das Repository und installieren Sie die erforderlichen Pakete mit:
 
 ```bash
