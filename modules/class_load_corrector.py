@@ -44,10 +44,30 @@ class LoadPredictionAdjuster:
 
 
     def _merge_data(self):
+        # Konvertiere die Zeitspalte in beiden Datenrahmen zu datetime
+        self.predicted_data['time'] = pd.to_datetime(self.predicted_data['time'])
+        self.measured_data['time'] = pd.to_datetime(self.measured_data['time'])
+
+        # Stelle sicher, dass beide Zeitspalten dieselbe Zeitzone haben
+        # Measured Data: Setze die Zeitzone auf UTC, falls es tz-naiv ist
+        if self.measured_data['time'].dt.tz is None:
+                self.measured_data['time'] = self.measured_data['time'].dt.tz_localize('UTC')
+
+        # Predicted Data: Setze ebenfalls UTC und konvertiere anschließend in die lokale Zeitzone
+        self.predicted_data['time'] = self.predicted_data['time'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
+        self.measured_data['time'] = self.measured_data['time'].dt.tz_convert('Europe/Berlin')
+
+        # Optional: Entferne die Zeitzoneninformation, wenn du nur lokal arbeiten möchtest
+        self.predicted_data['time'] = self.predicted_data['time'].dt.tz_localize(None)
+        self.measured_data['time'] = self.measured_data['time'].dt.tz_localize(None)
+
+        # Jetzt kannst du den Merge durchführen
         merged_data = pd.merge(self.measured_data, self.predicted_data, on='time', how='inner')
+        print(merged_data)
         merged_data['Hour'] = merged_data['time'].dt.hour
         merged_data['DayOfWeek'] = merged_data['time'].dt.dayofweek
         return merged_data
+
 
     def calculate_weighted_mean(self, train_period_weeks=9, test_period_weeks=1):
         self.merged_data = self._remove_outliers(self.merged_data)
@@ -124,112 +144,65 @@ class LoadPredictionAdjuster:
 
 
 
-class LastEstimator:
-    def __init__(self):
-        self.conn_params = db_config
-        self.conn = mariadb.connect(**self.conn_params)
-
-    def fetch_data(self, start_date, end_date):
-        queries = {
-            "Stromzaehler": f"SELECT DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') as timestamp, AVG(data) AS Stromzaehler FROM sensor_stromzaehler WHERE topic = 'stromzaehler leistung' AND timestamp BETWEEN '{start_date}' AND '{end_date}' GROUP BY 1 ORDER BY timestamp ASC",
-            "PV": f"SELECT DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') as timestamp, AVG(data) AS PV FROM data WHERE topic = 'solarallpower' AND timestamp BETWEEN '{start_date}' AND '{end_date}' GROUP BY 1 ORDER BY timestamp ASC",
-            "Batterie_Strom_PIP": f"SELECT DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') as timestamp, AVG(data) AS Batterie_Strom_PIP FROM pip WHERE topic = 'battery_current' AND timestamp BETWEEN '{start_date}' AND '{end_date}' GROUP BY 1 ORDER BY timestamp ASC",
-            "Batterie_Volt_PIP": f"SELECT DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') as timestamp, AVG(data) AS Batterie_Volt_PIP FROM pip WHERE topic = 'battery_voltage' AND timestamp BETWEEN '{start_date}' AND '{end_date}' GROUP BY 1 ORDER BY timestamp ASC",
-            "Stromzaehler_Raus": f"SELECT DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') as timestamp, AVG(data) AS Stromzaehler_Raus FROM sensor_stromzaehler WHERE topic = 'stromzaehler leistung raus' AND timestamp BETWEEN '{start_date}' AND '{end_date}' GROUP BY 1 ORDER BY timestamp ASC",
-            "Wallbox": f"SELECT DATE_FORMAT(timestamp, '%Y-%m-%d %H:00:00') as timestamp, AVG(data) AS Wallbox_Leistung FROM wallbox WHERE topic = 'power_total' AND timestamp BETWEEN '{start_date}' AND '{end_date}' GROUP BY 1 ORDER BY timestamp ASC",
-
-        }
 
 
-        dataframes = {}
-        for key, query in queries.items():
-            dataframes[key] = pd.read_sql(query, self.conn)
+
+
+
+
+
+
+
+# if __name__ == '__main__':
+
+
+        # estimator = LastEstimator()
+        # start_date = "2024-06-01"
+        # end_date = "2024-08-01"
+        # last_df = estimator.get_last(start_date, end_date)
+
+        # selected_columns = last_df[['timestamp', 'Last']]
+        # selected_columns['time'] = pd.to_datetime(selected_columns['timestamp']).dt.floor('H')
+        # selected_columns['Last'] = pd.to_numeric(selected_columns['Last'], errors='coerce')
+
+        # # Drop rows with NaN values
+        # cleaned_data = selected_columns.dropna()
+
+        # print(cleaned_data)
+        # # Create an instance of LoadForecast
         
-        return dataframes
+        # lf = LoadForecast(filepath=r'.\load_profiles.npz', year_energy=6000*1000)
 
-    def calculate_last(self, dataframes):
-        # Batterie_Leistung = Batterie_Strom_PIP * Batterie_Volt_PIP
-        dataframes["Batterie_Leistung"] = dataframes["Batterie_Strom_PIP"].merge(dataframes["Batterie_Volt_PIP"], on="timestamp", how="outer")
-        dataframes["Batterie_Leistung"]["Batterie_Leistung"] = dataframes["Batterie_Leistung"]["Batterie_Strom_PIP"] * dataframes["Batterie_Leistung"]["Batterie_Volt_PIP"]
+        # # Initialize an empty DataFrame to hold the forecast data
+        # forecast_list = []
 
-        # Stromzaehler_Saldo = Stromzaehler - Stromzaehler_Raus
-        dataframes["Stromzaehler_Saldo"] = dataframes["Stromzaehler"].merge(dataframes["Stromzaehler_Raus"], on="timestamp", how="outer")
-        dataframes["Stromzaehler_Saldo"]["Stromzaehler_Saldo"] = dataframes["Stromzaehler_Saldo"]["Stromzaehler"] - dataframes["Stromzaehler_Saldo"]["Stromzaehler_Raus"]
+        # # Loop through each day in the date range
+        # for single_date in pd.date_range(cleaned_data['time'].min().date(), cleaned_data['time'].max().date()):
+                # date_str = single_date.strftime('%Y-%m-%d')
+                # daily_forecast = lf.get_daily_stats(date_str)
+                # mean_values = daily_forecast[0]  # Extract the mean values
+                # hours = [single_date + pd.Timedelta(hours=i) for i in range(24)]
+                # daily_forecast_df = pd.DataFrame({'time': hours, 'Last Pred': mean_values})
+                # forecast_list.append(daily_forecast_df)
 
-        # Stromzaehler_Saldo - Batterie_Leistung
-        dataframes["Netzleistung"] = dataframes["Stromzaehler_Saldo"].merge(dataframes["Batterie_Leistung"], on="timestamp", how="outer")
-        dataframes["Netzleistung"]["Netzleistung"] = dataframes["Netzleistung"]["Stromzaehler_Saldo"] - dataframes["Netzleistung"]["Batterie_Leistung"]
+        # # Concatenate all daily forecasts into a single DataFrame
+        # forecast_df = pd.concat(forecast_list, ignore_index=True)
 
-        # Füge die Wallbox-Leistung hinzu
-        dataframes["Netzleistung"] = dataframes["Netzleistung"].merge(dataframes["Wallbox"], on="timestamp", how="left")
-        dataframes["Netzleistung"]["Wallbox_Leistung"] = dataframes["Netzleistung"]["Wallbox_Leistung"].fillna(0)  # Fülle fehlende Werte mit 0
+        # # Create an instance of the LoadPredictionAdjuster class
+        # adjuster = LoadPredictionAdjuster(cleaned_data, forecast_df, lf)
 
-        # Last = Netzleistung + PV
-        # Berechne die endgültige Last
-        dataframes["Last"] = dataframes["Netzleistung"].merge(dataframes["PV"], on="timestamp", how="outer")
-        dataframes["Last"]["Last_ohneWallbox"] = dataframes["Last"]["Netzleistung"] + dataframes["Last"]["PV"]
-        dataframes["Last"]["Last"] = dataframes["Last"]["Netzleistung"] + dataframes["Last"]["PV"] - dataframes["Last"]["Wallbox_Leistung"]
-        return dataframes["Last"].dropna()
+        # # Calculate the weighted mean differences
+        # adjuster.calculate_weighted_mean()
 
-    def get_last(self, start_date, end_date):
-        dataframes = self.fetch_data(start_date, end_date)
-        last_df = self.calculate_last(dataframes)
-        return last_df
+        # # Adjust the predictions
+        # adjuster.adjust_predictions()
 
+        # # Plot the results
+        # adjuster.plot_results()
 
+        # # Evaluate the model
+        # adjuster.evaluate_model()
 
-
-
-if __name__ == '__main__':
-
-
-        estimator = LastEstimator()
-        start_date = "2024-06-01"
-        end_date = "2024-08-01"
-        last_df = estimator.get_last(start_date, end_date)
-
-        selected_columns = last_df[['timestamp', 'Last']]
-        selected_columns['time'] = pd.to_datetime(selected_columns['timestamp']).dt.floor('H')
-        selected_columns['Last'] = pd.to_numeric(selected_columns['Last'], errors='coerce')
-
-        # Drop rows with NaN values
-        cleaned_data = selected_columns.dropna()
-
-        print(cleaned_data)
-        # Create an instance of LoadForecast
-        
-        lf = LoadForecast(filepath=r'.\load_profiles.npz', year_energy=6000*1000)
-
-        # Initialize an empty DataFrame to hold the forecast data
-        forecast_list = []
-
-        # Loop through each day in the date range
-        for single_date in pd.date_range(cleaned_data['time'].min().date(), cleaned_data['time'].max().date()):
-                date_str = single_date.strftime('%Y-%m-%d')
-                daily_forecast = lf.get_daily_stats(date_str)
-                mean_values = daily_forecast[0]  # Extract the mean values
-                hours = [single_date + pd.Timedelta(hours=i) for i in range(24)]
-                daily_forecast_df = pd.DataFrame({'time': hours, 'Last Pred': mean_values})
-                forecast_list.append(daily_forecast_df)
-
-        # Concatenate all daily forecasts into a single DataFrame
-        forecast_df = pd.concat(forecast_list, ignore_index=True)
-
-        # Create an instance of the LoadPredictionAdjuster class
-        adjuster = LoadPredictionAdjuster(cleaned_data, forecast_df, lf)
-
-        # Calculate the weighted mean differences
-        adjuster.calculate_weighted_mean()
-
-        # Adjust the predictions
-        adjuster.adjust_predictions()
-
-        # Plot the results
-        adjuster.plot_results()
-
-        # Evaluate the model
-        adjuster.evaluate_model()
-
-        # Predict the next x hours
-        future_predictions = adjuster.predict_next_hours(48)
-        print(future_predictions)
+        # # Predict the next x hours
+        # future_predictions = adjuster.predict_next_hours(48)
+        # print(future_predictions)
