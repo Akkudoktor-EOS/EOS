@@ -8,6 +8,5 @@ deap
 scipy 
 scikit-learn
 pandas
-tensorflow
 joblib1.4.0
 mariadb
