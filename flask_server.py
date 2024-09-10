@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, redirect, url_for
 import numpy as np
 from  modules.class_load import *
 from  modules.class_ems import *
@@ -321,8 +321,30 @@ def get_pdf():
     return send_from_directory('', 'visualisierungsergebnisse.pdf')
 
 
+@app.route("/site-map")
+def site_map():
+    def print_links(links):
+        ### This is lazy. Use templates
+        content = "<h1>Valid routes</h1><ul>"
+        for link in links:
+            content += f"<li><a href='{link}'>{link}</li>"
+        content = content + "<ul>"
+        return content
 
+    def has_no_empty_params(rule):
+        defaults = rule.defaults if rule.defaults is not None else ()
+        arguments = rule.arguments if rule.arguments is not None else ()
+        return len(defaults) >= len(arguments)
+    links = []
+    for rule in app.url_map.iter_rules():
+        if "GET" in rule.methods and has_no_empty_params(rule):
+            url = url_for(rule.endpoint, **(rule.defaults or {}))
+            links.append(url)
+    return print_links(sorted(links))
 
+@app.route('/')
+def root():
+    return redirect("/site-map", code=302)
 
 
 if __name__ == '__main__':
