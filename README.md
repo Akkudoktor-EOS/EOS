@@ -30,14 +30,44 @@ https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energi
 Das Projekt erfordert Python 3.8 oder neuer. Alle notwendigen Abhängigkeiten können über `pip` installiert werden. Klonen Sie das Repository und installieren Sie die erforderlichen Pakete mit:
 
 ```bash
-git clone [URL des Repositories]
-cd [Projektverzeichnis]
-pip install -r requirements.txt
+git clone https://github.com/Akkudoktor-EOS/EOS
+cd EOS
+```
+Als Nächstes legen wir ein virtuelles Environment an. Es dient zur Ablage der Python-Abhängigkeiten,
+die wir später per `pip` installieren:
+
+```bash
+virtualenv .venv
 ```
 
-Bei pip install mariadb Fehler: 
-sudo apt-get install -y libmariadb-dev
-pip install mariadb
+Schließlich installieren wir die Python-Abhängigkeiten von EOS:
+
+```bash
+.venv/bin/pip install -r requirements.txt
+```
+
+Um immer die Python-Version aus dem Virtual-Env zu verwenden, sollte vor der Arbeit in
+EOS Folgendes aufgerufen werden:
+
+```bash
+source .venv/bin/activate
+```
+
+(für Bash-Nutzende, der Standard unter Linux) oder
+
+```zsh
+. .venv/bin/activate
+```
+
+(wenn zsh verwendet wird, vor allem MacOS-Nutzende).
+
+Sollte `pip install` die mariadb-Abhängigkeit nicht installieren können,
+dann helfen folgende Kommandos:
+
+* Debian/Ubuntu: `sudo apt-get install -y libmariadb-dev`
+* Macos/Homebrew: `brew install mariadb-connector-c`
+
+gefolgt von einem erneuten `pip install -r requirements.txt`.
 
 ## Nutzung
 
@@ -46,7 +76,7 @@ Um das System zu nutzen, führen Sie `flask_server.py` aus, damit wird der Serve
 
 
 ```bash
-python flask_server.py 
+./flask_server.py
 ```
 ## Klassen und Funktionalitäten
 
