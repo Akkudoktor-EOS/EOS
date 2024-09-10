@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from flask import Flask, jsonify, request
 import numpy as np
 from  modules.class_load import *
@@ -325,7 +326,11 @@ def get_pdf():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0")
+    try:
+        port = os.getenv("FLASK_RUN_PORT", 5000)
+        app.run(debug=True, host="0.0.0.0", port=port)
+    except:
+        print(f"Coud not bind to port {port}, set FLASK_RUN_PORT.")
 
 
 # PV Forecast:
