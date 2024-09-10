@@ -327,10 +327,11 @@ def get_pdf():
 
 if __name__ == '__main__':
     try:
+        host= os.getenv("FLASK_RUN_HOST", "0.0.0.0")
         port = os.getenv("FLASK_RUN_PORT", 5000)
-        app.run(debug=True, host="0.0.0.0", port=port)
+        app.run(debug=True, host=host, port=port)
     except:
-        print(f"Coud not bind to port {port}, set FLASK_RUN_PORT.")
+        print(f"Coud not bind to host {host}:{port}, set FLASK_RUN_HOST and/or FLASK_RUN_PORT.")
 
 
 # PV Forecast:
