@@ -20,14 +20,33 @@ https://www.akkudoktor.net/forum/diy-energie-optimierungssystem-opensource-proje
 - `Backend:` Visual Cleaner (z.B. E-Auto Akku = 100%, dann sollte die Lademöglichkeit auf 0 stehen. Zumindest bei der Ausgabe sollte das "sauber" sein)
 - `Backend:` Cache regelmäßig leeren können (API)
 
-
-
 ## Installation
 
 Gute Install Anleitung: 
 https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/
 
-Das Projekt erfordert Python 3.8 oder neuer. Alle notwendigen Abhängigkeiten können über `pip` installiert werden. Klonen Sie das Repository und installieren Sie die erforderlichen Pakete mit:
+Das Projekt erfordert Python 3.8 oder neuer.
+
+### Schnellanleitung
+
+Unter Linux (Ubuntu/Debian):
+
+```bash
+sudo apt install make
+```
+
+Unter Macos (benötigt [Homebrew](https://brew.sh)):
+
+```zsh
+brew install make
+```
+
+Nun `config.example.py` anpassen und dann in `config.py` umbennenen. Anschließend kann der Server über `make run` gestartet werden.
+Eine vollständige Übersicht über die wichtigsten Kurzbefehle gibt `make help`.
+
+### Ausführliche Anleitung
+
+Alle notwendigen Abhängigkeiten können über `pip` installiert werden. Klonen Sie das Repository und installieren Sie die erforderlichen Pakete mit:
 
 ```bash
 git clone https://github.com/Akkudoktor-EOS/EOS
