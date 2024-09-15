@@ -33,6 +33,51 @@ def isfloat(num):
     except:
         return False
 
+def differential_evolution(population, toolbox, cxpb, mutpb, ngen, stats=None, halloffame=None, verbose=__debug__):
+    """Differential Evolution Algorithm"""
+    
+    # Evaluate the entire population
+    fitnesses = list(map(toolbox.evaluate, population))
+    for ind, fit in zip(population, fitnesses):
+        ind.fitness.values = fit
+    
+    if halloffame is not None:
+        halloffame.update(population)
+    
+    logbook = tools.Logbook()
+    logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
+
+    for gen in range(ngen):
+        # Generate the next generation by mutation and recombination
+        for i, target in enumerate(population):
+            a, b, c = random.sample([ind for ind in population if ind != target], 3)
+            mutant = toolbox.clone(a)
+            for k in range(len(mutant)):
+                mutant[k] = c[k] + mutpb * (a[k] - b[k])  # Mutation step
+                if random.random() < cxpb:  # Recombination step
+                    mutant[k] = target[k]
+            
+            # Evaluate the mutant
+            mutant.fitness.values = toolbox.evaluate(mutant)
+            
+            # Replace if mutant is better
+            if mutant.fitness > target.fitness:
+                population[i] = mutant
+
+        # Update hall of fame
+        if halloffame is not None:
+            halloffame.update(population)
+
+        # Gather all the fitnesses in one list and print the stats
+        record = stats.compile(population) if stats else {}
+        logbook.record(gen=gen, nevals=len(population), **record)
+        if verbose:
+            print(logbook.stream)
+    
+    return population, logbook
+
+
+
 class optimization_problem:
     def __init__(self, prediction_hours=24, strafe = 10, optimization_hours= 24):
         self.prediction_hours = prediction_hours#
@@ -75,10 +120,12 @@ class optimization_problem:
         # PARAMETER
         self.toolbox = base.Toolbox()
         self.toolbox.register("attr_bool", random.randint, 0, 1)
-        #self.toolbox.register("attr_float", random.uniform, 0, 1)  # Für kontinuierliche Werte zwischen 0 und 1 (z.B. für E-Auto-Ladeleistung)
-        self.toolbox.register("attr_choice", random.choice, self.possible_charge_values)  # Für diskrete Ladeströme
+        self.toolbox.register("attr_float", random.uniform, 0, 1)  # Für kontinuierliche Werte zwischen 0 und 1 (z.B. für E-Auto-Ladeleistung)
+        #self.toolbox.register("attr_choice", random.choice, self.possible_charge_values)  # Für diskrete Ladeströme
 
         self.toolbox.register("attr_int", random.randint, start_hour, 23)
+        
+        
         
         ###################
         # Haushaltsgeraete
@@ -86,21 +133,28 @@ class optimization_problem:
         if opti_param["haushaltsgeraete"]>0:   
                 def create_individual():
                         attrs = [self.toolbox.attr_bool() for _ in range(self.prediction_hours)]  # 24 Bool-Werte für Entladen
-                        attrs += [self.toolbox.attr_choice()  for _ in range(self.prediction_hours)]  # 24 Float-Werte für Laden
+                        attrs += [self.toolbox.attr_float()  for _ in range(self.prediction_hours)]  # 24 Float-Werte für Laden
                         attrs.append(self.toolbox.attr_int())  # Haushaltsgerät-Startzeit
                         return creator.Individual(attrs)
 
         else:
                 def create_individual():
                         attrs = [self.toolbox.attr_bool() for _ in range(self.prediction_hours)]  # 24 Bool-Werte für Entladen
-                        attrs += [self.toolbox.attr_choice()  for _ in range(self.prediction_hours)]  # 24 Float-Werte für Laden
+                        attrs += [self.toolbox.attr_float()  for _ in range(self.prediction_hours)]  # 24 Float-Werte für Laden
                         return creator.Individual(attrs)
 
-        
+                
+
         self.toolbox.register("individual", create_individual)#tools.initCycle, creator.Individual, (self.toolbox.attr_bool,self.toolbox.attr_bool), n=self.prediction_hours+1)
         self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
         self.toolbox.register("mate", tools.cxTwoPoint)
         self.toolbox.register("mutate", tools.mutFlipBit, indpb=0.1)
+        
+        
+        
+        #self.toolbox.register("mutate", mutate_choice, self.possible_charge_values, indpb=0.1)
+        #self.toolbox.register("mutate", tools.mutUniformInt, low=0, up=len(self.possible_charge_values)-1, indpb=0.1)
+
         self.toolbox.register("select", tools.selTournament, tournsize=3)    
         
     def evaluate_inner(self,individual, ems,start_hour):
@@ -145,6 +199,18 @@ class optimization_problem:
                 gesamtbilanz = gesamtbilanz * -1.0
         
         discharge_hours_bin, eautocharge_hours_float, spuelstart_int = self.split_individual(individual)     
+        max_ladeleistung = np.max(moegliche_ladestroeme_in_prozent)
+
+        strafe_überschreitung = 0.0
+
+        # Ladeleistung überschritten?
+        for ladeleistung in eautocharge_hours_float:
+                if ladeleistung > max_ladeleistung:
+                    # Berechne die Überschreitung
+                    überschreitung = ladeleistung - max_ladeleistung
+                    # Füge eine Strafe hinzu (z.B. 10 Einheiten Strafe pro Prozentpunkt Überschreitung)
+                    strafe_überschreitung += self.strafe * 10  # Hier ist die Strafe proportional zur Überschreitung
+
         
         # Für jeden Discharge 0, eine kleine Strafe von 1 Cent, da die Lastvertelung noch fehlt. Also wenn es egal ist, soll er den Akku entladen lassen
         for i in range(0, self.prediction_hours):
@@ -156,14 +222,10 @@ class optimization_problem:
         for i in range(self.prediction_hours - self.fixed_eauto_hours, self.prediction_hours):
             if eautocharge_hours_float[i] != 0.0:  # Wenn die letzten x Stunden von einem festen Wert abweichen
                 gesamtbilanz += self.strafe  # Bestrafe den Optimierer
-
         
         
         # Überprüfung, ob der Mindest-SoC erreicht wird
         final_soc = ems.eauto.ladezustand_in_prozent()  # Nimmt den SoC am Ende des Optimierungszeitraums
-        
-        
-         
         
         if (parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) <= 0.0:
                 #print (parameter['eauto_min_soc']," " ,ems.eauto.ladezustand_in_prozent()," ",(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()))
@@ -184,7 +246,7 @@ class optimization_problem:
         # print()
         strafe = 0.0
         strafe = max(0,(parameter['eauto_min_soc']-ems.eauto.ladezustand_in_prozent()) * self.strafe ) 
-        gesamtbilanz += strafe    - restwert_akku
+        gesamtbilanz += strafe    - restwert_akku + strafe_überschreitung
         #gesamtbilanz += o["Gesamt_Verluste"]/10000.0
                 
         return (gesamtbilanz,)
@@ -195,7 +257,9 @@ class optimization_problem:
 
     # Genetischer Algorithmus
     def optimize(self,start_solution=None):
-        population = self.toolbox.population(n=600)
+
+
+        population = self.toolbox.population(n=300)
         hof = tools.HallOfFame(1)
         
         stats = tools.Statistics(lambda ind: ind.fitness.values)
@@ -207,9 +271,17 @@ class optimization_problem:
         
         if start_solution is not None and start_solution != -1:
                 population.insert(0, creator.Individual(start_solution))     
+                population.insert(1, creator.Individual(start_solution))
+                population.insert(2, creator.Individual(start_solution))
         
-        algorithms.eaMuPlusLambda(population, self.toolbox, mu=200, lambda_=300, cxpb=0.3, mutpb=0.4, ngen=300,   stats=stats, halloffame=hof, verbose=True)
-        #algorithms.eaSimple(population, self.toolbox, cxpb=0.2, mutpb=0.2, ngen=1000,             stats=stats, halloffame=hof, verbose=True)
+        algorithms.eaMuPlusLambda(population, self.toolbox, mu=100, lambda_=200, cxpb=0.5, mutpb=0.3, ngen=400,   stats=stats, halloffame=hof, verbose=True)
+        #algorithms.eaSimple(population, self.toolbox, cxpb=0.3, mutpb=0.3, ngen=200,             stats=stats, halloffame=hof, verbose=True)
+        #algorithms.eaMuCommaLambda(population, self.toolbox, mu=100, lambda_=200, cxpb=0.2, mutpb=0.4, ngen=300, stats=stats, halloffame=hof, verbose=True)
+        #population, log = differential_evolution(population, self.toolbox, cxpb=0.2, mutpb=0.5, ngen=200, stats=stats, halloffame=hof, verbose=True)
+        
+
+        
+
         
         member = {"bilanz":[],"verluste":[],"nebenbedingung":[]}
         for ind in population:
@@ -338,6 +410,7 @@ class optimization_problem:
         
         #print(eauto)
         return {"discharge_hours_bin":discharge_hours_bin, "eautocharge_hours_float":eautocharge_hours_float ,"result":o ,"eauto_obj":eauto,"start_solution":best_solution,"spuelstart":spuelstart_int,"simulation_data":o}
+
 
 
 
