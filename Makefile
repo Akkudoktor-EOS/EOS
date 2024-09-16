@@ -7,11 +7,12 @@ all: help
 # Target to display help information
 help:
 	@echo "Available targets:"
-	@echo "  venv    - Set up a Python 3 virtual environment."
-	@echo "  pip     - Install dependencies from requirements.txt."
-	@echo "  docs    - Generate HTML documentation using pdoc."
-	@echo "  run     - Run flask_server.py in the virtual environment."
-	@echo "  clean   - Remove generated documentation and virtual environment."
+	@echo "  venv       - Set up a Python 3 virtual environment."
+	@echo "  pip        - Install dependencies from requirements.txt."
+	@echo "  docker-run - Run entire setup on docker
+	@echo "  docs       - Generate HTML documentation using pdoc."
+	@echo "  run        - Run flask_server.py in the virtual environment."
+	@echo "  clean      - Remove generated documentation and virtual environment."
 
 # Target to set up a Python 3 virtual environment
 venv:
