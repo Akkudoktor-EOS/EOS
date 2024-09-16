@@ -1,0 +1,14 @@
+.git
+.github
+eos-data/
+mariadb-data/
+test_data/
+.dockerignore
+.env
+.gitignore
+docker-compose.yaml
+Dockerfile
+LICENSE
+Makefile
+NOTICE
+README.md
