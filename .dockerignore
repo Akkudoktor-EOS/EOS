@@ -1,5 +1,5 @@
-.git
-.github
+.git/
+.github/
 eos-data/
 mariadb-data/
 test_data/
