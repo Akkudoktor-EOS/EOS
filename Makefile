@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip docs clean
+.PHONY: help venv pip docker-run docs clean
 
 # Default target
 all: help
