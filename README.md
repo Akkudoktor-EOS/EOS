@@ -6,21 +6,6 @@ Dieses Projekt bietet eine umfassende Lösung zur Simulation und Optimierung ein
 
 Die Diskussion findet im [Forum](https://www.akkudoktor.net/forum/diy-energie-optimierungssystem-opensource-projekt/) statt. Bugs bitte im [Issue Tracker](https://github.com/Akkudoktor-EOS/EOS/issues) melden, Code-Beiträge und Bug-Fixes nehmen wir gerne als [Pull-Requests](https://github.com/Akkudoktor-EOS/EOS/pulls) entgegen.
 
-## Todo
-- `Backend:` Mehr Optimierungsparameter
-- `Frontend:` User Management
-- `Frontend:` Grafische Ausgabe
-- `Frontend:` Speichern von User Einstellungen (PV Anlage usw.)
-- `Frontend:` Festeingestellte E-Autos / Wärmepumpen in DB
-- `Simulation:` Wärmepumpe allgemeineren Ansatz
-- `Simulation:` Strompreisvorhersage > 1D (Timeseries Forecast)
-- `Simulation:` Lastverteilung 1h Werte -> Minuten (Tabelle) 
-- `Dynamische Lasten:` z.B. eine Spülmaschine, welche gesteuert werdeb jabb,
-- `Simulation:` AC Chargen möglich
-- `Optimierung:` E-Auto Akku voll = in der 0/1 Liste keine Möglichkeit mehr auf 1 (aktuell ist der Optimierung das egalm ändert ja nichts) Optimierungsparameter reduzieren
-- `Backend:` Visual Cleaner (z.B. E-Auto Akku = 100%, dann sollte die Lademöglichkeit auf 0 stehen. Zumindest bei der Ausgabe sollte das "sauber" sein)
-- `Backend:` Cache regelmäßig leeren können (API)
-
 ## Installation
 
 Gute Install Anleitung: 
