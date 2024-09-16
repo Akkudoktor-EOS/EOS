@@ -40,4 +40,4 @@ run:
 
 # Run entire setup on docker
 docker-run:
-	@docker-compose up
+	@docker compose up
