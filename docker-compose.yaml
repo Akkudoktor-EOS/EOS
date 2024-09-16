@@ -26,4 +26,4 @@ services:
     networks:
       - 'eos'
     volumes:
-      - ./mariadb-data:/var/lib/mysql
+      - ./data/mariadb:/var/lib/mysql
