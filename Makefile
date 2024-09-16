@@ -36,3 +36,7 @@ clean:
 run:
 	@echo "Starting flask server, please wait..."
 	.venv/bin/python ./flask_server.py
+
+# Run entire setup on docker
+docker-run:
+	@docker-compose up
