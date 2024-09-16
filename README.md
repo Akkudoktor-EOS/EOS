@@ -2,8 +2,9 @@
 
 Dieses Projekt bietet eine umfassende Lösung zur Simulation und Optimierung eines Energiesystems, das auf erneuerbaren Energiequellen basiert. Mit Fokus auf Photovoltaik (PV)-Anlagen, Batteriespeichern (Akkus), Lastmanagement (Verbraucheranforderungen), Wärmepumpen, Elektrofahrzeugen und der Berücksichtigung von Strompreisdaten ermöglicht dieses System die Vorhersage und Optimierung des Energieflusses und der Kosten über einen bestimmten Zeitraum.
 
-## Diskussionen und Zugriffsanfragen 
-https://www.akkudoktor.net/forum/diy-energie-optimierungssystem-opensource-projekt/
+## Mitmachen
+
+Die Diskussion findet im [Forum](https://www.akkudoktor.net/forum/diy-energie-optimierungssystem-opensource-projekt/) statt. Bugs bitte im [Issue Tracker](https://github.com/Akkudoktor-EOS/EOS/issues) melden, Code-Beiträge und Bug-Fixes nehmen wir gerne als [Pull-Requests](https://github.com/Akkudoktor-EOS/EOS/pulls) entgegen.
 
 ## Todo
 - `Backend:` Mehr Optimierungsparameter
