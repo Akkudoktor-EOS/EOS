@@ -21,10 +21,10 @@ services:
   mariadb:
     image: 'mariadb:${MARIADB_VERSION}-jammy'
     environment:
-      MARIADB_ROOT_PASSWORD: 'root'
-      MARIADB_DATABASE: 'eos'
-      MARIADB_USER: 'eos'
-      MARIADB_PASSWORD: 'eos'
+      MARIADB_ROOT_PASSWORD: '${MARIADB_ROOT_PASSWORD}'
+      MARIADB_DATABASE: '${MARIADB_DATABASE}'
+      MARIADB_USER: '${MARIADB_USER}'
+      MARIADB_PASSWORD: '${MARIADB_PASSWORD}'
     networks:
       - 'eos'
     volumes:
