@@ -1,0 +1,31 @@
+---
+networks:
+  eos:
+    name: 'eos'
+services:
+  eos:
+    image: 'akkudoktor/eos:${EOS_VERSION}'
+    build:
+      context: .
+      dockerfile: 'Dockerfile'
+      args:
+        PYTHON_VERSION: '${PYTHON_VERSION}'
+    depends_on:
+      - 'mariadb'
+    init: true
+    environment: {}
+    networks:
+      - 'eos'
+    volumes:
+      - ./eos-data:/data
+  mariadb:
+    image: 'mariadb:${MARIADB_VERSION}-jammy'
+    environment:
+      MARIADB_ROOT_PASSWORD: 'root'
+      MARIADB_DATABASE: 'eos'
+      MARIADB_USER: 'eos'
+      MARIADB_PASSWORD: 'eos'
+    networks:
+      - 'eos'
+    volumes:
+      - ./mariadb-data:/var/lib/mysql
