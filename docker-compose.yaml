@@ -16,8 +16,6 @@ services:
     environment: {}
     networks:
       - 'eos'
-    volumes:
-      - ./eos-data:/data
   mariadb:
     image: 'mariadb:${MARIADB_VERSION}-jammy'
     environment:
