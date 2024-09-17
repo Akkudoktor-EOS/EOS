@@ -13,11 +13,12 @@ services:
     depends_on:
       - 'mariadb'
     init: true
-    environment: {}
+    environment:
+      FLASK_RUN_PORT: '${EOS_PORT}'
     networks:
       - 'eos'
     ports:
-      - '5000:5000'
+      - '${EOS_PORT}:${EOS_PORT}'
   mariadb:
     image: 'mariadb:${MARIADB_VERSION}-jammy'
     environment:
