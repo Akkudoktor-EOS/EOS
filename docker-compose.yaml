@@ -16,6 +16,8 @@ services:
     environment: {}
     networks:
       - 'eos'
+    ports:
+      - '5000:5000'
   mariadb:
     image: 'mariadb:${MARIADB_VERSION}-jammy'
     environment:
