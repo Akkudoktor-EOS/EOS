@@ -3,6 +3,8 @@ FROM python:${PYTHON_VERSION}-slim
 
 LABEL source="https://github.com/Akkudoktor-EOS/EOS"
 
+EXPOSE 5000
+
 ARG APT_OPTS="--yes --auto-remove --no-install-recommends --no-install-suggests"
 RUN DEBIAN_FRONTEND=noninteractive \
 	apt-get update \
