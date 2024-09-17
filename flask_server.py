@@ -6,8 +6,8 @@ from  modules.class_ems import *
 from  modules.class_pv_forecast import *
 from modules.class_akku import *
 from modules.class_strompreis import *
-from modules.class_heatpump import * 
-from modules.class_load_container import * 
+from modules.class_heatpump import *
+from modules.class_load_container import *
 from modules.class_sommerzeit import *
 from modules.class_soc_calc import *
 from modules.visualize import *
@@ -44,9 +44,9 @@ opt_class = optimization_problem(prediction_hours=prediction_hours, strafe=10, o
         # ###############
         # lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
         # #leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
-        # leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0] # Nur Erwartungswert!        
-        
-        # gesamtlast = Gesamtlast(prediction_hours=prediction_hours)        
+        # leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0] # Nur Erwartungswert!
+
+        # gesamtlast = Gesamtlast(prediction_hours=prediction_hours)
         # gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
 
         # # ###############
@@ -54,7 +54,7 @@ opt_class = optimization_problem(prediction_hours=prediction_hours, strafe=10, o
         # # ##############
         # # leistung_wp = wp.simulate_24h(temperature_forecast)
         # # gesamtlast.hinzufuegen("Heatpump", leistung_wp)
-                
+
         # last = gesamtlast.gesamtlast_berechnen()
         # print(last)
         # #print(specific_date_prices)
@@ -72,7 +72,7 @@ def flask_soc():
     voltage_low_threshold = 46.5  # 0% SoC
     current_low_threshold = 2  # Niedriger Strom für beide Zustände
     gap = 30  # Zeitlücke in Minuten zum  Gruppieren von Maxima/Minima
-    bat_capacity = 33 * 1000 / 48 
+    bat_capacity = 33 * 1000 / 48
 
     # Zeitpunkt X definieren
     zeitpunkt_x = (datetime.now() - timedelta(weeks=3)).strftime('%Y-%m-%d %H:%M:%S')
@@ -89,7 +89,7 @@ def flask_soc():
     processor.update_database_with_soc(soc_df)
     #processor.plot_data(last_points_100_df, last_points_0_df, soc_df)
     processor.disconnect_db()
-        
+
     return jsonify("Done")
 
 
@@ -110,7 +110,7 @@ def flask_strompreis():
 
 # Die letzten X gemessenen Daten + gesamtlast Simple oder eine andere Schätung als Input
 # Daraus wird dann eine neuen Lastprognose erstellt welche korrigiert ist.
-# Input: 
+# Input:
 @app.route('/gesamtlast', methods=['POST'])
 def flask_gesamtlast():
     # Daten aus dem JSON-Body abrufen
@@ -138,7 +138,7 @@ def flask_gesamtlast():
 
     # Remove timezone info after conversion
     measured_data['time'] = measured_data['time'].dt.tz_localize(None)
-    
+
     # Instantiate LoadForecast and generate forecast data
     lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
 
@@ -169,7 +169,7 @@ def flask_gesamtlast():
     leistung_haushalt = future_predictions['Adjusted Pred'].values
 
     # Instantiate Gesamtlast and add household power predictions
-    gesamtlast = Gesamtlast(prediction_hours=prediction_hours)        
+    gesamtlast = Gesamtlast(prediction_hours=prediction_hours)
     gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
 
     # ###############
@@ -177,7 +177,7 @@ def flask_gesamtlast():
     # ###############
     # leistung_wp = wp.simulate_24h(temperature_forecast)
     # gesamtlast.hinzufuegen("Heatpump", leistung_wp)
-    
+
     # Calculate the total load
     last = gesamtlast.gesamtlast_berechnen()
 
@@ -235,7 +235,7 @@ def flask_gesamtlast():
 
         # leistung_haushalt = future_predictions['Adjusted Pred'].values
 
-        # gesamtlast = Gesamtlast(prediction_hours=prediction_hours)        
+        # gesamtlast = Gesamtlast(prediction_hours=prediction_hours)
         # gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
 
         # # ###############
@@ -243,12 +243,12 @@ def flask_gesamtlast():
         # # ##############
         # # leistung_wp = wp.simulate_24h(temperature_forecast)
         # # gesamtlast.hinzufuegen("Heatpump", leistung_wp)
-                
+
         # last = gesamtlast.gesamtlast_berechnen()
         # print(last)
         # return jsonify(last.tolist())
 
-             
+
 @app.route('/gesamtlast_simple', methods=['GET'])
 def flask_gesamtlast_simple():
     if request.method == 'GET':
@@ -259,9 +259,9 @@ def flask_gesamtlast_simple():
         ###############
         lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
         #leistung_haushalt = lf.get_daily_stats(date)[0,...]  # Datum anpassen
-        leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0] # Nur Erwartungswert!        
-        
-        gesamtlast = Gesamtlast(prediction_hours=prediction_hours)        
+        leistung_haushalt = lf.get_stats_for_date_range(date_now,date)[0] # Nur Erwartungswert!
+
+        gesamtlast = Gesamtlast(prediction_hours=prediction_hours)
         gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
 
         # ###############
@@ -269,7 +269,7 @@ def flask_gesamtlast_simple():
         # ##############
         # leistung_wp = wp.simulate_24h(temperature_forecast)
         # gesamtlast.hinzufuegen("Heatpump", leistung_wp)
-                
+
         last = gesamtlast.gesamtlast_berechnen()
         print(last)
         #print(specific_date_prices)
@@ -281,7 +281,7 @@ def flask_pvprognose():
         url = request.args.get("url")
         ac_power_measurement = request.args.get("ac_power_measurement")
         date_now,date = get_start_enddate(prediction_hours,startdate=datetime.now().date())
-        
+
         ###############
         # PV Forecast
         ###############
@@ -290,7 +290,7 @@ def flask_pvprognose():
         if isfloat(ac_power_measurement):
             PVforecast.update_ac_power_measurement(date_time=datetime.now(), ac_power_measurement=float(ac_power_measurement) )
             #PVforecast.print_ac_power_and_measurement()
-        
+
         pv_forecast = PVforecast.get_pv_forecast_for_date_range(date_now,date) #get_forecast_for_date(date)
         temperature_forecast = PVforecast.get_temperature_for_date_range(date_now,date)
 
@@ -303,7 +303,7 @@ def flask_pvprognose():
 def flask_optimize():
     if request.method == 'POST':
         parameter = request.json
-        
+
         # Erforderliche Parameter prüfen
         erforderliche_parameter = [ 'preis_euro_pro_wh_akku','strompreis_euro_pro_wh', "gesamtlast",'pv_akku_cap', "einspeiseverguetung_euro_pro_wh",  'pv_forecast','temperature_forecast', 'eauto_min_soc', "eauto_cap","eauto_charge_efficiency","eauto_charge_power","eauto_soc","pv_soc","start_solution","haushaltsgeraet_dauer","haushaltsgeraet_wh"]
         for p in erforderliche_parameter:
@@ -312,7 +312,7 @@ def flask_optimize():
 
         # Simulation durchführen
         ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=datetime.now().hour) # , startdate = datetime.now().date() - timedelta(days = 1)
-        
+
         return jsonify(ergebnis)
 
 
@@ -350,7 +350,7 @@ def root():
 if __name__ == '__main__':
     try:
         host= os.getenv("FLASK_RUN_HOST", "0.0.0.0")
-        port = os.getenv("FLASK_RUN_PORT", 5000)
+        port = os.getenv("FLASK_RUN_PORT", 3000)
         app.run(debug=True, host=host, port=port)
     except:
         print(f"Coud not bind to host {host}:{port}, set FLASK_RUN_HOST and/or FLASK_RUN_PORT.")
