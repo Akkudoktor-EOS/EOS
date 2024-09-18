@@ -350,7 +350,7 @@ def root():
 if __name__ == '__main__':
     try:
         host= os.getenv("FLASK_RUN_HOST", "0.0.0.0")
-        port = os.getenv("FLASK_RUN_PORT", 3000)
+        port = os.getenv("FLASK_RUN_PORT", 8503)
         app.run(debug=True, host=host, port=port)
     except:
         print(f"Coud not bind to host {host}:{port}, set FLASK_RUN_HOST and/or FLASK_RUN_PORT.")
