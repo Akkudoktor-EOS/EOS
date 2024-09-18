@@ -1,32 +1,31 @@
 #!/usr/bin/env python3
-from flask import Flask, jsonify, request, redirect, url_for
-import numpy as np
-from  modules.class_load import *
-from  modules.class_ems import *
-from  modules.class_pv_forecast import *
-from modules.class_akku import *
-from modules.class_strompreis import *
-from modules.class_heatpump import *
-from modules.class_load_container import *
-from modules.class_sommerzeit import *
-from modules.class_soc_calc import *
-from modules.visualize import *
-#from modules.class_battery_soc_predictor import *
-from modules.class_load_corrector import *
+
 import os
-from flask import Flask, send_from_directory
-from pprint import pprint
-import matplotlib
-matplotlib.use('Agg')  # Setzt das Backend auf Agg
-import matplotlib.pyplot as plt
-import string
-from datetime import datetime, timedelta
-from deap import base, creator, tools, algorithms
-from modules.class_optimize import *
-import numpy as np
 import random
-import os
+from datetime import datetime, timedelta
+from pprint import pprint
+
+import matplotlib
+matplotlib.use('Agg')  # Sets the Matplotlib backend to 'Agg' for rendering plots in environments without a display
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from deap import base, creator, tools, algorithms
+from flask import Flask, jsonify, request, redirect, send_from_directory, url_for
+
 from config import *
+from modules.class_akku import *
+from modules.class_ems import *
+from modules.class_heatpump import *
+from modules.class_load import *
+from modules.class_load_container import *
+from modules.class_load_corrector import *
+from modules.class_optimize import *
+from modules.class_pv_forecast import *
+from modules.class_soc_calc import *
+from modules.class_sommerzeit import *
+from modules.class_strompreis import *
+from modules.visualize import *
 
 app = Flask(__name__)
 
