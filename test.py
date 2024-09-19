@@ -1,335 +1,95 @@
-from flask import Flask, jsonify, request
+#!/usr/bin/env python3
+
 import numpy as np
 from datetime import datetime
-from  modules.class_optimize import *
-# from  modules.class_load import *
-# from  modules.class_ems import *
-# from  modules.class_pv_forecast import *
-# from modules.class_akku import *
-# from modules.class_strompreis import *
-# from modules.class_heatpump import * 
-# from modules.class_load_container import * 
-# from modules.class_eauto import * 
-from modules.class_optimize import *
-
 from pprint import pprint
 import matplotlib.pyplot as plt
-from modules.visualize import *
 from deap import base, creator, tools, algorithms
-import numpy as np
-import random
-import os
 
-
-
+# Import necessary modules from the project
+from modules.class_optimize import optimization_problem
+from modules.visualize import *
 
 start_hour = 10
 
-pv_forecast= [
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        8.05499380056326,
-        352.906710152794,
-        728.510230116837,
-        930.282113186742,
-        1043.25445504815,
-        1106.74498341506,
-        1161.69140358941,
-        6018.82237954771,
-        5519.06508185542,
-        3969.87633262384,
-        3017.96293205546,
-        1943.06957539177,
-        1007.17065928121,
-        319.672404988219,
-        7.87634136648885,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        5.04340865393592,
-        335.585179721385,
-        705.32093965119,
-        1121.11845108965,
-        1604.78796905453,
-        2157.38417470292,
-        1433.25331647539,
-        5718.48693381975,
-        4553.95522042393,
-        3027.5471975751,
-        2574.46499468404,
-        1720.39712914078,
-        963.402827741714,
-        383.299960578605,
-        0,
-        0,
-        0
-    ]
-temperature_forecast= [
-        18.3,
-        17.8,
-        16.9,
-        16.2,
-        15.6,
-        15.1,
-        14.6,
-        14.2,
-        14.3,
-        14.8,
-        15.7,
-        16.7,
-        17.4,
-        18,
-        18.6,
-        19.2,
-        19.1,
-        18.7,
-        18.5,
-        17.7,
-        16.2,
-        14.6,
-        13.6,
-        13,
-        12.6,
-        12.2,
-        11.7,
-        11.6,
-        11.3,
-        11,
-        10.7,
-        10.2,
-        11.4,
-        14.4,
-        16.4,
-        18.3,
-        19.5,
-        20.7,
-        21.9,
-        22.7,
-        23.1,
-        23.1,
-        22.8,
-        21.8,
-        20.2,
-        19.1,
-        18,
-        17.4
-    ]    
+# PV Forecast (in W)
+pv_forecast = [
+    0, 0, 0, 0, 0, 0, 0, 8.05, 352.91, 728.51, 930.28, 1043.25, 
+    1106.74, 1161.69, 6018.82, 5519.07, 3969.88, 3017.96, 1943.07, 
+    1007.17, 319.67, 7.88, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5.04, 335.59, 
+    705.32, 1121.12, 1604.79, 2157.38, 1433.25, 5718.49, 4553.96, 
+    3027.55, 2574.46, 1720.4, 963.4, 383.3, 0, 0, 0
+]
 
+# Temperature Forecast (in °C)
+temperature_forecast = [
+    18.3, 17.8, 16.9, 16.2, 15.6, 15.1, 14.6, 14.2, 14.3, 14.8, 15.7, 
+    16.7, 17.4, 18.0, 18.6, 19.2, 19.1, 18.7, 18.5, 17.7, 16.2, 14.6, 
+    13.6, 13.0, 12.6, 12.2, 11.7, 11.6, 11.3, 11.0, 10.7, 10.2, 11.4, 
+    14.4, 16.4, 18.3, 19.5, 20.7, 21.9, 22.7, 23.1, 23.1, 22.8, 21.8, 
+    20.2, 19.1, 18.0, 17.4
+]
+
+# Electricity Price (in Euro per Wh)
 strompreis_euro_pro_wh = [
-       0.00033840228,
-        0.00033180228,
-        0.00032840228,
-        0.00032830228,
-        0.00032890228,
-        0.00033340228,
-        0.00032900228,
-        0.00033020228,
-        0.00030420228,
-        0.00024300228,
-        0.00022800228,
-        0.00022120228,
-        0.00020930228,
-        0.00018790228,
-        0.00018380228,
-        0.00020040228,
-        0.00021980228,
-        0.00022700228,
-        0.00029970228,
-        0.00031950228,
-        0.00030810228,
-        0.00029690228,
-        0.00029210228,
-        0.00027800228,
-        0.00033840228,
-        0.00033180228,
-        0.00032840228,
-        0.00032830228,
-        0.00032890228,
-        0.00033340228,
-        0.00032900228,
-        0.00033020228,
-        0.00030420228,
-        0.00024300228,
-        0.00022800228,
-        0.00022120228,
-        0.00020930228,
-        0.00018790228,
-        0.00018380228,
-        0.00020040228,
-        0.00021980228,
-        0.00022700228,
-        0.00029970228,
-        0.00031950228,
-        0.00030810228,
-        0.00029690228,
-        0.00029210228,
-        0.00027800228
-    ]
-gesamtlast= [
-        676.712691350422,
-        876.187995931743,
-        527.13496018672,
-        468.8832716908,
-        531.379343927472,
-        517.948592590007,
-        483.146247717859,
-        472.284832630916,
-        1011.67951144825,
-        995.004317471209,
-        1053.06955100748,
-        1063.9080395892,
-        1320.56143113193,
-        1132.02504127723,
-        1163.67246837107,
-        1176.81613875329,
-        1216.21914051274,
-        1103.77675478374,
-        1129.12158352941,
-        1178.70748410006,
-        1050.97894301995,
-        988.55813665172,
-        912.383030600675,
-        704.613809064162,
-        516.371536532904,
-        868.049462163551,
-        694.342395302237,
-        608.791374542592,
-        556.310160150771,
-        488.88509383088,
-        506.910948217211,
-        804.891484351704,
-        1141.97850300923,
-        1056.97012155463,
-        992.46421110044,
-        1155.98941936038,
-        827.012550864246,
-        1257.97979633947,
-        1232.66876472966,
-        871.261677859026,
-        860.884647456424,
-        1158.02879027548,
-        1222.71811626233,
-        1221.03860924522,
-        949.989048056282,
-        987.007654562746,
-        733.993140774617,
-        592.972573276025
-    ]
+    0.0003384, 0.0003318, 0.0003284, 0.0003283, 0.0003289, 0.0003334, 
+    0.0003290, 0.0003302, 0.0003042, 0.0002430, 0.0002280, 0.0002212, 
+    0.0002093, 0.0001879, 0.0001838, 0.0002004, 0.0002198, 0.0002270, 
+    0.0002997, 0.0003195, 0.0003081, 0.0002969, 0.0002921, 0.0002780, 
+    0.0003384, 0.0003318, 0.0003284, 0.0003283, 0.0003289, 0.0003334, 
+    0.0003290, 0.0003302, 0.0003042, 0.0002430, 0.0002280, 0.0002212, 
+    0.0002093, 0.0001879, 0.0001838, 0.0002004, 0.0002198, 0.0002270, 
+    0.0002997, 0.0003195, 0.0003081, 0.0002969, 0.0002921, 0.0002780
+]
 
-start_solution= [
-        1,
-        1,
-        1,
-        1,
-        0,
-        1,
-        0,
-        0,
-        1,
-        1,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        1,
-        0,
-        0,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        0,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1,
-        1
-    ]
-parameter= {"preis_euro_pro_wh_akku": 10e-05,'pv_soc': 80, 'pv_akku_cap': 26400, 'year_energy': 4100000, 'einspeiseverguetung_euro_pro_wh': 7e-05, 'max_heizleistung': 1000,"gesamtlast":gesamtlast, 'pv_forecast': pv_forecast, "temperature_forecast":temperature_forecast, "strompreis_euro_pro_wh":strompreis_euro_pro_wh, 'eauto_min_soc': 0, 'eauto_cap': 60000, 'eauto_charge_efficiency': 0.95, 'eauto_charge_power': 11040, 'eauto_soc': 54, 'pvpowernow': 211.137503624, 'start_solution': start_solution, 'haushaltsgeraet_wh': 937, 'haushaltsgeraet_dauer': 0}
+# Overall System Load (in W)
+gesamtlast = [
+    676.71, 876.19, 527.13, 468.88, 531.38, 517.95, 483.15, 472.28, 
+    1011.68, 995.00, 1053.07, 1063.91, 1320.56, 1132.03, 1163.67, 
+    1176.82, 1216.22, 1103.78, 1129.12, 1178.71, 1050.98, 988.56, 
+    912.38, 704.61, 516.37, 868.05, 694.34, 608.79, 556.31, 488.89, 
+    506.91, 804.89, 1141.98, 1056.97, 992.46, 1155.99, 827.01, 
+    1257.98, 1232.67, 871.26, 860.88, 1158.03, 1222.72, 1221.04, 
+    949.99, 987.01, 733.99, 592.97
+]
 
+# Start Solution (binary)
+start_solution = [
+    1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 
+    1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 
+    1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 
+    1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+]
 
+# Define parameters for the optimization problem
+parameter = {
+    "preis_euro_pro_wh_akku": 10e-05,                # Cost of storing energy in battery (per Wh)
+    'pv_soc': 80,                                    # Initial state of charge (SOC) of PV battery (%)
+    'pv_akku_cap': 26400,                            # Battery capacity (in Wh)
+    'year_energy': 4100000,                          # Yearly energy consumption (in Wh)
+    'einspeiseverguetung_euro_pro_wh': 7e-05,        # Feed-in tariff for exporting electricity (per Wh)
+    'max_heizleistung': 1000,                        # Maximum heating power (in W)
+    "gesamtlast": gesamtlast,                        # Overall load on the system
+    'pv_forecast': pv_forecast,                      # PV generation forecast (48 hours)
+    "temperature_forecast": temperature_forecast,    # Temperature forecast (48 hours)
+    "strompreis_euro_pro_wh": strompreis_euro_pro_wh, # Electricity price forecast (48 hours)
+    'eauto_min_soc': 0,                              # Minimum SOC for electric car
+    'eauto_cap': 60000,                              # Electric car battery capacity (Wh)
+    'eauto_charge_efficiency': 0.95,                 # Charging efficiency of the electric car
+    'eauto_charge_power': 11040,                     # Charging power of the electric car (W)
+    'eauto_soc': 54,                                 # Current SOC of the electric car (%)
+    'pvpowernow': 211.137503624,                     # Current PV power generation (W)
+    'start_solution': start_solution,                # Initial solution for the optimization
+    'haushaltsgeraet_wh': 937,                       # Household appliance consumption (Wh)
+    'haushaltsgeraet_dauer': 0                       # Duration of appliance usage (hours)
+}
 
-opt_class = optimization_problem(prediction_hours=48, strafe=10,optimization_hours=24)
+# Initialize the optimization problem
+opt_class = optimization_problem(prediction_hours=48, strafe=10, optimization_hours=24)
+
+# Perform the optimisation based on the provided parameters and start hour
 ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)
-#print(ergebnis)
-#print(jsonify(ergebnis))
+
+# Print or visualize the result
+pprint(ergebnis)
