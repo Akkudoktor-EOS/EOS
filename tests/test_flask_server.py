@@ -78,4 +78,5 @@ def test_site_map(client):
 def test_root_redirect(client):
     response = client.get('/')
     assert response.status_code == 302
-    assert response.location == "http://localhost/site-map"  # Adjust based on your host
+    assert response.location == "/site-map"  # Just compare the relative path
+
