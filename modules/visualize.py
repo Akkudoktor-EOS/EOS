@@ -1,276 +1,193 @@
 import numpy as np
-from modules.class_sommerzeit import *
-from modules.class_load_container import Gesamtlast  # Stellen Sie sicher, dass dies dem tatsächlichen Importpfad entspricht
-import matplotlib
-matplotlib.use('Agg')  # Setzt das Backend auf Agg
-
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from datetime import datetime
+from modules.class_sommerzeit import *  # Ensure this matches the actual import path
+from modules.class_load_container import Gesamtlast  # Ensure this matches the actual import path
 
+# Set the backend for matplotlib to Agg
+import matplotlib
+matplotlib.use('Agg')
 
-def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse,  discharge_hours, laden_moeglich, temperature, start_hour, prediction_hours,einspeiseverguetung_euro_pro_wh, filename="visualisierungsergebnisse.pdf", extra_data=None):
-
+def visualisiere_ergebnisse(gesamtlast, pv_forecast, strompreise, ergebnisse, discharge_hours, laden_moeglich, temperature, start_hour, prediction_hours, einspeiseverguetung_euro_pro_wh, filename="visualization_results.pdf", extra_data=None):
+    
     #####################
-    # 24h 
+    # 24-hour visualization
     #####################
     with PdfPages(filename) as pdf:
-
         
-        # Last und PV-Erzeugung
+        # Load and PV generation
         plt.figure(figsize=(14, 14))
         plt.subplot(3, 3, 1)
-        stunden = np.arange(0, prediction_hours)
+        hours = np.arange(0, prediction_hours)
         
         gesamtlast_array = np.array(gesamtlast)
-        # Einzellasten plotten
-        #for name, last_array in gesamtlast.lasten.items():
-        plt.plot(stunden, gesamtlast_array, label=f'Last (Wh)', marker='o')
+        # Plot individual loads
+        plt.plot(hours, gesamtlast_array, label='Load (Wh)', marker='o')
         
-        # Gesamtlast berechnen und plotten
-        gesamtlast_array = np.array(gesamtlast)
-        plt.plot(stunden, gesamtlast_array, label='Gesamtlast (Wh)', marker='o', linewidth=2, linestyle='--')
-        plt.xlabel('Stunde')
-        plt.ylabel('Last (Wh)')
-        plt.title('Lastprofile')
+        # Calculate and plot total load
+        plt.plot(hours, gesamtlast_array, label='Total Load (Wh)', marker='o', linewidth=2, linestyle='--')
+        plt.xlabel('Hour')
+        plt.ylabel('Load (Wh)')
+        plt.title('Load Profiles')
         plt.grid(True)
         plt.legend()
 
-
-        # Strompreise
-        stundenp = np.arange(0, len(strompreise))
+        # Electricity prices
+        hours_p = np.arange(0, len(strompreise))
         plt.subplot(3, 2, 2)
-        plt.plot(stundenp, strompreise, label='Strompreis (€/Wh)', color='purple', marker='s')
-        plt.title('Strompreise')
-        plt.xlabel('Stunde des Tages')
-        plt.ylabel('Preis (€/Wh)')
+        plt.plot(hours_p, strompreise, label='Electricity Price (€/Wh)', color='purple', marker='s')
+        plt.title('Electricity Prices')
+        plt.xlabel('Hour of the Day')
+        plt.ylabel('Price (€/Wh)')
         plt.legend()
         plt.grid(True)
 
-        # Strompreise
-        stundenp = np.arange(1, len(strompreise)+1)
+        # PV forecast
         plt.subplot(3, 2, 3)
-        plt.plot(stunden, pv_forecast, label='PV-Erzeugung (Wh)', marker='x')
+        plt.plot(hours, pv_forecast, label='PV Generation (Wh)', marker='x')
         plt.title('PV Forecast')
-        plt.xlabel('Stunde des Tages')
+        plt.xlabel('Hour of the Day')
         plt.ylabel('Wh')
         plt.legend()
         plt.grid(True)
 
-        # Vergütung
-        stundenp = np.arange(0, len(strompreise))
+        # Feed-in remuneration
         plt.subplot(3, 2, 4)
-        plt.plot(stunden, einspeiseverguetung_euro_pro_wh, label='Vergütung €/Wh', marker='x')
-        plt.title('Vergütung')
-        plt.xlabel('Stunde des Tages')
+        plt.plot(hours, einspeiseverguetung_euro_pro_wh, label='Remuneration (€/Wh)', marker='x')
+        plt.title('Remuneration')
+        plt.xlabel('Hour of the Day')
         plt.ylabel('€/Wh')
         plt.legend()
         plt.grid(True)
 
-
-        # Temperatur Forecast
+        # Temperature forecast
         plt.subplot(3, 2, 5)
-        plt.title('Temperatur Forecast °C')
-        plt.plot(stunden, temperature, label='Temperatur °C', marker='x')
-        plt.xlabel('Stunde des Tages')
+        plt.title('Temperature Forecast (°C)')
+        plt.plot(hours, temperature, label='Temperature (°C)', marker='x')
+        plt.xlabel('Hour of the Day')
         plt.ylabel('°C')
         plt.legend()
         plt.grid(True)
 
-        pdf.savefig()  # Speichert den aktuellen Figure-State im PDF
-        plt.close()  # Schließt die aktuelle Figure, um Speicher freizugeben
-
+        pdf.savefig()  # Save the current figure state to the PDF
+        plt.close()  # Close the current figure to free up memory
 
         #####################
-        # Start_Hour  
-        #####################    
+        # Start hour visualization
+        #####################
         
         plt.figure(figsize=(14, 10))
         
-        if ist_dst_wechsel(datetime.now()):
-                stunden = np.arange(start_hour, prediction_hours-1)
+        if ist_dst_wechsel(datetime.datetime.now()):
+            hours = np.arange(start_hour, prediction_hours - 1)
         else:
-                stunden = np.arange(start_hour, prediction_hours)
+            hours = np.arange(start_hour, prediction_hours)
         
-        # print(ist_dst_wechsel(datetime.now())," ",datetime.now())
-        # print(start_hour," ",prediction_hours," ",stunden)
-        # print(ergebnisse['Eigenverbrauch_Wh_pro_Stunde'])
-        # Eigenverbrauch, Netzeinspeisung und Netzbezug
+        # Energy flow, grid feed-in, and grid consumption
         plt.subplot(3, 2, 1)
-        plt.plot(stunden, ergebnisse['Last_Wh_pro_Stunde'], label='Last (Wh)', marker='o')
-        plt.plot(stunden, ergebnisse['Haushaltsgeraet_wh_pro_stunde'], label='Haushaltsgerät (Wh)', marker='o')
-        plt.plot(stunden, ergebnisse['Netzeinspeisung_Wh_pro_Stunde'], label='Netzeinspeisung (Wh)', marker='x')
-        plt.plot(stunden, ergebnisse['Netzbezug_Wh_pro_Stunde'], label='Netzbezug (Wh)', marker='^')
-        plt.plot(stunden, ergebnisse['Verluste_Pro_Stunde'], label='Verluste (Wh)', marker='^')
-        plt.title('Energiefluss pro Stunde')
-        plt.xlabel('Stunde')
-        plt.ylabel('Energie (Wh)')
+        plt.plot(hours, ergebnisse['Last_Wh_pro_Stunde'], label='Load (Wh)', marker='o')
+        plt.plot(hours, ergebnisse['Haushaltsgeraet_wh_pro_stunde'], label='Household Device (Wh)', marker='o')
+        plt.plot(hours, ergebnisse['Netzeinspeisung_Wh_pro_Stunde'], label='Grid Feed-in (Wh)', marker='x')
+        plt.plot(hours, ergebnisse['Netzbezug_Wh_pro_Stunde'], label='Grid Consumption (Wh)', marker='^')
+        plt.plot(hours, ergebnisse['Verluste_Pro_Stunde'], label='Losses (Wh)', marker='^')
+        plt.title('Energy Flow per Hour')
+        plt.xlabel('Hour')
+        plt.ylabel('Energy (Wh)')
         plt.legend()
-        
-        
-        
-        
+
+        # State of charge for batteries
         plt.subplot(3, 2, 2)
-        plt.plot(stunden, ergebnisse['akku_soc_pro_stunde'], label='PV Akku (%)', marker='x')
-        plt.plot(stunden, ergebnisse['E-Auto_SoC_pro_Stunde'], label='E-Auto Akku (%)', marker='x')
-        plt.legend(loc='upper left', bbox_to_anchor=(1, 1))  # Legende außerhalb des Plots platzieren
-        plt.grid(True, which='both', axis='x')  # Grid für jede Stunde
+        plt.plot(hours, ergebnisse['akku_soc_pro_stunde'], label='PV Battery (%)', marker='x')
+        plt.plot(hours, ergebnisse['E-Auto_SoC_pro_Stunde'], label='E-Car Battery (%)', marker='x')
+        plt.legend(loc='upper left', bbox_to_anchor=(1, 1))  # Place legend outside the plot
+        plt.grid(True, which='both', axis='x')  # Grid for every hour
 
         ax1 = plt.subplot(3, 2, 3)
         for hour, value in enumerate(discharge_hours):
-            #if value == 1:
-            print(hour)
-            ax1.axvspan(hour, hour+1, color='red',ymax=value, alpha=0.3, label='Entlademöglichkeit' if hour == 0 else "")
+            ax1.axvspan(hour, hour + 1, color='red', ymax=value, alpha=0.3, label='Discharge Possibility' if hour == 0 else "")
         for hour, value in enumerate(laden_moeglich):
-            #if value == 1:
-            ax1.axvspan(hour, hour+1, color='green',ymax=value, alpha=0.3, label='Lademöglichkeit' if hour == 0 else "")
+            ax1.axvspan(hour, hour + 1, color='green', ymax=value, alpha=0.3, label='Charging Possibility' if hour == 0 else "")
         ax1.legend(loc='upper left')
-        ax1.set_xlim(0, prediction_hours)  
+        ax1.set_xlim(0, prediction_hours)
 
-        pdf.savefig()  # Speichert den aktuellen Figure-State im PDF
-        plt.close()  # Schließt die aktuelle Figure, um Speicher freizugeben
+        pdf.savefig()  # Save the current figure state to the PDF
+        plt.close()  # Close the current figure to free up memory
         
-        
-        
-        
-        
-        
-        
-        plt.grid(True)
-        fig, axs = plt.subplots(1, 2, figsize=(14, 10))  # Erstellt 1x2 Raster von Subplots
-        gesamtkosten = ergebnisse['Gesamtkosten_Euro']
-        gesamteinnahmen = ergebnisse['Gesamteinnahmen_Euro']
-        gesamtbilanz = ergebnisse['Gesamtbilanz_Euro']
-        verluste = ergebnisse['Gesamt_Verluste']
+        # Financial overview
+        fig, axs = plt.subplots(1, 2, figsize=(14, 10))  # Create a 1x2 grid of subplots
+        total_costs = ergebnisse['Gesamtkosten_Euro']
+        total_revenue = ergebnisse['Gesamteinnahmen_Euro']
+        total_balance = ergebnisse['Gesamtbilanz_Euro']
+        losses = ergebnisse['Gesamt_Verluste']
 
-        # Kosten und Einnahmen pro Stunde auf der ersten Achse (axs[0])
-        axs[0].plot(stunden, ergebnisse['Kosten_Euro_pro_Stunde'], label='Kosten (Euro)', marker='o', color='red')
-        axs[0].plot(stunden, ergebnisse['Einnahmen_Euro_pro_Stunde'], label='Einnahmen (Euro)', marker='x', color='green')
-        axs[0].set_title('Finanzielle Bilanz pro Stunde')
-        axs[0].set_xlabel('Stunde')
+        # Costs and revenues per hour on the first axis (axs[0])
+        axs[0].plot(hours, ergebnisse['Kosten_Euro_pro_Stunde'], label='Costs (Euro)', marker='o', color='red')
+        axs[0].plot(hours, ergebnisse['Einnahmen_Euro_pro_Stunde'], label='Revenue (Euro)', marker='x', color='green')
+        axs[0].set_title('Financial Balance per Hour')
+        axs[0].set_xlabel('Hour')
         axs[0].set_ylabel('Euro')
         axs[0].legend()
         axs[0].grid(True)
 
-        # Zusammenfassende Finanzen auf der zweiten Achse (axs[1])
-        labels = ['GesamtKosten [€]', 'GesamtEinnahmen [€]', 'GesamtBilanz [€]']
-        werte = [gesamtkosten, gesamteinnahmen, gesamtbilanz]
-        colors = ['red' if wert > 0 else 'green' for wert in werte]
-        axs[1].bar(labels, werte, color=colors)
-        axs[1].set_title('Finanzübersicht')
+        # Summary of finances on the second axis (axs[1])
+        labels = ['Total Costs [€]', 'Total Revenue [€]', 'Total Balance [€]']
+        values = [total_costs, total_revenue, total_balance]
+        colors = ['red' if value > 0 else 'green' for value in values]
+        axs[1].bar(labels, values, color=colors)
+        axs[1].set_title('Financial Overview')
         axs[1].set_ylabel('Euro')
 
-        # Zweite Achse (ax2) für die Verluste, geteilt mit axs[1]
+        # Second axis (ax2) for losses, shared with axs[1]
         ax2 = axs[1].twinx()
-        ax2.bar('GesamtVerluste', verluste, color='blue')
-        ax2.set_ylabel('Verluste [Wh]', color='blue')
+        ax2.bar('Total Losses', losses, color='blue')
+        ax2.set_ylabel('Losses [Wh]', color='blue')
         ax2.tick_params(axis='y', labelcolor='blue')
 
-        pdf.savefig()  # Speichert die komplette Figure im PDF
-        plt.close()  # Schließt die Figure
-        
-        
+        pdf.savefig()  # Save the complete figure to the PDF
+        plt.close()  # Close the figure
 
-        if extra_data != None:
-                plt.figure(figsize=(14, 10))
-                plt.subplot(1, 2, 1)
-                f1 = np.array(extra_data["verluste"])
-                f2 = np.array(extra_data["bilanz"])
-                n1 = np.array(extra_data["nebenbedingung"])
-                scatter = plt.scatter(f1, f2, c=n1, cmap='viridis')
+        # Additional data visualization if provided
+        if extra_data is not None:
+            plt.figure(figsize=(14, 10))
+            plt.subplot(1, 2, 1)
+            f1 = np.array(extra_data["verluste"])
+            f2 = np.array(extra_data["bilanz"])
+            n1 = np.array(extra_data["nebenbedingung"])
+            scatter = plt.scatter(f1, f2, c=n1, cmap='viridis')
 
-                # Farblegende hinzufügen
-                plt.colorbar(scatter, label='Nebenbedingung')
+            # Add color legend
+            plt.colorbar(scatter, label='Constraint')
 
-                pdf.savefig()  # Speichert die komplette Figure im PDF
-                plt.close()  # Schließt die Figure
+            pdf.savefig()  # Save the complete figure to the PDF
+            plt.close()  # Close the figure
 
-                
-                plt.figure(figsize=(14, 10))
-                filtered_verluste = np.array([v for v, n in zip(extra_data["verluste"], extra_data["nebenbedingung"]) if n < 0.01])
-                filtered_bilanz = np.array([b for b, n in zip(extra_data["bilanz"], extra_data["nebenbedingung"]) if n< 0.01])
-                
-                beste_verluste = min(filtered_verluste)
-                schlechteste_verluste = max(filtered_verluste)
-                beste_bilanz = min(filtered_bilanz)
-                schlechteste_bilanz = max(filtered_bilanz)
+            plt.figure(figsize=(14, 10))
+            filtered_losses = np.array([v for v, n in zip(extra_data["verluste"], extra_data["nebenbedingung"]) if n < 0.01])
+            filtered_balance = np.array([b for b, n in zip(extra_data["bilanz"], extra_data["nebenbedingung"]) if n < 0.01])
 
-                data = [filtered_verluste, filtered_bilanz]
-                labels = ['Verluste', 'Bilanz']
-                # Plot-Erstellung
-                fig, axs = plt.subplots(1, 2, figsize=(10, 6), sharey=False)  # Zwei Subplots, getrennte y-Achsen
+            best_loss = min(filtered_losses)
+            worst_loss = max(filtered_losses)
+            best_balance = min(filtered_balance)
+            worst_balance = max(filtered_balance)
 
-                # Erster Boxplot für Verluste
-                #axs[0].boxplot(data[0])
-                axs[0].violinplot(data[0],
-                          showmeans=True,
-                          showmedians=True)
-                axs[0].set_title('Verluste')
-                axs[0].set_xticklabels(['Verluste'])
+            data = [filtered_losses, filtered_balance]
+            labels = ['Losses', 'Balance']
+            # Create plots
+            fig, axs = plt.subplots(1, 2, figsize=(10, 6), sharey=False)  # Two subplots, separate y-axes
 
-                # Zweiter Boxplot für Bilanz
-                axs[1].violinplot(data[1],
-                          showmeans=True,
-                          showmedians=True)
-                axs[1].set_title('Bilanz')
-                axs[1].set_xticklabels(['Bilanz'])
+            # First violin plot for losses
+            axs[0].violinplot(data[0], showmeans=True, showmedians=True)
+            axs[0].set_title('Losses')
+            axs[0].set_xticklabels(['Losses'])
 
-                # Feinabstimmung
-                plt.tight_layout()
-        
-        
-        pdf.savefig()  # Speichert den aktuellen Figure-State im PDF
-        plt.close() 
-        
-        # plt.figure(figsize=(14, 10))
-        # # Kosten und Einnahmen pro Stunde
-        # plt.subplot(1, 2, 1)
-        # plt.plot(stunden, ergebnisse['Kosten_Euro_pro_Stunde'], label='Kosten (Euro)', marker='o', color='red')
-        # plt.plot(stunden, ergebnisse['Einnahmen_Euro_pro_Stunde'], label='Einnahmen (Euro)', marker='x', color='green')
-        # plt.title('Finanzielle Bilanz pro Stunde')
-        # plt.xlabel('Stunde')
-        # plt.ylabel('Euro')
-        # plt.legend()
+            # Second violin plot for balance
+            axs[1].violinplot(data[1], showmeans=True, showmedians=True)
+            axs[1].set_title('Balance')
+            axs[1].set_xticklabels(['Balance'])
 
+            # Fine-tuning
+            plt.tight_layout()
 
-        # plt.grid(True)
-        # #plt.figure(figsize=(14, 10))
-        # # Zusammenfassende Finanzen
-        # #fig, ax1 = plt.subplot(1, 2, 2)
-        # fig, ax1 = plt.subplots()
-        # gesamtkosten = ergebnisse['Gesamtkosten_Euro']
-        # gesamteinnahmen = ergebnisse['Gesamteinnahmen_Euro']
-        # gesamtbilanz = ergebnisse['Gesamtbilanz_Euro']
-        # labels = ['GesamtKosten [€]', 'GesamtEinnahmen [€]', 'GesamtBilanz [€]']
-        # werte = [gesamtkosten, gesamteinnahmen, gesamtbilanz]
-        # colors = ['red' if wert > 0 else 'green' for wert in werte]
-
-        # ax1.bar(labels, werte, color=colors)
-        # ax1.set_ylabel('Euro')
-        # ax1.set_title('Finanzübersicht')
-
-        # # Zweite Achse (ax2) für die Verluste, geteilt mit ax1
-        # ax2 = ax1.twinx()
-        # verluste = ergebnisse['Gesamt_Verluste']
-        # ax2.bar('GesamtVerluste', verluste, color='blue')
-        # ax2.set_ylabel('Verluste [Wh]', color='blue')
-
-        # # Stellt sicher, dass die Achsenbeschriftungen der zweiten Achse in der gleichen Farbe angezeigt werden
-        # ax2.tick_params(axis='y', labelcolor='blue')
-
-        # pdf.savefig()  # Speichert den aktuellen Figure-State im PDF
-        # plt.close()  # Schließt die aktuelle Figure, um Speicher freizugeben
-
-        
-        # plt.title('Gesamtkosten')
-        # plt.ylabel('Euro')
-
-
-        # plt.legend()
-        # plt.grid(True)
-
-        # plt.tight_layout()
-        #plt.show()
-
-    
-
+            pdf.savefig()  # Save the current figure state to the PDF
+            plt.close()  # Close the figure
