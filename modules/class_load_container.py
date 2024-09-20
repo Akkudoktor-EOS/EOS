@@ -1,39 +1,36 @@
-import json
-from datetime import datetime, timedelta, timezone
 import numpy as np
 from pprint import pprint
 
 class Gesamtlast:
     def __init__(self, prediction_hours=24):
-        self.lasten = {}  # Enthält Namen und Lasten-Arrays für verschiedene Quellen
-        self.prediction_hours=prediction_hours
+        self.lasten = {}  # Contains names and load arrays for different sources
+        self.prediction_hours = prediction_hours
         
     def hinzufuegen(self, name, last_array):
         """
-        Fügt ein Array von Lasten für eine bestimmte Quelle hinzu.
+        Adds an array of loads for a specific source.
         
-        :param name: Name der Lastquelle (z.B. "Haushalt", "Wärmepumpe")
-        :param last_array: Array von Lasten, wobei jeder Eintrag einer Stunde entspricht
+        :param name: Name of the load source (e.g., "Household", "Heat Pump")
+        :param last_array: Array of loads, where each entry corresponds to an hour
         """
-        if(len(last_array) != self.prediction_hours):
-                raise ValueError(f"Gesamtlast Inkonsistente Längen bei den Arrays: ", name," ", len(last_array)  ) 
+        if len(last_array) != self.prediction_hours:
+            raise ValueError(f"Total load inconsistent lengths in arrays: {name} {len(last_array)}")
         self.lasten[name] = last_array
-    
     
     def gesamtlast_berechnen(self):
         """
-        Berechnet die gesamte Last für jede Stunde und gibt ein Array der Gesamtlasten zurück.
+        Calculates the total load for each hour and returns an array of total loads.
         
-        :return: Array der Gesamtlasten, wobei jeder Eintrag einer Stunde entspricht
+        :return: Array of total loads, where each entry corresponds to an hour
         """
         if not self.lasten:
             return []
         
-        # Annahme: Alle Lasten-Arrays haben die gleiche Länge
+        # Assumption: All load arrays have the same length
         stunden = len(next(iter(self.lasten.values())))
         gesamtlast_array = [0] * stunden
+        
         for last_array in self.lasten.values():
-            
             gesamtlast_array = [gesamtlast + stundenlast for gesamtlast, stundenlast in zip(gesamtlast_array, last_array)]
         
         return np.array(gesamtlast_array)
