@@ -2,56 +2,55 @@ import numpy as np
 
 class Haushaltsgeraet:
     def __init__(self, hours=None, verbrauch_kwh=None, dauer_h=None):
-        self.hours = hours  # Gesamtzeitraum, für den die Planung erfolgt
-        self.verbrauch_kwh = verbrauch_kwh  # Gesamtenergieverbrauch des Geräts in kWh
-        self.dauer_h = dauer_h  # Dauer der Nutzung in Stunden
-        self.lastkurve = np.zeros(self.hours)  # Initialisiere die Lastkurve mit Nullen
+        self.hours = hours  # Total duration for which the planning is done
+        self.verbrauch_kwh = verbrauch_kwh  # Total energy consumption of the device in kWh
+        self.dauer_h = dauer_h  # Duration of use in hours
+        self.lastkurve = np.zeros(self.hours)  # Initialize the load curve with zeros
 
-    def set_startzeitpunkt(self, start_hour,global_start_hour=0):
+    def set_startzeitpunkt(self, start_hour, global_start_hour=0):
         """
-        Setzt den Startzeitpunkt des Geräts und generiert eine entsprechende Lastkurve.
-        :param start_hour: Die Stunde, zu der das Gerät starten soll.
+        Sets the start time of the device and generates the corresponding load curve.
+        :param start_hour: The hour at which the device should start.
         """
         self.reset()
-        # Überprüfe, ob die Dauer der Nutzung innerhalb des verfügbaren Zeitraums liegt
-        if start_hour + self.dauer_h > self.hours:
-            raise ValueError("Die Nutzungsdauer überschreitet den verfügbaren Zeitraum.")
-        if start_hour < global_start_hour:
-            raise ValueError("Die Nutzungsdauer unterschreitet den verfügbaren Zeitraum.")
         
-        # Berechne die Leistung pro Stunde basierend auf dem Gesamtverbrauch und der Dauer
-        leistung_pro_stunde = (self.verbrauch_kwh / self.dauer_h) # Umwandlung in Wattstunde
-        #print(start_hour," ",leistung_pro_stunde)
-        # Setze die Leistung für die Dauer der Nutzung im Lastkurven-Array
+        # Check if the duration of use is within the available time frame
+        if start_hour + self.dauer_h > self.hours:
+            raise ValueError("The duration of use exceeds the available time frame.")
+        if start_hour < global_start_hour:
+            raise ValueError("The start time is earlier than the available time frame.")
+        
+        # Calculate power per hour based on total consumption and duration
+        leistung_pro_stunde = (self.verbrauch_kwh / self.dauer_h)  # Convert to watt-hours
+        
+        # Set the power for the duration of use in the load curve array
         self.lastkurve[start_hour:start_hour + self.dauer_h] = leistung_pro_stunde
 
     def reset(self):
         """
-        Setzt die Lastkurve zurück.
+        Resets the load curve.
         """
         self.lastkurve = np.zeros(self.hours)
 
     def get_lastkurve(self):
         """
-        Gibt die aktuelle Lastkurve zurück.
+        Returns the current load curve.
         """
         return self.lastkurve
 
     def get_last_fuer_stunde(self, hour):
         """
-        Gibt die Last für eine spezifische Stunde zurück.
-        :param hour: Die Stunde, für die die Last abgefragt wird.
-        :return: Die Last in Watt für die angegebene Stunde.
+        Returns the load for a specific hour.
+        :param hour: The hour for which the load is queried.
+        :return: The load in watts for the specified hour.
         """
         if hour < 0 or hour >= self.hours:
-            raise ValueError("Angegebene Stunde liegt außerhalb des verfügbaren Zeitraums.")
+            raise ValueError("The specified hour is outside the available time frame.")
         
         return self.lastkurve[hour]
 
     def spaetestmoeglicher_startzeitpunkt(self):
         """
-        Gibt den spätestmöglichen Startzeitpunkt zurück, an dem das Gerät noch vollständig laufen kann.
+        Returns the latest possible start time at which the device can still run completely.
         """
         return self.hours - self.dauer_h
-
-
