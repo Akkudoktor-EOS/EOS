@@ -1,9 +1,14 @@
-import json,sys, os
+import json
+import os
+import sys
 from datetime import datetime, timedelta, timezone
+
 import numpy as np
-from pprint import pprint
 import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.metrics import mean_squared_error, r2_score
+
+import mariadb
 # from sklearn.model_selection import train_test_split, GridSearchCV
 # from sklearn.ensemble import GradientBoostingRegressor
 # from xgboost import XGBRegressor
@@ -12,16 +17,13 @@ import matplotlib.pyplot as plt
 # from tensorflow.keras.layers import Dense, LSTM
 # from tensorflow.keras.optimizers import Adam
 # from sklearn.preprocessing import MinMaxScaler
-# from sklearn.metrics import mean_squared_error, r2_score
-import mariadb
 # from sqlalchemy import create_engine
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.metrics import mean_squared_error, r2_score
-# Fügen Sie den übergeordneten Pfad zum sys.path hinzu
+
+# Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import *
 from modules.class_load import *
+
 
 class LoadPredictionAdjuster:
     def __init__(self, measured_data, predicted_data, load_forecast):
@@ -34,40 +36,38 @@ class LoadPredictionAdjuster:
         self.weekday_diff = None
         self.weekend_diff = None
 
-
     def _remove_outliers(self, data, threshold=2):
-            # Berechne den Z-Score der 'Last'-Daten
-            data['Z-Score'] = np.abs((data['Last'] - data['Last'].mean()) / data['Last'].std())
-            # Filtere die Daten nach dem Schwellenwert
-            filtered_data = data[data['Z-Score'] < threshold]
-            return filtered_data.drop(columns=['Z-Score'])
-
+        # Calculate the Z-Score of the 'Last' data
+        data['Z-Score'] = np.abs((data['Last'] - data['Last'].mean()) / data['Last'].std())
+        # Filter the data based on the threshold
+        filtered_data = data[data['Z-Score'] < threshold]
+        return filtered_data.drop(columns=['Z-Score'])
 
     def _merge_data(self):
-        # Konvertiere die Zeitspalte in beiden Datenrahmen zu datetime
+        # Convert the time column in both DataFrames to datetime
         self.predicted_data['time'] = pd.to_datetime(self.predicted_data['time'])
         self.measured_data['time'] = pd.to_datetime(self.measured_data['time'])
 
-        # Stelle sicher, dass beide Zeitspalten dieselbe Zeitzone haben
-        # Measured Data: Setze die Zeitzone auf UTC, falls es tz-naiv ist
+        # Ensure both time columns have the same timezone
         if self.measured_data['time'].dt.tz is None:
-                self.measured_data['time'] = self.measured_data['time'].dt.tz_localize('UTC')
+            self.measured_data['time'] = self.measured_data['time'].dt.tz_localize('UTC')
 
-        # Predicted Data: Setze ebenfalls UTC und konvertiere anschließend in die lokale Zeitzone
-        self.predicted_data['time'] = self.predicted_data['time'].dt.tz_localize('UTC').dt.tz_convert('Europe/Berlin')
+        self.predicted_data['time'] = (
+            self.predicted_data['time'].dt.tz_localize('UTC')
+            .dt.tz_convert('Europe/Berlin')
+        )
         self.measured_data['time'] = self.measured_data['time'].dt.tz_convert('Europe/Berlin')
 
-        # Optional: Entferne die Zeitzoneninformation, wenn du nur lokal arbeiten möchtest
+        # Optionally: Remove timezone information if only working locally
         self.predicted_data['time'] = self.predicted_data['time'].dt.tz_localize(None)
         self.measured_data['time'] = self.measured_data['time'].dt.tz_localize(None)
 
-        # Jetzt kannst du den Merge durchführen
+        # Now you can perform the merge
         merged_data = pd.merge(self.measured_data, self.predicted_data, on='time', how='inner')
         print(merged_data)
         merged_data['Hour'] = merged_data['time'].dt.hour
         merged_data['DayOfWeek'] = merged_data['time'].dt.dayofweek
         return merged_data
-
 
     def calculate_weighted_mean(self, train_period_weeks=9, test_period_weeks=1):
         self.merged_data = self._remove_outliers(self.merged_data)
@@ -77,8 +77,15 @@ class LoadPredictionAdjuster:
         test_start_date = train_end_date + pd.Timedelta(hours=1)
         test_end_date = test_start_date + pd.Timedelta(weeks=test_period_weeks) - pd.Timedelta(hours=1)
 
-        self.train_data = self.merged_data[(self.merged_data['time'] >= train_start_date) & (self.merged_data['time'] <= train_end_date)]
-        self.test_data = self.merged_data[(self.merged_data['time'] >= test_start_date) & (self.merged_data['time'] <= test_end_date)]
+        self.train_data = self.merged_data[
+            (self.merged_data['time'] >= train_start_date) & 
+            (self.merged_data['time'] <= train_end_date)
+        ]
+
+        self.test_data = self.merged_data[
+            (self.merged_data['time'] >= test_start_date) & 
+            (self.merged_data['time'] <= test_end_date)
+        ]
 
         self.train_data['Difference'] = self.train_data['Last'] - self.train_data['Last Pred']
 
@@ -142,67 +149,53 @@ class LoadPredictionAdjuster:
         daily_forecast = self.load_forecast.get_daily_stats(date_str)
         return daily_forecast[0][hour] if hour < len(daily_forecast[0]) else np.nan
 
-
-
-
-
-
-
-
-
-
-
-
 # if __name__ == '__main__':
+#     estimator = LastEstimator()
+#     start_date = "2024-06-01"
+#     end_date = "2024-08-01"
+#     last_df = estimator.get_last(start_date, end_date)
 
+#     selected_columns = last_df[['timestamp', 'Last']]
+#     selected_columns['time'] = pd.to_datetime(selected_columns['timestamp']).dt.floor('H')
+#     selected_columns['Last'] = pd.to_numeric(selected_columns['Last'], errors='coerce')
 
-        # estimator = LastEstimator()
-        # start_date = "2024-06-01"
-        # end_date = "2024-08-01"
-        # last_df = estimator.get_last(start_date, end_date)
+#     # Drop rows with NaN values
+#     cleaned_data = selected_columns.dropna()
 
-        # selected_columns = last_df[['timestamp', 'Last']]
-        # selected_columns['time'] = pd.to_datetime(selected_columns['timestamp']).dt.floor('H')
-        # selected_columns['Last'] = pd.to_numeric(selected_columns['Last'], errors='coerce')
+#     print(cleaned_data)
+#     # Create an instance of LoadForecast
+#     lf = LoadForecast(filepath=r'.\load_profiles.npz', year_energy=6000*1000)
 
-        # # Drop rows with NaN values
-        # cleaned_data = selected_columns.dropna()
+#     # Initialize an empty DataFrame to hold the forecast data
+#     forecast_list = []
 
-        # print(cleaned_data)
-        # # Create an instance of LoadForecast
-        
-        # lf = LoadForecast(filepath=r'.\load_profiles.npz', year_energy=6000*1000)
+#     # Loop through each day in the date range
+#     for single_date in pd.date_range(cleaned_data['time'].min().date(), cleaned_data['time'].max().date()):
+#         date_str = single_date.strftime('%Y-%m-%d')
+#         daily_forecast = lf.get_daily_stats(date_str)
+#         mean_values = daily_forecast[0]  # Extract the mean values
+#         hours = [single_date + pd.Timedelta(hours=i) for i in range(24)]
+#         daily_forecast_df = pd.DataFrame({'time': hours, 'Last Pred': mean_values})
+#         forecast_list.append(daily_forecast_df)
 
-        # # Initialize an empty DataFrame to hold the forecast data
-        # forecast_list = []
+#     # Concatenate all daily forecasts into a single DataFrame
+#     forecast_df = pd.concat(forecast_list, ignore_index=True)
 
-        # # Loop through each day in the date range
-        # for single_date in pd.date_range(cleaned_data['time'].min().date(), cleaned_data['time'].max().date()):
-                # date_str = single_date.strftime('%Y-%m-%d')
-                # daily_forecast = lf.get_daily_stats(date_str)
-                # mean_values = daily_forecast[0]  # Extract the mean values
-                # hours = [single_date + pd.Timedelta(hours=i) for i in range(24)]
-                # daily_forecast_df = pd.DataFrame({'time': hours, 'Last Pred': mean_values})
-                # forecast_list.append(daily_forecast_df)
+#     # Create an instance of the LoadPredictionAdjuster class
+#     adjuster = LoadPredictionAdjuster(cleaned_data, forecast_df, lf)
 
-        # # Concatenate all daily forecasts into a single DataFrame
-        # forecast_df = pd.concat(forecast_list, ignore_index=True)
+#     # Calculate the weighted mean differences
+#     adjuster.calculate_weighted_mean()
 
-        # # Create an instance of the LoadPredictionAdjuster class
-        # adjuster = LoadPredictionAdjuster(cleaned_data, forecast_df, lf)
+#     # Adjust the predictions
+#     adjuster.adjust_predictions()
 
-        # # Calculate the weighted mean differences
-        # adjuster.calculate_weighted_mean()
+#     # Plot the results
+#     adjuster.plot_results()
 
-        # # Adjust the predictions
-        # adjuster.adjust_predictions()
+#     # Evaluate the model
+#     adjuster.evaluate_model()
 
-        # # Plot the results
-        # adjuster.plot_results()
-
-        # # Evaluate the model
-        # adjuster.evaluate_model()
-
-        # # Predict the next x hours
-        # future_predictions = adjuster.predict_next_hours(48)
-        # print(future_predictions)
+#     # Predict the next x hours
+#     future_predictions = adjuster.predict_next_hours(48)
+#     print(future_predictions)
