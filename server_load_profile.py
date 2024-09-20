@@ -6,44 +6,53 @@ from pprint import pprint
 
 app = Flask(__name__)
 
+# Constants
+DATE_FORMAT = '%Y-%m-%d'
+EXPECTED_ARRAY_SHAPE = (2, 24)
+FILEPATH = r'.\load_profiles.npz'
 
+def get_load_forecast(year_energy):
+    """Initialize LoadForecast with the given year_energy."""
+    return cl.LoadForecast(filepath=FILEPATH, year_energy=float(year_energy))
+
+def validate_date(date_str):
+    """Validate the date string and return a datetime object."""
+    try:
+        return datetime.strptime(date_str, DATE_FORMAT)
+    except ValueError:
+        raise ValueError("Date is not in the correct format. Expected format: YYYY-MM-DD.")
 
 @app.route('/getdata', methods=['GET'])
 def get_data():
-    # Hole das Datum aus den Query-Parametern
+    # Retrieve the date and year_energy from query parameters
     date_str = request.args.get('date')
     year_energy = request.args.get('year_energy')
-    
-    try:
-        # Konvertiere das Datum in ein datetime-Objekt
-        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
-        filepath = r'.\load_profiles.npz'  # Pfad zur JSON-Datei anpassen
-        lf = cl.LoadForecast(filepath=filepath, year_energy=float(year_energy))
-        specific_date_prices = lf.get_daily_stats('2024-02-16')
 
-        
-        # Berechne den Tag des Jahres
-        #day_of_year = date_obj.timetuple().tm_yday
-        
-        # Konvertiere den Tag des Jahres in einen String, falls die Schlüssel als Strings gespeichert sind
-        #day_key = int(day_of_year)
-        #print(day_key)
-        # Überprüfe, ob der Tag im Jahr in den Daten vorhanden ist
+    if not date_str or not year_energy:
+        return jsonify({"error": "Missing 'date' or 'year_energy' query parameter."}), 400
+
+    try:
+        # Validate and convert the date
+        date_obj = validate_date(date_str)
+        lf = get_load_forecast(year_energy)
+
+        # Get daily statistics for the requested date
         array_list = lf.get_daily_stats(date_str)
         pprint(array_list)
         pprint(array_list.shape)
-        if array_list.shape == (2,24):
-        #if day_key < len(load_profiles_exp):
-            # Konvertiere das Array in eine Liste für die JSON-Antwort
-             #((load_profiles_exp_l[day_key]).tolist(),(load_profiles_std_l)[day_key].tolist())
-            
+
+        # Check if the shape of the array is valid
+        if array_list.shape == EXPECTED_ARRAY_SHAPE:
             return jsonify({date_str: array_list.tolist()})
         else:
-            return jsonify({"error": "Datum nicht gefunden"}), 404
-    except ValueError:
-        # Wenn das Datum nicht im richtigen Format ist oder ungültig ist
-        return jsonify({"error": "Ungültiges Datum"}), 400
+            return jsonify({"error": "Data not found for the given date."}), 404
+
+    except ValueError as e:
+        # Return a descriptive error message for date validation issues
+        return jsonify({"error": str(e)}), 400
+    except Exception:
+        # Return a generic error message for unexpected errors
+        return jsonify({"error": "An unexpected error occurred."}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
-
