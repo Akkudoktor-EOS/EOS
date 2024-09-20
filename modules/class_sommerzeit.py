@@ -2,24 +2,24 @@ import datetime
 import pytz
 
 def ist_dst_wechsel(tag, timezone="Europe/Berlin"):
-    """Prüft, ob an einem gegebenen Tag die Sommerzeit beginnt oder endet."""
+    """Checks if Daylight Saving Time (DST) starts or ends on a given day."""
     tz = pytz.timezone(timezone)
-    # Hole den aktuellen Tag und den nächsten Tag
-    aktueller_tag = datetime.datetime(tag.year, tag.month, tag.day)
-    naechster_tag = aktueller_tag + datetime.timedelta(days=1)
+    # Get the current day and the next day
+    current_day = datetime.datetime(tag.year, tag.month, tag.day)
+    next_day = current_day + datetime.timedelta(days=1)
 
-    # Lokalisiere die Tage in der gegebenen Zeitzone
-    aktueller_tag_localized = tz.localize(aktueller_tag, is_dst=None)
-    naechster_tag_localized = tz.localize(naechster_tag, is_dst=None)
+    # Localize the days in the given timezone
+    current_day_localized = tz.localize(current_day, is_dst=None)
+    next_day_localized = tz.localize(next_day, is_dst=None)
 
-    # Prüfe, ob die UTC-Offsets unterschiedlich sind (DST-Wechsel)
-    dst_wechsel = aktueller_tag_localized.dst() != naechster_tag_localized.dst()
+    # Check if the UTC offsets are different (indicating a DST change)
+    dst_change = current_day_localized.dst() != next_day_localized.dst()
 
-    return dst_wechsel
+    return dst_change
 
-# # Beispielverwendung
-# start_datum = datetime.datetime(2024, 3, 31)  # Datum der DST-Umstellung
-# if ist_dst_wechsel(start_datum):
-    # prediction_hours = 23  # Anpassung auf 23 Stunden für DST-Wechseltage
+# # Example usage
+# start_date = datetime.datetime(2024, 3, 31)  # Date of the DST change
+# if ist_dst_wechsel(start_date):
+    # prediction_hours = 23  # Adjust to 23 hours for DST change days
 # else:
-    # prediction_hours = 24  # Standardwert für Tage ohne DST-Wechsel
+    # prediction_hours = 24  # Default value for days without DST change
