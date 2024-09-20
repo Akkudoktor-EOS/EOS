@@ -1,9 +1,8 @@
-import json
-from datetime import datetime, timedelta, timezone
 import numpy as np
+from datetime import datetime
 from pprint import pprint
 
-# Lade die .npz-Datei beim Start der Anwendung
+# Load the .npz file when the application starts
 
 class LoadForecast:
     def __init__(self, filepath=None, year_energy=None):
@@ -15,96 +14,85 @@ class LoadForecast:
 
     def get_daily_stats(self, date_str):
         """
-        Gibt den 24-Stunden-Verlauf mit Erwartungswert und Standardabweichung für ein gegebenes Datum zurück.
+        Returns the 24-hour profile with mean and standard deviation for a given date.
         
-        :param data: NumPy Array mit Shape (365, 2, 24), repräsentiert Daten für ein Jahr
-        :param date_str: Datum als String im Format "YYYY-MM-DD"
-        :return: Ein Array mit Shape (2, 24), enthält Erwartungswerte und Standardabweichungen
+        :param date_str: Date as a string in the format "YYYY-MM-DD"
+        :return: An array with shape (2, 24), contains means and standard deviations
         """
-        # Umwandlung des Datums-Strings in ein datetime-Objekt
-        date = datetime.strptime(date_str, "%Y-%m-%d")
+        # Convert the date string into a datetime object
+        date = self._convert_to_datetime(date_str)
         
-        # Berechnung des Tages des Jahres (1 bis 365)
+        # Calculate the day of the year (1 to 365)
         day_of_year = date.timetuple().tm_yday
         
-        # Extraktion des 24-Stunden-Verlaufs für das gegebene Datum
-        daily_stats = self.data_year_energy[day_of_year - 1]  # -1, da die Indizierung bei 0 beginnt
+        # Extract the 24-hour profile for the given date
+        daily_stats = self.data_year_energy[day_of_year - 1]  # -1 because indexing starts at 0
         return daily_stats
 
     def get_hourly_stats(self, date_str, hour):
         """
-        Gibt Erwartungswert und Standardabweichung für eine spezifische Stunde eines gegebenen Datums zurück.
+        Returns the mean and standard deviation for a specific hour of a given date.
         
-        :param data: NumPy Array mit Shape (365, 2, 24), repräsentiert Daten für ein Jahr
-        :param date_str: Datum als String im Format "YYYY-MM-DD"
-        :param hour: Spezifische Stunde (0 bis 23)
-        :return: Ein Array mit Shape (2,), enthält Erwartungswert und Standardabweichung für die spezifizierte Stunde
+        :param date_str: Date as a string in the format "YYYY-MM-DD"
+        :param hour: Specific hour (0 to 23)
+        :return: An array with shape (2,), contains mean and standard deviation for the specified hour
         """
-        # Umwandlung des Datums-Strings in ein datetime-Objekt
-        date = datetime.strptime(date_str, "%Y-%m-%d")
+        # Convert the date string into a datetime object
+        date = self._convert_to_datetime(date_str)
         
-        # Berechnung des Tages des Jahres (1 bis 365)
+        # Calculate the day of the year (1 to 365)
         day_of_year = date.timetuple().tm_yday
         
-        # Extraktion von Erwartungswert und Standardabweichung für die gegebene Stunde
-        hourly_stats = self.data_year_energy[day_of_year - 1, :, hour]  # Zugriff auf die spezifische Stunde
+        # Extract mean and standard deviation for the given hour
+        hourly_stats = self.data_year_energy[day_of_year - 1, :, hour]  # Access the specific hour
         
         return hourly_stats
 
     def get_stats_for_date_range(self, start_date_str, end_date_str):
         """
-        Gibt die Erwartungswerte und Standardabweichungen für einen Zeitraum zurück.
+        Returns the means and standard deviations for a date range.
 
-        :param start_date_str: Startdatum als String im Format "YYYY-MM-DD"
-        :param end_date_str: Enddatum als String im Format "YYYY-MM-DD"
-        :return: Ein Array mit den aggregierten Daten für den Zeitraum
+        :param start_date_str: Start date as a string in the format "YYYY-MM-DD"
+        :param end_date_str: End date as a string in the format "YYYY-MM-DD"
+        :return: An array with aggregated data for the date range
         """
-        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-        end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+        start_date = self._convert_to_datetime(start_date_str)
+        end_date = self._convert_to_datetime(end_date_str)
         
         start_day_of_year = start_date.timetuple().tm_yday
         end_day_of_year = end_date.timetuple().tm_yday
 
-        # Beachten, dass bei Schaltjahren der Tag des Jahres angepasst werden muss
-        stats_for_range = self.data_year_energy[start_day_of_year:end_day_of_year]  # -1 da die Indizierung bei 0 beginnt
-        # print(start_day_of_year,"-",end_day_of_year)
-        # print(stats_for_range.shape)
-        stats_for_range =stats_for_range.swapaxes(1, 0)
+        # Note that in leap years, the day of the year may need adjustment
+        stats_for_range = self.data_year_energy[start_day_of_year:end_day_of_year]  # -1 because indexing starts at 0
+        stats_for_range = stats_for_range.swapaxes(1, 0)
 
-        stats_for_range = stats_for_range.reshape(stats_for_range.shape[0],-1)
-        # print(stats_for_range.shape)
-        # print(stats_for_range)        
-        # print()
-        # print(stats_for_range)
-        # print(start_day_of_year, " ",end_day_of_year)
-        # Hier kannst du entscheiden, wie du die Daten über den Zeitraum aggregieren möchtest
-        # Zum Beispiel könntest du Mittelwerte, Summen oder andere Statistiken über diesen Zeitraum berechnen
+        stats_for_range = stats_for_range.reshape(stats_for_range.shape[0], -1)
         return stats_for_range
 
-
-
     def load_data(self):
-        with open(self.filepath, 'r') as file:
+        """Loads data from the specified file."""
+        try:
             data = np.load(self.filepath)
-            self.data = np.array(list(zip(data["yearly_profiles"],data["yearly_profiles_std"])))
+            self.data = np.array(list(zip(data["yearly_profiles"], data["yearly_profiles_std"])))
             self.data_year_energy = self.data * self.year_energy
-            #pprint(self.data_year_energy)
+            # pprint(self.data_year_energy)
+        except FileNotFoundError:
+            print(f"Error: File {self.filepath} not found.")
+        except Exception as e:
+            print(f"An error occurred while loading data: {e}")
 
     def get_price_data(self):
-        # load_profiles_exp_l = load_profiles_exp*year_energy
-        # load_profiles_std_l = load_profiles_std*year_energy
-
+        """Returns price data (currently not implemented)."""
         return self.price_data
 
-# Beispiel für die Verwendung der Klasse
+    def _convert_to_datetime(self, date_str):
+        """Converts a date string to a datetime object."""
+        return datetime.strptime(date_str, "%Y-%m-%d")
+
+# Example usage of the class
 if __name__ == '__main__':
-    filepath = r'..\load_profiles.npz'  # Pfad zur JSON-Datei anpassen
+    filepath = r'..\load_profiles.npz'  # Adjust the path to the .npz file
     lf = LoadForecast(filepath=filepath, year_energy=2000)
-    #load_forecast = lf.get_price_data
-    #
-    #price_forecast = HourlyElectricityPriceForecast(filepath)
-    specific_date_prices = lf.get_daily_stats('2024-02-16')  # Datum anpassen
-    specific_date_prices = lf.get_hourly_stats('2024-02-16', 12)  # Datum anpassen
-    print(specific_date_prices)
-    #for price in price_forecast.get_price_data():
-    #    print(price.get_starts_at(), price.get_total(), price.get_currency())
+    specific_date_prices = lf.get_daily_stats('2024-02-16')  # Adjust date as needed
+    specific_hour_stats = lf.get_hourly_stats('2024-02-16', 12)  # Adjust date and hour as needed
+    print(specific_hour_stats)
