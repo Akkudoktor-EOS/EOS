@@ -1,21 +1,22 @@
 import numpy as np
+
 class PVAkku:
-    def __init__(self, kapazitaet_wh=None, hours=None, lade_effizienz=0.88, entlade_effizienz=0.88,max_ladeleistung_w=None,start_soc_prozent=0,min_soc_prozent=0,max_soc_prozent=100):
-        # Kapazität des Akkus in Wh
+    def __init__(self, kapazitaet_wh=None, hours=None, lade_effizienz=0.88, entlade_effizienz=0.88,
+                 max_ladeleistung_w=None, start_soc_prozent=0, min_soc_prozent=0, max_soc_prozent=100):
+        # Battery capacity in Wh
         self.kapazitaet_wh = kapazitaet_wh
-        # Initialer Ladezustand des Akkus in Wh
+        # Initial state of charge in Wh
         self.start_soc_prozent = start_soc_prozent
         self.soc_wh = (start_soc_prozent / 100) * kapazitaet_wh
         self.hours = hours
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
-        # Lade- und Entladeeffizienz
+        # Charge and discharge efficiency
         self.lade_effizienz = lade_effizienz
         self.entlade_effizienz = entlade_effizienz        
         self.max_ladeleistung_w = max_ladeleistung_w if max_ladeleistung_w else self.kapazitaet_wh
         self.min_soc_prozent = min_soc_prozent
         self.max_soc_prozent = max_soc_prozent
-        
 
     def to_dict(self):
         return {
@@ -23,7 +24,7 @@ class PVAkku:
             "start_soc_prozent": self.start_soc_prozent,
             "soc_wh": self.soc_wh,
             "hours": self.hours,
-            "discharge_array": self.discharge_array.tolist(),  # Umwandlung von np.array in Liste
+            "discharge_array": self.discharge_array.tolist(),  # Convert np.array to list
             "charge_array": self.charge_array.tolist(),
             "lade_effizienz": self.lade_effizienz,
             "entlade_effizienz": self.entlade_effizienz,
@@ -32,7 +33,7 @@ class PVAkku:
 
     @classmethod
     def from_dict(cls, data):
-        # Erstellung eines neuen Objekts mit Basisdaten
+        # Create a new object with basic data
         obj = cls(
             kapazitaet_wh=data["kapazitaet_wh"],
             hours=data["hours"],
@@ -41,25 +42,24 @@ class PVAkku:
             max_ladeleistung_w=data["max_ladeleistung_w"],
             start_soc_prozent=data["start_soc_prozent"]
         )
-        # Setzen von Arrays
+        # Set arrays
         obj.discharge_array = np.array(data["discharge_array"])
         obj.charge_array = np.array(data["charge_array"])
-        obj.soc_wh = data["soc_wh"]  # Setzt den aktuellen Ladezustand, der möglicherweise von start_soc_prozent abweicht
+        obj.soc_wh = data["soc_wh"]  # Set current state of charge, which may differ from start_soc_prozent
         
         return obj
-
 
     def reset(self):
         self.soc_wh = (self.start_soc_prozent / 100) * self.kapazitaet_wh
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
-        
+
     def set_discharge_per_hour(self, discharge_array):
-        assert(len(discharge_array) == self.hours)
+        assert len(discharge_array) == self.hours
         self.discharge_array = np.array(discharge_array)
 
     def set_charge_per_hour(self, charge_array):
-        assert(len(charge_array) == self.hours)
+        assert len(charge_array) == self.hours
         self.charge_array = np.array(charge_array)
 
     def ladezustand_in_prozent(self):
@@ -67,121 +67,95 @@ class PVAkku:
 
     def energie_abgeben(self, wh, hour):
         if self.discharge_array[hour] == 0:
-            return 0.0, 0.0  # Keine Energieabgabe und keine Verluste
+            return 0.0, 0.0  # No energy discharge and no losses
         
-        # Berechnung der maximal abgebenden Energiemenge unter Berücksichtigung der Entladeeffizienz
+        # Calculate the maximum discharge amount considering discharge efficiency
         max_abgebbar_wh = self.soc_wh * self.entlade_effizienz
         
-        # Berücksichtigen der maximalen Entladeleistung des Akkus
+        # Consider the maximum discharge power of the battery
         max_abgebbar_wh = min(max_abgebbar_wh, self.max_ladeleistung_w)
-        
-        
-        # Tatsächlich abgegebene Energie darf nicht mehr sein als angefragt und nicht mehr als maximal abgebbar
+
+        # The actually discharged energy cannot exceed requested energy or maximum discharge
         tatsaechlich_abgegeben_wh = min(wh, max_abgebbar_wh)
         
-        # Berechnung der tatsächlichen Entnahmemenge aus dem Akku (vor Effizienzverlust)
+        # Calculate the actual amount withdrawn from the battery (before efficiency loss)
         tatsaechliche_entnahme_wh = tatsaechlich_abgegeben_wh / self.entlade_effizienz
         
-        # Aktualisierung des Ladezustands unter Berücksichtigung der tatsächlichen Entnahmemenge
+        # Update the state of charge considering the actual withdrawal
         self.soc_wh -= tatsaechliche_entnahme_wh
         
-        # Berechnung der Verluste durch die Effizienz
+        # Calculate losses due to efficiency
         verluste_wh = tatsaechliche_entnahme_wh - tatsaechlich_abgegeben_wh
         
-        # Rückgabe der tatsächlich abgegebenen Energiemenge und der Verluste
+        # Return the actually discharged energy and the losses
         return tatsaechlich_abgegeben_wh, verluste_wh
-
-        # return soc_tmp-self.soc_wh
-
-
 
     def energie_laden(self, wh, hour):
         if hour is not None and self.charge_array[hour] == 0:
-            return 0,0  # Ladevorgang in dieser Stunde nicht erlaubt
+            return 0, 0  # Charging not allowed in this hour
 
-        # Wenn kein Wert für wh angegeben wurde, verwende die maximale Ladeleistung
+        # If no value for wh is given, use the maximum charging power
         wh = wh if wh is not None else self.max_ladeleistung_w
         
-        # Relativ zur maximalen Ladeleistung (zwischen 0 und 1)
+        # Relative to the maximum charging power (between 0 and 1)
         relative_ladeleistung = self.charge_array[hour]
         effektive_ladeleistung = relative_ladeleistung * self.max_ladeleistung_w
 
-        # Berechnung der tatsächlichen Lademenge unter Berücksichtigung der Ladeeffizienz
+        # Calculate the actual charging amount considering charging efficiency
         effektive_lademenge = min(wh, effektive_ladeleistung) 
 
-        # Aktualisierung des Ladezustands ohne die Kapazität zu überschreiten
+        # Update the state of charge without exceeding capacity
         geladene_menge_ohne_verlust = min(self.kapazitaet_wh - self.soc_wh, effektive_lademenge)
 
         geladene_menge = geladene_menge_ohne_verlust * self.lade_effizienz
 
-        
         self.soc_wh += geladene_menge
     
-        verluste_wh = geladene_menge_ohne_verlust* (1.0-self.lade_effizienz)
-
+        verluste_wh = geladene_menge_ohne_verlust * (1.0 - self.lade_effizienz)
 
         return geladene_menge, verluste_wh
 
     def aktueller_energieinhalt(self):
         """
-        Diese Methode gibt die aktuelle Restenergie unter Berücksichtigung des Wirkungsgrades zurück.
-        Sie berücksichtigt dabei die Lade- und Entladeeffizienz.
+        This method returns the current remaining energy considering efficiency.
+        It accounts for both charging and discharging efficiency.
         """
-        # Berechnung der Restenergie unter Berücksichtigung der Entladeeffizienz
+        # Calculate remaining energy considering discharge efficiency
         nutzbare_energie = self.soc_wh * self.entlade_effizienz
         return nutzbare_energie
 
-
-
-
     # def energie_laden(self, wh, hour):
-        # if hour is not None and self.charge_array[hour] == 0:
-            # return 0,0  # Ladevorgang in dieser Stunde nicht erlaubt
+    #     if hour is not None and self.charge_array[hour] == 0:
+    #         return 0, 0  # Charging not allowed in this hour
 
-        # # Wenn kein Wert für wh angegeben wurde, verwende die maximale Ladeleistung
-        # wh = wh if wh is not None else self.max_ladeleistung_w
+    #     # If no value for wh is given, use the maximum charging power
+    #     wh = wh if wh is not None else self.max_ladeleistung_w
 
-        # # Berechnung der tatsächlichen Lademenge unter Berücksichtigung der Ladeeffizienz
-        # effektive_lademenge = min(wh, self.max_ladeleistung_w) 
+    #     # Calculate the actual charging amount considering charging efficiency
+    #     effective_charging_amount = min(wh, self.max_ladeleistung_w) 
 
-        # # Aktualisierung des Ladezustands ohne die Kapazität zu überschreiten
-        # geladene_menge_ohne_verlust = min(self.kapazitaet_wh - self.soc_wh, effektive_lademenge)
+    #     # Update the state of charge without exceeding capacity
+    #     charged_amount_without_loss = min(self.kapazitaet_wh - self.soc_wh, effective_charging_amount)
 
-        # geladene_menge = geladene_menge_ohne_verlust * self.lade_effizienz
+    #     charged_amount = charged_amount_without_loss * self.lade_effizienz
 
-        
-        # self.soc_wh += geladene_menge
+    #     self.soc_wh += charged_amount
     
-        # verluste_wh = geladene_menge_ohne_verlust* (1.0-self.lade_effizienz)
-        
+    #     losses_wh = charged_amount_without_loss * (1.0 - self.lade_effizienz)
 
-        
-        # # Zusätzliche Verluste, wenn die Energiezufuhr die Kapazitätsgrenze überschreitet
-        # # zusatz_verluste_wh = 0
-        # # if effektive_lademenge > geladene_menge_ohne_verlust:
-            # # zusatz_verluste_wh = (effektive_lademenge - geladene_menge_ohne_verlust) * self.lade_effizienz
-        
-        # # # Gesamtverluste berechnen
-        # # gesamt_verluste_wh = verluste_wh + zusatz_verluste_wh
-        
-        
-        # return geladene_menge, verluste_wh
-        # # effektive_lademenge = wh * self.lade_effizienz
-        # # self.soc_wh = min(self.soc_wh + effektive_lademenge, self.kapazitaet_wh)
-
-
+    #     return charged_amount, losses_wh
 
 
 if __name__ == '__main__':
-    # Beispiel zur Nutzung der Klasse
-    akku = PVAkku(10000) # Ein Akku mit 10.000 Wh Kapazität
-    print(f"Initialer Ladezustand: {akku.ladezustand_in_prozent()}%")
+    # Example of using the class
+    akku = PVAkku(10000)  # A battery with 10,000 Wh capacity
+    print(f"Initial state of charge: {akku.ladezustand_in_prozent()}%")
 
     akku.energie_laden(5000)
-    print(f"Ladezustand nach Laden: {akku.ladezustand_in_prozent()}%, Aktueller Energieinhalt: {akku.aktueller_energieinhalt()} Wh")
+    print(f"State of charge after charging: {akku.ladezustand_in_prozent()}%, Current energy content: {akku.aktueller_energieinhalt()} Wh")
 
     abgegebene_energie_wh = akku.energie_abgeben(3000)
-    print(f"Abgegebene Energie: {abgegebene_energie_wh} Wh, Ladezustand danach: {akku.ladezustand_in_prozent()}%, Aktueller Energieinhalt: {akku.aktueller_energieinhalt()} Wh")
+    print(f"Discharged energy: {abgegebene_energie_wh} Wh, State of charge afterwards: {akku.ladezustand_in_prozent()}%, Current energy content: {akku.aktueller_energieinhalt()} Wh")
 
     akku.energie_laden(6000)
-    print(f"Ladezustand nach weiterem Laden: {akku.ladezustand_in_prozent()}%, Aktueller Energieinhalt: {akku.aktueller_energieinhalt()} Wh")
+    print(f"State of charge after further charging: {akku.ladezustand_in_prozent()}%, Current energy content: {akku.aktueller_energieinhalt()} Wh")
