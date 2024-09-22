@@ -208,7 +208,7 @@ class BatteryDataProcessor:
         plt.legend()
         plt.title('Battery Current over Time')
 
-        plt.subplot(4 1, 3)
+        plt.subplot(4, 1, 3)
         plt.plot(soc_df['timestamp'], soc_df['calculated_soc'], label='SoC', color='purple')
         plt.xlabel('Timestamp')
         plt.ylabel('SoC (%)')
