@@ -54,7 +54,7 @@ tensorflow==2.17.0
 termcolor==2.4.0
 threadpoolctl==3.5.0
 typing_extensions==4.12.2
-tzdata==2024.1
+tzdata==2024.2
 urllib3==2.2.3
 Werkzeug==3.0.4
 wheel==0.44.0
