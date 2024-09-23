@@ -236,12 +236,7 @@ class BatteryDataProcessor:
 if __name__ == '__main__':
 
     # MariaDB Verbindungsdetails
-    config = {
-        'user': 'soc',
-        'password': 'Rayoflight123!',
-        'host': '192.168.1.135',
-        'database': 'sensor'
-    }
+
 
     # Parameter festlegen
     voltage_high_threshold = 55.4  # 100% SoC
