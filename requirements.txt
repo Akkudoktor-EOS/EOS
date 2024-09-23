@@ -46,7 +46,7 @@ requests==2.32.3
 rich==13.8.1
 scikit-learn==1.5.1
 scipy==1.14.1
-setuptools==74.1.2
+setuptools==75.1.0
 six==1.16.0
 tensorboard==2.17.1
 tensorboard-data-server==0.7.2
