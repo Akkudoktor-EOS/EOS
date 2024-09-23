@@ -37,7 +37,7 @@ packaging==24.1
 pandas==2.2.2
 pdoc3==0.11.1
 pillow==10.4.0
-protobuf==5.28.1
+protobuf==5.28.2
 Pygments==2.18.0
 pyparsing==3.1.4
 python-dateutil==2.9.0.post0
