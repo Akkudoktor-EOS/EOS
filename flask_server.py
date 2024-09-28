@@ -31,6 +31,13 @@ app = Flask(__name__)
 
 opt_class = optimization_problem(prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours)
 
+def isfloat(num):
+    """Check if a string or value can be converted to a float."""
+    try:
+        float(num)
+        return True
+    except ValueError:  # Catch only conversion errors
+        return False
 
 
 # @app.route('/last_correction', methods=['GET'])
