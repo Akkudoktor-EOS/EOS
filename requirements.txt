@@ -9,7 +9,7 @@ cycler==0.12.1
 deap==1.4.1
 Flask==3.0.3
 flatbuffers==24.3.25
-fonttools==4.54.0
+fonttools==4.54.1
 gast==0.6.0
 google-pasta==0.2.0
 grpcio==1.66.1
