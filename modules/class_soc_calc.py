@@ -219,13 +219,6 @@ class BatteryDataProcessor:
         plt.show()
 
 if __name__ == '__main__':
-    # Database connection configuration
-    config = {
-        'user': 'soc',
-        'password': 'Rayoflight123!',
-        'host': '192.168.1.135',
-        'database': 'sensor'
-    }
 
     # Set thresholds and parameters
     voltage_high_threshold = 55.4  # Voltage threshold for 100% SoC
