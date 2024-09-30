@@ -31,7 +31,7 @@ mdurl==0.1.2
 ml-dtypes==0.5.0
 namex==0.0.8
 numpy==1.26.4
-opt-einsum==3.3.0
+opt-einsum==3.4.0
 optree==0.12.1
 packaging==24.1
 pandas==2.2.2
