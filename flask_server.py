@@ -2,7 +2,7 @@
 
 import os
 import random
-from datetime import datetime, timedelta
+
 from pprint import pprint
 
 import matplotlib
@@ -26,7 +26,7 @@ from modules.class_soc_calc import *
 from modules.class_sommerzeit import *
 from modules.class_strompreis import *
 from modules.visualize import *
-
+from datetime import datetime, timedelta
 app = Flask(__name__)
 
 opt_class = optimization_problem(prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours)
@@ -259,6 +259,7 @@ def flask_pvprognose():
 @app.route('/optimize', methods=['POST'])
 def flask_optimize():
     if request.method == 'POST':
+        from datetime import datetime
         # Retrieve optimization parameters from the request JSON
         parameter = request.json
 
