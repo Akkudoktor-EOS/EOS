@@ -34,7 +34,7 @@ numpy==1.26.4
 opt-einsum==3.4.0
 optree==0.12.1
 packaging==24.1
-pandas==2.2.2
+pandas==2.2.3
 pdoc3==0.11.1
 pillow==10.4.0
 protobuf==5.28.2
