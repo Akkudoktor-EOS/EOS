@@ -112,9 +112,9 @@ class EnergieManagementSystem:
 
 
             
-            stündlicher_netzbezug_wh = 0
-            stündliche_kosten_euro = 0
-            stündliche_einnahmen_euro = 0
+            stündlicher_netzbezug_wh = 0.0
+            stündliche_kosten_euro = 0.0
+            stündliche_einnahmen_euro = 0.0
 
             #Wieviel kann der WR 
             netzeinspeisung, netzbezug,  verluste, eigenverbrauch = self.wechselrichter.energie_verarbeiten(erzeugung, verbrauch, stunde)
