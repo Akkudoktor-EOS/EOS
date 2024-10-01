@@ -1,16 +1,22 @@
 from datetime import datetime
 from pprint import pprint
 import numpy as np
+import modules.class_akku as PVAkku
 
 def replace_nan_with_none(data):
     if isinstance(data, dict):
         return {key: replace_nan_with_none(value) for key, value in data.items()}
     elif isinstance(data, list):
         return [replace_nan_with_none(element) for element in data]
-    elif isinstance(data, float) and np.isnan(data):
+    elif isinstance(data, np.ndarray):
+        # Konvertiere das numpy-Array zu einer Liste und rekursiv ersetzen
+        return replace_nan_with_none(data.tolist())
+    elif isinstance(data, (float, np.floating)) and np.isnan(data):
+        # np.floating deckt auch numpy-NaNs ab
         return None
     else:
         return data
+
 
 
 
@@ -53,102 +59,84 @@ class EnergieManagementSystem:
         return self.simuliere(start_stunde)
 
 
+        
     def simuliere(self, start_stunde):
-        last_wh_pro_stunde = []
-        netzeinspeisung_wh_pro_stunde = []
-        netzbezug_wh_pro_stunde = []
-        kosten_euro_pro_stunde = []
-        einnahmen_euro_pro_stunde = []
-        akku_soc_pro_stunde = []
-        eauto_soc_pro_stunde = []
-        verluste_wh_pro_stunde = []
-        haushaltsgeraet_wh_pro_stunde = []
+    
+    
         lastkurve_wh = self.gesamtlast
-        
-        
+        # Anzahl der Stunden berechnen
         assert len(lastkurve_wh) == len(self.pv_prognose_wh) == len(self.strompreis_euro_pro_wh), f"Arraygrößen stimmen nicht überein: Lastkurve = {len(lastkurve_wh)}, PV-Prognose = {len(self.pv_prognose_wh)}, Strompreis = {len(self.strompreis_euro_pro_wh)}"
 
         ende = min( len(lastkurve_wh),len(self.pv_prognose_wh), len(self.strompreis_euro_pro_wh))
-
-        # Endzustände auf NaN setzen, damit diese übersprungen werden für die Stunde
-        last_wh_pro_stunde.append(np.nan)
-        netzeinspeisung_wh_pro_stunde.append(np.nan)
-        netzbezug_wh_pro_stunde.append(np.nan) 
-        kosten_euro_pro_stunde.append(np.nan) 
-        akku_soc_pro_stunde.append(self.akku.ladezustand_in_prozent()) 
-        einnahmen_euro_pro_stunde.append(np.nan) 
-        eauto_soc_pro_stunde.append(self.eauto.ladezustand_in_prozent())
-        verluste_wh_pro_stunde.append(np.nan)
-        haushaltsgeraet_wh_pro_stunde.append(np.nan)
         
-        # Berechnet das Ende basierend auf der Länge der Lastkurve
-        for stunde in range(start_stunde+1, ende):
         
-            # Zustand zu Beginn der Stunde (Anfangszustand)
-            akku_soc_start = self.akku.ladezustand_in_prozent()  # Anfangszustand Akku-SoC
-            if self.eauto:
-                eauto_soc_start = self.eauto.ladezustand_in_prozent()  # Anfangszustand E-Auto-SoC
+        total_hours = ende-start_stunde
+
+        # Initialisierung der Arrays mit NaN-Werten
+        last_wh_pro_stunde = np.full(total_hours, np.nan)
+        netzeinspeisung_wh_pro_stunde = np.full(total_hours, np.nan)
+        netzbezug_wh_pro_stunde = np.full(total_hours, np.nan)
+        kosten_euro_pro_stunde = np.full(total_hours, np.nan)
+        einnahmen_euro_pro_stunde = np.full(total_hours, np.nan)
+        akku_soc_pro_stunde = np.full(total_hours, np.nan)
+        eauto_soc_pro_stunde = np.full(total_hours, np.nan)
+        verluste_wh_pro_stunde = np.full(total_hours, np.nan)
+        haushaltsgeraet_wh_pro_stunde = np.full(total_hours, np.nan)
+
+        # Setze den initialen Ladezustand für Akku und E-Auto
+        akku_soc_pro_stunde[start_stunde] = self.akku.ladezustand_in_prozent()
+        if self.eauto:
+            eauto_soc_pro_stunde[start_stunde] = self.eauto.ladezustand_in_prozent()
 
 
-        
-            # Anpassung, um sicherzustellen, dass Indizes korrekt sind
-            verbrauch = lastkurve_wh[stunde]   # Verbrauch für die Stunde
-            if self.haushaltsgeraet != None:
-                verbrauch = verbrauch + self.haushaltsgeraet.get_last_fuer_stunde(stunde)
-                haushaltsgeraet_wh_pro_stunde.append(self.haushaltsgeraet.get_last_fuer_stunde(stunde))
-            else: 
-                haushaltsgeraet_wh_pro_stunde.append(0)
+        for stunde in range(start_stunde + 1, ende):
+            stunde_since_now = stunde-start_stunde
+            #print(stunde_since_now) 
+            # Anfangszustände
+            akku_soc_start = self.akku.ladezustand_in_prozent()
+            eauto_soc_start = self.eauto.ladezustand_in_prozent() if self.eauto else None
+
+            # Verbrauch und zusätzliche Lasten bestimmen
+            verbrauch = self.gesamtlast[stunde]
+            haushalts_last = 0
+
+            if self.haushaltsgeraet is not None:
+                haushalts_last = self.haushaltsgeraet.get_last_fuer_stunde(stunde)
+            verbrauch += haushalts_last
+
+            haushaltsgeraet_wh_pro_stunde[stunde_since_now] = haushalts_last
+
+            # PV-Erzeugung und Strompreis für die Stunde
             erzeugung = self.pv_prognose_wh[stunde]
-            strompreis = self.strompreis_euro_pro_wh[stunde] if stunde < len(self.strompreis_euro_pro_wh) else self.strompreis_euro_pro_wh[-1]
-            
-            verluste_wh_pro_stunde.append(0.0)
+            strompreis = self.strompreis_euro_pro_wh[stunde]
 
-            # Logik für die E-Auto-Ladung bzw. Entladung
-            if self.eauto:  # Falls ein E-Auto vorhanden ist
-                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(None,stunde)
-                verbrauch = verbrauch + geladene_menge_eauto
-                verluste_wh_pro_stunde[-1] += verluste_eauto
-                eauto_soc = self.eauto.ladezustand_in_prozent()
+            # Verluste initialisieren
+            verluste_wh_pro_stunde[stunde_since_now] = 0.0
 
-
-            
-            stündlicher_netzbezug_wh = 0.0
-            stündliche_kosten_euro = 0.0
-            stündliche_einnahmen_euro = 0.0
-
-            #Wieviel kann der WR 
-            netzeinspeisung, netzbezug,  verluste, eigenverbrauch = self.wechselrichter.energie_verarbeiten(erzeugung, verbrauch, stunde)
-            
-            # Speichern
-            netzeinspeisung_wh_pro_stunde.append(netzeinspeisung)
-            stündliche_einnahmen_euro = netzeinspeisung* self.einspeiseverguetung_euro_pro_wh[stunde] 
-            
-            stündliche_kosten_euro = netzbezug * strompreis 
-            netzbezug_wh_pro_stunde.append(netzbezug)
-            verluste_wh_pro_stunde[-1] += verluste
-            last_wh_pro_stunde.append(eigenverbrauch+netzbezug)
-            
-
-            
+            # E-Auto-Verbrauch bestimmen
             if self.eauto:
-                eauto_soc_pro_stunde.append(eauto_soc)
-            
-            akku_soc_pro_stunde.append(self.akku.ladezustand_in_prozent())
-         
-            kosten_euro_pro_stunde.append(stündliche_kosten_euro)
-            einnahmen_euro_pro_stunde.append(stündliche_einnahmen_euro)
+                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(None, stunde)
+                verbrauch += geladene_menge_eauto
+                verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
+                eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
 
+            # Wechselrichter-Logik
+            netzeinspeisung, netzbezug, verluste, eigenverbrauch = self.wechselrichter.energie_verarbeiten(erzeugung, verbrauch, stunde)
 
+            # Ergebnisse speichern
+            netzeinspeisung_wh_pro_stunde[stunde_since_now] = netzeinspeisung
+            netzbezug_wh_pro_stunde[stunde_since_now] = netzbezug
+            verluste_wh_pro_stunde[stunde_since_now] += verluste
+
+            # Finanzen berechnen
+            kosten_euro_pro_stunde[stunde_since_now] = netzbezug * strompreis
+            einnahmen_euro_pro_stunde[stunde_since_now] = netzeinspeisung * self.einspeiseverguetung_euro_pro_wh[stunde]
+
+            # Letzter Akkuzustand speichern
+            akku_soc_pro_stunde[stunde_since_now] = self.akku.ladezustand_in_prozent()
+
+        # Gesamtkosten berechnen
         gesamtkosten_euro = np.nansum(kosten_euro_pro_stunde) - np.nansum(einnahmen_euro_pro_stunde)
-        expected_length = ende - start_stunde
-        array_names = ['Eigenverbrauch_Wh_pro_Stunde', 'Netzeinspeisung_Wh_pro_Stunde', 'Netzbezug_Wh_pro_Stunde', 'Kosten_Euro_pro_Stunde', 'akku_soc_pro_stunde', 'Einnahmen_Euro_pro_Stunde','E-Auto_SoC_pro_Stunde', "Verluste_Pro_Stunde"]
-        all_arrays = [last_wh_pro_stunde, netzeinspeisung_wh_pro_stunde, netzbezug_wh_pro_stunde, kosten_euro_pro_stunde, akku_soc_pro_stunde, einnahmen_euro_pro_stunde,eauto_soc_pro_stunde,verluste_wh_pro_stunde]
-
-        inconsistent_arrays = [name for name, arr in zip(array_names, all_arrays) if len(arr) != expected_length]
-        #print(inconsistent_arrays)
-        
-        if inconsistent_arrays:
-            raise ValueError(f"Inkonsistente Längen bei den Arrays: {', '.join(inconsistent_arrays)}. Erwartete Länge: {expected_length}, gefunden: {[len(all_arrays[array_names.index(name)]) for name in inconsistent_arrays]}")
 
         out = {
             'Last_Wh_pro_Stunde': last_wh_pro_stunde,
@@ -158,14 +146,14 @@ class EnergieManagementSystem:
             'akku_soc_pro_stunde': akku_soc_pro_stunde,
             'Einnahmen_Euro_pro_Stunde': einnahmen_euro_pro_stunde,
             'Gesamtbilanz_Euro': gesamtkosten_euro,
-            'E-Auto_SoC_pro_Stunde':eauto_soc_pro_stunde,
+            'E-Auto_SoC_pro_Stunde': eauto_soc_pro_stunde,
             'Gesamteinnahmen_Euro': np.nansum(einnahmen_euro_pro_stunde),
             'Gesamtkosten_Euro': np.nansum(kosten_euro_pro_stunde),
-            "Verluste_Pro_Stunde":verluste_wh_pro_stunde,
-            "Gesamt_Verluste":np.nansum(verluste_wh_pro_stunde),
-            "Haushaltsgeraet_wh_pro_stunde":haushaltsgeraet_wh_pro_stunde
+            "Verluste_Pro_Stunde": verluste_wh_pro_stunde,
+            "Gesamt_Verluste": np.nansum(verluste_wh_pro_stunde),
+            "Haushaltsgeraet_wh_pro_stunde": haushaltsgeraet_wh_pro_stunde
         }
-        
+
         out = replace_nan_with_none(out)
-        
         return out
+
