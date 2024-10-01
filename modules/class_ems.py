@@ -127,7 +127,7 @@ class EnergieManagementSystem:
             netzeinspeisung_wh_pro_stunde[stunde_since_now] = netzeinspeisung
             netzbezug_wh_pro_stunde[stunde_since_now] = netzbezug
             verluste_wh_pro_stunde[stunde_since_now] += verluste
-
+            last_wh_pro_stunde[stunde_since_now] = verbrauch
             # Finanzen berechnen
             kosten_euro_pro_stunde[stunde_since_now] = netzbezug * strompreis
             einnahmen_euro_pro_stunde[stunde_since_now] = netzeinspeisung * self.einspeiseverguetung_euro_pro_wh[stunde]
