@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import simpson
 from datetime import datetime, timedelta
+from config import *
 
 
 class BatteryDataProcessor:
@@ -236,7 +237,7 @@ class BatteryDataProcessor:
 if __name__ == '__main__':
 
     # MariaDB Verbindungsdetails
-
+    config = db_config #from config
 
     # Parameter festlegen
     voltage_high_threshold = 55.4  # 100% SoC
