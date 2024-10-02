@@ -1,10 +1,5 @@
-import json
-from datetime import datetime, timedelta, timezone
-import numpy as np
-from pprint import pprint
 
-
-class Waermepumpe:
+class Heatpump:
     MAX_HEIZLEISTUNG = 5000  # Maximum heating power in watts
     BASE_HEIZLEISTUNG = 235.0  # Base heating power value
     TEMPERATURE_COEFFICIENT = -11.645  # Coefficient for temperature
@@ -48,7 +43,7 @@ if __name__ == '__main__':
     start_innentemperatur = 15  # Initial indoor temperature
     isolationseffizienz = 0.8  # Insulation efficiency
     gewuenschte_innentemperatur = 20  # Desired indoor temperature
-    wp = Waermepumpe(max_heizleistung, 24)  # Initialize heat pump with prediction hours
+    wp = Heatpump(max_heizleistung, 24)  # Initialize heat pump with prediction hours
 
     # Print COP for various outside temperatures
     print(wp.cop_berechnen(-10), " ", wp.cop_berechnen(0), " ", wp.cop_berechnen(10))
