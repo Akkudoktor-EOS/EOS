@@ -41,3 +41,7 @@ run:
 # Run entire setup on docker
 docker-run:
 	@docker compose up
+
+# Build docker image
+docker-build:
+	@docker compose build eos

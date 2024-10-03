@@ -1,5 +1,6 @@
 .git/
 .github/
+data/
 eos-data/
 mariadb-data/
 test_data/

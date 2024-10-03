@@ -19,6 +19,8 @@ services:
       - 'eos'
     ports:
       - '${EOS_PORT}:${EOS_PORT}'
+    volumes:
+      - ./config.py:/opt/eos/config.py:ro
   mariadb:
     image: 'mariadb:${MARIADB_VERSION}-jammy'
     environment:

@@ -6,3 +6,4 @@ scikit-learn==1.5.2
 deap==1.4.1
 joblib==1.4.2
 requests==2.32.3
+pandas==2.2.3
