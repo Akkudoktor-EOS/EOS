@@ -2,9 +2,7 @@
 
 import os
 import random
-
 from pprint import pprint
-
 import matplotlib
 matplotlib.use('Agg')  # Sets the Matplotlib backend to 'Agg' for rendering plots in environments without a display
 import matplotlib.pyplot as plt
@@ -31,27 +29,6 @@ app = Flask(__name__)
 
 opt_class = optimization_problem(prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours)
 
-# @app.route('/last_correction', methods=['GET'])
-# def flask_last_correction():
-#     if request.method == 'GET':
-#         year_energy = float(request.args.get("year_energy"))
-#         date_now, date = get_start_enddate(prediction_hours, startdate=datetime.now().date())
-#         ###############
-#         # Load Forecast
-#         ###############
-#         lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
-#         leistung_haushalt = lf.get_stats_for_date_range(date_now, date)[0]  # Only the expected value!
-#
-#         gesamtlast = Gesamtlast(prediction_hours=prediction_hours)
-#         gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)
-#         # ###############
-#         # Heat Pump (WP)
-#         # ##############
-#         # leistung_wp = wp.simulate_24h(temperature_forecast)
-#         # gesamtlast.hinzufuegen("Heatpump", leistung_wp)
-#         last = gesamtlast.gesamtlast_berechnen()
-#         print(last)
-#         return jsonify(last.tolist())
 
 @app.route('/soc', methods=['GET'])
 def flask_soc():
@@ -146,66 +123,6 @@ def flask_gesamtlast():
     last = gesamtlast.gesamtlast_berechnen()  # Compute total load
     return jsonify(last.tolist())
 
-# @app.route('/gesamtlast', methods=['GET'])
-# def flask_gesamtlast():
-#     if request.method == 'GET':
-#         year_energy = float(request.args.get("year_energy"))  # Get annual energy value from query parameters
-#         prediction_hours = int(request.args.get("hours", 48))  # Default to 48 hours if not specified
-#         date_now = datetime.now()  # Get the current date and time
-#         end_date = (date_now + timedelta(hours=prediction_hours)).strftime('%Y-%m-%d %H:%M:%S')  # Calculate end date based on prediction hours
-
-#         ###############
-#         # Load Forecast
-#         ###############
-#         # Instantiate LastEstimator to retrieve measured data
-#         estimator = LastEstimator()
-#         start_date = (date_now - timedelta(days=60)).strftime('%Y-%m-%d')  # Start date: last 60 days
-#         end_date = date_now.strftime('%Y-%m-%d')  # Current date
-
-#         last_df = estimator.get_last(start_date, end_date)  # Get last load data
-
-#         selected_columns = last_df[['timestamp', 'Last']]  # Select relevant columns
-#         selected_columns['time'] = pd.to_datetime(selected_columns['timestamp']).dt.floor('H')  # Floor timestamps to the nearest hour
-#         selected_columns['Last'] = pd.to_numeric(selected_columns['Last'], errors='coerce')  # Convert 'Last' to numeric, coerce errors
-#         cleaned_data = selected_columns.dropna()  # Clean data by dropping NaN values
-
-#         # Instantiate LoadForecast
-#         lf = LoadForecast(filepath=r'load_profiles.npz', year_energy=year_energy)
-
-#         # Generate forecast data
-#         forecast_list = []  # List to hold daily forecasts
-#         for single_date in pd.date_range(cleaned_data['time'].min().date(), cleaned_data['time'].max().date()):  # Iterate over date range
-#             date_str = single_date.strftime('%Y-%m-%d')  # Format date
-#             daily_forecast = lf.get_daily_stats(date_str)  # Get daily stats from LoadForecast
-#             mean_values = daily_forecast[0]  # Extract mean values
-#             hours = [single_date + pd.Timedelta(hours=i) for i in range(24)]  # Generate hours for the day
-#             daily_forecast_df = pd.DataFrame({'time': hours, 'Last Pred': mean_values})  # Create DataFrame for daily forecast
-#             forecast_list.append(daily_forecast_df)  # Append to the list
-
-#         forecast_df = pd.concat(forecast_list, ignore_index=True)  # Concatenate all daily forecasts
-
-#         # Create LoadPredictionAdjuster instance
-#         adjuster = LoadPredictionAdjuster(cleaned_data, forecast_df, lf)
-#         adjuster.calculate_weighted_mean()  # Calculate weighted mean for adjustments
-#         adjuster.adjust_predictions()  # Adjust predictions based on measured data
-
-#         # Predict the next hours
-#         future_predictions = adjuster.predict_next_hours(prediction_hours)  # Predict future load
-
-#         leistung_haushalt = future_predictions['Adjusted Pred'].values  # Extract household power predictions
-
-#         gesamtlast = Gesamtlast(prediction_hours=prediction_hours)  # Create Gesamtlast instance
-#         gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)  # Add household load to total load calculation
-
-#         # ###############
-#         # # WP (Heat Pump)
-#         # ##############
-#         # leistung_wp = wp.simulate_24h(temperature_forecast)  # Simulate heat pump load for 24 hours
-#         # gesamtlast.hinzufuegen("Heatpump", leistung_wp)  # Add heat pump load to total load calculation
-
-#         last = gesamtlast.gesamtlast_berechnen()  # Calculate total load
-#         print(last)  # Output total load
-#         return jsonify(last.tolist())  # Return total load as JSON
 
 @app.route('/gesamtlast_simple', methods=['GET'])
 def flask_gesamtlast_simple():
@@ -322,8 +239,3 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"Could not bind to host {host}:{port}. Error: {e}")  # Error handling for binding issues
 
-# PV Forecast:
-#   object {
-#    pvpower: array[48]
-#    temperature: array[48]
-#   }
