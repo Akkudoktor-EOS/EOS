@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
 
 import os
+import sys
+from datetime import datetime
 
 import matplotlib
 
-matplotlib.use(
-    "Agg"
-)  # Sets the Matplotlib backend to 'Agg' for rendering plots in environments without a display
-from datetime import datetime, timedelta
+# Sets the Matplotlib backend to 'Agg' for rendering plots in environments without a display
+matplotlib.use("Agg")
+from datetime import timedelta
 
 import pandas as pd
-from config import *
 from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
 
-from modules.class_akku import *
-from modules.class_ems import *
-from modules.class_heatpump import *
-from modules.class_load import *
-from modules.class_load_container import *
-from modules.class_load_corrector import *
-from modules.class_optimize import *
-from modules.class_pv_forecast import *
-from modules.class_soc_calc import *
-from modules.class_sommerzeit import *
-from modules.class_strompreis import *
-from modules.visualize import *
+from modules.class_load import LoadForecast
+from modules.class_load_container import Gesamtlast
+from modules.class_load_corrector import LoadPredictionAdjuster
+from modules.class_optimize import isfloat, optimization_problem
+from modules.class_pv_forecast import PVForecast
+from modules.class_soc_calc import BatteryDataProcessor
+from modules.class_strompreis import HourlyElectricityPriceForecast
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import db_config, get_start_enddate, optimization_hours, prediction_hours
 
 app = Flask(__name__)
 
