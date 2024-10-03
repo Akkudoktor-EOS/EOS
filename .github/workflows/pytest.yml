@@ -3,7 +3,7 @@ name: Run Pytest on Pull Request
 on:
   pull_request:
     branches:
-      - main  # Change this to your default branch if it's not 'main'
+      - main
 
 jobs:
   test:
