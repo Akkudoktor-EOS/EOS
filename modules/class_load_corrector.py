@@ -1,14 +1,11 @@
-import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.metrics import mean_squared_error, r2_score
 
-import mariadb
 # from sklearn.model_selection import train_test_split, GridSearchCV
 # from sklearn.ensemble import GradientBoostingRegressor
 # from xgboost import XGBRegressor
@@ -22,6 +19,7 @@ import mariadb
 # Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import *
+
 from modules.class_load import *
 
 
@@ -38,116 +36,158 @@ class LoadPredictionAdjuster:
 
     def _remove_outliers(self, data, threshold=2):
         # Calculate the Z-Score of the 'Last' data
-        data['Z-Score'] = np.abs((data['Last'] - data['Last'].mean()) / data['Last'].std())
+        data["Z-Score"] = np.abs(
+            (data["Last"] - data["Last"].mean()) / data["Last"].std()
+        )
         # Filter the data based on the threshold
-        filtered_data = data[data['Z-Score'] < threshold]
-        return filtered_data.drop(columns=['Z-Score'])
+        filtered_data = data[data["Z-Score"] < threshold]
+        return filtered_data.drop(columns=["Z-Score"])
 
     def _merge_data(self):
         # Convert the time column in both DataFrames to datetime
-        self.predicted_data['time'] = pd.to_datetime(self.predicted_data['time'])
-        self.measured_data['time'] = pd.to_datetime(self.measured_data['time'])
+        self.predicted_data["time"] = pd.to_datetime(self.predicted_data["time"])
+        self.measured_data["time"] = pd.to_datetime(self.measured_data["time"])
 
         # Ensure both time columns have the same timezone
-        if self.measured_data['time'].dt.tz is None:
-            self.measured_data['time'] = self.measured_data['time'].dt.tz_localize('UTC')
+        if self.measured_data["time"].dt.tz is None:
+            self.measured_data["time"] = self.measured_data["time"].dt.tz_localize(
+                "UTC"
+            )
 
-        self.predicted_data['time'] = (
-            self.predicted_data['time'].dt.tz_localize('UTC')
-            .dt.tz_convert('Europe/Berlin')
+        self.predicted_data["time"] = (
+            self.predicted_data["time"]
+            .dt.tz_localize("UTC")
+            .dt.tz_convert("Europe/Berlin")
         )
-        self.measured_data['time'] = self.measured_data['time'].dt.tz_convert('Europe/Berlin')
+        self.measured_data["time"] = self.measured_data["time"].dt.tz_convert(
+            "Europe/Berlin"
+        )
 
         # Optionally: Remove timezone information if only working locally
-        self.predicted_data['time'] = self.predicted_data['time'].dt.tz_localize(None)
-        self.measured_data['time'] = self.measured_data['time'].dt.tz_localize(None)
+        self.predicted_data["time"] = self.predicted_data["time"].dt.tz_localize(None)
+        self.measured_data["time"] = self.measured_data["time"].dt.tz_localize(None)
 
         # Now you can perform the merge
-        merged_data = pd.merge(self.measured_data, self.predicted_data, on='time', how='inner')
+        merged_data = pd.merge(
+            self.measured_data, self.predicted_data, on="time", how="inner"
+        )
         print(merged_data)
-        merged_data['Hour'] = merged_data['time'].dt.hour
-        merged_data['DayOfWeek'] = merged_data['time'].dt.dayofweek
+        merged_data["Hour"] = merged_data["time"].dt.hour
+        merged_data["DayOfWeek"] = merged_data["time"].dt.dayofweek
         return merged_data
 
     def calculate_weighted_mean(self, train_period_weeks=9, test_period_weeks=1):
         self.merged_data = self._remove_outliers(self.merged_data)
-        train_end_date = self.merged_data['time'].max() - pd.Timedelta(weeks=test_period_weeks)
+        train_end_date = self.merged_data["time"].max() - pd.Timedelta(
+            weeks=test_period_weeks
+        )
         train_start_date = train_end_date - pd.Timedelta(weeks=train_period_weeks)
 
         test_start_date = train_end_date + pd.Timedelta(hours=1)
-        test_end_date = test_start_date + pd.Timedelta(weeks=test_period_weeks) - pd.Timedelta(hours=1)
+        test_end_date = (
+            test_start_date
+            + pd.Timedelta(weeks=test_period_weeks)
+            - pd.Timedelta(hours=1)
+        )
 
         self.train_data = self.merged_data[
-            (self.merged_data['time'] >= train_start_date) & 
-            (self.merged_data['time'] <= train_end_date)
+            (self.merged_data["time"] >= train_start_date)
+            & (self.merged_data["time"] <= train_end_date)
         ]
 
         self.test_data = self.merged_data[
-            (self.merged_data['time'] >= test_start_date) & 
-            (self.merged_data['time'] <= test_end_date)
+            (self.merged_data["time"] >= test_start_date)
+            & (self.merged_data["time"] <= test_end_date)
         ]
 
-        self.train_data['Difference'] = self.train_data['Last'] - self.train_data['Last Pred']
+        self.train_data["Difference"] = (
+            self.train_data["Last"] - self.train_data["Last Pred"]
+        )
 
-        weekdays_train_data = self.train_data[self.train_data['DayOfWeek'] < 5]
-        weekends_train_data = self.train_data[self.train_data['DayOfWeek'] >= 5]
+        weekdays_train_data = self.train_data[self.train_data["DayOfWeek"] < 5]
+        weekends_train_data = self.train_data[self.train_data["DayOfWeek"] >= 5]
 
-        self.weekday_diff = weekdays_train_data.groupby('Hour').apply(self._weighted_mean_diff).dropna()
-        self.weekend_diff = weekends_train_data.groupby('Hour').apply(self._weighted_mean_diff).dropna()
+        self.weekday_diff = (
+            weekdays_train_data.groupby("Hour").apply(self._weighted_mean_diff).dropna()
+        )
+        self.weekend_diff = (
+            weekends_train_data.groupby("Hour").apply(self._weighted_mean_diff).dropna()
+        )
 
     def _weighted_mean_diff(self, data):
-        train_end_date = self.train_data['time'].max()
-        weights = 1 / (train_end_date - data['time']).dt.days.replace(0, np.nan)
-        weighted_mean = (data['Difference'] * weights).sum() / weights.sum()
+        train_end_date = self.train_data["time"].max()
+        weights = 1 / (train_end_date - data["time"]).dt.days.replace(0, np.nan)
+        weighted_mean = (data["Difference"] * weights).sum() / weights.sum()
         return weighted_mean
 
     def adjust_predictions(self):
-        self.train_data['Adjusted Pred'] = self.train_data.apply(self._adjust_row, axis=1)
-        self.test_data['Adjusted Pred'] = self.test_data.apply(self._adjust_row, axis=1)
+        self.train_data["Adjusted Pred"] = self.train_data.apply(
+            self._adjust_row, axis=1
+        )
+        self.test_data["Adjusted Pred"] = self.test_data.apply(self._adjust_row, axis=1)
 
     def _adjust_row(self, row):
-        if row['DayOfWeek'] < 5:
-            return row['Last Pred'] + self.weekday_diff.get(row['Hour'], 0)
+        if row["DayOfWeek"] < 5:
+            return row["Last Pred"] + self.weekday_diff.get(row["Hour"], 0)
         else:
-            return row['Last Pred'] + self.weekend_diff.get(row['Hour'], 0)
+            return row["Last Pred"] + self.weekend_diff.get(row["Hour"], 0)
 
     def plot_results(self):
-        self._plot_data(self.train_data, 'Training')
-        self._plot_data(self.test_data, 'Testing')
+        self._plot_data(self.train_data, "Training")
+        self._plot_data(self.test_data, "Testing")
 
     def _plot_data(self, data, data_type):
         plt.figure(figsize=(14, 7))
-        plt.plot(data['time'], data['Last'], label=f'Actual Last - {data_type}', color='blue')
-        plt.plot(data['time'], data['Last Pred'], label=f'Predicted Last - {data_type}', color='red', linestyle='--')
-        plt.plot(data['time'], data['Adjusted Pred'], label=f'Adjusted Predicted Last - {data_type}', color='green', linestyle=':')
-        plt.xlabel('Time')
-        plt.ylabel('Load')
-        plt.title(f'Actual vs Predicted vs Adjusted Predicted Load ({data_type} Data)')
+        plt.plot(
+            data["time"], data["Last"], label=f"Actual Last - {data_type}", color="blue"
+        )
+        plt.plot(
+            data["time"],
+            data["Last Pred"],
+            label=f"Predicted Last - {data_type}",
+            color="red",
+            linestyle="--",
+        )
+        plt.plot(
+            data["time"],
+            data["Adjusted Pred"],
+            label=f"Adjusted Predicted Last - {data_type}",
+            color="green",
+            linestyle=":",
+        )
+        plt.xlabel("Time")
+        plt.ylabel("Load")
+        plt.title(f"Actual vs Predicted vs Adjusted Predicted Load ({data_type} Data)")
         plt.legend()
         plt.grid(True)
         plt.show()
 
     def evaluate_model(self):
-        mse = mean_squared_error(self.test_data['Last'], self.test_data['Adjusted Pred'])
-        r2 = r2_score(self.test_data['Last'], self.test_data['Adjusted Pred'])
-        print(f'Mean Squared Error: {mse}')
-        print(f'R-squared: {r2}')
+        mse = mean_squared_error(
+            self.test_data["Last"], self.test_data["Adjusted Pred"]
+        )
+        r2 = r2_score(self.test_data["Last"], self.test_data["Adjusted Pred"])
+        print(f"Mean Squared Error: {mse}")
+        print(f"R-squared: {r2}")
 
     def predict_next_hours(self, hours_ahead):
-        last_date = self.merged_data['time'].max()
-        future_dates = [last_date + pd.Timedelta(hours=i) for i in range(1, hours_ahead + 1)]
-        future_df = pd.DataFrame({'time': future_dates})
-        future_df['Hour'] = future_df['time'].dt.hour
-        future_df['DayOfWeek'] = future_df['time'].dt.dayofweek
-        future_df['Last Pred'] = future_df['time'].apply(self._forecast_next_hours)
-        future_df['Adjusted Pred'] = future_df.apply(self._adjust_row, axis=1)
+        last_date = self.merged_data["time"].max()
+        future_dates = [
+            last_date + pd.Timedelta(hours=i) for i in range(1, hours_ahead + 1)
+        ]
+        future_df = pd.DataFrame({"time": future_dates})
+        future_df["Hour"] = future_df["time"].dt.hour
+        future_df["DayOfWeek"] = future_df["time"].dt.dayofweek
+        future_df["Last Pred"] = future_df["time"].apply(self._forecast_next_hours)
+        future_df["Adjusted Pred"] = future_df.apply(self._adjust_row, axis=1)
         return future_df
 
     def _forecast_next_hours(self, timestamp):
-        date_str = timestamp.strftime('%Y-%m-%d')
+        date_str = timestamp.strftime("%Y-%m-%d")
         hour = timestamp.hour
         daily_forecast = self.load_forecast.get_daily_stats(date_str)
         return daily_forecast[0][hour] if hour < len(daily_forecast[0]) else np.nan
+
 
 # if __name__ == '__main__':
 #     estimator = LastEstimator()
