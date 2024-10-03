@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
-from modules.class_sommerzeit import *  # Ensure this matches the actual import path
+from modules.class_sommerzeit import ist_dst_wechsel
 
 matplotlib.use("Agg")
 

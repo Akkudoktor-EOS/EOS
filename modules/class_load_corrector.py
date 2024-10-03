@@ -1,6 +1,3 @@
-import os
-import sys
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -15,12 +12,6 @@ from sklearn.metrics import mean_squared_error, r2_score
 # from tensorflow.keras.optimizers import Adam
 # from sklearn.preprocessing import MinMaxScaler
 # from sqlalchemy import create_engine
-
-# Add the parent directory to sys.path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import *
-
-from modules.class_load import *
 
 
 class LoadPredictionAdjuster:
