@@ -20,7 +20,7 @@ moegliche_ladestroeme_in_prozent = [
 
 
 # Optional
-db_config = {"user": "eos", "password": "eos", "host": "127.0.0.1", "database": "eos"}
+db_config = {"user": "eos", "password": "eos", "host": "mariadb", "database": "eos"}
 
 
 def get_start_enddate(prediction_hours=48, startdate=None):

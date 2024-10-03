@@ -5,8 +5,9 @@ import matplotlib
 import numpy as np
 
 from modules.class_akku import PVAkku
-from modules.class_ems import EnergieManagementSystem, Wechselrichter
+from modules.class_ems import EnergieManagementSystem
 from modules.class_haushaltsgeraet import Haushaltsgeraet
+from modules.class_inverter import Wechselrichter
 from modules.visualize import visualisiere_ergebnisse
 
 matplotlib.use("Agg")  # Setzt das Backend auf Agg
