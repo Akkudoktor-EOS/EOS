@@ -1,34 +1,29 @@
 import os
+import sys
 
 import matplotlib
 import numpy as np
 
-from modules.class_akku import *
-from modules.class_ems import *
-from modules.class_haushaltsgeraet import *
-from modules.class_heatpump import *
-from modules.class_inverter import *
-from modules.class_load import *
-from modules.class_load_container import *
-from modules.class_pv_forecast import *
-from modules.class_sommerzeit import *
-from modules.visualize import *
+from modules.class_akku import PVAkku
+from modules.class_ems import EnergieManagementSystem, Wechselrichter
+from modules.class_haushaltsgeraet import Haushaltsgeraet
+from modules.visualize import visualisiere_ergebnisse
 
 matplotlib.use("Agg")  # Setzt das Backend auf Agg
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from deap import algorithms, base, creator, tools
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import *
+from config import moegliche_ladestroeme_in_prozent
 
 
 def isfloat(num):
     try:
         float(num)
         return True
-    except:
+    except ValueError:
         return False
 
 
@@ -213,7 +208,7 @@ class optimization_problem:
     def evaluate(self, individual, ems, parameter, start_hour, worst_case):
         try:
             o = self.evaluate_inner(individual, ems, start_hour)
-        except:
+        except Exception:
             return (100000.0,)
 
         gesamtbilanz = o["Gesamtbilanz_Euro"]
@@ -339,7 +334,7 @@ class optimization_problem:
         ############
         # Parameter
         ############
-        if startdate == None:
+        if startdate is None:
             date = (
                 datetime.now().date() + timedelta(hours=self.prediction_hours)
             ).strftime("%Y-%m-%d")
@@ -437,7 +432,7 @@ class optimization_problem:
         ##############
         opti_param = {}
         opti_param["haushaltsgeraete"] = 0
-        if spuelmaschine != None:
+        if spuelmaschine is not None:
             opti_param["haushaltsgeraete"] = 1
 
         self.setup_deap_environment(opti_param, start_hour)

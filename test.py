@@ -4,7 +4,6 @@ from pprint import pprint
 
 # Import necessary modules from the project
 from modules.class_optimize import optimization_problem
-from modules.visualize import *
 
 start_hour = 10
 

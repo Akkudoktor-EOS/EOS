@@ -295,6 +295,7 @@ class BatteryDataProcessor:
 
 if __name__ == "__main__":
     # MariaDB Verbindungsdetails
+    config = {}
 
     # Parameter festlegen
     voltage_high_threshold = 55.4  # 100% SoC
