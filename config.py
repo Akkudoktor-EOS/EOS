@@ -27,7 +27,7 @@ def get_start_enddate(prediction_hours=48, startdate=None):
     ############
     # Parameter
     ############
-    if startdate == None:
+    if startdate is None:
         date = (datetime.now().date() + timedelta(hours=prediction_hours)).strftime(
             "%Y-%m-%d"
         )

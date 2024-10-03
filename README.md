@@ -27,7 +27,8 @@ On MacOS (requires [Homebrew](https://brew.sh)):
 brew install make
 ```
 
-Next, adjust `config.example.py` and rename it to `config.py`. The server can then be started with `make run`. A full overview of the main shortcuts is given by `make help`.
+Next, adjust `config.py`.
+The server can then be started with `make run`. A full overview of the main shortcuts is given by `make help`.
 
 ### Detailed Instructions
 
@@ -71,7 +72,8 @@ Followed by a renewed `pip install -r requirements.txt`.
 
 ## Usage
 
-Adjust `config.example.py` and rename it to `config.py`. To use the system, run `flask_server.py`, which starts the server:
+Adjust `config.py`.
+To use the system, run `flask_server.py`, which starts the server:
 
 ```bash
 ./flask_server.py

@@ -69,7 +69,9 @@ class PVForecast:
                 f"Die Vorhersage muss mindestens {self.prediction_hours} Stunden umfassen, aber es wurden nur {len(self.forecast_data)} Stunden vorhergesagt."
             )
 
-    def update_ac_power_measurement(self, date_time=None, ac_power_measurement=None):
+    def update_ac_power_measurement(
+        self, date_time=None, ac_power_measurement=None
+    ) -> bool:
         found = False
         input_date_hour = date_time.replace(minute=0, second=0, microsecond=0)
 
@@ -81,6 +83,7 @@ class PVForecast:
                 forecast.ac_power_measurement = ac_power_measurement
                 found = True
                 break
+        return found
 
     def process_data(self, data):
         self.meta = data.get("meta", {})
