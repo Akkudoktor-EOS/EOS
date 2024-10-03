@@ -8,7 +8,7 @@ Die Diskussion findet im [Forum](https://www.akkudoktor.net/forum/diy-energie-op
 
 ## Installation
 
-Gute Install Anleitung: 
+Gute Install Anleitung:
 https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/
 
 Das Projekt erfordert Python 3.8 oder neuer.
@@ -115,7 +115,7 @@ Beschreibt die Struktur und Datentypen des JSON-Objekts, das an den Flask-Server
 - **Beschreibung**: Ein Array von Floats, das den Strompreis in Euro pro Wattstunde für verschiedene Zeitintervalle darstellt.
 - **Typ**: Array
 - **Element-Typ**: Float
-- **Länge**: 48  
+- **Länge**: 48
 
 ### gesamtlast
 - **Beschreibung**: Ein Array von Floats, das die Gesamtlast (Verbrauch) in Watt für verschiedene Zeitintervalle darstellt.
@@ -136,7 +136,7 @@ Beschreibt die Struktur und Datentypen des JSON-Objekts, das an den Flask-Server
 - **Länge**: 48
 
 ### pv_soc
-- **Beschreibung**: Ein Integer, der den Ladezustand des PV Akkus zum START der aktuellen Stunde anzeigt, das ist nicht der aktuelle!!! 
+- **Beschreibung**: Ein Integer, der den Ladezustand des PV Akkus zum START der aktuellen Stunde anzeigt, das ist nicht der aktuelle!!!
 - **Typ**: Integer
 
 ### pv_akku_cap
