@@ -110,7 +110,7 @@ def visualisiere_ergebnisse(
 
         plt.figure(figsize=(14, 10))
 
-        if ist_dst_wechsel(datetime.datetime.now()):
+        if ist_dst_wechsel(datetime.now()):
             hours = np.arange(start_hour, prediction_hours - 1)
         else:
             hours = np.arange(start_hour, prediction_hours)
