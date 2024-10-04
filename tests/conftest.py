@@ -1,1 +1,0 @@
-from test_heatpump import heatpump
