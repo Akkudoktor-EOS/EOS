@@ -1,5 +1,7 @@
 import datetime
+
 import pytz
+
 
 def ist_dst_wechsel(tag, timezone="Europe/Berlin"):
     """Checks if Daylight Saving Time (DST) starts or ends on a given day."""
@@ -17,9 +19,10 @@ def ist_dst_wechsel(tag, timezone="Europe/Berlin"):
 
     return dst_change
 
+
 # # Example usage
 # start_date = datetime.datetime(2024, 3, 31)  # Date of the DST change
 # if ist_dst_wechsel(start_date):
-    # prediction_hours = 23  # Adjust to 23 hours for DST change days
+#     prediction_hours = 23  # Adjust to 23 hours for DST change days
 # else:
-    # prediction_hours = 24  # Default value for days without DST change
+#     prediction_hours = 24  # Default value for days without DST change

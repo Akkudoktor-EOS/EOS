@@ -1,0 +1,7 @@
+[tool.isort]
+profile = "black"
+
+[tool.ruff.lint]
+ignore = [
+    "F841",  # don't complain about unused variables
+]

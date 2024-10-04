@@ -1,12 +1,13 @@
 import pytest
+
 from modules.class_heatpump import Heatpump
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def heatpump() -> Heatpump:
-    """ Heatpump with 5 kw heating power and 24 h prediction
-    """
+    """Heatpump with 5 kw heating power and 24 h prediction"""
     return Heatpump(5000, 24)
+
 
 class TestHeatpump:
     def test_cop(self, heatpump):

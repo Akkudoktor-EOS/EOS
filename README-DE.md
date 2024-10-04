@@ -8,7 +8,7 @@ Die Diskussion findet im [Forum](https://www.akkudoktor.net/forum/diy-energie-op
 
 ## Installation
 
-Gute Install Anleitung: 
+Gute Install Anleitung:
 https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/
 
 Das Projekt erfordert Python 3.8 oder neuer.
@@ -27,7 +27,8 @@ Unter Macos (benötigt [Homebrew](https://brew.sh)):
 brew install make
 ```
 
-Nun `config.example.py` anpassen und dann in `config.py` umbennenen. Anschließend kann der Server über `make run` gestartet werden.
+Nun `config.py` anpassen.
+Anschließend kann der Server über `make run` gestartet werden.
 Eine vollständige Übersicht über die wichtigsten Kurzbefehle gibt `make help`.
 
 ### Ausführliche Anleitung
@@ -76,7 +77,7 @@ gefolgt von einem erneuten `pip install -r requirements.txt`.
 
 ## Nutzung
 
-`config.example.py` anpassen und dann in config.py umbennenen
+Einstellungen in `config.py` anpassen.
 Um das System zu nutzen, führen Sie `flask_server.py` aus, damit wird der Server gestartet
 
 
@@ -115,7 +116,7 @@ Beschreibt die Struktur und Datentypen des JSON-Objekts, das an den Flask-Server
 - **Beschreibung**: Ein Array von Floats, das den Strompreis in Euro pro Wattstunde für verschiedene Zeitintervalle darstellt.
 - **Typ**: Array
 - **Element-Typ**: Float
-- **Länge**: 48  
+- **Länge**: 48
 
 ### gesamtlast
 - **Beschreibung**: Ein Array von Floats, das die Gesamtlast (Verbrauch) in Watt für verschiedene Zeitintervalle darstellt.
@@ -136,7 +137,7 @@ Beschreibt die Struktur und Datentypen des JSON-Objekts, das an den Flask-Server
 - **Länge**: 48
 
 ### pv_soc
-- **Beschreibung**: Ein Integer, der den Ladezustand des PV Akkus zum START der aktuellen Stunde anzeigt, das ist nicht der aktuelle!!! 
+- **Beschreibung**: Ein Integer, der den Ladezustand des PV Akkus zum START der aktuellen Stunde anzeigt, das ist nicht der aktuelle!!!
 - **Typ**: Integer
 
 ### pv_akku_cap
