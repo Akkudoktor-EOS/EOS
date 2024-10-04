@@ -31,7 +31,6 @@ opt_class = optimization_problem(
 )
 
 
-
 @app.route("/soc", methods=["GET"])
 def flask_soc():
     # MariaDB connection details
@@ -381,4 +380,3 @@ if __name__ == "__main__":
         print(
             f"Could not bind to host {host}:{port}. Error: {e}"
         )  # Error handling for binding issues
-
