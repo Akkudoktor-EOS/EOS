@@ -4,7 +4,7 @@ This project provides a comprehensive solution for simulating and optimizing an 
 
 ## Getting Involved
 
-The discussion takes place in the [forum](https://www.akkudoktor.net/forum/diy-energie-optimierungssystem-opensource-projekt/). Please report bugs in the [Issue Tracker](https://github.com/Akkudoktor-EOS/EOS/issues). We welcome code contributions and bug fixes via [Pull Requests](https://github.com/Akkudoktor-EOS/EOS/pulls).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Installation
 
