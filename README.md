@@ -8,7 +8,7 @@ The discussion takes place in the [forum](https://www.akkudoktor.net/forum/diy-e
 
 ## Installation
 
-Good installation guide: 
+Good installation guide:
 https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/
 
 The project requires Python 3.8 or newer.
@@ -27,7 +27,8 @@ On MacOS (requires [Homebrew](https://brew.sh)):
 brew install make
 ```
 
-Next, adjust `config.example.py` and rename it to `config.py`. The server can then be started with `make run`. A full overview of the main shortcuts is given by `make help`.
+Next, adjust `config.py`.
+The server can then be started with `make run`. A full overview of the main shortcuts is given by `make help`.
 
 ### Detailed Instructions
 
@@ -71,7 +72,8 @@ Followed by a renewed `pip install -r requirements.txt`.
 
 ## Usage
 
-Adjust `config.example.py` and rename it to `config.py`. To use the system, run `flask_server.py`, which starts the server:
+Adjust `config.py`.
+To use the system, run `flask_server.py`, which starts the server:
 
 ```bash
 ./flask_server.py
@@ -110,7 +112,7 @@ Describes the structure and data types of the JSON object sent to the Flask serv
 - **Description**: An array of floats representing the electricity price in euros per watt-hour for different time intervals.
 - **Type**: Array
 - **Element Type**: Float
-- **Length**: 48  
+- **Length**: 48
 
 ### `gesamtlast`
 - **Description**: An array of floats representing the total load (consumption) in watts for different time intervals.
