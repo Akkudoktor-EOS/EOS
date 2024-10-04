@@ -1,0 +1,53 @@
+name: Bug Report
+description: File a bug report.
+title: "[BUG]: ..."
+labels: ["bug"]
+
+body:
+- type: markdown
+  attributes:
+    value: >
+      Thank you for taking the time to file a bug report.
+      Please also check the issue tracker for existing issues about the bug.
+
+- type: textarea
+  attributes:
+    label: "Describe the issue:"
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: "Reproduceable code example:"
+    description: >
+      A short code example that reproduces the problem/missing feature.
+    placeholder: |
+      << your code here >>
+    render: python
+  validations:
+    required: false
+
+- type: textarea
+  attributes:
+    label: "Error message:"
+    description: >
+      Please include full error message, if any.
+    placeholder: |
+      <details>
+      Full traceback starting from `Traceback: ...`
+      </details>
+    render: shell
+
+- type: textarea
+  attributes:
+    label: "Version information:"
+    description: >
+      EOS Version or commit SHA:
+      Operating system:
+      How did you install EOS?
+    placeholder: |
+      <details>
+      configuration information
+      </details>
+  validations:
+    required: true
