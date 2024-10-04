@@ -2,48 +2,48 @@ import pytest
 import numpy as np
 from modules.class_ems import EnergieManagementSystem
 from modules.class_akku import PVAkku
-from modules.class_haushaltsgeraet import Haushaltsgeraet  # Beispiel-Import
-from modules.class_inverter import Wechselrichter  # Beispiel-Import
-from modules.class_load_container import Gesamtlast  # Beispiel-Import
+from modules.class_haushaltsgeraet import Haushaltsgeraet  # Example import
+from modules.class_inverter import Wechselrichter  # Example import
+from modules.class_load_container import Gesamtlast  # Example import
 
 prediction_hours = 48
 optimization_hours = 24
 
-# Beispielhafte Initialisierungen der notwendigen Komponenten
+# Example initialization of necessary components
 @pytest.fixture
 def create_ems_instance():
     """
-    Fixture zur Erstellung einer EnergieManagementSystem-Instanz mit den gegebenen Testparametern.
+    Fixture to create an EnergieManagementSystem instance with given test parameters.
     """
-    # Initialisiere den Akku und den Wechselrichter
+    # Initialize the battery and the inverter
     akku = PVAkku(kapazitaet_wh=5000, start_soc_prozent=80, hours=48)
     akku.reset()
     wechselrichter = Wechselrichter(10000, akku)
-    
-    # Haushaltsgerät (aktuell nicht verwendet, daher auf None gesetzt)
+
+    # Household device (currently not used, set to None)
     haushaltsgeraet = None
-    
-    # Beispielhafte Initialisierung von E-Auto
+
+    # Example initialization of electric car battery
     eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=10, hours=48)
-    
-    # Parameter aus den vorherigen Beispiel-Daten
+
+    # Parameters based on previous example data
     pv_prognose_wh = [
-        0, 0, 0, 0, 0, 0, 0, 8.05, 352.91, 728.51, 930.28, 1043.25, 1106.74, 1161.69, 
-        6018.82, 5519.07, 3969.88, 3017.96, 1943.07, 1007.17, 319.67, 7.88, 0, 0, 0, 0, 
-        0, 0, 0, 0, 0, 5.04, 335.59, 705.32, 1121.12, 1604.79, 2157.38, 1433.25, 5718.49, 
+        0, 0, 0, 0, 0, 0, 0, 8.05, 352.91, 728.51, 930.28, 1043.25, 1106.74, 1161.69,
+        6018.82, 5519.07, 3969.88, 3017.96, 1943.07, 1007.17, 319.67, 7.88, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 5.04, 335.59, 705.32, 1121.12, 1604.79, 2157.38, 1433.25, 5718.49,
         4553.96, 3027.55, 2574.46, 1720.4, 963.4, 383.3, 0, 0, 0,
     ]
-    
+
     strompreis_euro_pro_wh = [
-        0.0003384, 0.0003318, 0.0003284, 0.0003283, 0.0003289, 0.0003334, 0.0003290, 
-        0.0003302, 0.0003042, 0.0002430, 0.0002280, 0.0002212, 0.0002093, 0.0001879, 
-        0.0001838, 0.0002004, 0.0002198, 0.0002270, 0.0002997, 0.0003195, 0.0003081, 
-        0.0002969, 0.0002921, 0.0002780, 0.0003384, 0.0003318, 0.0003284, 0.0003283, 
-        0.0003289, 0.0003334, 0.0003290, 0.0003302, 0.0003042, 0.0002430, 0.0002280, 
-        0.0002212, 0.0002093, 0.0001879, 0.0001838, 0.0002004, 0.0002198, 0.0002270, 
+        0.0003384, 0.0003318, 0.0003284, 0.0003283, 0.0003289, 0.0003334, 0.0003290,
+        0.0003302, 0.0003042, 0.0002430, 0.0002280, 0.0002212, 0.0002093, 0.0001879,
+        0.0001838, 0.0002004, 0.0002198, 0.0002270, 0.0002997, 0.0003195, 0.0003081,
+        0.0002969, 0.0002921, 0.0002780, 0.0003384, 0.0003318, 0.0003284, 0.0003283,
+        0.0003289, 0.0003334, 0.0003290, 0.0003302, 0.0003042, 0.0002430, 0.0002280,
+        0.0002212, 0.0002093, 0.0001879, 0.0001838, 0.0002004, 0.0002198, 0.0002270,
         0.0002997, 0.0003195, 0.0003081, 0.0002969, 0.0002921, 0.0002780,
     ]
-    
+
     einspeiseverguetung_euro_pro_wh = [0.00007] * len(strompreis_euro_pro_wh)
 
     gesamtlast = [
@@ -55,7 +55,7 @@ def create_ems_instance():
         860.88, 1158.03, 1222.72, 1221.04, 949.99, 987.01, 733.99, 592.97,
     ]
 
-    # Initialisiere das Energiemanagementsystem mit den entsprechenden Parametern
+    # Initialize the energy management system with the respective parameters
     ems = EnergieManagementSystem(
         pv_prognose_wh=pv_prognose_wh,
         strompreis_euro_pro_wh=strompreis_euro_pro_wh,
@@ -68,75 +68,74 @@ def create_ems_instance():
     return ems
 
 
-
 def test_simulation(create_ems_instance):
     """
     Test the EnergieManagementSystem simulation method.
     """
     ems = create_ems_instance
-    
-    # Simuliere ab Stunde 1 (dieser Wert kann angepasst werden)
-    start_stunde = 1
-    ergebnis = ems.simuliere(start_stunde=start_stunde)
-    
+
+    # Simulate starting from hour 1 (this value can be adjusted)
+    start_hour = 1
+    result = ems.simuliere(start_stunde=start_hour)
+
     # Assertions to validate results
-    assert ergebnis is not None, "Ergebnis should not be None"
-    assert isinstance(ergebnis, dict), "Ergebnis should be a dictionary"
-    assert "Last_Wh_pro_Stunde" in ergebnis, "Ergebnis should contain 'Last_Wh_pro_Stunde'"
-    
+    assert result is not None, "Result should not be None"
+    assert isinstance(result, dict), "Result should be a dictionary"
+    assert "Last_Wh_pro_Stunde" in result, "Result should contain 'Last_Wh_pro_Stunde'"
+
     """
-    Überprüft das Ergebnis der Simulation basierend auf den erwarteten Werten.
+    Check the result of the simulation based on expected values.
     """
-    # Beispielergebnis, das von der Simulation zurückgegeben wurde (hier für die Assertions verwendet)
-    assert ergebnis is not None, "Das Ergebnis sollte nicht None sein."
-    
-    # Überprüfe, dass das Ergebnis ein Dictionary ist
-    assert isinstance(ergebnis, dict), "Das Ergebnis sollte ein Dictionary sein."
-    
-    # Überprüfe, dass die erwarteten Schlüssel im Ergebnis vorhanden sind
+    # Example result returned from the simulation (used for assertions)
+    assert result is not None, "Result should not be None."
+
+    # Check that the result is a dictionary
+    assert isinstance(result, dict), "Result should be a dictionary."
+
+    # Verify that the expected keys are present in the result
     expected_keys = [
         'Last_Wh_pro_Stunde', 'Netzeinspeisung_Wh_pro_Stunde', 'Netzbezug_Wh_pro_Stunde',
         'Kosten_Euro_pro_Stunde', 'akku_soc_pro_stunde', 'Einnahmen_Euro_pro_Stunde',
-        'Gesamtbilanz_Euro', 'E-Auto_SoC_pro_Stunde', 'Gesamteinnahmen_Euro', 
-        'Gesamtkosten_Euro', 'Verluste_Pro_Stunde', 'Gesamt_Verluste', 
+        'Gesamtbilanz_Euro', 'E-Auto_SoC_pro_Stunde', 'Gesamteinnahmen_Euro',
+        'Gesamtkosten_Euro', 'Verluste_Pro_Stunde', 'Gesamt_Verluste',
         'Haushaltsgeraet_wh_pro_stunde'
     ]
-    
+
     for key in expected_keys:
-        assert key in ergebnis, f"Der Schlüssel '{key}' sollte im Ergebnis enthalten sein."
-    
-    # Überprüfe die Länge der wichtigsten Arrays
-    assert len(ergebnis['Last_Wh_pro_Stunde']) == 47, "Die Länge von 'Last_Wh_pro_Stunde' sollte 48 betragen."
-    assert len(ergebnis['Netzeinspeisung_Wh_pro_Stunde']) == 47, "Die Länge von 'Netzeinspeisung_Wh_pro_Stunde' sollte 48 betragen."
-    assert len(ergebnis['Netzbezug_Wh_pro_Stunde']) == 47, "Die Länge von 'Netzbezug_Wh_pro_Stunde' sollte 48 betragen."
-    assert len(ergebnis['Kosten_Euro_pro_Stunde']) == 47, "Die Länge von 'Kosten_Euro_pro_Stunde' sollte 48 betragen."
-    assert len(ergebnis['akku_soc_pro_stunde']) == 47, "Die Länge von 'akku_soc_pro_stunde' sollte 48 betragen."
-    
-    # Überprüfe spezifische Werte im 'Last_Wh_pro_Stunde' Array
-    assert ergebnis['Last_Wh_pro_Stunde'][1] == 23759.13, "Der Wert an Index 1 von 'Last_Wh_pro_Stunde' sollte 23759.13 sein."
-    assert ergebnis['Last_Wh_pro_Stunde'][2] == 996.88, "Der Wert an Index 2 von 'Last_Wh_pro_Stunde' sollte 996.88 sein."
-    assert ergebnis['Last_Wh_pro_Stunde'][12] == 1132.03, "Der Wert an Index 12 von 'Last_Wh_pro_Stunde' sollte 1132.03 sein."
-    
-    # Überprüfe, dass der Wert bei Index 0 'None' ist
-    assert ergebnis['Last_Wh_pro_Stunde'][0] is None, "Der Wert an Index 0 von 'Last_Wh_pro_Stunde' sollte None sein."
-    
-    # Überprüfe, dass 'Netzeinspeisung_Wh_pro_Stunde' und 'Netzbezug_Wh_pro_Stunde' konsistent sind
-    assert ergebnis['Netzeinspeisung_Wh_pro_Stunde'][0] is None, "Der Wert an Index 0 von 'Netzeinspeisung_Wh_pro_Stunde' sollte None sein."
-    assert ergebnis['Netzbezug_Wh_pro_Stunde'][0] is None, "Der Wert an Index 0 von 'Netzbezug_Wh_pro_Stunde' sollte None sein."
-    assert ergebnis['Netzbezug_Wh_pro_Stunde'][1] == 20239.13, "Der Wert an Index 1 von 'Netzbezug_Wh_pro_Stunde' sollte 20239.13 sein."
+        assert key in result, f"The key '{key}' should be present in the result."
 
-    # Überprüfe die Gesamtbilanz
-    assert abs(ergebnis['Gesamtbilanz_Euro'] - 8.434942129454546) < 1e-5, "Die Gesamtbilanz sollte 8.434942129454546 betragen."
+    # Check the length of the main arrays
+    assert len(result['Last_Wh_pro_Stunde']) == 47, "The length of 'Last_Wh_pro_Stunde' should be 48."
+    assert len(result['Netzeinspeisung_Wh_pro_Stunde']) == 47, "The length of 'Netzeinspeisung_Wh_pro_Stunde' should be 48."
+    assert len(result['Netzbezug_Wh_pro_Stunde']) == 47, "The length of 'Netzbezug_Wh_pro_Stunde' should be 48."
+    assert len(result['Kosten_Euro_pro_Stunde']) == 47, "The length of 'Kosten_Euro_pro_Stunde' should be 48."
+    assert len(result['akku_soc_pro_stunde']) == 47, "The length of 'akku_soc_pro_stunde' should be 48."
 
-    # Überprüfe die Gesamteinnahmen und Gesamtkosten
-    assert abs(ergebnis['Gesamteinnahmen_Euro'] - 1.237432954545454) < 1e-5, "Die Gesamteinnahmen sollten 1.237432954545454 betragen."
-    assert abs(ergebnis['Gesamtkosten_Euro'] - 9.672375084) < 1e-5, "Die Gesamtkosten sollten 9.672375084 betragen."
+    # Verify specific values in the 'Last_Wh_pro_Stunde' array
+    assert result['Last_Wh_pro_Stunde'][1] == 23759.13, "The value at index 1 of 'Last_Wh_pro_Stunde' should be 23759.13."
+    assert result['Last_Wh_pro_Stunde'][2] == 996.88, "The value at index 2 of 'Last_Wh_pro_Stunde' should be 996.88."
+    assert result['Last_Wh_pro_Stunde'][12] == 1132.03, "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
 
-    # Überprüfe die Verluste
-    assert abs(ergebnis['Gesamt_Verluste'] - 6111.586363636363) < 1e-5, "Die Gesamtverluste sollten 6111.586363636363 betragen."
+    # Verify that the value at index 0 is 'None'
+    assert result['Last_Wh_pro_Stunde'][0] is None, "The value at index 0 of 'Last_Wh_pro_Stunde' should be None."
 
-    # Überprüfe die Werte im 'akku_soc_pro_stunde'
-    assert ergebnis['akku_soc_pro_stunde'][-1] == 28.675, "Der Wert an Index -1 von 'akku_soc_pro_stunde' sollte 28.675 sein."
-    assert ergebnis['akku_soc_pro_stunde'][1] == 0.0, "Der Wert an Index 1 von 'akku_soc_pro_stunde' sollte 0.0 sein."
+    # Check that 'Netzeinspeisung_Wh_pro_Stunde' and 'Netzbezug_Wh_pro_Stunde' are consistent
+    assert result['Netzeinspeisung_Wh_pro_Stunde'][0] is None, "The value at index 0 of 'Netzeinspeisung_Wh_pro_Stunde' should be None."
+    assert result['Netzbezug_Wh_pro_Stunde'][0] is None, "The value at index 0 of 'Netzbezug_Wh_pro_Stunde' should be None."
+    assert result['Netzbezug_Wh_pro_Stunde'][1] == 20239.13, "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 20239.13."
 
-    print("Alle Tests erfolgreich bestanden.")
+    # Verify the total balance
+    assert abs(result['Gesamtbilanz_Euro'] - 8.434942129454546) < 1e-5, "Total balance should be 8.434942129454546."
+
+    # Check total revenue and total costs
+    assert abs(result['Gesamteinnahmen_Euro'] - 1.237432954545454) < 1e-5, "Total revenue should be 1.237432954545454."
+    assert abs(result['Gesamtkosten_Euro'] - 9.672375084) < 1e-5, "Total costs should be 9.672375084."
+
+    # Check the losses
+    assert abs(result['Gesamt_Verluste'] - 6111.586363636363) < 1e-5, "Total losses should be 6111.586363636363."
+
+    # Check the values in 'akku_soc_pro_stunde'
+    assert result['akku_soc_pro_stunde'][-1] == 28.675, "The value at index -1 of 'akku_soc_pro_stunde' should be 28.675."
+    assert result['akku_soc_pro_stunde'][1] == 0.0, "The value at index 1 of 'akku_soc_pro_stunde' should be 0.0."
+
+    print("All tests passed successfully.")
