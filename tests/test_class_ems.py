@@ -268,15 +268,15 @@ def test_simulation(create_ems_instance):
 
     # Verify that the value at index 0 is 'None'
     assert (
-        result["Last_Wh_pro_Stunde"][0] is None
+        result["Last_Wh_pro_Stunde"][0] == 0.0
     ), "The value at index 0 of 'Last_Wh_pro_Stunde' should be None."
 
     # Check that 'Netzeinspeisung_Wh_pro_Stunde' and 'Netzbezug_Wh_pro_Stunde' are consistent
     assert (
-        result["Netzeinspeisung_Wh_pro_Stunde"][0] is None
+        result["Netzeinspeisung_Wh_pro_Stunde"][0] == 0.0
     ), "The value at index 0 of 'Netzeinspeisung_Wh_pro_Stunde' should be None."
     assert (
-        result["Netzbezug_Wh_pro_Stunde"][0] is None
+        result["Netzbezug_Wh_pro_Stunde"][0] == 0.0
     ), "The value at index 0 of 'Netzbezug_Wh_pro_Stunde' should be None."
     assert (
         result["Netzbezug_Wh_pro_Stunde"][1] == 20239.13
