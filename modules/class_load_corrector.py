@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error, r2_score
 
+
 class LoadPredictionAdjuster:
     def __init__(self, measured_data, predicted_data, load_forecast):
         self.measured_data = measured_data
