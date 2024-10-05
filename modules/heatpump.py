@@ -1,13 +1,22 @@
 import logging
-from typing import List
+from typing import List, Sequence
 
 
 class Heatpump:
-    MAX_HEATOUTPUT = 5000  # Maximum heating power in watts
-    BASE_HEATPOWER = 235.0  # Base heating power value
-    TEMPERATURE_COEFFICIENT = -11.645  # Coefficient for temperature
-    COP_BASE = 3.0  # Base COP value
-    COP_COEFFICIENT = 0.1  # COP increase per degree
+    MAX_HEATOUTPUT = 5000
+    """Maximum heating power in watts"""
+
+    BASE_HEATPOWER = 235.0
+    """Base heating power value"""
+
+    TEMPERATURE_COEFFICIENT = -11.645
+    """Coefficient for temperature"""
+
+    COP_BASE = 3.0
+    """Base COP value"""
+
+    COP_COEFFICIENT = 0.1
+    """COP increase per degree"""
 
     def __init__(self, max_heat_output, prediction_hours):
         self.max_heat_output = max_heat_output
@@ -98,9 +107,9 @@ class Heatpump:
             self.log.error(err_msg)
             raise ValueError(err_msg)
 
-    def simulate_24h(self, temperatures: List[float]) -> List[float]:
+    def simulate_24h(self, temperatures: Sequence[float]) -> List[float]:
         """Simulate power data for 24 hours based on provided temperatures."""
-        power_data = List[float]
+        power_data: List[float] = []
 
         if len(temperatures) != self.prediction_hours:
             raise ValueError(
