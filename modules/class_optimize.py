@@ -338,8 +338,6 @@ class optimization_problem:
             extra_data=extra_data,
         )
 
-        os.system("cp visualisierungsergebnisse.pdf ~/")
-
         # Return final results as a dictionary
         return {
             "discharge_hours_bin": discharge_hours_bin,
