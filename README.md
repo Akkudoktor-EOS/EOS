@@ -89,7 +89,7 @@ This project uses various classes to simulate and optimize the components of an 
 
 - `Load`: Models the load requirements of a household or business, enabling the prediction of future energy demand.
 
-- `HeatPump`: Simulates a heat pump, including its energy consumption and efficiency under various operating conditions.
+- `Heatpump`: Simulates a heat pump, including its energy consumption and efficiency under various operating conditions.
 
 - `Strompreis`: Provides information on electricity prices, enabling optimization of energy consumption and generation based on tariff information.
 
