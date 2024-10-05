@@ -110,7 +110,7 @@ def visualisiere_ergebnisse(
 
         plt.figure(figsize=(14, 10))
 
-        if ist_dst_wechsel(datetime.now()):
+        if ist_dst_wechsel(datetime.datetime.now()):
             hours = np.arange(start_hour, prediction_hours - 1)
         else:
             hours = np.arange(start_hour, prediction_hours)
@@ -262,31 +262,31 @@ def visualisiere_ergebnisse(
                     if n < 0.01
                 ]
             )
+            if filtered_losses.size != 0:
+                best_loss = min(filtered_losses)
+                worst_loss = max(filtered_losses)
+                best_balance = min(filtered_balance)
+                worst_balance = max(filtered_balance)
 
-            best_loss = min(filtered_losses)
-            worst_loss = max(filtered_losses)
-            best_balance = min(filtered_balance)
-            worst_balance = max(filtered_balance)
+                data = [filtered_losses, filtered_balance]
+                labels = ["Losses", "Balance"]
+                # Create plots
+                fig, axs = plt.subplots(
+                    1, 2, figsize=(10, 6), sharey=False
+                )  # Two subplots, separate y-axes
 
-            data = [filtered_losses, filtered_balance]
-            labels = ["Losses", "Balance"]
-            # Create plots
-            fig, axs = plt.subplots(
-                1, 2, figsize=(10, 6), sharey=False
-            )  # Two subplots, separate y-axes
+                # First violin plot for losses
+                axs[0].violinplot(data[0], showmeans=True, showmedians=True)
+                axs[0].set_title("Losses")
+                axs[0].set_xticklabels(["Losses"])
 
-            # First violin plot for losses
-            axs[0].violinplot(data[0], showmeans=True, showmedians=True)
-            axs[0].set_title("Losses")
-            axs[0].set_xticklabels(["Losses"])
+                # Second violin plot for balance
+                axs[1].violinplot(data[1], showmeans=True, showmedians=True)
+                axs[1].set_title("Balance")
+                axs[1].set_xticklabels(["Balance"])
 
-            # Second violin plot for balance
-            axs[1].violinplot(data[1], showmeans=True, showmedians=True)
-            axs[1].set_title("Balance")
-            axs[1].set_xticklabels(["Balance"])
-
-            # Fine-tuning
-            plt.tight_layout()
+                # Fine-tuning
+                plt.tight_layout()
 
             pdf.savefig()  # Save the current figure state to the PDF
             plt.close()  # Close the figure

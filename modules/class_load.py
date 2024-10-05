@@ -101,7 +101,7 @@ class LoadForecast:
 
 # Example usage of the class
 if __name__ == "__main__":
-    filepath = r"..\load_profiles.npz"  # Adjust the path to the .npz file
+    filepath = r"..\data\load_profiles.npz"  # Adjust the path to the .npz file
     lf = LoadForecast(filepath=filepath, year_energy=2000)
     specific_date_prices = lf.get_daily_stats("2024-02-16")  # Adjust date as needed
     specific_hour_stats = lf.get_hourly_stats(
