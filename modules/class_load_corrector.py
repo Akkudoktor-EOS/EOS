@@ -3,17 +3,6 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error, r2_score
 
-# from sklearn.model_selection import train_test_split, GridSearchCV
-# from sklearn.ensemble import GradientBoostingRegressor
-# from xgboost import XGBRegressor
-# from statsmodels.tsa.statespace.sarimax import SARIMAX
-# from tensorflow.keras.models import Sequential
-# from tensorflow.keras.layers import Dense, LSTM
-# from tensorflow.keras.optimizers import Adam
-# from sklearn.preprocessing import MinMaxScaler
-# from sqlalchemy import create_engine
-
-
 class LoadPredictionAdjuster:
     def __init__(self, measured_data, predicted_data, load_forecast):
         self.measured_data = measured_data
