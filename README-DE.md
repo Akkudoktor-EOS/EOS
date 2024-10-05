@@ -94,7 +94,7 @@ In diesem Projekt werden verschiedene Klassen verwendet, um die Komponenten eine
 
 - `Load`: Modelliert die Lastanforderungen des Haushalts oder Unternehmens, ermöglicht die Vorhersage des zukünftigen Energiebedarfs.
 
-- `HeatPump`: Simuliert eine Wärmepumpe, einschließlich ihres Energieverbrauchs und ihrer Effizienz unter verschiedenen Betriebsbedingungen.
+- `Heatpump`: Simuliert eine Wärmepumpe, einschließlich ihres Energieverbrauchs und ihrer Effizienz unter verschiedenen Betriebsbedingungen.
 
 - `Strompreis`: Bietet Informationen zu den Strompreisen, ermöglicht die Optimierung des Energieverbrauchs und der -erzeugung basierend auf Tarifinformationen.
 
