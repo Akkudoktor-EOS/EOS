@@ -341,7 +341,7 @@ parameter = {
     # Electricity price forecast (48 hours)
     "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
     # Minimum SOC for electric car
-    "eauto_min_soc": 0,
+    "eauto_min_soc": 70,
     # Electric car battery capacity (Wh)
     "eauto_cap": 60000,
     # Charging efficiency of the electric car
