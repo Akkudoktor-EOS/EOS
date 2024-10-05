@@ -4,7 +4,7 @@ from modules.heatpump import Heatpump
 
 
 @pytest.fixture(scope="function")
-def heatpump() -> Heatpump:
+def hp_5kw_24h() -> Heatpump:
     """Heatpump with 5 kw heating power and 24 h prediction"""
     return Heatpump(5000, 24)
 
@@ -27,9 +27,15 @@ class TestHeatpump:
 
     def test_heating_output(self, hp_5kw_24h: Heatpump):
         """Testing calculate of heating output"""
-        assert hp_5kw_24h.calculate_heating_output(-10.0) == 5000, "Wrong output at -10.0 Celsius"
-        assert hp_5kw_24h.calculate_heating_output(0.0) == 5000, "Wrong output at 0.0 Celsius"
-        assert hp_5kw_24h.calculate_heating_output(10.0) == pytest.approx(4939.583), "Wrong output at 10.0 Celsius"
+        assert (
+            hp_5kw_24h.calculate_heating_output(-10.0) == 5000
+        ), "Wrong output at -10.0 Celsius"
+        assert (
+            hp_5kw_24h.calculate_heating_output(0.0) == 5000
+        ), "Wrong output at 0.0 Celsius"
+        assert hp_5kw_24h.calculate_heating_output(10.0) == pytest.approx(
+            4939.583
+        ), "Wrong output at 10.0 Celsius"
 
     def test_heating_power(self, hp_5kw_24h: Heatpump):
         """Testing calculation of heating power"""

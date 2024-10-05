@@ -50,7 +50,7 @@ class Heatpump:
 
     def calculate_heating_output(self, outside_temperature_celsius: float) -> float:
         """Calculate the heating output in Watts based on outside temperature in degree Celsius.
-        Temperature range must be between -100 and 100 degree Celsius. 
+        Temperature range must be between -100 and 100 degree Celsius.
 
         Args:
             outside_temperature_celsius: Outside temperature in degree Celsius
@@ -125,7 +125,7 @@ if __name__ == "__main__":
     print(wp.calculate_cop(-10), " ", wp.calculate_cop(0), " ", wp.calculate_cop(10))
 
     # 24 hours of outside temperatures (example values)
-    temperaturen = [ 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -5, -2, 5, ]
+    temperaturen = [ 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -5, -2, 5, ]  # fmt: skip
 
     # Calculate the 24-hour power data
     leistungsdaten = wp.simulate_24h(temperaturen)
