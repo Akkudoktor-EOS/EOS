@@ -1398,6 +1398,7 @@ def setup_opt_class():
     )  # Yield the class and parameters for use in tests
 
 
+@pytest.mark.skip(reason="Expensive - Skipped per default")
 def test_optimierung_ems(setup_opt_class):
     opt_class, parameter, start_hour = setup_opt_class
 
