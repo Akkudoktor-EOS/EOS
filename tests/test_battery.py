@@ -20,9 +20,7 @@ class TestPVAkku(unittest.TestCase):
             min_soc_percent=self.min_soc_prozent,
             max_soc_percent=self.max_soc_prozent,
         )
-        self.assertEqual(
-            akku.charge_state_percent(), 50.0, "Initial SoC should be 50%"
-        )
+        self.assertEqual(akku.charge_state_percent(), 50.0, "Initial SoC should be 50%")
 
     def test_discharge_below_min_soc(self):
         akku = Battery(
@@ -34,9 +32,7 @@ class TestPVAkku(unittest.TestCase):
         )
         akku.reset()
         # Try to discharge more energy than available above min_soc
-        abgegeben_wh, verlust_wh = akku.discharge(
-            5000, 0
-        )  # Try to discharge 5000 Wh
+        abgegeben_wh, verlust_wh = akku.discharge(5000, 0)  # Try to discharge 5000 Wh
         expected_soc = self.min_soc_prozent  # SoC should not drop below min_soc
         self.assertEqual(
             akku.charge_state_percent(),

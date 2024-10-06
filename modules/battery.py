@@ -1,36 +1,28 @@
 import numpy as np
+from pydantic import BaseModel, PositiveFloat, PositiveInt
 
 
-class Battery:
-    def __init__(
-        self,
-        capacity_wh=None,
-        hours=None,
-        charging_efficiency=0.88,
-        discharge_efficiency=0.88,
-        max_charging_power_w=None,
-        start_soc_percent=0,
-        min_soc_percent=0,
-        max_soc_percent=100,
-    ):
-        # Battery capacity in Wh
-        self.capacity_wh = capacity_wh
-        # Initial state of charge in Wh
-        self.start_soc_percent = start_soc_percent
-        self.soc_wh = (start_soc_percent / 100) * capacity_wh
+class Battery(BaseModel):
+    capacity_wh: PositiveInt
+    hours: PositiveInt
+    charging_efficiency: PositiveFloat = 0.88
+    discharge_efficiency: PositiveFloat = 0.88
+    max_charging_power_w: PositiveFloat
+    start_soc_percent: PositiveInt = 0
+    min_soc_percent: PositiveInt = 0
+    max_soc_percent: PositiveInt = 100
+
+    def __init__(self):
+        self.soc_wh = (self.start_soc_percent / 100) * self.capacity_wh
         self.hours = (
-            hours if hours is not None else 24
+            self.hours if self.hours is not None else 24
         )  # Default to 24 hours if not specified
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
         # Charge and discharge efficiency
-        self.charge_efficiency = charging_efficiency
-        self.discharge_efficiency = discharge_efficiency
         self.max_charge_power_w = (
-            max_charging_power_w if max_charging_power_w else self.capacity_wh
+            self.max_charging_power_w if self.max_charging_power_w else self.capacity_wh
         )
-        self.min_soc_percent = min_soc_percent
-        self.max_soc_percent = max_soc_percent
         # Calculate min and max SoC in Wh
         self.min_soc_wh = (self.min_soc_percent / 100) * self.capacity_wh
         self.max_soc_wh = (self.max_soc_percent / 100) * self.capacity_wh
