@@ -1,0 +1,15 @@
+{
+  "prediction_hours": 48,
+  "optimization_hours": 24,
+  "strafe": 10,
+  "moegliche_ladestroeme_in_prozent": [
+    0.0, 0.375, 0.4375, 0.5, 0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375,
+    1.0
+  ],
+  "db_config": {
+    "user": "eos",
+    "password": "eos",
+    "host": "mariadb",
+    "database": "eos"
+  }
+}

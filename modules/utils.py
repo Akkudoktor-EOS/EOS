@@ -1,29 +1,10 @@
 from datetime import datetime, timedelta
-
-prediction_hours = 48
-optimization_hours = 24
-strafe = 10
-moegliche_ladestroeme_in_prozent = [
-    0.0,
-    6.0 / 16.0,
-    7.0 / 16.0,
-    8.0 / 16.0,
-    9.0 / 16.0,
-    10.0 / 16.0,
-    11.0 / 16.0,
-    12.0 / 16.0,
-    13.0 / 16.0,
-    14.0 / 16.0,
-    15.0 / 16.0,
-    1.0,
-]
+from typing import Optional
 
 
-# Optional
-db_config = {"user": "eos", "password": "eos", "host": "mariadb", "database": "eos"}
-
-
-def get_start_enddate(prediction_hours=48, startdate=None):
+def get_start_enddate(
+    prediction_hours: int = 48, startdate: Optional[datetime] = None
+) -> tuple[str, str]:
     ############
     # Parameter
     ############
