@@ -270,6 +270,7 @@ class optimization_problem:
             kapazitaet_wh=parameter["pv_akku_cap"],
             hours=self.prediction_hours,
             start_soc_prozent=parameter["pv_soc"],
+            min_soc_prozent=parameter["min_soc_prozent"],
             max_ladeleistung_w=5000,
         )
         akku.set_charge_per_hour(np.full(self.prediction_hours, 1))
@@ -288,9 +289,9 @@ class optimization_problem:
         spuelmaschine = (
             Haushaltsgeraet(
                 hours=self.prediction_hours,
-                verbrauch_kwh=parameter["haushaltsgeraet_wh"],
+                verbrauch_wh=parameter["haushaltsgeraet_wh"],
                 dauer_h=parameter["haushaltsgeraet_dauer"],
-            ).set_startzeitpunkt(start_hour)
+            )
             if parameter["haushaltsgeraet_dauer"] > 0
             else None
         )

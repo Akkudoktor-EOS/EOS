@@ -341,7 +341,7 @@ parameter = {
     # Electricity price forecast (48 hours)
     "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
     # Minimum SOC for electric car
-    "eauto_min_soc": 70,
+    "eauto_min_soc": 1000,
     # Electric car battery capacity (Wh)
     "eauto_cap": 60000,
     # Charging efficiency of the electric car
@@ -349,19 +349,23 @@ parameter = {
     # Charging power of the electric car (W)
     "eauto_charge_power": 11040,
     # Current SOC of the electric car (%)
-    "eauto_soc": 54,
+    "eauto_soc": 5,
     # Current PV power generation (W)
     "pvpowernow": 211.137503624,
     # Initial solution for the optimization
     "start_solution": start_solution,
     # Household appliance consumption (Wh)
-    "haushaltsgeraet_wh": 937,
+    "haushaltsgeraet_wh": 5000,
     # Duration of appliance usage (hours)
-    "haushaltsgeraet_dauer": 0,
+    "haushaltsgeraet_dauer": 2,
+    # Minimum Soc PV Battery
+    "min_soc_prozent": 15,
 }
 
 # Initialize the optimization problem
-opt_class = optimization_problem(prediction_hours=48, strafe=10, optimization_hours=24)
+opt_class = optimization_problem(
+    prediction_hours=48, strafe=10, optimization_hours=24, verbose=True, fixed_seed=42
+)
 
 # Perform the optimisation based on the provided parameters and start hour
 ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)
