@@ -1,19 +1,15 @@
-import os
 import random
-import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from deap import algorithms, base, creator, tools
 
-from modules.class_akku import PVAkku
-from modules.class_ems import EnergieManagementSystem
-from modules.class_haushaltsgeraet import Haushaltsgeraet
-from modules.class_inverter import Wechselrichter
-from modules.visualize import visualisiere_ergebnisse
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import moegliche_ladestroeme_in_prozent
+from akkudoktoreos.class_akku import PVAkku
+from akkudoktoreos.class_ems import EnergieManagementSystem
+from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
+from akkudoktoreos.class_inverter import Wechselrichter
+from akkudoktoreos.config import moegliche_ladestroeme_in_prozent
+from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
 def isfloat(num: Any) -> bool:
