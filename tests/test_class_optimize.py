@@ -107,7 +107,7 @@ EXPECTED_RESULT = {
     ],
     "result": {
         "Last_Wh_pro_Stunde": [
-            None,
+            0.0,
             1063.91,
             1320.56,
             1132.03,
@@ -147,7 +147,7 @@ EXPECTED_RESULT = {
             592.97,
         ],
         "Netzeinspeisung_Wh_pro_Stunde": [
-            None,
+            0.0,
             0.0,
             0.0,
             0.0,
@@ -187,7 +187,7 @@ EXPECTED_RESULT = {
             0.0,
         ],
         "Netzbezug_Wh_pro_Stunde": [
-            None,
+            0.0,
             0.0,
             0.0,
             0.0,
@@ -227,7 +227,7 @@ EXPECTED_RESULT = {
             0.0,
         ],
         "Kosten_Euro_pro_Stunde": [
-            None,
+            0.0,
             0.0,
             0.0,
             0.0,
@@ -267,7 +267,7 @@ EXPECTED_RESULT = {
             0.0,
         ],
         "akku_soc_pro_stunde": [
-            None,
+            80.0,
             79.91107093663912,
             78.99070247933885,
             79.08956914600552,
@@ -307,7 +307,7 @@ EXPECTED_RESULT = {
             86.4914772727273,
         ],
         "Einnahmen_Euro_pro_Stunde": [
-            None,
+            0.0,
             0.0,
             0.0,
             0.0,
@@ -348,7 +348,7 @@ EXPECTED_RESULT = {
         ],
         "Gesamtbilanz_Euro": np.float64(-0.7150588584710738),
         "E-Auto_SoC_pro_Stunde": [
-            None,
+            54.0,
             54.0,
             54.0,
             54.0,
@@ -390,7 +390,7 @@ EXPECTED_RESULT = {
         "Gesamteinnahmen_Euro": np.float64(0.7150588584710738),
         "Gesamtkosten_Euro": np.float64(0.0),
         "Verluste_Pro_Stunde": [
-            None,
+            0.0,
             2.817272727272737,
             29.157272727272726,
             3.5592000000000112,
@@ -431,7 +431,7 @@ EXPECTED_RESULT = {
         ],
         "Gesamt_Verluste": np.float64(4041.523450413223),
         "Haushaltsgeraet_wh_pro_stunde": [
-            None,
+            0.0,
             0.0,
             0.0,
             0.0,
@@ -681,7 +681,7 @@ EXPECTED_RESULT = {
     "spuelstart": None,
     "simulation_data": {
         "Last_Wh_pro_Stunde": [
-            None,
+            0.0,
             1063.91,
             1320.56,
             1132.03,
@@ -721,7 +721,7 @@ EXPECTED_RESULT = {
             592.97,
         ],
         "Netzeinspeisung_Wh_pro_Stunde": [
-            None,
+            0.0,
             0.0,
             0.0,
             0.0,
@@ -761,7 +761,7 @@ EXPECTED_RESULT = {
             0.0,
         ],
         "Netzbezug_Wh_pro_Stunde": [
-            None,
+            0.0,
             0.0,
             0.0,
             0.0,
@@ -801,7 +801,7 @@ EXPECTED_RESULT = {
             0.0,
         ],
         "Kosten_Euro_pro_Stunde": [
-            None,
+            0.0,
             0.0,
             0.0,
             0.0,
@@ -841,7 +841,7 @@ EXPECTED_RESULT = {
             0.0,
         ],
         "akku_soc_pro_stunde": [
-            None,
+            80.0,
             79.91107093663912,
             78.99070247933885,
             79.08956914600552,
@@ -881,7 +881,7 @@ EXPECTED_RESULT = {
             86.4914772727273,
         ],
         "Einnahmen_Euro_pro_Stunde": [
-            None,
+            0.0,
             0.0,
             0.0,
             0.0,
@@ -922,7 +922,7 @@ EXPECTED_RESULT = {
         ],
         "Gesamtbilanz_Euro": np.float64(-0.7150588584710738),
         "E-Auto_SoC_pro_Stunde": [
-            None,
+            54.0,
             54.0,
             54.0,
             54.0,
@@ -964,7 +964,7 @@ EXPECTED_RESULT = {
         "Gesamteinnahmen_Euro": np.float64(0.7150588584710738),
         "Gesamtkosten_Euro": np.float64(0.0),
         "Verluste_Pro_Stunde": [
-            None,
+            0.0,
             2.817272727272737,
             29.157272727272726,
             3.5592000000000112,
@@ -1005,7 +1005,7 @@ EXPECTED_RESULT = {
         ],
         "Gesamt_Verluste": np.float64(4041.523450413223),
         "Haushaltsgeraet_wh_pro_stunde": [
-            None,
+            0.0,
             0.0,
             0.0,
             0.0,
