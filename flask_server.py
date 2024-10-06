@@ -25,7 +25,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import db_config, get_start_enddate, optimization_hours, prediction_hours
 
 app = Flask(__name__)
-
 opt_class = optimization_problem(
     prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours
 )
@@ -311,13 +310,14 @@ def root():
     return redirect("/site-map", code=302)
 
 
-if __name__ == "__main__":
+def run_flask(default_host: str = "0.0.0.0", default_port: int = 8503) -> None:
     try:
-        # Set host and port from environment variables or defaults
-        host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
-        port = os.getenv("FLASK_RUN_PORT", 8503)
-        app.run(debug=True, host=host, port=port)  # Run the Flask application
+        host = os.getenv("FLASK_RUN_HOST", default_host)
+        port = int(os.getenv("FLASK_RUN_PORT", default_port))
+        app.run(debug=True, host=host, port=port)
     except Exception as e:
-        print(
-            f"Could not bind to host {host}:{port}. Error: {e}"
-        )  # Error handling for binding issues
+        print(f"Could not bind to host {host}:{port}. Error: {e}")
+
+
+if __name__ == "__main__":
+    run_flask()

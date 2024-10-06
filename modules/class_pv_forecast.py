@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 from datetime import datetime
+from http import HTTPStatus
 from pprint import pprint
 
 import numpy as np
@@ -123,7 +124,7 @@ class PVForecast:
 
     def load_data_from_url(self, url):
         response = requests.get(url)
-        if response.status_code == 200:
+        if response.status_code == HTTPStatus.OK:
             data = response.json()
             pprint(data)
             self.process_data(data)
@@ -145,7 +146,7 @@ class PVForecast:
                 print("Loading data from cache.")
         else:
             response = requests.get(url)
-            if response.status_code == 200:
+            if response.status_code == HTTPStatus.OK:
                 data = response.json()
                 with open(cache_file, "w") as file:
                     json.dump(data, file)

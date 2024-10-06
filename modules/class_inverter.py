@@ -28,22 +28,22 @@ class Wechselrichter:
                 geladene_energie, verluste_laden_akku = self.akku.energie_laden(
                     restleistung_nach_verbrauch, hour
                 )
-                rest_überschuss = restleistung_nach_verbrauch - (
+                rest_ueberschuss = restleistung_nach_verbrauch - (
                     geladene_energie + verluste_laden_akku
                 )
 
                 # Feed-in to the grid based on remaining capacity
-                if rest_überschuss > self.max_leistung_wh - verbrauch:
+                if rest_ueberschuss > self.max_leistung_wh - verbrauch:
                     netzeinspeisung = self.max_leistung_wh - verbrauch
-                    verluste += rest_überschuss - netzeinspeisung
+                    verluste += rest_ueberschuss - netzeinspeisung
                 else:
-                    netzeinspeisung = rest_überschuss
+                    netzeinspeisung = rest_ueberschuss
 
                 verluste += verluste_laden_akku
                 eigenverbrauch = verbrauch  # Self-consumption is equal to the load
 
         else:
-            benötigte_energie = (
+            benoetigte_energie = (
                 verbrauch - erzeugung
             )  # Energy needed from external sources
             max_akku_leistung = (
@@ -54,9 +54,9 @@ class Wechselrichter:
             rest_ac_leistung = max(self.max_leistung_wh - erzeugung, 0)
 
             # Discharge energy from the battery based on need
-            if benötigte_energie < rest_ac_leistung:
+            if benoetigte_energie < rest_ac_leistung:
                 aus_akku, akku_entladeverluste = self.akku.energie_abgeben(
-                    benötigte_energie, hour
+                    benoetigte_energie, hour
                 )
             else:
                 aus_akku, akku_entladeverluste = self.akku.energie_abgeben(
@@ -64,7 +64,7 @@ class Wechselrichter:
                 )
 
             verluste += akku_entladeverluste  # Include losses from battery discharge
-            netzbezug = benötigte_energie - aus_akku  # Energy drawn from the grid
+            netzbezug = benoetigte_energie - aus_akku  # Energy drawn from the grid
             eigenverbrauch = erzeugung + aus_akku  # Total self-consumption
 
         return netzeinspeisung, netzbezug, verluste, eigenverbrauch

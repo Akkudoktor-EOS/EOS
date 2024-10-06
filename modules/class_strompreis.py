@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 from datetime import datetime, timedelta
+from http import HTTPStatus
 
 import numpy as np
 import pytz
@@ -52,7 +53,7 @@ class HourlyElectricityPriceForecast:
             else:
                 print("Loading data from the URL...")
                 response = requests.get(source)
-                if response.status_code == 200:
+                if response.status_code == HTTPStatus.OK:
                     json_data = response.json()
                     with open(cache_filename, "w") as file:
                         json.dump(json_data, file)
