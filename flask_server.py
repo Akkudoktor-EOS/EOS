@@ -228,6 +228,10 @@ def flask_optimize():
             parameter=parameter, start_hour=datetime.now().hour
         )
 
+        # Optional min SoC PV Battery
+        if "min_soc_prozent" not in parameter:
+            parameter["min_soc_prozent"] = None
+
         return jsonify(result)  # Return optimization results as JSON
 
 

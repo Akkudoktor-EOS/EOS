@@ -270,6 +270,7 @@ class optimization_problem:
             kapazitaet_wh=parameter["pv_akku_cap"],
             hours=self.prediction_hours,
             start_soc_prozent=parameter["pv_soc"],
+            min_soc_prozent=parameter["min_soc_prozent"],
             max_ladeleistung_w=5000,
         )
         akku.set_charge_per_hour(np.full(self.prediction_hours, 1))
