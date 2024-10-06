@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip docker-run docs clean
+.PHONY: help venv pip test docker-run docs clean
 
 # Default target
 all: help
@@ -37,6 +37,11 @@ clean:
 run:
 	@echo "Starting flask server, please wait..."
 	.venv/bin/python ./flask_server.py
+
+# Target to run tests.
+test:
+	@echo "Running tests..."
+	.venv/bin/pytest
 
 # Run entire setup on docker
 docker-run:
