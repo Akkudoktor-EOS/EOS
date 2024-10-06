@@ -2,11 +2,13 @@ import pytest
 
 from modules.class_akku import PVAkku
 from modules.class_ems import EnergieManagementSystem
-from modules.class_inverter import Wechselrichter  # Example import
 from modules.class_haushaltsgeraet import Haushaltsgeraet
+from modules.class_inverter import Wechselrichter  # Example import
+
 prediction_hours = 48
 optimization_hours = 24
 start_hour = 1
+
 
 # Example initialization of necessary components
 @pytest.fixture
@@ -21,12 +23,12 @@ def create_ems_instance():
 
     # Household device (currently not used, set to None)
     home_appliance = Haushaltsgeraet(
-            hours=prediction_hours,
-            verbrauch_wh=2000,
-            dauer_h=2,
-        )
+        hours=prediction_hours,
+        verbrauch_wh=2000,
+        dauer_h=2,
+    )
     home_appliance.set_startzeitpunkt(2)
-    
+
     # Example initialization of electric car battery
     eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=10, hours=48)
 
@@ -206,9 +208,9 @@ def test_simulation(create_ems_instance):
     ems = create_ems_instance
 
     # Simulate starting from hour 1 (this value can be adjusted)
-    
+
     result = ems.simuliere(start_stunde=start_hour)
-    
+
     # Assertions to validate results
     assert result is not None, "Result should not be None"
     assert isinstance(result, dict), "Result should be a dictionary"
@@ -297,7 +299,7 @@ def test_simulation(create_ems_instance):
         abs(result["Gesamteinnahmen_Euro"] - 1.237432954545454) < 1e-5
     ), "Total revenue should be 1.237432954545454."
     assert (
-        abs(result["Gesamtkosten_Euro"] - 10.329075084000001 ) < 1e-5
+        abs(result["Gesamtkosten_Euro"] - 10.329075084000001) < 1e-5
     ), "Total costs should be 10.329075084000001 ."
 
     # Check the losses
@@ -321,6 +323,5 @@ def test_simulation(create_ems_instance):
     assert (
         sum(result["Haushaltsgeraet_wh_pro_stunde"]) == 2000
     ), "The sum of 'Haushaltsgeraet_wh_pro_stunde' should be 2000."
-    
 
     print("All tests passed successfully.")

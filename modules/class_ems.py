@@ -96,7 +96,7 @@ class EnergieManagementSystem:
 
             # Accumulate loads and PV generation
             verbrauch = self.gesamtlast[stunde]
-            
+
             if self.haushaltsgeraet:
                 ha_load = self.haushaltsgeraet.get_last_fuer_stunde(stunde)
                 verbrauch += ha_load
