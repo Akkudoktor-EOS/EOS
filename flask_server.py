@@ -8,7 +8,6 @@ import matplotlib
 
 # Sets the Matplotlib backend to 'Agg' for rendering plots in environments without a display
 matplotlib.use("Agg")
-from datetime import timedelta
 
 import pandas as pd
 from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
@@ -18,56 +17,16 @@ from modules.class_load_container import Gesamtlast
 from modules.class_load_corrector import LoadPredictionAdjuster
 from modules.class_optimize import isfloat, optimization_problem
 from modules.class_pv_forecast import PVForecast
-from modules.class_soc_calc import BatteryDataProcessor
 from modules.class_strompreis import HourlyElectricityPriceForecast
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import db_config, get_start_enddate, optimization_hours, prediction_hours
+from config import get_start_enddate, optimization_hours, prediction_hours
 
 app = Flask(__name__)
 
 opt_class = optimization_problem(
     prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours
 )
-
-
-@app.route("/soc", methods=["GET"])
-def flask_soc():
-    # MariaDB connection details
-    config = db_config
-
-    # Set parameters for SOC (State of Charge) calculation
-    voltage_high_threshold = 55.4  # 100% SoC
-    voltage_low_threshold = 46.5  # 0% SoC
-    current_low_threshold = 2  # Low current threshold for both states
-    gap = 30  # Time gap in minutes for grouping maxima/minima
-    bat_capacity = 33 * 1000 / 48  # Battery capacity in watt-hours
-
-    # Define the reference time point (3 weeks ago)
-    zeitpunkt_x = (datetime.now() - timedelta(weeks=3)).strftime("%Y-%m-%d %H:%M:%S")
-
-    # Instantiate BatteryDataProcessor and perform calculations
-    processor = BatteryDataProcessor(
-        config,
-        voltage_high_threshold,
-        voltage_low_threshold,
-        current_low_threshold,
-        gap,
-        bat_capacity,
-    )
-    processor.connect_db()
-    processor.fetch_data(zeitpunkt_x)
-    processor.process_data()
-    last_points_100_df, last_points_0_df = processor.find_soc_points()
-    soc_df, integration_results = processor.calculate_resetting_soc(
-        last_points_100_df, last_points_0_df
-    )
-    # soh_df = processor.calculate_soh(integration_results)  # Optional State of Health calculation
-    processor.update_database_with_soc(soc_df)  # Update database with SOC data
-    # processor.plot_data(last_points_100_df, last_points_0_df, soc_df)  # Optional data visualization
-    processor.disconnect_db()  # Disconnect from the database
-
-    return jsonify("Done")
 
 
 @app.route("/strompreis", methods=["GET"])
