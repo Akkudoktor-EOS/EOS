@@ -3,7 +3,7 @@ import pytest
 from modules.class_akku import PVAkku
 from modules.class_ems import EnergieManagementSystem
 from modules.class_inverter import Wechselrichter  # Example import
-
+from modules.class_haushaltsgeraet import Haushaltsgeraet
 prediction_hours = 48
 optimization_hours = 24
 
@@ -20,7 +20,12 @@ def create_ems_instance():
     wechselrichter = Wechselrichter(10000, akku)
 
     # Household device (currently not used, set to None)
-    haushaltsgeraet = None
+    home_appliance = Haushaltsgeraet(
+            hours=prediction_hours,
+            verbrauch_kwh=2000,
+            dauer_h=2,
+        ).set_startzeitpunkt(2)
+    
 
     # Example initialization of electric car battery
     eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=10, hours=48)
@@ -188,7 +193,7 @@ def create_ems_instance():
         einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
         eauto=eauto,
         gesamtlast=gesamtlast,
-        haushaltsgeraet=haushaltsgeraet,
+        haushaltsgeraet=home_appliance,
         wechselrichter=wechselrichter,
     )
     return ems
@@ -203,7 +208,7 @@ def test_simulation(create_ems_instance):
     # Simulate starting from hour 1 (this value can be adjusted)
     start_hour = 1
     result = ems.simuliere(start_stunde=start_hour)
-
+    
     # Assertions to validate results
     assert result is not None, "Result should not be None"
     assert isinstance(result, dict), "Result should be a dictionary"
@@ -307,5 +312,10 @@ def test_simulation(create_ems_instance):
     assert (
         result["akku_soc_pro_stunde"][1] == 0.0
     ), "The value at index 1 of 'akku_soc_pro_stunde' should be 0.0."
+
+    # Check home appliances
+    assert (
+        sum(result["Haushaltsgeraet_wh_pro_stunde"]) == 2000
+    ), "The value at index -1 of 'Haushaltsgeraet_wh_pro_stunde' should be 2000."
 
     print("All tests passed successfully.")
