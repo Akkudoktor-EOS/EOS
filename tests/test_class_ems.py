@@ -17,7 +17,9 @@ def create_ems_instance():
     Fixture to create an EnergieManagementSystem instance with given test parameters.
     """
     # Initialize the battery and the inverter
-    akku = PVAkku(kapazitaet_wh=5000, start_soc_prozent=80, hours=48)
+    akku = PVAkku(
+        kapazitaet_wh=5000, start_soc_prozent=80, hours=48, min_soc_prozent=10
+    )
     akku.reset()
     wechselrichter = Wechselrichter(10000, akku)
 
@@ -30,7 +32,9 @@ def create_ems_instance():
     home_appliance.set_startzeitpunkt(2)
 
     # Example initialization of electric car battery
-    eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=10, hours=48)
+    eauto = PVAkku(
+        kapazitaet_wh=26400, start_soc_prozent=10, hours=48, min_soc_prozent=10
+    )
 
     # Parameters based on previous example data
     pv_prognose_wh = [
@@ -286,33 +290,33 @@ def test_simulation(create_ems_instance):
         result["Netzbezug_Wh_pro_Stunde"][0] == 0.0
     ), "The value at index 0 of 'Netzbezug_Wh_pro_Stunde' should be None."
     assert (
-        result["Netzbezug_Wh_pro_Stunde"][1] == 21239.13
-    ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 21239.13."
+        result["Netzbezug_Wh_pro_Stunde"][1] == 21679.13
+    ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be21679.13."
 
     # Verify the total balance
     assert (
-        abs(result["Gesamtbilanz_Euro"] - 9.091642129454547) < 1e-5
-    ), "Total balance should be 9.091642129454547."
+        abs(result["Gesamtbilanz_Euro"] - 9.302960148909092) < 1e-5
+    ), "Total balance should be 9.302960148909092."
 
     # Check total revenue and total costs
     assert (
-        abs(result["Gesamteinnahmen_Euro"] - 1.237432954545454) < 1e-5
-    ), "Total revenue should be 1.237432954545454."
+        abs(result["Gesamteinnahmen_Euro"] - 1.3169784090909087) < 1e-5
+    ), "Total revenue should be 1.3169784090909087."
     assert (
-        abs(result["Gesamtkosten_Euro"] - 10.329075084000001) < 1e-5
-    ), "Total costs should be 10.329075084000001 ."
+        abs(result["Gesamtkosten_Euro"] - 10.619938558000001) < 1e-5
+    ), "Total costs should be 10.619938558000001 ."
 
     # Check the losses
     assert (
-        abs(result["Gesamt_Verluste"] - 6111.586363636363) < 1e-5
-    ), "Total losses should be 6111.586363636363."
+        abs(result["Gesamt_Verluste"] - 5855.222727272727) < 1e-5
+    ), "Total losses should be 5855.222727272727."
 
     # Check the values in 'akku_soc_pro_stunde'
     assert (
         result["akku_soc_pro_stunde"][-1] == 28.675
     ), "The value at index -1 of 'akku_soc_pro_stunde' should be 28.675."
     assert (
-        result["akku_soc_pro_stunde"][1] == 0.0
+        result["akku_soc_pro_stunde"][1] == 10.0
     ), "The value at index 1 of 'akku_soc_pro_stunde' should be 0.0."
 
     # Check home appliances
