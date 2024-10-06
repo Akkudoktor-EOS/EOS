@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from modules.class_optimize import optimization_problem
+from akkudoktoreos.class_optimize import optimization_problem
 
 # Sample known result (replace with the actual expected output)
 EXPECTED_RESULT = {
