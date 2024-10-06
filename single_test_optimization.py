@@ -361,7 +361,9 @@ parameter = {
 }
 
 # Initialize the optimization problem
-opt_class = optimization_problem(prediction_hours=48, strafe=10, optimization_hours=24, verbose=True)
+opt_class = optimization_problem(
+    prediction_hours=48, strafe=10, optimization_hours=24, verbose=True
+)
 
 # Perform the optimisation based on the provided parameters and start hour
 ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)
