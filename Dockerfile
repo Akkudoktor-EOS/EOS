@@ -18,6 +18,8 @@ RUN DEBIAN_FRONTEND=noninteractive \
     && pip install --no-cache-dir -r requirements.txt \
     && apt remove ${APT_OPTS} gcc libhdf5-dev libmariadb-dev pkg-config
 
+COPY config/example.config.json config/config.json
+
 ENTRYPOINT []
 
 CMD ["python", "flask_server.py"]

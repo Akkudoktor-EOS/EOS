@@ -13,6 +13,11 @@ https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energi
 
 Das Projekt erfordert Python 3.8 oder neuer.
 
+## Konfiguration
+
+Die Konfiguration erfolgt über `config.json`. Diese Datei muss im Ordner `config` erstellt werden.
+Hierfür kann die `config.example.json` kopiert, bei Bedarf angepasst und dann in `config.json` umbenannt werden.
+
 ### Schnellanleitung
 
 Unter Linux (Ubuntu/Debian):
@@ -27,8 +32,7 @@ Unter Macos (benötigt [Homebrew](https://brew.sh)):
 brew install make
 ```
 
-Nun `config.py` anpassen.
-Anschließend kann der Server über `make run` gestartet werden.
+ Anschließend kann der Server über `make run` gestartet werden.
 Eine vollständige Übersicht über die wichtigsten Kurzbefehle gibt `make help`.
 
 ### Ausführliche Anleitung
@@ -77,13 +81,12 @@ gefolgt von einem erneuten `pip install -r requirements.txt`.
 
 ## Nutzung
 
-Einstellungen in `config.py` anpassen.
-Um das System zu nutzen, führen Sie `flask_server.py` aus, damit wird der Server gestartet
-
+Um das System zu nutzen, führen Sie `flask_server.py` aus, damit wird der Server gestartet.
 
 ```bash
 ./flask_server.py
 ```
+
 ## Klassen und Funktionalitäten
 
 In diesem Projekt werden verschiedene Klassen verwendet, um die Komponenten eines Energiesystems zu simulieren und zu optimieren. Jede Klasse repräsentiert einen spezifischen Aspekt des Systems, wie nachfolgend beschrieben:

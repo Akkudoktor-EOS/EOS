@@ -13,6 +13,10 @@ https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energi
 
 The project requires Python 3.8 or newer.
 
+## Configuration
+
+The configuration is done via `config.json`. This file must be created in the config folder. For this, the `config.example.json` can be copied, adjusted if necessary, and then renamed to `config.json`.
+
 ### Quick Start Guide
 
 On Linux (Ubuntu/Debian):
@@ -27,7 +31,6 @@ On MacOS (requires [Homebrew](https://brew.sh)):
 brew install make
 ```
 
-Next, adjust `config.py`.
 The server can then be started with `make run`. A full overview of the main shortcuts is given by `make help`.
 
 ### Detailed Instructions
@@ -72,7 +75,6 @@ Followed by a renewed `pip install -r requirements.txt`.
 
 ## Usage
 
-Adjust `config.py`.
 To use the system, run `flask_server.py`, which starts the server:
 
 ```bash
