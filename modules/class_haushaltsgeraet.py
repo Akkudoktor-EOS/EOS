@@ -2,10 +2,10 @@ import numpy as np
 
 
 class Haushaltsgeraet:
-    def __init__(self, hours=None, verbrauch_kwh=None, dauer_h=None):
+    def __init__(self, hours=None, verbrauch_wh=None, dauer_h=None):
         self.hours = hours  # Total duration for which the planning is done
-        self.verbrauch_kwh = (
-            verbrauch_kwh  # Total energy consumption of the device in kWh
+        self.verbrauch_wh = (
+            verbrauch_wh  # Total energy consumption of the device in kWh
         )
         self.dauer_h = dauer_h  # Duration of use in hours
         self.lastkurve = np.zeros(self.hours)  # Initialize the load curve with zeros
@@ -24,7 +24,7 @@ class Haushaltsgeraet:
             raise ValueError("The start time is earlier than the available time frame.")
 
         # Calculate power per hour based on total consumption and duration
-        leistung_pro_stunde = self.verbrauch_kwh / self.dauer_h  # Convert to watt-hours
+        leistung_pro_stunde = self.verbrauch_wh / self.dauer_h  # Convert to watt-hours
 
         # Set the power for the duration of use in the load curve array
         self.lastkurve[start_hour : start_hour + self.dauer_h] = leistung_pro_stunde
