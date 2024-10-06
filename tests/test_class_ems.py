@@ -6,7 +6,7 @@ from modules.class_inverter import Wechselrichter  # Example import
 from modules.class_haushaltsgeraet import Haushaltsgeraet
 prediction_hours = 48
 optimization_hours = 24
-
+start_hour = 1
 
 # Example initialization of necessary components
 @pytest.fixture
@@ -22,11 +22,11 @@ def create_ems_instance():
     # Household device (currently not used, set to None)
     home_appliance = Haushaltsgeraet(
             hours=prediction_hours,
-            verbrauch_kwh=2000,
+            verbrauch_wh=2000,
             dauer_h=2,
-        ).set_startzeitpunkt(2)
+        )
+    home_appliance.set_startzeitpunkt(2)
     
-
     # Example initialization of electric car battery
     eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=10, hours=48)
 
@@ -206,7 +206,7 @@ def test_simulation(create_ems_instance):
     ems = create_ems_instance
 
     # Simulate starting from hour 1 (this value can be adjusted)
-    start_hour = 1
+    
     result = ems.simuliere(start_stunde=start_hour)
     
     # Assertions to validate results
@@ -262,11 +262,11 @@ def test_simulation(create_ems_instance):
 
     # Verify specific values in the 'Last_Wh_pro_Stunde' array
     assert (
-        result["Last_Wh_pro_Stunde"][1] == 23759.13
-    ), "The value at index 1 of 'Last_Wh_pro_Stunde' should be 23759.13."
+        result["Last_Wh_pro_Stunde"][1] == 24759.13
+    ), "The value at index 1 of 'Last_Wh_pro_Stunde' should be 24759.13."
     assert (
-        result["Last_Wh_pro_Stunde"][2] == 996.88
-    ), "The value at index 2 of 'Last_Wh_pro_Stunde' should be 996.88."
+        result["Last_Wh_pro_Stunde"][2] == 1996.88
+    ), "The value at index 2 of 'Last_Wh_pro_Stunde' should be 1996.88."
     assert (
         result["Last_Wh_pro_Stunde"][12] == 1132.03
     ), "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
@@ -284,21 +284,21 @@ def test_simulation(create_ems_instance):
         result["Netzbezug_Wh_pro_Stunde"][0] == 0.0
     ), "The value at index 0 of 'Netzbezug_Wh_pro_Stunde' should be None."
     assert (
-        result["Netzbezug_Wh_pro_Stunde"][1] == 20239.13
-    ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 20239.13."
+        result["Netzbezug_Wh_pro_Stunde"][1] == 21239.13
+    ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 21239.13."
 
     # Verify the total balance
     assert (
-        abs(result["Gesamtbilanz_Euro"] - 8.434942129454546) < 1e-5
-    ), "Total balance should be 8.434942129454546."
+        abs(result["Gesamtbilanz_Euro"] - 9.091642129454547) < 1e-5
+    ), "Total balance should be 9.091642129454547."
 
     # Check total revenue and total costs
     assert (
         abs(result["Gesamteinnahmen_Euro"] - 1.237432954545454) < 1e-5
     ), "Total revenue should be 1.237432954545454."
     assert (
-        abs(result["Gesamtkosten_Euro"] - 9.672375084) < 1e-5
-    ), "Total costs should be 9.672375084."
+        abs(result["Gesamtkosten_Euro"] - 10.329075084000001 ) < 1e-5
+    ), "Total costs should be 10.329075084000001 ."
 
     # Check the losses
     assert (
@@ -315,7 +315,12 @@ def test_simulation(create_ems_instance):
 
     # Check home appliances
     assert (
+        sum(ems.haushaltsgeraet.get_lastkurve()) == 2000
+    ), "The sum of 'ems.haushaltsgeraet.get_lastkurve()' should be 2000."
+
+    assert (
         sum(result["Haushaltsgeraet_wh_pro_stunde"]) == 2000
-    ), "The value at index -1 of 'Haushaltsgeraet_wh_pro_stunde' should be 2000."
+    ), "The sum of 'Haushaltsgeraet_wh_pro_stunde' should be 2000."
+    
 
     print("All tests passed successfully.")

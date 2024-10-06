@@ -355,13 +355,13 @@ parameter = {
     # Initial solution for the optimization
     "start_solution": start_solution,
     # Household appliance consumption (Wh)
-    "haushaltsgeraet_wh": 937,
+    "haushaltsgeraet_wh": 5000,
     # Duration of appliance usage (hours)
-    "haushaltsgeraet_dauer": 0,
+    "haushaltsgeraet_dauer": 2,
 }
 
 # Initialize the optimization problem
-opt_class = optimization_problem(prediction_hours=48, strafe=10, optimization_hours=24)
+opt_class = optimization_problem(prediction_hours=48, strafe=10, optimization_hours=24, verbose=True)
 
 # Perform the optimisation based on the provided parameters and start hour
 ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)
