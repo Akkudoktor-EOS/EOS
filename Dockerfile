@@ -16,8 +16,10 @@ RUN DEBIAN_FRONTEND=noninteractive \
 	&& apt-get install ${APT_OPTS} gcc libhdf5-dev libmariadb-dev pkg-config mariadb-common libmariadb3 \
 	&& rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir build \
+    && pip install --no-cache-dir -e . \
     && apt remove ${APT_OPTS} gcc libhdf5-dev libmariadb-dev pkg-config
 
 ENTRYPOINT []
 
-CMD ["python", "flask_server.py"]
+CMD ["python", "-m", "akkudoktoreos.flask_server"]
