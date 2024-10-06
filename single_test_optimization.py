@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+from pathlib import Path
 from pprint import pprint
 
 # Import necessary modules from the project
 from modules.class_optimize import optimization_problem
+from modules.config import load_config
 
 start_hour = 10
 
@@ -360,8 +362,10 @@ parameter = {
     "haushaltsgeraet_dauer": 0,
 }
 
+example_config = Path(__file__).parent.joinpath("config", "example.config.json")
+config = load_config(example_config)
 # Initialize the optimization problem
-opt_class = optimization_problem(prediction_hours=48, strafe=10, optimization_hours=24)
+opt_class = optimization_problem(config)
 
 # Perform the optimisation based on the provided parameters and start hour
 ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)

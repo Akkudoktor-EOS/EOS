@@ -5,11 +5,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from modules.config import AppConfig
+
 
 class BatteryDataProcessor:
     def __init__(
         self,
-        config,
+        config: AppConfig,
         voltage_high_threshold,
         voltage_low_threshold,
         current_low_threshold,
@@ -26,7 +28,7 @@ class BatteryDataProcessor:
         self.data = None
 
     def connect_db(self):
-        self.conn = mariadb.connect(**self.config)
+        self.conn = mariadb.connect(**self.config.db_config.model_dump())
         self.cursor = self.conn.cursor()
 
     def disconnect_db(self):

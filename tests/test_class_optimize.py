@@ -1,7 +1,10 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
 from modules.class_optimize import optimization_problem
+from modules.config import load_config
 
 # Sample known result (replace with the actual expected output)
 EXPECTED_RESULT = {
@@ -1388,9 +1391,9 @@ def setup_opt_class():
     }
 
     # Create an instance of the optimization problem class
-    opt_class = optimization_problem(
-        prediction_hours=48, strafe=10, optimization_hours=24, fixed_seed=42
-    )
+    config_path = Path(__file__).parent.parent.joinpath("config", "example.config.json")
+    config = load_config(config_path)
+    opt_class = optimization_problem(config, fixed_seed=42)
     yield (
         opt_class,
         parameter,

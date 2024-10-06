@@ -20,22 +20,19 @@ from modules.class_optimize import isfloat, optimization_problem
 from modules.class_pv_forecast import PVForecast
 from modules.class_soc_calc import BatteryDataProcessor
 from modules.class_strompreis import HourlyElectricityPriceForecast
+from modules.config import load_config
+from modules.utils import get_start_enddate
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import db_config, get_start_enddate, optimization_hours, prediction_hours
+
 
 app = Flask(__name__)
-
-opt_class = optimization_problem(
-    prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours
-)
+config = load_config()
+opt_class = optimization_problem(config)
 
 
 @app.route("/soc", methods=["GET"])
 def flask_soc():
-    # MariaDB connection details
-    config = db_config
-
     # Set parameters for SOC (State of Charge) calculation
     voltage_high_threshold = 55.4  # 100% SoC
     voltage_low_threshold = 46.5  # 0% SoC
@@ -74,14 +71,14 @@ def flask_soc():
 def flask_strompreis():
     # Get the current date and the end date based on prediction hours
     date_now, date = get_start_enddate(
-        prediction_hours, startdate=datetime.now().date()
+        config.prediction_hours, startdate=datetime.now().date()
     )
     filepath = os.path.join(
         r"test_data", r"strompreise_akkudokAPI.json"
     )  # Adjust the path to the JSON file
     price_forecast = HourlyElectricityPriceForecast(
         source=f"https://api.akkudoktor.net/prices?start={date_now}&end={date}",
-        prediction_hours=prediction_hours,
+        prediction_hours=config.prediction_hours,
     )
     specific_date_prices = price_forecast.get_price_for_daterange(
         date_now, date
@@ -161,7 +158,7 @@ def flask_gesamtlast_simple():
             request.args.get("year_energy")
         )  # Get annual energy value from query parameters
         date_now, date = get_start_enddate(
-            prediction_hours, startdate=datetime.now().date()
+            config.prediction_hours, startdate=datetime.now().date()
         )  # Get the current date and prediction end date
 
         ###############
@@ -177,7 +174,7 @@ def flask_gesamtlast_simple():
         ]  # Get expected household load for the date range
 
         gesamtlast = Gesamtlast(
-            prediction_hours=prediction_hours
+            prediction_hours=config.prediction_hours
         )  # Create Gesamtlast instance
         gesamtlast.hinzufuegen(
             "Haushalt", leistung_haushalt
@@ -201,14 +198,14 @@ def flask_pvprognose():
         url = request.args.get("url")
         ac_power_measurement = request.args.get("ac_power_measurement")
         date_now, date = get_start_enddate(
-            prediction_hours, startdate=datetime.now().date()
+            config.prediction_hours, startdate=datetime.now().date()
         )
 
         ###############
         # PV Forecast
         ###############
         PVforecast = PVForecast(
-            prediction_hours=prediction_hours, url=url
+            prediction_hours=config.prediction_hours, url=url
         )  # Instantiate PVForecast with given parameters
         if isfloat(
             ac_power_measurement
