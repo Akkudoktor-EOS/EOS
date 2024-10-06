@@ -96,9 +96,11 @@ class EnergieManagementSystem:
 
             # Accumulate loads and PV generation
             verbrauch = self.gesamtlast[stunde]
+            
             if self.haushaltsgeraet:
-                verbrauch += self.haushaltsgeraet.get_last_fuer_stunde(stunde)
-                haushaltsgeraet_wh_pro_stunde[stunde_since_now] = verbrauch
+                ha_load = self.haushaltsgeraet.get_last_fuer_stunde(stunde)
+                verbrauch += ha_load
+                haushaltsgeraet_wh_pro_stunde[stunde_since_now] = ha_load
 
             # E-Auto handling
             if self.eauto:
