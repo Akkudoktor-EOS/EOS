@@ -1,0 +1,16 @@
+{
+  "recommendations": [
+    // misc
+    "swellaby.workspace-config-plus", // allows sharing settings in repository
+
+    // python
+    "ms-python.mypy-type-checker",
+    "ms-python.python",
+    "ms-python.debugpy",
+    "charliermarsh.ruff",
+    "ms-python.isort",
+
+    // formatting
+    "esbenp.prettier-vscode"
+  ]
+}

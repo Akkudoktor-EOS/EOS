@@ -1,3 +1,21 @@
+[tool.mypy]
+pretty = true
+ignore_missing_imports = false
+check_untyped_defs = true
+no_implicit_reexport = false
+disallow_untyped_defs = false # remove once the project is typed
+strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["pandas", "sklearn.*", "joblib", "scipy.*", "mariadb"]
+ignore_missing_imports = true
+
+[tool.pyright]
+# used in Pylance extension for language server
+# type check is done by mypy, disable to avoid unwanted errors
+typeCheckingMode = "off"
+
 [tool.isort]
 profile = "black"
 
@@ -5,3 +23,4 @@ profile = "black"
 ignore = [
     "F841",  # don't complain about unused variables
 ]
+select = ["RUF"]
