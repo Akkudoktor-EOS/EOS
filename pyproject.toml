@@ -5,3 +5,10 @@ profile = "black"
 ignore = [
     "F841",  # don't complain about unused variables
 ]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "--cov=src"
+pythonpath = [ "src", ]
+testpaths = [ "tests", ]
+
