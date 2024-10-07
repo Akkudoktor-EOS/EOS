@@ -11,7 +11,7 @@ Die Diskussion findet im [Forum](https://www.akkudoktor.net/forum/diy-energie-op
 Gute Install Anleitung:
 https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/
 
-Das Projekt erfordert Python 3.8 oder neuer.
+Das Projekt erfordert Python 3.10 oder neuer.
 
 ### Schnellanleitung
 
