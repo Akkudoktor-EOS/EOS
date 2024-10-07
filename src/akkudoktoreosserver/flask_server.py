@@ -2,6 +2,7 @@
 
 import os
 from datetime import datetime
+from typing import Any
 
 import matplotlib
 
@@ -9,21 +10,39 @@ import matplotlib
 matplotlib.use("Agg")
 
 import pandas as pd
-from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
-
 from akkudoktoreos.class_load import LoadForecast
 from akkudoktoreos.class_load_container import Gesamtlast
 from akkudoktoreos.class_load_corrector import LoadPredictionAdjuster
-from akkudoktoreos.class_optimize import isfloat, optimization_problem
+from akkudoktoreos.class_optimize import optimization_problem
 from akkudoktoreos.class_pv_forecast import PVForecast
 from akkudoktoreos.class_strompreis import HourlyElectricityPriceForecast
 from akkudoktoreos.config import get_start_enddate, optimization_hours, prediction_hours
+from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
 
 app = Flask(__name__)
 
 opt_class = optimization_problem(
     prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours
 )
+
+
+def isfloat(num: Any) -> bool:
+    """Check if a given input can be converted to float."""
+    if num is None:
+        return False
+
+    if isinstance(num, str):
+        num = num.strip()  # Strip any surrounding whitespace
+
+    try:
+        float_value = float(num)
+        return not (
+            float_value == float("inf")
+            or float_value == float("-inf")
+            or float_value != float_value
+        )  # Excludes NaN or Infinity
+    except (ValueError, TypeError):
+        return False
 
 
 @app.route("/strompreis", methods=["GET"])
