@@ -30,7 +30,9 @@ def create_ems_instance():
     home_appliance.set_startzeitpunkt(2)
 
     # Example initialization of electric car battery
-    eauto = Battery(capacity_wh=26400, start_soc_percent=10, hours=48, min_soc_percent=10)
+    eauto = Battery(
+        capacity_wh=26400, start_soc_percent=10, hours=48, min_soc_percent=10
+    )
 
     # Parameters based on previous example data
     pv_prognose_wh = [

@@ -1,28 +1,37 @@
 import numpy as np
-from pydantic import BaseModel, PositiveFloat, PositiveInt
+from typing import Optional, List
 
 
-class Battery(BaseModel):
-    capacity_wh: PositiveInt
-    hours: PositiveInt
-    charging_efficiency: PositiveFloat = 0.88
-    discharge_efficiency: PositiveFloat = 0.88
-    max_charging_power_w: PositiveFloat
-    start_soc_percent: PositiveInt = 0
-    min_soc_percent: PositiveInt = 0
-    max_soc_percent: PositiveInt = 100
-
-    def __init__(self):
-        self.soc_wh = (self.start_soc_percent / 100) * self.capacity_wh
+class Battery:
+    def __init__(
+        self,
+        capacity_wh: int = None,
+        hours: int = None,
+        charge_efficiency: float = 0.88,
+        discharge_efficiency: float = 0.88,
+        max_charging_power_w: float = None,
+        start_soc_percent: int = 0,
+        min_soc_percent: int = 0,
+        max_soc_percent: int = 100,
+    ):
+        # Battery capacity in Wh
+        self.capacity_wh = capacity_wh
+        # Initial state of charge in Wh
+        self.start_soc_percent = start_soc_percent
+        self.soc_wh = (start_soc_percent / 100) * capacity_wh
         self.hours = (
-            self.hours if self.hours is not None else 24
+            hours if hours is not None else 24
         )  # Default to 24 hours if not specified
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
         # Charge and discharge efficiency
-        self.max_charge_power_w = (
-            self.max_charging_power_w if self.max_charging_power_w else self.capacity_wh
+        self.charge_efficiency = charge_efficiency
+        self.discharge_efficiency = discharge_efficiency
+        self.max_charging_power_w = (
+            max_charging_power_w if max_charging_power_w else self.capacity_wh
         )
+        self.min_soc_percent = min_soc_percent
+        self.max_soc_percent = max_soc_percent
         # Calculate min and max SoC in Wh
         self.min_soc_wh = (self.min_soc_percent / 100) * self.capacity_wh
         self.max_soc_wh = (self.max_soc_percent / 100) * self.capacity_wh
@@ -40,9 +49,9 @@ class Battery(BaseModel):
             "hours": self.hours,
             "discharge_array": self.discharge_array.tolist(),  # Convert np.array to list
             "charge_array": self.charge_array.tolist(),
-            "charging_efficiency": self.charge_efficiency,
+            "charging_efficiency": self.charging_efficiency,
             "discharge_efficiency": self.discharge_efficiency,
-            "max_charge_power_w": self.max_charge_power_w,
+            "max_charge_power_w": self.max_charging_power_w,
         }
 
     @classmethod
@@ -85,7 +94,7 @@ class Battery(BaseModel):
         return (self.soc_wh / self.capacity_wh) * 100
 
     def discharge(self, wh, hour):
-        if self.discharge_array[hour] == 0:
+        if self.discharge_array[hour - 1] == 0:
             return 0.0, 0.0  # No energy discharge and no losses
 
         # Calculate the maximum energy that can be discharged considering min_soc and efficiency
@@ -97,7 +106,7 @@ class Battery(BaseModel):
         )  # Ensure non-negative
 
         # Consider the maximum discharge power of the battery
-        max_abgebbar_wh = min(max_possible_discharge_wh, self.max_charge_power_w)
+        max_abgebbar_wh = min(max_possible_discharge_wh, self.max_charging_power_w)
 
         # The actually discharged energy cannot exceed requested energy or maximum discharge
         tatsaechlich_abgegeben_wh = min(wh, max_abgebbar_wh)
@@ -121,16 +130,16 @@ class Battery(BaseModel):
         # Return the actually discharged energy and the losses
         return tatsaechlich_abgegeben_wh, verluste_wh
 
-    def charge(self, wh, hour):
-        if hour is not None and self.charge_array[hour] == 0:
+    def charge(self, wh: int, hour: int):
+        if hour and self.charge_array[hour - 1] == 0:
             return 0, 0  # Charging not allowed in this hour
 
         # If no value for wh is given, use the maximum charging power
-        wh = wh if wh is not None else self.max_charge_power_w
+        wh = wh if wh is not None else self.max_charging_power_w
 
         # Relative to the maximum charging power (between 0 and 1)
-        relative_ladeleistung = self.charge_array[hour]
-        effektive_ladeleistung = relative_ladeleistung * self.max_charge_power_w
+        relative_ladeleistung = self.charge_array[hour - 1]
+        effektive_ladeleistung = relative_ladeleistung * self.max_charging_power_w
 
         # Calculate the maximum energy that can be charged considering max_soc and efficiency
         if self.charge_efficiency > 0:
