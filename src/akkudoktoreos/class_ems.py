@@ -4,24 +4,6 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 
 
-def replace_nan_with_none(
-    data: Union[np.ndarray, dict, list, float],
-) -> Union[List, dict, float, None]:
-    if data is None:
-        return None
-    if isinstance(data, np.ndarray):
-        # Use numpy vectorized approach
-        return np.where(np.isnan(data), None, data).tolist()
-    elif isinstance(data, dict):
-        return {key: replace_nan_with_none(value) for key, value in data.items()}
-    elif isinstance(data, list):
-        return [replace_nan_with_none(element) for element in data]
-    elif isinstance(data, (float, np.floating)) and np.isnan(data):
-        return None
-    else:
-        return data
-
-
 class EnergieManagementSystem:
     def __init__(
         self,
@@ -156,4 +138,4 @@ class EnergieManagementSystem:
             "Haushaltsgeraet_wh_pro_stunde": haushaltsgeraet_wh_pro_stunde,
         }
 
-        return replace_nan_with_none(out)
+        return out
