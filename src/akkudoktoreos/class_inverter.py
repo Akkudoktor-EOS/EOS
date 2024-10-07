@@ -1,4 +1,4 @@
-from modules.battery import Battery
+from akkudoktoreos.battery import Battery
 
 class Wechselrichter:
     def __init__(self, max_leistung_wh, akku: Battery):

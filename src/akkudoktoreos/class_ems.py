@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
-from modules.battery import Battery
+from akkudoktoreos.battery import Battery
 
 import numpy as np
 

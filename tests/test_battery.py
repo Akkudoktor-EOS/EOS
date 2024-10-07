@@ -1,6 +1,6 @@
 import pytest
 
-from modules.battery import Battery
+from akkudoktoreos.battery import Battery
 
 
 @pytest.fixture(scope="function")
