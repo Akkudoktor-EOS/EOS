@@ -10,6 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import pandas as pd
+from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
 from akkudoktoreos.class_load import LoadForecast
 from akkudoktoreos.class_load_container import Gesamtlast
 from akkudoktoreos.class_load_corrector import LoadPredictionAdjuster
@@ -17,7 +18,6 @@ from akkudoktoreos.class_optimize import optimization_problem
 from akkudoktoreos.class_pv_forecast import PVForecast
 from akkudoktoreos.class_strompreis import HourlyElectricityPriceForecast
 from akkudoktoreos.config import get_start_enddate, optimization_hours, prediction_hours
-from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
 
 app = Flask(__name__)
 
