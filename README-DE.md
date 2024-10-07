@@ -107,7 +107,7 @@ Diese Klassen arbeiten zusammen, um eine detaillierte Simulation und Optimierung
 Jede Klasse ist so gestaltet, dass sie leicht angepasst und erweitert werden kann, um zusätzliche Funktionen oder Verbesserungen zu integrieren. Beispielsweise können neue Methoden zur genaueren Modellierung des Verhaltens von PV-Anlagen oder Batteriespeichern hinzugefügt werden. Entwickler sind eingeladen, das System nach ihren Bedürfnissen zu modifizieren und zu erweitern.
 
 
-# Input für den Flask Server (Stand 30.07.204)
+# Input für den Flask Server (Stand 30.07.2024)
 Beschreibt die Struktur und Datentypen des JSON-Objekts, das an den Flask-Server gesendet wird. Hier mit einem Prognosezeitraum von 48 Stunden!
 
 ## Felder des JSON-Objekts

@@ -1,3 +1,38 @@
+[project]
+name = "akkudoktor-eos"
+version = "0.0.1"
+authors = [
+  { name="Andreas Schmitz", email="author@example.com" },
+]
+description = "This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period."
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/Akkudoktor-EOS/EOS"
+Issues = "https://github.com/Akkudoktor-EOS/EOS/issues"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
+
+[tool.setuptools.packages.find]
+where = ["src/"]
+include = ["akkudoktoreos", "akkudoktoreosserver", ]
+
+[tool.setuptools.package-data]
+akkudoktoreosserver = ["data/*.npz", ]
+
 [tool.isort]
 profile = "black"
 
@@ -5,3 +40,9 @@ profile = "black"
 ignore = [
     "F841",  # don't complain about unused variables
 ]
+
+[tool.pytest.ini_options]
+minversion = "8.3.3"
+addopts = "--cov=src"
+pythonpath = [ "src", ]
+testpaths = [ "tests", ]

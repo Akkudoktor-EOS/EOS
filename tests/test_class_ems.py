@@ -1,9 +1,9 @@
 import pytest
 
-from modules.battery import Battery
-from modules.class_ems import EnergieManagementSystem
-from modules.class_haushaltsgeraet import Haushaltsgeraet
-from modules.class_inverter import Wechselrichter  # Example import
+from akkudoktoreos.battery import Battery
+from akkudoktoreos.class_ems import EnergieManagementSystem
+from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
+from akkudoktoreos.class_inverter import Wechselrichter  # Example import
 
 prediction_hours = 48
 optimization_hours = 24
