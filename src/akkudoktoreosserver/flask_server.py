@@ -11,6 +11,7 @@ matplotlib.use("Agg")
 
 import pandas as pd
 from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
+
 from akkudoktoreos.class_load import LoadForecast
 from akkudoktoreos.class_load_container import Gesamtlast
 from akkudoktoreos.class_load_corrector import LoadPredictionAdjuster
