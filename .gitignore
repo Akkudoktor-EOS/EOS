@@ -245,3 +245,6 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# Visualization side effects
+**/visualization_results.pdf
