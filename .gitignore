@@ -1,3 +1,6 @@
+cache/
+output/
+
 # Default ignore folders and files for VS Code, Python
 
 .vscode/*
