@@ -11,16 +11,6 @@ from akkudoktoreos.class_inverter import Wechselrichter
 from akkudoktoreos.config import moegliche_ladestroeme_in_prozent
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
-
-def isfloat(num: Any) -> bool:
-    """Check if a given input can be converted to float."""
-    try:
-        float(num)
-        return True
-    except ValueError:
-        return False
-
-
 class optimization_problem:
     def __init__(
         self,
