@@ -11,6 +11,7 @@ from akkudoktoreos.class_inverter import Wechselrichter
 from akkudoktoreos.config import moegliche_ladestroeme_in_prozent
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
+
 class optimization_problem:
     def __init__(
         self,
