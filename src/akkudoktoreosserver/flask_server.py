@@ -18,7 +18,12 @@ from akkudoktoreos.class_load_corrector import LoadPredictionAdjuster
 from akkudoktoreos.class_optimize import optimization_problem
 from akkudoktoreos.class_pv_forecast import PVForecast
 from akkudoktoreos.class_strompreis import HourlyElectricityPriceForecast
-from akkudoktoreos.config import get_start_enddate, optimization_hours, prediction_hours
+from akkudoktoreos.config import (
+    get_start_enddate,
+    optimization_hours,
+    output_dir,
+    prediction_hours,
+)
 
 app = Flask(__name__)
 
@@ -262,11 +267,11 @@ def flask_optimize():
         return jsonify(result)
 
 
-@app.route("/visualisierungsergebnisse.pdf")
+@app.route("/visualization_results.pdf")
 def get_pdf():
     # Endpoint to serve the generated PDF with visualization results
     return send_from_directory(
-        "", "visualisierungsergebnisse.pdf"
+        os.path.abspath(output_dir), "visualization_results.pdf"
     )  # Adjust the directory if needed
 
 

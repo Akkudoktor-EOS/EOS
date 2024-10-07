@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from akkudoktoreos.class_optimize import optimization_problem
+from akkudoktoreos.config import output_dir
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 
@@ -35,5 +36,5 @@ def test_optimize(fn_in, fn_out):
     assert set(ergebnis) == set(expected_output_data)
 
     # The function creates a visualization result PDF as a side-effect.
-    fp_viz = Path(".") / "visualization_results.pdf"
+    fp_viz = Path(output_dir) / "visualization_results.pdf"
     assert fp_viz.exists()
