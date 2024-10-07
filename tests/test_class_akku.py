@@ -1,6 +1,6 @@
 import unittest
 
-from modules.class_akku import PVAkku
+from akkudoktoreos.class_akku import PVAkku
 
 
 class TestPVAkku(unittest.TestCase):
