@@ -2,7 +2,7 @@
 
 import os
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeGuard
 
 import matplotlib
 
@@ -27,7 +27,7 @@ opt_class = optimization_problem(
 )
 
 
-def isfloat(num: Any) -> bool:
+def isfloat(num: Any) -> TypeGuard[float]:
     """Check if a given input can be converted to float."""
     if num is None:
         return False
