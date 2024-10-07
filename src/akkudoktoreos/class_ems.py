@@ -1,9 +1,9 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
-from akkudoktoreos.battery import Battery
-
 import numpy as np
+
+from akkudoktoreos.battery import Battery
 
 
 def replace_nan_with_none(
@@ -106,9 +106,7 @@ class EnergieManagementSystem:
 
             # E-Auto handling
             if self.eauto:
-                geladene_menge_eauto, verluste_eauto = self.eauto.charge(
-                    None, stunde
-                )
+                geladene_menge_eauto, verluste_eauto = self.eauto.charge(None, stunde)
                 verbrauch += geladene_menge_eauto
                 verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
                 eauto_soc_pro_stunde[stunde_since_now] = (
