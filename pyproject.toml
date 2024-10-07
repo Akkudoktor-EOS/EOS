@@ -30,6 +30,9 @@ optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
 where = ["src/"]
 include = ["akkudoktoreos", "akkudoktoreosserver", ]
 
+[tool.setuptools.package-data]
+akkudoktoreosserver = ["data/*.npz", ]
+
 [tool.isort]
 profile = "black"
 
