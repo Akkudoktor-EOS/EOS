@@ -32,3 +32,7 @@ def test_optimize(fn_in, fn_out):
     # This does not assert that the optimization always gives the same result!
     # Reproducibility and mathematical accuracy should be tested on the level of individual components.
     assert set(ergebnis) == set(expected_output_data)
+
+    # The function creates a visualization result PDF as a side-effect.
+    fp_viz = Path(".") / "visualization_results.pdf"
+    assert fp_viz.exists()
