@@ -276,14 +276,16 @@ def visualisiere_ergebnisse(
                 )  # Two subplots, separate y-axes
 
                 # First violin plot for losses
-                axs[0].violinplot(data[0], showmeans=True, showmedians=True)
-                axs[0].set_title("Losses")
-                axs[0].set_xticklabels(["Losses"])
+                axs[0].violinplot(
+                    data[0], positions=[1], showmeans=True, showmedians=True
+                )
+                axs[1].set(title="Losses", xticks=[1], xticklabels=["Losses"])
 
                 # Second violin plot for balance
-                axs[1].violinplot(data[1], showmeans=True, showmedians=True)
-                axs[1].set_title("Balance")
-                axs[1].set_xticklabels(["Balance"])
+                axs[1].violinplot(
+                    data[1], positions=[1], showmeans=True, showmedians=True
+                )
+                axs[1].set(title="Balance", xticks=[1], xticklabels=["Balance"])
 
                 # Fine-tuning
                 plt.tight_layout()
