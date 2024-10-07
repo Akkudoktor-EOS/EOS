@@ -11,7 +11,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 Good installation guide:
 https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/
 
-The project requires Python 3.8 or newer.
+The project requires Python 3.10 or newer.
 
 ### Quick Start Guide
 
