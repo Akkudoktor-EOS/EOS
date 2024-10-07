@@ -123,7 +123,10 @@ def flask_gesamtlast_simple():
         ###############
         # Load Forecast
         ###############
-        file_path = os.path.join("data", "load_profiles.npz")
+        server_dir = os.path.dirname(os.path.realpath(__file__))
+        file_path = os.path.join(server_dir, "data", "load_profiles.npz")
+
+        print(file_path)
 
         lf = LoadForecast(
             filepath=file_path, year_energy=year_energy
