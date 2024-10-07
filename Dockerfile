@@ -3,23 +3,33 @@ FROM python:${PYTHON_VERSION}-slim
 
 LABEL source="https://github.com/Akkudoktor-EOS/EOS"
 
-EXPOSE 5000
+ENV VIRTUAL_ENV="/opt/venv"
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
+ENV MPLCONFIGDIR="/tmp/mplconfigdir"
+ENV EOS_DIR="/opt/eos"
+ENV EOS_CACHE_DIR="${EOS_DIR}/cache"
+ENV EOS_OUTPUT_DIR="${EOS_DIR}/output"
 
-WORKDIR	/opt/eos
+WORKDIR ${EOS_DIR}
 
-COPY . .
+RUN adduser --system --group --no-create-home eos \
+    && mkdir -p "${MPLCONFIGDIR}" \
+    && chown eos "${MPLCONFIGDIR}" \
+    && mkdir -p "${EOS_CACHE_DIR}" \
+    && chown eos "${EOS_CACHE_DIR}" \
+    && mkdir -p "${EOS_OUTPUT_DIR}" \
+    && chown eos "${EOS_OUTPUT_DIR}"
 
-ARG APT_OPTS="--yes --auto-remove --no-install-recommends --no-install-suggests"
+COPY requirements.txt .
 
-RUN DEBIAN_FRONTEND=noninteractive \
-	apt-get update \
-	&& apt-get install ${APT_OPTS} gcc libhdf5-dev libmariadb-dev pkg-config mariadb-common libmariadb3 \
-	&& rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir build \
-    && pip install --no-cache-dir -e . \
-    && apt remove ${APT_OPTS} gcc libhdf5-dev libmariadb-dev pkg-config
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements.txt
 
+COPY src .
+
+USER eos
 ENTRYPOINT []
 
-CMD ["python", "-m", "akkudoktoreos.flask_server"]
+CMD ["python", "-m", "akkudoktoreosserver.flask_server"]
+
+VOLUME ["${MPLCONFIGDIR}", "${EOS_CACHE_DIR}", "${EOS_OUTPUT_DIR}"]
