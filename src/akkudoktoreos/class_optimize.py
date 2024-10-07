@@ -207,7 +207,7 @@ class optimization_problem:
         return (gesamtbilanz,)
 
     def optimize(
-        self, start_solution: Optional[List[float]] = None
+        self, start_solution: Optional[List[float]] = None, ngen: int = 400
     ) -> Tuple[Any, Dict[str, List[Any]]]:
         """Run the optimization process using a genetic algorithm."""
         population = self.toolbox.population(n=300)
@@ -231,7 +231,7 @@ class optimization_problem:
             lambda_=200,
             cxpb=0.5,
             mutpb=0.3,
-            ngen=400,
+            ngen=ngen,
             stats=stats,
             halloffame=hof,
             verbose=self.verbose,
@@ -253,6 +253,8 @@ class optimization_problem:
         start_hour: Optional[int] = None,
         worst_case: bool = False,
         startdate: Optional[Any] = None,  # startdate is not used!
+        *,
+        ngen: int = 400,
     ) -> Dict[str, Any]:
         """
         Perform EMS (Energy Management System) optimization and visualize results.
@@ -312,7 +314,9 @@ class optimization_problem:
             "evaluate",
             lambda ind: self.evaluate(ind, ems, parameter, start_hour, worst_case),
         )
-        start_solution, extra_data = self.optimize(parameter["start_solution"])
+        start_solution, extra_data = self.optimize(
+            parameter["start_solution"], ngen=ngen
+        )
 
         # Perform final evaluation on the best solution
         o = self.evaluate_inner(start_solution, ems, start_hour)
