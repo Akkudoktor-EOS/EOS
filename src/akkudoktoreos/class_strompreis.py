@@ -1,19 +1,11 @@
 import hashlib
 import json
 import os
-from datetime import datetime, timedelta
+import zoneinfo
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
-import pytz
 import requests
-
-# Example: Converting a UTC timestamp to local time
-utc_time = datetime.strptime("2024-03-28T01:00:00.000Z", "%Y-%m-%dT%H:%M:%S.%fZ")
-utc_time = utc_time.replace(tzinfo=pytz.utc)
-
-# Replace 'Europe/Berlin' with your own timezone
-local_time = utc_time.astimezone(pytz.timezone("Europe/Berlin"))
-print(local_time)
 
 
 def repeat_to_shape(array, target_shape):
@@ -116,13 +108,13 @@ class HourlyElectricityPriceForecast:
         print(start_date_str)
         print(end_date_str)
         start_date_utc = datetime.strptime(start_date_str, "%Y-%m-%d").replace(
-            tzinfo=pytz.utc
+            tzinfo=timezone.utc
         )
         end_date_utc = datetime.strptime(end_date_str, "%Y-%m-%d").replace(
-            tzinfo=pytz.utc
+            tzinfo=timezone.utc
         )
-        start_date = start_date_utc.astimezone(pytz.timezone("Europe/Berlin"))
-        end_date = end_date_utc.astimezone(pytz.timezone("Europe/Berlin"))
+        start_date = start_date_utc.astimezone(zoneinfo.ZoneInfo("Europe/Berlin"))
+        end_date = end_date_utc.astimezone(zoneinfo.ZoneInfo("Europe/Berlin"))
 
         price_list = []
 

@@ -20,7 +20,6 @@ The following is a list of licensors and other acknowledgements for third-party 
 - Flask, licensed under the BSD License, see https://flask.palletsprojects.com/
 - NumPy, licensed under the BSD License, see https://numpy.org/
 - Requests, licensed under the Apache License 2.0, see https://requests.readthedocs.io/
-- pytz, licensed under the MIT License, see https://pythonhosted.org/pytz/
 - matplotlib, licensed under the matplotlib License (a variant of the Python Software Foundation License), see https://matplotlib.org/
 - DEAP, licensed under the GNU Lesser General Public License v3.0, see https://deap.readthedocs.io/
 - SciPy, licensed under the BSD License, see https://scipy.org/
