@@ -9,6 +9,7 @@ import matplotlib
 # Sets the Matplotlib backend to 'Agg' for rendering plots in environments without a display
 matplotlib.use("Agg")
 
+import numpy as np
 import pandas as pd
 from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
 
@@ -46,6 +47,27 @@ def isfloat(num: Any) -> TypeGuard[float]:
         return False
 
 
+def convert_numpy(obj: Any) -> Any:
+    """
+    Recursively converts numpy arrays to lists and replaces NaN values with None,
+    making the object JSON-serializable.
+
+    Args:
+        obj: The object to be converted, which can be a numpy array, dict, list, or other JSON-serializable types.
+
+    Returns:
+        The JSON-serializable object with numpy arrays converted to lists and NaNs replaced with None.
+    """
+    if isinstance(obj, np.ndarray):
+        # Convert array to list and handle NaNs
+        return np.where(np.isnan(obj), None, obj).tolist()
+    elif isinstance(obj, dict):
+        return {k: convert_numpy(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy(item) for item in obj]
+    return obj
+
+
 @app.route("/strompreis", methods=["GET"])
 def flask_strompreis():
     # Get the current date and the end date based on prediction hours
@@ -62,7 +84,7 @@ def flask_strompreis():
     specific_date_prices = price_forecast.get_price_for_daterange(
         date_now, date
     )  # Fetch prices for the specified date range
-    return jsonify(specific_date_prices.tolist())
+    return jsonify(convert_numpy(specific_date_prices))
 
 
 # Endpoint to handle total load calculation based on the latest measured data
@@ -127,7 +149,7 @@ def flask_gesamtlast():
 
     # Calculate the total load
     last = gesamtlast.gesamtlast_berechnen()  # Compute total load
-    return jsonify(last.tolist())
+    return jsonify(convert_numpy(last))
 
 
 @app.route("/gesamtlast_simple", methods=["GET"])
@@ -170,7 +192,7 @@ def flask_gesamtlast_simple():
 
         last = gesamtlast.gesamtlast_berechnen()  # Calculate total load
         print(last)  # Output total load
-        return jsonify(last.tolist())  # Return total load as JSON
+        return jsonify(convert_numpy(last))  # Return total load as JSON
 
 
 @app.route("/pvforecast", methods=["GET"])
@@ -203,10 +225,10 @@ def flask_pvprognose():
 
         # Return both forecasts as a JSON response
         ret = {
-            "temperature": temperature_forecast.tolist(),
-            "pvpower": pv_forecast.tolist(),
+            "temperature": temperature_forecast,
+            "pvpower": pv_forecast,
         }
-        return jsonify(ret)
+        return jsonify(convert_numpy(ret))
 
 
 @app.route("/optimize", methods=["POST"])
@@ -252,7 +274,7 @@ def flask_optimize():
         if "min_soc_prozent" not in parameter:
             parameter["min_soc_prozent"] = None
 
-        return jsonify(result)  # Return optimization results as JSON
+        return jsonify(convert_numpy(result))  # Return optimization results as JSON
 
 
 @app.route("/visualisierungsergebnisse.pdf")

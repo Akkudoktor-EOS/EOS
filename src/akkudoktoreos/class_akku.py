@@ -35,14 +35,14 @@ class PVAkku:
         self.min_soc_wh = (self.min_soc_prozent / 100) * self.kapazitaet_wh
         self.max_soc_wh = (self.max_soc_prozent / 100) * self.kapazitaet_wh
 
-    def to_dict(self):
+    def to_return_dict(self):
         return {
             "kapazitaet_wh": self.kapazitaet_wh,
             "start_soc_prozent": self.start_soc_prozent,
             "soc_wh": self.soc_wh,
             "hours": self.hours,
-            "discharge_array": self.discharge_array.tolist(),  # Convert np.array to list
-            "charge_array": self.charge_array.tolist(),
+            "discharge_array": self.discharge_array,
+            "charge_array": self.charge_array,
             "lade_effizienz": self.lade_effizienz,
             "entlade_effizienz": self.entlade_effizienz,
             "max_ladeleistung_w": self.max_ladeleistung_w,

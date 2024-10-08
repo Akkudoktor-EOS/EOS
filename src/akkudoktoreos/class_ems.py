@@ -138,22 +138,15 @@ class EnergieManagementSystem:
             "Haushaltsgeraet_wh_pro_stunde": haushaltsgeraet_wh_pro_stunde,
         }
 
-        # List output keys where the first element needs to be changed to None
+        # List output keys where the first element needs to be changed to NaN, we dont want to change anything for the current hour
         keys_to_modify = [
             "Last_Wh_pro_Stunde",
             "Netzeinspeisung_Wh_pro_Stunde",
             "Netzbezug_Wh_pro_Stunde",
         ]
-
         # Loop through each key in the list
         for key in keys_to_modify:
-            # Convert the NumPy array to a list
-            element_list = out[key].tolist()
-
-            # Change the first value to None
-            element_list[0] = None
-
-            # Assign the modified list back to the dictionary
-            out[key] = element_list
+            # Directly modify the first element of the NumPy array to NaN
+            out[key][0] = np.nan
 
         return out
