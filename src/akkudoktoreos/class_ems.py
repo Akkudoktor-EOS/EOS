@@ -138,4 +138,8 @@ class EnergieManagementSystem:
             "Haushaltsgeraet_wh_pro_stunde": haushaltsgeraet_wh_pro_stunde,
         }
 
+        # set the first value to None so no action will be done in the current hour
+        out["Last_Wh_pro_Stunde"][0] = None
+        out["Netzeinspeisung_Wh_pro_Stunde"][0] = None
+        out["Netzbezug_Wh_pro_Stunde"][0] = None
         return out
