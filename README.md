@@ -182,6 +182,8 @@ Describes the structure and data types of the JSON object sent to the Flask serv
 
 This document describes the structure and data types of the JSON output returned by the Flask server, with a forecast period of 48 hours.
 
+**Note**: The first value of "Last_Wh_pro_Stunde", "Netzeinspeisung_Wh_pro_Stunde" and "Netzbezug_Wh_pro_Stunde", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged.
+
 ## JSON Output Fields (as of 30.7.2024)
 
 ### Explanation of the Output Fields
