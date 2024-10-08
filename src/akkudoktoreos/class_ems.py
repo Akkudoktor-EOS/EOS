@@ -138,8 +138,22 @@ class EnergieManagementSystem:
             "Haushaltsgeraet_wh_pro_stunde": haushaltsgeraet_wh_pro_stunde,
         }
 
-        # set the first value to None so no action will be done in the current hour
-        out["Last_Wh_pro_Stunde"][0] = None
-        out["Netzeinspeisung_Wh_pro_Stunde"][0] = None
-        out["Netzbezug_Wh_pro_Stunde"][0] = None
+        # List output keys where the first element needs to be changed to None
+        keys_to_modify = [
+            "Last_Wh_pro_Stunde",
+            "Netzeinspeisung_Wh_pro_Stunde",
+            "Netzbezug_Wh_pro_Stunde",
+        ]
+
+        # Loop through each key in the list
+        for key in keys_to_modify:
+            # Convert the NumPy array to a list
+            element_list = out[key].tolist()
+
+            # Change the first value to None
+            element_list[0] = None
+
+            # Assign the modified list back to the dictionary
+            out[key] = element_list
+
         return out
