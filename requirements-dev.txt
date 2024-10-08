@@ -1,2 +1,5 @@
+build==1.2.2.post1
 pytest==8.3.3
+pytest-xprocess==1.0.2
+requests==2.32.3
 pre-commit

@@ -9,6 +9,7 @@ help:
 	@echo "Available targets:"
 	@echo "  venv       - Set up a Python 3 virtual environment."
 	@echo "  pip        - Install dependencies from requirements.txt."
+	@echo "  pip-dev    - Install dependencies from requirements-dev.txt."
 	@echo "  install    - Install EOS in editable form (development mode) into virtual environment."
 	@echo "  docker-run - Run entire setup on docker
 	@echo "  docs       - Generate HTML documentation using pdoc."
@@ -26,6 +27,11 @@ pip: venv
 	.venv/bin/pip install --upgrade pip
 	.venv/bin/pip install -r requirements.txt
 	@echo "Dependencies installed from requirements.txt."
+
+# Target to install dependencies from requirements.txt
+pip-dev: pip
+	.venv/bin/pip install -r requirements-dev.txt
+	@echo "Dependencies installed from requirements-dev.txt."
 
 # Target to install EOS in editable form (development mode) into virtual environment.
 install: pip
@@ -53,6 +59,10 @@ clean:
 run:
 	@echo "Starting flask server, please wait..."
 	.venv/bin/python -m akkudoktoreosserver.flask_server
+
+# Target to setup tests.
+test-setup: pip-dev
+	@echo "Setup tests"
 
 # Target to run tests.
 test:
