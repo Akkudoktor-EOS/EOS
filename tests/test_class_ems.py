@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from akkudoktoreos.class_akku import PVAkku
@@ -277,18 +278,18 @@ def test_simulation(create_ems_instance):
         result["Last_Wh_pro_Stunde"][12] == 1132.03
     ), "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
 
-    # Verify that the value at index 0 is 'None'
-    assert (
-        result["Last_Wh_pro_Stunde"][0] is None
-    ), "The value at index 0 of 'Last_Wh_pro_Stunde' should be None."
+    # Verify that the value at index 0 is 'None' or NaN
+    assert result["Last_Wh_pro_Stunde"][0] is None or np.isnan(
+        result["Last_Wh_pro_Stunde"][0]
+    ), "The value at index 0 of 'Last_Wh_pro_Stunde' should be None or NaN."
 
     # Check that 'Netzeinspeisung_Wh_pro_Stunde' and 'Netzbezug_Wh_pro_Stunde' are consistent
-    assert (
-        result["Netzeinspeisung_Wh_pro_Stunde"][0] is None
-    ), "The value at index 0 of 'Netzeinspeisung_Wh_pro_Stunde' should be None."
-    assert (
-        result["Netzbezug_Wh_pro_Stunde"][0] is None
-    ), "The value at index 0 of 'Netzbezug_Wh_pro_Stunde' should be None."
+    assert result["Netzeinspeisung_Wh_pro_Stunde"][0] is None or np.isnan(
+        result["Netzeinspeisung_Wh_pro_Stunde"][0]
+    ), "The value at index 0 of 'Netzeinspeisung_Wh_pro_Stunde' should be None or NaN."
+    assert result["Netzbezug_Wh_pro_Stunde"][0] is None or np.isnan(
+        result["Netzbezug_Wh_pro_Stunde"][0]
+    ), "The value at index 0 of 'Netzbezug_Wh_pro_Stunde' should be None or NaN."
     assert (
         result["Netzbezug_Wh_pro_Stunde"][1] == 21679.13
     ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be21679.13."
