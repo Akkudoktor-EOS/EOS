@@ -3,14 +3,14 @@
 import os
 from datetime import datetime
 from typing import Any, TypeGuard
-import json
+
 import matplotlib
 
 # Sets the Matplotlib backend to 'Agg' for rendering plots in environments without a display
 matplotlib.use("Agg")
 
 import pandas as pd
-from flask import Flask, jsonify, redirect, request, send_from_directory, url_for, Response
+from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
 
 from akkudoktoreos.class_load import LoadForecast
 from akkudoktoreos.class_load_container import Gesamtlast
@@ -211,6 +211,12 @@ def flask_pvprognose():
 
 @app.route("/optimize", methods=["POST"])
 def flask_optimize():
+    with open(
+        "C:\\Users\\drbac\\OneDrive\\Dokumente\\PythonPojects\\EOS\\debug_output.txt",
+        "a",
+    ) as f:
+        f.write("Test\n")
+
     if request.method == "POST":
         from datetime import datetime
 
@@ -243,18 +249,17 @@ def flask_optimize():
                 {"error": f"Missing parameter: {', '.join(missing_params)}"}
             ), 400  # Return error for missing parameters
 
-        # Perform optimization simulation
-        result = opt_class.optimierung_ems(
-            parameter=parameter, start_hour=datetime.now().hour
-        )
-
         # Optional min SoC PV Battery
         if "min_soc_prozent" not in parameter:
             parameter["min_soc_prozent"] = None
 
+        # Perform optimization simulation
+        result = opt_class.optimierung_ems(
+            parameter=parameter, start_hour=datetime.now().hour
+        )
+        print(result)
         # convert to JSON (None accepted by dumps)
-        json_data = json.dumps(result)
-        return Response(json_data, mimetype='application/json')
+        return jsonify(result)
 
 
 @app.route("/visualisierungsergebnisse.pdf")

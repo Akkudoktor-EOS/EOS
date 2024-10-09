@@ -15,7 +15,7 @@ from akkudoktoreos.visualize import visualisiere_ergebnisse
 class optimization_problem:
     def __init__(
         self,
-        prediction_hours: int = 24,
+        prediction_hours: int = 48,
         strafe: float = 10,
         optimization_hours: int = 24,
         verbose: bool = False,
@@ -138,7 +138,7 @@ class optimization_problem:
         """
         try:
             o = self.evaluate_inner(individual, ems, start_hour)
-        except Exception:
+        except Exception as e:
             return (100000.0,)  # Return a high penalty in case of an exception
 
         gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
@@ -325,6 +325,35 @@ class optimization_problem:
             einspeiseverguetung_euro_pro_wh,
             extra_data=extra_data,
         )
+
+        # List output keys where the first element needs to be changed to None
+        keys_to_modify = [
+            "Last_Wh_pro_Stunde",
+            "Netzeinspeisung_Wh_pro_Stunde",
+            "akku_soc_pro_stunde",
+            "Netzbezug_Wh_pro_Stunde",
+            "Kosten_Euro_pro_Stunde",
+            "Einnahmen_Euro_pro_Stunde",
+            "E-Auto_SoC_pro_Stunde",
+            "Verluste_Pro_Stunde",
+            "Haushaltsgeraet_wh_pro_stunde",
+        ]
+
+        # Loop through each key in the list
+        for key in keys_to_modify:
+            # Convert the NumPy array to a list
+            element_list = o[key].tolist()
+
+            # Change the first value to None
+            element_list[0] = None
+            # Change the NaN to None (JSON)
+            element_list = [
+                None if isinstance(x, (int, float)) and np.isnan(x) else x
+                for x in element_list
+            ]
+
+            # Assign the modified list back to the dictionary
+            o[key] = element_list
 
         # Return final results as a dictionary
         return {

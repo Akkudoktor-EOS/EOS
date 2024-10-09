@@ -58,15 +58,15 @@ class EnergieManagementSystem:
         total_hours = ende - start_stunde
 
         # Pre-allocate arrays for the results, optimized for speed
-        last_wh_pro_stunde = np.zeros(total_hours)
-        netzeinspeisung_wh_pro_stunde = np.zeros(total_hours)
-        netzbezug_wh_pro_stunde = np.zeros(total_hours)
-        kosten_euro_pro_stunde = np.zeros(total_hours)
-        einnahmen_euro_pro_stunde = np.zeros(total_hours)
-        akku_soc_pro_stunde = np.zeros(total_hours)
-        eauto_soc_pro_stunde = np.zeros(total_hours)
-        verluste_wh_pro_stunde = np.zeros(total_hours)
-        haushaltsgeraet_wh_pro_stunde = np.zeros(total_hours)
+        last_wh_pro_stunde = np.full((total_hours), np.nan)
+        netzeinspeisung_wh_pro_stunde = np.full((total_hours), np.nan)
+        netzbezug_wh_pro_stunde = np.full((total_hours), np.nan)
+        kosten_euro_pro_stunde = np.full((total_hours), np.nan)
+        einnahmen_euro_pro_stunde = np.full((total_hours), np.nan)
+        akku_soc_pro_stunde = np.full((total_hours), np.nan)
+        eauto_soc_pro_stunde = np.full((total_hours), np.nan)
+        verluste_wh_pro_stunde = np.full((total_hours), np.nan)
+        haushaltsgeraet_wh_pro_stunde = np.full((total_hours), np.nan)
 
         # Set initial state
         akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
@@ -78,7 +78,7 @@ class EnergieManagementSystem:
 
             # Accumulate loads and PV generation
             verbrauch = self.gesamtlast[stunde]
-
+            verluste_wh_pro_stunde[stunde_since_now] = 0.0
             if self.haushaltsgeraet:
                 ha_load = self.haushaltsgeraet.get_last_fuer_stunde(stunde)
                 verbrauch += ha_load
@@ -117,7 +117,7 @@ class EnergieManagementSystem:
             akku_soc_pro_stunde[stunde_since_now] = self.akku.ladezustand_in_prozent()
 
         # Total cost and return
-        gesamtkosten_euro = np.sum(kosten_euro_pro_stunde) - np.sum(
+        gesamtkosten_euro = np.nansum(kosten_euro_pro_stunde) - np.nansum(
             einnahmen_euro_pro_stunde
         )
 
@@ -131,35 +131,10 @@ class EnergieManagementSystem:
             "Einnahmen_Euro_pro_Stunde": einnahmen_euro_pro_stunde,
             "Gesamtbilanz_Euro": gesamtkosten_euro,
             "E-Auto_SoC_pro_Stunde": eauto_soc_pro_stunde,
-            "Gesamteinnahmen_Euro": np.sum(einnahmen_euro_pro_stunde),
-            "Gesamtkosten_Euro": np.sum(kosten_euro_pro_stunde),
+            "Gesamteinnahmen_Euro": np.nansum(einnahmen_euro_pro_stunde),
+            "Gesamtkosten_Euro": np.nansum(kosten_euro_pro_stunde),
             "Verluste_Pro_Stunde": verluste_wh_pro_stunde,
-            "Gesamt_Verluste": np.sum(verluste_wh_pro_stunde),
+            "Gesamt_Verluste": np.nansum(verluste_wh_pro_stunde),
             "Haushaltsgeraet_wh_pro_stunde": haushaltsgeraet_wh_pro_stunde,
         }
-
-        # List output keys where the first element needs to be changed to None
-        keys_to_modify = [
-            "Last_Wh_pro_Stunde",
-            "Netzeinspeisung_Wh_pro_Stunde",
-            "akku_soc_pro_stunde",
-            "Netzbezug_Wh_pro_Stunde",
-            "Kosten_Euro_pro_Stunde",
-            "Einnahmen_Euro_pro_Stunde",
-            "E-Auto_SoC_pro_Stunde",
-            "Verluste_Pro_Stunde",
-            "Haushaltsgeraet_wh_pro_stunde"
-        ]
-
-        # Loop through each key in the list
-        for key in keys_to_modify:
-            # Convert the NumPy array to a list
-            element_list = out[key].tolist()
-
-            # Change the first value to None
-            element_list[0] = None
-
-            # Assign the modified list back to the dictionary
-            out[key] = element_list
-
         return out

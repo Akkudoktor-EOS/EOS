@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from akkudoktoreos.class_akku import PVAkku
@@ -279,15 +280,15 @@ def test_simulation(create_ems_instance):
 
     # Verify that the value at index 0 is 'None'
     assert (
-        result["Last_Wh_pro_Stunde"][0] is None
+        np.isnan(result["Last_Wh_pro_Stunde"][0])
     ), "The value at index 0 of 'Last_Wh_pro_Stunde' should be None."
 
     # Check that 'Netzeinspeisung_Wh_pro_Stunde' and 'Netzbezug_Wh_pro_Stunde' are consistent
     assert (
-        result["Netzeinspeisung_Wh_pro_Stunde"][0] is None
+       np.isnan(result["Netzeinspeisung_Wh_pro_Stunde"][0])
     ), "The value at index 0 of 'Netzeinspeisung_Wh_pro_Stunde' should be None."
     assert (
-        result["Netzbezug_Wh_pro_Stunde"][0] is None
+        np.isnan(result["Netzbezug_Wh_pro_Stunde"][0])
     ), "The value at index 0 of 'Netzbezug_Wh_pro_Stunde' should be None."
     assert (
         result["Netzbezug_Wh_pro_Stunde"][1] == 21679.13
@@ -325,7 +326,14 @@ def test_simulation(create_ems_instance):
     ), "The sum of 'ems.haushaltsgeraet.get_lastkurve()' should be 2000."
 
     assert (
-        sum(result["Haushaltsgeraet_wh_pro_stunde"]) == 2000
+        np.nansum(
+            np.where(
+                np.equal(result["Haushaltsgeraet_wh_pro_stunde"], None),
+                np.nan,
+                np.array(result["Haushaltsgeraet_wh_pro_stunde"]),
+            )
+        )
+        == 2000
     ), "The sum of 'Haushaltsgeraet_wh_pro_stunde' should be 2000."
 
     print("All tests passed successfully.")

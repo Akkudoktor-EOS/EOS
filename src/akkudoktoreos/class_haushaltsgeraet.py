@@ -16,7 +16,6 @@ class Haushaltsgeraet:
         :param start_hour: The hour at which the device should start.
         """
         self.reset()
-
         # Check if the duration of use is within the available time frame
         if start_hour + self.dauer_h > self.hours:
             raise ValueError("The duration of use exceeds the available time frame.")
