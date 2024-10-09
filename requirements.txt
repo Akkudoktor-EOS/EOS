@@ -1,5 +1,4 @@
 numpy==2.1.2
-mariadb==1.1.10
 matplotlib==3.9.2
 flask==3.0.3
 scikit-learn==1.5.2

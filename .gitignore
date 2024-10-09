@@ -10,6 +10,9 @@ data/
 !.vscode/extensions.json
 !.vscode/*.code-snippets
 
+# dont
+.idea
+
 # Local History for Visual Studio Code
 .history/
 

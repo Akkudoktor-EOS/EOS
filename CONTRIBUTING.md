@@ -16,15 +16,16 @@ There are just too many possibilities and the project would drown in tickets oth
 
 ## Code Contributions
 
-We welcome code contributions and bug fixes via [Pull Requests](https://github.com/Akkudoktor-EOS/EOS/pulls).
-To make collaboration easier, we require pull requests to pass code style and unit tests.
+We welcome code contributions and bug fixes via [Pull Requests](https://github.com/Akkudoktor-EOS/EOS/pulls). We use
+forks [see](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request-from-a-fork)
+for details. To make collaboration easier, we require pull requests to pass code style and unit tests.
 
 ### Code Style
 
 Our code style checks use [`pre-commit`](https://pre-commit.com).
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt requirements-dev.txt
 ```
 
 To run formatting automatically before every commit:

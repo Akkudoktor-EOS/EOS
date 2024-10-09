@@ -7,19 +7,17 @@ EXPOSE 5000
 
 WORKDIR	/opt/eos
 
-COPY . .
-
-ARG APT_OPTS="--yes --auto-remove --no-install-recommends --no-install-suggests"
+COPY src src
+COPY pyproject.toml pyproject.toml
+COPY requirements.txt requirements.txt
 
 RUN DEBIAN_FRONTEND=noninteractive \
 	apt-get update \
-	&& apt-get install ${APT_OPTS} gcc libhdf5-dev libmariadb-dev pkg-config mariadb-common libmariadb3 \
 	&& rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir build \
-    && pip install --no-cache-dir -e . \
-    && apt remove ${APT_OPTS} gcc libhdf5-dev libmariadb-dev pkg-config
+    && pip install --no-cache-dir -e .
 
 ENTRYPOINT []
 
-CMD ["python", "-m", "akkudoktoreos.flask_server"]
+CMD ["python", "-m", "akkudoktoreosserver.flask_server"]

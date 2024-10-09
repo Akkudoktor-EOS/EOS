@@ -7,15 +7,16 @@ all: help
 # Target to display help information
 help:
 	@echo "Available targets:"
-	@echo "  venv       - Set up a Python 3 virtual environment."
-	@echo "  pip        - Install dependencies from requirements.txt."
-	@echo "  pip-dev    - Install dependencies from requirements-dev.txt."
-	@echo "  install    - Install EOS in editable form (development mode) into virtual environment."
-	@echo "  docker-run - Run entire setup on docker
-	@echo "  docs       - Generate HTML documentation using pdoc."
-	@echo "  run        - Run flask_server in the virtual environment (needs install before)."
-	@echo "  dist       - Create distribution (in dist/)."
-	@echo "  clean      - Remove generated documentation, distribution and virtual environment."
+	@echo "  venv           - Set up a Python 3 virtual environment."
+	@echo "  pip            - Install dependencies from requirements.txt."
+	@echo "  pip-dev        - Install dependencies from requirements-dev.txt."
+	@echo "  install        - Install EOS in editable form (development mode) into virtual environment."
+	@echo "  docker-run     - Run entire setup on docker
+	@echo "  docker-rebuild - Run entire setup on docker
+	@echo "  docs           - Generate HTML documentation using pdoc."
+	@echo "  run            - Run flask_server in the virtual environment (needs install before)."
+	@echo "  dist           - Create distribution (in dist/)."
+	@echo "  clean          - Remove generated documentation, distribution and virtual environment."
 
 # Target to set up a Python 3 virtual environment
 venv:
@@ -68,6 +69,12 @@ test-setup: pip-dev
 test:
 	@echo "Running tests..."
 	.venv/bin/pytest
+
+# Run entire setup on docker
+docker-rebuild:
+	@docker compose down
+	@docker compose build --no-cache
+	@docker compose up -d
 
 # Run entire setup on docker
 docker-run:

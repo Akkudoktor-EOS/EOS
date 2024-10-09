@@ -10,8 +10,6 @@ services:
       dockerfile: 'Dockerfile'
       args:
         PYTHON_VERSION: '${PYTHON_VERSION}'
-    depends_on:
-      - 'mariadb'
     init: true
     environment:
       FLASK_RUN_PORT: '${EOS_PORT}'
@@ -19,14 +17,3 @@ services:
       - 'eos'
     ports:
       - '${EOS_PORT}:${EOS_PORT}'
-  mariadb:
-    image: 'mariadb:${MARIADB_VERSION}-jammy'
-    environment:
-      MARIADB_ROOT_PASSWORD: '${MARIADB_ROOT_PASSWORD}'
-      MARIADB_DATABASE: '${MARIADB_DATABASE}'
-      MARIADB_USER: '${MARIADB_USER}'
-      MARIADB_PASSWORD: '${MARIADB_PASSWORD}'
-    networks:
-      - 'eos'
-    volumes:
-      - ./data/mariadb:/var/lib/mysql
