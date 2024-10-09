@@ -61,14 +61,6 @@ source .venv/bin/activate
 ```zsh
 . .venv/bin/activate
 ```
-(if using zsh, primarily for MacOS users).
-
-If `pip install` fails to install the mariadb dependency, the following commands may help:
-
-* Debian/Ubuntu: `sudo apt-get install -y libmariadb-dev`
-* MacOS/Homebrew: `brew install mariadb-connector-c`
-
-Followed by a renewed `pip install -r requirements.txt`.
 
 ## Usage
 
@@ -184,36 +176,144 @@ This document describes the structure and data types of the JSON output returned
 
 ## JSON Output Fields (as of 30.7.2024)
 
-### Explanation of the Output Fields
-
-#### 1. **discharge_hours_bin**
+### discharge_hours_bin
 An array that indicates for each hour of the forecast period (in this example, 48 hours) whether energy is discharged from the battery or not. The values are either `0` (no discharge) or `1` (discharge).
 
-#### 2. **eauto_obj**
+### eauto_obj
 This object contains information related to the electric vehicle and its charging and discharging behavior:
 
 - **charge_array**: Indicates for each hour whether the EV is charging (`0` for no charging, `1` for charging).
+  - **Type**: Array
+  - **Element Type**: Integer (0 or 1)
+  - **Length**: 48
 - **discharge_array**: Indicates for each hour whether the EV is discharging (`0` for no discharging, `1` for discharging).
+  - **Type**: Array
+  - **Element Type**: Integer (0 or 1)
+  - **Length**: 48
 - **entlade_effizienz**: The discharge efficiency as a float.
+  - **Type**: Float
+- **hours**: Amount of hours the simulation is done for.
+  - **Type**: Integer
 - **kapazitaet_wh**: The capacity of the EV’s battery in watt-hours.
+  - **Type**: Integer
 - **lade_effizienz**: The charging efficiency as a float.
+  - **Type**: Float
 - **max_ladeleistung_w**: The maximum charging power of the EV in watts.
+  - **Type**: Float
+- **max_ladeleistung_w**: Max charging power of the EV in Watts.
+  - **Type**: Integer
 - **soc_wh**: The state of charge of the battery in watt-hours at the start of the simulation.
+  - **Type**: Integer
 - **start_soc_prozent**: The state of charge of the battery in percentage at the start of the simulation.
+  - **Type**: Integer
 
-#### 3. **result**
+### eautocharge_hours_float
+An array of binary values (0 or 1) that indicates whether the EV will be charged in a certain hour.
+- **Type**: Array
+- **Element Type**: Integer (0 or 1)
+- **Length**: 48
+
+### result
 This object contains the results of the simulation and provides insights into various parameters over the entire forecast period:
 
 - **E-Auto_SoC_pro_Stunde**: The state of charge of the EV for each hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
 - **Eigenverbrauch_Wh_pro_Stunde**: The self-consumption of the system in watt-hours per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
 - **Einnahmen_Euro_pro_Stunde**: The revenue from grid feed-in or other sources in euros per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
 - **Gesamt_Verluste**: The total losses in watt-hours over the entire period.
+  - **Type**: Float
 - **Gesamtbilanz_Euro**: The total balance of revenues minus costs in euros.
+  - **Type**: Float
 - **Gesamteinnahmen_Euro**: The total revenues in euros.
+  - **Type**: Float
 - **Gesamtkosten_Euro**: The total costs in euros.
+  - **Type**: Float
 - **Haushaltsgeraet_wh_pro_stunde**: The energy consumption of a household appliance in watt-hours per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
 - **Kosten_Euro_pro_Stunde**: The costs in euros per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
 - **Netzbezug_Wh_pro_Stunde**: The grid energy drawn in watt-hours per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
 - **Netzeinspeisung_Wh_pro_Stunde**: The energy fed into the grid in watt-hours per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
 - **Verluste_Pro_Stunde**: The losses in watt-hours per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
 - **akku_soc_pro_stunde**: The state of charge of the battery (not the EV) in percentage per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
+
+### simulation_data
+An object containing the simulated data.
+  - **E-Auto_SoC_pro_Stunde**: An array of floats representing the simulated state of charge of the electric car per hour.
+    - **Type**: Array
+    - **Element Type**: Float
+    - **Length**: 35
+  - **Eigenverbrauch_Wh_pro_Stunde**: An array of floats representing the simulated self-consumption in watt-hours per hour.
+    - **Type**: Array
+    - **Element Type**: Float
+    - **Length**: 35
+  - **Einnahmen_Euro_pro_Stunde**: An array of floats representing the simulated income in euros per hour.
+    - **Type**: Array
+    - **Element Type**: Float
+    - **Length**: 35
+  - **Gesamt_Verluste**: The total simulated losses in watt-hours.
+    - **Type**: Float
+  - **Gesamtbilanz_Euro**: The total simulated balance in euros.
+    - **Type**: Float
+  - **Gesamteinnahmen_Euro**: The total simulated income in euros.
+    - **Type**: Float
+  - **Gesamtkosten_Euro**: The total simulated costs in euros.
+    - **Type**: Float
+  - **Haushaltsgeraet_wh_pro_stunde**: An array of floats representing the simulated energy consumption of a household appliance in watt-hours per hour.
+    - **Type**: Array
+    - **Element Type**: Float
+    - **Length**: 35
+  - **Kosten_Euro_pro_Stunde**: An array of floats representing the simulated costs in euros per hour.
+    - **Type**: Array
+    - **Element Type**: Float
+    - **Length**: 35
+  - **Netzbezug_Wh_pro_Stunde**: An array of floats representing the simulated grid consumption in watt-hours per hour.
+    - **Type**: Array
+    - **Element Type**: Float
+    - **Length**: 35
+  - **Netzeinspeisung_Wh_pro_Stunde**: An array of floats representing the simulated grid feed-in in watt-hours per hour.
+    - **Type**: Array
+    - **Element Type**: Float
+    - **Length**: 35
+  - **Verluste_Pro_Stunde**: An array of floats representing the simulated losses per hour.
+    - **Type**: Array
+    - **Element Type**: Float
+    - **Length**: 35
+  - **akku_soc_pro_stunde**: An array of floats representing the simulated state of charge of the battery in percentage per hour.
+    - **Type**: Array
+    - **Element Type**: Float
+    - **Length**: 35
+
+### spuelstart
+- **Description**: Can be `null` or contain an object representing the start of washing (if applicable).
+- **Type**: null or object
+
+### start_solution
+- **Description**: An array of binary values (0 or 1) representing a possible starting solution for the simulation.
+- **Type**: Array
+- **Element Type**: Integer (0 or 1)
+- **Length**: 48
