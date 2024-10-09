@@ -3,14 +3,14 @@
 import os
 from datetime import datetime
 from typing import Any, TypeGuard
-
+import json
 import matplotlib
 
 # Sets the Matplotlib backend to 'Agg' for rendering plots in environments without a display
 matplotlib.use("Agg")
 
 import pandas as pd
-from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
+from flask import Flask, jsonify, redirect, request, send_from_directory, url_for, Response
 
 from akkudoktoreos.class_load import LoadForecast
 from akkudoktoreos.class_load_container import Gesamtlast
@@ -252,7 +252,9 @@ def flask_optimize():
         if "min_soc_prozent" not in parameter:
             parameter["min_soc_prozent"] = None
 
-        return jsonify(result)  # Return optimization results as JSON
+        # convert to JSON (None accepted by dumps)
+        json_data = json.dumps(result)
+        return Response(json_data, mimetype='application/json')
 
 
 @app.route("/visualisierungsergebnisse.pdf")

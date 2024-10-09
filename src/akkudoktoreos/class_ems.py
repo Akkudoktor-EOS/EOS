@@ -142,7 +142,13 @@ class EnergieManagementSystem:
         keys_to_modify = [
             "Last_Wh_pro_Stunde",
             "Netzeinspeisung_Wh_pro_Stunde",
+            "akku_soc_pro_stunde",
             "Netzbezug_Wh_pro_Stunde",
+            "Kosten_Euro_pro_Stunde",
+            "Einnahmen_Euro_pro_Stunde",
+            "E-Auto_SoC_pro_Stunde",
+            "Verluste_Pro_Stunde",
+            "Haushaltsgeraet_wh_pro_stunde"
         ]
 
         # Loop through each key in the list
