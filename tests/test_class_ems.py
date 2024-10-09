@@ -279,16 +279,16 @@ def test_simulation(create_ems_instance):
     ), "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
 
     # Verify that the value at index 0 is 'None'
-    assert (
-        np.isnan(result["Last_Wh_pro_Stunde"][0])
+    assert np.isnan(
+        result["Last_Wh_pro_Stunde"][0]
     ), "The value at index 0 of 'Last_Wh_pro_Stunde' should be None."
 
     # Check that 'Netzeinspeisung_Wh_pro_Stunde' and 'Netzbezug_Wh_pro_Stunde' are consistent
-    assert (
-       np.isnan(result["Netzeinspeisung_Wh_pro_Stunde"][0])
+    assert np.isnan(
+        result["Netzeinspeisung_Wh_pro_Stunde"][0]
     ), "The value at index 0 of 'Netzeinspeisung_Wh_pro_Stunde' should be None."
-    assert (
-        np.isnan(result["Netzbezug_Wh_pro_Stunde"][0])
+    assert np.isnan(
+        result["Netzbezug_Wh_pro_Stunde"][0]
     ), "The value at index 0 of 'Netzbezug_Wh_pro_Stunde' should be None."
     assert (
         result["Netzbezug_Wh_pro_Stunde"][1] == 21679.13
