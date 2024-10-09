@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-from pprint import pprint
+import json
 
 # Import necessary modules from the project
-from modules.class_optimize import optimization_problem
+from akkudoktoreos.class_optimize import optimization_problem
 
 start_hour = 10
 
@@ -216,107 +216,7 @@ gesamtlast = [
 ]
 
 # Start Solution (binary)
-start_solution = [
-    1,
-    1,
-    1,
-    1,
-    0,
-    1,
-    0,
-    0,
-    1,
-    1,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-    0,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    0,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-    1,
-]
+start_solution = None
 
 # Define parameters for the optimization problem
 parameter = {
@@ -341,7 +241,7 @@ parameter = {
     # Electricity price forecast (48 hours)
     "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
     # Minimum SOC for electric car
-    "eauto_min_soc": 1000,
+    "eauto_min_soc": 80,
     # Electric car battery capacity (Wh)
     "eauto_cap": 60000,
     # Charging efficiency of the electric car
@@ -371,4 +271,7 @@ opt_class = optimization_problem(
 ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)
 
 # Print or visualize the result
-pprint(ergebnis)
+# pprint(ergebnis)
+
+json_data = json.dumps(ergebnis)
+print(json_data)
