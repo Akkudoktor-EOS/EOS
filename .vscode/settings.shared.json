@@ -1,0 +1,10 @@
+{
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.defaultFoldingRangeProvider": "charliermarsh.ruff",
+  "editor.formatOnSave": true,
+  "python.analysis.autoImportCompletions": true,
+  "mypy-type-checker.importStrategy": "fromEnvironment"
+}
