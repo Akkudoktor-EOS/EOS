@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from akkudoktoreos.class_optimize import optimization_problem
+from akkudoktoreos.config import load_config
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 
@@ -19,9 +20,8 @@ def test_optimize(fn_in, fn_out):
     with open(DIR_TESTDATA / fn_out, "r") as f_out:
         expected_output_data = json.load(f_out)
 
-    opt_class = optimization_problem(
-        prediction_hours=48, strafe=10, optimization_hours=24, fixed_seed=42
-    )
+    config = load_config()
+    opt_class = optimization_problem(config, fixed_seed=42)
     start_hour = 10
 
     # Call the optimization function

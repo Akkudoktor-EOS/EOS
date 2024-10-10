@@ -8,25 +8,23 @@ from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter
-from akkudoktoreos.config import moegliche_ladestroeme_in_prozent
+from akkudoktoreos.config import AppConfig
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
 class optimization_problem:
     def __init__(
         self,
-        prediction_hours: int = 48,
-        strafe: float = 10,
-        optimization_hours: int = 24,
+        config: AppConfig,
         verbose: bool = False,
         fixed_seed: Optional[int] = None,
     ):
         """Initialize the optimization problem with the required parameters."""
-        self.prediction_hours = prediction_hours
-        self.strafe = strafe
+        self.prediction_hours = config.prediction_hours
+        self.strafe = config.strafe
         self.opti_param = None
-        self.fixed_eauto_hours = prediction_hours - optimization_hours
-        self.possible_charge_values = moegliche_ladestroeme_in_prozent
+        self.fixed_eauto_hours = config.prediction_hours - config.optimization_hours
+        self.possible_charge_values = config.possible_charge_values
         self.verbose = verbose
         self.fix_seed = fixed_seed
 
@@ -145,7 +143,7 @@ class optimization_problem:
         discharge_hours_bin, eautocharge_hours_float, _ = self.split_individual(
             individual
         )
-        max_ladeleistung = np.max(moegliche_ladestroeme_in_prozent)
+        max_ladeleistung = np.max(self.possible_charge_values)
 
         # Penalty for not discharging
         gesamtbilanz += sum(
