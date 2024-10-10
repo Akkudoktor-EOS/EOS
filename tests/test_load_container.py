@@ -1,5 +1,6 @@
 import pytest
-from your_module import (
+
+from akkudoktoreos.class_load_container import (
     TotalLoad,  # Adjust the import statement based on where your class is defined
 )
 
