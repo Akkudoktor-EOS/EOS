@@ -133,6 +133,7 @@ class TestTotalLoad:
             22.0,
             23.0,
             24.0,
+            25.0,
         ]
 
     def test_add_load_invalid_type(self):
