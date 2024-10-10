@@ -6,9 +6,6 @@
 import sys
 from pathlib import Path
 
-# Make source file directories available to sphinx
-sys.path.insert(0, str(Path("..", "src").resolve()))
-
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
@@ -46,3 +43,21 @@ html_theme_options = {
     "logo_only": False,
     "titles_only": True,
 }
+
+
+# -- Options for autodoc -------------------------------------------------
+# https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html
+
+# Make source file directories available to sphinx
+sys.path.insert(0, str(Path("..", "src").resolve()))
+
+autodoc_default_options = {
+    "members": "var1, var2",
+    "member-order": "bysource",
+    "special-members": "__init__",
+    "undoc-members": True,
+    "exclude-members": "__weakref__",
+}
+
+# -- Options for autosummary -------------------------------------------------
+autosummary_generate = True
