@@ -65,18 +65,12 @@ class LoadPredictionAdjuster:
 
         # Localize time to UTC and then convert to Berlin time
         if self.measured_data["time"].dt.tz is None:
-            self.measured_data["time"] = self.measured_data["time"].dt.tz_localize(
-                "UTC"
-            )
+            self.measured_data["time"] = self.measured_data["time"].dt.tz_localize("UTC")
 
         self.predicted_data["time"] = (
-            self.predicted_data["time"]
-            .dt.tz_localize("UTC")
-            .dt.tz_convert("Europe/Berlin")
+            self.predicted_data["time"].dt.tz_localize("UTC").dt.tz_convert("Europe/Berlin")
         )
-        self.measured_data["time"] = self.measured_data["time"].dt.tz_convert(
-            "Europe/Berlin"
-        )
+        self.measured_data["time"] = self.measured_data["time"].dt.tz_convert("Europe/Berlin")
 
         # Remove timezone information (optional for local work)
         self.predicted_data["time"] = self.predicted_data["time"].dt.tz_localize(None)
@@ -113,9 +107,7 @@ class LoadPredictionAdjuster:
 
         test_start_date = train_end_date + pd.Timedelta(hours=1)
         test_end_date = (
-            test_start_date
-            + pd.Timedelta(weeks=test_period_weeks)
-            - pd.Timedelta(hours=1)
+            test_start_date + pd.Timedelta(weeks=test_period_weeks) - pd.Timedelta(hours=1)
         )
 
         # Split merged data into training and testing datasets
@@ -204,9 +196,7 @@ class LoadPredictionAdjuster:
             data_type (str): Label to identify whether it's training or testing data.
         """
         plt.figure(figsize=(14, 7))
-        plt.plot(
-            data["time"], data["Last"], label=f"Actual Last - {data_type}", color="blue"
-        )
+        plt.plot(data["time"], data["Last"], label=f"Actual Last - {data_type}", color="blue")
         plt.plot(
             data["time"],
             data["Last Pred"],
