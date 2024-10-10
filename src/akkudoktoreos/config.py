@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 
+output_dir = "output"
+
 prediction_hours = 48
 optimization_hours = 24
 strafe = 10

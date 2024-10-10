@@ -1,8 +1,8 @@
-build==1.2.2.post1
+-r requirements.txt
 myst-parser==4.0.0
 sphinx==8.0.2
 sphinx_rtd_theme==3.0.1
 pytest==8.3.3
+pytest-cov==5.0.0
 pytest-xprocess==1.0.2
-requests==2.32.3
 pre-commit

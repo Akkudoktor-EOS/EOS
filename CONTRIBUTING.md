@@ -24,7 +24,7 @@ To make collaboration easier, we require pull requests to pass code style and un
 Our code style checks use [`pre-commit`](https://pre-commit.com).
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 To run formatting automatically before every commit:
@@ -36,7 +36,7 @@ pre-commit install
 Or run them manually:
 
 ```bash
-pre-commit --all
+pre-commit run --all-files
 ```
 
 ### Tests
