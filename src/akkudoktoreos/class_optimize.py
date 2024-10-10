@@ -44,9 +44,7 @@ class optimization_problem:
         3. Dishwasher start time (integer if applicable).
         """
         discharge_hours_bin = individual[: self.prediction_hours]
-        eautocharge_hours_float = individual[
-            self.prediction_hours : self.prediction_hours * 2
-        ]
+        eautocharge_hours_float = individual[self.prediction_hours : self.prediction_hours * 2]
         spuelstart_int = (
             individual[-1]
             if self.opti_param and self.opti_param.get("haushaltsgeraete", 0) > 0
@@ -54,9 +52,7 @@ class optimization_problem:
         )
         return discharge_hours_bin, eautocharge_hours_float, spuelstart_int
 
-    def setup_deap_environment(
-        self, opti_param: Dict[str, Any], start_hour: int
-    ) -> None:
+    def setup_deap_environment(self, opti_param: Dict[str, Any], start_hour: int) -> None:
         """
         Set up the DEAP environment with fitness and individual creation rules.
         """
@@ -97,9 +93,7 @@ class optimization_problem:
             )
 
         # Register population, mating, mutation, and selection functions
-        self.toolbox.register(
-            "population", tools.initRepeat, list, self.toolbox.individual
-        )
+        self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
         self.toolbox.register("mate", tools.cxTwoPoint)
         self.toolbox.register("mutate", tools.mutFlipBit, indpb=0.1)
         self.toolbox.register("select", tools.selTournament, tournsize=3)
@@ -112,8 +106,8 @@ class optimization_problem:
         using the provided individual solution.
         """
         ems.reset()
-        discharge_hours_bin, eautocharge_hours_float, spuelstart_int = (
-            self.split_individual(individual)
+        discharge_hours_bin, eautocharge_hours_float, spuelstart_int = self.split_individual(
+            individual
         )
         if self.opti_param.get("haushaltsgeraete", 0) > 0:
             ems.set_haushaltsgeraet_start(spuelstart_int, global_start_hour=start_hour)
@@ -142,9 +136,7 @@ class optimization_problem:
             return (100000.0,)  # Return a high penalty in case of an exception
 
         gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
-        discharge_hours_bin, eautocharge_hours_float, _ = self.split_individual(
-            individual
-        )
+        discharge_hours_bin, eautocharge_hours_float, _ = self.split_individual(individual)
         max_ladeleistung = np.max(moegliche_ladestroeme_in_prozent)
 
         # Penalty for not discharging
@@ -155,9 +147,7 @@ class optimization_problem:
         # Penalty for charging the electric vehicle during restricted hours
         gesamtbilanz += sum(
             self.strafe
-            for i in range(
-                self.prediction_hours - self.fixed_eauto_hours, self.prediction_hours
-            )
+            for i in range(self.prediction_hours - self.fixed_eauto_hours, self.prediction_hours)
             if eautocharge_hours_float[i] != 0.0
         )
 
@@ -171,9 +161,7 @@ class optimization_problem:
         # Penalty for not meeting the minimum SOC (State of Charge) requirement
         if parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent() <= 0.0:
             gesamtbilanz += sum(
-                self.strafe
-                for ladeleistung in eautocharge_hours_float
-                if ladeleistung != 0.0
+                self.strafe for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
             )
 
         individual.extra_data = (
@@ -183,14 +171,11 @@ class optimization_problem:
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
-        restwert_akku = (
-            ems.akku.aktueller_energieinhalt() * parameter["preis_euro_pro_wh_akku"]
-        )
+        restwert_akku = ems.akku.aktueller_energieinhalt() * parameter["preis_euro_pro_wh_akku"]
         gesamtbilanz += (
             max(
                 0,
-                (parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent())
-                * self.strafe,
+                (parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent()) * self.strafe,
             )
             - restwert_akku
         )
@@ -298,21 +283,17 @@ class optimization_problem:
         )
 
         # Setup the DEAP environment and optimization process
-        self.setup_deap_environment(
-            {"haushaltsgeraete": 1 if spuelmaschine else 0}, start_hour
-        )
+        self.setup_deap_environment({"haushaltsgeraete": 1 if spuelmaschine else 0}, start_hour)
         self.toolbox.register(
             "evaluate",
             lambda ind: self.evaluate(ind, ems, parameter, start_hour, worst_case),
         )
-        start_solution, extra_data = self.optimize(
-            parameter["start_solution"], ngen=ngen
-        )
+        start_solution, extra_data = self.optimize(parameter["start_solution"], ngen=ngen)
 
         # Perform final evaluation on the best solution
         o = self.evaluate_inner(start_solution, ems, start_hour)
-        discharge_hours_bin, eautocharge_hours_float, spuelstart_int = (
-            self.split_individual(start_solution)
+        discharge_hours_bin, eautocharge_hours_float, spuelstart_int = self.split_individual(
+            start_solution
         )
 
         # Visualize the results
@@ -352,8 +333,7 @@ class optimization_problem:
             element_list[0] = None
             # Change the NaN to None (JSON)
             element_list = [
-                None if isinstance(x, (int, float)) and np.isnan(x) else x
-                for x in element_list
+                None if isinstance(x, (int, float)) and np.isnan(x) else x for x in element_list
             ]
 
             # Assign the modified list back to the dictionary
