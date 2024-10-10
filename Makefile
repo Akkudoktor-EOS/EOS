@@ -12,7 +12,7 @@ help:
 	@echo "  pip-dev    - Install dependencies from requirements-dev.txt."
 	@echo "  install    - Install EOS in editable form (development mode) into virtual environment."
 	@echo "  docker-run - Run entire setup on docker
-	@echo "  docs       - Generate HTML documentation using pdoc."
+	@echo "  docs       - Generate HTML documentation (in build/docs/html/)."
 	@echo "  run        - Run flask_server in the virtual environment (needs install before)."
 	@echo "  dist       - Create distribution (in dist/)."
 	@echo "  clean      - Remove generated documentation, distribution and virtual environment."
@@ -46,13 +46,13 @@ dist: pip
 	@echo "Distribution created (see dist/)."
 
 # Target to generate HTML documentation
-docs: pip
-	pdoc --html --force modules -o docs
+docs: pip-dev
+	.venv/bin/sphinx-build -M html docs build/docs
+	@echo "Documentation generated to build/docs/html/."
 
 # Clean target to remove generated documentation, distribution and virtual environment
 clean:
 	@echo "Cleaning virtual env, distribution and documentation directories"
-	rm -rf docs
 	rm -rf dist
 	rm -rf .venv
 
