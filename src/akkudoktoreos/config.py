@@ -4,7 +4,9 @@ from pathlib import Path
 import shutil
 from typing import Any, Optional
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, DirectoryPath, Field, ValidationError
+import pydantic_argparse
+
 
 ENCODING = "UTF-8"
 CONFIG_FILE_NAME = "EOS.config.json"
@@ -89,20 +91,22 @@ def get_config_file(config_path: Optional[Path]) -> Path:
     return DEFAULT_CONFIG_FILE
 
 
-def _merge_and_update(custom_config: Path, update_outdated: bool = False) -> None:
+def _merge_and_update(custom_config: Path, update_outdated: bool = False) -> bool:
     if custom_config == DEFAULT_CONFIG_FILE:
-        return
+        return False
     default_data = _load_json(DEFAULT_CONFIG_FILE)
     custom_data = _load_json(custom_config)
     merged_data = _merge_json(default_data, custom_data)
 
     if not _config_update_available(merged_data, custom_data):
         print(f"Custom config {custom_config} is up-to-date...")
-        return
+        return False
     print(f"Custom config {custom_config} is outdated...")
     if update_outdated:
         with custom_config.open("w") as f_out:
             json.dump(merged_data, f_out, indent=2)
+        return True
+    return False
 
 
 def load_config(
@@ -114,7 +118,7 @@ def load_config(
 
     with config.open("r", encoding=ENCODING) as f_in:
         try:
-            return AppConfig.model_validate(json.load(f_in))
+            return AppConfig.validate(json.load(f_in))
         except ValidationError as exc:
             raise ValueError(
                 f"Configuration {config} is incomplete or not valid: {exc}"
@@ -136,3 +140,53 @@ def get_start_enddate(
         date = (startdate + timedelta(hours=prediction_hours)).strftime("%Y-%m-%d")
         date_now = startdate.strftime("%Y-%m-%d")
     return date_now, date
+
+
+_PATH_DESCRIPTION = "Custom configuration directory."
+
+
+class _CreateCommand(BaseModel):
+    path: DirectoryPath = Field(description=_PATH_DESCRIPTION)
+
+
+class _UpdateCommand(BaseModel):
+    path: DirectoryPath = Field(description=_PATH_DESCRIPTION)
+
+
+class _ConfigArgs(BaseModel):
+    create: Optional[_CreateCommand] = Field(
+        description=f"Create a new {CONFIG_FILE_NAME} in the provided path."
+    )
+    update: Optional[_UpdateCommand] = Field(
+        description=f"Update the {CONFIG_FILE_NAME} in the provided path."
+    )
+
+
+def main() -> None:
+    # Update to pydantic v2 when possible
+    # https://github.com/SupImDos/pydantic-argparse/issues/56
+    parser = pydantic_argparse.ArgumentParser(
+        _ConfigArgs, "Configuration", "Manage configuration file for the EOS."
+    )
+    args = parser.parse_typed_args()
+
+    if args.create is not None:
+        print(f"Given path: {args.create.path}")
+        config_file = Path(args.create.path).joinpath(CONFIG_FILE_NAME)
+        if config_file.is_file():
+            print(f"{config_file} already exists.")
+            return
+        print(f"Creating {config_file}")
+        shutil.copy2(DEFAULT_CONFIG_FILE, config_file)
+    elif args.update is not None:
+        print(f"Given path: {args.update.path}")
+        config_file = Path(args.update.path).joinpath(CONFIG_FILE_NAME)
+        if not config_file.is_file():
+            get_config_file(args.update.path)
+            return
+        if _merge_and_update(config_file, True):
+            print(f"{config_file} updated...")
+
+
+if __name__ == "__main__":
+    main()
