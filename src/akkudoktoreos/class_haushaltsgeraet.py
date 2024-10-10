@@ -4,9 +4,7 @@ import numpy as np
 class Haushaltsgeraet:
     def __init__(self, hours=None, verbrauch_wh=None, dauer_h=None):
         self.hours = hours  # Total duration for which the planning is done
-        self.verbrauch_wh = (
-            verbrauch_wh  # Total energy consumption of the device in kWh
-        )
+        self.verbrauch_wh = verbrauch_wh  # Total energy consumption of the device in kWh
         self.dauer_h = dauer_h  # Duration of use in hours
         self.lastkurve = np.zeros(self.hours)  # Initialize the load curve with zeros
 

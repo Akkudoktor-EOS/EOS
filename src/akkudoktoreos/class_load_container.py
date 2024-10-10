@@ -14,9 +14,7 @@ class Gesamtlast:
         :param last_array: Array of loads, where each entry corresponds to an hour
         """
         if len(last_array) != self.prediction_hours:
-            raise ValueError(
-                f"Total load inconsistent lengths in arrays: {name} {len(last_array)}"
-            )
+            raise ValueError(f"Total load inconsistent lengths in arrays: {name} {len(last_array)}")
         self.lasten[name] = last_array
 
     def gesamtlast_berechnen(self):

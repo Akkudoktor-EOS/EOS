@@ -11,9 +11,7 @@ import requests
 def repeat_to_shape(array, target_shape):
     # Check if the array fits the target shape
     if len(target_shape) != array.ndim:
-        raise ValueError(
-            "Array and target shape must have the same number of dimensions"
-        )
+        raise ValueError("Array and target shape must have the same number of dimensions")
 
     # Number of repetitions per dimension
     repeats = tuple(target_shape[i] // array.shape[i] for i in range(array.ndim))
@@ -24,9 +22,7 @@ def repeat_to_shape(array, target_shape):
 
 
 class HourlyElectricityPriceForecast:
-    def __init__(
-        self, source, cache_dir="cache", charges=0.000228, prediction_hours=24
-    ):  # 228
+    def __init__(self, source, cache_dir="cache", charges=0.000228, prediction_hours=24):  # 228
         self.cache_dir = cache_dir
         os.makedirs(self.cache_dir, exist_ok=True)
         self.cache_time_file = os.path.join(self.cache_dir, "cache_timestamp.txt")
@@ -107,12 +103,8 @@ class HourlyElectricityPriceForecast:
         """Returns all prices between the start and end dates."""
         print(start_date_str)
         print(end_date_str)
-        start_date_utc = datetime.strptime(start_date_str, "%Y-%m-%d").replace(
-            tzinfo=timezone.utc
-        )
-        end_date_utc = datetime.strptime(end_date_str, "%Y-%m-%d").replace(
-            tzinfo=timezone.utc
-        )
+        start_date_utc = datetime.strptime(start_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        end_date_utc = datetime.strptime(end_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         start_date = start_date_utc.astimezone(zoneinfo.ZoneInfo("Europe/Berlin"))
         end_date = end_date_utc.astimezone(zoneinfo.ZoneInfo("Europe/Berlin"))
 
