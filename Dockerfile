@@ -22,4 +22,4 @@ RUN DEBIAN_FRONTEND=noninteractive \
 
 ENTRYPOINT []
 
-CMD ["python", "-m", "akkudoktoreos.flask_server"]
+CMD ["python", "-m", "akkudoktoreosserver.fastapi_server"]

@@ -2,24 +2,41 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+from pydantic import BaseModel, conlist
+
+from akkudoktoreos.class_akku import PVAkku
+from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
+from akkudoktoreos.class_inverter import Wechselrichter
+from akkudoktoreos.config import prediction_hours
+
+
+class EnergieManagementSystemParameters(BaseModel):
+    pv_prognose_wh: conlist(
+        float, min_length=prediction_hours, max_length=prediction_hours
+    )
+    strompreis_euro_pro_wh: conlist(
+        float, min_length=prediction_hours, max_length=prediction_hours
+    )
+    einspeiseverguetung_euro_pro_wh: float
+    preis_euro_pro_wh_akku: float
+    gesamtlast: conlist(float, min_length=prediction_hours, max_length=prediction_hours)
 
 
 class EnergieManagementSystem:
     def __init__(
         self,
-        pv_prognose_wh: Optional[np.ndarray] = None,
-        strompreis_euro_pro_wh: Optional[np.ndarray] = None,
-        einspeiseverguetung_euro_pro_wh: Optional[np.ndarray] = None,
-        eauto: Optional[object] = None,
-        gesamtlast: Optional[np.ndarray] = None,
-        haushaltsgeraet: Optional[object] = None,
-        wechselrichter: Optional[object] = None,
+        parameters: EnergieManagementSystemParameters,
+        eauto: Optional[PVAkku] = None,
+        haushaltsgeraet: Optional[Haushaltsgeraet] = None,
+        wechselrichter: Optional[Wechselrichter] = None,
     ):
         self.akku = wechselrichter.akku
-        self.gesamtlast = gesamtlast
-        self.pv_prognose_wh = pv_prognose_wh
-        self.strompreis_euro_pro_wh = strompreis_euro_pro_wh
-        self.einspeiseverguetung_euro_pro_wh = einspeiseverguetung_euro_pro_wh
+        self.gesamtlast = np.array(parameters.gesamtlast, float)
+        self.pv_prognose_wh = np.array(parameters.pv_prognose_wh, float)
+        self.strompreis_euro_pro_wh = np.array(parameters.strompreis_euro_pro_wh, float)
+        self.einspeiseverguetung_euro_pro_wh_arr = np.full(
+            len(self.gesamtlast), parameters.einspeiseverguetung_euro_pro_wh, float
+        )
         self.eauto = eauto
         self.haushaltsgeraet = haushaltsgeraet
         self.wechselrichter = wechselrichter
@@ -110,7 +127,7 @@ class EnergieManagementSystem:
                 netzbezug * self.strompreis_euro_pro_wh[stunde]
             )
             einnahmen_euro_pro_stunde[stunde_since_now] = (
-                netzeinspeisung * self.einspeiseverguetung_euro_pro_wh[stunde]
+                netzeinspeisung * self.einspeiseverguetung_euro_pro_wh_arr[stunde]
             )
 
             # Akku SOC tracking
