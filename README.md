@@ -65,10 +65,10 @@ source .venv/bin/activate
 ## Usage
 
 Adjust `config.py`.
-To use the system, run `flask_server.py`, which starts the server:
+To use the system, run `fastapi_server.py`, which starts the server:
 
 ```bash
-./flask_server.py
+./fastapi_server.py
 ```
 
 ## Classes and Functionalities
