@@ -1,16 +1,17 @@
 ..
+<<<<<<< HEAD
     SPDX-License-Identifier: Apache-2.0
 
 .. _akkudoktoreos_api:
 
-API
-###
+=======
+Akkudoktor EOS API
+==================
 
-For a more detailed documentation see the Swagger interface: `EOS OpenAPI Spec <https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json>`_
+.. autosummary::
+   :toctree: _autosummary
+   :template: autosummary/module.rst
+   :recursive:
 
-.. openapi:: ../../openapi.json
-   :examples:
-
-..
-    Due to bugs in sphinxcontrib-openapi referenced request/response objects fail to render and anyOf is broken too.
-    :request:
+   akkudoktoreos
+   akkudoktoreosserver
