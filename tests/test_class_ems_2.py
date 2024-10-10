@@ -1,10 +1,16 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.class_akku import PVAkku
-from akkudoktoreos.class_ems import EnergieManagementSystem
-from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
-from akkudoktoreos.class_inverter import Wechselrichter
+from akkudoktoreos.class_akku import EAutoParameters, PVAkku, PVAkkuParameters
+from akkudoktoreos.class_ems import (
+    EnergieManagementSystem,
+    EnergieManagementSystemParameters,
+)
+from akkudoktoreos.class_haushaltsgeraet import (
+    Haushaltsgeraet,
+    HaushaltsgeraetParameters,
+)
+from akkudoktoreos.class_inverter import Wechselrichter, WechselrichterParameters
 from akkudoktoreos.config import AppConfig
 
 prediction_hours = 48
@@ -17,20 +23,28 @@ start_hour = 0
 def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
     """Fixture to create an EnergieManagementSystem instance with given test parameters."""
     # Initialize the battery and the inverter
-    akku = PVAkku(kapazitaet_wh=5000, start_soc_prozent=80, hours=48, min_soc_prozent=10)
+    akku = PVAkku(
+        PVAkkuParameters(kapazitaet_wh=5000, start_soc_prozent=80, min_soc_prozent=10),
+        hours=prediction_hours,
+    )
     akku.reset()
-    wechselrichter = Wechselrichter(10000, akku)
+    wechselrichter = Wechselrichter(WechselrichterParameters(max_leistung_wh=10000), akku)
 
     # Household device (currently not used, set to None)
     home_appliance = Haushaltsgeraet(
+        HaushaltsgeraetParameters(
+            verbrauch_wh=2000,
+            dauer_h=2,
+        ),
         hours=prediction_hours,
-        verbrauch_wh=2000,
-        dauer_h=2,
     )
     home_appliance.set_startzeitpunkt(2)
 
     # Example initialization of electric car battery
-    eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=100, hours=48, min_soc_prozent=100)
+    eauto = PVAkku(
+        EAutoParameters(kapazitaet_wh=26400, start_soc_prozent=100, min_soc_prozent=100),
+        hours=prediction_hours,
+    )
 
     # Parameters based on previous example data
     pv_prognose_wh = np.full(prediction_hours, 0)
@@ -97,12 +111,15 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
 
     # Initialize the energy management system with the respective parameters
     ems = EnergieManagementSystem(
-        config=tmp_config.eos,
-        pv_prognose_wh=pv_prognose_wh,
-        strompreis_euro_pro_wh=strompreis_euro_pro_wh,
-        einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
+        tmp_config.eos,
+        EnergieManagementSystemParameters(
+            pv_prognose_wh=pv_prognose_wh,
+            strompreis_euro_pro_wh=strompreis_euro_pro_wh,
+            einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
+            preis_euro_pro_wh_akku=0,
+            gesamtlast=gesamtlast,
+        ),
         eauto=eauto,
-        gesamtlast=gesamtlast,
         haushaltsgeraet=home_appliance,
         wechselrichter=wechselrichter,
     )

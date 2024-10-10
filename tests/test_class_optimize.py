@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from akkudoktoreos.class_optimize import optimization_problem
+from akkudoktoreos.class_optimize import OptimizationParameters, optimization_problem
 from akkudoktoreos.config import AppConfig
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
@@ -46,7 +46,7 @@ def test_optimize(
     # Load input and output data
     file = DIR_TESTDATA / fn_in
     with file.open("r") as f_in:
-        input_data = json.load(f_in)
+        input_data = OptimizationParameters(**json.load(f_in))
 
     file = DIR_TESTDATA / fn_out
     with file.open("r") as f_out:
@@ -59,11 +59,9 @@ def test_optimize(
         pytest.skip()
 
     # Call the optimization function
-    ergebnis = opt_class.optimierung_ems(parameter=input_data, start_hour=start_hour, ngen=ngen)
+    ergebnis = opt_class.optimierung_ems(parameters=input_data, start_hour=start_hour, ngen=ngen)
     # with open(f"new_{fn_out}", "w") as f_out:
-    #     from akkudoktoreos.class_numpy_encoder import NumpyEncoder
-    #     json_data_str = NumpyEncoder.dumps(ergebnis)
-    #     json.dump(json.loads(json_data_str), f_out, indent=4)
+    #     json.dump(ergebnis, f_out, indent=4)
 
     # Assert that the output contains all expected entries.
     # This does not assert that the optimization always gives the same result!

@@ -65,12 +65,12 @@ def server(xprocess, tmp_path: Path):
             )
 
         # command to start server process
-        args = [sys.executable, "-m", "akkudoktoreosserver.flask_server"]
+        args = [sys.executable, "-m", "akkudoktoreosserver.fastapi_server"]
         env = {EOS_DIR: f"{tmp_path}", **os.environ.copy()}
 
         # startup pattern
-        pattern = "Debugger PIN:"
-        # search the first 30 lines for the startup pattern, if not found
+        pattern = "Application startup complete."
+        # search the first 12 lines for the startup pattern, if not found
         # a RuntimeError will be raised informing the user
         max_read_lines = 30
 
