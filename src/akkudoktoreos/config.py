@@ -12,9 +12,7 @@ DEFAULT_CONFIG_FILE = Path(__file__).parent.joinpath("default.config.json")
 
 
 class AppConfig(BaseModel):
-    """
-    The base configuration.
-    """
+    "The base configuration."
 
     prediction_hours: int
     optimization_hours: int
@@ -65,6 +63,7 @@ def _config_update_available(
 
 
 def get_config_file(config_path: Optional[Path]) -> Path:
+    "Get the valid config file path."
     if config_path is None:
         print("No config path defined. Using default config...")
     else:
@@ -90,7 +89,7 @@ def get_config_file(config_path: Optional[Path]) -> Path:
     return DEFAULT_CONFIG_FILE
 
 
-def merge_and_update(custom_config: Path, update_outdated: bool = False) -> None:
+def _merge_and_update(custom_config: Path, update_outdated: bool = False) -> None:
     if custom_config == DEFAULT_CONFIG_FILE:
         return
     default_data = _load_json(DEFAULT_CONFIG_FILE)
@@ -111,7 +110,7 @@ def load_config(
 ) -> AppConfig:
     "Load AppConfig from provided path or default"
     config = get_config_file(config_path)
-    merge_and_update(config, update_outdated)
+    _merge_and_update(config, update_outdated)
 
     with config.open("r", encoding=ENCODING) as f_in:
         try:
