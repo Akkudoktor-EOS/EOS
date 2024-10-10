@@ -20,9 +20,7 @@ class TestPVAkku(unittest.TestCase):
             min_soc_prozent=self.min_soc_prozent,
             max_soc_prozent=self.max_soc_prozent,
         )
-        self.assertEqual(
-            akku.ladezustand_in_prozent(), 50.0, "Initial SoC should be 50%"
-        )
+        self.assertEqual(akku.ladezustand_in_prozent(), 50.0, "Initial SoC should be 50%")
 
     def test_discharge_below_min_soc(self):
         akku = PVAkku(
@@ -34,18 +32,14 @@ class TestPVAkku(unittest.TestCase):
         )
         akku.reset()
         # Try to discharge more energy than available above min_soc
-        abgegeben_wh, verlust_wh = akku.energie_abgeben(
-            5000, 0
-        )  # Try to discharge 5000 Wh
+        abgegeben_wh, verlust_wh = akku.energie_abgeben(5000, 0)  # Try to discharge 5000 Wh
         expected_soc = self.min_soc_prozent  # SoC should not drop below min_soc
         self.assertEqual(
             akku.ladezustand_in_prozent(),
             expected_soc,
             "SoC should not drop below min_soc after discharge",
         )
-        self.assertEqual(
-            abgegeben_wh, 2640.0, "The energy discharged should be limited by min_soc"
-        )
+        self.assertEqual(abgegeben_wh, 2640.0, "The energy discharged should be limited by min_soc")
 
     def test_charge_above_max_soc(self):
         akku = PVAkku(
@@ -64,9 +58,7 @@ class TestPVAkku(unittest.TestCase):
             expected_soc,
             "SoC should not exceed max_soc after charge",
         )
-        self.assertEqual(
-            geladen_wh, 3000.0, "The energy charged should be limited by max_soc"
-        )
+        self.assertEqual(geladen_wh, 3000.0, "The energy charged should be limited by max_soc")
 
     def test_charging_at_max_soc(self):
         akku = PVAkku(
@@ -97,9 +89,7 @@ class TestPVAkku(unittest.TestCase):
         akku.reset()
         # Try to discharge when SoC is already at min_soc
         abgegeben_wh, verlust_wh = akku.energie_abgeben(5000, 0)
-        self.assertEqual(
-            abgegeben_wh, 0.0, "No energy should be discharged when at min_soc"
-        )
+        self.assertEqual(abgegeben_wh, 0.0, "No energy should be discharged when at min_soc")
         self.assertEqual(
             akku.ladezustand_in_prozent(),
             self.min_soc_prozent,
