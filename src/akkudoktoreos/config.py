@@ -103,7 +103,7 @@ def merge_and_update(custom_config: Path, update_outdated: bool = False) -> None
     print(f"Custom config {custom_config} is outdated...")
     if update_outdated:
         with custom_config.open("w") as f_out:
-            json.dump(merged_data, f_out)
+            json.dump(merged_data, f_out, indent=2)
 
 
 def load_config(
