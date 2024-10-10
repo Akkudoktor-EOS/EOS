@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    //python
+    "ms-python.python",
+    "ms-python.debugpy",
+    "charliermarsh.ruff",
+    "ms-python.mypy-type-checker",
+
+    // misc
+    "swellaby.workspace-config-plus", // allows user and shared settings
+    "christian-kohler.path-intellisense",
+    "esbenp.prettier-vscode"
+  ]
+}
