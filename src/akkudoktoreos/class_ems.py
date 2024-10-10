@@ -3,6 +3,8 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np
 
+from akkudoktoreos.battery import Battery
+
 
 class EnergieManagementSystem:
     def __init__(
@@ -10,12 +12,12 @@ class EnergieManagementSystem:
         pv_prognose_wh: Optional[np.ndarray] = None,
         strompreis_euro_pro_wh: Optional[np.ndarray] = None,
         einspeiseverguetung_euro_pro_wh: Optional[np.ndarray] = None,
-        eauto: Optional[object] = None,
+        eauto: Optional[Battery] = None,
         gesamtlast: Optional[np.ndarray] = None,
         haushaltsgeraet: Optional[object] = None,
         wechselrichter: Optional[object] = None,
     ):
-        self.akku = wechselrichter.akku
+        self.akku: Battery = wechselrichter.akku
         self.gesamtlast = gesamtlast
         self.pv_prognose_wh = pv_prognose_wh
         self.strompreis_euro_pro_wh = strompreis_euro_pro_wh
@@ -69,9 +71,9 @@ class EnergieManagementSystem:
         haushaltsgeraet_wh_pro_stunde = np.full((total_hours), np.nan)
 
         # Set initial state
-        akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
+        akku_soc_pro_stunde[0] = self.akku.charge_state_percent()
         if self.eauto:
-            eauto_soc_pro_stunde[0] = self.eauto.ladezustand_in_prozent()
+            eauto_soc_pro_stunde[0] = self.eauto.charge_state_percent()
 
         for stunde in range(start_stunde + 1, ende):
             stunde_since_now = stunde - start_stunde
@@ -86,13 +88,11 @@ class EnergieManagementSystem:
 
             # E-Auto handling
             if self.eauto:
-                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(
-                    None, stunde
-                )
+                geladene_menge_eauto, verluste_eauto = self.eauto.charge(None, stunde)
                 verbrauch += geladene_menge_eauto
                 verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
                 eauto_soc_pro_stunde[stunde_since_now] = (
-                    self.eauto.ladezustand_in_prozent()
+                    self.eauto.charge_state_percent()
                 )
 
             # Process inverter logic
@@ -114,7 +114,7 @@ class EnergieManagementSystem:
             )
 
             # Akku SOC tracking
-            akku_soc_pro_stunde[stunde_since_now] = self.akku.ladezustand_in_prozent()
+            akku_soc_pro_stunde[stunde_since_now] = self.akku.charge_state_percent()
 
         # Total cost and return
         gesamtkosten_euro = np.nansum(kosten_euro_pro_stunde) - np.nansum(

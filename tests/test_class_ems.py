@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.class_akku import PVAkku
+from akkudoktoreos.battery import Battery
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter  # Example import
@@ -18,9 +18,7 @@ def create_ems_instance():
     Fixture to create an EnergieManagementSystem instance with given test parameters.
     """
     # Initialize the battery and the inverter
-    akku = PVAkku(
-        kapazitaet_wh=5000, start_soc_prozent=80, hours=48, min_soc_prozent=10
-    )
+    akku = Battery(capacity_wh=5000, start_soc_percent=80, hours=48, min_soc_percent=10)
     akku.reset()
     wechselrichter = Wechselrichter(10000, akku)
 
@@ -33,8 +31,8 @@ def create_ems_instance():
     home_appliance.set_startzeitpunkt(2)
 
     # Example initialization of electric car battery
-    eauto = PVAkku(
-        kapazitaet_wh=26400, start_soc_prozent=10, hours=48, min_soc_prozent=10
+    eauto = Battery(
+        capacity_wh=26400, start_soc_percent=10, hours=48, min_soc_percent=10
     )
 
     # Parameters based on previous example data
@@ -213,7 +211,6 @@ def test_simulation(create_ems_instance):
     ems = create_ems_instance
 
     # Simulate starting from hour 1 (this value can be adjusted)
-
     result = ems.simuliere(start_stunde=start_hour)
 
     # Assertions to validate results
