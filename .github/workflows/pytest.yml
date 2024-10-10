@@ -11,21 +11,11 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/checkout@v4
+      - name: Install Devbox
+        uses: jetpack-io/devbox-install-action@v0.11.0
         with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          sudo apt install -y libmariadb3 libmariadb-dev
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-
+          enable-cache: true
+          project-path: .github/workflows
       - name: Run Pytest
-        run: |
-          pip install -e .
-          python -m pytest -vs --cov modules --cov-report term-missing tests/
+        run: devbox run test-ci
