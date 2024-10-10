@@ -13,7 +13,7 @@ import pandas as pd
 from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
 
 from akkudoktoreos.class_load import LoadForecast
-from akkudoktoreos.class_load_container import Gesamtlast
+from akkudoktoreos.class_load_container import LoadAggregator
 from akkudoktoreos.class_load_corrector import LoadPredictionAdjuster
 from akkudoktoreos.class_optimize import optimization_problem
 from akkudoktoreos.class_pv_forecast import PVForecast
@@ -120,14 +120,13 @@ def flask_gesamtlast():
 
     # Extract household power predictions
     leistung_haushalt = future_predictions["Adjusted Pred"].values
-    gesamtlast = Gesamtlast(prediction_hours=prediction_hours)
-    gesamtlast.hinzufuegen(
+    gesamtlast = LoadAggregator(prediction_hours=prediction_hours)
+    gesamtlast.add_load(
         "Haushalt", leistung_haushalt
     )  # Add household load to total load calculation
 
     # Calculate the total load
-    last = gesamtlast.gesamtlast_berechnen()  # Compute total load
-    return jsonify(last.tolist())
+    return jsonify(gesamtlast.calculate_total_load())
 
 
 @app.route("/gesamtlast_simple", methods=["GET"])
@@ -155,10 +154,10 @@ def flask_gesamtlast_simple():
             0
         ]  # Get expected household load for the date range
 
-        gesamtlast = Gesamtlast(
+        gesamtlast = LoadAggregator(
             prediction_hours=prediction_hours
         )  # Create Gesamtlast instance
-        gesamtlast.hinzufuegen(
+        gesamtlast.add_load(
             "Haushalt", leistung_haushalt
         )  # Add household load to total load calculation
 
@@ -168,9 +167,9 @@ def flask_gesamtlast_simple():
         # leistung_wp = wp.simulate_24h(temperature_forecast)  # Simulate heat pump load for 24 hours
         # gesamtlast.hinzufuegen("Heatpump", leistung_wp)  # Add heat pump load to total load calculation
 
-        last = gesamtlast.gesamtlast_berechnen()  # Calculate total load
-        print(last)  # Output total load
-        return jsonify(last.tolist())  # Return total load as JSON
+        last = gesamtlast.calculate_total_load()  # Calculate total load
+        print(last)
+        return jsonify(last)  # Return total load as JSON
 
 
 @app.route("/pvforecast", methods=["GET"])
