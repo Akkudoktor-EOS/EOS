@@ -69,9 +69,7 @@ class PVForecast:
                 f"Die Vorhersage muss mindestens {self.prediction_hours} Stunden umfassen, aber es wurden nur {len(self.forecast_data)} Stunden vorhergesagt."
             )
 
-    def update_ac_power_measurement(
-        self, date_time=None, ac_power_measurement=None
-    ) -> bool:
+    def update_ac_power_measurement(self, date_time=None, ac_power_measurement=None) -> bool:
         found = False
         input_date_hour = date_time.replace(minute=0, second=0, microsecond=0)
 
@@ -89,9 +87,7 @@ class PVForecast:
         self.meta = data.get("meta", {})
         all_values = data.get("values", [])
 
-        for i in range(
-            len(all_values[0])
-        ):  # Annahme, dass alle Listen gleich lang sind
+        for i in range(len(all_values[0])):  # Annahme, dass alle Listen gleich lang sind
             sum_dc_power = sum(values[i]["dcPower"] for values in all_values)
             sum_ac_power = sum(values[i]["power"] for values in all_values)
 
@@ -128,17 +124,13 @@ class PVForecast:
             pprint(data)
             self.process_data(data)
         else:
-            print(
-                f"Failed to load data from {url}. Status Code: {response.status_code}"
-            )
+            print(f"Failed to load data from {url}. Status Code: {response.status_code}")
             self.load_data_from_url(url)
 
     def load_data_with_caching(self, url):
         date = datetime.now().strftime("%Y-%m-%d")
 
-        cache_file = os.path.join(
-            self.cache_dir, self.generate_cache_filename(url, date)
-        )
+        cache_file = os.path.join(self.cache_dir, self.generate_cache_filename(url, date))
         if os.path.exists(cache_file):
             with open(cache_file, "r") as file:
                 data = json.load(file)
@@ -151,9 +143,7 @@ class PVForecast:
                     json.dump(data, file)
                 print("Data fetched from URL and cached.")
             else:
-                print(
-                    f"Failed to load data from {url}. Status Code: {response.status_code}"
-                )
+                print(f"Failed to load data from {url}. Status Code: {response.status_code}")
                 return
         self.process_data(data)
 
@@ -183,16 +173,12 @@ class PVForecast:
         date_range_forecast = []
 
         for data in self.forecast_data:
-            data_date = (
-                data.get_date_time().date()
-            )  # parser.parse(data.get_date_time()).date()
+            data_date = data.get_date_time().date()  # parser.parse(data.get_date_time()).date()
             if start_date <= data_date <= end_date:
                 date_range_forecast.append(data)
                 print(data.get_date_time(), " ", data.get_ac_power())
 
-        ac_power_forecast = np.array(
-            [data.get_ac_power() for data in date_range_forecast]
-        )
+        ac_power_forecast = np.array([data.get_ac_power() for data in date_range_forecast])
 
         return np.array(ac_power_forecast)[: self.prediction_hours]
 
@@ -241,7 +227,5 @@ if __name__ == "__main__":
         prediction_hours=24,
         url="https://api.akkudoktor.net/forecast?lat=52.52&lon=13.405&power=5000&azimuth=-10&tilt=7&powerInvertor=10000&horizont=20,27,22,20&power=4800&azimuth=-90&tilt=7&powerInvertor=10000&horizont=30,30,30,50&power=1400&azimuth=-40&tilt=60&powerInvertor=2000&horizont=60,30,0,30&power=1600&azimuth=5&tilt=45&powerInvertor=1400&horizont=45,25,30,60&past_days=5&cellCoEff=-0.36&inverterEfficiency=0.8&albedo=0.25&timezone=Europe%2FBerlin&hourly=relativehumidity_2m%2Cwindspeed_10m",
     )
-    forecast.update_ac_power_measurement(
-        date_time=datetime.now(), ac_power_measurement=1000
-    )
+    forecast.update_ac_power_measurement(date_time=datetime.now(), ac_power_measurement=1000)
     forecast.print_ac_power_and_measurement()

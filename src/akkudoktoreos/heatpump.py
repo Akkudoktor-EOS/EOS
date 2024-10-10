@@ -72,10 +72,7 @@ class Heatpump:
         """
         if self.__check_outside_temperature_range__(outside_temperature_celsius):
             heat_output = (
-                (
-                    self.BASE_HEATPOWER
-                    + outside_temperature_celsius * self.TEMPERATURE_COEFFICIENT
-                )
+                (self.BASE_HEATPOWER + outside_temperature_celsius * self.TEMPERATURE_COEFFICIENT)
                 * 1000
             ) / 24.0
             return min(self.max_heat_output, heat_output)
@@ -98,9 +95,7 @@ class Heatpump:
         """
         if self.__check_outside_temperature_range__(outside_temperature_celsius):
             return (
-                1164
-                - 77.8 * outside_temperature_celsius
-                + 1.62 * outside_temperature_celsius**2.0
+                1164 - 77.8 * outside_temperature_celsius + 1.62 * outside_temperature_celsius**2.0
             )
         else:
             err_msg = f"Outside temperature '{outside_temperature_celsius}' not in range (min: -100 Celsius, max: 100 Celsius) "
