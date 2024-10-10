@@ -31,13 +31,13 @@ def server(xprocess):
         args = [sys.executable, "-m", "akkudoktoreosserver.flask_server"]
 
         # startup pattern
-        pattern = "Serving Flask app 'flask_server'"
+        pattern = "Debugger PIN:"
         # search the first 12 lines for the startup pattern, if not found
         # a RuntimeError will be raised informing the user
         max_read_lines = 12
 
         # will wait for 10 seconds before timing out
-        timeout = 10
+        timeout = 30
 
         # xprocess will now attempt to clean up upon interruptions
         terminate_on_interrupt = True
