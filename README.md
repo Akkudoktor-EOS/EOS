@@ -6,6 +6,20 @@ This project provides a comprehensive solution for simulating and optimizing an 
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+### Development
+
+For development, use [devbox](https://www.jetify.com/docs/devbox/installing_devbox/) to get a development environment up and running quickly.
+
+Run a venv with all dependencies installed:
+```bash
+devbox shell
+```
+
+See available commands:
+```bash
+devbox run
+```
+
 ## Installation
 
 Good installation guide:
@@ -29,6 +43,7 @@ brew install make
 
 Next, adjust `config.py`.
 The server can then be started with `make run`. A full overview of the main shortcuts is given by `make help`.
+
 
 ### Detailed Instructions
 
