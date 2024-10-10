@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+import os
 import json
 
-# Import necessary modules from the project
 from akkudoktoreos.class_optimize import optimization_problem
+from akkudoktoreos.config import load_config
+from akkudoktoreosserver.flask_server import CUSTOM_DIR
 
 start_hour = 10
 
@@ -263,9 +265,9 @@ parameter = {
 }
 
 # Initialize the optimization problem
-opt_class = optimization_problem(
-    prediction_hours=48, strafe=10, optimization_hours=24, verbose=True, fixed_seed=42
-)
+custom_dir = os.getenv(CUSTOM_DIR)
+config = load_config(custom_dir)
+opt_class = optimization_problem(config, verbose=True, fixed_seed=42)
 
 # Perform the optimisation based on the provided parameters and start hour
 ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)
