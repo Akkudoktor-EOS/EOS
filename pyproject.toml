@@ -36,6 +36,9 @@ akkudoktoreosserver = ["data/*.npz", ]
 [tool.isort]
 profile = "black"
 
+[tool.ruff]
+line-length = 100
+
 [tool.ruff.lint]
 ignore = [
     "F841",  # don't complain about unused variables
