@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip install dist test docker-run docs clean
+.PHONY: help venv pip install dist test docker-run docker-build docs clean format run run-dev
 
 # Default target
 all: help
@@ -10,11 +10,13 @@ help:
 	@echo "  venv         - Set up a Python 3 virtual environment."
 	@echo "  pip          - Install dependencies from requirements.txt."
 	@echo "  pip-dev      - Install dependencies from requirements-dev.txt."
+	@echo "  format       - Format source code."
 	@echo "  install      - Install EOS in editable form (development mode) into virtual environment."
 	@echo "  docker-run   - Run entire setup on docker"
 	@echo "  docker-build - Rebuild docker image"
 	@echo "  docs         - Generate HTML documentation (in build/docs/html/)."
-	@echo "  run          - Run flask_server in the virtual environment (needs install before)."
+	@echo "  run          - Run FastAPI server in the virtual environment (needs install before)."
+	@echo "  run-dev      - Run FastAPI development server in the virtual environment (automatically reloads)."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
 
@@ -58,8 +60,12 @@ clean:
 	rm -rf .venv
 
 run:
-	@echo "Starting flask server, please wait..."
-	.venv/bin/python -m akkudoktoreosserver.flask_server
+	@echo "Starting FastAPI server, please wait..."
+	.venv/bin/python -m akkudoktoreosserver.fastapi_server
+
+run-dev:
+	@echo "Starting FastAPI development server, please wait..."
+	.venv/bin/fastapi dev src/akkudoktoreosserver/fastapi_server.py
 
 # Target to setup tests.
 test-setup: pip-dev
@@ -69,6 +75,10 @@ test-setup: pip-dev
 test:
 	@echo "Running tests..."
 	.venv/bin/pytest
+
+# Target to format code.
+format:
+	pre-commit run --all-files
 
 # Run entire setup on docker
 docker-run:

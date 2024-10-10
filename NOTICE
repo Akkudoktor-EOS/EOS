@@ -17,7 +17,7 @@ This product may utilize technologies covered under international patents and/or
 
 ADDITIONAL ATTRIBUTIONS:
 The following is a list of licensors and other acknowledgements for third-party software that may be contained within this system:
-- Flask, licensed under the BSD License, see https://flask.palletsprojects.com/
+- FastAPI, licensed under the MIT License, see https://fastapi.tiangolo.com/
 - NumPy, licensed under the BSD License, see https://numpy.org/
 - Requests, licensed under the Apache License 2.0, see https://requests.readthedocs.io/
 - matplotlib, licensed under the matplotlib License (a variant of the Python Software Foundation License), see https://matplotlib.org/

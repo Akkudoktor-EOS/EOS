@@ -1,15 +1,40 @@
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
 from deap import algorithms, base, creator, tools
+from pydantic import BaseModel, model_validator
+from typing_extensions import Self
 
-from akkudoktoreos.class_akku import PVAkku
-from akkudoktoreos.class_ems import EnergieManagementSystem
-from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
-from akkudoktoreos.class_inverter import Wechselrichter
+from akkudoktoreos.class_akku import EAutoParameters, PVAkku, PVAkkuParameters
+from akkudoktoreos.class_ems import (
+    EnergieManagementSystem,
+    EnergieManagementSystemParameters,
+)
+from akkudoktoreos.class_haushaltsgeraet import (
+    Haushaltsgeraet,
+    HaushaltsgeraetParameters,
+)
+from akkudoktoreos.class_inverter import Wechselrichter, WechselrichterParameters
 from akkudoktoreos.config import moegliche_ladestroeme_in_prozent
 from akkudoktoreos.visualize import visualisiere_ergebnisse
+
+
+class OptimizationParameters(BaseModel):
+    ems: EnergieManagementSystemParameters
+    pv_akku: PVAkkuParameters
+    wechselrichter: WechselrichterParameters = WechselrichterParameters()
+    eauto: EAutoParameters
+    spuelmaschine: Optional[HaushaltsgeraetParameters] = None
+    temperature_forecast: list[float]
+    start_solution: Optional[list[float]] = None
+
+    @model_validator(mode="after")
+    def validate_list_length(self) -> Self:
+        arr_length = len(self.ems.pv_prognose_wh)
+        if arr_length != len(self.temperature_forecast):
+            raise ValueError("Input lists have different lenghts")
+        return self
 
 
 class optimization_problem:
@@ -35,8 +60,8 @@ class optimization_problem:
             random.seed(fixed_seed)
 
     def split_individual(
-        self, individual: List[float]
-    ) -> Tuple[List[int], List[float], Optional[int]]:
+        self, individual: list[float]
+    ) -> Tuple[list[int], list[float], Optional[int]]:
         """
         Split the individual solution into its components:
         1. Discharge hours (binary),
@@ -52,7 +77,7 @@ class optimization_problem:
         )
         return discharge_hours_bin, eautocharge_hours_float, spuelstart_int
 
-    def setup_deap_environment(self, opti_param: Dict[str, Any], start_hour: int) -> None:
+    def setup_deap_environment(self, opti_param: dict[str, Any], start_hour: int) -> None:
         """
         Set up the DEAP environment with fitness and individual creation rules.
         """
@@ -99,8 +124,8 @@ class optimization_problem:
         self.toolbox.register("select", tools.selTournament, tournsize=3)
 
     def evaluate_inner(
-        self, individual: List[float], ems: EnergieManagementSystem, start_hour: int
-    ) -> Dict[str, Any]:
+        self, individual: list[float], ems: EnergieManagementSystem, start_hour: int
+    ) -> dict[str, Any]:
         """
         Internal evaluation function that simulates the energy management system (EMS)
         using the provided individual solution.
@@ -121,9 +146,9 @@ class optimization_problem:
 
     def evaluate(
         self,
-        individual: List[float],
+        individual: list[float],
         ems: EnergieManagementSystem,
-        parameter: Dict[str, Any],
+        parameters: OptimizationParameters,
         start_hour: int,
         worst_case: bool,
     ) -> Tuple[float]:
@@ -159,7 +184,7 @@ class optimization_problem:
         )
 
         # Penalty for not meeting the minimum SOC (State of Charge) requirement
-        if parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent() <= 0.0:
+        if parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent() <= 0.0:
             gesamtbilanz += sum(
                 self.strafe for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
             )
@@ -167,15 +192,16 @@ class optimization_problem:
         individual.extra_data = (
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
-            parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent(),
+            parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent(),
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
-        restwert_akku = ems.akku.aktueller_energieinhalt() * parameter["preis_euro_pro_wh_akku"]
+        restwert_akku = ems.akku.aktueller_energieinhalt() * parameters.ems.preis_euro_pro_wh_akku
         gesamtbilanz += (
             max(
                 0,
-                (parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent()) * self.strafe,
+                (parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent())
+                * self.strafe,
             )
             - restwert_akku
         )
@@ -183,8 +209,8 @@ class optimization_problem:
         return (gesamtbilanz,)
 
     def optimize(
-        self, start_solution: Optional[List[float]] = None, ngen: int = 400
-    ) -> Tuple[Any, Dict[str, List[Any]]]:
+        self, start_solution: Optional[list[float]] = None, ngen: int = 400
+    ) -> Tuple[Any, dict[str, list[Any]]]:
         """Run the optimization process using a genetic algorithm."""
         population = self.toolbox.population(n=300)
         hof = tools.HallOfFame(1)
@@ -225,58 +251,43 @@ class optimization_problem:
 
     def optimierung_ems(
         self,
-        parameter: Optional[Dict[str, Any]] = None,
+        parameters: OptimizationParameters,
         start_hour: Optional[int] = None,
         worst_case: bool = False,
         startdate: Optional[Any] = None,  # startdate is not used!
         *,
         ngen: int = 400,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Perform EMS (Energy Management System) optimization and visualize results.
         """
-        einspeiseverguetung_euro_pro_wh = np.full(
-            self.prediction_hours, parameter["einspeiseverguetung_euro_pro_wh"]
-        )
-
         # Initialize PV and EV batteries
         akku = PVAkku(
-            kapazitaet_wh=parameter["pv_akku_cap"],
+            parameters.pv_akku,
             hours=self.prediction_hours,
-            start_soc_prozent=parameter["pv_soc"],
-            min_soc_prozent=parameter["min_soc_prozent"],
-            max_ladeleistung_w=5000,
         )
         akku.set_charge_per_hour(np.full(self.prediction_hours, 1))
 
         eauto = PVAkku(
-            kapazitaet_wh=parameter["eauto_cap"],
+            parameters.eauto,
             hours=self.prediction_hours,
-            lade_effizienz=parameter["eauto_charge_efficiency"],
-            entlade_effizienz=1.0,
-            max_ladeleistung_w=parameter["eauto_charge_power"],
-            start_soc_prozent=parameter["eauto_soc"],
         )
         eauto.set_charge_per_hour(np.full(self.prediction_hours, 1))
 
         # Initialize household appliance if applicable
         spuelmaschine = (
             Haushaltsgeraet(
+                parameters=parameters.spuelmaschine,
                 hours=self.prediction_hours,
-                verbrauch_wh=parameter["haushaltsgeraet_wh"],
-                dauer_h=parameter["haushaltsgeraet_dauer"],
             )
-            if parameter["haushaltsgeraet_dauer"] > 0
+            if parameters.spuelmaschine is not None
             else None
         )
 
         # Initialize the inverter and energy management system
-        wr = Wechselrichter(10000, akku)
+        wr = Wechselrichter(parameters.wechselrichter, akku)
         ems = EnergieManagementSystem(
-            gesamtlast=parameter["gesamtlast"],
-            pv_prognose_wh=parameter["pv_forecast"],
-            strompreis_euro_pro_wh=parameter["strompreis_euro_pro_wh"],
-            einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
+            parameters.ems,
             eauto=eauto,
             haushaltsgeraet=spuelmaschine,
             wechselrichter=wr,
@@ -286,9 +297,9 @@ class optimization_problem:
         self.setup_deap_environment({"haushaltsgeraete": 1 if spuelmaschine else 0}, start_hour)
         self.toolbox.register(
             "evaluate",
-            lambda ind: self.evaluate(ind, ems, parameter, start_hour, worst_case),
+            lambda ind: self.evaluate(ind, ems, parameters, start_hour, worst_case),
         )
-        start_solution, extra_data = self.optimize(parameter["start_solution"], ngen=ngen)
+        start_solution, extra_data = self.optimize(parameters.start_solution, ngen=ngen)
 
         # Perform final evaluation on the best solution
         o = self.evaluate_inner(start_solution, ems, start_hour)
@@ -298,16 +309,16 @@ class optimization_problem:
 
         # Visualize the results
         visualisiere_ergebnisse(
-            parameter["gesamtlast"],
-            parameter["pv_forecast"],
-            parameter["strompreis_euro_pro_wh"],
+            parameters.ems.gesamtlast,
+            parameters.ems.pv_prognose_wh,
+            parameters.ems.strompreis_euro_pro_wh,
             o,
             discharge_hours_bin,
             eautocharge_hours_float,
-            parameter["temperature_forecast"],
+            parameters.temperature_forecast,
             start_hour,
             self.prediction_hours,
-            einspeiseverguetung_euro_pro_wh,
+            ems.einspeiseverguetung_euro_pro_wh_arr,
             extra_data=extra_data,
         )
 
