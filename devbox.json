@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.13.4/.schema/devbox.schema.json",
+  "packages": [
+    "python@3.12",
+    "python312Packages.mariadb@latest",
+    "docker@latest",
+    "pre-commit@latest"
+  ],
+  "shell": {
+    "init_hook": [
+      ". $VENV_DIR/bin/activate",
+      "pip install -r requirements.txt",
+      "pip install -r requirements-dev.txt",
+      "pip install build",
+      "pip install -e .",
+      "pre-commit install"
+    ],
+    "scripts": {
+      "dist":    ["python -m build --wheel"],
+      "docs":    ["sphinx-build -M html docs build/docs"],
+      "server":  ["python -m akkudoktoreosserver.flask_server"],
+      "test":    ["pytest"],
+      "test-ci": ["pytest -vs --cov modules --cov-report term-missing tests/"],
+      "docker":  ["docker compose up"]
+    }
+  }
+}
