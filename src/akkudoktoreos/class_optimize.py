@@ -8,7 +8,7 @@ from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter
-from akkudoktoreos.config import moegliche_ladestroeme_in_prozent
+from akkudoktoreos.config import available_charging_rates_in_percentage
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
@@ -26,7 +26,7 @@ class optimization_problem:
         self.strafe = strafe
         self.opti_param = None
         self.fixed_eauto_hours = prediction_hours - optimization_hours
-        self.possible_charge_values = moegliche_ladestroeme_in_prozent
+        self.possible_charge_values = available_charging_rates_in_percentage
         self.verbose = verbose
         self.fix_seed = fixed_seed
 
@@ -136,8 +136,10 @@ class optimization_problem:
             return (100000.0,)  # Return a high penalty in case of an exception
 
         gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
-        discharge_hours_bin, eautocharge_hours_float, _ = self.split_individual(individual)
-        max_ladeleistung = np.max(moegliche_ladestroeme_in_prozent)
+        discharge_hours_bin, eautocharge_hours_float, _ = self.split_individual(
+            individual
+        )
+        max_ladeleistung = np.max(available_charging_rates_in_percentage)
 
         # Penalty for not discharging
         gesamtbilanz += sum(

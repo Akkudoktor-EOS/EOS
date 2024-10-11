@@ -1,11 +1,21 @@
+import os
 from datetime import datetime, timedelta
 
-output_dir = "output"
 
-prediction_hours = 48
-optimization_hours = 24
-strafe = 10
-moegliche_ladestroeme_in_prozent = [
+def parse_charging_rates(env_var):
+    try:
+        return [float(rate) for rate in env_var.split(",")]
+    except ValueError:
+        raise ValueError(
+            "Invalid format for EOS_AVAILABLE_CHARGING_RATES_PERC. Expected a comma-separated list of floats."
+        )
+
+default_output_dir = "output"
+# Default values
+default_prediction_hours = 48
+default_optimization_hours = 24
+default_penalty = 10
+default_charging_rates = [
     0.0,
     6.0 / 16.0,
     7.0 / 16.0,
@@ -19,6 +29,21 @@ moegliche_ladestroeme_in_prozent = [
     15.0 / 16.0,
     1.0,
 ]
+
+# Get environment variables
+output_dir = os.getenv("EOS_OUTPUT_DIR", default_output_dir)
+prediction_hours = int(os.getenv("EOS_PREDICTION_HOURS", default_prediction_hours))
+optimization_hours = int(
+    os.getenv("EOS_OPTIMIZATION_HOURS", default_optimization_hours)
+)
+penalty = int(os.getenv("EOS_PENALTY", default_penalty))
+env_charging_rates = os.getenv("EOS_AVAILABLE_CHARGING_RATES_PERC")
+
+# Parse the environment variable or use the default
+if env_charging_rates:
+    available_charging_rates_in_percentage = parse_charging_rates(env_charging_rates)
+else:
+    available_charging_rates_in_percentage = default_charging_rates
 
 
 def get_start_enddate(prediction_hours=48, startdate=None):
