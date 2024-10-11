@@ -30,9 +30,7 @@ class LoadPredictionAdjuster:
         self.weekday_diff: Optional[pd.Series] = None
         self.weekend_diff: Optional[pd.Series] = None
 
-    def _remove_outliers(
-        self, data: pd.DataFrame, threshold: float = 2.0
-    ) -> pd.DataFrame:
+    def _remove_outliers(self, data: pd.DataFrame, threshold: float = 2.0) -> pd.DataFrame:
         """
         Remove outliers based on the Z-score from the 'Last' column.
 
@@ -44,13 +42,9 @@ class LoadPredictionAdjuster:
             pd.DataFrame: Filtered data without outliers.
         """
         # Calculate Z-score for 'Last' column and filter based on threshold
-        data["Z-Score"] = np.abs(
-            (data["Last"] - data["Last"].mean()) / data["Last"].std()
-        )
+        data["Z-Score"] = np.abs((data["Last"] - data["Last"].mean()) / data["Last"].std())
         filtered_data = data[data["Z-Score"] < threshold]
-        return filtered_data.drop(
-            columns=["Z-Score"]
-        )  # Drop Z-score column after filtering
+        return filtered_data.drop(columns=["Z-Score"])  # Drop Z-score column after filtering
 
     def _merge_data(self) -> pd.DataFrame:
         """
@@ -88,9 +82,7 @@ class LoadPredictionAdjuster:
         self.measured_data["time"] = self.measured_data["time"].dt.tz_localize(None)
 
         # Merge the measured and predicted dataframes on 'time'
-        merged_data = pd.merge(
-            self.measured_data, self.predicted_data, on="time", how="inner"
-        )
+        merged_data = pd.merge(self.measured_data, self.predicted_data, on="time", how="inner")
 
         # Extract useful columns such as 'Hour' and 'DayOfWeek'
         merged_data["Hour"] = merged_data["time"].dt.hour
@@ -111,9 +103,7 @@ class LoadPredictionAdjuster:
         self.merged_data = self._remove_outliers(self.merged_data)
 
         # Define training and testing periods based on weeks
-        train_end_date = self.merged_data["time"].max() - pd.Timedelta(
-            weeks=test_period_weeks
-        )
+        train_end_date = self.merged_data["time"].max() - pd.Timedelta(weeks=test_period_weeks)
         train_start_date = train_end_date - pd.Timedelta(weeks=train_period_weeks)
 
         test_start_date = train_end_date + pd.Timedelta(hours=1)
@@ -133,9 +123,7 @@ class LoadPredictionAdjuster:
         ]
 
         # Calculate the difference between actual ('Last') and predicted ('Last Pred')
-        self.train_data["Difference"] = (
-            self.train_data["Last"] - self.train_data["Last Pred"]
-        )
+        self.train_data["Difference"] = self.train_data["Last"] - self.train_data["Last Pred"]
 
         # Separate training data into weekdays and weekends
         # Separate training data into weekdays and weekends
@@ -172,9 +160,7 @@ class LoadPredictionAdjuster:
         Adjust predictions for both training and test data using the calculated weighted differences.
         """
         # Apply adjustments to both training and testing data
-        self.train_data["Adjusted Pred"] = self.train_data.apply(
-            self._adjust_row, axis=1
-        )
+        self.train_data["Adjusted Pred"] = self.train_data.apply(self._adjust_row, axis=1)
         self.test_data["Adjusted Pred"] = self.test_data.apply(self._adjust_row, axis=1)
 
     def _adjust_row(self, row: pd.Series) -> float:
@@ -237,9 +223,7 @@ class LoadPredictionAdjuster:
         Evaluate the model performance using Mean Squared Error and R-squared metrics.
         """
         # Calculate Mean Squared Error and R-squared for the adjusted predictions
-        mse = mean_squared_error(
-            self.test_data["Last"], self.test_data["Adjusted Pred"]
-        )
+        mse = mean_squared_error(self.test_data["Last"], self.test_data["Adjusted Pred"])
         r2 = r2_score(self.test_data["Last"], self.test_data["Adjusted Pred"])
         print(f"Mean Squared Error: {mse}")
         print(f"R-squared: {r2}")
@@ -258,9 +242,7 @@ class LoadPredictionAdjuster:
         last_date = self.merged_data["time"].max()
 
         # Generate future timestamps for the next 'hours_ahead'
-        future_dates = [
-            last_date + pd.Timedelta(hours=i) for i in range(1, hours_ahead + 1)
-        ]
+        future_dates = [last_date + pd.Timedelta(hours=i) for i in range(1, hours_ahead + 1)]
         future_df = pd.DataFrame({"time": future_dates})
 
         # Extract hour and day of the week for the future predictions

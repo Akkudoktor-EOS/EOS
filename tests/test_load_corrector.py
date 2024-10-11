@@ -52,9 +52,7 @@ def test_merge_data(setup_data: tuple[pd.DataFrame, pd.DataFrame, MagicMock]) ->
     assert isinstance(merged_data, pd.DataFrame), "Merged data should be a DataFrame"
     # Assert certain columns are present in the merged data
     assert "Hour" in merged_data.columns, "Merged data should contain 'Hour' column"
-    assert (
-        "DayOfWeek" in merged_data.columns
-    ), "Merged data should contain 'DayOfWeek' column"
+    assert "DayOfWeek" in merged_data.columns, "Merged data should contain 'DayOfWeek' column"
     assert len(merged_data) > 0, "Merged data should not be empty"
 
 
@@ -79,15 +77,11 @@ def test_remove_outliers(
     filtered_data = adjuster._remove_outliers(adjuster.merged_data)
 
     # Assert that the output is a DataFrame and that outliers were removed
-    assert isinstance(
-        filtered_data, pd.DataFrame
-    ), "Filtered data should be a DataFrame"
+    assert isinstance(filtered_data, pd.DataFrame), "Filtered data should be a DataFrame"
     assert len(filtered_data) < len(
         adjuster.merged_data
     ), "Filtered data should remove some outliers"
-    assert (
-        len(filtered_data) == 98
-    ), "Filtered data should have removed exactly 2 outliers"
+    assert len(filtered_data) == 98, "Filtered data should have removed exactly 2 outliers"
 
 
 def test_calculate_weighted_mean(
@@ -112,8 +106,7 @@ def test_calculate_weighted_mean(
     predicted_data = pd.DataFrame(
         {
             "time": time_range,
-            "Last Pred": np.random.rand(len(time_range))
-            * 100,  # Random 'Last Pred' values
+            "Last Pred": np.random.rand(len(time_range)) * 100,  # Random 'Last Pred' values
         }
     )
 
@@ -171,9 +164,7 @@ def test_evaluate_model(
 
     # Capture printed output and assert that evaluation metrics are printed
     captured = capsys.readouterr()
-    assert (
-        "Mean Squared Error" in captured.out
-    ), "Evaluation should print Mean Squared Error"
+    assert "Mean Squared Error" in captured.out, "Evaluation should print Mean Squared Error"
     assert "R-squared" in captured.out, "Evaluation should print R-squared"
 
 
@@ -193,6 +184,4 @@ def test_predict_next_hours(
 
     # Assert that the correct number of future hours are predicted and that 'Adjusted Pred' is present
     assert len(future_df) == 5, "Should predict for 5 future hours"
-    assert (
-        "Adjusted Pred" in future_df.columns
-    ), "Future data should have 'Adjusted Pred' column"
+    assert "Adjusted Pred" in future_df.columns, "Future data should have 'Adjusted Pred' column"
