@@ -60,9 +60,19 @@ class LoadPredictionAdjuster:
             pd.DataFrame: The merged dataset.
         """
         # Convert time columns to datetime in both datasets
+
+    def _merge_data(self) -> pd.DataFrame:
+        """
+        Merge the measured and predicted data on the 'time' column.
+
+        Returns:
+            pd.DataFrame: The merged dataset.
+        """
+        # Convert time columns to datetime in both datasets
         self.predicted_data["time"] = pd.to_datetime(self.predicted_data["time"])
         self.measured_data["time"] = pd.to_datetime(self.measured_data["time"])
 
+        # Localize time to UTC and then convert to Berlin time
         # Localize time to UTC and then convert to Berlin time
         if self.measured_data["time"].dt.tz is None:
             self.measured_data["time"] = self.measured_data["time"].dt.tz_localize("UTC")
@@ -72,6 +82,7 @@ class LoadPredictionAdjuster:
         )
         self.measured_data["time"] = self.measured_data["time"].dt.tz_convert("Europe/Berlin")
 
+        # Remove timezone information (optional for local work)
         # Remove timezone information (optional for local work)
         self.predicted_data["time"] = self.predicted_data["time"].dt.tz_localize(None)
         self.measured_data["time"] = self.measured_data["time"].dt.tz_localize(None)
@@ -111,6 +122,7 @@ class LoadPredictionAdjuster:
         )
 
         # Split merged data into training and testing datasets
+        # Split merged data into training and testing datasets
         self.train_data = self.merged_data[
             (self.merged_data["time"] >= train_start_date)
             & (self.merged_data["time"] <= train_end_date)
@@ -126,9 +138,11 @@ class LoadPredictionAdjuster:
         )
 
         # Separate training data into weekdays and weekends
+        # Separate training data into weekdays and weekends
         weekdays_train_data = self.train_data[self.train_data["DayOfWeek"] < 5]
         weekends_train_data = self.train_data[self.train_data["DayOfWeek"] >= 5]
 
+        # Calculate weighted mean differences for both weekdays and weekends
         # Calculate weighted mean differences for both weekdays and weekends
         self.weekday_diff = (
             weekdays_train_data.groupby("Hour").apply(self._weighted_mean_diff).dropna()
@@ -250,8 +264,12 @@ class LoadPredictionAdjuster:
         future_df = pd.DataFrame({"time": future_dates})
 
         # Extract hour and day of the week for the future predictions
+
+        # Extract hour and day of the week for the future predictions
         future_df["Hour"] = future_df["time"].dt.hour
         future_df["DayOfWeek"] = future_df["time"].dt.dayofweek
+
+        # Predict the load and apply adjustments for future predictions
 
         # Predict the load and apply adjustments for future predictions
         future_df["Last Pred"] = future_df["time"].apply(self._forecast_next_hours)
@@ -273,6 +291,8 @@ class LoadPredictionAdjuster:
         date_str = timestamp.strftime("%Y-%m-%d")
         hour = timestamp.hour
         daily_forecast = self.load_forecast.get_daily_stats(date_str)
+
+        # Return forecast for the specific hour, or NaN if hour is out of range
 
         # Return forecast for the specific hour, or NaN if hour is out of range
         return daily_forecast[0][hour] if hour < len(daily_forecast[0]) else np.nan
