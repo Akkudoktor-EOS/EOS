@@ -84,7 +84,7 @@ class PVAkku:
         return (self.soc_wh / self.kapazitaet_wh) * 100
 
     def energie_abgeben(self, wh, hour):
-        if self.discharge_array[hour] == 0:
+        if self.discharge_array[hour] == 0 and self.discharge_array[hour] == -1:
             return 0.0, 0.0  # No energy discharge and no losses
 
         # Calculate the maximum energy that can be discharged considering min_soc and efficiency

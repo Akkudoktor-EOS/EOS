@@ -39,7 +39,7 @@ class optimization_problem:
     ) -> Tuple[List[int], List[float], Optional[int]]:
         """
         Split the individual solution into its components:
-        1. Discharge hours (binary),
+        1. Discharge hours (-1 (Charge),0 (Nothing),1 (Discharge)),
         2. Electric vehicle charge hours (float),
         3. Dishwasher start time (integer if applicable).
         """
@@ -69,8 +69,8 @@ class optimization_problem:
 
         # Initialize toolbox with attributes and operations
         self.toolbox = base.Toolbox()
-        self.toolbox.register("attr_bool", random.randint, 0, 1)
-        self.toolbox.register("attr_float", random.uniform, 0, 1)
+        self.toolbox.register("attr_discharge_state", random.randint, -1, 1)
+        self.toolbox.register("attr_ev_charge_index", random.randint, 0, len(moegliche_ladestroeme_in_prozent) - 1)
         self.toolbox.register("attr_int", random.randint, start_hour, 23)
 
         # Register individual creation method based on household appliance parameter
@@ -78,8 +78,8 @@ class optimization_problem:
             self.toolbox.register(
                 "individual",
                 lambda: creator.Individual(
-                    [self.toolbox.attr_bool() for _ in range(self.prediction_hours)]
-                    + [self.toolbox.attr_float() for _ in range(self.prediction_hours)]
+                    [self.toolbox.attr_discharge_state() for _ in range(self.prediction_hours)]
+                    + [self.toolbox.attr_ev_charge_index() for _ in range(self.prediction_hours)]
                     + [self.toolbox.attr_int()]
                 ),
             )
@@ -87,15 +87,48 @@ class optimization_problem:
             self.toolbox.register(
                 "individual",
                 lambda: creator.Individual(
-                    [self.toolbox.attr_bool() for _ in range(self.prediction_hours)]
-                    + [self.toolbox.attr_float() for _ in range(self.prediction_hours)]
+                    [self.toolbox.attr_discharge_state() for _ in range(self.prediction_hours)]
+                    + [self.toolbox.attr_ev_charge_index() for _ in range(self.prediction_hours)]
                 ),
             )
 
         # Register population, mating, mutation, and selection functions
         self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
         self.toolbox.register("mate", tools.cxTwoPoint)
-        self.toolbox.register("mutate", tools.mutFlipBit, indpb=0.1)
+        #self.toolbox.register("mutate", tools.mutFlipBit, indpb=0.1)
+        # Register separate mutation functions for each type of value:
+        # - Discharge state mutation (-1, 0, 1)
+        self.toolbox.register("mutate_discharge", tools.mutUniformInt, low=0, up=1, indpb=0.1)
+        # - Float mutation for EV charging values
+        self.toolbox.register("mutate_ev_charge_index", tools.mutUniformInt, low=0, up=len(moegliche_ladestroeme_in_prozent) - 1, indpb=0.1)
+        # - Start hour mutation for household devices
+        self.toolbox.register("mutate_hour", tools.mutUniformInt, low=start_hour, up=23, indpb=0.3)
+
+        # Custom mutation function that applies type-specific mutations
+        def mutate(individual):
+            # Mutate the discharge state genes (-1, 0, 1)
+            individual[:self.prediction_hours], = self.toolbox.mutate_discharge(
+                individual[:self.prediction_hours]
+            )
+
+            # Mutate the EV charging indices
+            ev_charge_part = individual[self.prediction_hours : self.prediction_hours * 2]
+            ev_charge_part_mutated, = self.toolbox.mutate_ev_charge_index(ev_charge_part)
+            individual[self.prediction_hours : self.prediction_hours * 2] = ev_charge_part_mutated
+
+            # Mutate the appliance start hour if present
+            if len(individual) > self.prediction_hours * 2:
+                appliance_part = [individual[-1]]
+                appliance_part_mutated, = self.toolbox.mutate_hour(appliance_part)
+                individual[-1] = appliance_part_mutated[0]
+
+            return (individual,)
+
+
+        # Register custom mutation function
+        self.toolbox.register("mutate", mutate)
+
+
         self.toolbox.register("select", tools.selTournament, tournsize=3)
 
     def evaluate_inner(
@@ -106,16 +139,22 @@ class optimization_problem:
         using the provided individual solution.
         """
         ems.reset()
-        discharge_hours_bin, eautocharge_hours_float, spuelstart_int = self.split_individual(
+        discharge_hours_bin, eautocharge_hours_index, spuelstart_int = self.split_individual(
             individual
         )
         if self.opti_param.get("haushaltsgeraete", 0) > 0:
             ems.set_haushaltsgeraet_start(spuelstart_int, global_start_hour=start_hour)
 
         ems.set_akku_discharge_hours(discharge_hours_bin)
-        eautocharge_hours_float[self.prediction_hours - self.fixed_eauto_hours :] = [
-            0.0
+        eautocharge_hours_index[self.prediction_hours - self.fixed_eauto_hours :] = [
+            0
         ] * self.fixed_eauto_hours
+        
+        eautocharge_hours_float = [
+            moegliche_ladestroeme_in_prozent[i] for i in eautocharge_hours_index
+        ]
+        
+
         ems.set_eauto_charge_hours(eautocharge_hours_float)
         return ems.simuliere(start_hour)
 
@@ -134,28 +173,22 @@ class optimization_problem:
             o = self.evaluate_inner(individual, ems, start_hour)
         except Exception as e:
             return (100000.0,)  # Return a high penalty in case of an exception
-
+        
         gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
+        
         discharge_hours_bin, eautocharge_hours_float, _ = self.split_individual(individual)
         max_ladeleistung = np.max(moegliche_ladestroeme_in_prozent)
 
-        # Penalty for not discharging
+        # Small Penalty for not discharging
         gesamtbilanz += sum(
             0.01 for i in range(self.prediction_hours) if discharge_hours_bin[i] == 0.0
         )
-
+        
         # Penalty for charging the electric vehicle during restricted hours
         gesamtbilanz += sum(
             self.strafe
             for i in range(self.prediction_hours - self.fixed_eauto_hours, self.prediction_hours)
             if eautocharge_hours_float[i] != 0.0
-        )
-
-        # Penalty for exceeding maximum charge power
-        gesamtbilanz += sum(
-            self.strafe * 10
-            for ladeleistung in eautocharge_hours_float
-            if ladeleistung > max_ladeleistung
         )
 
         # Penalty for not meeting the minimum SOC (State of Charge) requirement
@@ -205,7 +238,7 @@ class optimization_problem:
             self.toolbox,
             mu=100,
             lambda_=200,
-            cxpb=0.5,
+            cxpb=0.7,
             mutpb=0.3,
             ngen=ngen,
             stats=stats,
