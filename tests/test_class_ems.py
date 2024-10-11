@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 
 from akkudoktoreos.class_akku import PVAkku
+from akkudoktoreos.class_domestic_appliance import DomesticAppliance
 from akkudoktoreos.class_ems import EnergieManagementSystem
-from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter  # Example import
 
 prediction_hours = 48
@@ -22,13 +22,13 @@ def create_ems_instance():
     akku.reset()
     wechselrichter = Wechselrichter(10000, akku)
 
-    # Household device (currently not used, set to None)
-    home_appliance = Haushaltsgeraet(
+    # Domestic device (currently not used, set to None)
+    domestic_appliance = DomesticAppliance(
         hours=prediction_hours,
-        verbrauch_wh=2000,
-        dauer_h=2,
+        consumption_wh=2000,
+        duration_h=2,
     )
-    home_appliance.set_startzeitpunkt(2)
+    domestic_appliance.set_start_time(2)
 
     # Example initialization of electric car battery
     eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=10, hours=48, min_soc_prozent=10)
@@ -196,7 +196,7 @@ def create_ems_instance():
         einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
         eauto=eauto,
         gesamtlast=gesamtlast,
-        haushaltsgeraet=home_appliance,
+        domestic_appliance=domestic_appliance,
         wechselrichter=wechselrichter,
     )
     return ems
@@ -240,7 +240,7 @@ def test_simulation(create_ems_instance):
         "Gesamtkosten_Euro",
         "Verluste_Pro_Stunde",
         "Gesamt_Verluste",
-        "Haushaltsgeraet_wh_pro_stunde",
+        "DomesticAppliance_wh_per_hour",
     ]
 
     for key in expected_keys:
@@ -318,18 +318,18 @@ def test_simulation(create_ems_instance):
 
     # Check home appliances
     assert (
-        sum(ems.haushaltsgeraet.get_lastkurve()) == 2000
-    ), "The sum of 'ems.haushaltsgeraet.get_lastkurve()' should be 2000."
+        sum(ems.domestic_appliance.fetch_power_profile()) == 2000
+    ), "The sum of 'ems.domestic_appliance.get_lastkurve()' should be 2000."
 
     assert (
         np.nansum(
             np.where(
-                np.equal(result["Haushaltsgeraet_wh_pro_stunde"], None),
+                np.equal(result["DomesticAppliance_wh_per_hour"], None),
                 np.nan,
-                np.array(result["Haushaltsgeraet_wh_pro_stunde"]),
+                np.array(result["DomesticAppliance_wh_per_hour"]),
             )
         )
         == 2000
-    ), "The sum of 'Haushaltsgeraet_wh_pro_stunde' should be 2000."
+    ), "The sum of 'DomesticAppliance_wh_per_hour' should be 2000."
 
     print("All tests passed successfully.")

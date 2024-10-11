@@ -5,8 +5,8 @@ import numpy as np
 from deap import algorithms, base, creator, tools
 
 from akkudoktoreos.class_akku import PVAkku
+from akkudoktoreos.class_domestic_appliance import DomesticAppliance
 from akkudoktoreos.class_ems import EnergieManagementSystem
-from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter
 from akkudoktoreos.config import moegliche_ladestroeme_in_prozent
 from akkudoktoreos.visualize import visualisiere_ergebnisse
@@ -47,7 +47,7 @@ class optimization_problem:
         eautocharge_hours_float = individual[self.prediction_hours : self.prediction_hours * 2]
         spuelstart_int = (
             individual[-1]
-            if self.opti_param and self.opti_param.get("haushaltsgeraete", 0) > 0
+            if self.opti_param and self.opti_param.get("domestic_appliances", 0) > 0
             else None
         )
         return discharge_hours_bin, eautocharge_hours_float, spuelstart_int
@@ -74,7 +74,7 @@ class optimization_problem:
         self.toolbox.register("attr_int", random.randint, start_hour, 23)
 
         # Register individual creation method based on household appliance parameter
-        if opti_param["haushaltsgeraete"] > 0:
+        if opti_param["domestic_appliances"] > 0:
             self.toolbox.register(
                 "individual",
                 lambda: creator.Individual(
@@ -109,8 +109,8 @@ class optimization_problem:
         discharge_hours_bin, eautocharge_hours_float, spuelstart_int = self.split_individual(
             individual
         )
-        if self.opti_param.get("haushaltsgeraete", 0) > 0:
-            ems.set_haushaltsgeraet_start(spuelstart_int, global_start_hour=start_hour)
+        if self.opti_param.get("domestic_appliances", 0) > 0:
+            ems.set_domestic_appliance_start(spuelstart_int, global_start_hour=start_hour)
 
         ems.set_akku_discharge_hours(discharge_hours_bin)
         eautocharge_hours_float[self.prediction_hours - self.fixed_eauto_hours :] = [
@@ -261,12 +261,12 @@ class optimization_problem:
 
         # Initialize household appliance if applicable
         spuelmaschine = (
-            Haushaltsgeraet(
+            DomesticAppliance(
                 hours=self.prediction_hours,
-                verbrauch_wh=parameter["haushaltsgeraet_wh"],
-                dauer_h=parameter["haushaltsgeraet_dauer"],
+                consumption_wh=parameter["domestic_appliance_wh"],
+                duration_h=parameter["domestic_appliance_duration"],
             )
-            if parameter["haushaltsgeraet_dauer"] > 0
+            if parameter["domestic_appliance_duration"] > 0
             else None
         )
 
@@ -278,12 +278,12 @@ class optimization_problem:
             strompreis_euro_pro_wh=parameter["strompreis_euro_pro_wh"],
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
             eauto=eauto,
-            haushaltsgeraet=spuelmaschine,
+            domestic_appliance=spuelmaschine,
             wechselrichter=wr,
         )
 
         # Setup the DEAP environment and optimization process
-        self.setup_deap_environment({"haushaltsgeraete": 1 if spuelmaschine else 0}, start_hour)
+        self.setup_deap_environment({"domestic_appliances": 1 if spuelmaschine else 0}, start_hour)
         self.toolbox.register(
             "evaluate",
             lambda ind: self.evaluate(ind, ems, parameter, start_hour, worst_case),
@@ -321,7 +321,7 @@ class optimization_problem:
             "Einnahmen_Euro_pro_Stunde",
             "E-Auto_SoC_pro_Stunde",
             "Verluste_Pro_Stunde",
-            "Haushaltsgeraet_wh_pro_stunde",
+            "DomesticAppliance_wh_per_hour",
         ]
 
         # Loop through each key in the list

@@ -255,9 +255,9 @@ parameter = {
     # Initial solution for the optimization
     "start_solution": start_solution,
     # Household appliance consumption (Wh)
-    "haushaltsgeraet_wh": 5000,
+    "domestic_appliance_wh": 5000,
     # Duration of appliance usage (hours)
-    "haushaltsgeraet_dauer": 2,
+    "domestic_appliance_duration": 2,
     # Minimum Soc PV Battery
     "min_soc_prozent": 15,
 }

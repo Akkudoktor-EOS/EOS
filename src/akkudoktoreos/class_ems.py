@@ -12,7 +12,7 @@ class EnergieManagementSystem:
         einspeiseverguetung_euro_pro_wh: Optional[np.ndarray] = None,
         eauto: Optional[object] = None,
         gesamtlast: Optional[np.ndarray] = None,
-        haushaltsgeraet: Optional[object] = None,
+        domestic_appliance: Optional[object] = None,
         wechselrichter: Optional[object] = None,
     ):
         self.akku = wechselrichter.akku
@@ -21,7 +21,7 @@ class EnergieManagementSystem:
         self.strompreis_euro_pro_wh = strompreis_euro_pro_wh
         self.einspeiseverguetung_euro_pro_wh = einspeiseverguetung_euro_pro_wh
         self.eauto = eauto
-        self.haushaltsgeraet = haushaltsgeraet
+        self.domestic_appliance = domestic_appliance
         self.wechselrichter = wechselrichter
 
     def set_akku_discharge_hours(self, ds: List[int]) -> None:
@@ -30,8 +30,8 @@ class EnergieManagementSystem:
     def set_eauto_charge_hours(self, ds: List[int]) -> None:
         self.eauto.set_charge_per_hour(ds)
 
-    def set_haushaltsgeraet_start(self, ds: List[int], global_start_hour: int = 0) -> None:
-        self.haushaltsgeraet.set_startzeitpunkt(ds, global_start_hour=global_start_hour)
+    def set_domestic_appliance_start(self, ds: List[int], global_start_hour: int = 0) -> None:
+        self.domestic_appliance.set_startzeitpunkt(ds, global_start_hour=global_start_hour)
 
     def reset(self) -> None:
         self.eauto.reset()
@@ -62,7 +62,7 @@ class EnergieManagementSystem:
         akku_soc_pro_stunde = np.full((total_hours), np.nan)
         eauto_soc_pro_stunde = np.full((total_hours), np.nan)
         verluste_wh_pro_stunde = np.full((total_hours), np.nan)
-        haushaltsgeraet_wh_pro_stunde = np.full((total_hours), np.nan)
+        domestic_appliance_wh_per_hour = np.full((total_hours), np.nan)
 
         # Set initial state
         akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
@@ -75,10 +75,10 @@ class EnergieManagementSystem:
             # Accumulate loads and PV generation
             verbrauch = self.gesamtlast[stunde]
             verluste_wh_pro_stunde[stunde_since_now] = 0.0
-            if self.haushaltsgeraet:
-                ha_load = self.haushaltsgeraet.get_last_fuer_stunde(stunde)
+            if self.domestic_appliance:
+                ha_load = self.domestic_appliance.fetch_load_for_hour(stunde)
                 verbrauch += ha_load
-                haushaltsgeraet_wh_pro_stunde[stunde_since_now] = ha_load
+                domestic_appliance_wh_per_hour[stunde_since_now] = ha_load
 
             # E-Auto handling
             if self.eauto:
@@ -125,6 +125,6 @@ class EnergieManagementSystem:
             "Gesamtkosten_Euro": np.nansum(kosten_euro_pro_stunde),
             "Verluste_Pro_Stunde": verluste_wh_pro_stunde,
             "Gesamt_Verluste": np.nansum(verluste_wh_pro_stunde),
-            "Haushaltsgeraet_wh_pro_stunde": haushaltsgeraet_wh_pro_stunde,
+            "DomesticAppliance_wh_per_hour": domestic_appliance_wh_per_hour,
         }
         return out
