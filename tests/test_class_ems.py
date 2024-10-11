@@ -18,9 +18,7 @@ def create_ems_instance():
     Fixture to create an EnergieManagementSystem instance with given test parameters.
     """
     # Initialize the battery and the inverter
-    akku = PVAkku(
-        kapazitaet_wh=5000, start_soc_prozent=80, hours=48, min_soc_prozent=10
-    )
+    akku = PVAkku(kapazitaet_wh=5000, start_soc_prozent=80, hours=48, min_soc_prozent=10)
     akku.reset()
     wechselrichter = Wechselrichter(10000, akku)
 
@@ -33,9 +31,7 @@ def create_ems_instance():
     home_appliance.set_startzeitpunkt(2)
 
     # Example initialization of electric car battery
-    eauto = PVAkku(
-        kapazitaet_wh=26400, start_soc_prozent=10, hours=48, min_soc_prozent=10
-    )
+    eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=10, hours=48, min_soc_prozent=10)
 
     # Parameters based on previous example data
     pv_prognose_wh = [

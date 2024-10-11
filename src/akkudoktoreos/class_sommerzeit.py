@@ -10,9 +10,7 @@ def ist_dst_wechsel(tag: datetime.datetime, timezone="Europe/Berlin") -> bool:
     next_day = current_day + datetime.timedelta(days=1)
 
     # Check if the UTC offsets are different (indicating a DST change)
-    dst_change = (
-        current_day.replace(tzinfo=tz).dst() != next_day.replace(tzinfo=tz).dst()
-    )
+    dst_change = current_day.replace(tzinfo=tz).dst() != next_day.replace(tzinfo=tz).dst()
 
     return dst_change
 
