@@ -4,13 +4,12 @@ from pathlib import Path
 import pytest
 
 from akkudoktoreos.class_optimize import optimization_problem
+from akkudoktoreos.config import output_dir
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 
 
-@pytest.mark.parametrize(
-    "fn_in, fn_out", [("optimize_input_1.json", "optimize_result_1.json")]
-)
+@pytest.mark.parametrize("fn_in, fn_out", [("optimize_input_1.json", "optimize_result_1.json")])
 def test_optimize(fn_in, fn_out):
     # Load input and output data
     with open(DIR_TESTDATA / fn_in, "r") as f_in:
@@ -25,9 +24,7 @@ def test_optimize(fn_in, fn_out):
     start_hour = 10
 
     # Call the optimization function
-    ergebnis = opt_class.optimierung_ems(
-        parameter=input_data, start_hour=start_hour, ngen=3
-    )
+    ergebnis = opt_class.optimierung_ems(parameter=input_data, start_hour=start_hour, ngen=3)
 
     # Assert that the output contains all expected entries.
     # This does not assert that the optimization always gives the same result!
@@ -35,5 +32,5 @@ def test_optimize(fn_in, fn_out):
     assert set(ergebnis) == set(expected_output_data)
 
     # The function creates a visualization result PDF as a side-effect.
-    fp_viz = Path(".") / "visualization_results.pdf"
+    fp_viz = Path(output_dir) / "visualization_results.pdf"
     assert fp_viz.exists()

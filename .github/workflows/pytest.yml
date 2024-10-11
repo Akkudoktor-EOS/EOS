@@ -17,5 +17,6 @@ jobs:
         with:
           enable-cache: true
           project-path: .github/workflows
+
       - name: Run Pytest
         run: devbox run test-ci
