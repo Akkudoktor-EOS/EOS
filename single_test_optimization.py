@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import time 
 
 # Import necessary modules from the project
 from akkudoktoreos.class_optimize import optimization_problem
@@ -241,7 +242,7 @@ parameter = {
     # Electricity price forecast (48 hours)
     "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
     # Minimum SOC for electric car
-    "eauto_min_soc": 80,
+    "eauto_min_soc": 20,
     # Electric car battery capacity (Wh)
     "eauto_cap": 60000,
     # Charging efficiency of the electric car
@@ -262,6 +263,9 @@ parameter = {
     "min_soc_prozent": 15,
 }
 
+# Startzeit nehmen
+start_time = time.time()
+
 # Initialize the optimization problem
 opt_class = optimization_problem(
     prediction_hours=48, strafe=10, optimization_hours=24, verbose=True, fixed_seed=42
@@ -270,8 +274,16 @@ opt_class = optimization_problem(
 # Perform the optimisation based on the provided parameters and start hour
 ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)
 
+# Endzeit nehmen
+end_time = time.time()
+
+# Berechnete Zeit ausgeben
+elapsed_time = end_time - start_time
+print(f"Elapsed time: {elapsed_time:.4f} seconds")
+
+
 # Print or visualize the result
 # pprint(ergebnis)
 
-json_data = json.dumps(ergebnis)
-print(json_data)
+#json_data = json.dumps(ergebnis)
+#print(json_data)

@@ -28,6 +28,7 @@ class EnergieManagementSystem:
         self.akku.set_discharge_per_hour(ds)
 
     def set_eauto_charge_hours(self, ds: List[int]) -> None:
+        
         self.eauto.set_charge_per_hour(ds)
 
     def set_haushaltsgeraet_start(self, ds: List[int], global_start_hour: int = 0) -> None:
