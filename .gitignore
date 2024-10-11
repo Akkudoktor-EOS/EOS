@@ -4,9 +4,7 @@ output/
 # Default ignore folders and files for VS Code, Python
 
 .vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
+!.vscode/*.shared.json
 !.vscode/extensions.json
 !.vscode/*.code-snippets
 

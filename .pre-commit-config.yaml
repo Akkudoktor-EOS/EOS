@@ -1,24 +1,24 @@
 # Exclude some file types from automatic code style
 exclude: \.(json|csv)$
 repos:
-- repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v4.6.0
-  hooks:
-    - id: check-merge-conflict
-    - id: check-toml
-    - id: check-yaml
-    - id: end-of-file-fixer
-    - id: trailing-whitespace
-- repo: https://github.com/PyCQA/isort
-  rev: 5.13.2
-  hooks:
-    - id: isort
-      name: isort
-- repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.6.8
-  hooks:
-    # Run the linter and fix simple issues automatically
-    - id: ruff
-      args: [ --fix ]
-    # Run the formatter.
-    - id: ruff-format
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.8
+    hooks:
+      # Run the linter and fix simple issues automatically
+      - id: ruff
+        args: [--fix]
+      # Run the formatter.
+      - id: ruff-format
