@@ -232,8 +232,8 @@ def flask_optimize():
             "eauto_soc",
             "pv_soc",
             "start_solution",
-            "haushaltsgeraet_dauer",
-            "haushaltsgeraet_wh",
+            "domestic_appliance_duration",
+            "domestic_appliance_wh",
         ]
         # Identify any missing parameters
         missing_params = [p for p in required_parameters if p not in parameter]
