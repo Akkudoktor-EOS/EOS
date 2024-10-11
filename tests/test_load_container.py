@@ -82,18 +82,14 @@ class TestTotalLoad:
     def test_add_load_valid_tuple(self, load_data):
         """Test adding a valid load array using a tuple."""
         total_load = LoadAggregator()
-        total_load.add_load(
-            "Heat Pump", tuple(load_data["household"])
-        )  # Converting list to tuple
+        total_load.add_load("Heat Pump", tuple(load_data["household"]))  # Converting list to tuple
         assert "Heat Pump" in total_load.loads
         assert total_load.loads["Heat Pump"] == list(load_data["household"])
 
     def test_add_load_invalid_length(self, load_data):
         """Test adding an array with an invalid length."""
         total_load = LoadAggregator()
-        with pytest.raises(
-            ValueError, match="Total load inconsistent lengths in arrays: test 3"
-        ):
+        with pytest.raises(ValueError, match="Total load inconsistent lengths in arrays: test 3"):
             total_load.add_load(
                 "test", load_data["invalid_length"]
             )  # Should raise an error since length is 3

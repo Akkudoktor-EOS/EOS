@@ -13,9 +13,7 @@ class LoadAggregator:
         ] = {}  # Dictionary to hold load arrays for different sources
         self.prediction_hours: int = prediction_hours
 
-    def add_load(
-        self, name: str, last_array: Union[List[float], Tuple[float, ...]]
-    ) -> None:
+    def add_load(self, name: str, last_array: Union[List[float], Tuple[float, ...]]) -> None:
         """
         Adds a load array for a specific source. Accepts either a Python list or tuple.
 
@@ -26,7 +24,7 @@ class LoadAggregator:
         # Check length of the array without converting
         if len(last_array) != self.prediction_hours:
             raise ValueError(f"Total load inconsistent lengths in arrays: {name} {len(last_array)}")
-        self.lasten[name] = last_array
+        self.loads[name] = list(last_array)
 
     def calculate_total_load(self) -> List[float]:
         """
