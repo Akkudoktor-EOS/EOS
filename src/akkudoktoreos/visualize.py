@@ -1,4 +1,5 @@
 import datetime
+import os
 
 # Set the backend for matplotlib to Agg
 import matplotlib
@@ -7,6 +8,7 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.class_sommerzeit import ist_dst_wechsel
+from akkudoktoreos.config import output_dir
 
 matplotlib.use("Agg")
 
@@ -28,7 +30,10 @@ def visualisiere_ergebnisse(
     #####################
     # 24-hour visualization
     #####################
-    with PdfPages(filename) as pdf:
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    output_file = os.path.join(output_dir, filename)
+    with PdfPages(output_file) as pdf:
         # Load and PV generation
         plt.figure(figsize=(14, 14))
         plt.subplot(3, 3, 1)
@@ -136,9 +141,7 @@ def visualisiere_ergebnisse(
             label="Grid Consumption (Wh)",
             marker="^",
         )
-        plt.plot(
-            hours, ergebnisse["Verluste_Pro_Stunde"], label="Losses (Wh)", marker="^"
-        )
+        plt.plot(hours, ergebnisse["Verluste_Pro_Stunde"], label="Losses (Wh)", marker="^")
         plt.title("Energy Flow per Hour")
         plt.xlabel("Hour")
         plt.ylabel("Energy (Wh)")
@@ -146,18 +149,14 @@ def visualisiere_ergebnisse(
 
         # State of charge for batteries
         plt.subplot(3, 2, 2)
-        plt.plot(
-            hours, ergebnisse["akku_soc_pro_stunde"], label="PV Battery (%)", marker="x"
-        )
+        plt.plot(hours, ergebnisse["akku_soc_pro_stunde"], label="PV Battery (%)", marker="x")
         plt.plot(
             hours,
             ergebnisse["E-Auto_SoC_pro_Stunde"],
             label="E-Car Battery (%)",
             marker="x",
         )
-        plt.legend(
-            loc="upper left", bbox_to_anchor=(1, 1)
-        )  # Place legend outside the plot
+        plt.legend(loc="upper left", bbox_to_anchor=(1, 1))  # Place legend outside the plot
         plt.grid(True, which="both", axis="x")  # Grid for every hour
 
         ax1 = plt.subplot(3, 2, 3)
@@ -249,18 +248,12 @@ def visualisiere_ergebnisse(
             filtered_losses = np.array(
                 [
                     v
-                    for v, n in zip(
-                        extra_data["verluste"], extra_data["nebenbedingung"]
-                    )
+                    for v, n in zip(extra_data["verluste"], extra_data["nebenbedingung"])
                     if n < 0.01
                 ]
             )
             filtered_balance = np.array(
-                [
-                    b
-                    for b, n in zip(extra_data["bilanz"], extra_data["nebenbedingung"])
-                    if n < 0.01
-                ]
+                [b for b, n in zip(extra_data["bilanz"], extra_data["nebenbedingung"]) if n < 0.01]
             )
             if filtered_losses.size != 0:
                 best_loss = min(filtered_losses)
@@ -276,15 +269,11 @@ def visualisiere_ergebnisse(
                 )  # Two subplots, separate y-axes
 
                 # First violin plot for losses
-                axs[0].violinplot(
-                    data[0], positions=[1], showmeans=True, showmedians=True
-                )
+                axs[0].violinplot(data[0], positions=[1], showmeans=True, showmedians=True)
                 axs[1].set(title="Losses", xticks=[1], xticklabels=["Losses"])
 
                 # Second violin plot for balance
-                axs[1].violinplot(
-                    data[1], positions=[1], showmeans=True, showmedians=True
-                )
+                axs[1].violinplot(data[1], positions=[1], showmeans=True, showmedians=True)
                 axs[1].set(title="Balance", xticks=[1], xticklabels=["Balance"])
 
                 # Fine-tuning

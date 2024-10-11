@@ -1,11 +1,7 @@
 numpy==2.1.2
-mariadb==1.1.10
 matplotlib==3.9.2
 flask==3.0.3
 scikit-learn==1.5.2
 deap==1.4.1
-joblib==1.4.2
 requests==2.32.3
-pytest==8.3.3
-pytest-cov==5.0.0
 pandas==2.2.3

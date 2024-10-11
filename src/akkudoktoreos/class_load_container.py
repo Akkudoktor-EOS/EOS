@@ -25,10 +25,8 @@ class LoadAggregator:
         """
         # Check length of the array without converting
         if len(last_array) != self.prediction_hours:
-            raise ValueError(
-                f"Total load inconsistent lengths in arrays: {name} {len(last_array)}"
-            )
-        self.loads[name] = list(last_array)  # Store as a list regardless
+            raise ValueError(f"Total load inconsistent lengths in arrays: {name} {len(last_array)}")
+        self.lasten[name] = last_array
 
     def calculate_total_load(self) -> List[float]:
         """

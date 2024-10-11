@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
 
+output_dir = "output"
+
 prediction_hours = 48
 optimization_hours = 24
 strafe = 10
@@ -24,9 +26,7 @@ def get_start_enddate(prediction_hours=48, startdate=None):
     # Parameter
     ############
     if startdate is None:
-        date = (datetime.now().date() + timedelta(hours=prediction_hours)).strftime(
-            "%Y-%m-%d"
-        )
+        date = (datetime.now().date() + timedelta(hours=prediction_hours)).strftime("%Y-%m-%d")
         date_now = datetime.now().strftime("%Y-%m-%d")
     else:
         date = (startdate + timedelta(hours=prediction_hours)).strftime("%Y-%m-%d")

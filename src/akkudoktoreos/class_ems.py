@@ -30,9 +30,7 @@ class EnergieManagementSystem:
     def set_eauto_charge_hours(self, ds: List[int]) -> None:
         self.eauto.set_charge_per_hour(ds)
 
-    def set_haushaltsgeraet_start(
-        self, ds: List[int], global_start_hour: int = 0
-    ) -> None:
+    def set_haushaltsgeraet_start(self, ds: List[int], global_start_hour: int = 0) -> None:
         self.haushaltsgeraet.set_startzeitpunkt(ds, global_start_hour=global_start_hour)
 
     def reset(self) -> None:
@@ -48,9 +46,7 @@ class EnergieManagementSystem:
         # Ensure arrays have the same length
         lastkurve_wh = self.gesamtlast
         assert (
-            len(lastkurve_wh)
-            == len(self.pv_prognose_wh)
-            == len(self.strompreis_euro_pro_wh)
+            len(lastkurve_wh) == len(self.pv_prognose_wh) == len(self.strompreis_euro_pro_wh)
         ), f"Array sizes do not match: Load Curve = {len(lastkurve_wh)}, PV Forecast = {len(self.pv_prognose_wh)}, Electricity Price = {len(self.strompreis_euro_pro_wh)}"
 
         # Optimized total hours calculation
@@ -86,14 +82,10 @@ class EnergieManagementSystem:
 
             # E-Auto handling
             if self.eauto:
-                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(
-                    None, stunde
-                )
+                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(None, stunde)
                 verbrauch += geladene_menge_eauto
                 verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
-                eauto_soc_pro_stunde[stunde_since_now] = (
-                    self.eauto.ladezustand_in_prozent()
-                )
+                eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
 
             # Process inverter logic
             erzeugung = self.pv_prognose_wh[stunde]
@@ -117,9 +109,7 @@ class EnergieManagementSystem:
             akku_soc_pro_stunde[stunde_since_now] = self.akku.ladezustand_in_prozent()
 
         # Total cost and return
-        gesamtkosten_euro = np.nansum(kosten_euro_pro_stunde) - np.nansum(
-            einnahmen_euro_pro_stunde
-        )
+        gesamtkosten_euro = np.nansum(kosten_euro_pro_stunde) - np.nansum(einnahmen_euro_pro_stunde)
 
         # Prepare output dictionary
         out: Dict[str, Union[np.ndarray, float]] = {
