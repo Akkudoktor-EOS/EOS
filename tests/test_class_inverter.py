@@ -32,9 +32,7 @@ def test_process_energy_excess_generation(inverter, mock_battery):
     )
 
     # Use pytest.approx for floating point comparison to allow for minor rounding differences
-    assert grid_feed_in == pytest.approx(
-        290.0, rel=1e-2
-    )  # Approximately 300 Wh feed-in
+    assert grid_feed_in == pytest.approx(290.0, rel=1e-2)  # Approximately 290 Wh feed-in
     assert grid_draw == 0.0
     assert losses == 10.0
     assert self_consumption == 200.0
