@@ -15,7 +15,7 @@ class EnergieManagementSystem:
         haushaltsgeraet: Optional[object] = None,
         wechselrichter: Optional[object] = None,
     ):
-        self.akku = wechselrichter.akku
+        self.akku = wechselrichter.battery
         self.gesamtlast = gesamtlast
         self.pv_prognose_wh = pv_prognose_wh
         self.strompreis_euro_pro_wh = strompreis_euro_pro_wh
@@ -90,7 +90,7 @@ class EnergieManagementSystem:
             # Process inverter logic
             erzeugung = self.pv_prognose_wh[stunde]
             netzeinspeisung, netzbezug, verluste, eigenverbrauch = (
-                self.wechselrichter.energie_verarbeiten(erzeugung, verbrauch, stunde)
+                self.wechselrichter.process_energy(erzeugung, verbrauch, stunde)
             )
             netzeinspeisung_wh_pro_stunde[stunde_since_now] = netzeinspeisung
             netzbezug_wh_pro_stunde[stunde_since_now] = netzbezug
