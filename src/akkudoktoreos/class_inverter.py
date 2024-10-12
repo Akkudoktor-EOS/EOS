@@ -42,7 +42,7 @@ class Inverter:
             )
             losses += discharge_losses
 
-            # Draw remaining required power from the grid
+            # Draw remaining required power from the grid (discharge_losses are already substraved in the battery)
             grid_draw = shortfall - battery_discharge
             self_consumption = generation + battery_discharge
 
