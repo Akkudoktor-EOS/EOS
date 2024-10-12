@@ -5,7 +5,11 @@ import time
 import numpy as np
 
 from akkudoktoreos.class_numpy_encoder import NumpyEncoder
-from akkudoktoreos.class_optimize import OptimizationParameters, optimization_problem
+from akkudoktoreos.class_optimize import (
+    OptimizationParameters,
+    OptimizeResponse,
+    optimization_problem,
+)
 from akkudoktoreos.config import get_working_dir, load_config
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
@@ -320,3 +324,5 @@ visualisiere_ergebnisse(
 
 json_data = NumpyEncoder.dumps(ergebnis)
 print(json_data)
+
+OptimizeResponse(**ergebnis)

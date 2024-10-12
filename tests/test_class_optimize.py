@@ -5,7 +5,11 @@ from unittest.mock import patch
 
 import pytest
 
-from akkudoktoreos.class_optimize import OptimizationParameters, optimization_problem
+from akkudoktoreos.class_optimize import (
+    OptimizationParameters,
+    OptimizeResponse,
+    optimization_problem,
+)
 from akkudoktoreos.config import AppConfig
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
@@ -70,3 +74,5 @@ def test_optimize(
 
     # The function creates a visualization result PDF as a side-effect.
     visualisiere_ergebnisse_patch.assert_called_once()
+
+    OptimizeResponse(**ergebnis)
