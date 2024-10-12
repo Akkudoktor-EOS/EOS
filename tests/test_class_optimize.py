@@ -2,15 +2,16 @@ import json
 from pathlib import Path
 
 import pytest
+from mock import patch
 
 from akkudoktoreos.class_optimize import optimization_problem
-from akkudoktoreos.config import output_dir
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 
 
 @pytest.mark.parametrize("fn_in, fn_out", [("optimize_input_1.json", "optimize_result_1.json")])
-def test_optimize(fn_in, fn_out):
+@patch("akkudoktoreos.class_optimize.visualisiere_ergebnisse")
+def test_optimize(visualisiere_ergebnisse_patch, fn_in, fn_out):
     # Load input and output data
     with open(DIR_TESTDATA / fn_in, "r") as f_in:
         input_data = json.load(f_in)
@@ -34,5 +35,4 @@ def test_optimize(fn_in, fn_out):
     assert set(ergebnis) == set(expected_output_data)
 
     # The function creates a visualization result PDF as a side-effect.
-    fp_viz = Path(output_dir) / "visualization_results.pdf"
-    assert fp_viz.exists()
+    visualisiere_ergebnisse_patch.assert_called_once()
