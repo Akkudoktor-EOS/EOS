@@ -14,8 +14,7 @@ class LoadForecast:
         self.load_data()
 
     def get_daily_stats(self, date_str):
-        """
-        Returns the 24-hour profile with mean and standard deviation for a given date.
+        """Returns the 24-hour profile with mean and standard deviation for a given date.
 
         :param date_str: Date as a string in the format "YYYY-MM-DD"
         :return: An array with shape (2, 24), contains means and standard deviations
@@ -31,8 +30,7 @@ class LoadForecast:
         return daily_stats
 
     def get_hourly_stats(self, date_str, hour):
-        """
-        Returns the mean and standard deviation for a specific hour of a given date.
+        """Returns the mean and standard deviation for a specific hour of a given date.
 
         :param date_str: Date as a string in the format "YYYY-MM-DD"
         :param hour: Specific hour (0 to 23)
@@ -50,8 +48,7 @@ class LoadForecast:
         return hourly_stats
 
     def get_stats_for_date_range(self, start_date_str, end_date_str):
-        """
-        Returns the means and standard deviations for a date range.
+        """Returns the means and standard deviations for a date range.
 
         :param start_date_str: Start date as a string in the format "YYYY-MM-DD"
         :param end_date_str: End date as a string in the format "YYYY-MM-DD"

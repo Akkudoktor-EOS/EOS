@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip install dist test docker-run docs clean
+.PHONY: help venv pip install dist test docker-run docs read-docs clean
 
 # Default target
 all: help
@@ -14,6 +14,7 @@ help:
 	@echo "  docker-run   - Run entire setup on docker"
 	@echo "  docker-build - Rebuild docker image"
 	@echo "  docs         - Generate HTML documentation (in build/docs/html/)."
+	@echo "  read-docs    - Read HTML documentation in your browser."
 	@echo "  run          - Run flask_server in the virtual environment (needs install before)."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
@@ -50,6 +51,11 @@ dist: pip
 docs: pip-dev
 	.venv/bin/sphinx-build -M html docs build/docs
 	@echo "Documentation generated to build/docs/html/."
+
+# Target to read the HTML documentation
+read-docs: docs
+	@echo "Read the documentation in your browser"
+	.venv/bin/python -m webbrowser build/docs/html/index.html
 
 # Clean target to remove generated documentation, distribution and virtual environment
 clean:
