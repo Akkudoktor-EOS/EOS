@@ -17,8 +17,12 @@ from fastapi.responses import FileResponse, RedirectResponse
 from akkudoktoreos.class_load import LoadForecast
 from akkudoktoreos.class_load_container import Gesamtlast
 from akkudoktoreos.class_load_corrector import LoadPredictionAdjuster
-from akkudoktoreos.class_optimize import OptimizationParameters, optimization_problem
-from akkudoktoreos.class_pv_forecast import PVForecast
+from akkudoktoreos.class_optimize import (
+    OptimizationParameters,
+    OptimizeResponse,
+    optimization_problem,
+)
+from akkudoktoreos.class_pv_forecast import ForecastResponse, PVForecast
 from akkudoktoreos.class_strompreis import HourlyElectricityPriceForecast
 from akkudoktoreos.config import (
     get_start_enddate,
@@ -44,7 +48,7 @@ opt_class = optimization_problem(
 
 
 @app.get("/strompreis")
-def fastapi_strompreis():
+def fastapi_strompreis() -> list[float]:
     # Get the current date and the end date based on prediction hours
     date_now, date = get_start_enddate(prediction_hours, startdate=datetime.now().date())
     filepath = os.path.join(
@@ -60,9 +64,12 @@ def fastapi_strompreis():
     return specific_date_prices.tolist()
 
 
-# Endpoint to handle total load calculation based on the latest measured data
 @app.post("/gesamtlast")
-def fastapi_gesamtlast(year_energy: float, measured_data: list[dict[str, Any]], hours: int = 48):
+def fastapi_gesamtlast(
+    year_energy: float, measured_data: list[dict[str, Any]], hours: int = 48
+) -> list[float]:
+    """Endpoint to handle total load calculation based on the latest measured data"""
+
     prediction_hours = hours
 
     # Measured data in JSON format
@@ -116,7 +123,7 @@ def fastapi_gesamtlast(year_energy: float, measured_data: list[dict[str, Any]], 
 
 
 @app.get("/gesamtlast_simple")
-def fastapi_gesamtlast_simple(year_energy: float):
+def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     date_now, date = get_start_enddate(
         prediction_hours, startdate=datetime.now().date()
     )  # Get the current date and prediction end date
@@ -153,7 +160,7 @@ def fastapi_gesamtlast_simple(year_energy: float):
 
 
 @app.get("/pvforecast")
-def fastapi_pvprognose(url: str, ac_power_measurement: Optional[float] = None):
+def fastapi_pvprognose(url: str, ac_power_measurement: Optional[float] = None) -> ForecastResponse:
     date_now, date = get_start_enddate(prediction_hours, startdate=datetime.now().date())
 
     ###############
@@ -182,8 +189,14 @@ def fastapi_pvprognose(url: str, ac_power_measurement: Optional[float] = None):
 
 @app.post("/optimize")
 def fastapi_optimize(
-    parameters: OptimizationParameters, start_hour: Annotated[int, Query()] = datetime.now().hour
-):
+    parameters: OptimizationParameters,
+    start_hour: Annotated[
+        Optional[int], Query(description="Defaults to current hour of the day.")
+    ] = None,
+) -> OptimizeResponse:
+    if start_hour is None:
+        start_hour = datetime.now().hour
+
     # Perform optimization simulation
     result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
     print(result)
@@ -197,12 +210,12 @@ def get_pdf():
     return FileResponse(os.path.join(output_dir, "visualization_results.pdf"))
 
 
-@app.get("/site-map")
+@app.get("/site-map", include_in_schema=False)
 def site_map():
     return RedirectResponse(url="/docs")
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def root():
     # Redirect the root URL to the site map
     return RedirectResponse(url="/docs")

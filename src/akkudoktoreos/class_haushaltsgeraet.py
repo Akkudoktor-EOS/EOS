@@ -3,8 +3,14 @@ from pydantic import BaseModel, Field
 
 
 class HaushaltsgeraetParameters(BaseModel):
-    verbrauch_wh: float = Field(gt=0)
-    dauer_h: int = Field(gt=0)
+    verbrauch_wh: int = Field(
+        gt=0,
+        description="An integer representing the energy consumption of a household device in watt-hours.",
+    )
+    dauer_h: int = Field(
+        gt=0,
+        description="An integer representing the usage duration of a household device in hours.",
+    )
 
 
 class Haushaltsgeraet:

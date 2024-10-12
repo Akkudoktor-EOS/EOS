@@ -3,7 +3,11 @@
 import json
 
 # Import necessary modules from the project
-from akkudoktoreos.class_optimize import OptimizationParameters, optimization_problem
+from akkudoktoreos.class_optimize import (
+    OptimizationParameters,
+    OptimizeResponse,
+    optimization_problem,
+)
 
 start_hour = 10
 
@@ -279,3 +283,5 @@ ergebnis = opt_class.optimierung_ems(
 
 json_data = json.dumps(ergebnis)
 print(json_data)
+
+OptimizeResponse(**ergebnis)

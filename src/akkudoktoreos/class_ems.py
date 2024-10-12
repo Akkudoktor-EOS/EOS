@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import numpy as np
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
 
 from akkudoktoreos.class_akku import PVAkku
@@ -11,11 +11,19 @@ from akkudoktoreos.class_inverter import Wechselrichter
 
 
 class EnergieManagementSystemParameters(BaseModel):
-    pv_prognose_wh: list[float]
-    strompreis_euro_pro_wh: list[float]
-    einspeiseverguetung_euro_pro_wh: float
+    pv_prognose_wh: list[float] = Field(
+        description="An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+    )
+    strompreis_euro_pro_wh: list[float] = Field(
+        description="An array of floats representing the electricity price in euros per watt-hour for different time intervals."
+    )
+    einspeiseverguetung_euro_pro_wh: float = Field(
+        description="A float representing the feed-in compensation in euros per watt-hour."
+    )
     preis_euro_pro_wh_akku: float
-    gesamtlast: list[float]
+    gesamtlast: list[float] = Field(
+        description="An array of floats representing the total load (consumption) in watts for different time intervals."
+    )
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
@@ -142,7 +150,7 @@ class EnergieManagementSystem:
             "akku_soc_pro_stunde": akku_soc_pro_stunde,
             "Einnahmen_Euro_pro_Stunde": einnahmen_euro_pro_stunde,
             "Gesamtbilanz_Euro": gesamtkosten_euro,
-            "E-Auto_SoC_pro_Stunde": eauto_soc_pro_stunde,
+            "EAuto_SoC_pro_Stunde": eauto_soc_pro_stunde,
             "Gesamteinnahmen_Euro": np.nansum(einnahmen_euro_pro_stunde),
             "Gesamtkosten_Euro": np.nansum(kosten_euro_pro_stunde),
             "Verluste_Pro_Stunde": verluste_wh_pro_stunde,

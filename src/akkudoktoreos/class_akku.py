@@ -4,22 +4,48 @@ import numpy as np
 from pydantic import BaseModel, Field
 
 
+def max_ladeleistung_w_field(default=None):
+    return Field(
+        default,
+        gt=0,
+        description="An integer representing the charging power of the battery in watts.",
+    )
+
+
+def start_soc_prozent_field(description: str):
+    return Field(0, ge=0, le=100, description=description)
+
+
 class BaseAkkuParameters(BaseModel):
-    kapazitaet_wh: float = Field(gt=0)
-    lade_effizienz: float = Field(0.88, gt=0, le=1)
+    kapazitaet_wh: int = Field(
+        gt=0, description="An integer representing the capacity of the battery in watt-hours."
+    )
+    lade_effizienz: float = Field(
+        0.88, gt=0, le=1, description="A float representing the charging efficiency of the battery."
+    )
     entlade_effizienz: float = Field(0.88, gt=0, le=1)
-    max_ladeleistung_w: Optional[float] = Field(None, gt=0)
-    start_soc_prozent: float = Field(0, ge=0, le=100)
-    min_soc_prozent: int = Field(0, ge=0, le=100)
+    max_ladeleistung_w: Optional[float] = max_ladeleistung_w_field()
+    start_soc_prozent: int = start_soc_prozent_field(
+        "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
+    )
+    min_soc_prozent: int = Field(
+        0,
+        ge=0,
+        le=100,
+        description="An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+    )
     max_soc_prozent: int = Field(100, ge=0, le=100)
 
 
 class PVAkkuParameters(BaseAkkuParameters):
-    max_ladeleistung_w: Optional[float] = 5000
+    max_ladeleistung_w: Optional[float] = max_ladeleistung_w_field(5000)
 
 
 class EAutoParameters(BaseAkkuParameters):
     entlade_effizienz: float = 1.0
+    start_soc_prozent: int = start_soc_prozent_field(
+        "An integer representing the current state of charge (SOC) of the battery in percentage."
+    )
 
 
 class PVAkku:

@@ -152,7 +152,7 @@ def visualisiere_ergebnisse(
         plt.plot(hours, ergebnisse["akku_soc_pro_stunde"], label="PV Battery (%)", marker="x")
         plt.plot(
             hours,
-            ergebnisse["E-Auto_SoC_pro_Stunde"],
+            ergebnisse["EAuto_SoC_pro_Stunde"],
             label="E-Car Battery (%)",
             marker="x",
         )

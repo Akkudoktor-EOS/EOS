@@ -3,7 +3,7 @@ from typing import Any, Optional, Tuple
 
 import numpy as np
 from deap import algorithms, base, creator, tools
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
 
 from akkudoktoreos.class_akku import EAutoParameters, PVAkku, PVAkkuParameters
@@ -26,8 +26,12 @@ class OptimizationParameters(BaseModel):
     wechselrichter: WechselrichterParameters = WechselrichterParameters()
     eauto: EAutoParameters
     spuelmaschine: Optional[HaushaltsgeraetParameters] = None
-    temperature_forecast: list[float]
-    start_solution: Optional[list[float]] = None
+    temperature_forecast: list[float] = Field(
+        "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
+    )
+    start_solution: Optional[list[float]] = Field(
+        None, description="Can be `null` or contain a previous solution (if available)."
+    )
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
@@ -35,6 +39,122 @@ class OptimizationParameters(BaseModel):
         if arr_length != len(self.temperature_forecast):
             raise ValueError("Input lists have different lenghts")
         return self
+
+
+class EAutoResult(BaseModel):
+    """ "This object contains information related to the electric vehicle and its charging and discharging behavior"""
+
+    charge_array: list[float] = Field(
+        description="Indicates for each hour whether the EV is charging (`0` for no charging, `1` for charging)."
+    )
+    discharge_array: list[int] = Field(
+        description="Indicates for each hour whether the EV is discharging (`0` for no discharging, `1` for discharging)."
+    )
+    entlade_effizienz: float = Field(description="The discharge efficiency as a float.")
+    hours: int = Field("Amount of hours the simulation is done for.")
+    kapazitaet_wh: int = Field("The capacity of the EV’s battery in watt-hours.")
+    lade_effizienz: float = Field("The charging efficiency as a float.")
+    max_ladeleistung_w: int = Field(description="The maximum charging power of the EV in watts.")
+    soc_wh: float = Field(
+        description="The state of charge of the battery in watt-hours at the start of the simulation."
+    )
+    start_soc_prozent: int = Field(
+        description="The state of charge of the battery in percentage at the start of the simulation."
+    )
+
+
+class SimulationResult(BaseModel):
+    """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period"""
+
+    Last_Wh_pro_Stunde: list[Optional[float]] = Field(description="TBD")
+    EAuto_SoC_pro_Stunde: list[Optional[float]] = Field(
+        description="The state of charge of the EV for each hour."
+    )
+    Einnahmen_Euro_pro_Stunde: list[Optional[float]] = Field(
+        description="The revenue from grid feed-in or other sources in euros per hour."
+    )
+    Gesamt_Verluste: float = Field(
+        description="The total losses in watt-hours over the entire period."
+    )
+    Gesamtbilanz_Euro: float = Field(
+        description="The total balance of revenues minus costs in euros."
+    )
+    Gesamteinnahmen_Euro: float = Field(description="The total revenues in euros.")
+    Gesamtkosten_Euro: float = Field(description="The total costs in euros.")
+    Haushaltsgeraet_wh_pro_stunde: list[Optional[float]] = Field(
+        description="The energy consumption of a household appliance in watt-hours per hour."
+    )
+    Kosten_Euro_pro_Stunde: list[Optional[float]] = Field(
+        description="The costs in euros per hour."
+    )
+    Netzbezug_Wh_pro_Stunde: list[Optional[float]] = Field(
+        description="The grid energy drawn in watt-hours per hour."
+    )
+    Netzeinspeisung_Wh_pro_Stunde: list[Optional[float]] = Field(
+        description="The energy fed into the grid in watt-hours per hour."
+    )
+    Verluste_Pro_Stunde: list[Optional[float]] = Field(
+        description="The losses in watt-hours per hour."
+    )
+    akku_soc_pro_stunde: list[Optional[float]] = Field(
+        description="The state of charge of the battery (not the EV) in percentage per hour."
+    )
+
+
+# class SimulationData(BaseModel):
+#    """An object containing the simulated data."""
+#
+#    Last_Wh_pro_Stunde: list[Optional[float]] = Field(description="TBD")
+#    EAuto_SoC_pro_Stunde: list[Optional[float]] = Field(
+#        description="An array of floats representing the simulated state of charge of the electric car per hour.",
+#    )
+#    Einnahmen_Euro_pro_Stunde: list[Optional[float]] = Field(
+#        description="An array of floats representing the simulated income in euros per hour."
+#    )
+#    Gesamt_Verluste: float = Field(description="The total simulated losses in watt-hours.")
+#    Gesamtbilanz_Euro: float = Field(description="The total simulated balance in euros.")
+#    Gesamteinnahmen_Euro: float = Field(description="The total simulated income in euros.")
+#    Gesamtkosten_Euro: float = Field(description="The total simulated costs in euros.")
+#    Haushaltsgeraet_wh_pro_stunde: list[Optional[float]] = Field(
+#        description="An array of floats representing the simulated energy consumption of a household appliance in watt-hours per hour."
+#    )
+#    Kosten_Euro_pro_Stunde: list[Optional[float]] = Field(
+#        description="An array of floats representing the simulated costs in euros per hour."
+#    )
+#    Netzbezug_Wh_pro_Stunde: list[Optional[float]] = Field(
+#        description="An array of floats representing the simulated grid consumption in watt-hours per hour."
+#    )
+#    Netzeinspeisung_Wh_pro_Stunde: list[Optional[float]] = Field(
+#        description="An array of floats representing the simulated grid feed-in in watt-hours per hour."
+#    )
+#    Verluste_Pro_Stunde: list[Optional[float]] = Field(
+#        description="An array of floats representing the simulated losses per hour."
+#    )
+#    akku_soc_pro_stunde: list[Optional[float]] = Field(
+#        description="An array of floats representing the simulated state of charge of the battery in percentage per hour."
+#    )
+
+
+class OptimizeResponse(BaseModel):
+    """**Note**: The first value of "Last_Wh_pro_Stunde", "Netzeinspeisung_Wh_pro_Stunde" and "Netzbezug_Wh_pro_Stunde", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
+
+    discharge_hours_bin: list[int] = Field(
+        description="An array that indicates for each hour of the forecast period whether energy is discharged from the battery or not. The values are either `0` (no discharge) or `1` (discharge)."
+    )
+    eautocharge_hours_float: list[float] = Field(
+        description="An array of binary values (0 or 1) that indicates whether the EV will be charged in a certain hour."
+    )
+    result: SimulationResult
+    eauto_obj: EAutoResult
+    start_solution: Optional[list[float]] = Field(
+        None,
+        description="An array of binary values (0 or 1) representing a possible starting solution for the simulation.",
+    )
+    spuelstart: Optional[int] = Field(
+        None,
+        description="Can be `null` or contain an object representing the start of washing (if applicable).",
+    )
+    # simulation_data: Optional[SimulationData] = None
 
 
 class optimization_problem:
@@ -330,7 +450,7 @@ class optimization_problem:
             "Netzbezug_Wh_pro_Stunde",
             "Kosten_Euro_pro_Stunde",
             "Einnahmen_Euro_pro_Stunde",
-            "E-Auto_SoC_pro_Stunde",
+            "EAuto_SoC_pro_Stunde",
             "Verluste_Pro_Stunde",
             "Haushaltsgeraet_wh_pro_stunde",
         ]
@@ -358,5 +478,5 @@ class optimization_problem:
             "eauto_obj": ems.eauto.to_dict(),
             "start_solution": start_solution,
             "spuelstart": spuelstart_int,
-            "simulation_data": o,
+            # "simulation_data": o,
         }

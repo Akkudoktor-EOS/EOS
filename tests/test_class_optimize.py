@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from akkudoktoreos.class_optimize import OptimizationParameters, optimization_problem
+from akkudoktoreos.class_optimize import (
+    OptimizationParameters,
+    OptimizeResponse,
+    optimization_problem,
+)
 from akkudoktoreos.config import output_dir
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
@@ -34,3 +38,5 @@ def test_optimize(fn_in, fn_out):
     # The function creates a visualization result PDF as a side-effect.
     fp_viz = Path(output_dir) / "visualization_results.pdf"
     assert fp_viz.exists()
+
+    OptimizeResponse(**ergebnis)

@@ -253,7 +253,7 @@ def test_simulation(create_ems_instance):
         "akku_soc_pro_stunde",
         "Einnahmen_Euro_pro_Stunde",
         "Gesamtbilanz_Euro",
-        "E-Auto_SoC_pro_Stunde",
+        "EAuto_SoC_pro_Stunde",
         "Gesamteinnahmen_Euro",
         "Gesamtkosten_Euro",
         "Verluste_Pro_Stunde",
