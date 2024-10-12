@@ -1,6 +1,6 @@
 import unittest
 
-from akkudoktoreos.class_akku import PVAkku
+from akkudoktoreos.class_akku import PVAkku, PVAkkuParameters
 
 
 class TestPVAkku(unittest.TestCase):
@@ -14,21 +14,25 @@ class TestPVAkku(unittest.TestCase):
 
     def test_initial_state_of_charge(self):
         akku = PVAkku(
-            self.kapazitaet_wh,
+            PVAkkuParameters(
+                kapazitaet_wh=self.kapazitaet_wh,
+                start_soc_prozent=50,
+                min_soc_prozent=self.min_soc_prozent,
+                max_soc_prozent=self.max_soc_prozent,
+            ),
             hours=1,
-            start_soc_prozent=50,
-            min_soc_prozent=self.min_soc_prozent,
-            max_soc_prozent=self.max_soc_prozent,
         )
         self.assertEqual(akku.ladezustand_in_prozent(), 50.0, "Initial SoC should be 50%")
 
     def test_discharge_below_min_soc(self):
         akku = PVAkku(
-            self.kapazitaet_wh,
+            PVAkkuParameters(
+                kapazitaet_wh=self.kapazitaet_wh,
+                start_soc_prozent=50,
+                min_soc_prozent=self.min_soc_prozent,
+                max_soc_prozent=self.max_soc_prozent,
+            ),
             hours=1,
-            start_soc_prozent=50,
-            min_soc_prozent=self.min_soc_prozent,
-            max_soc_prozent=self.max_soc_prozent,
         )
         akku.reset()
         # Try to discharge more energy than available above min_soc
@@ -43,11 +47,13 @@ class TestPVAkku(unittest.TestCase):
 
     def test_charge_above_max_soc(self):
         akku = PVAkku(
-            self.kapazitaet_wh,
+            PVAkkuParameters(
+                kapazitaet_wh=self.kapazitaet_wh,
+                start_soc_prozent=50,
+                min_soc_prozent=self.min_soc_prozent,
+                max_soc_prozent=self.max_soc_prozent,
+            ),
             hours=1,
-            start_soc_prozent=50,
-            min_soc_prozent=self.min_soc_prozent,
-            max_soc_prozent=self.max_soc_prozent,
         )
         akku.reset()
         # Try to charge more energy than available up to max_soc
@@ -62,11 +68,13 @@ class TestPVAkku(unittest.TestCase):
 
     def test_charging_at_max_soc(self):
         akku = PVAkku(
-            self.kapazitaet_wh,
+            PVAkkuParameters(
+                kapazitaet_wh=self.kapazitaet_wh,
+                start_soc_prozent=80,
+                min_soc_prozent=self.min_soc_prozent,
+                max_soc_prozent=self.max_soc_prozent,
+            ),
             hours=1,
-            start_soc_prozent=80,
-            min_soc_prozent=self.min_soc_prozent,
-            max_soc_prozent=self.max_soc_prozent,
         )
         akku.reset()
         # Try to charge when SoC is already at max_soc
@@ -80,11 +88,13 @@ class TestPVAkku(unittest.TestCase):
 
     def test_discharging_at_min_soc(self):
         akku = PVAkku(
-            self.kapazitaet_wh,
+            PVAkkuParameters(
+                kapazitaet_wh=self.kapazitaet_wh,
+                start_soc_prozent=20,
+                min_soc_prozent=self.min_soc_prozent,
+                max_soc_prozent=self.max_soc_prozent,
+            ),
             hours=1,
-            start_soc_prozent=20,
-            min_soc_prozent=self.min_soc_prozent,
-            max_soc_prozent=self.max_soc_prozent,
         )
         akku.reset()
         # Try to discharge when SoC is already at min_soc
@@ -99,11 +109,13 @@ class TestPVAkku(unittest.TestCase):
     def test_soc_limits(self):
         # Test to ensure that SoC never exceeds max_soc or drops below min_soc
         akku = PVAkku(
-            self.kapazitaet_wh,
+            PVAkkuParameters(
+                kapazitaet_wh=self.kapazitaet_wh,
+                start_soc_prozent=50,
+                min_soc_prozent=self.min_soc_prozent,
+                max_soc_prozent=self.max_soc_prozent,
+            ),
             hours=1,
-            start_soc_prozent=50,
-            min_soc_prozent=self.min_soc_prozent,
-            max_soc_prozent=self.max_soc_prozent,
         )
         akku.reset()
         akku.soc_wh = (

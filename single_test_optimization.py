@@ -3,7 +3,11 @@
 import json
 
 # Import necessary modules from the project
-from akkudoktoreos.class_optimize import optimization_problem
+from akkudoktoreos.class_optimize import (
+    OptimizationParameters,
+    OptimizeResponse,
+    optimization_problem,
+)
 
 start_hour = 10
 
@@ -219,47 +223,49 @@ gesamtlast = [
 start_solution = None
 
 # Define parameters for the optimization problem
-parameter = {
-    # Cost of storing energy in battery (per Wh)
-    "preis_euro_pro_wh_akku": 10e-05,
-    # Initial state of charge (SOC) of PV battery (%)
-    "pv_soc": 80,
-    # Battery capacity (in Wh)
-    "pv_akku_cap": 26400,
-    # Yearly energy consumption (in Wh)
-    "year_energy": 4100000,
-    # Feed-in tariff for exporting electricity (per Wh)
-    "einspeiseverguetung_euro_pro_wh": 7e-05,
-    # Maximum heating power (in W)
-    "max_heizleistung": 1000,
-    # Overall load on the system
-    "gesamtlast": gesamtlast,
-    # PV generation forecast (48 hours)
-    "pv_forecast": pv_forecast,
+parameters = {
+    "ems": {
+        # Cost of storing energy in battery (per Wh)
+        "preis_euro_pro_wh_akku": 10e-05,
+        # Feed-in tariff for exporting electricity (per Wh)
+        "einspeiseverguetung_euro_pro_wh": 7e-05,
+        # Overall load on the system
+        "gesamtlast": gesamtlast,
+        # PV generation forecast (48 hours)
+        "pv_prognose_wh": pv_forecast,
+        # Electricity price forecast (48 hours)
+        "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
+    },
+    "pv_akku": {
+        # Battery capacity (in Wh)
+        "kapazitaet_wh": 26400,
+        # Initial state of charge (SOC) of PV battery (%)
+        "start_soc_prozent": 80,
+        # Minimum Soc PV Battery
+        "min_soc_prozent": 15,
+    },
+    "eauto": {
+        # Minimum SOC for electric car
+        "min_soc_prozent": 80,
+        # Electric car battery capacity (Wh)
+        "kapazitaet_wh": 60000,
+        # Charging efficiency of the electric car
+        "lade_effizienz": 0.95,
+        # Charging power of the electric car (W)
+        "max_ladeleistung_w": 11040,
+        # Current SOC of the electric car (%)
+        "start_soc_prozent": 5,
+    },
+    "spuelmaschine": {
+        # Household appliance consumption (Wh)
+        "verbrauch_wh": 5000,
+        # Duration of appliance usage (hours)
+        "dauer_h": 2,
+    },
     # Temperature forecast (48 hours)
     "temperature_forecast": temperature_forecast,
-    # Electricity price forecast (48 hours)
-    "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
-    # Minimum SOC for electric car
-    "eauto_min_soc": 80,
-    # Electric car battery capacity (Wh)
-    "eauto_cap": 60000,
-    # Charging efficiency of the electric car
-    "eauto_charge_efficiency": 0.95,
-    # Charging power of the electric car (W)
-    "eauto_charge_power": 11040,
-    # Current SOC of the electric car (%)
-    "eauto_soc": 5,
-    # Current PV power generation (W)
-    "pvpowernow": 211.137503624,
     # Initial solution for the optimization
     "start_solution": start_solution,
-    # Household appliance consumption (Wh)
-    "haushaltsgeraet_wh": 5000,
-    # Duration of appliance usage (hours)
-    "haushaltsgeraet_dauer": 2,
-    # Minimum Soc PV Battery
-    "min_soc_prozent": 15,
 }
 
 # Initialize the optimization problem
@@ -268,10 +274,14 @@ opt_class = optimization_problem(
 )
 
 # Perform the optimisation based on the provided parameters and start hour
-ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)
+ergebnis = opt_class.optimierung_ems(
+    parameters=OptimizationParameters(**parameters), start_hour=start_hour
+)
 
 # Print or visualize the result
 # pprint(ergebnis)
 
 json_data = json.dumps(ergebnis)
 print(json_data)
+
+OptimizeResponse(**ergebnis)

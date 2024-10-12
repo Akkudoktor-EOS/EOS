@@ -1,32 +1,74 @@
+from typing import Optional
+
 import numpy as np
+from pydantic import BaseModel, Field
+
+
+def max_ladeleistung_w_field(default=None):
+    return Field(
+        default,
+        gt=0,
+        description="An integer representing the charging power of the battery in watts.",
+    )
+
+
+def start_soc_prozent_field(description: str):
+    return Field(0, ge=0, le=100, description=description)
+
+
+class BaseAkkuParameters(BaseModel):
+    kapazitaet_wh: int = Field(
+        gt=0, description="An integer representing the capacity of the battery in watt-hours."
+    )
+    lade_effizienz: float = Field(
+        0.88, gt=0, le=1, description="A float representing the charging efficiency of the battery."
+    )
+    entlade_effizienz: float = Field(0.88, gt=0, le=1)
+    max_ladeleistung_w: Optional[float] = max_ladeleistung_w_field()
+    start_soc_prozent: int = start_soc_prozent_field(
+        "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
+    )
+    min_soc_prozent: int = Field(
+        0,
+        ge=0,
+        le=100,
+        description="An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+    )
+    max_soc_prozent: int = Field(100, ge=0, le=100)
+
+
+class PVAkkuParameters(BaseAkkuParameters):
+    max_ladeleistung_w: Optional[float] = max_ladeleistung_w_field(5000)
+
+
+class EAutoParameters(BaseAkkuParameters):
+    entlade_effizienz: float = 1.0
+    start_soc_prozent: int = start_soc_prozent_field(
+        "An integer representing the current state of charge (SOC) of the battery in percentage."
+    )
 
 
 class PVAkku:
-    def __init__(
-        self,
-        kapazitaet_wh=None,
-        hours=None,
-        lade_effizienz=0.88,
-        entlade_effizienz=0.88,
-        max_ladeleistung_w=None,
-        start_soc_prozent=0,
-        min_soc_prozent=0,
-        max_soc_prozent=100,
-    ):
+    def __init__(self, parameters: BaseAkkuParameters, hours: int = 24):
         # Battery capacity in Wh
-        self.kapazitaet_wh = kapazitaet_wh
+        self.kapazitaet_wh = parameters.kapazitaet_wh
         # Initial state of charge in Wh
-        self.start_soc_prozent = start_soc_prozent
-        self.soc_wh = (start_soc_prozent / 100) * kapazitaet_wh
-        self.hours = hours if hours is not None else 24  # Default to 24 hours if not specified
+        self.start_soc_prozent = parameters.start_soc_prozent
+        self.soc_wh = (parameters.start_soc_prozent / 100) * parameters.kapazitaet_wh
+        self.hours = hours
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
         # Charge and discharge efficiency
-        self.lade_effizienz = lade_effizienz
-        self.entlade_effizienz = entlade_effizienz
-        self.max_ladeleistung_w = max_ladeleistung_w if max_ladeleistung_w else self.kapazitaet_wh
-        self.min_soc_prozent = min_soc_prozent
-        self.max_soc_prozent = max_soc_prozent
+        self.lade_effizienz = parameters.lade_effizienz
+        self.entlade_effizienz = parameters.entlade_effizienz
+        self.max_ladeleistung_w = (
+            parameters.max_ladeleistung_w if parameters.max_ladeleistung_w else self.kapazitaet_wh
+        )
+        # Only assign for storage battery
+        self.min_soc_prozent = (
+            parameters.min_soc_prozent if isinstance(parameters, PVAkkuParameters) else 0
+        )
+        self.max_soc_prozent = parameters.max_soc_prozent
         # Calculate min and max SoC in Wh
         self.min_soc_wh = (self.min_soc_prozent / 100) * self.kapazitaet_wh
         self.max_soc_wh = (self.max_soc_prozent / 100) * self.kapazitaet_wh

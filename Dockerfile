@@ -30,6 +30,6 @@ COPY src .
 USER eos
 ENTRYPOINT []
 
-CMD ["python", "-m", "akkudoktoreosserver.flask_server"]
+CMD ["python", "-m", "akkudoktoreosserver.fastapi_server"]
 
 VOLUME ["${MPLCONFIGDIR}", "${EOS_CACHE_DIR}", "${EOS_OUTPUT_DIR}"]

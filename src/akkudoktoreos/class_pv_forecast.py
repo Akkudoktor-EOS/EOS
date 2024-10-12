@@ -8,6 +8,12 @@ import numpy as np
 import pandas as pd
 import requests
 from dateutil import parser
+from pydantic import BaseModel
+
+
+class ForecastResponse(BaseModel):
+    temperature: list[float]
+    pvpower: list[float]
 
 
 class ForecastData:

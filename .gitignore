@@ -248,3 +248,6 @@ $RECYCLE.BIN/
 
 # Visualization side effects
 **/visualization_results.pdf
+
+# Test files
+openapi-new.json

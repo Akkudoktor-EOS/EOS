@@ -25,6 +25,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx_rtd_theme",
     "myst_parser",
+    "sphinxcontrib.openapi",
 ]
 
 templates_path = ["_templates"]
@@ -46,3 +47,6 @@ html_theme_options = {
     "logo_only": False,
     "titles_only": True,
 }
+
+
+openapi_default_renderer = "httpdomain:old"

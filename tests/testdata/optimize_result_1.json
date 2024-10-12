@@ -40,7 +40,6 @@
     "start_solution": [
       1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
     ],
-    "spuelstart": null,
-    "simulation_data": null
+    "spuelstart": null
   }
   

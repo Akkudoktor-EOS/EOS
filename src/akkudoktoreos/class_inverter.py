@@ -1,6 +1,17 @@
+from pydantic import BaseModel, Field
+
+from akkudoktoreos.class_akku import PVAkku
+
+
+class WechselrichterParameters(BaseModel):
+    max_leistung_wh: float = Field(10000, gt=0)
+
+
 class Wechselrichter:
-    def __init__(self, max_leistung_wh, akku):
-        self.max_leistung_wh = max_leistung_wh  # Maximum power that the inverter can handle
+    def __init__(self, parameters: WechselrichterParameters, akku: PVAkku):
+        self.max_leistung_wh = (
+            parameters.max_leistung_wh  # Maximum power that the inverter can handle
+        )
         self.akku = akku  # Connection to a battery object
 
     def energie_verarbeiten(self, erzeugung, verbrauch, hour):
