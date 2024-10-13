@@ -1,22 +1,22 @@
 ---
 networks:
   eos:
-    name: 'eos'
+    name: "eos"
 services:
   eos:
-    image: 'akkudoktor/eos:${EOS_VERSION}'
+    image: "akkudoktor/eos:${EOS_VERSION}"
     read_only: true
     build:
       context: .
-      dockerfile: 'Dockerfile'
+      dockerfile: "Dockerfile"
       args:
-        PYTHON_VERSION: '${PYTHON_VERSION}'
+        PYTHON_VERSION: "${PYTHON_VERSION}"
     init: true
     environment:
-      FLASK_RUN_PORT: '${EOS_PORT}'
+      FLASK_RUN_PORT: "${EOS_PORT}"
     networks:
-      - 'eos'
+      - "eos"
     volumes:
-      - ./src/akkudoktoreos/config.py:/opt/eos/akkudoktoreos/config.py:ro
+      - ./src/akkudoktoreos/default.config.json:/opt/eos/EOS.config.json:ro
     ports:
-      - '${EOS_PORT}:${EOS_PORT}'
+      - "${EOS_PORT}:${EOS_PORT}"

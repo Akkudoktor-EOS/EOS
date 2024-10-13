@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-
 import json
 
-# Import necessary modules from the project
 from akkudoktoreos.class_optimize import optimization_problem
+from akkudoktoreos.config import get_working_dir, load_config
 
 start_hour = 10
 
@@ -262,10 +261,11 @@ parameter = {
     "min_soc_prozent": 15,
 }
 
-# Initialize the optimization problem
-opt_class = optimization_problem(
-    prediction_hours=48, strafe=10, optimization_hours=24, verbose=True, fixed_seed=42
-)
+# Initialize the optimization problem using the default configuration
+working_dir = get_working_dir()
+config = load_config(working_dir)
+config.run_setup()
+opt_class = optimization_problem(config, verbose=True, fixed_seed=42)
 
 # Perform the optimisation based on the provided parameters and start hour
 ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)

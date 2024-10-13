@@ -8,25 +8,24 @@ from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter
-from akkudoktoreos.config import moegliche_ladestroeme_in_prozent
+from akkudoktoreos.config import AppConfig
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
 class optimization_problem:
     def __init__(
         self,
-        prediction_hours: int = 48,
-        strafe: float = 10,
-        optimization_hours: int = 24,
+        config: AppConfig,
         verbose: bool = False,
         fixed_seed: Optional[int] = None,
     ):
         """Initialize the optimization problem with the required parameters."""
-        self.prediction_hours = prediction_hours
-        self.strafe = strafe
+        self._config = config
+        self.prediction_hours = config.eos.prediction_hours
+        self.strafe = config.eos.penalty
         self.opti_param = None
-        self.fixed_eauto_hours = prediction_hours - optimization_hours
-        self.possible_charge_values = moegliche_ladestroeme_in_prozent
+        self.fixed_eauto_hours = config.eos.prediction_hours - config.eos.optimization_hours
+        self.possible_charge_values = config.eos.available_charging_rates_in_percentage
         self.verbose = verbose
         self.fix_seed = fixed_seed
 
@@ -137,7 +136,7 @@ class optimization_problem:
 
         gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
         discharge_hours_bin, eautocharge_hours_float, _ = self.split_individual(individual)
-        max_ladeleistung = np.max(moegliche_ladestroeme_in_prozent)
+        max_ladeleistung = np.max(self.possible_charge_values)
 
         # Penalty for not discharging
         gesamtbilanz += sum(
@@ -308,6 +307,7 @@ class optimization_problem:
             start_hour,
             self.prediction_hours,
             einspeiseverguetung_euro_pro_wh,
+            self._config,
             extra_data=extra_data,
         )
 
