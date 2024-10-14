@@ -160,39 +160,39 @@ def visualisiere_ergebnisse(
         plt.grid(True, which="both", axis="x")  # Grid for every hour
 
         ax1 = plt.subplot(3, 2, 3)
-        # Plot für die discharge_hours-Werte
+        # Plot charge and discharge values
         for hour, value in enumerate(discharge_hours):
-            # Festlegen der Farbe und des Labels basierend auf dem Wert
-            if value > 0:  # Positive Werte (Entladung)
+            # Determine color and label based on the value
+            if value > 0:  # Positive values (discharge)
                 color = "red"
-                label = "Discharge" if hour == 0 else ""  # Label nur beim ersten Eintrag hinzufügen
-            elif value < 0:  # Negative Werte (Ladung)
+                label = "Discharge" if hour == 0 else ""
+            elif value < 0:  # Negative values (charge)
                 color = "blue"
                 label = "Charge" if hour == 0 else ""
-            else:
-                continue  # Überspringe 0-Werte
 
-            # Erstellen der Farbbereiche mit `axvspan`
+            else:
+                continue  # Skip zero values
+
+            # Create colored areas with `axvspan`
             ax1.axvspan(
-                hour,  # Start der Stunde
-                hour + 1,  # Ende der Stunde
-                ymin=0,  # Untere Grenze
-                ymax=abs(value),  # Obere Grenze: abs(value), um die Höhe richtig darzustellen
+                hour,  # Start of the hour
+                hour + 1,  # End of the hour
+                ymin=0,  # Lower bound
+                ymax=abs(value) / 5 if value < 0 else value,  # Adjust height based on the value
                 color=color,
                 alpha=0.3,
                 label=label
             )
 
-            # Annotieren der Werte in der Mitte des Farbbereichs
-            ax1.text(
-                hour + 0.5,  # In der Mitte des Bereichs
-                abs(value) / 2,  # In der Mitte der Höhe
-                f'{value:.2f}',  # Wert mit zwei Dezimalstellen
-                ha='center',
-                va='center',
-                fontsize=8,
-                color='black'
-            )
+
+        # Configure the plot
+        ax1.legend(loc="upper left")
+        ax1.set_xlim(0, prediction_hours)
+        ax1.set_xlabel("Hour")
+        ax1.set_ylabel("Charge/Discharge Level")
+        ax1.set_title("Charge and Discharge Hours Overview")
+        ax1.grid(True)
+
 
 
         pdf.savefig()  # Save the current figure state to the PDF

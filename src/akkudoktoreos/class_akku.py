@@ -20,7 +20,7 @@ class PVAkku:
         self.soc_wh = (start_soc_prozent / 100) * kapazitaet_wh
         self.hours = hours if hours is not None else 24  # Default to 24 hours if not specified
         self.discharge_array = np.full(self.hours, 1)
-        self.charge_array = np.full(self.hours, 1)
+        self.charge_array = np.full(self.hours, 0)
         # Charge and discharge efficiency
         self.lade_effizienz = lade_effizienz
         self.entlade_effizienz = entlade_effizienz
@@ -88,7 +88,7 @@ class PVAkku:
         # Ensure no simultaneous charging and discharging in the same hour using NumPy mask
         conflict_mask = (self.charge_array > 0) & (self.discharge_array > 0)
         # Prioritize discharge by setting charge to 0 where both are > 0
-        self.charge_array[conflict_mask] = 0
+        self.discharge_array[conflict_mask] = 0
 
 
     def ladezustand_in_prozent(self):
