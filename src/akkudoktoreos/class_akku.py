@@ -70,21 +70,32 @@ class PVAkku:
         self.soc_wh = min(max(self.soc_wh, self.min_soc_wh), self.max_soc_wh)
 
         self.discharge_array = np.full(self.hours, 1)
-        self.charge_array = np.full(self.hours, 1)
+        self.charge_array = np.full(self.hours, 0)
 
     def set_discharge_per_hour(self, discharge_array):
         assert len(discharge_array) == self.hours
         self.discharge_array = np.array(discharge_array)
 
+        # Ensure no simultaneous charging and discharging in the same hour using NumPy mask
+        conflict_mask = (self.charge_array > 0) & (self.discharge_array > 0)
+        # Prioritize discharge by setting charge to 0 where both are > 0
+        self.charge_array[conflict_mask] = 0
+
     def set_charge_per_hour(self, charge_array):
         assert len(charge_array) == self.hours
         self.charge_array = np.array(charge_array)
+
+        # Ensure no simultaneous charging and discharging in the same hour using NumPy mask
+        conflict_mask = (self.charge_array > 0) & (self.discharge_array > 0)
+        # Prioritize discharge by setting charge to 0 where both are > 0
+        self.charge_array[conflict_mask] = 0
+
 
     def ladezustand_in_prozent(self):
         return (self.soc_wh / self.kapazitaet_wh) * 100
 
     def energie_abgeben(self, wh, hour):
-        if self.discharge_array[hour] == 0 and self.discharge_array[hour] == -1:
+        if self.discharge_array[hour] == 0 :
             return 0.0, 0.0  # No energy discharge and no losses
 
         # Calculate the maximum energy that can be discharged considering min_soc and efficiency

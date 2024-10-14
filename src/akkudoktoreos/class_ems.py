@@ -27,8 +27,10 @@ class EnergieManagementSystem:
     def set_akku_discharge_hours(self, ds: List[int]) -> None:
         self.akku.set_discharge_per_hour(ds)
 
+    def set_akku_charge_hours(self, ds: List[int]) -> None:
+        self.akku.set_charge_per_hour(ds)
+
     def set_eauto_charge_hours(self, ds: List[int]) -> None:
-        
         self.eauto.set_charge_per_hour(ds)
 
     def set_haushaltsgeraet_start(self, ds: List[int], global_start_hour: int = 0) -> None:
@@ -69,7 +71,7 @@ class EnergieManagementSystem:
         akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
         if self.eauto:
             eauto_soc_pro_stunde[0] = self.eauto.ladezustand_in_prozent()
-
+       
         for stunde in range(start_stunde + 1, ende):
             stunde_since_now = stunde - start_stunde
 
@@ -88,6 +90,14 @@ class EnergieManagementSystem:
                 verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
                 eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
 
+            # AC PV Battery Charge
+            if self.akku.charge_array[stunde] > 0.0:
+                #soc_pre = self.akku.ladezustand_in_prozent()
+                geladene_menge, verluste_wh = self.akku.energie_laden(None,stunde)
+                #print(self.akku.charge_array[stunde], " ",geladene_menge," ",soc_pre," ",self.akku.ladezustand_in_prozent())
+                verbrauch += geladene_menge
+                verluste_wh_pro_stunde[stunde_since_now] += verluste_wh                
+            
             # Process inverter logic
             erzeugung = self.pv_prognose_wh[stunde]
             netzeinspeisung, netzbezug, verluste, eigenverbrauch = (
