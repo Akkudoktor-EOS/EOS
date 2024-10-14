@@ -59,6 +59,43 @@ class optimization_problem:
         discharge = np.where(discharge_hours_bin > 0, discharge_hours_bin, 0)
 
         return charge, discharge
+    
+    # Custom mutation function that applies type-specific mutations
+    def mutate(self,individual):
+        # Mutate the discharge state genes (-1, 0, 1)
+        individual[:self.prediction_hours], = self.toolbox.mutate_discharge(
+            individual[:self.prediction_hours]
+        )
+
+        if self.optimize_ev:
+            # Mutate the EV charging indices
+            ev_charge_part = individual[self.prediction_hours : self.prediction_hours * 2]
+            ev_charge_part_mutated, = self.toolbox.mutate_ev_charge_index(ev_charge_part)
+            ev_charge_part_mutated[self.prediction_hours - self.fixed_eauto_hours :] = [0] * self.fixed_eauto_hours
+            individual[self.prediction_hours : self.prediction_hours * 2] = ev_charge_part_mutated
+
+        # Mutate the appliance start hour if present
+        if self.opti_param["haushaltsgeraete"] > 0:
+            appliance_part = [individual[-1]]
+            appliance_part_mutated, = self.toolbox.mutate_hour(appliance_part)
+            individual[-1] = appliance_part_mutated[0]
+
+        return (individual,)
+
+    # Method to create an individual based on the conditions
+    def create_individual(self):
+        # Start with discharge states for the individual
+        individual_components = [self.toolbox.attr_discharge_state() for _ in range(self.prediction_hours)]
+
+        # Add EV charge index values if optimize_ev is True
+        if self.optimize_ev:
+            individual_components += [self.toolbox.attr_ev_charge_index() for _ in range(self.prediction_hours)]
+
+        # Add the start time of the household appliance if it's being optimized
+        if self.opti_param["haushaltsgeraete"] > 0:
+            individual_components += [self.toolbox.attr_int()]
+
+        return creator.Individual(individual_components)
 
     def split_individual(
         self, individual: List[float]
@@ -100,43 +137,10 @@ class optimization_problem:
             self.toolbox.register("attr_ev_charge_index", random.randint, 0, len(possible_ev_charge_currents) - 1)
         self.toolbox.register("attr_int", random.randint, start_hour, 23)
 
-        # Function to create an individual based on the conditions
-        def create_individual():
-            # Start with discharge states for the individual
-            individual_components = [self.toolbox.attr_discharge_state() for _ in range(self.prediction_hours)]
 
-            # Add EV charge index values if optimize_ev is True
-            if self.optimize_ev:
-                individual_components += [self.toolbox.attr_ev_charge_index() for _ in range(self.prediction_hours)]
-
-            # Add the start time of the household appliance if it's being optimized
-            if self.opti_param["haushaltsgeraete"] > 0:
-                individual_components += [self.toolbox.attr_int()]
-
-            return creator.Individual(individual_components)
 
         # Register individual creation function
-        self.toolbox.register("individual", create_individual)
-
-
-        # # Register individual creation method based on household appliance parameter
-        # if opti_param["haushaltsgeraete"] > 0:
-        #     self.toolbox.register(
-        #         "individual",
-        #         lambda: creator.Individual(
-        #             [self.toolbox.attr_discharge_state() for _ in range(self.prediction_hours)]
-        #             + [self.toolbox.attr_ev_charge_index() for _ in range(self.prediction_hours)]
-        #             + [self.toolbox.attr_int()]
-        #         ),
-        #     )
-        # else:
-        #     self.toolbox.register(
-        #         "individual",
-        #         lambda: creator.Individual(
-        #             [self.toolbox.attr_discharge_state() for _ in range(self.prediction_hours)]
-        #             + [self.toolbox.attr_ev_charge_index() for _ in range(self.prediction_hours)]
-        #         ),
-        #     )
+        self.toolbox.register("individual", self.create_individual)
 
         # Register population, mating, mutation, and selection functions
         self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
@@ -150,32 +154,8 @@ class optimization_problem:
         # - Start hour mutation for household devices
         self.toolbox.register("mutate_hour", tools.mutUniformInt, low=start_hour, up=23, indpb=0.1)
 
-        # Custom mutation function that applies type-specific mutations
-        def mutate(individual):
-            # Mutate the discharge state genes (-1, 0, 1)
-            individual[:self.prediction_hours], = self.toolbox.mutate_discharge(
-                individual[:self.prediction_hours]
-            )
-
-            if self.optimize_ev:
-                # Mutate the EV charging indices
-                ev_charge_part = individual[self.prediction_hours : self.prediction_hours * 2]
-                ev_charge_part_mutated, = self.toolbox.mutate_ev_charge_index(ev_charge_part)
-                ev_charge_part_mutated[self.prediction_hours - self.fixed_eauto_hours :] = [0] * self.fixed_eauto_hours
-                individual[self.prediction_hours : self.prediction_hours * 2] = ev_charge_part_mutated
-
-            # Mutate the appliance start hour if present
-            if self.opti_param["haushaltsgeraete"] > 0:
-                appliance_part = [individual[-1]]
-                appliance_part_mutated, = self.toolbox.mutate_hour(appliance_part)
-                individual[-1] = appliance_part_mutated[0]
-
-            return (individual,)
-
-
         # Register custom mutation function
-        self.toolbox.register("mutate", mutate)
-
+        self.toolbox.register("mutate", self.mutate)
 
         self.toolbox.register("select", tools.selTournament, tournsize=3)
 
@@ -198,13 +178,13 @@ class optimization_problem:
 
         ems.set_akku_discharge_hours(discharge)
         ems.set_akku_charge_hours(charge)
-        #print(charge)
-        
-        eautocharge_hours_float = [
-            possible_ev_charge_currents[i] for i in eautocharge_hours_index
-        ]
+
         if self.optimize_ev:
+            eautocharge_hours_float = [
+                possible_ev_charge_currents[i] for i in eautocharge_hours_index
+            ]            
             ems.set_eauto_charge_hours(eautocharge_hours_float)
+        
         return ems.simuliere(start_hour)
 
     def evaluate(
@@ -226,7 +206,6 @@ class optimization_problem:
         gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
         
         discharge_hours_bin, eautocharge_hours_float, _ = self.split_individual(individual)
-        #max_ladeleistung = np.max(possible_ev_charge_currents)
 
         # Small Penalty for not discharging
         gesamtbilanz += sum(

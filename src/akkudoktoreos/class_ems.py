@@ -92,9 +92,7 @@ class EnergieManagementSystem:
 
             # AC PV Battery Charge
             if self.akku.charge_array[stunde] > 0.0:
-                #soc_pre = self.akku.ladezustand_in_prozent()
                 geladene_menge, verluste_wh = self.akku.energie_laden(None,stunde)
-                #print(self.akku.charge_array[stunde], " ",geladene_menge," ",soc_pre," ",self.akku.ladezustand_in_prozent())
                 verbrauch += geladene_menge
                 verluste_wh_pro_stunde[stunde_since_now] += verluste_wh                
             
