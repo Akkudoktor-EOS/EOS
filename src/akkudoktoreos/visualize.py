@@ -160,26 +160,40 @@ def visualisiere_ergebnisse(
         plt.grid(True, which="both", axis="x")  # Grid for every hour
 
         ax1 = plt.subplot(3, 2, 3)
+        # Plot für die discharge_hours-Werte
         for hour, value in enumerate(discharge_hours):
+            # Festlegen der Farbe und des Labels basierend auf dem Wert
+            if value > 0:  # Positive Werte (Entladung)
+                color = "red"
+                label = "Discharge" if hour == 0 else ""  # Label nur beim ersten Eintrag hinzufügen
+            elif value < 0:  # Negative Werte (Ladung)
+                color = "blue"
+                label = "Charge" if hour == 0 else ""
+            else:
+                continue  # Überspringe 0-Werte
+
+            # Erstellen der Farbbereiche mit `axvspan`
             ax1.axvspan(
-                hour,
-                hour + 1,
-                color="red",
-                ymax=value,
+                hour,  # Start der Stunde
+                hour + 1,  # Ende der Stunde
+                ymin=0,  # Untere Grenze
+                ymax=abs(value),  # Obere Grenze: abs(value), um die Höhe richtig darzustellen
+                color=color,
                 alpha=0.3,
-                label="Discharge Possibility" if hour == 0 else "",
+                label=label
             )
-        for hour, value in enumerate(laden_moeglich):
-            ax1.axvspan(
-                hour,
-                hour + 1,
-                color="green",
-                ymax=value,
-                alpha=0.3,
-                label="Charging Possibility" if hour == 0 else "",
+
+            # Annotieren der Werte in der Mitte des Farbbereichs
+            ax1.text(
+                hour + 0.5,  # In der Mitte des Bereichs
+                abs(value) / 2,  # In der Mitte der Höhe
+                f'{value:.2f}',  # Wert mit zwei Dezimalstellen
+                ha='center',
+                va='center',
+                fontsize=8,
+                color='black'
             )
-        ax1.legend(loc="upper left")
-        ax1.set_xlim(0, prediction_hours)
+
 
         pdf.savefig()  # Save the current figure state to the PDF
         plt.close()  # Close the current figure to free up memory
@@ -192,25 +206,46 @@ def visualisiere_ergebnisse(
         losses = ergebnisse["Gesamt_Verluste"]
 
         # Costs and revenues per hour on the first axis (axs[0])
+        costs = ergebnisse["Kosten_Euro_pro_Stunde"]
+        revenues = ergebnisse["Einnahmen_Euro_pro_Stunde"]
+
+        # Plot costs
         axs[0].plot(
             hours,
-            ergebnisse["Kosten_Euro_pro_Stunde"],
+            costs,
             label="Costs (Euro)",
             marker="o",
             color="red",
         )
+        # Annotate costs
+        for hour, value in enumerate(costs):
+            print(hour, " ", value)
+            if value == None or np.isnan(value):
+                value=0
+            axs[0].annotate(f'{value:.2f}', (hour, value), textcoords="offset points", xytext=(0,5), ha='center', fontsize=8, color='red')
+
+        # Plot revenues
         axs[0].plot(
             hours,
-            ergebnisse["Einnahmen_Euro_pro_Stunde"],
+            revenues,
             label="Revenue (Euro)",
             marker="x",
             color="green",
         )
+        # Annotate revenues
+        for hour, value in enumerate(revenues):
+            if value == None or np.isnan(value):
+                value=0            
+            axs[0].annotate(f'{value:.2f}', (hour, value), textcoords="offset points", xytext=(0,5), ha='center', fontsize=8, color='green')
+
+        # Title and labels
         axs[0].set_title("Financial Balance per Hour")
         axs[0].set_xlabel("Hour")
         axs[0].set_ylabel("Euro")
         axs[0].legend()
         axs[0].grid(True)
+
+
 
         # Summary of finances on the second axis (axs[1])
         labels = ["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"]
