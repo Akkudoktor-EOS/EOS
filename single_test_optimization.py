@@ -5,60 +5,63 @@ import time
 
 # Import necessary modules from the project
 from akkudoktoreos.class_optimize import optimization_problem
-
-start_hour = 10
+from akkudoktoreos.visualize import *
+from akkudoktoreos.class_numpy_encoder import *
+start_hour = 0
 
 # PV Forecast (in W)
-pv_forecast = [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    8.05,
-    352.91,
-    728.51,
-    930.28,
-    1043.25,
-    1106.74,
-    1161.69,
-    6018.82,
-    5519.07,
-    3969.88,
-    3017.96,
-    1943.07,
-    1007.17,
-    319.67,
-    7.88,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    5.04,
-    335.59,
-    705.32,
-    1121.12,
-    1604.79,
-    2157.38,
-    1433.25,
-    5718.49,
-    4553.96,
-    3027.55,
-    2574.46,
-    1720.4,
-    963.4,
-    383.3,
-    0,
-    0,
-    0,
-]
+pv_forecast = np.zeros(48) 
+pv_forecast[12] = 5000
+# [
+#     0,
+#     0,
+#     0,
+#     0,
+#     0,
+#     0,
+#     0,
+#     8.05,
+#     352.91,
+#     728.51,
+#     930.28,
+#     1043.25,
+#     1106.74,
+#     1161.69,
+#     1018.82,
+#     1519.07,
+#     1969.88,
+#     1017.96,
+#     1043.07,
+#     1007.17,
+#     319.67,
+#     7.88,
+#     0,
+#     0,
+#     0,
+#     0,
+#     0,
+#     0,
+#     0,
+#     0,
+#     0,
+#     5.04,
+#     335.59,
+#     705.32,
+#     1121.12,
+#     1604.79,
+#     2157.38,
+#     1433.25,
+#     5718.49,
+#     4553.96,
+#     3027.55,
+#     2574.46,
+#     1720.4,
+#     963.4,
+#     383.3,
+#     0,
+#     0,
+#     0,
+# ]
 
 # Temperature Forecast (in degree C)
 temperature_forecast = [
@@ -113,56 +116,60 @@ temperature_forecast = [
 ]
 
 # Electricity Price (in Euro per Wh)
-strompreis_euro_pro_wh = [
-    0.0003384,
-    0.0003318,
-    0.0003284,
-    0.0003283,
-    0.0003289,
-    0.0003334,
-    0.0003290,
-    0.0003302,
-    0.0003042,
-    0.0002430,
-    0.0002280,
-    0.0002212,
-    0.0002093,
-    0.0001879,
-    0.0001838,
-    0.0002004,
-    0.0002198,
-    0.0002270,
-    0.0002997,
-    0.0003195,
-    0.0003081,
-    0.0002969,
-    0.0002921,
-    0.0002780,
-    0.0003384,
-    0.0003318,
-    0.0003284,
-    0.0003283,
-    0.0003289,
-    0.0003334,
-    0.0003290,
-    0.0003302,
-    0.0003042,
-    0.0002430,
-    0.0002280,
-    0.0002212,
-    0.0002093,
-    0.0001879,
-    0.0001838,
-    0.0002004,
-    0.0002198,
-    0.0002270,
-    0.0002997,
-    0.0003195,
-    0.0003081,
-    0.0002969,
-    0.0002921,
-    0.0002780,
-]
+strompreis_euro_pro_wh = np.full(48, 0.001)
+strompreis_euro_pro_wh [0:10] = 0.00001
+strompreis_euro_pro_wh [11:15] = 0.00005
+strompreis_euro_pro_wh [20] = 0.00001
+# [
+#     0.0000384,
+#     0.0000318,
+#     0.0000284,
+#     0.0008283,
+#     0.0008289,
+#     0.0008334,
+#     0.0008290,
+#     0.0003302,
+#     0.0003042,
+#     0.0002430,
+#     0.0002280,
+#     0.0002212,
+#     0.0002093,
+#     0.0001879,
+#     0.0001838,
+#     0.0002004,
+#     0.0002198,
+#     0.0002270,
+#     0.0002997,
+#     0.0003195,
+#     0.0003081,
+#     0.0002969,
+#     0.0002921,
+#     0.0002780,
+#     0.0003384,
+#     0.0003318,
+#     0.0003284,
+#     0.0003283,
+#     0.0003289,
+#     0.0003334,
+#     0.0003290,
+#     0.0003302,
+#     0.0003042,
+#     0.0002430,
+#     0.0002280,
+#     0.0002212,
+#     0.0002093,
+#     0.0001879,
+#     0.0001838,
+#     0.0002004,
+#     0.0002198,
+#     0.0002270,
+#     0.0002997,
+#     0.0003195,
+#     0.0003081,
+#     0.0002969,
+#     0.0002921,
+#     0.0002780,
+# ]
 
 # Overall System Load (in W)
 gesamtlast = [
@@ -221,10 +228,10 @@ start_solution = None
 
 # Define parameters for the optimization problem
 parameter = {
-    # Cost of storing energy in battery (per Wh)
-    "preis_euro_pro_wh_akku": 10e-05,
+    # Value of energy in battery (per Wh)
+    "preis_euro_pro_wh_akku": 0e-05,
     # Initial state of charge (SOC) of PV battery (%)
-    "pv_soc": 80,
+    "pv_soc": 15,
     # Battery capacity (in Wh)
     "pv_akku_cap": 26400,
     # Yearly energy consumption (in Wh)
@@ -242,7 +249,7 @@ parameter = {
     # Electricity price forecast (48 hours)
     "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
     # Minimum SOC for electric car
-    "eauto_min_soc": 20,
+    "eauto_min_soc": 50,
     # Electric car battery capacity (Wh)
     "eauto_cap": 60000,
     # Charging efficiency of the electric car
@@ -250,7 +257,7 @@ parameter = {
     # Charging power of the electric car (W)
     "eauto_charge_power": 11040,
     # Current SOC of the electric car (%)
-    "eauto_soc": 5,
+    "eauto_soc": 15,
     # Current PV power generation (W)
     "pvpowernow": 211.137503624,
     # Initial solution for the optimization
@@ -258,7 +265,7 @@ parameter = {
     # Household appliance consumption (Wh)
     "haushaltsgeraet_wh": 5000,
     # Duration of appliance usage (hours)
-    "haushaltsgeraet_dauer": 2,
+    "haushaltsgeraet_dauer": 0,
     # Minimum Soc PV Battery
     "min_soc_prozent": 15,
 }
@@ -282,8 +289,25 @@ elapsed_time = end_time - start_time
 print(f"Elapsed time: {elapsed_time:.4f} seconds")
 
 
-# Print or visualize the result
-# pprint(ergebnis)
 
-#json_data = json.dumps(ergebnis)
-#print(json_data)
+ac_charge, dc_charge, discharge = (ergebnis["ac_charge"],ergebnis["dc_charge"],ergebnis["discharge_allowed"])
+
+visualisiere_ergebnisse(
+    gesamtlast,
+    pv_forecast,
+    strompreis_euro_pro_wh,
+    ergebnis["result"],
+    ac_charge,
+    dc_charge,
+    discharge,
+    temperature_forecast,
+    start_hour,
+    48,
+    np.full(48, parameter["einspeiseverguetung_euro_pro_wh"]),
+    filename="visualization_results.pdf",
+    extra_data=None,
+)
+
+
+json_data = NumpyEncoder.dumps(ergebnis)
+print(json_data)

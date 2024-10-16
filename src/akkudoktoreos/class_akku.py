@@ -20,7 +20,7 @@ class PVAkku:
         self.soc_wh = (start_soc_prozent / 100) * kapazitaet_wh
         self.hours = hours if hours is not None else 24  # Default to 24 hours if not specified
         self.discharge_array = np.full(self.hours, 1)
-        self.charge_array = np.full(self.hours, 0)
+        self.charge_array = np.full(self.hours, 1)
         # Charge and discharge efficiency
         self.lade_effizienz = lade_effizienz
         self.entlade_effizienz = entlade_effizienz
@@ -70,26 +70,19 @@ class PVAkku:
         self.soc_wh = min(max(self.soc_wh, self.min_soc_wh), self.max_soc_wh)
 
         self.discharge_array = np.full(self.hours, 1)
-        self.charge_array = np.full(self.hours, 0)
+        self.charge_array = np.full(self.hours, 1)
 
     def set_discharge_per_hour(self, discharge_array):
         assert len(discharge_array) == self.hours
         self.discharge_array = np.array(discharge_array)
 
-        # Ensure no simultaneous charging and discharging in the same hour using NumPy mask
-        conflict_mask = (self.charge_array > 0) & (self.discharge_array > 0)
-        # Prioritize discharge by setting charge to 0 where both are > 0
-        self.charge_array[conflict_mask] = 0
-
     def set_charge_per_hour(self, charge_array):
         assert len(charge_array) == self.hours
         self.charge_array = np.array(charge_array)
 
-        # Ensure no simultaneous charging and discharging in the same hour using NumPy mask
-        conflict_mask = (self.charge_array > 0) & (self.discharge_array > 0)
-        # Prioritize discharge by setting charge to 0 where both are > 0
-        self.discharge_array[conflict_mask] = 0
-
+    def set_charge_allowed_for_hour(self, charge, hour):
+        assert hour < self.hours
+        self.charge_array[hour] = charge
 
     def ladezustand_in_prozent(self):
         return (self.soc_wh / self.kapazitaet_wh) * 100
@@ -125,16 +118,13 @@ class PVAkku:
         # Return the actually discharged energy and the losses
         return tatsaechlich_abgegeben_wh, verluste_wh
 
-    def energie_laden(self, wh, hour):
+    def energie_laden(self, wh, hour, relative_power=0.0):
         if hour is not None and self.charge_array[hour] == 0:
             return 0, 0  # Charging not allowed in this hour
-
+        if relative_power > 0.0:
+            wh=self.max_ladeleistung_w*relative_power
         # If no value for wh is given, use the maximum charging power
         wh = wh if wh is not None else self.max_ladeleistung_w
-
-        # Relative to the maximum charging power (between 0 and 1)
-        relative_ladeleistung = self.charge_array[hour]
-        effektive_ladeleistung = relative_ladeleistung * self.max_ladeleistung_w
 
         # Calculate the maximum energy that can be charged considering max_soc and efficiency
         if self.lade_effizienz > 0:
@@ -144,8 +134,8 @@ class PVAkku:
         max_possible_charge_wh = max(max_possible_charge_wh, 0.0)  # Ensure non-negative
 
         # The actually charged energy cannot exceed requested energy, charging power, or maximum possible charge
-        effektive_lademenge = min(wh, effektive_ladeleistung, max_possible_charge_wh)
-
+        effektive_lademenge = min(wh,  max_possible_charge_wh)
+        
         # Energy actually stored in the battery
         geladene_menge = effektive_lademenge * self.lade_effizienz
 
@@ -153,10 +143,9 @@ class PVAkku:
         self.soc_wh += geladene_menge
         # Ensure soc_wh does not exceed max_soc_wh
         self.soc_wh = min(self.soc_wh, self.max_soc_wh)
-
+        
         # Calculate losses
         verluste_wh = effektive_lademenge - geladene_menge
-
         return geladene_menge, verluste_wh
 
     def aktueller_energieinhalt(self):

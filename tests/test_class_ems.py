@@ -5,6 +5,7 @@ from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter  # Example import
+from akkudoktoreos.visualize import *
 
 prediction_hours = 48
 optimization_hours = 24
@@ -32,7 +33,7 @@ def create_ems_instance():
 
     # Example initialization of electric car battery
     eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=10, hours=48, min_soc_prozent=10)
-
+    eauto.set_charge_per_hour(np.full(48,1))
     # Parameters based on previous example data
     pv_prognose_wh = [
         0,
@@ -199,6 +200,9 @@ def create_ems_instance():
         haushaltsgeraet=home_appliance,
         wechselrichter=wechselrichter,
     )
+
+
+
     return ems
 
 
@@ -211,6 +215,21 @@ def test_simulation(create_ems_instance):
     # Simulate starting from hour 1 (this value can be adjusted)
 
     result = ems.simuliere(start_stunde=start_hour)
+
+    visualisiere_ergebnisse(
+        ems.gesamtlast,
+        ems.pv_prognose_wh,
+        ems.strompreis_euro_pro_wh,
+        result,
+        ems.akku.discharge_array+ems.akku.charge_array,
+        None,
+        ems.pv_prognose_wh,
+        start_hour,
+        48,
+        np.full(48, 0.0),
+        filename="visualization_results.pdf",
+        extra_data=None,
+    )
 
     # Assertions to validate results
     assert result is not None, "Result should not be None"
