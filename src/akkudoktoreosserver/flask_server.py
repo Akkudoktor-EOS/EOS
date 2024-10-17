@@ -17,6 +17,7 @@ from akkudoktoreos.class_load_container import Gesamtlast
 from akkudoktoreos.class_load_corrector import LoadPredictionAdjuster
 from akkudoktoreos.class_optimize import optimization_problem
 from akkudoktoreos.class_pv_forecast import PVForecast
+from akkudoktoreos.class_numpy_encoder import *
 from akkudoktoreos.class_strompreis import HourlyElectricityPriceForecast
 from akkudoktoreos.config import (
     get_start_enddate,
@@ -28,7 +29,7 @@ from akkudoktoreos.config import (
 app = Flask(__name__)
 
 opt_class = optimization_problem(
-    prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours
+    prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours, verbose=True
 )
 
 
@@ -248,9 +249,9 @@ def flask_optimize():
 
         # Perform optimization simulation
         result = opt_class.optimierung_ems(parameter=parameter, start_hour=datetime.now().hour)
-        print(result)
+        #print(result)
         # convert to JSON (None accepted by dumps)
-        return jsonify(result)
+        return NumpyEncoder.dumps(result)
 
 
 @app.route("/visualization_results.pdf")
