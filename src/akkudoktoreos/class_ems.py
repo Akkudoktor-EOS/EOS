@@ -25,6 +25,7 @@ class EnergieManagementSystem:
         self.wechselrichter = wechselrichter
         self.ac_charge_hours = np.full(prediction_hours,0)
         self.dc_charge_hours = np.full(prediction_hours,1)
+        self.ev_charge_hours = np.full(prediction_hours,0)
 
     def set_akku_discharge_hours(self, ds: List[int]) -> None:
         self.akku.set_discharge_per_hour(ds)
@@ -35,8 +36,8 @@ class EnergieManagementSystem:
     def set_akku_dc_charge_hours(self, ds: np.ndarray) -> None:
         self.dc_charge_hours = ds
 
-    def set_eauto_charge_hours(self, ds: List[int]) -> None:
-        self.eauto.set_charge_per_hour(ds)
+    def set_ev_charge_hours(self, ds: List[int]) -> None:
+        self.ev_charge_hours = ds
 
     def set_haushaltsgeraet_start(self, ds: List[int], global_start_hour: int = 0) -> None:
         self.haushaltsgeraet.set_startzeitpunkt(ds, global_start_hour=global_start_hour)
@@ -95,7 +96,9 @@ class EnergieManagementSystem:
 
             # E-Auto handling
             if self.eauto:
-                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(None, stunde)
+                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(None, stunde, relative_power=self.ev_charge_hours[stunde])
+                # if self.ev_charge_hours[stunde] > 0.0:
+                #     print(self.ev_charge_hours[stunde], " ", geladene_menge_eauto," ", self.eauto.ladezustand_in_prozent())
                 verbrauch += geladene_menge_eauto
                 verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
                 eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
