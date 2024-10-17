@@ -164,9 +164,11 @@ def visualisiere_ergebnisse(
         plt.legend(loc="upper left", bbox_to_anchor=(1, 1))  # Place legend outside the plot
         plt.grid(True, which="both", axis="x")  # Grid for every hour
 
+
+
         # Plot for AC, DC charging, and Discharge status using bar charts
         ax1 = plt.subplot(3, 2, 5)
-
+        hours = np.arange(0, prediction_hours)
         # Plot AC charging as bars (relative values between 0 and 1)
         plt.bar(hours, ac, width=0.4, label="AC Charging (relative)", color="blue", alpha=0.6)
 
@@ -185,7 +187,10 @@ def visualisiere_ergebnisse(
         ax1.grid(True)
 
 
-
+        if ist_dst_wechsel(datetime.datetime.now()):
+            hours = np.arange(start_hour, prediction_hours - 1)
+        else:
+            hours = np.arange(start_hour, prediction_hours)
 
 
         pdf.savefig()  # Save the current figure state to the PDF

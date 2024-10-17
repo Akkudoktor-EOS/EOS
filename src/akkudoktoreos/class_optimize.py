@@ -241,8 +241,9 @@ class optimization_problem:
             eautocharge_hours_float = [
                 possible_ev_charge_currents[i] for i in eautocharge_hours_index
             ]            
-            ems.set_eauto_charge_hours(eautocharge_hours_float)
-        
+            ems.set_ev_charge_hours(eautocharge_hours_float)
+        #else:
+        #    ems.set_ev_charge_hours(np.full(self.prediction_hours, 0 ))
         return ems.simuliere(start_hour)
 
     def evaluate(
@@ -271,10 +272,10 @@ class optimization_problem:
         )
         
         # Penalty for not meeting the minimum SOC (State of Charge) requirement
-        if parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent() <= 0.0:
-            gesamtbilanz += sum(
-                self.strafe for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
-            )
+        # if parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent() <= 0.0 and  self.optimize_ev:
+        #     gesamtbilanz += sum(
+        #         self.strafe for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
+        #     )
 
         individual.extra_data = (
             o["Gesamtbilanz_Euro"],
@@ -284,13 +285,13 @@ class optimization_problem:
 
         # Adjust total balance with battery value and penalties for unmet SOC
         restwert_akku = ems.akku.aktueller_energieinhalt() * parameter["preis_euro_pro_wh_akku"]
-        gesamtbilanz += (
-            max(
-                0,
-                (parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent()) * self.strafe,
-            )
-            - restwert_akku
-        )
+        gesamtbilanz += -restwert_akku
+        if self.optimize_ev:
+            gesamtbilanz +=  max(
+                    0,
+                    (parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent()) * self.strafe,
+                )
+
 
         return (gesamtbilanz,)
 
@@ -342,7 +343,7 @@ class optimization_problem:
         worst_case: bool = False,
         startdate: Optional[Any] = None,  # startdate is not used!
         *,
-        ngen: int = 400,
+        ngen: int = 600,
     ) -> Dict[str, Any]:
         """
         Perform EMS (Energy Management System) optimization and visualize results.
