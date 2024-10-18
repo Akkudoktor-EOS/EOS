@@ -59,9 +59,11 @@ read-docs: docs
 
 # Clean target to remove generated documentation, distribution and virtual environment
 clean:
-	@echo "Cleaning virtual env, distribution and documentation directories"
-	rm -rf dist
-	rm -rf .venv
+	@echo "Cleaning virtual env, distribution and build directories"
+	rm -rf dist build .venv
+	@echo "Searching and deleting all '_autosum' directories in docs..."
+	@find docs -type d -name '_autosummary' -exec rm -rf {} +;
+	@echo "Deletion complete."
 
 run:
 	@echo "Starting flask server, please wait..."
