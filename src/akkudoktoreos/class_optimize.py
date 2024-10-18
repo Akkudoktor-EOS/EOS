@@ -37,8 +37,9 @@ class optimization_problem:
     def split_individual(
         self, individual: List[float]
     ) -> Tuple[List[int], List[float], Optional[int]]:
-        """
-        Split the individual solution into its components:
+        """Split the individual solution into its components.
+
+        Components:
         1. Discharge hours (binary),
         2. Electric vehicle charge hours (float),
         3. Dishwasher start time (integer if applicable).
@@ -53,9 +54,7 @@ class optimization_problem:
         return discharge_hours_bin, eautocharge_hours_float, spuelstart_int
 
     def setup_deap_environment(self, opti_param: Dict[str, Any], start_hour: int) -> None:
-        """
-        Set up the DEAP environment with fitness and individual creation rules.
-        """
+        """Set up the DEAP environment with fitness and individual creation rules."""
         self.opti_param = opti_param
 
         # Remove existing FitnessMin and Individual classes from creator if present
@@ -101,9 +100,9 @@ class optimization_problem:
     def evaluate_inner(
         self, individual: List[float], ems: EnergieManagementSystem, start_hour: int
     ) -> Dict[str, Any]:
-        """
-        Internal evaluation function that simulates the energy management system (EMS)
-        using the provided individual solution.
+        """Simulates the energy management system (EMS) using the provided individual solution.
+
+        This is an internal function.
         """
         ems.reset()
         discharge_hours_bin, eautocharge_hours_float, spuelstart_int = self.split_individual(
@@ -127,9 +126,7 @@ class optimization_problem:
         start_hour: int,
         worst_case: bool,
     ) -> Tuple[float]:
-        """
-        Evaluate the fitness of an individual solution based on the simulation results.
-        """
+        """Evaluate the fitness of an individual solution based on the simulation results."""
         try:
             o = self.evaluate_inner(individual, ems, start_hour)
         except Exception as e:
@@ -232,9 +229,7 @@ class optimization_problem:
         *,
         ngen: int = 400,
     ) -> Dict[str, Any]:
-        """
-        Perform EMS (Energy Management System) optimization and visualize results.
-        """
+        """Perform EMS (Energy Management System) optimization and visualize results."""
         einspeiseverguetung_euro_pro_wh = np.full(
             self.prediction_hours, parameter["einspeiseverguetung_euro_pro_wh"]
         )
