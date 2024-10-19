@@ -16,7 +16,6 @@ help:
 	@echo "  docker-build - Rebuild docker image"
 	@echo "  docs         - Generate HTML documentation (in build/docs/html/)."
 	@echo "  read-docs    - Read HTML documentation in your browser."
-	@echo "  read-docs    - Read HTML documentation in your browser."
 	@echo "  run          - Run flask_server in the virtual environment (needs install before)."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."

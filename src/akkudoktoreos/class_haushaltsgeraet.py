@@ -16,9 +16,7 @@ class HaushaltsgeraetParameters(BaseModel):
 class Haushaltsgeraet:
     def __init__(self, parameters: HaushaltsgeraetParameters, hours=24):
         self.hours = hours  # Total duration for which the planning is done
-        self.verbrauch_wh = (
-            parameters.verbrauch_wh  # Total energy consumption of the device in kWh
-        )
+        self.verbrauch_wh = parameters.verbrauch_wh  # Total energy consumption of the device in kWh
         self.dauer_h = parameters.dauer_h  # Duration of use in hours
         self.lastkurve = np.zeros(self.hours)  # Initialize the load curve with zeros
 

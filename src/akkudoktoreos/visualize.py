@@ -270,7 +270,7 @@ def visualisiere_ergebnisse(
 
                 # First violin plot for losses
                 axs[0].violinplot(data[0], positions=[1], showmeans=True, showmedians=True)
-                axs[1].set(title="Losses", xticks=[1], xticklabels=["Losses"])
+                axs[0].set(title="Losses", xticks=[1], xticklabels=["Losses"])
 
                 # Second violin plot for balance
                 axs[1].violinplot(data[1], positions=[1], showmeans=True, showmedians=True)
