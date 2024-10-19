@@ -1,6 +1,8 @@
 numpy==2.1.2
 matplotlib==3.9.2
-flask==3.0.3
+fastapi[standard]==0.115.0
+uvicorn==0.31.1
+pydantic==2.9.2
 scikit-learn==1.5.2
 deap==1.4.1
 requests==2.32.3

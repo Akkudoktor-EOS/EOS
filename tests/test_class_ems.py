@@ -1,10 +1,16 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.class_akku import PVAkku
-from akkudoktoreos.class_ems import EnergieManagementSystem
-from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
-from akkudoktoreos.class_inverter import Wechselrichter  # Example import
+from akkudoktoreos.class_akku import EAutoParameters, PVAkku, PVAkkuParameters
+from akkudoktoreos.class_ems import (
+    EnergieManagementSystem,
+    EnergieManagementSystemParameters,
+)
+from akkudoktoreos.class_haushaltsgeraet import (
+    Haushaltsgeraet,
+    HaushaltsgeraetParameters,
+)
+from akkudoktoreos.class_inverter import Wechselrichter, WechselrichterParameters
 
 prediction_hours = 48
 optimization_hours = 24
@@ -14,24 +20,30 @@ start_hour = 1
 # Example initialization of necessary components
 @pytest.fixture
 def create_ems_instance():
-    """
-    Fixture to create an EnergieManagementSystem instance with given test parameters.
-    """
+    """Fixture to create an EnergieManagementSystem instance with given test parameters."""
     # Initialize the battery and the inverter
-    akku = PVAkku(kapazitaet_wh=5000, start_soc_prozent=80, hours=48, min_soc_prozent=10)
+    akku = PVAkku(
+        PVAkkuParameters(kapazitaet_wh=5000, start_soc_prozent=80, min_soc_prozent=10),
+        hours=prediction_hours,
+    )
     akku.reset()
-    wechselrichter = Wechselrichter(10000, akku)
+    wechselrichter = Wechselrichter(WechselrichterParameters(max_leistung_wh=10000), akku)
 
     # Household device (currently not used, set to None)
     home_appliance = Haushaltsgeraet(
+        HaushaltsgeraetParameters(
+            verbrauch_wh=2000,
+            dauer_h=2,
+        ),
         hours=prediction_hours,
-        verbrauch_wh=2000,
-        dauer_h=2,
     )
     home_appliance.set_startzeitpunkt(2)
 
     # Example initialization of electric car battery
-    eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=10, hours=48, min_soc_prozent=10)
+    eauto = PVAkku(
+        EAutoParameters(kapazitaet_wh=26400, start_soc_prozent=10, min_soc_prozent=10),
+        hours=prediction_hours,
+    )
 
     # Parameters based on previous example data
     pv_prognose_wh = [
@@ -136,7 +148,8 @@ def create_ems_instance():
         0.0002780,
     ]
 
-    einspeiseverguetung_euro_pro_wh = [0.00007] * len(strompreis_euro_pro_wh)
+    einspeiseverguetung_euro_pro_wh = 0.00007
+    preis_euro_pro_wh_akku = 0.0001
 
     gesamtlast = [
         676.71,
@@ -191,11 +204,14 @@ def create_ems_instance():
 
     # Initialize the energy management system with the respective parameters
     ems = EnergieManagementSystem(
-        pv_prognose_wh=pv_prognose_wh,
-        strompreis_euro_pro_wh=strompreis_euro_pro_wh,
-        einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
+        EnergieManagementSystemParameters(
+            pv_prognose_wh=pv_prognose_wh,
+            strompreis_euro_pro_wh=strompreis_euro_pro_wh,
+            einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
+            gesamtlast=gesamtlast,
+            preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
+        ),
         eauto=eauto,
-        gesamtlast=gesamtlast,
         haushaltsgeraet=home_appliance,
         wechselrichter=wechselrichter,
     )
@@ -203,9 +219,7 @@ def create_ems_instance():
 
 
 def test_simulation(create_ems_instance):
-    """
-    Test the EnergieManagementSystem simulation method.
-    """
+    """Test the EnergieManagementSystem simulation method."""
     ems = create_ems_instance
 
     # Simulate starting from hour 1 (this value can be adjusted)
@@ -235,7 +249,7 @@ def test_simulation(create_ems_instance):
         "akku_soc_pro_stunde",
         "Einnahmen_Euro_pro_Stunde",
         "Gesamtbilanz_Euro",
-        "E-Auto_SoC_pro_Stunde",
+        "EAuto_SoC_pro_Stunde",
         "Gesamteinnahmen_Euro",
         "Gesamtkosten_Euro",
         "Verluste_Pro_Stunde",

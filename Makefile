@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip install dist test docker-run docs clean
+.PHONY: help venv pip install dist test docker-run docker-build docs read-docs clean format run run-dev
 
 # Default target
 all: help
@@ -10,10 +10,13 @@ help:
 	@echo "  venv         - Set up a Python 3 virtual environment."
 	@echo "  pip          - Install dependencies from requirements.txt."
 	@echo "  pip-dev      - Install dependencies from requirements-dev.txt."
+	@echo "  format       - Format source code."
 	@echo "  install      - Install EOS in editable form (development mode) into virtual environment."
 	@echo "  docker-run   - Run entire setup on docker"
 	@echo "  docker-build - Rebuild docker image"
 	@echo "  docs         - Generate HTML documentation (in build/docs/html/)."
+	@echo "  read-docs    - Read HTML documentation in your browser."
+	@echo "  read-docs    - Read HTML documentation in your browser."
 	@echo "  run          - Run flask_server in the virtual environment (needs install before)."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
@@ -51,15 +54,26 @@ docs: pip-dev
 	.venv/bin/sphinx-build -M html docs build/docs
 	@echo "Documentation generated to build/docs/html/."
 
+# Target to read the HTML documentation
+read-docs: docs
+	@echo "Read the documentation in your browser"
+	.venv/bin/python -m webbrowser build/docs/html/index.html
+
 # Clean target to remove generated documentation, distribution and virtual environment
 clean:
-	@echo "Cleaning virtual env, distribution and documentation directories"
-	rm -rf dist
-	rm -rf .venv
+	@echo "Cleaning virtual env, distribution and build directories"
+	rm -rf dist build .venv
+	@echo "Searching and deleting all '_autosum' directories in docs..."
+	@find docs -type d -name '_autosummary' -exec rm -rf {} +;
+	@echo "Deletion complete."
 
 run:
-	@echo "Starting flask server, please wait..."
-	.venv/bin/python -m akkudoktoreosserver.flask_server
+	@echo "Starting FastAPI server, please wait..."
+	.venv/bin/python -m akkudoktoreosserver.fastapi_server
+
+run-dev:
+	@echo "Starting FastAPI development server, please wait..."
+	.venv/bin/fastapi dev src/akkudoktoreosserver/fastapi_server.py
 
 # Target to setup tests.
 test-setup: pip-dev
@@ -68,7 +82,11 @@ test-setup: pip-dev
 # Target to run tests.
 test:
 	@echo "Running tests..."
-	.venv/bin/pytest
+	.venv/bin/pytest -vs --cov src --cov-report term-missing
+
+# Target to format code.
+format:
+	pre-commit run --all-files
 
 # Run entire setup on docker
 docker-run:

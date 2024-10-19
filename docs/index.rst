@@ -15,3 +15,5 @@ Akkudoktor EOS documentation
    akkudoktoreos/about
    develop/getting_started
    develop/CONTRIBUTING
+   akkudoktoreos/serverapi
+   akkudoktoreos/api
