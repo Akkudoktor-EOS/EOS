@@ -98,4 +98,4 @@ docker-run:
 	@docker compose up --remove-orphans
 
 docker-build:
-	@docker compose build
+	@docker compose build --pull

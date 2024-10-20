@@ -234,8 +234,8 @@ if __name__ == "__main__":
         print(f"Failed to initialize: {e}")
 
     # Set host and port from environment variables or defaults
-    host = os.getenv("FASTAPI_RUN_HOST", "0.0.0.0")
-    port = os.getenv("FASTAPI_RUN_PORT", 8503)
+    host = os.getenv("EOS_RUN_HOST", "0.0.0.0")
+    port = os.getenv("EOS_RUN_PORT", 8503)
     try:
         uvicorn.run(app, host=host, port=int(port))  # Run the FastAPI application
     except Exception as e:
