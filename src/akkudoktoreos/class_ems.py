@@ -95,21 +95,13 @@ class EnergieManagementSystem:
                 haushaltsgeraet_wh_pro_stunde[stunde_since_now] = ha_load
 
             # E-Auto handling
-            if self.eauto:
+            if self.eauto and self.ev_charge_hours[stunde]>0:
                 geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(None, stunde, relative_power=self.ev_charge_hours[stunde])
-                # if self.ev_charge_hours[stunde] > 0.0:
-                #     print(self.ev_charge_hours[stunde], " ", geladene_menge_eauto," ", self.eauto.ladezustand_in_prozent())
                 verbrauch += geladene_menge_eauto
                 verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
+                
+            if self.eauto:
                 eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
-
-            # AC PV Battery Charge
-            if self.ac_charge_hours[stunde] > 0.0:
-                self.akku.set_charge_allowed_for_hour(self.ac_charge_hours[stunde],stunde)
-                geladene_menge, verluste_wh = self.akku.energie_laden(None,stunde,relative_power=self.ac_charge_hours[stunde])
-                verbrauch += geladene_menge
-                verluste_wh_pro_stunde[stunde_since_now] += verluste_wh    
-
             # Process inverter logic
             erzeugung = self.pv_prognose_wh[stunde]
             self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[stunde],stunde)
@@ -117,7 +109,14 @@ class EnergieManagementSystem:
                 self.wechselrichter.energie_verarbeiten(erzeugung, verbrauch, stunde)
             )
 
-  
+            # AC PV Battery Charge
+            if self.ac_charge_hours[stunde] > 0.0:
+                self.akku.set_charge_allowed_for_hour(1,stunde)
+                geladene_menge, verluste_wh = self.akku.energie_laden(None,stunde,relative_power=self.ac_charge_hours[stunde])
+                #print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.ladezustand_in_prozent())
+                verbrauch += geladene_menge
+                netzbezug +=geladene_menge
+                verluste_wh_pro_stunde[stunde_since_now] += verluste_wh      
 
             netzeinspeisung_wh_pro_stunde[stunde_since_now] = netzeinspeisung
             netzbezug_wh_pro_stunde[stunde_since_now] = netzbezug

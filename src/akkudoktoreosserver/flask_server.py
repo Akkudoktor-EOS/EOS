@@ -62,6 +62,7 @@ def flask_strompreis():
     price_forecast = HourlyElectricityPriceForecast(
         source=f"https://api.akkudoktor.net/prices?start={date_now}&end={date}",
         prediction_hours=prediction_hours,
+        cache=False
     )
     specific_date_prices = price_forecast.get_price_for_daterange(
         date_now, date

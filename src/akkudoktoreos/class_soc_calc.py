@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-
 class BatteryDataProcessor:
     def __init__(
         self,
@@ -235,7 +234,7 @@ class BatteryDataProcessor:
             marker="o",
             label="100% SoC Points",
         )
-        # plt.scatter(last_points_0_df['timestamp'], last_points_0_df['battery_voltage'], color='red', marker='x', label='0% SoC Points')
+        plt.scatter(last_points_0_df['timestamp'], last_points_0_df['battery_voltage'], color='red', marker='x', label='0% SoC Points')
         plt.xlabel("Timestamp")
         plt.ylabel("Voltage (V)")
         plt.legend()
@@ -255,7 +254,7 @@ class BatteryDataProcessor:
             marker="o",
             label="100% SoC Points",
         )
-        # plt.scatter(last_points_0_df['timestamp'], last_points_0_df['battery_current'], color='red', marker='x', label='0% SoC Points')
+        plt.scatter(last_points_0_df['timestamp'], last_points_0_df['battery_current'], color='red', marker='x', label='0% SoC Points')
         plt.xlabel("Timestamp")
         plt.ylabel("Current (A)")
         plt.legend()
@@ -281,17 +280,23 @@ class BatteryDataProcessor:
 
 if __name__ == "__main__":
     # MariaDB Verbindungsdetails
-    config = {}
+
+    config = {
+        'user': 'soc',
+        'password': 'Rayoflight123!',
+        'host': '192.168.1.135',
+        'database': 'sensor'
+    }
 
     # Parameter festlegen
     voltage_high_threshold = 55.4  # 100% SoC
-    voltage_low_threshold = 46.5  # 0% SoC
+    voltage_low_threshold = 48  # 0% SoC
     current_low_threshold = 2  # Niedriger Strom für beide Zustände
     gap = 30  # Zeitlücke in Minuten zum  Gruppieren von Maxima/Minima
-    bat_capacity = 33 * 1000 / 48
+    bat_capacity = 0.8*33 * 1000 / 48
 
     # Zeitpunkt X definieren
-    zeitpunkt_x = (datetime.now() - timedelta(weeks=100)).strftime("%Y-%m-%d %H:%M:%S")
+    zeitpunkt_x = (datetime.now() - timedelta(weeks=4)).strftime("%Y-%m-%d %H:%M:%S")
 
     # BatteryDataProcessor instanziieren und verwenden
     processor = BatteryDataProcessor(
@@ -310,7 +315,7 @@ if __name__ == "__main__":
         last_points_100_df, last_points_0_df
     )
     # soh_df = processor.calculate_soh(integration_results)
-    processor.update_database_with_soc(soc_df)
+    #processor.update_database_with_soc(soc_df)
 
     processor.plot_data(last_points_100_df, last_points_0_df, soc_df)
 
