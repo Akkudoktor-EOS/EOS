@@ -31,6 +31,7 @@ class optimization_problem:
         self.verbose = verbose
         self.fix_seed = fixed_seed
         self.optimize_ev = True
+        self.optimize_dc_charge = False
 
         # Set a fixed seed for random operations if provided
         if fixed_seed is not None:
@@ -63,7 +64,12 @@ class optimization_problem:
         ac_charge = ac_charge / 5.0  # Normalize AC charge to range between 0 and 1
 
         # Create dc_charge array: 7 = Not allowed (mapped to 0), 8 = Allowed (mapped to 1)
-        dc_charge = np.where(discharge_hours_bin == 8, 1, 0)
+        # Create dc_charge array: Only if DC charge optimization is enabled
+        if self.optimize_dc_charge:
+            dc_charge = np.where(discharge_hours_bin == 8, 1, 0)
+        else:
+            dc_charge = np.ones_like(discharge_hours_bin)  # Set DC charge to 0 if optimization is disabled
+
 
         # Create discharge array: Only consider value 1 (Discharge), set the rest to 0 (binary output)
         discharge = np.where(discharge_hours_bin == 1, 1, 0)
@@ -95,7 +101,10 @@ class optimization_problem:
         charge_discharge_mutated, = self.toolbox.mutate_charge_discharge(charge_discharge_part)
         
         # Ensure that no invalid states are introduced during mutation (valid values: 0-8)
-        charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, 8)
+        if self.optimize_dc_charge:
+            charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, 8)
+        else:
+            charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, 6)
         
         # Use split_charge_discharge to split the mutated array into AC charge, DC charge, and discharge components
         #ac_charge, dc_charge, discharge = self.split_charge_discharge(charge_discharge_mutated)
@@ -190,7 +199,11 @@ class optimization_problem:
 
         # Initialize toolbox with attributes and operations
         self.toolbox = base.Toolbox()
-        self.toolbox.register("attr_discharge_state", random.randint, 0,11)
+        if self.optimize_dc_charge:
+            self.toolbox.register("attr_discharge_state", random.randint, 0,8)
+        else:
+            self.toolbox.register("attr_discharge_state", random.randint, 0,6)
+
         if self.optimize_ev:
             self.toolbox.register("attr_ev_charge_index", random.randint, 0, len(possible_ev_charge_currents) - 1)
         self.toolbox.register("attr_int", random.randint, start_hour, 23)
@@ -205,7 +218,10 @@ class optimization_problem:
         #self.toolbox.register("mutate", tools.mutFlipBit, indpb=0.1)
         # Register separate mutation functions for each type of value:
         # - Discharge state mutation (-5, 0, 1)
-        self.toolbox.register("mutate_charge_discharge", tools.mutUniformInt, low=0, up=8, indpb=0.1)
+        if self.optimize_dc_charge:
+            self.toolbox.register("mutate_charge_discharge", tools.mutUniformInt, low=0, up=8, indpb=0.1)
+        else:
+            self.toolbox.register("mutate_charge_discharge", tools.mutUniformInt, low=0, up=6, indpb=0.1)
         # - Float mutation for EV charging values
         self.toolbox.register("mutate_ev_charge_index", tools.mutUniformInt, low=0, up=len(possible_ev_charge_currents) - 1, indpb=0.1)
         # - Start hour mutation for household devices
@@ -234,7 +250,9 @@ class optimization_problem:
 
 
         ems.set_akku_discharge_hours(discharge)
-        ems.set_akku_dc_charge_hours(dc)
+        # Set DC charge hours only if DC optimization is enabled
+        if self.optimize_dc_charge:
+            ems.set_akku_dc_charge_hours(dc)
         ems.set_akku_ac_charge_hours(ac)
 
         if self.optimize_ev:
@@ -242,8 +260,8 @@ class optimization_problem:
                 possible_ev_charge_currents[i] for i in eautocharge_hours_index
             ]            
             ems.set_ev_charge_hours(eautocharge_hours_float)
-        #else:
-        #    ems.set_ev_charge_hours(np.full(self.prediction_hours, 0 ))
+        else:
+            ems.set_ev_charge_hours(np.full(self.prediction_hours, 0 ))
         return ems.simuliere(start_hour)
 
     def evaluate(
@@ -284,8 +302,11 @@ class optimization_problem:
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
+        
         restwert_akku = ems.akku.aktueller_energieinhalt() * parameter["preis_euro_pro_wh_akku"]
+        #print(ems.akku.aktueller_energieinhalt()," * ", parameter["preis_euro_pro_wh_akku"] , " ", restwert_akku, " ", gesamtbilanz) 
         gesamtbilanz += -restwert_akku
+        #print(gesamtbilanz)
         if self.optimize_ev:
             gesamtbilanz +=  max(
                     0,
@@ -318,8 +339,8 @@ class optimization_problem:
             self.toolbox,
             mu=100,
             lambda_=150,
-            cxpb=0.7,
-            mutpb=0.3,
+            cxpb=0.6,
+            mutpb=0.4,
             ngen=ngen,
             stats=stats,
             halloffame=hof,
@@ -412,8 +433,8 @@ class optimization_problem:
         discharge_hours_bin, eautocharge_hours_float, spuelstart_int = self.split_individual(
             start_solution
         )
-
-
+        if self.optimize_ev:
+            eautocharge_hours_float = [possible_ev_charge_currents[i] for i in eautocharge_hours_float]
 
         ac_charge, dc_charge, discharge = self.decode_charge_discharge(discharge_hours_bin)
         # Visualize the results
