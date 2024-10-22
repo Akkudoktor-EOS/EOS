@@ -25,6 +25,8 @@ def test_optimize(fn_in, fn_out):
 
     # Call the optimization function
     ergebnis = opt_class.optimierung_ems(parameter=input_data, start_hour=start_hour, ngen=3)
+    # with open("new.json", "w") as f_out:
+    #     json.dump(ergebnis, f_out, indent=4)
 
     # Assert that the output contains all expected entries.
     # This does not assert that the optimization always gives the same result!
