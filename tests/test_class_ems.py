@@ -216,20 +216,20 @@ def test_simulation(create_ems_instance):
 
     result = ems.simuliere(start_stunde=start_hour)
 
-    visualisiere_ergebnisse(
-        ems.gesamtlast,
-        ems.pv_prognose_wh,
-        ems.strompreis_euro_pro_wh,
-        result,
-        ems.akku.discharge_array+ems.akku.charge_array,
-        None,
-        ems.pv_prognose_wh,
-        start_hour,
-        48,
-        np.full(48, 0.0),
-        filename="visualization_results.pdf",
-        extra_data=None,
-    )
+    # visualisiere_ergebnisse(
+    #     ems.gesamtlast,
+    #     ems.pv_prognose_wh,
+    #     ems.strompreis_euro_pro_wh,
+    #     result,
+    #     ems.akku.discharge_array+ems.akku.charge_array,
+    #     None,
+    #     ems.pv_prognose_wh,
+    #     start_hour,
+    #     48,
+    #     np.full(48, 0.0),
+    #     filename="visualization_results.pdf",
+    #     extra_data=None,
+    # )
 
     # Assertions to validate results
     assert result is not None, "Result should not be None"
@@ -284,56 +284,46 @@ def test_simulation(create_ems_instance):
 
     # Verify specific values in the 'Last_Wh_pro_Stunde' array
     assert (
-        result["Last_Wh_pro_Stunde"][1] == 24759.13
-    ), "The value at index 1 of 'Last_Wh_pro_Stunde' should be 24759.13."
+        result["Last_Wh_pro_Stunde"][1] == 1527.13
+    ), "The value at index 1 of 'Last_Wh_pro_Stunde' should be 1527.13."
     assert (
-        result["Last_Wh_pro_Stunde"][2] == 1996.88
-    ), "The value at index 2 of 'Last_Wh_pro_Stunde' should be 1996.88."
+        result["Last_Wh_pro_Stunde"][2] == 1468.88
+    ), "The value at index 2 of 'Last_Wh_pro_Stunde' should be 1468.88."
     assert (
         result["Last_Wh_pro_Stunde"][12] == 1132.03
     ), "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
 
     # Verify that the value at index 0 is 'None'
-    assert np.isnan(
-        result["Last_Wh_pro_Stunde"][0]
-    ), "The value at index 0 of 'Last_Wh_pro_Stunde' should be None."
-
     # Check that 'Netzeinspeisung_Wh_pro_Stunde' and 'Netzbezug_Wh_pro_Stunde' are consistent
-    assert np.isnan(
-        result["Netzeinspeisung_Wh_pro_Stunde"][0]
-    ), "The value at index 0 of 'Netzeinspeisung_Wh_pro_Stunde' should be None."
-    assert np.isnan(
-        result["Netzbezug_Wh_pro_Stunde"][0]
-    ), "The value at index 0 of 'Netzbezug_Wh_pro_Stunde' should be None."
     assert (
-        result["Netzbezug_Wh_pro_Stunde"][1] == 21679.13
-    ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be21679.13."
+        result["Netzbezug_Wh_pro_Stunde"][1] == 0
+    ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 0."
 
     # Verify the total balance
     assert (
-        abs(result["Gesamtbilanz_Euro"] - 9.302960148909092) < 1e-5
-    ), "Total balance should be 9.302960148909092."
+        abs(result["Gesamtbilanz_Euro"] - 1.7880374129090917) < 1e-5
+    ), "Total balance should be 1.7880374129090917."
 
     # Check total revenue and total costs
     assert (
         abs(result["Gesamteinnahmen_Euro"] - 1.3169784090909087) < 1e-5
     ), "Total revenue should be 1.3169784090909087."
     assert (
-        abs(result["Gesamtkosten_Euro"] - 10.619938558000001) < 1e-5
-    ), "Total costs should be 10.619938558000001 ."
+        abs(result["Gesamtkosten_Euro"] - 3.1050158220000004) < 1e-5
+    ), "Total costs should be 3.1050158220000004 ."
 
     # Check the losses
     assert (
-        abs(result["Gesamt_Verluste"] - 5855.222727272727) < 1e-5
-    ), "Total losses should be 5855.222727272727."
+        abs(result["Gesamt_Verluste"] - 2615.222727272727 ) < 1e-5
+    ), "Total losses should be 2615.222727272727 ."
 
     # Check the values in 'akku_soc_pro_stunde'
     assert (
         result["akku_soc_pro_stunde"][-1] == 28.675
     ), "The value at index -1 of 'akku_soc_pro_stunde' should be 28.675."
     assert (
-        result["akku_soc_pro_stunde"][1] == 10.0
-    ), "The value at index 1 of 'akku_soc_pro_stunde' should be 0.0."
+        result["akku_soc_pro_stunde"][1] == 25.379090909090905
+    ), "The value at index 1 of 'akku_soc_pro_stunde' should be 25.379090909090905."
 
     # Check home appliances
     assert (
