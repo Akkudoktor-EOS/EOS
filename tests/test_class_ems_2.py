@@ -4,7 +4,7 @@ import pytest
 from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
-from akkudoktoreos.class_inverter import Wechselrichter  # Example import
+from akkudoktoreos.class_inverter import Inverter
 
 prediction_hours = 48
 optimization_hours = 24
@@ -20,7 +20,7 @@ def create_ems_instance():
     # Initialize the battery and the inverter
     akku = PVAkku(kapazitaet_wh=5000, start_soc_prozent=80, hours=48, min_soc_prozent=10)
     akku.reset()
-    wechselrichter = Wechselrichter(10000, akku)
+    wechselrichter = Inverter(10000, akku)
 
     # Household device (currently not used, set to None)
     home_appliance = Haushaltsgeraet(
