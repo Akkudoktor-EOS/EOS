@@ -219,13 +219,13 @@ class optimization_problem:
         # Register separate mutation functions for each type of value:
         # - Discharge state mutation (-5, 0, 1)
         if self.optimize_dc_charge:
-            self.toolbox.register("mutate_charge_discharge", tools.mutUniformInt, low=0, up=8, indpb=0.1)
+            self.toolbox.register("mutate_charge_discharge", tools.mutUniformInt, low=0, up=8, indpb=0.2)
         else:
-            self.toolbox.register("mutate_charge_discharge", tools.mutUniformInt, low=0, up=6, indpb=0.1)
+            self.toolbox.register("mutate_charge_discharge", tools.mutUniformInt, low=0, up=6, indpb=0.2)
         # - Float mutation for EV charging values
-        self.toolbox.register("mutate_ev_charge_index", tools.mutUniformInt, low=0, up=len(possible_ev_charge_currents) - 1, indpb=0.1)
+        self.toolbox.register("mutate_ev_charge_index", tools.mutUniformInt, low=0, up=len(possible_ev_charge_currents) - 1, indpb=0.2)
         # - Start hour mutation for household devices
-        self.toolbox.register("mutate_hour", tools.mutUniformInt, low=start_hour, up=23, indpb=0.1)
+        self.toolbox.register("mutate_hour", tools.mutUniformInt, low=start_hour, up=23, indpb=0.2)
 
         # Register custom mutation function
         self.toolbox.register("mutate", self.mutate)
@@ -426,7 +426,7 @@ class optimization_problem:
             "evaluate",
             lambda ind: self.evaluate(ind, ems, parameter, start_hour, worst_case),
         )
-        start_solution, extra_data = self.optimize(parameter["start_solution"], ngen=ngen)
+        start_solution, extra_data = self.optimize(parameter["start_solution"], ngen=ngen) # 
 
         # Perform final evaluation on the best solution
         o = self.evaluate_inner(start_solution, ems, start_hour)
