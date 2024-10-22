@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Union
-from akkudoktoreos.config import *
+
 import numpy as np
+
+from akkudoktoreos.config import prediction_hours
 
 
 class EnergieManagementSystem:
@@ -23,16 +25,16 @@ class EnergieManagementSystem:
         self.eauto = eauto
         self.haushaltsgeraet = haushaltsgeraet
         self.wechselrichter = wechselrichter
-        self.ac_charge_hours = np.full(prediction_hours,0)
-        self.dc_charge_hours = np.full(prediction_hours,1)
-        self.ev_charge_hours = np.full(prediction_hours,0)
+        self.ac_charge_hours = np.full(prediction_hours, 0)
+        self.dc_charge_hours = np.full(prediction_hours, 1)
+        self.ev_charge_hours = np.full(prediction_hours, 0)
 
     def set_akku_discharge_hours(self, ds: List[int]) -> None:
         self.akku.set_discharge_per_hour(ds)
 
     def set_akku_ac_charge_hours(self, ds: np.ndarray) -> None:
         self.ac_charge_hours = ds
-    
+
     def set_akku_dc_charge_hours(self, ds: np.ndarray) -> None:
         self.dc_charge_hours = ds
 
@@ -52,11 +54,11 @@ class EnergieManagementSystem:
         return self.simuliere(start_stunde)
 
     def simuliere(self, start_stunde: int) -> dict:
-        '''
+        """
         hour:
             akku_soc_pro_stunde begin of the hour, initial hour state!
             last_wh_pro_stunde integral of  last hour (end state)
-        '''
+        """
 
         lastkurve_wh = self.gesamtlast
         assert (
@@ -82,10 +84,10 @@ class EnergieManagementSystem:
         akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
         if self.eauto:
             eauto_soc_pro_stunde[0] = self.eauto.ladezustand_in_prozent()
-        
-        for stunde in range(start_stunde , ende):
+
+        for stunde in range(start_stunde, ende):
             stunde_since_now = stunde - start_stunde
-            
+
             # Accumulate loads and PV generation
             verbrauch = self.gesamtlast[stunde]
             verluste_wh_pro_stunde[stunde_since_now] = 0.0
@@ -95,28 +97,32 @@ class EnergieManagementSystem:
                 haushaltsgeraet_wh_pro_stunde[stunde_since_now] = ha_load
 
             # E-Auto handling
-            if self.eauto and self.ev_charge_hours[stunde]>0:
-                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(None, stunde, relative_power=self.ev_charge_hours[stunde])
+            if self.eauto and self.ev_charge_hours[stunde] > 0:
+                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(
+                    None, stunde, relative_power=self.ev_charge_hours[stunde]
+                )
                 verbrauch += geladene_menge_eauto
                 verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
-                
+
             if self.eauto:
                 eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
             # Process inverter logic
             erzeugung = self.pv_prognose_wh[stunde]
-            self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[stunde],stunde)
+            self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[stunde], stunde)
             netzeinspeisung, netzbezug, verluste, eigenverbrauch = (
                 self.wechselrichter.energie_verarbeiten(erzeugung, verbrauch, stunde)
             )
 
             # AC PV Battery Charge
             if self.ac_charge_hours[stunde] > 0.0:
-                self.akku.set_charge_allowed_for_hour(1,stunde)
-                geladene_menge, verluste_wh = self.akku.energie_laden(None,stunde,relative_power=self.ac_charge_hours[stunde])
-                #print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.ladezustand_in_prozent())
+                self.akku.set_charge_allowed_for_hour(1, stunde)
+                geladene_menge, verluste_wh = self.akku.energie_laden(
+                    None, stunde, relative_power=self.ac_charge_hours[stunde]
+                )
+                # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.ladezustand_in_prozent())
                 verbrauch += geladene_menge
-                netzbezug +=geladene_menge
-                verluste_wh_pro_stunde[stunde_since_now] += verluste_wh      
+                netzbezug += geladene_menge
+                verluste_wh_pro_stunde[stunde_since_now] += verluste_wh
 
             netzeinspeisung_wh_pro_stunde[stunde_since_now] = netzeinspeisung
             netzbezug_wh_pro_stunde[stunde_since_now] = netzbezug

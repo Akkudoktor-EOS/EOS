@@ -22,20 +22,21 @@ def repeat_to_shape(array, target_shape):
 
 
 class HourlyElectricityPriceForecast:
-    def __init__(self, source, cache_dir="cache", charges=0.000228, prediction_hours=24, cache=True):  # 228
+    def __init__(
+        self, source, cache_dir="cache", charges=0.000228, prediction_hours=24, cache=True
+    ):  # 228
         self.cache_dir = cache_dir
-        self.cache=cache
+        self.cache = cache
         os.makedirs(self.cache_dir, exist_ok=True)
         self.cache_time_file = os.path.join(self.cache_dir, "cache_timestamp.txt")
         self.prices = self.load_data(source)
         self.charges = charges
         self.prediction_hours = prediction_hours
-        
 
     def load_data(self, source):
         cache_filename = self.get_cache_filename(source)
         if source.startswith("http"):
-            if os.path.exists(cache_filename) and not self.is_cache_expired() and self.cache==True:
+            if os.path.exists(cache_filename) and not self.is_cache_expired() and self.cache:
                 print("Loading data from cache...")
                 with open(cache_filename, "r") as file:
                     json_data = json.load(file)
