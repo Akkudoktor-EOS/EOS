@@ -84,7 +84,7 @@ class BatteryDataProcessor:
         condition_soc_0 = (self.data["battery_voltage"] <= self.voltage_low_threshold) & (
             self.data["battery_current"].abs() <= self.current_low_threshold
         )
-
+        
         times_soc_100_all = self.data[condition_soc_100][
             ["timestamp", "battery_voltage", "battery_current"]
         ]
@@ -115,7 +115,7 @@ class BatteryDataProcessor:
             else:
                 end_point = self.data.iloc[-1]  # Verwenden des letzten Datensatzes als Endpunkt
 
-            if start_point["timestamp"] in last_points_100_df["timestamp"].values:
+            if not last_points_100_df.empty and start_point["timestamp"] in last_points_100_df["timestamp"].values:
                 initial_soc = 100
             elif start_point["timestamp"] in last_points_0_df["timestamp"].values:
                 initial_soc = 0
@@ -157,7 +157,7 @@ class BatteryDataProcessor:
                     "end_soc": calculated_soc_list[-1],
                 }
             )
-
+        print(integration_results)
         soc_df = pd.concat(soc_values).drop_duplicates(subset=["timestamp"]).reset_index(drop=True)
         return soc_df, integration_results
 
@@ -227,13 +227,14 @@ class BatteryDataProcessor:
             label="Battery Voltage",
             color="blue",
         )
-        plt.scatter(
-            last_points_100_df["timestamp"],
-            last_points_100_df["battery_voltage"],
-            color="green",
-            marker="o",
-            label="100% SoC Points",
-        )
+        if not last_points_100_df.empty:
+            plt.scatter(
+                last_points_100_df["timestamp"],
+                last_points_100_df["battery_voltage"],
+                color="green",
+                marker="o",
+                label="100% SoC Points",
+            )
         plt.scatter(last_points_0_df['timestamp'], last_points_0_df['battery_voltage'], color='red', marker='x', label='0% SoC Points')
         plt.xlabel("Timestamp")
         plt.ylabel("Voltage (V)")
@@ -247,13 +248,14 @@ class BatteryDataProcessor:
             label="Battery Current",
             color="orange",
         )
-        plt.scatter(
-            last_points_100_df["timestamp"],
-            last_points_100_df["battery_current"],
-            color="green",
-            marker="o",
-            label="100% SoC Points",
-        )
+        if not last_points_100_df.empty:
+            plt.scatter(
+                last_points_100_df["timestamp"],
+                last_points_100_df["battery_current"],
+                color="green",
+                marker="o",
+                label="100% SoC Points",
+            )
         plt.scatter(last_points_0_df['timestamp'], last_points_0_df['battery_current'], color='red', marker='x', label='0% SoC Points')
         plt.xlabel("Timestamp")
         plt.ylabel("Current (A)")
