@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-from akkudoktoreos.visualize import *
 
 from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
@@ -38,12 +37,11 @@ def create_ems_instance():
     pv_prognose_wh = np.full(prediction_hours, 0)
     pv_prognose_wh[10] = 5000.0
     pv_prognose_wh[11] = 5000.0
- 
 
     strompreis_euro_pro_wh = np.full(48, 0.001)
-    strompreis_euro_pro_wh [0:10] = 0.00001
-    strompreis_euro_pro_wh [11:15] = 0.00005
-    strompreis_euro_pro_wh [20] = 0.00001
+    strompreis_euro_pro_wh[0:10] = 0.00001
+    strompreis_euro_pro_wh[11:15] = 0.00005
+    strompreis_euro_pro_wh[20] = 0.00001
 
     einspeiseverguetung_euro_pro_wh = [0.00007] * len(strompreis_euro_pro_wh)
 
@@ -109,11 +107,10 @@ def create_ems_instance():
         wechselrichter=wechselrichter,
     )
 
-
-    ac= np.full(prediction_hours,0)
+    ac = np.full(prediction_hours, 0)
     ac[20] = 1
     ems.set_akku_ac_charge_hours(ac)
-    dc= np.full(prediction_hours,0)
+    dc = np.full(prediction_hours, 0)
     dc[11] = 1
     ems.set_akku_dc_charge_hours(dc)
 
@@ -196,29 +193,27 @@ def test_simulation(create_ems_instance):
         len(result["akku_soc_pro_stunde"]) == 48
     ), "The length of 'akku_soc_pro_stunde' should be 48."
 
-    # Verfify DC and AC Charge Bins 
+    # Verfify DC and AC Charge Bins
     assert (
         abs(result["akku_soc_pro_stunde"][10] - 10.0) < 1e-5
-    ), "'akku_soc_pro_stunde[10]' should be 10."    
+    ), "'akku_soc_pro_stunde[10]' should be 10."
     assert (
-        abs(result["akku_soc_pro_stunde"][11] -79.275184) < 1e-5
-    ), "'akku_soc_pro_stunde[11]' should be 79.275184."    
+        abs(result["akku_soc_pro_stunde"][11] - 79.275184) < 1e-5
+    ), "'akku_soc_pro_stunde[11]' should be 79.275184."
 
     assert (
         abs(result["Netzeinspeisung_Wh_pro_Stunde"][10] - 3946.93) < 1e-3
-    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 4000."    
+    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 4000."
 
     assert (
         abs(result["Netzeinspeisung_Wh_pro_Stunde"][11] - 0.0) < 1e-3
-    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."    
+    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
 
     assert (
-        abs(result["akku_soc_pro_stunde"][20] - 98
-            ) < 1e-5
-    ), "'akku_soc_pro_stunde[11]' should be 98."  
+        abs(result["akku_soc_pro_stunde"][20] - 98) < 1e-5
+    ), "'akku_soc_pro_stunde[11]' should be 98."
     assert (
         abs(result["Last_Wh_pro_Stunde"][20] - 5450.98) < 1e-3
-    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."    
-
+    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
 
     print("All tests passed successfully.")
