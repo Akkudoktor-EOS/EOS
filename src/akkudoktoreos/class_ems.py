@@ -82,10 +82,10 @@ class EnergieManagementSystem:
         akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
         if self.eauto:
             eauto_soc_pro_stunde[0] = self.eauto.ladezustand_in_prozent()
-       
-        for stunde in range(start_stunde + 1, ende):
+        
+        for stunde in range(start_stunde , ende):
             stunde_since_now = stunde - start_stunde
-
+            
             # Accumulate loads and PV generation
             verbrauch = self.gesamtlast[stunde]
             verluste_wh_pro_stunde[stunde_since_now] = 0.0
