@@ -5,7 +5,6 @@ from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter  # Example import
-from akkudoktoreos.visualize import *
 
 prediction_hours = 48
 optimization_hours = 24
@@ -33,7 +32,7 @@ def create_ems_instance():
 
     # Example initialization of electric car battery
     eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=10, hours=48, min_soc_prozent=10)
-    eauto.set_charge_per_hour(np.full(48,1))
+    eauto.set_charge_per_hour(np.full(48, 1))
     # Parameters based on previous example data
     pv_prognose_wh = [
         0,
@@ -201,8 +200,6 @@ def create_ems_instance():
         wechselrichter=wechselrichter,
     )
 
-
-
     return ems
 
 
@@ -314,7 +311,7 @@ def test_simulation(create_ems_instance):
 
     # Check the losses
     assert (
-        abs(result["Gesamt_Verluste"] - 2615.222727272727 ) < 1e-5
+        abs(result["Gesamt_Verluste"] - 2615.222727272727) < 1e-5
     ), "Total losses should be 2615.222727272727 ."
 
     # Check the values in 'akku_soc_pro_stunde'
