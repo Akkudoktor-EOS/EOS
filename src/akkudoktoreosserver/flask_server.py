@@ -15,9 +15,9 @@ from flask import Flask, jsonify, redirect, request, send_from_directory, url_fo
 from akkudoktoreos.class_load import LoadForecast
 from akkudoktoreos.class_load_container import Gesamtlast
 from akkudoktoreos.class_load_corrector import LoadPredictionAdjuster
+from akkudoktoreos.class_numpy_encoder import NumpyEncoder
 from akkudoktoreos.class_optimize import optimization_problem
 from akkudoktoreos.class_pv_forecast import PVForecast
-from akkudoktoreos.class_numpy_encoder import *
 from akkudoktoreos.class_strompreis import HourlyElectricityPriceForecast
 from akkudoktoreos.config import (
     get_start_enddate,
@@ -29,7 +29,10 @@ from akkudoktoreos.config import (
 app = Flask(__name__)
 
 opt_class = optimization_problem(
-    prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours, verbose=True
+    prediction_hours=prediction_hours,
+    strafe=10,
+    optimization_hours=optimization_hours,
+    verbose=True,
 )
 
 
@@ -62,7 +65,7 @@ def flask_strompreis():
     price_forecast = HourlyElectricityPriceForecast(
         source=f"https://api.akkudoktor.net/prices?start={date_now}&end={date}",
         prediction_hours=prediction_hours,
-        cache=False
+        cache=False,
     )
     specific_date_prices = price_forecast.get_price_for_daterange(
         date_now, date
@@ -250,7 +253,7 @@ def flask_optimize():
 
         # Perform optimization simulation
         result = opt_class.optimierung_ems(parameter=parameter, start_hour=datetime.now().hour)
-        #print(result)
+        # print(result)
         # convert to JSON (None accepted by dumps)
         return NumpyEncoder.dumps(result)
 

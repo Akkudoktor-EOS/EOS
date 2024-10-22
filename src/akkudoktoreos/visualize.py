@@ -59,8 +59,6 @@ def visualisiere_ergebnisse(
         plt.grid(True)
         plt.legend()
 
-
-
         # PV forecast
         plt.subplot(3, 2, 3)
         plt.plot(hours, pv_forecast, label="PV Generation (Wh)", marker="x")
@@ -111,19 +109,44 @@ def visualisiere_ergebnisse(
         plt.subplot(3, 2, 1)
         # Plot with transparency (alpha) and different linestyles
         plt.plot(
-            hours, ergebnisse["Last_Wh_pro_Stunde"], label="Load (Wh)", marker="o", linestyle="-", alpha=0.8
+            hours,
+            ergebnisse["Last_Wh_pro_Stunde"],
+            label="Load (Wh)",
+            marker="o",
+            linestyle="-",
+            alpha=0.8,
         )
         plt.plot(
-            hours, ergebnisse["Haushaltsgeraet_wh_pro_stunde"], label="Household Device (Wh)", marker="o", linestyle="--", alpha=0.8
+            hours,
+            ergebnisse["Haushaltsgeraet_wh_pro_stunde"],
+            label="Household Device (Wh)",
+            marker="o",
+            linestyle="--",
+            alpha=0.8,
         )
         plt.plot(
-            hours, ergebnisse["Netzeinspeisung_Wh_pro_Stunde"], label="Grid Feed-in (Wh)", marker="x", linestyle=":", alpha=0.8
+            hours,
+            ergebnisse["Netzeinspeisung_Wh_pro_Stunde"],
+            label="Grid Feed-in (Wh)",
+            marker="x",
+            linestyle=":",
+            alpha=0.8,
         )
         plt.plot(
-            hours, ergebnisse["Netzbezug_Wh_pro_Stunde"], label="Grid Consumption (Wh)", marker="^", linestyle="-.", alpha=0.8
+            hours,
+            ergebnisse["Netzbezug_Wh_pro_Stunde"],
+            label="Grid Consumption (Wh)",
+            marker="^",
+            linestyle="-.",
+            alpha=0.8,
         )
         plt.plot(
-            hours, ergebnisse["Verluste_Pro_Stunde"], label="Losses (Wh)", marker="^", linestyle="-", alpha=0.8
+            hours,
+            ergebnisse["Verluste_Pro_Stunde"],
+            label="Losses (Wh)",
+            marker="^",
+            linestyle="-",
+            alpha=0.8,
         )
 
         # Title and labels
@@ -133,8 +156,6 @@ def visualisiere_ergebnisse(
 
         # Show legend with a higher number of columns to avoid overlap
         plt.legend(ncol=2)
-
-
 
         # Electricity prices
         hours_p = np.arange(0, len(strompreise))
@@ -164,8 +185,6 @@ def visualisiere_ergebnisse(
         plt.legend(loc="upper left", bbox_to_anchor=(1, 1))  # Place legend outside the plot
         plt.grid(True, which="both", axis="x")  # Grid for every hour
 
-
-
         # Plot for AC, DC charging, and Discharge status using bar charts
         ax1 = plt.subplot(3, 2, 5)
         hours = np.arange(0, prediction_hours)
@@ -173,10 +192,20 @@ def visualisiere_ergebnisse(
         plt.bar(hours, ac, width=0.4, label="AC Charging (relative)", color="blue", alpha=0.6)
 
         # Plot DC charging as bars (relative values between 0 and 1)
-        plt.bar(hours + 0.4, dc, width=0.4, label="DC Charging (relative)", color="green", alpha=0.6)
+        plt.bar(
+            hours + 0.4, dc, width=0.4, label="DC Charging (relative)", color="green", alpha=0.6
+        )
 
         # Plot Discharge as bars (0 or 1, binary values)
-        plt.bar(hours, discharge, width=0.4, label="Discharge Allowed", color="red", alpha=0.6, bottom=np.maximum(ac, dc))
+        plt.bar(
+            hours,
+            discharge,
+            width=0.4,
+            label="Discharge Allowed",
+            color="red",
+            alpha=0.6,
+            bottom=np.maximum(ac, dc),
+        )
 
         # Configure the plot
         ax1.legend(loc="upper left")
@@ -186,12 +215,10 @@ def visualisiere_ergebnisse(
         ax1.set_title("AC/DC Charging and Discharge Overview")
         ax1.grid(True)
 
-
         if ist_dst_wechsel(datetime.datetime.now()):
             hours = np.arange(start_hour, prediction_hours - 1)
         else:
             hours = np.arange(start_hour, prediction_hours)
-
 
         pdf.savefig()  # Save the current figure state to the PDF
         plt.close()  # Close the current figure to free up memory
@@ -217,9 +244,17 @@ def visualisiere_ergebnisse(
         )
         # Annotate costs
         for hour, value in enumerate(costs):
-            if value == None or np.isnan(value):
-                value=0
-            axs[0].annotate(f'{value:.2f}', (hour, value), textcoords="offset points", xytext=(0,5), ha='center', fontsize=8, color='red')
+            if value is None or np.isnan(value):
+                value = 0
+            axs[0].annotate(
+                f"{value:.2f}",
+                (hour, value),
+                textcoords="offset points",
+                xytext=(0, 5),
+                ha="center",
+                fontsize=8,
+                color="red",
+            )
 
         # Plot revenues
         axs[0].plot(
@@ -231,9 +266,17 @@ def visualisiere_ergebnisse(
         )
         # Annotate revenues
         for hour, value in enumerate(revenues):
-            if value == None or np.isnan(value):
-                value=0            
-            axs[0].annotate(f'{value:.2f}', (hour, value), textcoords="offset points", xytext=(0,5), ha='center', fontsize=8, color='green')
+            if value is None or np.isnan(value):
+                value = 0
+            axs[0].annotate(
+                f"{value:.2f}",
+                (hour, value),
+                textcoords="offset points",
+                xytext=(0, 5),
+                ha="center",
+                fontsize=8,
+                color="green",
+            )
 
         # Title and labels
         axs[0].set_title("Financial Balance per Hour")
@@ -241,8 +284,6 @@ def visualisiere_ergebnisse(
         axs[0].set_ylabel("Euro")
         axs[0].legend()
         axs[0].grid(True)
-
-
 
         # Summary of finances on the second axis (axs[1])
         labels = ["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"]

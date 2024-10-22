@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+
 class BatteryDataProcessor:
     def __init__(
         self,
@@ -84,7 +85,7 @@ class BatteryDataProcessor:
         condition_soc_0 = (self.data["battery_voltage"] <= self.voltage_low_threshold) & (
             self.data["battery_current"].abs() <= self.current_low_threshold
         )
-        
+
         times_soc_100_all = self.data[condition_soc_100][
             ["timestamp", "battery_voltage", "battery_current"]
         ]
@@ -115,7 +116,10 @@ class BatteryDataProcessor:
             else:
                 end_point = self.data.iloc[-1]  # Verwenden des letzten Datensatzes als Endpunkt
 
-            if not last_points_100_df.empty and start_point["timestamp"] in last_points_100_df["timestamp"].values:
+            if (
+                not last_points_100_df.empty
+                and start_point["timestamp"] in last_points_100_df["timestamp"].values
+            ):
                 initial_soc = 100
             elif start_point["timestamp"] in last_points_0_df["timestamp"].values:
                 initial_soc = 0
@@ -235,7 +239,13 @@ class BatteryDataProcessor:
                 marker="o",
                 label="100% SoC Points",
             )
-        plt.scatter(last_points_0_df['timestamp'], last_points_0_df['battery_voltage'], color='red', marker='x', label='0% SoC Points')
+        plt.scatter(
+            last_points_0_df["timestamp"],
+            last_points_0_df["battery_voltage"],
+            color="red",
+            marker="x",
+            label="0% SoC Points",
+        )
         plt.xlabel("Timestamp")
         plt.ylabel("Voltage (V)")
         plt.legend()
@@ -256,7 +266,13 @@ class BatteryDataProcessor:
                 marker="o",
                 label="100% SoC Points",
             )
-        plt.scatter(last_points_0_df['timestamp'], last_points_0_df['battery_current'], color='red', marker='x', label='0% SoC Points')
+        plt.scatter(
+            last_points_0_df["timestamp"],
+            last_points_0_df["battery_current"],
+            color="red",
+            marker="x",
+            label="0% SoC Points",
+        )
         plt.xlabel("Timestamp")
         plt.ylabel("Current (A)")
         plt.legend()
@@ -284,10 +300,10 @@ if __name__ == "__main__":
     # MariaDB Verbindungsdetails
 
     config = {
-        'user': 'soc',
-        'password': 'Rayoflight123!',
-        'host': '192.168.1.135',
-        'database': 'sensor'
+        "user": "soc",
+        "password": "Rayoflight123!",
+        "host": "192.168.1.135",
+        "database": "sensor",
     }
 
     # Parameter festlegen
@@ -295,7 +311,7 @@ if __name__ == "__main__":
     voltage_low_threshold = 48  # 0% SoC
     current_low_threshold = 2  # Niedriger Strom für beide Zustände
     gap = 30  # Zeitlücke in Minuten zum  Gruppieren von Maxima/Minima
-    bat_capacity = 0.8*33 * 1000 / 48
+    bat_capacity = 0.8 * 33 * 1000 / 48
 
     # Zeitpunkt X definieren
     zeitpunkt_x = (datetime.now() - timedelta(weeks=4)).strftime("%Y-%m-%d %H:%M:%S")
@@ -317,7 +333,7 @@ if __name__ == "__main__":
         last_points_100_df, last_points_0_df
     )
     # soh_df = processor.calculate_soh(integration_results)
-    #processor.update_database_with_soc(soc_df)
+    # processor.update_database_with_soc(soc_df)
 
     processor.plot_data(last_points_100_df, last_points_0_df, soc_df)
 
