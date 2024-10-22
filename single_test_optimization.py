@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 
-import json
-import time 
+import time
+
+import numpy as np
+
+from akkudoktoreos.class_numpy_encoder import NumpyEncoder
 
 # Import necessary modules from the project
 from akkudoktoreos.class_optimize import optimization_problem
-from akkudoktoreos.visualize import *
-from akkudoktoreos.class_numpy_encoder import *
+from akkudoktoreos.visualize import visualisiere_ergebnisse
+
 start_hour = 0
 
 # PV Forecast (in W)
-pv_forecast = np.zeros(48) 
+pv_forecast = np.zeros(48)
 pv_forecast[12] = 5000
 # [
 #     0,
@@ -117,9 +120,9 @@ temperature_forecast = [
 
 # Electricity Price (in Euro per Wh)
 strompreis_euro_pro_wh = np.full(48, 0.001)
-strompreis_euro_pro_wh [0:10] = 0.00001
-strompreis_euro_pro_wh [11:15] = 0.00005
-strompreis_euro_pro_wh [20] = 0.00001
+strompreis_euro_pro_wh[0:10] = 0.00001
+strompreis_euro_pro_wh[11:15] = 0.00005
+strompreis_euro_pro_wh[20] = 0.00001
 # [
 #     0.0000384,
 #     0.0000318,
@@ -289,8 +292,11 @@ elapsed_time = end_time - start_time
 print(f"Elapsed time: {elapsed_time:.4f} seconds")
 
 
-
-ac_charge, dc_charge, discharge = (ergebnis["ac_charge"],ergebnis["dc_charge"],ergebnis["discharge_allowed"])
+ac_charge, dc_charge, discharge = (
+    ergebnis["ac_charge"],
+    ergebnis["dc_charge"],
+    ergebnis["discharge_allowed"],
+)
 
 visualisiere_ergebnisse(
     gesamtlast,
