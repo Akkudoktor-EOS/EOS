@@ -37,7 +37,7 @@ class LoadAggregator:
             return []  # Return empty list if no loads are present
 
         # Initialize the total load array with zeros
-        LoadAggregator_array = [0.0] * self.prediction_hours
+        LoadAggregator_array = [0.0] * len(list(self.loads.values())[0])
 
         # Sum loads from all sources
         for last_array in self.loads.values():
