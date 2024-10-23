@@ -8,8 +8,8 @@ from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter
+from akkudoktoreos.class_visualize import VisualizationReport
 from akkudoktoreos.config import possible_ev_charge_currents
-from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
 class optimization_problem:
@@ -455,7 +455,7 @@ class optimization_problem:
 
         ac_charge, dc_charge, discharge = self.decode_charge_discharge(discharge_hours_bin)
         # Visualize the results
-        visualisiere_ergebnisse(
+        """visualisiere_ergebnisse(
             parameter["gesamtlast"],
             parameter["pv_forecast"],
             parameter["strompreis_euro_pro_wh"],
@@ -468,7 +468,118 @@ class optimization_problem:
             self.prediction_hours,
             einspeiseverguetung_euro_pro_wh,
             extra_data=extra_data,
+        )"""
+
+        report = VisualizationReport("grouped_energy_report.pdf")
+        x_hours = np.arange(0, self.prediction_hours)
+        print(self.prediction_hours, len(parameter["gesamtlast"]), x_hours, len(x_hours))
+
+        # Group 1:
+        report.create_line_chart(
+            x_hours,
+            [parameter["gesamtlast"], parameter["gesamtlast"]],
+            title="Load Profile",
+            xlabel="Hours",
+            ylabel="Load (Wh)",
+            labels=["Load (Wh)", "Total Load (Wh)"],
+            markers=["o", "s"],
+            line_styles=["-", "--"],
         )
+        report.create_line_chart(
+            x_hours,
+            [parameter["pv_forecast"]],
+            title="PV Forecast",
+            xlabel="Hours",
+            ylabel="PV Generation (Wh)",
+        )
+        report.create_line_chart(
+            x_hours,
+            [einspeiseverguetung_euro_pro_wh],
+            title="Remuneration",
+            xlabel="Hours",
+            ylabel="€/Wh",
+        )
+        report.create_line_chart(
+            x_hours,
+            [parameter["temperature_forecast"]],
+            title="Temperature Forecast",
+            xlabel="Hours",
+            ylabel="°C",
+        )
+        report.finalize_group()
+
+        # Group 2:
+        report.create_line_chart(
+            x_hours,
+            [
+                o["Last_Wh_pro_Stunde"],
+                o["Haushaltsgeraet_wh_pro_stunde"],
+                o["Netzeinspeisung_Wh_pro_Stunde"],
+                o["Netzbezug_Wh_pro_Stunde"],
+                o["Verluste_Pro_Stunde"],
+            ],
+            title="Energy Flow per Hour",
+            xlabel="Hours",
+            ylabel="Energy (Wh)",
+            labels=[
+                "Load (Wh)",
+                "Household Device (Wh)",
+                "Grid Feed-in (Wh)",
+                "Grid Consumption (Wh)",
+                "Losses (Wh)",
+            ],
+            markers=["o", "o", "x", "^", "^"],
+            line_styles=["-", "--", ":", "-.", "-"],
+        )
+        report.finalize_group()
+
+        # Group 3:
+        report.create_line_chart(
+            x_hours,
+            [o["akku_soc_pro_stunde"], o["E-Auto_SoC_pro_Stunde"]],
+            title="Battery SOC",
+            xlabel="Hours",
+            ylabel="%",
+            markers=["o", "x"],
+        )
+        report.create_line_chart(
+            x_hours,
+            [parameter["strompreis_euro_pro_wh"]],
+            title="Electricity Price",
+            xlabel="Hours",
+            ylabel="Price (€/Wh)",
+        )
+        report.create_bar_chart(
+            x_hours,
+            [ac_charge, dc_charge, discharge],
+            title="AC/DC Charging and Discharge Overview",
+            ylabel="Relative Power (0-1) / Discharge (0 or 1)",
+            label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
+            colors=["blue", "green", "red"],
+            bottom=3,
+        )
+        report.finalize_group()
+
+        # Group 4:
+        report.create_line_chart(
+            x_hours,
+            [o["Kosten_Euro_pro_Stunde"], o["Einnahmen_Euro_pro_Stunde"]],
+            title="Financial Balance per Hour",
+            xlabel="Hours",
+            ylabel="Euro",
+            labels=["Costs", "Revenue"],
+        )
+        report.create_scatter_plot(
+            extra_data["verluste"],
+            extra_data["bilanz"],
+            title="",
+            xlabel="losses",
+            ylabel="balance",
+            c=extra_data["nebenbedingung"],
+        )
+        report.finalize_group()
+        # Generate the PDF
+        report.generate_pdf()
 
         # List output keys where the first element needs to be changed to None
         keys_to_modify = [
