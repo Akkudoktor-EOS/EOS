@@ -1,5 +1,7 @@
 from typing import Dict, List, Tuple, Union
 
+import numpy as np
+
 
 class LoadAggregator:
     def __init__(self, prediction_hours: int = 24) -> None:
@@ -36,12 +38,9 @@ class LoadAggregator:
         if not self.loads:
             return []  # Return empty list if no loads are present
 
-        # Initialize the total load array with zeros
-        LoadAggregator_array = [0.0] * len(list(self.loads.values())[0])
+        # Stack all load arrays vertically and sum them across the vertical axis (axis=0)
+        LoadAggregator_array = np.sum(
+            [np.array(loads_array) for loads_array in self.loads.values()], axis=0
+        )
 
-        # Sum loads from all sources
-        for last_array in self.loads.values():
-            for i in range(self.prediction_hours):
-                LoadAggregator_array[i] += last_array[i]
-
-        return LoadAggregator_array
+        return LoadAggregator_array.tolist()
