@@ -344,7 +344,7 @@ class optimization_problem:
             "discharge_hours_bin": discharge_hours_bin,
             "eautocharge_hours_float": eautocharge_hours_float,
             "result": o,
-            "eauto_obj": ems.eauto.return_dict(),
+            "eauto_obj": ems.eauto.to_dict(),
             "start_solution": start_solution,
             "spuelstart": spuelstart_int,
             "simulation_data": o,

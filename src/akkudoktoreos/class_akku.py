@@ -31,7 +31,7 @@ class PVAkku:
         self.min_soc_wh = (self.min_soc_prozent / 100) * self.kapazitaet_wh
         self.max_soc_wh = (self.max_soc_prozent / 100) * self.kapazitaet_wh
 
-    def return_dict(self):
+    def to_dict(self):
         return {
             "kapazitaet_wh": self.kapazitaet_wh,
             "start_soc_prozent": self.start_soc_prozent,
