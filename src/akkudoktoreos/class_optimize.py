@@ -9,8 +9,8 @@ from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter
 from akkudoktoreos.class_visualize import VisualizationReport
-from akkudoktoreos.visualize import visualisiere_ergebnisse
 from akkudoktoreos.config import possible_ev_charge_currents
+from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
 class optimization_problem:
