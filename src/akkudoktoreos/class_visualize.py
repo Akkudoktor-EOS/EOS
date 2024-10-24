@@ -157,6 +157,19 @@ class VisualizationReport:
 
         self.add_chart_to_group(chart)  # Add chart function to current group
 
+    def create_violin_plot(self, data_list, labels, title, xlabel, ylabel):
+        """Create a violin plot and add it to the current group."""
+
+        def chart():
+            plt.violinplot(data_list, showmeans=True, showmedians=True)  # Create violin plot
+            plt.xticks(np.arange(1, len(labels) + 1), labels)  # Set x-ticks and labels
+            plt.title(title)  # Set title
+            plt.xlabel(xlabel)  # Set x-axis label
+            plt.ylabel(ylabel)  # Set y-axis label
+            plt.grid(True)  # Show grid
+
+        self.add_chart_to_group(chart)  # Add chart function to current group
+
     def generate_pdf(self):
         """Generate the PDF report with all the added chart groups."""
         self._initialize_pdf()  # Initialize the PDF
@@ -218,6 +231,22 @@ report.create_scatter_plot(
     c=np.array([0.1, 0.2, 0.3, 0.4]),
 )
 report.finalize_group()  # Finalize the second group of charts
+
+# Group 3: Adding a violin plot
+data = [np.random.normal(0, std, 100) for std in range(1, 5)]  # Example data for violin plot
+report.create_violin_plot(
+    data,
+    labels=["Group 1", "Group 2", "Group 3", "Group 4"],
+    title="Violin Plot",
+    xlabel="Groups",
+    ylabel="Values",
+)
+data = [np.random.normal(0, 1, 100)]  # Example data for violin plot
+report.create_violin_plot(
+    data, labels=["Group 1"], title="Violin Plot", xlabel="Group", ylabel="Values"
+)
+
+report.finalize_group()  # Finalize the third group of charts
 
 # Generate the PDF report
 report.generate_pdf()
