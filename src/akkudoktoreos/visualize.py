@@ -1,356 +1,252 @@
-import datetime
 import os
 
-# Set the backend for matplotlib to Agg
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
-from akkudoktoreos.class_sommerzeit import ist_dst_wechsel
 from akkudoktoreos.config import output_dir
 
-matplotlib.use("Agg")
 
+class VisualizationReport:
+    def __init__(self, filename="visualization_results.pdf"):
+        # Initialize the report with a given filename and empty groups
+        self.filename = filename
+        self.groups = []  # Store groups of charts
+        self.current_group = []  # Store current group of charts being created
+        self.pdf_pages = None  # Handle for the PDF output
 
-def visualisiere_ergebnisse(
-    gesamtlast,
-    pv_forecast,
-    strompreise,
-    ergebnisse,
-    ac,  # AC charging allowed
-    dc,  # DC charging allowed
-    discharge,  # Discharge allowed
-    temperature,
-    start_hour,
-    prediction_hours,
-    einspeiseverguetung_euro_pro_wh,
-    filename="visualization_results.pdf",
-    extra_data=None,
-):
-    #####################
-    # 24-hour visualization
-    #####################
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    output_file = os.path.join(output_dir, filename)
-    with PdfPages(output_file) as pdf:
-        # Load and PV generation
-        plt.figure(figsize=(14, 14))
-        plt.subplot(3, 3, 1)
-        hours = np.arange(0, prediction_hours)
+    def add_chart_to_group(self, chart_func):
+        """Add a chart function to the current group."""
+        self.current_group.append(chart_func)
 
-        gesamtlast_array = np.array(gesamtlast)
-        # Plot individual loads
-        plt.plot(hours, gesamtlast_array, label="Load (Wh)", marker="o")
-
-        # Calculate and plot total load
-        plt.plot(
-            hours,
-            gesamtlast_array,
-            label="Total Load (Wh)",
-            marker="o",
-            linewidth=2,
-            linestyle="--",
-        )
-        plt.xlabel("Hour")
-        plt.ylabel("Load (Wh)")
-        plt.title("Load Profiles")
-        plt.grid(True)
-        plt.legend()
-
-        # PV forecast
-        plt.subplot(3, 2, 3)
-        plt.plot(hours, pv_forecast, label="PV Generation (Wh)", marker="x")
-        plt.title("PV Forecast")
-        plt.xlabel("Hour of the Day")
-        plt.ylabel("Wh")
-        plt.legend()
-        plt.grid(True)
-
-        # Feed-in remuneration
-        plt.subplot(3, 2, 4)
-        plt.plot(
-            hours,
-            einspeiseverguetung_euro_pro_wh,
-            label="Remuneration (€/Wh)",
-            marker="x",
-        )
-        plt.title("Remuneration")
-        plt.xlabel("Hour of the Day")
-        plt.ylabel("€/Wh")
-        plt.legend()
-        plt.grid(True)
-
-        # Temperature forecast
-        plt.subplot(3, 2, 5)
-        plt.title("Temperature Forecast (°C)")
-        plt.plot(hours, temperature, label="Temperature (°C)", marker="x")
-        plt.xlabel("Hour of the Day")
-        plt.ylabel("°C")
-        plt.legend()
-        plt.grid(True)
-
-        pdf.savefig()  # Save the current figure state to the PDF
-        plt.close()  # Close the current figure to free up memory
-
-        #####################
-        # Start hour visualization
-        #####################
-
-        plt.figure(figsize=(14, 10))
-
-        if ist_dst_wechsel(datetime.datetime.now()):
-            hours = np.arange(start_hour, prediction_hours - 1)
+    def finalize_group(self):
+        """Finalize the current group and prepare for a new group."""
+        if self.current_group:  # Check if current group has charts
+            self.groups.append(self.current_group)  # Add current group to groups
         else:
-            hours = np.arange(start_hour, prediction_hours)
+            print("Finalizing an empty group!")  # Warn if group is empty
+        self.current_group = []  # Reset current group for new charts
 
-        # Energy flow, grid feed-in, and grid consumption
-        plt.subplot(3, 2, 1)
-        # Plot with transparency (alpha) and different linestyles
-        plt.plot(
-            hours,
-            ergebnisse["Last_Wh_pro_Stunde"],
-            label="Load (Wh)",
-            marker="o",
-            linestyle="-",
-            alpha=0.8,
-        )
-        plt.plot(
-            hours,
-            ergebnisse["Haushaltsgeraet_wh_pro_stunde"],
-            label="Household Device (Wh)",
-            marker="o",
-            linestyle="--",
-            alpha=0.8,
-        )
-        plt.plot(
-            hours,
-            ergebnisse["Netzeinspeisung_Wh_pro_Stunde"],
-            label="Grid Feed-in (Wh)",
-            marker="x",
-            linestyle=":",
-            alpha=0.8,
-        )
-        plt.plot(
-            hours,
-            ergebnisse["Netzbezug_Wh_pro_Stunde"],
-            label="Grid Consumption (Wh)",
-            marker="^",
-            linestyle="-.",
-            alpha=0.8,
-        )
-        plt.plot(
-            hours,
-            ergebnisse["Verluste_Pro_Stunde"],
-            label="Losses (Wh)",
-            marker="^",
-            linestyle="-",
-            alpha=0.8,
-        )
+    def _initialize_pdf(self):
+        """Create the output directory if it doesn't exist and initialize the PDF."""
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)  # Create output directory
+        output_file = os.path.join(output_dir, self.filename)  # Full path for PDF
+        self.pdf_pages = PdfPages(output_file)  # Initialize PdfPages
 
-        # Title and labels
-        plt.title("Energy Flow per Hour")
-        plt.xlabel("Hour")
-        plt.ylabel("Energy (Wh)")
+    def _save_group_to_pdf(self, group):
+        """Save a group of charts to the PDF."""
+        fig_count = len(group)  # Number of charts in the group
+        if fig_count == 0:
+            print("Attempted to save an empty group to PDF!")  # Warn if group is empty
+            return  # Prevent saving an empty group
 
-        # Show legend with a higher number of columns to avoid overlap
-        plt.legend(ncol=2)
+        # Create a figure layout based on the number of charts
+        if fig_count == 3:
+            # Layout for three charts: 1 full-width on top, 2 below
+            fig = plt.figure(figsize=(14, 10))  # Set a larger figure size
+            ax1 = fig.add_subplot(2, 1, 1)  # Full-width subplot
+            ax2 = fig.add_subplot(2, 2, 3)  # Bottom left subplot
+            ax3 = fig.add_subplot(2, 2, 4)  # Bottom right subplot
 
-        # Electricity prices
-        hours_p = np.arange(0, len(strompreise))
-        plt.subplot(3, 2, 3)
-        plt.plot(
-            hours_p,
-            strompreise,
-            label="Electricity Price (€/Wh)",
-            color="purple",
-            marker="s",
-        )
-        plt.title("Electricity Prices")
-        plt.xlabel("Hour of the Day")
-        plt.ylabel("Price (€/Wh)")
-        plt.legend()
-        plt.grid(True)
-
-        # State of charge for batteries
-        plt.subplot(3, 2, 2)
-        plt.plot(hours, ergebnisse["akku_soc_pro_stunde"], label="PV Battery (%)", marker="x")
-        plt.plot(
-            hours,
-            ergebnisse["E-Auto_SoC_pro_Stunde"],
-            label="E-Car Battery (%)",
-            marker="x",
-        )
-        plt.legend(loc="upper left", bbox_to_anchor=(1, 1))  # Place legend outside the plot
-        plt.grid(True, which="both", axis="x")  # Grid for every hour
-
-        # Plot for AC, DC charging, and Discharge status using bar charts
-        ax1 = plt.subplot(3, 2, 5)
-        hours = np.arange(0, prediction_hours)
-        # Plot AC charging as bars (relative values between 0 and 1)
-        plt.bar(hours, ac, width=0.4, label="AC Charging (relative)", color="blue", alpha=0.6)
-
-        # Plot DC charging as bars (relative values between 0 and 1)
-        plt.bar(
-            hours + 0.4, dc, width=0.4, label="DC Charging (relative)", color="green", alpha=0.6
-        )
-
-        # Plot Discharge as bars (0 or 1, binary values)
-        plt.bar(
-            hours,
-            discharge,
-            width=0.4,
-            label="Discharge Allowed",
-            color="red",
-            alpha=0.6,
-            bottom=np.maximum(ac, dc),
-        )
-
-        # Configure the plot
-        ax1.legend(loc="upper left")
-        ax1.set_xlim(0, prediction_hours)
-        ax1.set_xlabel("Hour")
-        ax1.set_ylabel("Relative Power (0-1) / Discharge (0 or 1)")
-        ax1.set_title("AC/DC Charging and Discharge Overview")
-        ax1.grid(True)
-
-        if ist_dst_wechsel(datetime.datetime.now()):
-            hours = np.arange(start_hour, prediction_hours - 1)
+            # Store axes in a list for easy access
+            axs = [ax1, ax2, ax3]
         else:
-            hours = np.arange(start_hour, prediction_hours)
+            # Dynamic layout for any other number of charts
+            cols = 2 if fig_count > 1 else 1  # Determine number of columns
+            rows = (fig_count // 2) + (fig_count % 2)  # Calculate required rows
+            fig, axs = plt.subplots(rows, cols, figsize=(14, 7 * rows))  # Create subplots
+            axs = np.array(axs).reshape(-1)  # Flatten axes for easy indexing
 
-        pdf.savefig()  # Save the current figure state to the PDF
-        plt.close()  # Close the current figure to free up memory
+        # Draw each chart in the corresponding axes
+        for idx, chart_func in enumerate(group):
+            plt.sca(axs[idx])  # Set current axes
+            chart_func()  # Call the chart function to draw
 
-        # Financial overview
-        fig, axs = plt.subplots(1, 2, figsize=(14, 10))  # Create a 1x2 grid of subplots
-        total_costs = ergebnisse["Gesamtkosten_Euro"]
-        total_revenue = ergebnisse["Gesamteinnahmen_Euro"]
-        total_balance = ergebnisse["Gesamtbilanz_Euro"]
-        losses = ergebnisse["Gesamt_Verluste"]
+        # Hide any unused axes
+        for idx in range(fig_count, len(axs)):
+            axs[idx].set_visible(False)  # Hide unused axes
 
-        # Costs and revenues per hour on the first axis (axs[0])
-        costs = ergebnisse["Kosten_Euro_pro_Stunde"]
-        revenues = ergebnisse["Einnahmen_Euro_pro_Stunde"]
+        self.pdf_pages.savefig(fig)  # Save the figure to the PDF
+        plt.close(fig)  # Close the figure to free up memory
 
-        # Plot costs
-        axs[0].plot(
-            hours,
-            costs,
-            label="Costs (Euro)",
-            marker="o",
-            color="red",
-        )
-        # Annotate costs
-        for hour, value in enumerate(costs):
-            if value is None or np.isnan(value):
-                value = 0
-            axs[0].annotate(
-                f"{value:.2f}",
-                (hour, value),
-                textcoords="offset points",
-                xytext=(0, 5),
-                ha="center",
-                fontsize=8,
-                color="red",
-            )
+    def create_line_chart(
+        self, x, y_list, title, xlabel, ylabel, labels=None, markers=None, line_styles=None
+    ):
+        """Create a line chart and add it to the current group."""
 
-        # Plot revenues
-        axs[0].plot(
-            hours,
-            revenues,
-            label="Revenue (Euro)",
-            marker="x",
-            color="green",
-        )
-        # Annotate revenues
-        for hour, value in enumerate(revenues):
-            if value is None or np.isnan(value):
-                value = 0
-            axs[0].annotate(
-                f"{value:.2f}",
-                (hour, value),
-                textcoords="offset points",
-                xytext=(0, 5),
-                ha="center",
-                fontsize=8,
-                color="green",
-            )
+        def chart():
+            for idx, y_data in enumerate(y_list):
+                label = labels[idx] if labels else None  # Chart label
+                marker = markers[idx] if markers and idx < len(markers) else "o"  # Marker style
+                line_style = (
+                    line_styles[idx] if line_styles and idx < len(line_styles) else "-"
+                )  # Line style
+                plt.plot(x, y_data, label=label, marker=marker, linestyle=line_style)  # Plot line
+            plt.title(title)  # Set title
+            plt.xlabel(xlabel)  # Set x-axis label
+            plt.ylabel(ylabel)  # Set y-axis label
+            if labels:
+                plt.legend()  # Show legend if labels are provided
+            plt.grid(True)  # Show grid
+            plt.xlim(x[0] - 0.5, x[-1] + 0.5)  # Adjust x-limits
 
-        # Title and labels
-        axs[0].set_title("Financial Balance per Hour")
-        axs[0].set_xlabel("Hour")
-        axs[0].set_ylabel("Euro")
-        axs[0].legend()
-        axs[0].grid(True)
+        self.add_chart_to_group(chart)  # Add chart function to current group
 
-        # Summary of finances on the second axis (axs[1])
-        labels = ["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"]
-        values = [total_costs, total_revenue, total_balance]
-        colors = ["red" if value > 0 else "green" for value in values]
-        axs[1].bar(labels, values, color=colors)
-        axs[1].set_title("Financial Overview")
-        axs[1].set_ylabel("Euro")
+    def create_scatter_plot(self, x, y, title, xlabel, ylabel, c=None):
+        """Create a scatter plot and add it to the current group."""
 
-        # Second axis (ax2) for losses, shared with axs[1]
-        ax2 = axs[1].twinx()
-        ax2.bar("Total Losses", losses, color="blue")
-        ax2.set_ylabel("Losses [Wh]", color="blue")
-        ax2.tick_params(axis="y", labelcolor="blue")
+        def chart():
+            scatter = plt.scatter(x, y, c=c, cmap="viridis")  # Create scatter plot
+            plt.title(title)  # Set title
+            plt.xlabel(xlabel)  # Set x-axis label
+            plt.ylabel(ylabel)  # Set y-axis label
+            if c is not None:
+                plt.colorbar(scatter, label="Constraint")  # Add colorbar if color data is provided
+            plt.grid(True)  # Show grid
 
-        pdf.savefig()  # Save the complete figure to the PDF
-        plt.close()  # Close the figure
+        self.add_chart_to_group(chart)  # Add chart function to current group
 
-        # Additional data visualization if provided
-        if extra_data is not None:
-            plt.figure(figsize=(14, 10))
-            plt.subplot(1, 2, 1)
-            f1 = np.array(extra_data["verluste"])
-            f2 = np.array(extra_data["bilanz"])
-            n1 = np.array(extra_data["nebenbedingung"])
-            scatter = plt.scatter(f1, f2, c=n1, cmap="viridis")
+    def create_bar_chart(
+        self,
+        labels,
+        values_list,
+        title,
+        ylabel,
+        label_names,
+        colors=None,
+        bar_width=0.35,
+        bottom=None,
+    ):
+        """Create a bar chart and add it to the current group."""
 
-            # Add color legend
-            plt.colorbar(scatter, label="Constraint")
+        def chart():
+            num_groups = len(values_list)  # Number of data groups
+            num_bars = len(labels)  # Number of bars (categories)
 
-            pdf.savefig()  # Save the complete figure to the PDF
-            plt.close()  # Close the figure
+            # Calculate the positions for each bar group on the x-axis
+            x = np.arange(num_bars)  # x positions for bars
+            offset = np.linspace(
+                -bar_width * (num_groups - 1) / 2, bar_width * (num_groups - 1) / 2, num_groups
+            )  # Bar offsets
 
-            plt.figure(figsize=(14, 10))
-            filtered_losses = np.array(
-                [
-                    v
-                    for v, n in zip(extra_data["verluste"], extra_data["nebenbedingung"])
-                    if n < 0.01
-                ]
-            )
-            filtered_balance = np.array(
-                [b for b, n in zip(extra_data["bilanz"], extra_data["nebenbedingung"]) if n < 0.01]
-            )
-            if filtered_losses.size != 0:
-                best_loss = min(filtered_losses)
-                worst_loss = max(filtered_losses)
-                best_balance = min(filtered_balance)
-                worst_balance = max(filtered_balance)
+            for i, values in enumerate(values_list):
+                bottom_use = None
+                if bottom == i + 1:  # Set bottom if specified
+                    bottom_use = 1
+                color = colors[i] if colors and i < len(colors) else None  # Bar color
+                label_name = label_names[i] if label_names else None  # Bar label
+                plt.bar(
+                    x + offset[i],
+                    values,
+                    bar_width,
+                    label=label_name,
+                    color=color,
+                    zorder=2,
+                    alpha=0.6,
+                    bottom=bottom_use,
+                )  # Create bar
 
-                data = [filtered_losses, filtered_balance]
-                labels = ["Losses", "Balance"]
-                # Create plots
-                fig, axs = plt.subplots(
-                    1, 2, figsize=(10, 6), sharey=False
-                )  # Two subplots, separate y-axes
+            plt.title(title)  # Set title
+            plt.ylabel(ylabel)  # Set y-axis label
 
-                # First violin plot for losses
-                axs[0].violinplot(data[0], positions=[1], showmeans=True, showmedians=True)
-                axs[1].set(title="Losses", xticks=[1], xticklabels=["Losses"])
+            if colors:
+                plt.legend()  # Show legend if colors are provided
+            plt.grid(True, zorder=0)  # Show grid in the background
+            plt.xlim(-0.5, len(labels) - 0.5)  # Set x-axis limits
 
-                # Second violin plot for balance
-                axs[1].violinplot(data[1], positions=[1], showmeans=True, showmedians=True)
-                axs[1].set(title="Balance", xticks=[1], xticklabels=["Balance"])
+        self.add_chart_to_group(chart)  # Add chart function to current group
 
-                # Fine-tuning
-                plt.tight_layout()
+    def create_violin_plot(self, data_list, labels, title, xlabel, ylabel):
+        """Create a violin plot and add it to the current group."""
 
-            pdf.savefig()  # Save the current figure state to the PDF
-            plt.close()  # Close the figure
+        def chart():
+            plt.violinplot(data_list, showmeans=True, showmedians=True)  # Create violin plot
+            plt.xticks(np.arange(1, len(labels) + 1), labels)  # Set x-ticks and labels
+            plt.title(title)  # Set title
+            plt.xlabel(xlabel)  # Set x-axis label
+            plt.ylabel(ylabel)  # Set y-axis label
+            plt.grid(True)  # Show grid
+
+        self.add_chart_to_group(chart)  # Add chart function to current group
+
+    def generate_pdf(self):
+        """Generate the PDF report with all the added chart groups."""
+        self._initialize_pdf()  # Initialize the PDF
+
+        for group in self.groups:
+            self._save_group_to_pdf(group)  # Save each group to the PDF
+
+        self.pdf_pages.close()  # Close the PDF to finalize the report
+
+
+# Example usage
+report = VisualizationReport("example_report.pdf")
+x_hours = np.arange(0, 4)  # Define x-axis values (e.g., hours)
+
+# Group 1: Adding charts to be displayed on the same page
+report.create_line_chart(
+    x_hours, [np.array([10, 20, 30, 40])], title="Load Profile", xlabel="Hours", ylabel="Load (Wh)"
+)
+report.create_line_chart(
+    x_hours,
+    [np.array([5, 15, 25, 35])],
+    title="PV Forecast",
+    xlabel="Hours",
+    ylabel="PV Generation (Wh)",
+)
+report.create_line_chart(
+    x_hours,
+    [np.array([5, 15, 25, 35])],
+    title="PV Forecast",
+    xlabel="Hours",
+    ylabel="PV Generation (Wh)",
+)
+# Note: If there are only 3 charts per page, the first is as wide as the page
+
+report.finalize_group()  # Finalize the first group of charts
+
+# Group 2: Adding more charts to be displayed on another page
+report.create_line_chart(
+    x_hours,
+    [np.array([0.2, 0.25, 0.3, 0.35])],
+    title="Electricity Price",
+    xlabel="Hours",
+    ylabel="Price (€/Wh)",
+)
+report.create_bar_chart(
+    ["Costs", "Revenue", "Balance"],
+    [500, 600, 100],
+    title="Financial Overview",
+    ylabel="Euro",
+    label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
+    colors=["red", "green", "blue"],
+)
+report.create_scatter_plot(
+    np.array([5, 6, 7, 8]),
+    np.array([100, 200, 150, 250]),
+    title="Scatter Plot",
+    xlabel="Losses",
+    ylabel="Balance",
+    c=np.array([0.1, 0.2, 0.3, 0.4]),
+)
+report.finalize_group()  # Finalize the second group of charts
+
+# Group 3: Adding a violin plot
+data = [np.random.normal(0, std, 100) for std in range(1, 5)]  # Example data for violin plot
+report.create_violin_plot(
+    data,
+    labels=["Group 1", "Group 2", "Group 3", "Group 4"],
+    title="Violin Plot",
+    xlabel="Groups",
+    ylabel="Values",
+)
+data = [np.random.normal(0, 1, 100)]  # Example data for violin plot
+report.create_violin_plot(
+    data, labels=["Group 1"], title="Violin Plot", xlabel="Group", ylabel="Values"
+)
+
+report.finalize_group()  # Finalize the third group of charts
+
+# Generate the PDF report
+report.generate_pdf()
