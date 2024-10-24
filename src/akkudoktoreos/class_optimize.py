@@ -509,4 +509,5 @@ class optimization_problem:
             "start_solution": start_solution,
             "spuelstart": spuelstart_int,
             "simulation_data": o,
+            "extra_data": extra_data,
         }
