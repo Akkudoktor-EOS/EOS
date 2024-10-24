@@ -9,6 +9,7 @@ from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter
 from akkudoktoreos.class_visualize import VisualizationReport
+from akkudoktoreos.visualize import visualisiere_ergebnisse
 from akkudoktoreos.config import possible_ev_charge_currents
 
 
@@ -455,7 +456,7 @@ class optimization_problem:
 
         ac_charge, dc_charge, discharge = self.decode_charge_discharge(discharge_hours_bin)
         # Visualize the results
-        """visualisiere_ergebnisse(
+        visualisiere_ergebnisse(
             parameter["gesamtlast"],
             parameter["pv_forecast"],
             parameter["strompreis_euro_pro_wh"],
@@ -468,7 +469,7 @@ class optimization_problem:
             self.prediction_hours,
             einspeiseverguetung_euro_pro_wh,
             extra_data=extra_data,
-        )"""
+        )
 
         report = VisualizationReport("grouped_energy_report.pdf")
         x_hours = np.arange(0, self.prediction_hours)
