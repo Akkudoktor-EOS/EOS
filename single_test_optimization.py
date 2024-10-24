@@ -312,7 +312,7 @@ visualisiere_ergebnisse(
     48,
     np.full(48, parameter["einspeiseverguetung_euro_pro_wh"]),
     filename="visualization_results.pdf",
-    extra_data=None,
+    extra_data=ergebnis["extra_data"],
 )
 
 report = VisualizationReport("grouped_energy_report.pdf")
@@ -413,7 +413,9 @@ report.create_line_chart(
     ylabel="Euro",
     labels=["Costs", "Revenue"],
 )
-"""
+
+extra_data = ergebnis["extra_data"]
+
 report.create_scatter_plot(
     extra_data["verluste"],
     extra_data["bilanz"],
@@ -422,9 +424,45 @@ report.create_scatter_plot(
     ylabel="balance",
     c=extra_data["nebenbedingung"],
 )
-"""  # extra_data is not retuned from the optimisation
+
 report.finalize_group()
-# Generate the PDF
+
+# Group 1: Scatter plot of losses vs balance with color-coded constraints
+f1 = np.array(extra_data["verluste"])  # Losses
+f2 = np.array(extra_data["bilanz"])  # Balance
+n1 = np.array(extra_data["nebenbedingung"])  # Constraints
+
+
+# Filter data where 'nebenbedingung' < 0.01
+filtered_indices = n1 < 0.01
+filtered_losses = f1[filtered_indices]
+filtered_balance = f2[filtered_indices]
+
+# Group 2: Violin plot for filtered losses
+if filtered_losses.size > 0:
+    report.create_violin_plot(
+        data_list=[filtered_losses],  # Data for filtered losses
+        labels=["Filtered Losses"],  # Label for the violin plot
+        title="Violin Plot for Filtered Losses (Constraint < 0.01)",
+        xlabel="Losses",
+        ylabel="Values",
+    )
+else:
+    print("No data available for filtered losses violin plot (Constraint < 0.01)")
+
+# Group 3: Violin plot for filtered balance
+if filtered_balance.size > 0:
+    report.create_violin_plot(
+        data_list=[filtered_balance],  # Data for filtered balance
+        labels=["Filtered Balance"],  # Label for the violin plot
+        title="Violin Plot for Filtered Balance (Constraint < 0.01)",
+        xlabel="Balance",
+        ylabel="Values",
+    )
+else:
+    print("No data available for filtered balance violin plot (Constraint < 0.01)")
+
+# Generate the PDF report
 report.generate_pdf()
 
 json_data = NumpyEncoder.dumps(ergebnis)
