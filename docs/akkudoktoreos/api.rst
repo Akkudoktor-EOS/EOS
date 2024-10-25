@@ -1,11 +1,11 @@
 ..
-    Copyright (c) 2024 Bobby Noelte
     SPDX-License-Identifier: Apache-2.0
+    File has to be of RST format to make autosummary directive work correctly
 
 .. _akkudoktoreos_api:
 
-Akkudoktor EOS API
-==================
+EOS API
+=======
 
 .. autosummary::
    :toctree: _autosummary
