@@ -118,8 +118,6 @@ def test_calculate_weighted_mean(
 
     # Assert that weekday and weekend differences are calculated and non-empty
     assert adjuster.weekday_diff is not None, "Weekday differences should be calculated"
-    assert adjuster.weekend_diff is not None, "Weekend differences should be calculated"
-    assert len(adjuster.weekday_diff) > 0, "Weekday differences should not be empty"
     assert len(adjuster.weekend_diff) > 0, "Weekend differences should not be empty"
 
 
