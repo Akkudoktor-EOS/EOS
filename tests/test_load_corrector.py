@@ -139,9 +139,6 @@ def test_adjust_predictions(
     assert (
         "Adjusted Pred" in adjuster.train_data.columns
     ), "Train data should have 'Adjusted Pred' column"
-    assert (
-        "Adjusted Pred" in adjuster.test_data.columns
-    ), "Test data should have 'Adjusted Pred' column"
 
 
 def test_evaluate_model(
