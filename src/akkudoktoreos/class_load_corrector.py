@@ -270,5 +270,4 @@ class LoadPredictionAdjuster:
         hour = timestamp.hour
         daily_forecast = self.load_forecast.get_daily_stats(date_str)
 
-        # Return forecast for the specific hour, or NaN if hour is out of range
         return daily_forecast[0][hour] if hour < len(daily_forecast[0]) else np.nan
