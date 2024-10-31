@@ -125,7 +125,6 @@ class LoadPredictionAdjuster:
         self.train_data["Difference"] = self.train_data["Last"] - self.train_data["Last Pred"]
 
         # Separate training data into weekdays and weekends
-        # Separate training data into weekdays and weekends
         weekdays_train_data = self.train_data[self.train_data["DayOfWeek"] < 5]
         weekends_train_data = self.train_data[self.train_data["DayOfWeek"] >= 5]
 
