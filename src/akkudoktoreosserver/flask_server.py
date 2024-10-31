@@ -209,12 +209,6 @@ def flask_pvprognose():
 
 @app.route("/optimize", methods=["POST"])
 def flask_optimize():
-    with open(
-        "C:\\Users\\drbac\\OneDrive\\Dokumente\\PythonPojects\\EOS\\debug_output.txt",
-        "a",
-    ) as f:
-        f.write("Test\n")
-
     if request.method == "POST":
         from datetime import datetime
 
