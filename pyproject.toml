@@ -51,6 +51,5 @@ ignore = [
 
 [tool.pytest.ini_options]
 minversion = "8.3.3"
-addopts = "--cov=src"
 pythonpath = [ "src", ]
 testpaths = [ "tests", ]

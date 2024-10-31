@@ -6,5 +6,8 @@
   "editor.defaultFoldingRangeProvider": "charliermarsh.ruff",
   "editor.formatOnSave": true,
   "python.analysis.autoImportCompletions": true,
-  "mypy-type-checker.importStrategy": "fromEnvironment"
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "python.testing.pytestArgs": [],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true
 }
