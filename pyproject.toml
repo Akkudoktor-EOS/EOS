@@ -33,6 +33,11 @@ include = ["akkudoktoreos", "akkudoktoreosserver", ]
 [tool.setuptools.package-data]
 akkudoktoreosserver = ["data/*.npz", ]
 
+[tool.pyright]
+# used in Pylance extension for language server
+# type check is done by mypy, disable to avoid unwanted errors
+typeCheckingMode = "off"
+
 [tool.isort]
 profile = "black"
 
