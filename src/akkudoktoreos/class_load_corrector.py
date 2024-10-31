@@ -67,7 +67,6 @@ class LoadPredictionAdjuster:
         self.measured_data["time"] = pd.to_datetime(self.measured_data["time"])
 
         # Localize time to UTC and then convert to Berlin time
-        # Localize time to UTC and then convert to Berlin time
         if self.measured_data["time"].dt.tz is None:
             self.measured_data["time"] = self.measured_data["time"].dt.tz_localize("UTC")
 
