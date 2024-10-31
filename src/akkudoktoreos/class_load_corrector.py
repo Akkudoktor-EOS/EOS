@@ -128,7 +128,6 @@ class LoadPredictionAdjuster:
         weekends_train_data = self.train_data[self.train_data["DayOfWeek"] >= 5]
 
         # Calculate weighted mean differences for both weekdays and weekends
-        # Calculate weighted mean differences for both weekdays and weekends
         self.weekday_diff = (
             weekdays_train_data.groupby("Hour").apply(self._weighted_mean_diff).dropna()
         )
