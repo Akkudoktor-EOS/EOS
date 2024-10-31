@@ -111,7 +111,6 @@ class LoadPredictionAdjuster:
         )
 
         # Split merged data into training and testing datasets
-        # Split merged data into training and testing datasets
         self.train_data = self.merged_data[
             (self.merged_data["time"] >= train_start_date)
             & (self.merged_data["time"] <= train_end_date)
