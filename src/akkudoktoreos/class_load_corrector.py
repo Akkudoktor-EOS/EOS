@@ -247,8 +247,6 @@ class LoadPredictionAdjuster:
         future_df["DayOfWeek"] = future_df["time"].dt.dayofweek
 
         # Predict the load and apply adjustments for future predictions
-
-        # Predict the load and apply adjustments for future predictions
         future_df["Last Pred"] = future_df["time"].apply(self._forecast_next_hours)
         future_df["Adjusted Pred"] = future_df.apply(self._adjust_row, axis=1)
 
