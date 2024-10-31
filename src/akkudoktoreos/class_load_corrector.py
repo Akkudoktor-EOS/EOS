@@ -76,7 +76,6 @@ class LoadPredictionAdjuster:
         self.measured_data["time"] = self.measured_data["time"].dt.tz_convert("Europe/Berlin")
 
         # Remove timezone information (optional for local work)
-        # Remove timezone information (optional for local work)
         self.predicted_data["time"] = self.predicted_data["time"].dt.tz_localize(None)
         self.measured_data["time"] = self.measured_data["time"].dt.tz_localize(None)
 
