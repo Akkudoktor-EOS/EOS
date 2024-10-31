@@ -155,7 +155,9 @@ def test_evaluate_model(
     # Calculate weighted mean, adjust predictions, and evaluate the model
     adjuster.calculate_weighted_mean(train_period_weeks=1, test_period_weeks=1)
     adjuster.adjust_predictions()
-    adjuster.evaluate_model()
+    mse, r2 = adjuster.evaluate_model()
+    assert not np.isnan(mse)
+    assert not np.isnan(r2)
 
     # Capture printed output and assert that evaluation metrics are printed
     captured = capsys.readouterr()
