@@ -216,7 +216,7 @@ class LoadPredictionAdjuster:
     def evaluate_model(self) -> Tuple[float, float]:
         """
         Evaluate the model performance using Mean Squared Error and R-squared metrics.
-        
+
         Args:
             mse: Mean squared error of the adjusted prediction w.r.t. last test data.
             r2: R2 score of the adjusted prediction w.r.t. last test data.
