@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -213,15 +213,20 @@ class LoadPredictionAdjuster:
         plt.grid(True)
         plt.show()
 
-    def evaluate_model(self) -> None:
+    def evaluate_model(self) -> Tuple[float, float]:
         """
         Evaluate the model performance using Mean Squared Error and R-squared metrics.
+        
+        Args:
+            mse: Mean squared error of the adjusted prediction w.r.t. last test data.
+            r2: R2 score of the adjusted prediction w.r.t. last test data.
         """
         # Calculate Mean Squared Error and R-squared for the adjusted predictions
         mse = mean_squared_error(self.test_data["Last"], self.test_data["Adjusted Pred"])
         r2 = r2_score(self.test_data["Last"], self.test_data["Adjusted Pred"])
         print(f"Mean Squared Error: {mse}")
         print(f"R-squared: {r2}")
+        return mse, r2
 
     def predict_next_hours(self, hours_ahead: int) -> pd.DataFrame:
         """
@@ -239,8 +244,6 @@ class LoadPredictionAdjuster:
         # Generate future timestamps for the next 'hours_ahead'
         future_dates = [last_date + pd.Timedelta(hours=i) for i in range(1, hours_ahead + 1)]
         future_df = pd.DataFrame({"time": future_dates})
-
-        # Extract hour and day of the week for the future predictions
 
         # Extract hour and day of the week for the future predictions
         future_df["Hour"] = future_df["time"].dt.hour
