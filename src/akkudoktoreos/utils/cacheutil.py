@@ -1,6 +1,4 @@
-"""cachefilestore.py.
-
-This module provides a class for in-memory managing of cache files.
+"""Class for in-memory managing of cache files.
 
 The `CacheFileStore` class is a singleton-based, thread-safe key-value store for managing
 temporary file objects, allowing the creation, retrieval, and management of cache files.
@@ -34,12 +32,23 @@ import pickle
 import tempfile
 import threading
 from datetime import date, datetime, time, timedelta
-from typing import IO, Callable, Generic, List, Optional, ParamSpec, TypeVar, Union
+from typing import (
+    IO,
+    Any,
+    Callable,
+    Generic,
+    List,
+    Literal,
+    Optional,
+    ParamSpec,
+    TypeVar,
+    Union,
+)
 
-from akkudoktoreos.utils.datetimeutil import to_datetime, to_timedelta
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 from akkudoktoreos.utils.logutil import get_logger
 
-logger = get_logger(__file__)
+logger = get_logger(__name__)
 
 
 T = TypeVar("T")
@@ -106,7 +115,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
 
         Args:
             key (str): The key that identifies the cache file.
-            until_datetime (Union[datetime, date, str, int, float, None]): The datetime
+            until_datetime (Optional[Any]): The datetime
                 until the cache file is valid. The default is the current date at maximum time
                 (23:59:59).
 
@@ -140,15 +149,15 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
 
     def _until_datetime_by_options(
         self,
-        until_date: Union[datetime, date, str, int, float, None] = None,
-        until_datetime: Union[datetime, date, str, int, float, None] = None,
+        until_date: Optional[Any] = None,
+        until_datetime: Optional[Any] = None,
         with_ttl: Union[timedelta, str, int, float, None] = None,
     ) -> datetime:
         """Get until_datetime from the given options."""
         if until_datetime:
             until_datetime = to_datetime(until_datetime)
         elif with_ttl:
-            with_ttl = to_timedelta(with_ttl)
+            with_ttl = to_duration(with_ttl)
             until_datetime = to_datetime(datetime.now() + with_ttl)
         elif until_date:
             until_datetime = to_datetime(to_datetime(until_date).date())
@@ -176,9 +185,9 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
     def _search(
         self,
         key: str,
-        until_datetime: Union[datetime, date, str, int, float, None] = None,
-        at_datetime: Union[datetime, date, str, int, float, None] = None,
-        before_datetime: Union[datetime, date, str, int, float, None] = None,
+        until_datetime: Optional[Any] = None,
+        at_datetime: Optional[Any] = None,
+        before_datetime: Optional[Any] = None,
     ) -> Optional[tuple[str, IO[bytes], datetime]]:
         """Searches for a cached item that matches the key and falls within the datetime range.
 
@@ -188,12 +197,10 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
 
         Args:
             key (str): The key to identify the cache item.
-            until_date (Union[datetime, date, str, int, float, None], optional): The date
+            until_date (Optional[Any]): The date
                 until the cache file is valid. Time of day is set to maximum time (23:59:59).
-            at_datetime (Union[datetime, date, str, int, float], optional): The datetime to compare with
-                the cache item's datetime.
-            before_datetime (Union[datetime, date, str, int, float], optional): The datetime to compare
-                the cache item's datetime to be before.
+            at_datetime (Optional[Any]): The datetime to compare with the cache item's datetime.
+            before_datetime (Optional[Any]): The datetime to compare the cache item's datetime to be before.
 
         Returns:
             Optional[tuple]: Returns the cache_file_key, chache_file, cache_file_datetime if found,
@@ -235,8 +242,8 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
     def create(
         self,
         key: str,
-        until_date: Union[datetime, date, str, int, float, None] = None,
-        until_datetime: Union[datetime, date, str, int, float, None] = None,
+        until_date: Optional[Any] = None,
+        until_datetime: Optional[Any] = None,
         with_ttl: Union[timedelta, str, int, float, None] = None,
         mode: str = "wb+",
         delete: bool = False,
@@ -249,9 +256,9 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
 
         Args:
             key (str): The key to store the cache file under.
-            until_date (Union[datetime, date, str, int, float, None], optional): The date
+            until_date (Optional[Any]): The date
                 until the cache file is valid. Time of day is set to maximum time (23:59:59).
-            until_datetime (Union[datetime, date, str, int, float, None], optional): The datetime
+            until_datetime (Optional[Any]): The datetime
                 until the cache file is valid. Time of day is set to maximum time (23:59:59) if not
                 provided.
             with_ttl (Union[timedelta, str, int, float, None], optional): The time to live that
@@ -293,8 +300,8 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         self,
         key: str,
         file_obj: IO[bytes],
-        until_date: Union[datetime, date, str, int, float, None] = None,
-        until_datetime: Union[datetime, date, str, int, float, None] = None,
+        until_date: Optional[Any] = None,
+        until_datetime: Optional[Any] = None,
         with_ttl: Union[timedelta, str, int, float, None] = None,
     ) -> None:
         """Stores a file-like object in the cache under the specified key and date.
@@ -305,9 +312,9 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         Args:
             key (str): The key to store the file object under.
             file_obj: The file-like object.
-            until_date (Union[datetime, date, str, int, float, None], optional): The date
+            until_date (Optional[Any]): The date
                 until the cache file is valid. Time of day is set to maximum time (23:59:59).
-            until_datetime (Union[datetime, date, str, int, float, None], optional): The datetime
+            until_datetime (Optional[Any]): The datetime
                 until the cache file is valid. Time of day is set to maximum time (23:59:59) if not
                 provided.
             with_ttl (Union[timedelta, str, int, float, None], optional): The time to live that
@@ -333,10 +340,10 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
     def get(
         self,
         key: str,
-        until_date: Union[datetime, date, str, int, float, None] = None,
-        until_datetime: Union[datetime, date, str, int, float, None] = None,
-        at_datetime: Union[datetime, date, str, int, float, None] = None,
-        before_datetime: Union[datetime, date, str, int, float, None] = None,
+        until_date: Optional[Any] = None,
+        until_datetime: Optional[Any] = None,
+        at_datetime: Optional[Any] = None,
+        before_datetime: Optional[Any] = None,
     ) -> Optional[IO[bytes]]:
         """Retrieves the cache file associated with the given key and validity datetime.
 
@@ -345,15 +352,15 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
 
         Args:
             key (str): The key to retrieve the cache file for.
-            until_date (Union[datetime, date, str, int, float, None], optional): The date
+            until_date (Optional[Any]): The date
                 until the cache file is valid. Time of day is set to maximum time (23:59:59).
-            until_datetime (Union[datetime, date, str, int, float, None], optional): The datetime
+            until_datetime (Optional[Any]): The datetime
                 until the cache file is valid. Time of day is set to maximum time (23:59:59) if not
                 provided.
-            at_datetime (Union[datetime, date, str, int, float, None], optional): The datetime the
+            at_datetime (Optional[Any]): The datetime the
                 cache file shall be valid at. Time of day is set to maximum time (23:59:59) if not
                 provided. Defaults to the current datetime if None is provided.
-            before_datetime (Union[datetime, date, str, int, float, None], optional): The datetime
+            before_datetime (Optional[Any]): The datetime
                 to compare the cache files datetime to be before.
 
         Returns:
@@ -385,9 +392,9 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
     def delete(
         self,
         key: str,
-        until_date: Union[datetime, date, str, int, float, None] = None,
-        until_datetime: Union[datetime, date, str, int, float, None] = None,
-        before_datetime: Union[datetime, date, str, int, float, None] = None,
+        until_date: Optional[Any] = None,
+        until_datetime: Optional[Any] = None,
+        before_datetime: Optional[Any] = None,
     ) -> None:
         """Deletes the cache file associated with the given key and datetime.
 
@@ -395,12 +402,12 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
 
         Args:
             key (str): The key of the cache file to delete.
-            until_date (Union[datetime, date, str, int, float, None], optional): The date
+            until_date (Optional[Any]): The date
                 until the cache file is valid. Time of day is set to maximum time (23:59:59).
-            until_datetime (Union[datetime, date, str, int, float, None], optional): The datetime
+            until_datetime (Optional[Any]): The datetime
                 until the cache file is valid. Time of day is set to maximum time (23:59:59) if not
                 provided.
-            before_datetime (Union[datetime, date, str, int, float, None], optional): The datetime
+            before_datetime (Optional[Any]): The datetime
                 the cache file shall become or be invalid at. Time of day is set to maximum time
                 (23:59:59) if not provided. Defaults to tommorow start of day.
         """
@@ -441,13 +448,13 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
     def clear(
         self,
         clear_all: bool = False,
-        before_datetime: Union[datetime, date, str, int, float, None] = None,
+        before_datetime: Optional[Any] = None,
     ) -> None:
         """Deletes all cache files or those expiring before `before_datetime`.
 
         Args:
             clear_all (bool, optional): Delete all cache files. Default is False.
-            before_datetime (Union[datetime, date, str, int, float, None], optional): The
+            before_datetime (Optional[Any]): The
                 threshold date. Cache files that are only valid before this date will be deleted.
                 The default datetime is beginning of today.
 
@@ -506,77 +513,108 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
 
 def cache_in_file(
     ignore_params: List[str] = [],
-    until_date: Union[datetime, date, str, int, float, None] = None,
-    until_datetime: Union[datetime, date, str, int, float, None] = None,
+    force_update: Optional[bool] = None,
+    until_date: Optional[Any] = None,
+    until_datetime: Optional[Any] = None,
     with_ttl: Union[timedelta, str, int, float, None] = None,
-    mode: str = "wb+",
+    mode: Literal["w", "w+", "wb", "wb+", "r", "r+", "rb", "rb+"] = "wb+",
     delete: bool = False,
     suffix: Optional[str] = None,
 ) -> Callable[[Callable[Param, RetType]], Callable[Param, RetType]]:
-    """Decorator to cache the output of a function into a temporary file.
+    """Cache the output of a function into a temporary file.
 
-    The decorator caches function output to a cache file based on its inputs as key to identify the
-    cache file. Ignore parameters are used to avoid key generation on non-deterministic inputs, such
-    as time values. We can also ignore parameters that are slow to serialize/constant across runs,
-    such as large objects.
+    This decorator caches the result of a function call in a temporary file. The cache is
+    identified by a key derived from the function's input arguments, excluding those specified
+    in `ignore_params`. This is useful for caching results of expensive computations while
+    avoiding redundant recalculations.
 
-    The cache file is created using `CacheFileStore` and stored with the generated key.
-    If the file exists in the cache and has not expired, it is returned instead of recomputing the
-    result.
+    The cache file is created using `CacheFileStore` and stored with the generated key. If a valid
+    cache file exists, it is returned instead of recomputing the result. The cache expiration is
+    controlled by the `until_date`, `until_datetime`, `with_ttl`, or `force_update` arguments.
+    If these arguments are present in the function call, their values override those specified in
+    the decorator.
 
-    The decorator scans the arguments of the decorated function for a 'until_date' or
-    'until_datetime` or `with_ttl` or `force_update` parameter. The value of this parameter will be
-    used instead of the one given in the decorator if available.
-
-    Content of cache files without a suffix are transparently pickled to save file space.
+    By default, cache files are pickled to save storage space unless a `suffix` is provided. The
+    `mode` parameter allows specifying file modes for reading and writing, and the `delete`
+    parameter controls whether the cache file is deleted after use.
 
     Args:
         ignore_params (List[str], optional):
-        until_date (Union[datetime, date, str, int, float, None], optional): The date
-            until the cache file is valid. Time of day is set to maximum time (23:59:59).
-        until_datetime (Union[datetime, date, str, int, float, None], optional): The datetime
-            until the cache file is valid. Time of day is set to maximum time (23:59:59) if not
-            provided.
-        with_ttl (Union[timedelta, str, int, float, None], optional): The time to live that
-            the cache file is valid. Time starts now.
-        mode (str, optional): The mode in which the file will be opened. Defaults to 'wb+'.
-        delete (bool, optional): Whether the cache file will be deleted after being closed.
-            Defaults to False.
-        suffix (str, optional): A suffix for the cache file, such as an extension (e.g., '.txt').
-            Defaults to None.
+            List of parameter names to ignore when generating the cache key. Useful for excluding
+            non-deterministic or irrelevant inputs, such as timestamps or large constant objects.
+        force_update (bool, optional):
+            Forces the cache to update, bypassing any existing cached results. If not provided,
+            the function will check for a `force_update` argument in the decorated function call.
+        until_date (Optional[Any], optional):
+            Date until which the cache file is valid. If a date is provided, the time is set to
+            the end of the day (23:59:59). If not specified, the function call arguments are checked.
+        until_datetime (Optional[Any], optional):
+            Datetime until which the cache file is valid. Time of day is set to maximum time
+            (23:59:59) if not provided.
+        with_ttl (Union[timedelta, str, int, float, None], optional):
+            Time-to-live (TTL) for the cache file, starting from the time of caching. Can be
+            specified as a `timedelta`, a numeric value (in seconds), or a string.
+        mode (Literal["w", "w+", "wb", "wb+", "r", "r+", "rb", "rb+"], optional):
+            File mode for opening the cache file. Defaults to "wb+" (write-binary with updates).
+        delete (bool, optional):
+            If True, deletes the cache file after it is closed. Defaults to False.
+        suffix (Optional[str], optional):
+            A file suffix (e.g., ".txt" or ".json") for the cache file. Defaults to None. If not
+            provided, files are pickled by default.
 
     Returns:
-        callable: A decorated function that caches its result in a file.
+        Callable[[Callable[Param, RetType]], Callable[Param, RetType]]:
+            A decorated function that caches its result in a temporary file.
 
     Example:
-        >>> @cache_in_file(suffix = '.txt')
-        >>> def expensive_computation(until_date = None):
+        >>> from datetime import date
+        >>> @cache_in_file(suffix='.txt')
+        >>> def expensive_computation(until_date=None):
         >>>     # Perform some expensive computation
         >>>     return 'Some large result'
         >>>
-        >>> result = expensive_computation(until_date = date.today())
+        >>> result = expensive_computation(until_date=date.today())
+
+    Notes:
+        - The cache key is based on the function arguments after excluding those in `ignore_params`.
+        - If conflicting expiration parameters are provided (`until_date`, `until_datetime`,
+          `with_ttl`), the one in the function call takes precedence.
     """
 
     def decorator(func: Callable[Param, RetType]) -> Callable[Param, RetType]:
-        nonlocal ignore_params, until_date, until_datetime, with_ttl, mode, delete, suffix
+        nonlocal \
+            ignore_params, \
+            force_update, \
+            until_date, \
+            until_datetime, \
+            with_ttl, \
+            mode, \
+            delete, \
+            suffix
         func_source_code = inspect.getsource(func)
 
         def wrapper(*args: Param.args, **kwargs: Param.kwargs) -> RetType:
-            nonlocal ignore_params, until_date, until_datetime, with_ttl, mode, delete, suffix
+            nonlocal \
+                ignore_params, \
+                force_update, \
+                until_date, \
+                until_datetime, \
+                with_ttl, \
+                mode, \
+                delete, \
+                suffix
             # Convert args to a dictionary based on the function's signature
             args_names = func.__code__.co_varnames[: func.__code__.co_argcount]
             args_dict = dict(zip(args_names, args))
 
             # Search for caching parameters of function and remove
-            force_update: Optional[bool] = None
             for param in ["force_update", "until_datetime", "with_ttl", "until_date"]:
                 if param in kwargs:
                     if param == "force_update":
                         force_update = kwargs[param]  # type: ignore[assignment]
                         kwargs.pop("force_update")
-
                     if param == "until_datetime":
-                        until_datetime = kwargs[param]  # type: ignore[assignment]
+                        until_datetime = kwargs[param]
                         until_date = None
                         with_ttl = None
                     elif param == "with_ttl":
@@ -585,8 +623,9 @@ def cache_in_file(
                         with_ttl = kwargs[param]  # type: ignore[assignment]
                     elif param == "until_date":
                         until_datetime = None
-                        until_date = kwargs[param]  # type: ignore[assignment]
+                        until_date = kwargs[param]
                         with_ttl = None
+                    kwargs.pop("force_update", None)
                     kwargs.pop("until_datetime", None)
                     kwargs.pop("until_date", None)
                     kwargs.pop("with_ttl", None)
