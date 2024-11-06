@@ -7,7 +7,7 @@ from time import sleep
 
 import pytest
 
-from akkudoktoreos.utils.cachefilestore import CacheFileStore, cache_in_file
+from akkudoktoreos.utils.cacheutil import CacheFileStore, cache_in_file
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 # -----------------------------
@@ -268,7 +268,7 @@ def test_cache_in_file_decorator_uses_cache(cache_store):
     assert result == result2
 
 
-def test_cache_in_file_decorator_forces_update(cache_store):
+def test_cache_in_file_decorator_forces_update_data(cache_store):
     """Test that the cache_in_file decorator reuses cached file on subsequent calls."""
     # Clear store to assure it is empty
     cache_store.clear(clear_all=True)

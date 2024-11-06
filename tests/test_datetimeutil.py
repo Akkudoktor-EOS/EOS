@@ -1,95 +1,379 @@
-"""Test Module for datetimeutil Module."""
+"""Test Module for pendulum.datetimeutil Module."""
 
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
-
+import pendulum
 import pytest
+from pendulum.tz.timezone import Timezone
 
-from akkudoktoreos.utils.datetimeutil import to_datetime, to_timedelta, to_timezone
+from akkudoktoreos.utils.datetimeutil import (
+    compare_datetimes,
+    hours_in_day,
+    to_datetime,
+    to_duration,
+    to_timezone,
+)
 
 # -----------------------------
 # to_datetime
 # -----------------------------
 
 
-# Test cases for valid timedelta inputs
+# Test cases for valid pendulum.duration inputs
 @pytest.mark.parametrize(
-    "date_input, as_string, to_timezone, to_naiv, to_maxtime, expected_output",
+    "test_case, local_timezone, date_input, as_string, in_timezone, to_naiv, to_maxtime, expected_output",
     [
-        # as datetime object
+        # ---------------------------------------
+        # from string to pendulum.datetime object
+        # ---------------------------------------
+        # - no timezone
         (
-            "2024-10-07T10:20:30.000+02:00",
+            "TC001",
+            "Etc/UTC",
+            "2024-01-01",
+            None,
+            None,
+            None,
+            False,
+            pendulum.datetime(2024, 1, 1, 0, 0, 0, tz="Etc/UTC"),
+        ),
+        (
+            "TC002",
+            "Europe/Berlin",
+            "2024-01-01",
+            None,
+            None,
+            None,
+            False,
+            pendulum.datetime(2024, 1, 1, 0, 0, 0, tz="Europe/Berlin"),
+        ),
+        (
+            "TC003",
+            "Europe/Berlin",
+            "2024-01-01",
+            None,
+            None,
+            None,
+            False,
+            pendulum.datetime(2023, 12, 31, 23, 0, 0, tz="Etc/UTC"),
+        ),
+        (
+            "TC004",
+            "Europe/Paris",
+            "2024-01-01 00:00:00",
+            None,
+            None,
+            None,
+            False,
+            pendulum.datetime(2024, 1, 1, 0, 0, 0, tz="Europe/Paris"),
+        ),
+        (
+            "TC005",
+            "Etc/UTC",
+            "2024-01-01 00:00:00",
+            None,
+            None,
+            None,
+            False,
+            pendulum.datetime(2024, 1, 1, 1, 0, 0, tz="Europe/Berlin"),
+        ),
+        (
+            "TC006",
+            "Europe/Berlin",
+            "2024-01-01 00:00:00",
+            None,
+            None,
+            None,
+            False,
+            pendulum.datetime(2023, 12, 31, 23, 0, 0, tz="Etc/UTC"),
+        ),
+        (
+            "TC007",
+            "Atlantic/Canary",
+            "2024-01-01 12:00:00",
+            None,
+            None,
+            None,
+            False,
+            pendulum.datetime(
+                2024,
+                1,
+                1,
+                12,
+                0,
+                0,
+                tz="Atlantic/Canary",
+            ),
+        ),
+        (
+            "TC008",
+            "Etc/UTC",
+            "2024-01-01 12:00:00",
+            None,
+            None,  # force local timezone
+            None,
+            False,
+            pendulum.datetime(2024, 1, 1, 13, 0, 0, tz="Europe/Berlin"),
+        ),
+        (
+            "TC009",
+            "Europe/Berlin",
+            "2024-01-01 12:00:00",
+            None,
+            None,
+            None,
+            False,
+            pendulum.datetime(2024, 1, 1, 11, 0, 0, tz="Etc/UTC"),
+        ),
+        # - with timezone
+        (
+            "TC010",
+            "Etc/UTC",
+            "02/02/24",
+            None,
+            "Europe/Berlin",
+            None,
+            False,
+            pendulum.datetime(2024, 2, 2, 0, 0, 0, tz="Europe/Berlin"),
+        ),
+        (
+            "TC011",
+            "Etc/UTC",
+            "2024-03-03T10:20:30.000+01:00",  # No dalight saving time at this date
             None,
             "Europe/Berlin",
             None,
             None,
-            datetime(2024, 10, 7, 10, 20, 30, 0, tzinfo=ZoneInfo("Europe/Berlin")),
+            pendulum.datetime(2024, 3, 3, 10, 20, 30, 0, tz="Europe/Berlin"),
         ),
         (
-            "2024-10-07T10:20:30.000+02:00",
+            "TC012",
+            "Etc/UTC",
+            "2024-04-04T10:20:30.000+02:00",
             None,
             "Europe/Berlin",
             False,
             None,
-            datetime(2024, 10, 7, 10, 20, 30, 0, tzinfo=ZoneInfo("Europe/Berlin")),
+            pendulum.datetime(2024, 4, 4, 10, 20, 30, 0, tz="Europe/Berlin"),
         ),
         (
-            "2024-10-07T10:20:30.000+02:00",
+            "TC013",
+            "Etc/UTC",
+            "2024-05-05T10:20:30.000+02:00",
             None,
             "Europe/Berlin",
             True,
             None,
-            datetime(2024, 10, 7, 10, 20, 30, 0),
+            pendulum.naive(2024, 5, 5, 10, 20, 30, 0),
         ),
-        # as string
-        ("2024-10-07T10:20:30.000+02:00", "UTC", None, None, None, "2024-10-07T08:20:30+00:00"),
-        ("2024-10-07T10:20:30.000+02:00", "utc", None, None, None, "2024-10-07T08:20:30+00:00"),
+        # - without local timezone as UTC
+        (
+            "TC014",
+            "Atlantic/Canary",
+            "02/02/24",
+            None,
+            "UTC",
+            None,
+            False,
+            pendulum.datetime(2024, 2, 2, 0, 0, 0, tz="UTC"),
+        ),
+        (
+            "TC015",
+            "Atlantic/Canary",
+            "2024-03-03T10:20:30.000Z",  # No dalight saving time at this date
+            None,
+            None,
+            None,
+            None,
+            pendulum.datetime(2024, 3, 3, 10, 20, 30, 0, tz="UTC"),
+        ),
+        # ---------------------------------------
+        # from pendulum.datetime to pendulum.datetime object
+        # ---------------------------------------
+        (
+            "TC016",
+            "Atlantic/Canary",
+            pendulum.datetime(2024, 4, 4, 0, 0, 0),
+            None,
+            None,
+            None,
+            False,
+            pendulum.datetime(2024, 4, 4, 0, 0, 0, tz="Etc/UTC"),
+        ),
+        (
+            "TC017",
+            "Atlantic/Canary",
+            pendulum.datetime(2024, 4, 4, 1, 0, 0),
+            None,
+            "Europe/Berlin",
+            None,
+            False,
+            pendulum.datetime(2024, 4, 4, 3, 0, 0, tz="Europe/Berlin"),
+        ),
+        (
+            "TC018",
+            "Atlantic/Canary",
+            pendulum.datetime(2024, 4, 4, 1, 0, 0, tz="Etc/UTC"),
+            None,
+            "Europe/Berlin",
+            None,
+            False,
+            pendulum.datetime(2024, 4, 4, 3, 0, 0, tz="Europe/Berlin"),
+        ),
+        (
+            "TC019",
+            "Atlantic/Canary",
+            pendulum.datetime(2024, 4, 4, 2, 0, 0, tz="Europe/Berlin"),
+            None,
+            "Etc/UTC",
+            None,
+            False,
+            pendulum.datetime(2024, 4, 4, 0, 0, 0, tz="Etc/UTC"),
+        ),
+        # ---------------------------------------
+        # from string to UTC string
+        # ---------------------------------------
+        # - no timezone
+        #   local timezone UTC
+        (
+            "TC020",
+            "Etc/UTC",
+            "2023-11-06T00:00:00",
+            "UTC",
+            None,
+            None,
+            None,
+            "2023-11-06T00:00:00Z",
+        ),
+        #    local timezone "Europe/Berlin"
+        (
+            "TC021",
+            "Europe/Berlin",
+            "2023-11-06T00:00:00",
+            "UTC",
+            "Europe/Berlin",
+            None,
+            None,
+            "2023-11-05T23:00:00Z",
+        ),
+        # - no microseconds
+        (
+            "TC022",
+            "Atlantic/Canary",
+            "2024-10-30T00:00:00+01:00",
+            "UTC",
+            None,
+            None,
+            None,
+            "2024-10-29T23:00:00Z",
+        ),
+        (
+            "TC023",
+            "Atlantic/Canary",
+            "2024-10-30T01:00:00+01:00",
+            "utc",
+            None,
+            None,
+            None,
+            "2024-10-30T00:00:00Z",
+        ),
+        # - with microseconds
+        (
+            "TC024",
+            "Atlantic/Canary",
+            "2024-10-07T10:20:30.000+02:00",
+            "UTC",
+            None,
+            None,
+            None,
+            "2024-10-07T08:20:30Z",
+        ),
     ],
 )
-def test_to_datetime(date_input, as_string, to_timezone, to_naiv, to_maxtime, expected_output):
-    """Test datetime conversion with valid inputs."""
-    assert (
-        to_datetime(
-            date_input,
-            as_string=as_string,
-            to_timezone=to_timezone,
-            to_naiv=to_naiv,
-            to_maxtime=to_maxtime,
-        )
-        == expected_output
+def test_to_datetime(
+    set_other_timezone,
+    test_case,
+    local_timezone,
+    date_input,
+    as_string,
+    in_timezone,
+    to_naiv,
+    to_maxtime,
+    expected_output,
+):
+    """Test pendulum.datetime conversion with valid inputs."""
+    set_other_timezone(local_timezone)
+    result = to_datetime(
+        date_input,
+        as_string=as_string,
+        in_timezone=in_timezone,
+        to_naiv=to_naiv,
+        to_maxtime=to_maxtime,
     )
+    # if isinstance(date_input, str):
+    #    print(f"Input:    {date_input}")
+    # else:
+    #    print(f"Input:    {date_input} tz={date_input.timezone}")
+    if isinstance(expected_output, str):
+        # print(f"Expected: {expected_output}")
+        # print(f"Result:   {result}")
+        assert result == expected_output
+    elif expected_output.timezone is None:
+        # We expect an exception
+        with pytest.raises(TypeError):
+            assert compare_datetimes(result, expected_output).equal
+    else:
+        compare = compare_datetimes(result, expected_output)
+        # print(f"---- Testcase:  {test_case} ----")
+        # print(f"Expected: {expected_output} tz={expected_output.timezone}")
+        # print(f"Result:   {result} tz={result.timezone}")
+        # print(f"Compare:  {compare}")
+        assert compare.equal == True
 
 
 # -----------------------------
-# to_timedelta
+# to_duration
 # -----------------------------
 
 
-# Test cases for valid timedelta inputs
+# Test cases for valid duration inputs
 @pytest.mark.parametrize(
     "input_value, expected_output",
     [
-        # timedelta input
-        (timedelta(days=1), timedelta(days=1)),
+        # duration input
+        (pendulum.duration(days=1), pendulum.duration(days=1)),
         # String input
-        ("2 days", timedelta(days=2)),
-        ("5 hours", timedelta(hours=5)),
-        ("30 minutes", timedelta(minutes=30)),
-        ("45 seconds", timedelta(seconds=45)),
-        ("1 day 2 hours 30 minutes 15 seconds", timedelta(days=1, hours=2, minutes=30, seconds=15)),
-        ("3 days 4 hours", timedelta(days=3, hours=4)),
+        ("2 days", pendulum.duration(days=2)),
+        ("5 hours", pendulum.duration(hours=5)),
+        ("47 hours", pendulum.duration(hours=47)),
+        ("48 hours", pendulum.duration(seconds=48 * 3600)),
+        ("30 minutes", pendulum.duration(minutes=30)),
+        ("45 seconds", pendulum.duration(seconds=45)),
+        (
+            "1 day 2 hours 30 minutes 15 seconds",
+            pendulum.duration(days=1, hours=2, minutes=30, seconds=15),
+        ),
+        ("3 days 4 hours", pendulum.duration(days=3, hours=4)),
         # Integer/Float input
-        (3600, timedelta(seconds=3600)),  # 1 hour
-        (86400, timedelta(days=1)),  # 1 day
-        (1800.5, timedelta(seconds=1800.5)),  # 30 minutes and 0.5 seconds
+        (3600, pendulum.duration(seconds=3600)),  # 1 hour
+        (86400, pendulum.duration(days=1)),  # 1 day
+        (1800.5, pendulum.duration(seconds=1800.5)),  # 30 minutes and 0.5 seconds
         # Tuple/List input
-        ((1, 2, 30, 15), timedelta(days=1, hours=2, minutes=30, seconds=15)),
-        ([0, 10, 0, 0], timedelta(hours=10)),
+        ((1, 2, 30, 15), pendulum.duration(days=1, hours=2, minutes=30, seconds=15)),
+        ([0, 10, 0, 0], pendulum.duration(hours=10)),
     ],
 )
-def test_to_timedelta_valid(input_value, expected_output):
-    """Test to_timedelta with valid inputs."""
-    assert to_timedelta(input_value) == expected_output
+def test_to_duration_valid(input_value, expected_output):
+    """Test to_duration with valid inputs."""
+    assert to_duration(input_value) == expected_output
+
+
+def test_to_duration_summation():
+    start_datetime = to_datetime("2028-01-11 00:00:00")
+    index_datetime = start_datetime
+    for i in range(48):
+        expected_datetime = start_datetime + to_duration(f"{i} hours")
+        assert index_datetime == expected_datetime
+        index_datetime += to_duration("1 hour")
+    assert index_datetime == to_datetime("2028-01-13 00:00:00")
 
 
 # -----------------------------
@@ -99,21 +383,196 @@ def test_to_timedelta_valid(input_value, expected_output):
 
 def test_to_timezone_string():
     """Test to_timezone function returns correct timezone as a string."""
-    lat, lon = 40.7128, -74.0060  # New York City coordinates
-    result = to_timezone(lat, lon, as_string=True)
+    location = (40.7128, -74.0060)  # New York City coordinates
+    result = to_timezone(location=location, as_string=True)
     assert result == "America/New_York", "Expected timezone string 'America/New_York'"
 
 
-def test_to_timezone_zoneinfo():
-    """Test to_timezone function returns correct timezone as a ZoneInfo object."""
-    lat, lon = 40.7128, -74.0060  # New York City coordinates
-    result = to_timezone(lat, lon)
-    assert isinstance(result, ZoneInfo), "Expected a ZoneInfo object"
-    assert result.key == "America/New_York", "Expected ZoneInfo key 'America/New_York'"
+def test_to_timezone_timezone():
+    """Test to_timezone function returns correct timezone as a Timezone object."""
+    location = (40.7128, -74.0060)  # New York City coordinates
+    result = to_timezone(location=location)
+    assert isinstance(result, Timezone), "Expected a Timezone object"
+    assert result.name == "America/New_York", "Expected Timezone name 'America/New_York'"
 
 
 def test_to_timezone_invalid_coordinates():
     """Test to_timezone function handles invalid coordinates gracefully."""
-    lat, lon = 100.0, 200.0  # Invalid coordinates outside Earth range
-    with pytest.raises(ValueError, match="Invalid location"):
-        to_timezone(lat, lon, as_string=True)
+    location = (100.0, 200.0)  # Invalid coordinates outside Earth range
+    with pytest.raises(ValueError, match="Invalid latitude/longitude"):
+        to_timezone(location=location, as_string=True)
+
+
+# -----------------------------
+# hours_in_day
+# -----------------------------
+
+
+@pytest.mark.parametrize(
+    "local_timezone, date, in_timezone, expected_hours",
+    [
+        ("Etc/UTC", "2024-11-10 00:00:00", "Europe/Berlin", 24),  # No DST in Germany
+        ("Etc/UTC", "2024-08-10 00:00:00", "Europe/Berlin", 24),  # DST in Germany
+        ("Etc/UTC", "2024-03-31 00:00:00", "Europe/Berlin", 23),  # DST change (23 hours/ day)
+        ("Etc/UTC", "2024-10-27 00:00:00", "Europe/Berlin", 25),  # DST change (25 hours/ day)
+        ("Europe/Berlin", "2024-11-10 00:00:00", "Europe/Berlin", 24),  # No DST in Germany
+        ("Europe/Berlin", "2024-08-10 00:00:00", "Europe/Berlin", 24),  # DST in Germany
+        ("Europe/Berlin", "2024-03-31 00:00:00", "Europe/Berlin", 23),  # DST change (23 hours/ day)
+        ("Europe/Berlin", "2024-10-27 00:00:00", "Europe/Berlin", 25),  # DST change (25 hours/ day)
+    ],
+)
+def test_hours_in_day(set_other_timezone, local_timezone, date, in_timezone, expected_hours):
+    """Test the `test_hours_in_day` function."""
+    set_other_timezone(local_timezone)
+    date_input = to_datetime(date, in_timezone=in_timezone)
+    assert date_input.timezone.name == in_timezone
+    assert hours_in_day(date_input) == expected_hours
+
+
+# -----------------------------
+# compare_datetimes
+# -----------------------------
+
+
+@pytest.mark.parametrize(
+    "dt1, dt2, equal, ge, gt, le, lt",
+    [
+        # Same time in the same timezone
+        (
+            pendulum.datetime(2024, 3, 15, 12, 0, 0, tz="UTC"),
+            pendulum.datetime(2024, 3, 15, 12, 0, 0, tz="UTC"),
+            True,
+            True,
+            False,
+            True,
+            False,
+        ),
+        (
+            pendulum.datetime(2024, 4, 4, 0, 0, 0, tz="Europe/Berlin"),
+            pendulum.datetime(2024, 4, 4, 0, 0, 0, tz="Europe/Berlin"),
+            True,
+            True,
+            False,
+            True,
+            False,
+        ),
+        # Same instant in different timezones (converted to UTC)
+        (
+            pendulum.datetime(2024, 3, 15, 8, 0, 0, tz="Europe/Berlin"),
+            pendulum.datetime(2024, 3, 15, 7, 0, 0, tz="UTC"),
+            True,
+            True,
+            False,
+            True,
+            False,
+        ),
+        # Different times across timezones (converted to UTC)
+        (
+            pendulum.datetime(2024, 3, 15, 8, 0, 0, tz="America/New_York"),
+            pendulum.datetime(2024, 3, 15, 12, 0, 0, tz="UTC"),
+            True,
+            True,
+            False,
+            True,
+            False,
+        ),
+    ],
+)
+def test_compare_datetimes_equal(dt1, dt2, equal, ge, gt, le, lt):
+    # requal = compare_datetimes(dt1, dt2).equal
+    # rgt = compare_datetimes(dt1, dt2).gt
+    # rge = compare_datetimes(dt1, dt2).ge
+    # rlt = compare_datetimes(dt1, dt2).lt
+    # rle = compare_datetimes(dt1, dt2).le
+    # print(f"{dt1} vs. {dt2}: expected equal={equal}, ge={ge}, gt={gt}, le={le}, lt={lt}")
+    # print(f"{dt1} vs. {dt2}: result   equal={requal}, ge={rge}, gt={rgt}, le={rle}, lt={rlt}")
+    assert compare_datetimes(dt1, dt2).equal == equal
+    assert compare_datetimes(dt1, dt2).ge == ge
+    assert compare_datetimes(dt1, dt2).gt == gt
+    assert compare_datetimes(dt1, dt2).le == le
+    assert compare_datetimes(dt1, dt2).lt == lt
+
+
+@pytest.mark.parametrize(
+    "dt1, dt2, equal, ge, gt, le, lt",
+    [
+        # Different times in the same timezone
+        (
+            pendulum.datetime(2024, 3, 15, 11, 0, 0, tz="UTC"),
+            pendulum.datetime(2024, 3, 15, 12, 0, 0, tz="UTC"),
+            False,
+            False,
+            False,
+            True,
+            True,
+        ),
+        # Different times across timezones (converted to UTC)
+        (
+            pendulum.datetime(2024, 3, 15, 6, 0, 0, tz="America/New_York"),
+            pendulum.datetime(2024, 3, 15, 12, 0, 0, tz="UTC"),
+            False,
+            False,
+            False,
+            True,
+            True,
+        ),
+        # DST changes: spring forward
+        (
+            pendulum.datetime(2024, 3, 10, 1, 59, 0, tz="America/New_York"),
+            pendulum.datetime(2024, 3, 10, 3, 0, 0, tz="America/New_York"),
+            False,
+            False,
+            False,
+            True,
+            True,
+        ),
+        # DST changes: fall back
+        (
+            pendulum.datetime(2024, 11, 3, 1, 0, 0, tz="America/New_York"),
+            pendulum.datetime(2024, 11, 3, 1, 30, 0, tz="America/New_York"),
+            False,
+            False,
+            False,
+            True,
+            True,
+        ),
+    ],
+)
+def test_compare_datetimes_lt(dt1, dt2, equal, ge, gt, le, lt):
+    # requal = compare_datetimes(dt1, dt2).equal
+    # rgt = compare_datetimes(dt1, dt2).gt
+    # rge = compare_datetimes(dt1, dt2).ge
+    # rlt = compare_datetimes(dt1, dt2).lt
+    # rle = compare_datetimes(dt1, dt2).le
+    # print(f"{dt1} vs. {dt2}: expected equal={equal}, ge={ge}, gt={gt}, le={le}, lt={lt}")
+    # print(f"{dt1} vs. {dt2}: result   equal={requal}, ge={rge}, gt={rgt}, le={rle}, lt={rlt}")
+    assert compare_datetimes(dt1, dt2).equal == equal
+    assert compare_datetimes(dt1, dt2).ge == ge
+    assert compare_datetimes(dt1, dt2).gt == gt
+    assert compare_datetimes(dt1, dt2).le == le
+    assert compare_datetimes(dt1, dt2).lt == lt
+
+
+@pytest.mark.parametrize(
+    "dt1, dt2",
+    [
+        # Different times in the same timezone
+        (
+            pendulum.datetime(2024, 3, 15, 13, 0, 0, tz="UTC"),
+            pendulum.datetime(2024, 3, 15, 12, 0, 0, tz="UTC"),
+        ),
+    ],
+)
+def test_compare_datetimes_gt(dt1, dt2):
+    # requal = compare_datetimes(dt1, dt2).equal
+    # rgt = compare_datetimes(dt1, dt2).gt
+    # rge = compare_datetimes(dt1, dt2).ge
+    # rlt = compare_datetimes(dt1, dt2).lt
+    # rle = compare_datetimes(dt1, dt2).le
+    # print(f"{dt1} vs. {dt2}: expected equal={equal}, ge={ge}, gt={gt}, le={le}, lt={lt}")
+    # print(f"{dt1} vs. {dt2}: result   equal={requal}, ge={rge}, gt={rgt}, le={rle}, lt={rlt}")
+    assert compare_datetimes(dt1, dt2).equal == False
+    assert compare_datetimes(dt1, dt2).ge
+    assert compare_datetimes(dt1, dt2).gt
+    assert compare_datetimes(dt1, dt2).le == False
+    assert compare_datetimes(dt1, dt2).lt == False

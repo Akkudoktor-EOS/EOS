@@ -4,8 +4,8 @@ Functions:
 ----------
 - to_datetime: Converts various date or time inputs to a timezone-aware or naive `datetime`
   object or formatted string.
-- to_timedelta: Converts various time delta inputs to a `timedelta`object.
-- to_timezone: Converts position latitude and longitude to a `timezone` object.
+- to_duration: Converts various time delta inputs to a `timedelta`object.
+- to_timezone: Converts utc offset or location latitude and longitude to a `timezone` object.
 
 Example usage:
 --------------
@@ -16,192 +16,204 @@ Example usage:
     >>> print(date_obj)  # Output: datetime object for '2024-10-15'
 
     # Time delta conversion
-    >>> to_timedelta("2 days 5 hours")
+    >>> to_duration("2 days 5 hours")
 
     # Timezone detection
-    >>> to_timezone(40.7128, -74.0060)
+    >>> to_timezone(location={40.7128, -74.0060})
 """
 
 import re
-from datetime import date, datetime, time, timedelta, timezone
-from typing import Annotated, Literal, Optional, Union, overload
-from zoneinfo import ZoneInfo
+from datetime import date, datetime, timedelta
+from typing import Any, List, Literal, Optional, Tuple, Union, overload
 
+import pendulum
+from pendulum import DateTime
+from pendulum.tz.timezone import Timezone
 from timezonefinder import TimezoneFinder
+
+from akkudoktoreos.utils.logutil import get_logger
+
+logger = get_logger(__name__)
 
 
 @overload
 def to_datetime(
-    date_input: Union[datetime, date, str, int, float, None],
-    as_string: str | Literal[True],
-    to_timezone: Optional[Union[ZoneInfo, str]] = None,
+    date_input: Optional[Any] = None,
+    as_string: Literal[False] | None = None,
+    in_timezone: Optional[Union[str, Timezone]] = None,
+    to_naiv: Optional[bool] = None,
+    to_maxtime: Optional[bool] = None,
+) -> DateTime: ...
+
+
+@overload
+def to_datetime(
+    date_input: Optional[Any] = None,
+    as_string: str | Literal[True] = True,
+    in_timezone: Optional[Union[str, Timezone]] = None,
     to_naiv: Optional[bool] = None,
     to_maxtime: Optional[bool] = None,
 ) -> str: ...
 
 
-@overload
 def to_datetime(
-    date_input: Union[datetime, date, str, int, float, None],
-    as_string: Literal[False] | None = None,
-    to_timezone: Optional[Union[ZoneInfo, str]] = None,
-    to_naiv: Optional[bool] = None,
-    to_maxtime: Optional[bool] = None,
-) -> datetime: ...
-
-
-def to_datetime(
-    date_input: Union[datetime, date, str, int, float, None],
+    date_input: Optional[Any] = None,
     as_string: Optional[Union[str, bool]] = None,
-    to_timezone: Optional[Union[ZoneInfo, str]] = None,
+    in_timezone: Optional[Union[str, Timezone]] = None,
     to_naiv: Optional[bool] = None,
     to_maxtime: Optional[bool] = None,
-) -> str | datetime:
-    """Converts a date input to a datetime object or a formatted string with timezone support.
+) -> Union[DateTime, str]:
+    """Convert a date input into a Pendulum DateTime object or a formatted string, with optional timezone handling.
+
+    This function handles various date input formats, adjusts for timezones, and provides flexibility for formatting and time adjustments. For date strings without explicit timezone information, the local timezone is assumed. Be aware that Pendulum DateTime objects created without a timezone default to UTC.
 
     Args:
-        date_input (Union[datetime, date, str, int, float, None]): The date input to convert.
-            Accepts a date string, a datetime object, a date object or a Unix timestamp.
-        as_string (Optional[Union[str, bool]]): If as_string is given (a format string or true)
-            return datetime as a string. Otherwise, return a datetime object, which is the default.
-            If true is given the string will returned in ISO format.
-            If a format string is given it may define the special formats "UTC" or "utc"
-            to return a string in ISO format normalized to UTC. Otherwise the format string must be
-            given compliant to Python's `datetime.strptime`.
-        to_timezone (Optional[Union[timezone, str]]):
-                            Optional timezone object or name (e.g., 'UTC', 'Europe/Berlin').
-                            If provided, the datetime will be converted to this timezone.
-                            If not provided, the datetime will be converted to the local timezone.
-        to_naiv (Optional[bool]):
-                        If True, remove timezone info from datetime after conversion.
-                        If False, keep timezone info after conversion. The default.
-        to_maxtime (Optional[bool]):
-                        If True, convert to maximum time if no time is given. The default.
-                        If False, convert to minimum time if no time is given.
+        date_input (Optional[Any]): The date input to convert. Supported types include:
+            - `str`: A date string in various formats (e.g., "2024-10-13", "13 Oct 2024").
+            - `pendulum.DateTime`: A Pendulum DateTime object.
+            - `datetime.datetime`: A standard Python datetime object.
+            - `datetime.date`: A date object, which will be converted to a datetime at the start or end of the day.
+            - `int` or `float`: A Unix timestamp, interpreted as seconds since the epoch (UTC).
+            - `None`: Defaults to the current date and time, adjusted to the start or end of the day based on `to_maxtime`.
 
-    Example:
-        to_datetime("2027-12-12 24:13:12", as_string = "%Y-%m-%dT%H:%M:%S.%f%z")
+        as_string (Optional[Union[str, bool]]): Determines the output format:
+            - `True`: Returns the datetime in ISO 8601 string format.
+            - `"UTC"` or `"utc"`: Returns the datetime normalized to UTC as an ISO 8601 string.
+            - `str`: A custom date format string for the output (e.g., "YYYY-MM-DD HH:mm:ss").
+            - `False` or `None` (default): Returns a `pendulum.DateTime` object.
+
+        in_timezone (Optional[Union[str, Timezone]]): Specifies the target timezone for the result.
+            - Can be a timezone string (e.g., "UTC", "Europe/Berlin") or a `pendulum.Timezone` object.
+            - Defaults to the local timezone if not provided.
+
+        to_naiv (Optional[bool]): If `True`, removes timezone information from the resulting datetime object.
+            - Defaults to `False`.
+
+        to_maxtime (Optional[bool]): Determines the time portion of the resulting datetime for date inputs:
+            - `True`: Sets the time to the end of the day (23:59:59).
+            - `False` or `None`: Sets the time to the start of the day (00:00:00).
+            - Ignored if `date_input` includes an explicit time or if the input is a timestamp.
 
     Returns:
-        datetime or str: Converted date as a datetime object or a formatted string with timezone.
+        pendulum.DateTime or str:
+            - A timezone-aware Pendulum DateTime object by default.
+            - A string representation if `as_string` is specified.
 
     Raises:
-        ValueError: If the date input is not a valid type or format.
-        RuntimeError: If no local timezone information available.
+        ValueError: If `date_input` is not a valid or supported type, or if the date string cannot be parsed.
+
+    Examples:
+        >>> to_datetime("2024-10-13", as_string=True, in_timezone="UTC")
+        '2024-10-13T00:00:00+00:00'
+
+        >>> to_datetime("2024-10-13T15:30:00", in_timezone="Europe/Berlin")
+        DateTime(2024, 10, 13, 17, 30, 0, tzinfo=Timezone('Europe/Berlin'))
+
+        >>> to_datetime(date(2024, 10, 13), to_maxtime=True)
+        DateTime(2024, 10, 13, 23, 59, 59, tzinfo=Timezone('Local'))
+
+        >>> to_datetime(1698784800, as_string="YYYY-MM-DD HH:mm:ss", in_timezone="UTC")
+        '2024-10-31 12:00:00'
     """
-    dt_object: Optional[datetime] = None
-    if isinstance(date_input, datetime):
-        dt_object = date_input
-    elif isinstance(date_input, date):
-        # Convert date object to datetime object
-        if to_maxtime is None or to_maxtime:
-            dt_object = datetime.combine(date_input, time.max)
-        else:
-            dt_object = datetime.combine(date_input, time.max)
-    elif isinstance(date_input, (int, float)):
-        # Convert timestamp to datetime object
-        dt_object = datetime.fromtimestamp(date_input, tz=timezone.utc)
+    # Timezone to convert to
+    if in_timezone is None:
+        in_timezone = pendulum.local_timezone()
+    elif not isinstance(in_timezone, Timezone):
+        in_timezone = pendulum.timezone(in_timezone)
+
+    if isinstance(date_input, DateTime):
+        dt = date_input
     elif isinstance(date_input, str):
-        # Convert string to datetime object
-        try:
-            # Try ISO format
-            dt_object = datetime.fromisoformat(date_input)
-        except ValueError as e:
-            formats = [
-                "%Y-%m-%d",  # Format: 2024-10-13
-                "%d/%m/%y",  # Format: 13/10/24
-                "%d/%m/%Y",  # Format: 13/10/2024
-                "%m-%d-%Y",  # Format: 10-13-2024
-                "%Y.%m.%d",  # Format: 2024.10.13
-                "%d %b %Y",  # Format: 13 Oct 2024
-                "%d %B %Y",  # Format: 13 October 2024
-                "%Y-%m-%d %H:%M:%S",  # Format: 2024-10-13 15:30:00
-                "%Y-%m-%d %H:%M:%S%z",  # Format with timezone: 2024-10-13 15:30:00+0000
-                "%Y-%m-%d %H:%M:%S%z:00",  # Format with timezone: 2024-10-13 15:30:00+0000
-                "%Y-%m-%dT%H:%M:%S.%f%z",  # Format with timezone: 2024-10-13T15:30:00.000+0000
-            ]
-
-            for fmt in formats:
-                try:
-                    dt_object = datetime.strptime(date_input, fmt)
-                    break
-                except ValueError as e:
-                    continue
-            if dt_object is None:
-                raise ValueError(f"Date string {date_input} does not match any known formats.")
-    elif date_input is None:
-        if to_maxtime is None or to_maxtime:
-            dt_object = datetime.combine(date.today(), time.max)
-        else:
-            dt_object = datetime.combine(date.today(), time.min)
-    else:
-        raise ValueError(f"Unsupported date input type: {type(date_input)}")
-
-    # Get local timezone
-    local_date = datetime.now().astimezone()
-    local_tz_name = local_date.tzname()
-    local_utc_offset = local_date.utcoffset()
-    if local_tz_name is None or local_utc_offset is None:
-        raise RuntimeError("Could not determine local time zone")
-    local_timezone = timezone(local_utc_offset, local_tz_name)
-
-    # Get target timezone
-    if to_timezone:
-        if isinstance(to_timezone, ZoneInfo):
-            target_timezone = to_timezone
-        elif isinstance(to_timezone, str):
+        # Convert to timezone aware datetime
+        dt = None
+        formats = [
+            "YYYY-MM-DD",  # Format: 2024-10-13
+            "DD/MM/YY",  # Format: 13/10/24
+            "DD/MM/YYYY",  # Format: 13/10/2024
+            "MM-DD-YYYY",  # Format: 10-13-2024
+            "D.M.YYYY",  # Format: 1.7.2024
+            "YYYY.MM.DD",  # Format: 2024.10.13
+            "D MMM YYYY",  # Format: 13 Oct 2024
+            "D MMMM YYYY",  # Format: 13 October 2024
+            "YYYY-MM-DD HH:mm:ss",  # Format: 2024-10-13 15:30:00
+            "YYYY-MM-DDTHH:mm:ss",  # Format: 2024-10-13T15:30:00
+        ]
+        for fmt in formats:
+            # DateTime input without timezone info
             try:
-                target_timezone = ZoneInfo(to_timezone)
-            except Exception as e:
-                raise ValueError(f"Invalid timezone: {to_timezone}") from e
+                fmt_tz = f"{fmt} z"
+                dt_tz = f"{date_input} {in_timezone}"
+                dt = pendulum.from_format(dt_tz, fmt_tz)
+                logger.debug(
+                    f"Str Fmt converted: {dt}, tz={dt.tz} from {date_input}, tz={in_timezone}"
+                )
+                break
+            except ValueError as e:
+                logger.debug(f"{date_input}, {fmt}, {e}")
+                dt = None
         else:
-            raise ValueError(f"Invalid timezone: {to_timezone}")
-
-    # Adjust/Add timezone information
-    if dt_object.tzinfo is None or dt_object.tzinfo.utcoffset(dt_object) is None:
-        # datetime object is naive (not timezone aware)
-        # Add timezone
-        if to_timezone is None:
-            # Add local timezone
-            dt_object = dt_object.replace(tzinfo=local_timezone)
-        else:
-            # Set to target timezone
-            dt_object = dt_object.replace(tzinfo=target_timezone)
-    elif to_timezone:
-        # Localize the datetime object to given target timezone
-        dt_object = dt_object.astimezone(target_timezone)
+            # DateTime input with timezone info
+            try:
+                dt = pendulum.parse(date_input)
+                logger.debug(
+                    f"Pendulum Fmt converted: {dt}, tz={dt.tz} from {date_input}, tz={in_timezone}"
+                )
+            except pendulum.parsing.exceptions.ParserError as e:
+                logger.debug(f"Date string {date_input} does not match any Pendulum formats: {e}")
+                dt = None
+        if dt is None:
+            raise ValueError(f"Date string {date_input} does not match any known formats.")
+    elif date_input is None:
+        dt = (
+            pendulum.today(tz=in_timezone).end_of("day")
+            if to_maxtime
+            else pendulum.today(tz=in_timezone).start_of("day")
+        )
+    elif isinstance(date_input, datetime):
+        dt = pendulum.instance(date_input)
+    elif isinstance(date_input, date):
+        dt = pendulum.instance(
+            datetime.combine(date_input, datetime.max.time() if to_maxtime else datetime.min.time())
+        )
+    elif isinstance(date_input, (int, float)):
+        dt = pendulum.from_timestamp(date_input, tz="UTC")
     else:
-        # Localize the datetime object to local timezone
-        dt_object = dt_object.astimezone(local_timezone)
+        error_msg = f"Unsupported date input type: {type(date_input)}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
 
+    # Represent in target timezone
+    dt_in_tz = dt.in_timezone(in_timezone)
+    logger.debug(
+        f"\nTimezone adapted to: {in_timezone}\nfrom: {dt} tz={dt.timezone}\nto:   {dt_in_tz} tz={dt_in_tz.tz}"
+    )
+    dt = dt_in_tz
+
+    # Remove timezone info if specified
     if to_naiv:
-        # Remove timezone info to make the datetime naiv
-        dt_object = dt_object.replace(tzinfo=None)
+        dt = dt.naive()
 
-    if as_string:
-        # Return formatted string as defined by as_string
-        if isinstance(as_string, bool):
-            return dt_object.isoformat()
-        elif as_string == "UTC" or as_string == "utc":
-            dt_object = dt_object.astimezone(timezone.utc)
-            return dt_object.isoformat()
+    # Return as formatted string if specified
+    if isinstance(as_string, str):
+        if as_string.lower() == "utc":
+            return dt.in_timezone("UTC").to_iso8601_string()
         else:
-            return dt_object.strftime(as_string)
-    else:
-        return dt_object
+            return dt.format(as_string)
+    if isinstance(as_string, bool) and as_string is True:
+        return dt.to_iso8601_string()
+
+    return dt
 
 
-def to_timedelta(
-    input_value: Union[
-        timedelta, str, int, float, tuple[int, int, int, int], Annotated[list[int], 4]
-    ],
+def to_duration(
+    input_value: Union[timedelta, str, int, float, Tuple[int, int, int, int], List[int]],
 ) -> timedelta:
-    """Converts various input types into a timedelta object.
+    """Converts various input types into a timedelta object using pendulum.
 
     Args:
         input_value (Union[timedelta, str, int, float, tuple, list]): Input to be converted
-            timedelta.
-            - str: A string like "2 days", "5 hours", "30 minutes", or a combination.
+            into a timedelta:
+            - str: A duration string like "2 days", "5 hours", "30 minutes", or a combination.
             - int/float: Number representing seconds.
             - tuple/list: A tuple or list in the format (days, hours, minutes, seconds).
 
@@ -212,14 +224,14 @@ def to_timedelta(
         ValueError: If the input format is not supported.
 
     Examples:
-        >>> to_timedelta("2 days 5 hours")
-        datetime.timedelta(days=2, seconds=18000)
+        >>> to_duration("2 days 5 hours")
+        timedelta(days=2, seconds=18000)
 
-        >>> to_timedelta(3600)
-        datetime.timedelta(seconds=3600)
+        >>> to_duration(3600)
+        timedelta(seconds=3600)
 
-        >>> to_timedelta((1, 2, 30, 15))
-        datetime.timedelta(days=1, seconds=90315)
+        >>> to_duration((1, 2, 30, 15))
+        timedelta(days=1, seconds=90315)
     """
     if isinstance(input_value, timedelta):
         return input_value
@@ -234,9 +246,18 @@ def to_timedelta(
             days, hours, minutes, seconds = input_value
             return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
         else:
-            raise ValueError(f"Expected a tuple or list of length 4, got {len(input_value)}")
+            error_msg = f"Expected a tuple or list of length 4, got {len(input_value)}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
     elif isinstance(input_value, str):
+        # Use pendulum's parsing for human-readable duration strings
+        try:
+            duration = pendulum.parse(input_value)
+            return duration - duration.start_of("day")
+        except pendulum.parsing.exceptions.ParserError as e:
+            logger.debug(f"Invalid Pendulum time string format '{input_value}': {e}")
+
         # Handle strings like "2 days 5 hours 30 minutes"
         total_seconds = 0
         time_units = {
@@ -250,73 +271,287 @@ def to_timedelta(
         matches = re.findall(r"(\d+)\s*(days?|hours?|minutes?|seconds?)", input_value)
 
         if not matches:
-            raise ValueError(f"Invalid time string format: {input_value}")
+            error_msg = f"Invalid time string format '{input_value}'"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         for value, unit in matches:
             unit = unit.lower().rstrip("s")  # Normalize unit
             if unit in time_units:
                 total_seconds += int(value) * time_units[unit]
             else:
-                raise ValueError(f"Unsupported time unit: {unit}")
+                error_msg = f"Unsupported time unit: {unit}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
-        return timedelta(seconds=total_seconds)
+        return pendulum.duration(seconds=total_seconds)
 
     else:
-        raise ValueError(f"Unsupported input type: {type(input_value)}")
+        error_msg = f"Unsupported input type: {type(input_value)}"
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+
+timezone_finder = TimezoneFinder()  # Static variable for caching
 
 
 @overload
-def to_timezone(lat: float, lon: float, as_string: Literal[True]) -> str: ...
+def to_timezone(
+    utc_offset: Optional[float] = None,
+    location: Optional[Tuple[float, float]] = None,
+    as_string: Literal[True] = True,
+) -> str: ...
 
 
 @overload
-def to_timezone(lat: float, lon: float, as_string: Literal[False] | None = None) -> ZoneInfo: ...
+def to_timezone(
+    utc_offset: Optional[float] = None,
+    location: Optional[Tuple[float, float]] = None,
+    as_string: Literal[False] | None = None,
+) -> Timezone: ...
 
 
-def to_timezone(lat: float, lon: float, as_string: Optional[bool] = None) -> str | ZoneInfo:
-    """Determines the timezone for a given geographic location specified by latitude and longitude.
+def to_timezone(
+    utc_offset: Optional[float] = None,
+    location: Optional[Tuple[float, float]] = None,
+    as_string: Optional[bool] = False,
+) -> Union[Timezone, str]:
+    """Determines the timezone either by UTC offset, geographic location, or local system timezone.
 
-    By default, it returns a `ZoneInfo` object representing the timezone.
+    By default, it returns a `Timezone` object representing the timezone.
     If `as_string` is set to `True`, the function returns the timezone name as a string instead.
 
     Args:
-        lat (float): Latitude of the location in decimal degrees. Must be between -90 and 90.
-        lon (float): Longitude of the location in decimal degrees. Must be between -180 and 180.
+        utc_offset (Optional[float]): UTC offset in hours. Positive for UTC+, negative for UTC-.
+        location (Optional[Tuple[float,float]]): A tuple containing latitude and longitude as floats.
         as_string (Optional[bool]):
             - If `True`, returns the timezone as a string (e.g., "America/New_York").
-            - If `False` or not provided, returns a `ZoneInfo` object for the timezone.
+            - If `False` or not provided, returns a `Timezone` object for the timezone.
 
     Returns:
-        str or ZoneInfo:
+        Union[Timezone, str]:
             - A timezone name as a string (e.g., "America/New_York") if `as_string` is `True`.
-            - A `ZoneInfo` timezone object if `as_string` is `False` or not provided.
+            - A `Timezone` object if `as_string` is `False` or not provided.
 
     Raises:
-        ValueError: If the latitude or longitude is out of range, or if no timezone is found for
-                    the specified coordinates.
+        ValueError: If invalid inputs are provided.
 
     Example:
-        >>> to_timezone(40.7128, -74.0060, as_string=True)
-        'America/New_York'
+        >>> to_timezone(utc_offset=5.5, as_string=True)
+        'UTC+05:30'
 
-        >>> to_timezone(40.7128, -74.0060)
-        ZoneInfo(key='America/New_York')
+        >>> to_timezone(location={40.7128, -74.0060})
+        <Timezone [America/New_York]>
+
+        >>> to_timezone()
+        <Timezone [America/New_York]>  # Returns local timezone
     """
-    # Initialize the static variable only once
-    if not hasattr(to_timezone, "timezone_finder"):
-        # static variable
-        to_timezone.timezone_finder = TimezoneFinder()  # type: ignore[attr-defined]
+    if utc_offset is not None:
+        if not isinstance(utc_offset, (int, float)):
+            raise ValueError("UTC offset must be an integer or float representing hours.")
+        if not -24 <= utc_offset <= 24:
+            raise ValueError("UTC offset must be within the range -24 to +24 hours.")
 
-    # Check and convert coordinates to timezone
-    tz_name: Optional[str] = None
-    try:
-        tz_name = to_timezone.timezone_finder.timezone_at(lat=lat, lng=lon)  # type: ignore[attr-defined]
-        if not tz_name:
-            raise ValueError(f"No timezone found for coordinates: latitude {lat}, longitude {lon}")
-    except Exception as e:
-        raise ValueError(f"Invalid location: latitude {lat}, longitude {lon}") from e
+        # Convert UTC offset to an Etc/GMT-compatible format
+        hours = int(utc_offset)
+        minutes = int((abs(utc_offset) - abs(hours)) * 60)
+        sign = "-" if utc_offset >= 0 else "+"
+        offset_str = f"Etc/GMT{sign}{abs(hours)}"
+        if minutes > 0:
+            offset_str += f":{minutes:02}"
 
+        if as_string:
+            return offset_str
+        return pendulum.timezone(offset_str)
+
+    # Handle location-based lookup
+    if location is not None:
+        try:
+            lat, lon = location
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                raise ValueError(f"Invalid latitude/longitude: {lat}, {lon}")
+            tz_name = timezone_finder.timezone_at(lat=lat, lng=lon)
+            if not tz_name:
+                raise ValueError(
+                    f"No timezone found for coordinates: latitude {lat}, longitude {lon}"
+                )
+        except Exception as e:
+            raise ValueError(f"Error determining timezone for location {location}: {e}") from e
+
+        if as_string:
+            return tz_name
+        return pendulum.timezone(tz_name)
+
+    # Fallback to local timezone
+    local_tz = pendulum.local_timezone()
     if as_string:
-        return tz_name
+        return local_tz.name
+    return local_tz
 
-    return ZoneInfo(tz_name)
+
+def hours_in_day(dt: Optional[DateTime] = None) -> int:
+    """Returns the number of hours in the given date's day, considering DST transitions.
+
+    Args:
+        dt (Optional[pendulum.DateTime]): The date to check (no time component).
+
+    Returns:
+        int: The number of hours in the day (23, 24, or 25).
+    """
+    if dt is None:
+        dt = to_datetime()
+
+    # Start and end of the day in the local timezone
+    start_of_day = pendulum.datetime(dt.year, dt.month, dt.day, 0, 0, 0, tz=dt.timezone)
+    end_of_day = start_of_day.add(days=1)
+
+    # Calculate the difference in hours between the two
+    duration = end_of_day - start_of_day
+    return int(duration.total_hours())
+
+
+class DatetimesComparisonResult:
+    """Encapsulates the result of comparing two Pendulum DateTime objects.
+
+    Attributes:
+        equal (bool): Indicates whether the two datetimes are exactly equal
+            (including timezone and DST state).
+        same_instant (bool): Indicates whether the two datetimes represent the same
+            point in time, regardless of their timezones.
+        time_diff (float): The time difference between the two datetimes in seconds.
+        timezone_diff (bool): Indicates whether the timezones of the two datetimes are different.
+        dst_diff (bool): Indicates whether the two datetimes differ in their DST states.
+        approximately_equal (bool): Indicates whether the time difference between the
+            two datetimes is within the specified tolerance.
+        ge (bool): True if `dt1` is greater than or equal to `dt2`.
+        gt (bool): True if `dt1` is strictly greater than `dt2`.
+        le (bool): True if `dt1` is less than or equal to `dt2`.
+        lt (bool): True if `dt1` is strictly less than `dt2`.
+    """
+
+    def __init__(
+        self,
+        equal: bool,
+        same_instant: bool,
+        time_diff: float,
+        timezone_diff: bool,
+        dst_diff: bool,
+        approximately_equal: bool,
+    ):
+        self.equal = equal
+        self.same_instant = same_instant
+        self.time_diff = time_diff
+        self.timezone_diff = timezone_diff
+        self.dst_diff = dst_diff
+        self.approximately_equal = approximately_equal
+
+    @property
+    def ge(self) -> bool:
+        """Greater than or equal: True if `dt1` >= `dt2`."""
+        return self.equal or self.time_diff > 0
+
+    @property
+    def gt(self) -> bool:
+        """Strictly greater than: True if `dt1` > `dt2`."""
+        return not self.equal and self.time_diff > 0
+
+    @property
+    def le(self) -> bool:
+        """Less than or equal: True if `dt1` <= `dt2`."""
+        return self.equal or self.time_diff < 0
+
+    @property
+    def lt(self) -> bool:
+        """Strictly less than: True if `dt1` < `dt2`."""
+        return not self.equal and self.time_diff < 0
+
+    def __repr__(self) -> str:
+        return (
+            f"ComparisonResult(equal={self.equal}, "
+            f"same_instant={self.same_instant}, "
+            f"time_diff={self.time_diff}, "
+            f"timezone_diff={self.timezone_diff}, "
+            f"dst_diff={self.dst_diff}, "
+            f"approximately_equal={self.approximately_equal}, "
+            f"ge={self.ge}, gt={self.gt}, le={self.le}, lt={self.lt})"
+        )
+
+
+def compare_datetimes(
+    dt1: DateTime,
+    dt2: DateTime,
+    tolerance: Optional[Union[int, pendulum.Duration]] = None,
+) -> DatetimesComparisonResult:
+    """Compares two Pendulum DateTime objects with precision, including DST and timezones.
+
+    This function evaluates various aspects of the relationship between two datetime objects:
+    - Exact equality, including timezone and DST state.
+    - Whether they represent the same instant in time (ignoring timezones).
+    - The absolute time difference in seconds.
+    - Differences in timezone and DST state.
+    - Approximate equality based on a specified tolerance.
+    - Greater or lesser comparisons.
+
+    Args:
+        dt1 (pendulum.DateTime): The first datetime object to compare.
+        dt2 (pendulum.DateTime): The second datetime object to compare.
+        tolerance (Optional[Union[int, pendulum.Duration]]): An optional tolerance for comparison.
+            - If an integer is provided, it is interpreted as seconds.
+            - If a `pendulum.Duration` is provided, its total seconds are used.
+            - If not provided, no tolerance is applied.
+
+    Returns:
+        DatetimesComparisonResult: An object containing the results of the comparison, including:
+            - `equal`: Whether the datetimes are exactly equal.
+            - `same_instant`: Whether the datetimes represent the same instant.
+            - `time_diff`: The time difference in seconds.
+            - `timezone_diff`: Whether the timezones differ.
+            - `dst_diff`: Whether the DST states differ.
+            - `approximately_equal`: Whether the time difference is within the tolerance.
+            - `ge`, `gt`, `le`, `lt`: Relational comparisons between the two datetimes.
+
+    Examples:
+        Compare two datetimes exactly:
+        >>> dt1 = pendulum.datetime(2023, 7, 1, 12, tz='Europe/Berlin')
+        >>> dt2 = pendulum.datetime(2023, 7, 1, 12, tz='UTC')
+        >>> compare_datetimes(dt1, dt2)
+        DatetimesComparisonResult(equal=False, same_instant=True, time_diff=7200, timezone_diff=True, dst_diff=False, approximately_equal=False, ge=False, gt=False, le=True, lt=True)
+
+        Compare with a tolerance:
+        >>> compare_datetimes(dt1, dt2, tolerance=7200)
+        DatetimesComparisonResult(equal=False, same_instant=True, time_diff=7200, timezone_diff=True, dst_diff=False, approximately_equal=True, ge=False, gt=False, le=True, lt=True)
+    """
+    # Normalize tolerance to seconds
+    if tolerance is None:
+        tolerance_seconds = 0
+    elif isinstance(tolerance, pendulum.Duration):
+        tolerance_seconds = tolerance.total_seconds()
+    else:
+        tolerance_seconds = int(tolerance)
+
+    # Strict equality check (includes timezone and DST)
+    is_equal = dt1.in_tz("UTC") == dt2.in_tz("UTC")
+
+    # Instant comparison (point in time, might be in different timezones)
+    is_same_instant = dt1.int_timestamp == dt2.int_timestamp
+
+    # Time difference calculation. Throws exception if diverging timezone awareness.
+    time_diff = dt1.int_timestamp - dt2.int_timestamp
+
+    # Timezone comparison
+    timezone_diff = dt1.timezone_name != dt2.timezone_name
+
+    # DST state comparison
+    dst_diff = dt1.is_dst() != dt2.is_dst()
+
+    # Tolerance-based approximate equality
+    is_approximately_equal = time_diff <= tolerance_seconds
+
+    return DatetimesComparisonResult(
+        equal=is_equal,
+        same_instant=is_same_instant,
+        time_diff=time_diff,
+        timezone_diff=timezone_diff,
+        dst_diff=dst_diff,
+        approximately_equal=is_approximately_equal,
+    )
