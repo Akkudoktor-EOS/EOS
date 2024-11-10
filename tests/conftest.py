@@ -1,9 +1,20 @@
+import logging
 import os
 import subprocess
 import sys
+import time
 
 import pytest
 from xprocess import ProcessStarter
+
+
+@pytest.fixture(autouse=True)
+def disable_debug_logging():
+    # Temporarily set logging level higher than DEBUG
+    logging.disable(logging.DEBUG)
+    yield
+    # Re-enable logging back to its original state after the test
+    logging.disable(logging.NOTSET)
 
 
 def pytest_addoption(parser):
@@ -19,6 +30,11 @@ def is_full_run(request):
 
 @pytest.fixture
 def server(xprocess):
+    """Fixture to start the server.
+
+    Provides URL of the server.
+    """
+
     class Starter(ProcessStarter):
         # assure server to be installed
         try:
@@ -62,3 +78,29 @@ def server(xprocess):
 
     # clean up whole process tree afterwards
     xprocess.getinfo("akkudoktoreosserver").terminate()
+
+
+@pytest.fixture
+def other_timezone():
+    """Fixture to temporarily change the timezone.
+
+    Restores the original timezone after the test.
+    """
+    original_tz = os.environ.get("TZ", None)
+
+    other_tz = "Atlantic/Canary"
+    if original_tz == other_tz:
+        other_tz = "Asia/Singapore"
+
+    # Change the timezone to another
+    os.environ["TZ"] = other_tz
+    time.tzset()  # For Unix/Linux to apply the timezone change
+
+    yield os.environ["TZ"]  # Yield control back to the test case
+
+    # Restore the original timezone after the test
+    if original_tz:
+        os.environ["TZ"] = original_tz
+    else:
+        del os.environ["TZ"]
+    time.tzset()  # Re-apply the original timezone
