@@ -35,8 +35,9 @@ class Heatpump:
         return temp_celsius > -100 and temp_celsius < 100
 
     def calculate_cop(self, outside_temperature_celsius: float) -> float:
-        """Calculate the coefficient of performance (COP) based on outside temperature. Supported
-        temperate range -100 degree Celsius to 100 degree Celsius.
+        """Calculate the coefficient of performance (COP) based on outside temperature.
+
+        Supported temperate range -100 degree Celsius to 100 degree Celsius.
 
         Args:
             outside_temperature_celsius: Outside temperature in degree Celsius
@@ -59,6 +60,7 @@ class Heatpump:
 
     def calculate_heating_output(self, outside_temperature_celsius: float) -> float:
         """Calculate the heating output in Watts based on outside temperature in degree Celsius.
+
         Temperature range must be between -100 and 100 degree Celsius.
 
         Args:

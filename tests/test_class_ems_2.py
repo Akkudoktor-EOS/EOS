@@ -14,9 +14,7 @@ start_hour = 0
 # Example initialization of necessary components
 @pytest.fixture
 def create_ems_instance():
-    """
-    Fixture to create an EnergieManagementSystem instance with given test parameters.
-    """
+    """Fixture to create an EnergieManagementSystem instance with given test parameters."""
     # Initialize the battery and the inverter
     akku = PVAkku(kapazitaet_wh=5000, start_soc_prozent=80, hours=48, min_soc_prozent=10)
     akku.reset()
@@ -118,9 +116,7 @@ def create_ems_instance():
 
 
 def test_simulation(create_ems_instance):
-    """
-    Test the EnergieManagementSystem simulation method.
-    """
+    """Test the EnergieManagementSystem simulation method."""
     ems = create_ems_instance
 
     # Simulate starting from hour 0 (this value can be adjusted)

@@ -54,12 +54,11 @@ class EnergieManagementSystem:
         return self.simuliere(start_stunde)
 
     def simuliere(self, start_stunde: int) -> dict:
-        """
-        hour:
-            akku_soc_pro_stunde begin of the hour, initial hour state!
-            last_wh_pro_stunde integral of  last hour (end state)
-        """
+        """hour.
 
+        akku_soc_pro_stunde begin of the hour, initial hour state!
+        last_wh_pro_stunde integral of  last hour (end state)
+        """
         lastkurve_wh = self.gesamtlast
         assert (
             len(lastkurve_wh) == len(self.pv_prognose_wh) == len(self.strompreis_euro_pro_wh)
