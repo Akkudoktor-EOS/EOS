@@ -16,6 +16,7 @@ def disable_debug_logging():
     # Re-enable logging back to its original state after the test
     logging.disable(logging.NOTSET)
 
+
 def pytest_addoption(parser):
     parser.addoption(
         "--full-run", action="store_true", default=False, help="Run with all optimization tests."
@@ -25,7 +26,6 @@ def pytest_addoption(parser):
 @pytest.fixture
 def is_full_run(request):
     yield bool(request.config.getoption("--full-run"))
-
 
 
 @pytest.fixture
