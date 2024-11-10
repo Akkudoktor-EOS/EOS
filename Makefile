@@ -68,7 +68,7 @@ test-setup: pip-dev
 # Target to run tests.
 test:
 	@echo "Running tests..."
-	.venv/bin/pytest
+	.venv/bin/pytest -vs --cov src --cov-report term-missing
 
 # Target to run all tests.
 test-full:
