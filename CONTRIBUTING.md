@@ -6,7 +6,7 @@ The `EOS` project is in early development, therefore we encourage contribution i
 
 ## Bug Reports
 
-Please report flaws or vulnerabilities in the [GitHub Issue Tracker]((https://github.com/Akkudoktor-EOS/EOS/issues)) using the corresponding issue template.
+Please report flaws or vulnerabilities in the [GitHub Issue Tracker](https://github.com/Akkudoktor-EOS/EOS/issues) using the corresponding issue template.
 
 ## Ideas & Features
 
@@ -44,5 +44,5 @@ pre-commit run --all-files
 Use `pytest` to run tests locally:
 
 ```bash
-python -m pytest -vs --cov modules --cov-report term-missing tests/
+python -m pytest -vs --cov src --cov-report term-missing tests/
 ```
