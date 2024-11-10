@@ -45,9 +45,28 @@ profile = "black"
 line-length = 100
 
 [tool.ruff.lint]
-ignore = [
-    "F841",  # don't complain about unused variables
+select = [
+    "F",      # Enable all `Pyflakes` rules.
+    "D",      # Enable all `pydocstyle` rules, limiting to those that adhere to the
+              # Google convention via `convention = "google"`, below.
 ]
+ignore = [
+    # On top of `Pyflakes (F)` to prevent errors for existing sources. Should be removed!!!
+    "F841",   # unused-variable: Local variable {name} is assigned to but never used
+    # On top of `pydocstyle (D)` to prevent errors for existing sources. Should be removed!!!
+    "D100",   # undocumented-public-module: Missing docstring in public module
+    "D101",   # undocumented-public-class: Missing docstring in public class
+    "D102",   # undocumented-public-method: Missing docstring in public method
+    "D103",   # undocumented-public-function: Missing docstring in public function
+    "D104",   # undocumented-public-package: Missing docstring in public package
+    "D105",   # undocumented-magic-method: Missing docstring in magic method
+    "D106",   # undocumented-public-nested-class: Missing docstring in public nested class
+    "D107",   # undocumented-public-init: Missing docstring in __init__
+    "D417",   # undocumented-param: Missing argument description in the docstring for {definition}: {name}
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.pytest.ini_options]
 minversion = "8.3.3"

@@ -67,6 +67,9 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Documentation generation
+_autosummary/
+
 # Translations
 *.mo
 *.pot

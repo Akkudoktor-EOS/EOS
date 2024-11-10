@@ -7,8 +7,7 @@ class Gesamtlast:
         self.prediction_hours = prediction_hours
 
     def hinzufuegen(self, name, last_array):
-        """
-        Adds an array of loads for a specific source.
+        """Adds an array of loads for a specific source.
 
         :param name: Name of the load source (e.g., "Household", "Heat Pump")
         :param last_array: Array of loads, where each entry corresponds to an hour
@@ -18,8 +17,7 @@ class Gesamtlast:
         self.lasten[name] = last_array
 
     def gesamtlast_berechnen(self):
-        """
-        Calculates the total load for each hour and returns an array of total loads.
+        """Calculates the total load for each hour and returns an array of total loads.
 
         :return: Array of total loads, where each entry corresponds to an hour
         """
