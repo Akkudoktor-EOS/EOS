@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip install dist test docker-run docs read-docs clean
+.PHONY: help venv pip install dist test test-full docker-run docs read-docs clean
 
 # Default target
 all: help
@@ -76,7 +76,12 @@ test-setup: pip-dev
 # Target to run tests.
 test:
 	@echo "Running tests..."
-	.venv/bin/pytest
+	.venv/bin/pytest -vs --cov src --cov-report term-missing
+
+# Target to run all tests.
+test-full:
+	@echo "Running all tests..."
+	.venv/bin/pytest --full-run
 
 # Run entire setup on docker
 docker-run:

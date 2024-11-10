@@ -209,12 +209,6 @@ def flask_pvprognose():
 
 @app.route("/optimize", methods=["POST"])
 def flask_optimize():
-    with open(
-        "C:\\Users\\drbac\\OneDrive\\Dokumente\\PythonPojects\\EOS\\debug_output.txt",
-        "a",
-    ) as f:
-        f.write("Test\n")
-
     if request.method == "POST":
         from datetime import datetime
 
@@ -249,7 +243,7 @@ def flask_optimize():
 
         # Optional min SoC PV Battery
         if "min_soc_prozent" not in parameter:
-            parameter["min_soc_prozent"] = None
+            parameter["min_soc_prozent"] = 0
 
         # Perform optimization simulation
         result = opt_class.optimierung_ems(parameter=parameter, start_hour=datetime.now().hour)
