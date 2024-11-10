@@ -1,9 +1,9 @@
 import json
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
-from mock import patch
 
 from akkudoktoreos.class_optimize import optimization_problem
 
