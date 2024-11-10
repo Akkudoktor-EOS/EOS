@@ -6,6 +6,17 @@ import pytest
 from xprocess import ProcessStarter
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--full-run", action="store_true", default=False, help="Run with all optimization tests."
+    )
+
+
+@pytest.fixture
+def is_full_run(request):
+    yield bool(request.config.getoption("--full-run"))
+
+
 @pytest.fixture
 def server(xprocess):
     class Starter(ProcessStarter):
