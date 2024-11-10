@@ -1,9 +1,9 @@
 import json
 from pathlib import Path
 
+from unittest.mock import patch
 import pytest
 from matplotlib.testing.compare import compare_images
-from mock import patch
 
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
