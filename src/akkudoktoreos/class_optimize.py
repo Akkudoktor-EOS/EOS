@@ -39,8 +39,8 @@ class optimization_problem:
     def decode_charge_discharge(
         self, discharge_hours_bin: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Decode the input array `discharge_hours_bin` into three separate arrays for AC charging, DC charging, and discharge.
+        """Decode the input array `discharge_hours_bin` into three separate arrays for AC charging, DC charging, and discharge.
+
         The function maps AC and DC charging values to relative power levels (0 to 1), while the discharge remains binary (0 or 1).
 
         Parameters:
@@ -81,8 +81,9 @@ class optimization_problem:
 
     # Custom mutation function that applies type-specific mutations
     def mutate(self, individual):
-        """
-        Custom mutation function for the individual. This function mutates different parts of the individual:
+        """Custom mutation function for the individual.
+
+        This function mutates different parts of the individual:
         - Mutates the discharge and charge states (AC, DC, idle) using the split_charge_discharge method.
         - Mutates the EV charging schedule if EV optimization is enabled.
         - Mutates appliance start times if household appliances are part of the optimization.
@@ -93,7 +94,6 @@ class optimization_problem:
         Returns:
         - (tuple): The mutated individual as a tuple (required by DEAP).
         """
-
         # Step 1: Mutate the charge/discharge states (idle, discharge, AC charge, DC charge)
         # Extract the relevant part of the individual for prediction hours, which represents the charge/discharge behavior.
         charge_discharge_part = individual[: self.prediction_hours]
@@ -167,13 +167,13 @@ class optimization_problem:
     def split_individual(
         self, individual: List[float]
     ) -> Tuple[List[int], List[float], Optional[int]]:
-        """
-        Split the individual solution into its components:
-        1. Discharge hours (-1 (Charge),0 (Nothing),1 (Discharge)),
-        2. Electric vehicle charge hours (possible_charge_values),
+        """Split the individual solution into its components.
+
+        Components:
+        1. Discharge hours (binary),
+        2. Electric vehicle charge hours (float),
         3. Dishwasher start time (integer if applicable).
         """
-
         discharge_hours_bin = individual[: self.prediction_hours]
         eautocharge_hours_float = (
             individual[self.prediction_hours : self.prediction_hours * 2]
@@ -189,9 +189,7 @@ class optimization_problem:
         return discharge_hours_bin, eautocharge_hours_float, spuelstart_int
 
     def setup_deap_environment(self, opti_param: Dict[str, Any], start_hour: int) -> None:
-        """
-        Set up the DEAP environment with fitness and individual creation rules.
-        """
+        """Set up the DEAP environment with fitness and individual creation rules."""
         self.opti_param = opti_param
 
         # Remove existing FitnessMin and Individual classes from creator if present
@@ -252,9 +250,9 @@ class optimization_problem:
     def evaluate_inner(
         self, individual: List[float], ems: EnergieManagementSystem, start_hour: int
     ) -> Dict[str, Any]:
-        """
-        Internal evaluation function that simulates the energy management system (EMS)
-        using the provided individual solution.
+        """Simulates the energy management system (EMS) using the provided individual solution.
+
+        This is an internal function.
         """
         ems.reset()
         discharge_hours_bin, eautocharge_hours_index, spuelstart_int = self.split_individual(
@@ -288,9 +286,7 @@ class optimization_problem:
         start_hour: int,
         worst_case: bool,
     ) -> Tuple[float]:
-        """
-        Evaluate the fitness of an individual solution based on the simulation results.
-        """
+        """Evaluate the fitness of an individual solution based on the simulation results."""
         try:
             o = self.evaluate_inner(individual, ems, start_hour)
         except Exception as e:
@@ -381,9 +377,7 @@ class optimization_problem:
         *,
         ngen: int = 600,
     ) -> Dict[str, Any]:
-        """
-        Perform EMS (Energy Management System) optimization and visualize results.
-        """
+        """Perform EMS (Energy Management System) optimization and visualize results."""
         einspeiseverguetung_euro_pro_wh = np.full(
             self.prediction_hours, parameter["einspeiseverguetung_euro_pro_wh"]
         )
