@@ -6,7 +6,7 @@ The `EOS` project is in early development, therefore we encourage contribution i
 
 ## Bug Reports
 
-Please report flaws or vulnerabilities in the [GitHub Issue Tracker]((https://github.com/Akkudoktor-EOS/EOS/issues)) using the corresponding issue template.
+Please report flaws or vulnerabilities in the [GitHub Issue Tracker](https://github.com/Akkudoktor-EOS/EOS/issues) using the corresponding issue template.
 
 ## Ideas & Features
 
@@ -24,7 +24,7 @@ To make collaboration easier, we require pull requests to pass code style and un
 Our code style checks use [`pre-commit`](https://pre-commit.com).
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 ```
 
 To run formatting automatically before every commit:
@@ -36,7 +36,7 @@ pre-commit install
 Or run them manually:
 
 ```bash
-pre-commit --all
+pre-commit run --all-files
 ```
 
 ### Tests
@@ -44,5 +44,5 @@ pre-commit --all
 Use `pytest` to run tests locally:
 
 ```bash
-python -m pytest -vs --cov modules --cov-report term-missing tests/
+python -m pytest -vs --cov src --cov-report term-missing tests/
 ```

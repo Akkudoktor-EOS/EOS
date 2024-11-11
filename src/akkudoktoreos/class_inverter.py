@@ -19,9 +19,7 @@ class Wechselrichter:
                 # If consumption exceeds maximum inverter power
                 verluste += erzeugung - self.max_leistung_wh
                 restleistung_nach_verbrauch = self.max_leistung_wh - verbrauch
-                netzbezug = (
-                    -restleistung_nach_verbrauch
-                )  # Negative indicates feeding into the grid
+                netzbezug = -restleistung_nach_verbrauch  # Negative indicates feeding into the grid
                 eigenverbrauch = self.max_leistung_wh
             else:
                 # Remaining power after consumption

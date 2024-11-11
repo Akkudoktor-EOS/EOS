@@ -79,12 +79,12 @@ class BatteryDataProcessor:
         return last_points
 
     def find_soc_points(self):
-        condition_soc_100 = (
-            self.data["battery_voltage"] >= self.voltage_high_threshold
-        ) & (self.data["battery_current"].abs() <= self.current_low_threshold)
-        condition_soc_0 = (
-            self.data["battery_voltage"] <= self.voltage_low_threshold
-        ) & (self.data["battery_current"].abs() <= self.current_low_threshold)
+        condition_soc_100 = (self.data["battery_voltage"] >= self.voltage_high_threshold) & (
+            self.data["battery_current"].abs() <= self.current_low_threshold
+        )
+        condition_soc_0 = (self.data["battery_voltage"] <= self.voltage_low_threshold) & (
+            self.data["battery_current"].abs() <= self.current_low_threshold
+        )
 
         times_soc_100_all = self.data[condition_soc_100][
             ["timestamp", "battery_voltage", "battery_current"]
@@ -104,9 +104,7 @@ class BatteryDataProcessor:
     def calculate_resetting_soc(self, last_points_100_df, last_points_0_df):
         soc_values = []
         integration_results = []
-        reset_points = pd.concat([last_points_100_df, last_points_0_df]).sort_values(
-            "timestamp"
-        )
+        reset_points = pd.concat([last_points_100_df, last_points_0_df]).sort_values("timestamp")
 
         # Initialisieren der SoC-Liste
         self.data["calculated_soc"] = np.nan
@@ -116,11 +114,12 @@ class BatteryDataProcessor:
             if i < len(reset_points) - 1:
                 end_point = reset_points.iloc[i + 1]
             else:
-                end_point = self.data.iloc[
-                    -1
-                ]  # Verwenden des letzten Datensatzes als Endpunkt
+                end_point = self.data.iloc[-1]  # Verwenden des letzten Datensatzes als Endpunkt
 
-            if start_point["timestamp"] in last_points_100_df["timestamp"].values:
+            if (
+                not last_points_100_df.empty
+                and start_point["timestamp"] in last_points_100_df["timestamp"].values
+            ):
                 initial_soc = 100
             elif start_point["timestamp"] in last_points_0_df["timestamp"].values:
                 initial_soc = 0
@@ -129,9 +128,7 @@ class BatteryDataProcessor:
                 (self.data["timestamp"] >= start_point["timestamp"])
                 & (self.data["timestamp"] <= end_point["timestamp"])
             ].copy()
-            cut_data["time_diff_hours"] = (
-                cut_data["timestamp"].diff().dt.total_seconds() / 3600
-            )
+            cut_data["time_diff_hours"] = cut_data["timestamp"].diff().dt.total_seconds() / 3600
             cut_data.dropna(subset=["time_diff_hours"], inplace=True)
 
             calculated_soc = initial_soc
@@ -164,21 +161,15 @@ class BatteryDataProcessor:
                     "end_soc": calculated_soc_list[-1],
                 }
             )
-
-        soc_df = (
-            pd.concat(soc_values)
-            .drop_duplicates(subset=["timestamp"])
-            .reset_index(drop=True)
-        )
+        print(integration_results)
+        soc_df = pd.concat(soc_values).drop_duplicates(subset=["timestamp"]).reset_index(drop=True)
         return soc_df, integration_results
 
     def calculate_soh(self, integration_results):
         soh_values = []
 
         for result in integration_results:
-            delta_soc = abs(
-                result["start_soc"] - result["end_soc"]
-            )  # Use the actual change in SoC
+            delta_soc = abs(result["start_soc"] - result["end_soc"])  # Use the actual change in SoC
             if delta_soc > 0:  # Avoid division by zero
                 effective_capacity_ah = result["integrated_current"]
                 soh = (effective_capacity_ah / self.battery_capacity_ah) * 100
@@ -240,14 +231,21 @@ class BatteryDataProcessor:
             label="Battery Voltage",
             color="blue",
         )
+        if not last_points_100_df.empty:
+            plt.scatter(
+                last_points_100_df["timestamp"],
+                last_points_100_df["battery_voltage"],
+                color="green",
+                marker="o",
+                label="100% SoC Points",
+            )
         plt.scatter(
-            last_points_100_df["timestamp"],
-            last_points_100_df["battery_voltage"],
-            color="green",
-            marker="o",
-            label="100% SoC Points",
+            last_points_0_df["timestamp"],
+            last_points_0_df["battery_voltage"],
+            color="red",
+            marker="x",
+            label="0% SoC Points",
         )
-        # plt.scatter(last_points_0_df['timestamp'], last_points_0_df['battery_voltage'], color='red', marker='x', label='0% SoC Points')
         plt.xlabel("Timestamp")
         plt.ylabel("Voltage (V)")
         plt.legend()
@@ -260,23 +258,28 @@ class BatteryDataProcessor:
             label="Battery Current",
             color="orange",
         )
+        if not last_points_100_df.empty:
+            plt.scatter(
+                last_points_100_df["timestamp"],
+                last_points_100_df["battery_current"],
+                color="green",
+                marker="o",
+                label="100% SoC Points",
+            )
         plt.scatter(
-            last_points_100_df["timestamp"],
-            last_points_100_df["battery_current"],
-            color="green",
-            marker="o",
-            label="100% SoC Points",
+            last_points_0_df["timestamp"],
+            last_points_0_df["battery_current"],
+            color="red",
+            marker="x",
+            label="0% SoC Points",
         )
-        # plt.scatter(last_points_0_df['timestamp'], last_points_0_df['battery_current'], color='red', marker='x', label='0% SoC Points')
         plt.xlabel("Timestamp")
         plt.ylabel("Current (A)")
         plt.legend()
         plt.title("Battery Current over Time")
 
         plt.subplot(4, 1, 3)
-        plt.plot(
-            soc_df["timestamp"], soc_df["calculated_soc"], label="SoC", color="purple"
-        )
+        plt.plot(soc_df["timestamp"], soc_df["calculated_soc"], label="SoC", color="purple")
         plt.xlabel("Timestamp")
         plt.ylabel("SoC (%)")
         plt.legend()
@@ -295,17 +298,23 @@ class BatteryDataProcessor:
 
 if __name__ == "__main__":
     # MariaDB Verbindungsdetails
-    config = {}
+
+    config = {
+        "user": "soc",
+        "password": "Rayoflight123!",
+        "host": "192.168.1.135",
+        "database": "sensor",
+    }
 
     # Parameter festlegen
     voltage_high_threshold = 55.4  # 100% SoC
-    voltage_low_threshold = 46.5  # 0% SoC
+    voltage_low_threshold = 48  # 0% SoC
     current_low_threshold = 2  # Niedriger Strom für beide Zustände
     gap = 30  # Zeitlücke in Minuten zum  Gruppieren von Maxima/Minima
-    bat_capacity = 33 * 1000 / 48
+    bat_capacity = 0.8 * 33 * 1000 / 48
 
     # Zeitpunkt X definieren
-    zeitpunkt_x = (datetime.now() - timedelta(weeks=100)).strftime("%Y-%m-%d %H:%M:%S")
+    zeitpunkt_x = (datetime.now() - timedelta(weeks=4)).strftime("%Y-%m-%d %H:%M:%S")
 
     # BatteryDataProcessor instanziieren und verwenden
     processor = BatteryDataProcessor(
@@ -324,7 +333,7 @@ if __name__ == "__main__":
         last_points_100_df, last_points_0_df
     )
     # soh_df = processor.calculate_soh(integration_results)
-    processor.update_database_with_soc(soc_df)
+    # processor.update_database_with_soc(soc_df)
 
     processor.plot_data(last_points_100_df, last_points_0_df, soc_df)
 

@@ -14,8 +14,7 @@ class LoadForecast:
         self.load_data()
 
     def get_daily_stats(self, date_str):
-        """
-        Returns the 24-hour profile with mean and standard deviation for a given date.
+        """Returns the 24-hour profile with mean and standard deviation for a given date.
 
         :param date_str: Date as a string in the format "YYYY-MM-DD"
         :return: An array with shape (2, 24), contains means and standard deviations
@@ -27,14 +26,11 @@ class LoadForecast:
         day_of_year = date.timetuple().tm_yday
 
         # Extract the 24-hour profile for the given date
-        daily_stats = self.data_year_energy[
-            day_of_year - 1
-        ]  # -1 because indexing starts at 0
+        daily_stats = self.data_year_energy[day_of_year - 1]  # -1 because indexing starts at 0
         return daily_stats
 
     def get_hourly_stats(self, date_str, hour):
-        """
-        Returns the mean and standard deviation for a specific hour of a given date.
+        """Returns the mean and standard deviation for a specific hour of a given date.
 
         :param date_str: Date as a string in the format "YYYY-MM-DD"
         :param hour: Specific hour (0 to 23)
@@ -47,15 +43,12 @@ class LoadForecast:
         day_of_year = date.timetuple().tm_yday
 
         # Extract mean and standard deviation for the given hour
-        hourly_stats = self.data_year_energy[
-            day_of_year - 1, :, hour
-        ]  # Access the specific hour
+        hourly_stats = self.data_year_energy[day_of_year - 1, :, hour]  # Access the specific hour
 
         return hourly_stats
 
     def get_stats_for_date_range(self, start_date_str, end_date_str):
-        """
-        Returns the means and standard deviations for a date range.
+        """Returns the means and standard deviations for a date range.
 
         :param start_date_str: Start date as a string in the format "YYYY-MM-DD"
         :param end_date_str: End date as a string in the format "YYYY-MM-DD"
@@ -80,9 +73,7 @@ class LoadForecast:
         """Loads data from the specified file."""
         try:
             data = np.load(self.filepath)
-            self.data = np.array(
-                list(zip(data["yearly_profiles"], data["yearly_profiles_std"]))
-            )
+            self.data = np.array(list(zip(data["yearly_profiles"], data["yearly_profiles_std"])))
             self.data_year_energy = self.data * self.year_energy
             # pprint(self.data_year_energy)
         except FileNotFoundError:
@@ -104,7 +95,5 @@ if __name__ == "__main__":
     filepath = r"..\data\load_profiles.npz"  # Adjust the path to the .npz file
     lf = LoadForecast(filepath=filepath, year_energy=2000)
     specific_date_prices = lf.get_daily_stats("2024-02-16")  # Adjust date as needed
-    specific_hour_stats = lf.get_hourly_stats(
-        "2024-02-16", 12
-    )  # Adjust date and hour as needed
+    specific_hour_stats = lf.get_hourly_stats("2024-02-16", 12)  # Adjust date and hour as needed
     print(specific_hour_stats)

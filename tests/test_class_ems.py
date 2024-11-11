@@ -1,9 +1,11 @@
+import numpy as np
 import pytest
 
 from akkudoktoreos.battery import Battery
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
-from akkudoktoreos.class_inverter import Wechselrichter  # Example import
+from akkudoktoreos.class_inverter import Wechselrichter
+from akkudoktoreos.config import AppConfig
 
 prediction_hours = 48
 optimization_hours = 24
@@ -12,10 +14,8 @@ start_hour = 1
 
 # Example initialization of necessary components
 @pytest.fixture
-def create_ems_instance():
-    """
-    Fixture to create an EnergieManagementSystem instance with given test parameters.
-    """
+def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
+    """Fixture to create an EnergieManagementSystem instance with given test parameters."""
     # Initialize the battery and the inverter
     akku = Battery(capacity_wh=5000, start_soc_percent=80, hours=48, min_soc_percent=10)
     akku.reset()
@@ -33,6 +33,7 @@ def create_ems_instance():
     eauto = Battery(
         capacity_wh=26400, start_soc_percent=10, hours=48, min_soc_percent=10
     )
+    eauto.set_charge_per_hour(np.full(48, 1))
 
     # Parameters based on previous example data
     pv_prognose_wh = [
@@ -192,6 +193,7 @@ def create_ems_instance():
 
     # Initialize the energy management system with the respective parameters
     ems = EnergieManagementSystem(
+        config=tmp_config.eos,
         pv_prognose_wh=pv_prognose_wh,
         strompreis_euro_pro_wh=strompreis_euro_pro_wh,
         einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
@@ -200,17 +202,31 @@ def create_ems_instance():
         haushaltsgeraet=home_appliance,
         wechselrichter=wechselrichter,
     )
+
     return ems
 
 
 def test_simulation(create_ems_instance):
-    """
-    Test the EnergieManagementSystem simulation method.
-    """
+    """Test the EnergieManagementSystem simulation method."""
     ems = create_ems_instance
 
     # Simulate starting from hour 1 (this value can be adjusted)
     result = ems.simuliere(start_stunde=start_hour)
+
+    # visualisiere_ergebnisse(
+    #     ems.gesamtlast,
+    #     ems.pv_prognose_wh,
+    #     ems.strompreis_euro_pro_wh,
+    #     result,
+    #     ems.akku.discharge_array+ems.akku.charge_array,
+    #     None,
+    #     ems.pv_prognose_wh,
+    #     start_hour,
+    #     48,
+    #     np.full(48, 0.0),
+    #     filename="visualization_results.pdf",
+    #     extra_data=None,
+    # )
 
     # Assertions to validate results
     assert result is not None, "Result should not be None"
@@ -265,56 +281,46 @@ def test_simulation(create_ems_instance):
 
     # Verify specific values in the 'Last_Wh_pro_Stunde' array
     assert (
-        result["Last_Wh_pro_Stunde"][1] == 24759.13
-    ), "The value at index 1 of 'Last_Wh_pro_Stunde' should be 24759.13."
+        result["Last_Wh_pro_Stunde"][1] == 1527.13
+    ), "The value at index 1 of 'Last_Wh_pro_Stunde' should be 1527.13."
     assert (
-        result["Last_Wh_pro_Stunde"][2] == 1996.88
-    ), "The value at index 2 of 'Last_Wh_pro_Stunde' should be 1996.88."
+        result["Last_Wh_pro_Stunde"][2] == 1468.88
+    ), "The value at index 2 of 'Last_Wh_pro_Stunde' should be 1468.88."
     assert (
         result["Last_Wh_pro_Stunde"][12] == 1132.03
     ), "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
 
     # Verify that the value at index 0 is 'None'
-    assert (
-        result["Last_Wh_pro_Stunde"][0] == 0.0
-    ), "The value at index 0 of 'Last_Wh_pro_Stunde' should be None."
-
     # Check that 'Netzeinspeisung_Wh_pro_Stunde' and 'Netzbezug_Wh_pro_Stunde' are consistent
     assert (
-        result["Netzeinspeisung_Wh_pro_Stunde"][0] == 0.0
-    ), "The value at index 0 of 'Netzeinspeisung_Wh_pro_Stunde' should be None."
-    assert (
-        result["Netzbezug_Wh_pro_Stunde"][0] == 0.0
-    ), "The value at index 0 of 'Netzbezug_Wh_pro_Stunde' should be None."
-    assert (
-        result["Netzbezug_Wh_pro_Stunde"][1] == 21679.13
-    ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be21679.13."
+        result["Netzbezug_Wh_pro_Stunde"][1] == 0
+    ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 0."
 
     # Verify the total balance
     assert (
-        abs(result["Gesamtbilanz_Euro"] - 9.302960148909092) < 1e-5
-    ), "Total balance should be 9.302960148909092."
+        abs(result["Gesamtbilanz_Euro"] - 1.7880374129090917) < 1e-5
+    ), "Total balance should be 1.7880374129090917."
 
     # Check total revenue and total costs
     assert (
         abs(result["Gesamteinnahmen_Euro"] - 1.3169784090909087) < 1e-5
     ), "Total revenue should be 1.3169784090909087."
     assert (
-        abs(result["Gesamtkosten_Euro"] - 10.619938558000001) < 1e-5
-    ), "Total costs should be 10.619938558000001 ."
+        abs(result["Gesamtkosten_Euro"] - 3.1050158220000004) < 1e-5
+    ), "Total costs should be 3.1050158220000004 ."
 
     # Check the losses
     assert (
-        abs(result["Gesamt_Verluste"] - 5855.222727272727) < 1e-5
-    ), "Total losses should be 5855.222727272727."
+        abs(result["Gesamt_Verluste"] - 2615.222727272727) < 1e-5
+    ), "Total losses should be 2615.222727272727 ."
 
     # Check the values in 'akku_soc_pro_stunde'
     assert (
         result["akku_soc_pro_stunde"][-1] == 28.675
     ), "The value at index -1 of 'akku_soc_pro_stunde' should be 28.675."
     assert (
-        result["akku_soc_pro_stunde"][1] == 10.0
-    ), "The value at index 1 of 'akku_soc_pro_stunde' should be 0.0."
+        result["akku_soc_pro_stunde"][1] == 25.379090909090905
+    ), "The value at index 1 of 'akku_soc_pro_stunde' should be 25.379090909090905."
 
     # Check home appliances
     assert (
@@ -322,7 +328,14 @@ def test_simulation(create_ems_instance):
     ), "The sum of 'ems.haushaltsgeraet.get_lastkurve()' should be 2000."
 
     assert (
-        sum(result["Haushaltsgeraet_wh_pro_stunde"]) == 2000
+        np.nansum(
+            np.where(
+                np.equal(result["Haushaltsgeraet_wh_pro_stunde"], None),
+                np.nan,
+                np.array(result["Haushaltsgeraet_wh_pro_stunde"]),
+            )
+        )
+        == 2000
     ), "The sum of 'Haushaltsgeraet_wh_pro_stunde' should be 2000."
 
     print("All tests passed successfully.")

@@ -1,21 +1,16 @@
 import datetime
+import zoneinfo
 
-import pytz
 
-
-def ist_dst_wechsel(tag, timezone="Europe/Berlin"):
+def ist_dst_wechsel(tag: datetime.datetime, timezone="Europe/Berlin") -> bool:
     """Checks if Daylight Saving Time (DST) starts or ends on a given day."""
-    tz = pytz.timezone(timezone)
+    tz = zoneinfo.ZoneInfo(timezone)
     # Get the current day and the next day
     current_day = datetime.datetime(tag.year, tag.month, tag.day)
     next_day = current_day + datetime.timedelta(days=1)
 
-    # Localize the days in the given timezone
-    current_day_localized = tz.localize(current_day, is_dst=None)
-    next_day_localized = tz.localize(next_day, is_dst=None)
-
     # Check if the UTC offsets are different (indicating a DST change)
-    dst_change = current_day_localized.dst() != next_day_localized.dst()
+    dst_change = current_day.replace(tzinfo=tz).dst() != next_day.replace(tzinfo=tz).dst()
 
     return dst_change
 

@@ -1,12 +1,11 @@
-docs/
-data/
+cache/
+output/
+EOS.config.json
 
 # Default ignore folders and files for VS Code, Python
 
 .vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
+!.vscode/*.shared.json
 !.vscode/extensions.json
 !.vscode/*.code-snippets
 
@@ -68,6 +67,9 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+
+# Documentation generation
+_autosummary/
 
 # Translations
 *.mo
@@ -245,3 +247,10 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# Visualization side effects
+**/visualization_results.pdf
+visualize_output_*.pdf
+
+# Test images
+*_pdf.png
