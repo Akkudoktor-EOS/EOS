@@ -31,6 +31,7 @@ where = ["src/"]
 include = ["akkudoktoreos", "akkudoktoreosserver", ]
 
 [tool.setuptools.package-data]
+akkudoktoreos = ["*.json", ]
 akkudoktoreosserver = ["data/*.npz", ]
 
 [tool.pyright]

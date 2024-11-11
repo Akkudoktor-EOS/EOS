@@ -17,6 +17,6 @@ services:
     networks:
       - "eos"
     volumes:
-      - ./src/akkudoktoreos/config.py:/opt/eos/akkudoktoreos/config.py:ro
+      - ./src/akkudoktoreos/default.config.json:/opt/eos/EOS.config.json:ro
     ports:
       - "${EOS_PORT}:${EOS_PORT}"

@@ -23,7 +23,6 @@ On MacOS (requires [Homebrew](https://brew.sh)):
 brew install make
 ```
 
-Next, adjust `config.py`.
 The server can then be started with `make run`. A full overview of the main shortcuts is given by `make help`.
 
 ### Detailed Instructions
@@ -52,6 +51,7 @@ To always use the Python version from the virtual environment, you should activa
 ```bash
 source .venv/bin/activate
 ```
+
 (for Bash users, the default under Linux) or
 
 ```zsh
@@ -60,7 +60,29 @@ source .venv/bin/activate
 
 ## Usage
 
-Adjust `config.py`.
+### Configuration
+
+---
+
+This project uses a `config.json` file to manage configuration settings.
+
+#### Default Configuration
+
+A default configuration file `default.config.json` is provided. This file contains all the necessary configuration keys with their default values.
+
+#### Custom Configuration
+
+Users can specify a custom configuration directory by setting the environment variable `EOS_DIR`.
+
+- If the directory specified by `EOS_DIR` contains an existing `config.json` file, the application will use this configuration file.
+- If the `config.json` file does not exist in the specified directory, the `default.config.json` file will be copied to the directory as `config.json`.
+
+#### Configuration Updates
+
+If the configuration keys in the `config.json` file are missing or different from those in `default.config.json`, they will be automatically updated to match the default settings, ensuring that all required keys are present.
+
+### Run server
+
 To use the system, run `flask_server.py`, which starts the server:
 
 ```bash
