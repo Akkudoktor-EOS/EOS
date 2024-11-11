@@ -642,9 +642,15 @@ class PVForecast:
         rep = ""
         for forecast in self.forecast_data:
             date_time = forecast.date_time
+            dc_pow = round(forecast.dc_power, 2) if forecast.dc_power else None
+            ac_pow = round(forecast.ac_power, 2) if forecast.ac_power else None
+            ac_pow_measurement = (
+                round(forecast.ac_power_measurement, 2) if forecast.ac_power_measurement else None
+            )
+            get_ac_pow = round(forecast.get_ac_power(), 2) if forecast.get_ac_power() else None
             rep += (
-                f"Zeit: {date_time}, DC: {forecast.dc_power}, AC: {forecast.ac_power}, "
-                f"Messwert: {forecast.ac_power_measurement}, AC GET: {forecast.get_ac_power()}"
+                f"Date&Time: {date_time}, DC: {dc_pow}, AC: {ac_pow}, "
+                f"AC measured: {ac_pow_measurement}, AC GET: {get_ac_pow}"
                 "\n"
             )
         return rep
