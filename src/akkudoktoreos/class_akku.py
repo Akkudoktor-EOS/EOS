@@ -18,17 +18,13 @@ class PVAkku:
         # Initial state of charge in Wh
         self.start_soc_prozent = start_soc_prozent
         self.soc_wh = (start_soc_prozent / 100) * kapazitaet_wh
-        self.hours = (
-            hours if hours is not None else 24
-        )  # Default to 24 hours if not specified
+        self.hours = hours if hours is not None else 24  # Default to 24 hours if not specified
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
         # Charge and discharge efficiency
         self.lade_effizienz = lade_effizienz
         self.entlade_effizienz = entlade_effizienz
-        self.max_ladeleistung_w = (
-            max_ladeleistung_w if max_ladeleistung_w else self.kapazitaet_wh
-        )
+        self.max_ladeleistung_w = max_ladeleistung_w if max_ladeleistung_w else self.kapazitaet_wh
         self.min_soc_prozent = min_soc_prozent
         self.max_soc_prozent = max_soc_prozent
         # Calculate min and max SoC in Wh
@@ -84,6 +80,10 @@ class PVAkku:
         assert len(charge_array) == self.hours
         self.charge_array = np.array(charge_array)
 
+    def set_charge_allowed_for_hour(self, charge, hour):
+        assert hour < self.hours
+        self.charge_array[hour] = charge
+
     def ladezustand_in_prozent(self):
         return (self.soc_wh / self.kapazitaet_wh) * 100
 
@@ -92,12 +92,8 @@ class PVAkku:
             return 0.0, 0.0  # No energy discharge and no losses
 
         # Calculate the maximum energy that can be discharged considering min_soc and efficiency
-        max_possible_discharge_wh = (
-            self.soc_wh - self.min_soc_wh
-        ) * self.entlade_effizienz
-        max_possible_discharge_wh = max(
-            max_possible_discharge_wh, 0.0
-        )  # Ensure non-negative
+        max_possible_discharge_wh = (self.soc_wh - self.min_soc_wh) * self.entlade_effizienz
+        max_possible_discharge_wh = max(max_possible_discharge_wh, 0.0)  # Ensure non-negative
 
         # Consider the maximum discharge power of the battery
         max_abgebbar_wh = min(max_possible_discharge_wh, self.max_ladeleistung_w)
@@ -107,9 +103,7 @@ class PVAkku:
 
         # Calculate the actual amount withdrawn from the battery (before efficiency loss)
         if self.entlade_effizienz > 0:
-            tatsaechliche_entnahme_wh = (
-                tatsaechlich_abgegeben_wh / self.entlade_effizienz
-            )
+            tatsaechliche_entnahme_wh = tatsaechlich_abgegeben_wh / self.entlade_effizienz
         else:
             tatsaechliche_entnahme_wh = 0.0
 
@@ -124,28 +118,23 @@ class PVAkku:
         # Return the actually discharged energy and the losses
         return tatsaechlich_abgegeben_wh, verluste_wh
 
-    def energie_laden(self, wh, hour):
+    def energie_laden(self, wh, hour, relative_power=0.0):
         if hour is not None and self.charge_array[hour] == 0:
             return 0, 0  # Charging not allowed in this hour
-
+        if relative_power > 0.0:
+            wh = self.max_ladeleistung_w * relative_power
         # If no value for wh is given, use the maximum charging power
         wh = wh if wh is not None else self.max_ladeleistung_w
 
-        # Relative to the maximum charging power (between 0 and 1)
-        relative_ladeleistung = self.charge_array[hour]
-        effektive_ladeleistung = relative_ladeleistung * self.max_ladeleistung_w
-
         # Calculate the maximum energy that can be charged considering max_soc and efficiency
         if self.lade_effizienz > 0:
-            max_possible_charge_wh = (
-                self.max_soc_wh - self.soc_wh
-            ) / self.lade_effizienz
+            max_possible_charge_wh = (self.max_soc_wh - self.soc_wh) / self.lade_effizienz
         else:
             max_possible_charge_wh = 0.0
         max_possible_charge_wh = max(max_possible_charge_wh, 0.0)  # Ensure non-negative
 
         # The actually charged energy cannot exceed requested energy, charging power, or maximum possible charge
-        effektive_lademenge = min(wh, effektive_ladeleistung, max_possible_charge_wh)
+        effektive_lademenge = min(wh, max_possible_charge_wh)
 
         # Energy actually stored in the battery
         geladene_menge = effektive_lademenge * self.lade_effizienz
@@ -157,12 +146,11 @@ class PVAkku:
 
         # Calculate losses
         verluste_wh = effektive_lademenge - geladene_menge
-
         return geladene_menge, verluste_wh
 
     def aktueller_energieinhalt(self):
-        """
-        This method returns the current remaining energy considering efficiency.
+        """This method returns the current remaining energy considering efficiency.
+
         It accounts for both charging and discharging efficiency.
         """
         # Calculate remaining energy considering discharge efficiency

@@ -17,9 +17,7 @@ class LoadPredictionAdjuster:
 
     def _remove_outliers(self, data, threshold=2):
         # Calculate the Z-Score of the 'Last' data
-        data["Z-Score"] = np.abs(
-            (data["Last"] - data["Last"].mean()) / data["Last"].std()
-        )
+        data["Z-Score"] = np.abs((data["Last"] - data["Last"].mean()) / data["Last"].std())
         # Filter the data based on the threshold
         filtered_data = data[data["Z-Score"] < threshold]
         return filtered_data.drop(columns=["Z-Score"])
@@ -31,27 +29,19 @@ class LoadPredictionAdjuster:
 
         # Ensure both time columns have the same timezone
         if self.measured_data["time"].dt.tz is None:
-            self.measured_data["time"] = self.measured_data["time"].dt.tz_localize(
-                "UTC"
-            )
+            self.measured_data["time"] = self.measured_data["time"].dt.tz_localize("UTC")
 
         self.predicted_data["time"] = (
-            self.predicted_data["time"]
-            .dt.tz_localize("UTC")
-            .dt.tz_convert("Europe/Berlin")
+            self.predicted_data["time"].dt.tz_localize("UTC").dt.tz_convert("Europe/Berlin")
         )
-        self.measured_data["time"] = self.measured_data["time"].dt.tz_convert(
-            "Europe/Berlin"
-        )
+        self.measured_data["time"] = self.measured_data["time"].dt.tz_convert("Europe/Berlin")
 
         # Optionally: Remove timezone information if only working locally
         self.predicted_data["time"] = self.predicted_data["time"].dt.tz_localize(None)
         self.measured_data["time"] = self.measured_data["time"].dt.tz_localize(None)
 
         # Now you can perform the merge
-        merged_data = pd.merge(
-            self.measured_data, self.predicted_data, on="time", how="inner"
-        )
+        merged_data = pd.merge(self.measured_data, self.predicted_data, on="time", how="inner")
         print(merged_data)
         merged_data["Hour"] = merged_data["time"].dt.hour
         merged_data["DayOfWeek"] = merged_data["time"].dt.dayofweek
@@ -59,16 +49,12 @@ class LoadPredictionAdjuster:
 
     def calculate_weighted_mean(self, train_period_weeks=9, test_period_weeks=1):
         self.merged_data = self._remove_outliers(self.merged_data)
-        train_end_date = self.merged_data["time"].max() - pd.Timedelta(
-            weeks=test_period_weeks
-        )
+        train_end_date = self.merged_data["time"].max() - pd.Timedelta(weeks=test_period_weeks)
         train_start_date = train_end_date - pd.Timedelta(weeks=train_period_weeks)
 
         test_start_date = train_end_date + pd.Timedelta(hours=1)
         test_end_date = (
-            test_start_date
-            + pd.Timedelta(weeks=test_period_weeks)
-            - pd.Timedelta(hours=1)
+            test_start_date + pd.Timedelta(weeks=test_period_weeks) - pd.Timedelta(hours=1)
         )
 
         self.train_data = self.merged_data[
@@ -81,9 +67,7 @@ class LoadPredictionAdjuster:
             & (self.merged_data["time"] <= test_end_date)
         ]
 
-        self.train_data["Difference"] = (
-            self.train_data["Last"] - self.train_data["Last Pred"]
-        )
+        self.train_data["Difference"] = self.train_data["Last"] - self.train_data["Last Pred"]
 
         weekdays_train_data = self.train_data[self.train_data["DayOfWeek"] < 5]
         weekends_train_data = self.train_data[self.train_data["DayOfWeek"] >= 5]
@@ -102,9 +86,7 @@ class LoadPredictionAdjuster:
         return weighted_mean
 
     def adjust_predictions(self):
-        self.train_data["Adjusted Pred"] = self.train_data.apply(
-            self._adjust_row, axis=1
-        )
+        self.train_data["Adjusted Pred"] = self.train_data.apply(self._adjust_row, axis=1)
         self.test_data["Adjusted Pred"] = self.test_data.apply(self._adjust_row, axis=1)
 
     def _adjust_row(self, row):
@@ -119,9 +101,7 @@ class LoadPredictionAdjuster:
 
     def _plot_data(self, data, data_type):
         plt.figure(figsize=(14, 7))
-        plt.plot(
-            data["time"], data["Last"], label=f"Actual Last - {data_type}", color="blue"
-        )
+        plt.plot(data["time"], data["Last"], label=f"Actual Last - {data_type}", color="blue")
         plt.plot(
             data["time"],
             data["Last Pred"],
@@ -144,18 +124,14 @@ class LoadPredictionAdjuster:
         plt.show()
 
     def evaluate_model(self):
-        mse = mean_squared_error(
-            self.test_data["Last"], self.test_data["Adjusted Pred"]
-        )
+        mse = mean_squared_error(self.test_data["Last"], self.test_data["Adjusted Pred"])
         r2 = r2_score(self.test_data["Last"], self.test_data["Adjusted Pred"])
         print(f"Mean Squared Error: {mse}")
         print(f"R-squared: {r2}")
 
     def predict_next_hours(self, hours_ahead):
         last_date = self.merged_data["time"].max()
-        future_dates = [
-            last_date + pd.Timedelta(hours=i) for i in range(1, hours_ahead + 1)
-        ]
+        future_dates = [last_date + pd.Timedelta(hours=i) for i in range(1, hours_ahead + 1)]
         future_df = pd.DataFrame({"time": future_dates})
         future_df["Hour"] = future_df["time"].dt.hour
         future_df["DayOfWeek"] = future_df["time"].dt.dayofweek

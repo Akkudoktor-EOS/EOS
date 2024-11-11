@@ -1,32 +1,22 @@
 ---
 networks:
   eos:
-    name: 'eos'
+    name: "eos"
 services:
   eos:
-    image: 'akkudoktor/eos:${EOS_VERSION}'
+    image: "akkudoktor/eos:${EOS_VERSION}"
+    read_only: true
     build:
       context: .
-      dockerfile: 'Dockerfile'
+      dockerfile: "Dockerfile"
       args:
-        PYTHON_VERSION: '${PYTHON_VERSION}'
-    depends_on:
-      - 'mariadb'
+        PYTHON_VERSION: "${PYTHON_VERSION}"
     init: true
     environment:
-      FLASK_RUN_PORT: '${EOS_PORT}'
+      FLASK_RUN_PORT: "${EOS_PORT}"
     networks:
-      - 'eos'
-    ports:
-      - '${EOS_PORT}:${EOS_PORT}'
-  mariadb:
-    image: 'mariadb:${MARIADB_VERSION}-jammy'
-    environment:
-      MARIADB_ROOT_PASSWORD: '${MARIADB_ROOT_PASSWORD}'
-      MARIADB_DATABASE: '${MARIADB_DATABASE}'
-      MARIADB_USER: '${MARIADB_USER}'
-      MARIADB_PASSWORD: '${MARIADB_PASSWORD}'
-    networks:
-      - 'eos'
+      - "eos"
     volumes:
-      - ./data/mariadb:/var/lib/mysql
+      - ./src/akkudoktoreos/config.py:/opt/eos/akkudoktoreos/config.py:ro
+    ports:
+      - "${EOS_PORT}:${EOS_PORT}"

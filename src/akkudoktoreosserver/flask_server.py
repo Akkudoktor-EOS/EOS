@@ -2,6 +2,7 @@
 
 import os
 from datetime import datetime
+from typing import Any, TypeGuard
 
 import matplotlib
 
@@ -14,30 +15,57 @@ from flask import Flask, jsonify, redirect, request, send_from_directory, url_fo
 from akkudoktoreos.class_load import LoadForecast
 from akkudoktoreos.class_load_container import Gesamtlast
 from akkudoktoreos.class_load_corrector import LoadPredictionAdjuster
-from akkudoktoreos.class_optimize import isfloat, optimization_problem
+from akkudoktoreos.class_numpy_encoder import NumpyEncoder
+from akkudoktoreos.class_optimize import optimization_problem
 from akkudoktoreos.class_pv_forecast import PVForecast
 from akkudoktoreos.class_strompreis import HourlyElectricityPriceForecast
-from akkudoktoreos.config import get_start_enddate, optimization_hours, prediction_hours
+from akkudoktoreos.config import (
+    get_start_enddate,
+    optimization_hours,
+    output_dir,
+    prediction_hours,
+)
 
 app = Flask(__name__)
 
 opt_class = optimization_problem(
-    prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours
+    prediction_hours=prediction_hours,
+    strafe=10,
+    optimization_hours=optimization_hours,
+    verbose=True,
 )
+
+
+def isfloat(num: Any) -> TypeGuard[float]:
+    """Check if a given input can be converted to float."""
+    if num is None:
+        return False
+
+    if isinstance(num, str):
+        num = num.strip()  # Strip any surrounding whitespace
+
+    try:
+        float_value = float(num)
+        return not (
+            float_value == float("inf")
+            or float_value == float("-inf")
+            or float_value != float_value
+        )  # Excludes NaN or Infinity
+    except (ValueError, TypeError):
+        return False
 
 
 @app.route("/strompreis", methods=["GET"])
 def flask_strompreis():
     # Get the current date and the end date based on prediction hours
-    date_now, date = get_start_enddate(
-        prediction_hours, startdate=datetime.now().date()
-    )
+    date_now, date = get_start_enddate(prediction_hours, startdate=datetime.now().date())
     filepath = os.path.join(
         r"test_data", r"strompreise_akkudokAPI.json"
     )  # Adjust the path to the JSON file
     price_forecast = HourlyElectricityPriceForecast(
         source=f"https://api.akkudoktor.net/prices?start={date_now}&end={date}",
         prediction_hours=prediction_hours,
+        cache=False,
     )
     specific_date_prices = price_forecast.get_price_for_daterange(
         date_now, date
@@ -53,9 +81,7 @@ def flask_gesamtlast():
 
     # Extract year_energy and prediction_hours from the request JSON
     year_energy = float(data.get("year_energy"))
-    prediction_hours = int(
-        data.get("hours", 48)
-    )  # Default to 48 hours if not specified
+    prediction_hours = int(data.get("hours", 48))  # Default to 48 hours if not specified
 
     # Measured data in JSON format
     measured_data_json = data.get("measured_data")
@@ -94,9 +120,7 @@ def flask_gesamtlast():
     adjuster = LoadPredictionAdjuster(measured_data, predicted_data, lf)
     adjuster.calculate_weighted_mean()  # Calculate weighted mean for adjustment
     adjuster.adjust_predictions()  # Adjust predictions based on measured data
-    future_predictions = adjuster.predict_next_hours(
-        prediction_hours
-    )  # Predict future load
+    future_predictions = adjuster.predict_next_hours(prediction_hours)  # Predict future load
 
     # Extract household power predictions
     leistung_haushalt = future_predictions["Adjusted Pred"].values
@@ -135,9 +159,7 @@ def flask_gesamtlast_simple():
             0
         ]  # Get expected household load for the date range
 
-        gesamtlast = Gesamtlast(
-            prediction_hours=prediction_hours
-        )  # Create Gesamtlast instance
+        gesamtlast = Gesamtlast(prediction_hours=prediction_hours)  # Create Gesamtlast instance
         gesamtlast.hinzufuegen(
             "Haushalt", leistung_haushalt
         )  # Add household load to total load calculation
@@ -159,9 +181,7 @@ def flask_pvprognose():
         # Retrieve URL and AC power measurement from query parameters
         url = request.args.get("url")
         ac_power_measurement = request.args.get("ac_power_measurement")
-        date_now, date = get_start_enddate(
-            prediction_hours, startdate=datetime.now().date()
-        )
+        date_now, date = get_start_enddate(prediction_hours, startdate=datetime.now().date())
 
         ###############
         # PV Forecast
@@ -169,9 +189,7 @@ def flask_pvprognose():
         PVforecast = PVForecast(
             prediction_hours=prediction_hours, url=url
         )  # Instantiate PVForecast with given parameters
-        if isfloat(
-            ac_power_measurement
-        ):  # Check if the AC power measurement is a valid float
+        if isfloat(ac_power_measurement):  # Check if the AC power measurement is a valid float
             PVforecast.update_ac_power_measurement(
                 date_time=datetime.now(),
                 ac_power_measurement=float(ac_power_measurement),
@@ -223,23 +241,22 @@ def flask_optimize():
                 {"error": f"Missing parameter: {', '.join(missing_params)}"}
             ), 400  # Return error for missing parameters
 
-        # Perform optimization simulation
-        result = opt_class.optimierung_ems(
-            parameter=parameter, start_hour=datetime.now().hour
-        )
-
         # Optional min SoC PV Battery
         if "min_soc_prozent" not in parameter:
-            parameter["min_soc_prozent"] = None
+            parameter["min_soc_prozent"] = 0
 
-        return jsonify(result)  # Return optimization results as JSON
+        # Perform optimization simulation
+        result = opt_class.optimierung_ems(parameter=parameter, start_hour=datetime.now().hour)
+        # print(result)
+        # convert to JSON (None accepted by dumps)
+        return NumpyEncoder.dumps(result)
 
 
-@app.route("/visualisierungsergebnisse.pdf")
+@app.route("/visualization_results.pdf")
 def get_pdf():
     # Endpoint to serve the generated PDF with visualization results
     return send_from_directory(
-        "", "visualisierungsergebnisse.pdf"
+        os.path.abspath(output_dir), "visualization_results.pdf"
     )  # Adjust the directory if needed
 
 
