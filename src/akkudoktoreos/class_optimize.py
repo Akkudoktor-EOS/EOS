@@ -16,14 +16,14 @@ class optimization_problem:
     def __init__(
         self,
         prediction_hours: int = 48,
-        penalty: float = 10,
+        strafe: float = 10,
         optimization_hours: int = 24,
         verbose: bool = False,
         fixed_seed: Optional[int] = None,
     ):
         """Initialize the optimization problem with the required parameters."""
         self.prediction_hours = prediction_hours
-        self.penalty = penalty
+        self.strafe = strafe
         self.opti_param = None
         self.fixed_eauto_hours = prediction_hours - optimization_hours
         self.possible_charge_values = possible_ev_charge_currents
@@ -308,7 +308,7 @@ class optimization_problem:
         # Penalty for not meeting the minimum SOC (State of Charge) requirement
         # if parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent() <= 0.0 and  self.optimize_ev:
         #     gesamtbilanz += sum(
-        #         self.penalty for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
+        #         self.strafe for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
         #     )
 
         individual.extra_data = (
@@ -326,7 +326,7 @@ class optimization_problem:
         if self.optimize_ev:
             gesamtbilanz += max(
                 0,
-                (parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent()) * self.penalty,
+                (parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent()) * self.strafe,
             )
 
         return (gesamtbilanz,)

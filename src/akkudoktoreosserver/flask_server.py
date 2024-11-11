@@ -30,7 +30,7 @@ app = Flask(__name__)
 
 opt_class = optimization_problem(
     prediction_hours=prediction_hours,
-    penalty=10,
+    strafe=10,
     optimization_hours=optimization_hours,
     verbose=True,
 )
