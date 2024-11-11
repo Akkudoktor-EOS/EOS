@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from akkudoktoreos.class_optimize import optimization_problem
+from akkudoktoreos.config import AppConfig
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 
@@ -33,17 +34,25 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
     ],
 )
 @patch("akkudoktoreos.class_optimize.visualisiere_ergebnisse")
-def test_optimize(visualisiere_ergebnisse_patch, fn_in: str, fn_out: str, ngen: int, is_full_run):
+def test_optimize(
+    visualisiere_ergebnisse_patch,
+    fn_in: str,
+    fn_out: str,
+    ngen: int,
+    is_full_run: bool,
+    tmp_config: AppConfig,
+):
+    """Test optimierung_ems."""
     # Load input and output data
-    with open(DIR_TESTDATA / fn_in, "r") as f_in:
+    file = DIR_TESTDATA / fn_in
+    with file.open("r") as f_in:
         input_data = json.load(f_in)
 
-    with open(DIR_TESTDATA / fn_out, "r") as f_out:
+    file = DIR_TESTDATA / fn_out
+    with file.open("r") as f_out:
         expected_output_data = json.load(f_out)
 
-    opt_class = optimization_problem(
-        prediction_hours=48, strafe=10, optimization_hours=24, fixed_seed=42
-    )
+    opt_class = optimization_problem(tmp_config, fixed_seed=42)
     start_hour = 10
 
     if ngen > 10 and not is_full_run:

@@ -3,12 +3,13 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np
 
-from akkudoktoreos.config import prediction_hours
+from akkudoktoreos.config import EOSConfig
 
 
 class EnergieManagementSystem:
     def __init__(
         self,
+        config: EOSConfig,
         pv_prognose_wh: Optional[np.ndarray] = None,
         strompreis_euro_pro_wh: Optional[np.ndarray] = None,
         einspeiseverguetung_euro_pro_wh: Optional[np.ndarray] = None,
@@ -25,9 +26,9 @@ class EnergieManagementSystem:
         self.eauto = eauto
         self.haushaltsgeraet = haushaltsgeraet
         self.wechselrichter = wechselrichter
-        self.ac_charge_hours = np.full(prediction_hours, 0)
-        self.dc_charge_hours = np.full(prediction_hours, 1)
-        self.ev_charge_hours = np.full(prediction_hours, 0)
+        self.ac_charge_hours = np.full(config.prediction_hours, 0)
+        self.dc_charge_hours = np.full(config.prediction_hours, 1)
+        self.ev_charge_hours = np.full(config.prediction_hours, 0)
 
     def set_akku_discharge_hours(self, ds: List[int]) -> None:
         self.akku.set_discharge_per_hour(ds)
