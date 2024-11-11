@@ -25,8 +25,8 @@ def create_ems_instance():
     # Household device (currently not used, set to None)
     home_appliance = Homeappliance(
         hours=prediction_hours,
-        verbrauch_wh=2000,
-        dauer_h=2,
+        consumption_wh=2000,
+        duration_h=2,
     )
     home_appliance.set_startzeitpunkt(2)
 

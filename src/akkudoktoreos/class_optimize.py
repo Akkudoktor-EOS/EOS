@@ -413,11 +413,11 @@ class optimization_problem:
         eauto.set_charge_per_hour(np.full(self.prediction_hours, 1))
 
         # Initialize household appliance if applicable
-        spuelmaschine = (
+        dish_washer = (
             Homeappliance(
                 hours=self.prediction_hours,
-                verbrauch_wh=parameter["home_appliance"],
-                dauer_h=parameter["home_appliance_duration"],
+                consumption_wh=parameter["home_appliance_wh"],
+                duration_h=parameter["home_appliance_duration"],
             )
             if parameter["home_appliance_duration"] > 0
             else None
@@ -431,12 +431,12 @@ class optimization_problem:
             strompreis_euro_pro_wh=parameter["strompreis_euro_pro_wh"],
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
             eauto=eauto,
-            home_appliance=spuelmaschine,
+            home_appliance=dish_washer,
             wechselrichter=wr,
         )
 
         # Setup the DEAP environment and optimization process
-        self.setup_deap_environment({"home_appliance": 1 if spuelmaschine else 0}, start_hour)
+        self.setup_deap_environment({"home_appliance": 1 if dish_washer else 0}, start_hour)
         self.toolbox.register(
             "evaluate",
             lambda ind: self.evaluate(ind, ems, parameter, start_hour, worst_case),
