@@ -15,6 +15,7 @@ from flask import Flask, jsonify, redirect, request, send_from_directory, url_fo
 from akkudoktoreos.class_load import LoadForecast
 from akkudoktoreos.class_load_container import LoadAggregator
 from akkudoktoreos.class_load_corrector import LoadPredictionAdjuster
+from akkudoktoreos.class_numpy_encoder import NumpyEncoder
 from akkudoktoreos.class_optimize import optimization_problem
 from akkudoktoreos.class_pv_forecast import PVForecast
 from akkudoktoreos.class_strompreis import HourlyElectricityPriceForecast
@@ -28,7 +29,10 @@ from akkudoktoreos.config import (
 app = Flask(__name__)
 
 opt_class = optimization_problem(
-    prediction_hours=prediction_hours, strafe=10, optimization_hours=optimization_hours
+    prediction_hours=prediction_hours,
+    strafe=10,
+    optimization_hours=optimization_hours,
+    verbose=True,
 )
 
 
@@ -61,6 +65,7 @@ def flask_strompreis():
     price_forecast = HourlyElectricityPriceForecast(
         source=f"https://api.akkudoktor.net/prices?start={date_now}&end={date}",
         prediction_hours=prediction_hours,
+        cache=False,
     )
     specific_date_prices = price_forecast.get_price_for_daterange(
         date_now, date
@@ -203,12 +208,6 @@ def flask_pvprognose():
 
 @app.route("/optimize", methods=["POST"])
 def flask_optimize():
-    with open(
-        "C:\\Users\\drbac\\OneDrive\\Dokumente\\PythonPojects\\EOS\\debug_output.txt",
-        "a",
-    ) as f:
-        f.write("Test\n")
-
     if request.method == "POST":
         from datetime import datetime
 
@@ -243,13 +242,13 @@ def flask_optimize():
 
         # Optional min SoC PV Battery
         if "min_soc_prozent" not in parameter:
-            parameter["min_soc_prozent"] = None
+            parameter["min_soc_prozent"] = 0
 
         # Perform optimization simulation
         result = opt_class.optimierung_ems(parameter=parameter, start_hour=datetime.now().hour)
-        print(result)
+        # print(result)
         # convert to JSON (None accepted by dumps)
-        return jsonify(result)
+        return NumpyEncoder.dumps(result)
 
 
 @app.route("/visualization_results.pdf")
