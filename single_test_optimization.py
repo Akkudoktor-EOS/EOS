@@ -278,7 +278,7 @@ start_time = time.time()
 
 # Initialize the optimization problem
 opt_class = optimization_problem(
-    prediction_hours=48, penalty=10, optimization_hours=24, verbose=True, fixed_seed=42
+    prediction_hours=48, strafe=10, optimization_hours=24, verbose=True, fixed_seed=42
 )
 
 # Perform the optimisation based on the provided parameters and start hour
