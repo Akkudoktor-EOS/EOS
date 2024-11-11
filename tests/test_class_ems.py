@@ -3,7 +3,7 @@ import pytest
 
 from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
-from akkudoktoreos.class_haushaltsgeraet import Homeappliance
+from akkudoktoreos.class_haushaltsgeraet import HomeAppliance
 from akkudoktoreos.class_inverter import Wechselrichter  # Example import
 
 prediction_hours = 48
@@ -23,7 +23,7 @@ def create_ems_instance():
     wechselrichter = Wechselrichter(10000, akku)
 
     # Household device (currently not used, set to None)
-    home_appliance = Homeappliance(
+    home_appliance = HomeAppliance(
         hours=prediction_hours,
         consumption_wh=2000,
         duration_h=2,

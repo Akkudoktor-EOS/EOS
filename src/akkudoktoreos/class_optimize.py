@@ -6,7 +6,7 @@ from deap import algorithms, base, creator, tools
 
 from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
-from akkudoktoreos.class_haushaltsgeraet import Homeappliance
+from akkudoktoreos.class_haushaltsgeraet import HomeAppliance
 from akkudoktoreos.class_inverter import Wechselrichter
 from akkudoktoreos.config import possible_ev_charge_currents
 from akkudoktoreos.visualize import visualisiere_ergebnisse
@@ -414,7 +414,7 @@ class optimization_problem:
 
         # Initialize household appliance if applicable
         dish_washer = (
-            Homeappliance(
+            HomeAppliance(
                 hours=self.prediction_hours,
                 consumption_wh=parameter["home_appliance_wh"],
                 duration_h=parameter["home_appliance_duration"],

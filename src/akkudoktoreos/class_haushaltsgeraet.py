@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class Homeappliance:
+class HomeAppliance:
     def __init__(self, hours=None, consumption_wh=None, duration_h=None):
         self.hours = hours  # Total duration for which the planning is done
         self.consumption_wh = consumption_wh  # Total energy consumption of the device in kWh
