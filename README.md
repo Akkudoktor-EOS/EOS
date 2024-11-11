@@ -9,9 +9,28 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## Installation
 
 Good installation guide:
-https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/
+<https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/>
 
 The project requires Python 3.10 or newer.
+
+## Configuration
+
+This project uses a `config.json` file to manage configuration settings.
+
+### Default Configuration
+
+A default configuration file `default.config.json` is provided. This file contains all the necessary configuration keys with their default values.
+
+### Custom Configuration
+
+Users can specify a custom configuration directory by setting the environment variable `EOS_DIR`.
+
+- If the directory specified by `EOS_DIR` contains an existing `config.json` file, the application will use this configuration file.
+- If the `config.json` file does not exist in the specified directory, the `default.config.json` file will be copied to the directory as `config.json`.
+
+### Configuration Updates
+
+If the configuration keys in the `config.json` file are missing or different from those in `default.config.json`, they will be automatically updated to match the default settings, ensuring that all required keys are present.
 
 ### Quick Start Guide
 
@@ -27,8 +46,7 @@ On MacOS (requires [Homebrew](https://brew.sh)):
 brew install make
 ```
 
-Next, adjust `config.py`.
-The server can then be started with `make run`. A full overview of the main shortcuts is given by `make help`.
+The server can be started with `make run`. A full overview of the main shortcuts is given by `make help`.
 
 ### Detailed Instructions
 
@@ -56,6 +74,7 @@ To always use the Python version from the virtual environment, you should activa
 ```bash
 source .venv/bin/activate
 ```
+
 (for Bash users, the default under Linux) or
 
 ```zsh
@@ -64,7 +83,6 @@ source .venv/bin/activate
 
 ## Usage
 
-Adjust `config.py`.
 To use the system, run `flask_server.py`, which starts the server:
 
 ```bash
@@ -93,7 +111,6 @@ These classes work together to enable a detailed simulation and optimization of 
 
 Each class is designed to be easily customized and extended to integrate additional functions or improvements. For example, new methods can be added for more accurate modeling of PV system or battery behavior. Developers are invited to modify and extend the system according to their needs.
 
-
 # Input for the Flask Server (as of 30.07.2024)
 
 Describes the structure and data types of the JSON object sent to the Flask server, with a forecast period of 48 hours.
@@ -101,74 +118,87 @@ Describes the structure and data types of the JSON object sent to the Flask serv
 ## JSON Object Fields
 
 ### `strompreis_euro_pro_wh`
+
 - **Description**: An array of floats representing the electricity price in euros per watt-hour for different time intervals.
 - **Type**: Array
 - **Element Type**: Float
 - **Length**: 48
 
 ### `gesamtlast`
+
 - **Description**: An array of floats representing the total load (consumption) in watts for different time intervals.
 - **Type**: Array
 - **Element Type**: Float
 - **Length**: 48
 
 ### `pv_forecast`
+
 - **Description**: An array of floats representing the forecasted photovoltaic output in watts for different time intervals.
 - **Type**: Array
 - **Element Type**: Float
 - **Length**: 48
 
 ### `temperature_forecast`
+
 - **Description**: An array of floats representing the temperature forecast in degrees Celsius for different time intervals.
 - **Type**: Array
 - **Element Type**: Float
 - **Length**: 48
 
 ### `pv_soc`
+
 - **Description**: An integer representing the state of charge of the PV battery at the **start** of the current hour (not the current state).
 - **Type**: Integer
 
 ### `pv_akku_cap`
+
 - **Description**: An integer representing the capacity of the photovoltaic battery in watt-hours.
 - **Type**: Integer
 
 ### `einspeiseverguetung_euro_pro_wh`
+
 - **Description**: A float representing the feed-in compensation in euros per watt-hour.
 - **Type**: Float
 
 ### `eauto_min_soc`
+
 - **Description**: An integer representing the minimum state of charge (SOC) of the electric vehicle in percentage.
 - **Type**: Integer
 
 ### `eauto_cap`
+
 - **Description**: An integer representing the capacity of the electric vehicle battery in watt-hours.
 - **Type**: Integer
 
 ### `eauto_charge_efficiency`
+
 - **Description**: A float representing the charging efficiency of the electric vehicle.
 - **Type**: Float
 
 ### `eauto_charge_power`
+
 - **Description**: An integer representing the charging power of the electric vehicle in watts.
 - **Type**: Integer
 
 ### `eauto_soc`
+
 - **Description**: An integer representing the current state of charge (SOC) of the electric vehicle in percentage.
 - **Type**: Integer
 
 ### `start_solution`
+
 - **Description**: Can be `null` or contain a previous solution (if available).
 - **Type**: `null` or object
 
 ### `haushaltsgeraet_wh`
+
 - **Description**: An integer representing the energy consumption of a household device in watt-hours.
 - **Type**: Integer
 
 ### `haushaltsgeraet_dauer`
+
 - **Description**: An integer representing the usage duration of a household device in hours.
 - **Type**: Integer
-
-
 
 # JSON Output Description
 
@@ -179,9 +209,11 @@ This document describes the structure and data types of the JSON output returned
 ## JSON Output Fields (as of 30.7.2024)
 
 ### discharge_hours_bin
+
 An array that indicates for each hour of the forecast period (in this example, 48 hours) whether energy is discharged from the battery or not. The values are either `0` (no discharge) or `1` (discharge).
 
 ### eauto_obj
+
 This object contains information related to the electric vehicle and its charging and discharging behavior:
 
 - **charge_array**: Indicates for each hour whether the EV is charging (`0` for no charging, `1` for charging).
@@ -210,12 +242,15 @@ This object contains information related to the electric vehicle and its chargin
   - **Type**: Integer
 
 ### eautocharge_hours_float
+
 An array of binary values (0 or 1) that indicates whether the EV will be charged in a certain hour.
+
 - **Type**: Array
 - **Element Type**: Integer (0 or 1)
 - **Length**: 48
 
 ### result
+
 This object contains the results of the simulation and provides insights into various parameters over the entire forecast period:
 
 - **E-Auto_SoC_pro_Stunde**: The state of charge of the EV for each hour.
@@ -264,57 +299,61 @@ This object contains the results of the simulation and provides insights into va
   - **Length**: 35
 
 ### simulation_data
+
 An object containing the simulated data.
-  - **E-Auto_SoC_pro_Stunde**: An array of floats representing the simulated state of charge of the electric car per hour.
-    - **Type**: Array
-    - **Element Type**: Float
-    - **Length**: 35
-  - **Eigenverbrauch_Wh_pro_Stunde**: An array of floats representing the simulated self-consumption in watt-hours per hour.
-    - **Type**: Array
-    - **Element Type**: Float
-    - **Length**: 35
-  - **Einnahmen_Euro_pro_Stunde**: An array of floats representing the simulated income in euros per hour.
-    - **Type**: Array
-    - **Element Type**: Float
-    - **Length**: 35
-  - **Gesamt_Verluste**: The total simulated losses in watt-hours.
-    - **Type**: Float
-  - **Gesamtbilanz_Euro**: The total simulated balance in euros.
-    - **Type**: Float
-  - **Gesamteinnahmen_Euro**: The total simulated income in euros.
-    - **Type**: Float
-  - **Gesamtkosten_Euro**: The total simulated costs in euros.
-    - **Type**: Float
-  - **Haushaltsgeraet_wh_pro_stunde**: An array of floats representing the simulated energy consumption of a household appliance in watt-hours per hour.
-    - **Type**: Array
-    - **Element Type**: Float
-    - **Length**: 35
-  - **Kosten_Euro_pro_Stunde**: An array of floats representing the simulated costs in euros per hour.
-    - **Type**: Array
-    - **Element Type**: Float
-    - **Length**: 35
-  - **Netzbezug_Wh_pro_Stunde**: An array of floats representing the simulated grid consumption in watt-hours per hour.
-    - **Type**: Array
-    - **Element Type**: Float
-    - **Length**: 35
-  - **Netzeinspeisung_Wh_pro_Stunde**: An array of floats representing the simulated grid feed-in in watt-hours per hour.
-    - **Type**: Array
-    - **Element Type**: Float
-    - **Length**: 35
-  - **Verluste_Pro_Stunde**: An array of floats representing the simulated losses per hour.
-    - **Type**: Array
-    - **Element Type**: Float
-    - **Length**: 35
-  - **akku_soc_pro_stunde**: An array of floats representing the simulated state of charge of the battery in percentage per hour.
-    - **Type**: Array
-    - **Element Type**: Float
-    - **Length**: 35
+
+- **E-Auto_SoC_pro_Stunde**: An array of floats representing the simulated state of charge of the electric car per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
+- **Eigenverbrauch_Wh_pro_Stunde**: An array of floats representing the simulated self-consumption in watt-hours per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
+- **Einnahmen_Euro_pro_Stunde**: An array of floats representing the simulated income in euros per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
+- **Gesamt_Verluste**: The total simulated losses in watt-hours.
+  - **Type**: Float
+- **Gesamtbilanz_Euro**: The total simulated balance in euros.
+  - **Type**: Float
+- **Gesamteinnahmen_Euro**: The total simulated income in euros.
+  - **Type**: Float
+- **Gesamtkosten_Euro**: The total simulated costs in euros.
+  - **Type**: Float
+- **Haushaltsgeraet_wh_pro_stunde**: An array of floats representing the simulated energy consumption of a household appliance in watt-hours per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
+- **Kosten_Euro_pro_Stunde**: An array of floats representing the simulated costs in euros per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
+- **Netzbezug_Wh_pro_Stunde**: An array of floats representing the simulated grid consumption in watt-hours per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
+- **Netzeinspeisung_Wh_pro_Stunde**: An array of floats representing the simulated grid feed-in in watt-hours per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
+- **Verluste_Pro_Stunde**: An array of floats representing the simulated losses per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
+- **akku_soc_pro_stunde**: An array of floats representing the simulated state of charge of the battery in percentage per hour.
+  - **Type**: Array
+  - **Element Type**: Float
+  - **Length**: 35
 
 ### spuelstart
+
 - **Description**: Can be `null` or contain an object representing the start of washing (if applicable).
 - **Type**: null or object
 
 ### start_solution
+
 - **Description**: An array of binary values (0 or 1) representing a possible starting solution for the simulation.
 - **Type**: Array
 - **Element Type**: Integer (0 or 1)

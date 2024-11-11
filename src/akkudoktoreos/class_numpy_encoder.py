@@ -13,8 +13,7 @@ class NumpyEncoder(json.JSONEncoder):
 
     @staticmethod
     def dumps(data):
-        """
-        Static method to serialize a Python object into a JSON string using NumpyEncoder.
+        """Static method to serialize a Python object into a JSON string using NumpyEncoder.
 
         Args:
             data: The Python object to serialize.
