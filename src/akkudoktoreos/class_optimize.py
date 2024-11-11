@@ -8,25 +8,24 @@ from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter
-from akkudoktoreos.config import possible_ev_charge_currents
+from akkudoktoreos.config import AppConfig
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
 class optimization_problem:
     def __init__(
         self,
-        prediction_hours: int = 48,
-        strafe: float = 10,
-        optimization_hours: int = 24,
+        config: AppConfig,
         verbose: bool = False,
         fixed_seed: Optional[int] = None,
     ):
         """Initialize the optimization problem with the required parameters."""
-        self.prediction_hours = prediction_hours
-        self.strafe = strafe
+        self._config = config
+        self.prediction_hours = config.eos.prediction_hours
+        self.strafe = config.eos.penalty
         self.opti_param = None
-        self.fixed_eauto_hours = prediction_hours - optimization_hours
-        self.possible_charge_values = possible_ev_charge_currents
+        self.fixed_eauto_hours = config.eos.prediction_hours - config.eos.optimization_hours
+        self.possible_charge_values = config.eos.available_charging_rates_in_percentage
         self.verbose = verbose
         self.fix_seed = fixed_seed
         self.optimize_ev = True
@@ -210,7 +209,10 @@ class optimization_problem:
 
         if self.optimize_ev:
             self.toolbox.register(
-                "attr_ev_charge_index", random.randint, 0, len(possible_ev_charge_currents) - 1
+                "attr_ev_charge_index",
+                random.randint,
+                0,
+                len(self._config.eos.available_charging_rates_in_percentage) - 1,
             )
         self.toolbox.register("attr_int", random.randint, start_hour, 23)
 
@@ -236,7 +238,7 @@ class optimization_problem:
             "mutate_ev_charge_index",
             tools.mutUniformInt,
             low=0,
-            up=len(possible_ev_charge_currents) - 1,
+            up=len(self._config.eos.available_charging_rates_in_percentage) - 1,
             indpb=0.2,
         )
         # - Start hour mutation for household devices
@@ -271,7 +273,8 @@ class optimization_problem:
 
         if self.optimize_ev:
             eautocharge_hours_float = [
-                possible_ev_charge_currents[i] for i in eautocharge_hours_index
+                self._config.eos.available_charging_rates_in_percentage[i]
+                for i in eautocharge_hours_index
             ]
             ems.set_ev_charge_hours(eautocharge_hours_float)
         else:
@@ -420,6 +423,7 @@ class optimization_problem:
         # Initialize the inverter and energy management system
         wr = Wechselrichter(10000, akku)
         ems = EnergieManagementSystem(
+            config=self._config.eos,
             gesamtlast=parameter["gesamtlast"],
             pv_prognose_wh=parameter["pv_forecast"],
             strompreis_euro_pro_wh=parameter["strompreis_euro_pro_wh"],
@@ -444,23 +448,24 @@ class optimization_problem:
         )
         if self.optimize_ev:
             eautocharge_hours_float = [
-                possible_ev_charge_currents[i] for i in eautocharge_hours_float
+                self._config.eos.available_charging_rates_in_percentage[i]
+                for i in eautocharge_hours_float
             ]
 
         ac_charge, dc_charge, discharge = self.decode_charge_discharge(discharge_hours_bin)
         # Visualize the results
         visualisiere_ergebnisse(
-            parameter["gesamtlast"],
-            parameter["pv_forecast"],
-            parameter["strompreis_euro_pro_wh"],
-            o,
-            ac_charge,
-            dc_charge,
-            discharge,
-            parameter["temperature_forecast"],
-            start_hour,
-            self.prediction_hours,
-            einspeiseverguetung_euro_pro_wh,
+            gesamtlast=parameter["gesamtlast"],
+            pv_forecast=parameter["pv_forecast"],
+            strompreise=parameter["strompreis_euro_pro_wh"],
+            ergebnisse=o,
+            ac=ac_charge,
+            dc=dc_charge,
+            discharge=discharge,
+            temperature=parameter["temperature_forecast"],
+            start_hour=start_hour,
+            einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
+            config=self._config,
             extra_data=extra_data,
         )
 
