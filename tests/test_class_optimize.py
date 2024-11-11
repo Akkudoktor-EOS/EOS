@@ -19,7 +19,7 @@ def test_optimize(fn_in, fn_out):
         expected_output_data = json.load(f_out)
 
     opt_class = optimization_problem(
-        prediction_hours=48, strafe=10, optimization_hours=24, fixed_seed=42
+        prediction_hours=48, penalty=10, optimization_hours=24, fixed_seed=42
     )
     start_hour = 10
 

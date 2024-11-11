@@ -6,7 +6,7 @@ from deap import algorithms, base, creator, tools
 
 from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
-from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
+from akkudoktoreos.class_haushaltsgeraet import Homeappliance
 from akkudoktoreos.class_inverter import Wechselrichter
 from akkudoktoreos.config import possible_ev_charge_currents
 from akkudoktoreos.visualize import visualisiere_ergebnisse
@@ -16,14 +16,14 @@ class optimization_problem:
     def __init__(
         self,
         prediction_hours: int = 48,
-        strafe: float = 10,
+        penalty: float = 10,
         optimization_hours: int = 24,
         verbose: bool = False,
         fixed_seed: Optional[int] = None,
     ):
         """Initialize the optimization problem with the required parameters."""
         self.prediction_hours = prediction_hours
-        self.strafe = strafe
+        self.penalty = penalty
         self.opti_param = None
         self.fixed_eauto_hours = prediction_hours - optimization_hours
         self.possible_charge_values = possible_ev_charge_currents
@@ -133,7 +133,7 @@ class optimization_problem:
             individual[self.prediction_hours : self.prediction_hours * 2] = ev_charge_part_mutated
 
         # Step 3: Mutate appliance start times if household appliances are part of the optimization
-        if self.opti_param["haushaltsgeraete"] > 0:
+        if self.opti_param["home_appliance"] > 0:
             # Extract the appliance part (typically a single value for the start hour)
             appliance_part = [individual[-1]]
 
@@ -159,7 +159,7 @@ class optimization_problem:
             ]
 
         # Add the start time of the household appliance if it's being optimized
-        if self.opti_param["haushaltsgeraete"] > 0:
+        if self.opti_param["home_appliance"] > 0:
             individual_components += [self.toolbox.attr_int()]
 
         return creator.Individual(individual_components)
@@ -183,7 +183,7 @@ class optimization_problem:
 
         spuelstart_int = (
             individual[-1]
-            if self.opti_param and self.opti_param.get("haushaltsgeraete", 0) > 0
+            if self.opti_param and self.opti_param.get("home_appliance", 0) > 0
             else None
         )
         return discharge_hours_bin, eautocharge_hours_float, spuelstart_int
@@ -260,8 +260,8 @@ class optimization_problem:
         discharge_hours_bin, eautocharge_hours_index, spuelstart_int = self.split_individual(
             individual
         )
-        if self.opti_param.get("haushaltsgeraete", 0) > 0:
-            ems.set_haushaltsgeraet_start(spuelstart_int, global_start_hour=start_hour)
+        if self.opti_param.get("home_appliance", 0) > 0:
+            ems.set_home_appliance_start(spuelstart_int, global_start_hour=start_hour)
 
         ac, dc, discharge = self.decode_charge_discharge(discharge_hours_bin)
 
@@ -308,7 +308,7 @@ class optimization_problem:
         # Penalty for not meeting the minimum SOC (State of Charge) requirement
         # if parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent() <= 0.0 and  self.optimize_ev:
         #     gesamtbilanz += sum(
-        #         self.strafe for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
+        #         self.penalty for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
         #     )
 
         individual.extra_data = (
@@ -326,7 +326,7 @@ class optimization_problem:
         if self.optimize_ev:
             gesamtbilanz += max(
                 0,
-                (parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent()) * self.strafe,
+                (parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent()) * self.penalty,
             )
 
         return (gesamtbilanz,)
@@ -414,12 +414,12 @@ class optimization_problem:
 
         # Initialize household appliance if applicable
         spuelmaschine = (
-            Haushaltsgeraet(
+            Homeappliance(
                 hours=self.prediction_hours,
-                verbrauch_wh=parameter["haushaltsgeraet_wh"],
-                dauer_h=parameter["haushaltsgeraet_dauer"],
+                verbrauch_wh=parameter["home_appliance"],
+                dauer_h=parameter["home_appliance_duration"],
             )
-            if parameter["haushaltsgeraet_dauer"] > 0
+            if parameter["home_appliance_duration"] > 0
             else None
         )
 
@@ -431,12 +431,12 @@ class optimization_problem:
             strompreis_euro_pro_wh=parameter["strompreis_euro_pro_wh"],
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
             eauto=eauto,
-            haushaltsgeraet=spuelmaschine,
+            home_appliance=spuelmaschine,
             wechselrichter=wr,
         )
 
         # Setup the DEAP environment and optimization process
-        self.setup_deap_environment({"haushaltsgeraete": 1 if spuelmaschine else 0}, start_hour)
+        self.setup_deap_environment({"home_appliance": 1 if spuelmaschine else 0}, start_hour)
         self.toolbox.register(
             "evaluate",
             lambda ind: self.evaluate(ind, ems, parameter, start_hour, worst_case),
@@ -480,7 +480,7 @@ class optimization_problem:
             "Einnahmen_Euro_pro_Stunde",
             "E-Auto_SoC_pro_Stunde",
             "Verluste_Pro_Stunde",
-            "Haushaltsgeraet_wh_pro_stunde",
+            "home_appliance_wh_per_hour",
         ]
 
         # Loop through each key in the list

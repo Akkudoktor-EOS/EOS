@@ -30,7 +30,7 @@ app = Flask(__name__)
 
 opt_class = optimization_problem(
     prediction_hours=prediction_hours,
-    strafe=10,
+    penalty=10,
     optimization_hours=optimization_hours,
     verbose=True,
 )
@@ -231,8 +231,8 @@ def flask_optimize():
             "eauto_soc",
             "pv_soc",
             "start_solution",
-            "haushaltsgeraet_dauer",
-            "haushaltsgeraet_wh",
+            "home_appliance_duration",
+            "home_appliance_wh",
         ]
         # Identify any missing parameters
         missing_params = [p for p in required_parameters if p not in parameter]

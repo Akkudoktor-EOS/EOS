@@ -266,9 +266,9 @@ parameter = {
     # Initial solution for the optimization
     "start_solution": start_solution,
     # Household appliance consumption (Wh)
-    "haushaltsgeraet_wh": 5000,
+    "home_appliance_wh": 5000,
     # Duration of appliance usage (hours)
-    "haushaltsgeraet_dauer": 0,
+    "home_appliance_duration": 0,
     # Minimum Soc PV Battery
     "min_soc_prozent": 15,
 }
@@ -278,7 +278,7 @@ start_time = time.time()
 
 # Initialize the optimization problem
 opt_class = optimization_problem(
-    prediction_hours=48, strafe=10, optimization_hours=24, verbose=True, fixed_seed=42
+    prediction_hours=48, penalty=10, optimization_hours=24, verbose=True, fixed_seed=42
 )
 
 # Perform the optimisation based on the provided parameters and start hour

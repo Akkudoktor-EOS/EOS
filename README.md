@@ -68,7 +68,7 @@ Adjust `config.py`.
 To use the system, run `flask_server.py`, which starts the server:
 
 ```bash
-./flask_server.py
+  ./flask_server.py
 ```
 
 ## Classes and Functionalities
@@ -160,11 +160,11 @@ Describes the structure and data types of the JSON object sent to the Flask serv
 - **Description**: Can be `null` or contain a previous solution (if available).
 - **Type**: `null` or object
 
-### `haushaltsgeraet_wh`
+### `home_appliance_wh`
 - **Description**: An integer representing the energy consumption of a household device in watt-hours.
 - **Type**: Integer
 
-### `haushaltsgeraet_dauer`
+### `home_appliance_duration`
 - **Description**: An integer representing the usage duration of a household device in hours.
 - **Type**: Integer
 
@@ -238,7 +238,7 @@ This object contains the results of the simulation and provides insights into va
   - **Type**: Float
 - **Gesamtkosten_Euro**: The total costs in euros.
   - **Type**: Float
-- **Haushaltsgeraet_wh_pro_stunde**: The energy consumption of a household appliance in watt-hours per hour.
+- **home_appliance_wh_per_hour**: The energy consumption of a household appliance in watt-hours per hour.
   - **Type**: Array
   - **Element Type**: Float
   - **Length**: 35
@@ -285,7 +285,7 @@ An object containing the simulated data.
     - **Type**: Float
   - **Gesamtkosten_Euro**: The total simulated costs in euros.
     - **Type**: Float
-  - **Haushaltsgeraet_wh_pro_stunde**: An array of floats representing the simulated energy consumption of a household appliance in watt-hours per hour.
+  - **home_appliance_wh_per_hour**: An array of floats representing the simulated energy consumption of a household appliance in watt-hours per hour.
     - **Type**: Array
     - **Element Type**: Float
     - **Length**: 35

@@ -45,8 +45,8 @@
       1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1,
       1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
     ],
-    "haushaltsgeraet_wh": 937,
-    "haushaltsgeraet_dauer": 0,
+    "home_appliance": 937,
+    "home_appliance_duration": 0,
     "min_soc_prozent": 15
   }
   

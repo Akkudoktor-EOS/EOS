@@ -3,7 +3,7 @@ import pytest
 
 from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
-from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
+from akkudoktoreos.class_haushaltsgeraet import Homeappliance
 from akkudoktoreos.class_inverter import Wechselrichter  # Example import
 
 prediction_hours = 48
@@ -23,7 +23,7 @@ def create_ems_instance():
     wechselrichter = Wechselrichter(10000, akku)
 
     # Household device (currently not used, set to None)
-    home_appliance = Haushaltsgeraet(
+    home_appliance = Homeappliance(
         hours=prediction_hours,
         verbrauch_wh=2000,
         dauer_h=2,
@@ -196,7 +196,7 @@ def create_ems_instance():
         einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
         eauto=eauto,
         gesamtlast=gesamtlast,
-        haushaltsgeraet=home_appliance,
+        home_appliance=home_appliance,
         wechselrichter=wechselrichter,
     )
 
@@ -256,7 +256,7 @@ def test_simulation(create_ems_instance):
         "Gesamtkosten_Euro",
         "Verluste_Pro_Stunde",
         "Gesamt_Verluste",
-        "Haushaltsgeraet_wh_pro_stunde",
+        "home_appliance_wh_per_hour",
     ]
 
     for key in expected_keys:
@@ -324,18 +324,18 @@ def test_simulation(create_ems_instance):
 
     # Check home appliances
     assert (
-        sum(ems.haushaltsgeraet.get_lastkurve()) == 2000
-    ), "The sum of 'ems.haushaltsgeraet.get_lastkurve()' should be 2000."
+        sum(ems.home_appliance.get_lastkurve()) == 2000
+    ), "The sum of 'ems.home_appliance.get_lastkurve()' should be 2000."
 
     assert (
         np.nansum(
             np.where(
-                np.equal(result["Haushaltsgeraet_wh_pro_stunde"], None),
+                np.equal(result["home_appliance_wh_per_hour"], None),
                 np.nan,
-                np.array(result["Haushaltsgeraet_wh_pro_stunde"]),
+                np.array(result["home_appliance_wh_per_hour"]),
             )
         )
         == 2000
-    ), "The sum of 'Haushaltsgeraet_wh_pro_stunde' should be 2000."
+    ), "The sum of 'home_appliance_wh_per_hour' should be 2000."
 
     print("All tests passed successfully.")

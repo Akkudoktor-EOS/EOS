@@ -123,15 +123,15 @@ if __name__ == "__main__":
     start_innentemperatur = 15  # Initial indoor temperature
     isolationseffizienz = 0.8  # Insulation efficiency
     gewuenschte_innentemperatur = 20  # Desired indoor temperature
-    wp = Heatpump(max_heizleistung, 24)  # Initialize heat pump with prediction hours
+    hp = Heatpump(max_heizleistung, 24)  # Initialize heat pump with prediction hours
 
     # Print COP for various outside temperatures
-    print(wp.calculate_cop(-10), " ", wp.calculate_cop(0), " ", wp.calculate_cop(10))
+    print(hp.calculate_cop(-10), " ", hp.calculate_cop(0), " ", hp.calculate_cop(10))
 
     # 24 hours of outside temperatures (example values)
     temperaturen = [ 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -5, -2, 5, ]  # fmt: skip
 
     # Calculate the 24-hour power data
-    leistungsdaten = wp.simulate_24h(temperaturen)
+    leistungsdaten = hp.simulate_24h(temperaturen)
 
     print(leistungsdaten)
