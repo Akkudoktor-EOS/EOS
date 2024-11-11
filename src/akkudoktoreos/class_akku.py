@@ -149,8 +149,8 @@ class PVAkku:
         return geladene_menge, verluste_wh
 
     def aktueller_energieinhalt(self):
-        """
-        This method returns the current remaining energy considering efficiency.
+        """This method returns the current remaining energy considering efficiency.
+
         It accounts for both charging and discharging efficiency.
         """
         # Calculate remaining energy considering discharge efficiency

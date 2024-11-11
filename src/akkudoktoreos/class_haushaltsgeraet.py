@@ -9,8 +9,8 @@ class Haushaltsgeraet:
         self.lastkurve = np.zeros(self.hours)  # Initialize the load curve with zeros
 
     def set_startzeitpunkt(self, start_hour, global_start_hour=0):
-        """
-        Sets the start time of the device and generates the corresponding load curve.
+        """Sets the start time of the device and generates the corresponding load curve.
+
         :param start_hour: The hour at which the device should start.
         """
         self.reset()
@@ -27,20 +27,16 @@ class Haushaltsgeraet:
         self.lastkurve[start_hour : start_hour + self.dauer_h] = leistung_pro_stunde
 
     def reset(self):
-        """
-        Resets the load curve.
-        """
+        """Resets the load curve."""
         self.lastkurve = np.zeros(self.hours)
 
     def get_lastkurve(self):
-        """
-        Returns the current load curve.
-        """
+        """Returns the current load curve."""
         return self.lastkurve
 
     def get_last_fuer_stunde(self, hour):
-        """
-        Returns the load for a specific hour.
+        """Returns the load for a specific hour.
+
         :param hour: The hour for which the load is queried.
         :return: The load in watts for the specified hour.
         """
@@ -50,7 +46,5 @@ class Haushaltsgeraet:
         return self.lastkurve[hour]
 
     def spaetestmoeglicher_startzeitpunkt(self):
-        """
-        Returns the latest possible start time at which the device can still run completely.
-        """
+        """Returns the latest possible start time at which the device can still run completely."""
         return self.hours - self.dauer_h
