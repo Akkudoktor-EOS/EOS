@@ -92,7 +92,7 @@ class EnergieManagementSystem:
             verbrauch = self.gesamtlast[stunde]
             verluste_wh_pro_stunde[stunde_since_now] = 0.0
             if self.home_appliance:
-                ha_load = self.home_appliance.get_last_fuer_stunde(stunde)
+                ha_load = self.home_appliance.get_load_for_hour(stunde)
                 verbrauch += ha_load
                 home_appliance_wh_per_hour[stunde_since_now] = ha_load
 

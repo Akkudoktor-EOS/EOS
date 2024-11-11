@@ -324,8 +324,8 @@ def test_simulation(create_ems_instance):
 
     # Check home appliances
     assert (
-        sum(ems.home_appliance.get_lastkurve()) == 2000
-    ), "The sum of 'ems.home_appliance.get_lastkurve()' should be 2000."
+        sum(ems.home_appliance.get_load_curve()) == 2000
+    ), "The sum of 'ems.home_appliance.get_load_curve()' should be 2000."
 
     assert (
         np.nansum(
