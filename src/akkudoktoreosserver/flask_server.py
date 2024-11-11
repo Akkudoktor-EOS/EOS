@@ -20,20 +20,18 @@ from akkudoktoreos.class_optimize import optimization_problem
 from akkudoktoreos.class_pv_forecast import PVForecast
 from akkudoktoreos.class_strompreis import HourlyElectricityPriceForecast
 from akkudoktoreos.config import (
+    SetupIncomplete,
     get_start_enddate,
-    optimization_hours,
-    output_dir,
-    prediction_hours,
+    get_working_dir,
+    load_config,
 )
 
 app = Flask(__name__)
 
-opt_class = optimization_problem(
-    prediction_hours=prediction_hours,
-    strafe=10,
-    optimization_hours=optimization_hours,
-    verbose=True,
-)
+working_dir = get_working_dir()
+# copy config to working directory. Make this a CLI option later
+config = load_config(working_dir, True)
+opt_class = optimization_problem(config)
 
 
 def isfloat(num: Any) -> TypeGuard[float]:
@@ -58,14 +56,11 @@ def isfloat(num: Any) -> TypeGuard[float]:
 @app.route("/strompreis", methods=["GET"])
 def flask_strompreis():
     # Get the current date and the end date based on prediction hours
-    date_now, date = get_start_enddate(prediction_hours, startdate=datetime.now().date())
-    filepath = os.path.join(
-        r"test_data", r"strompreise_akkudokAPI.json"
-    )  # Adjust the path to the JSON file
+    date_now, date = get_start_enddate(config.eos.prediction_hours, startdate=datetime.now().date())
     price_forecast = HourlyElectricityPriceForecast(
         source=f"https://api.akkudoktor.net/prices?start={date_now}&end={date}",
-        prediction_hours=prediction_hours,
-        cache=False,
+        config=config.eos.prediction_hours,
+        use_cache=False,
     )
     specific_date_prices = price_forecast.get_price_for_daterange(
         date_now, date
@@ -141,7 +136,7 @@ def flask_gesamtlast_simple():
             request.args.get("year_energy")
         )  # Get annual energy value from query parameters
         date_now, date = get_start_enddate(
-            prediction_hours, startdate=datetime.now().date()
+            config.eos.prediction_hours, startdate=datetime.now().date()
         )  # Get the current date and prediction end date
 
         ###############
@@ -159,7 +154,9 @@ def flask_gesamtlast_simple():
             0
         ]  # Get expected household load for the date range
 
-        gesamtlast = Gesamtlast(prediction_hours=prediction_hours)  # Create Gesamtlast instance
+        gesamtlast = Gesamtlast(
+            prediction_hours=config.eos.prediction_hours
+        )  # Create Gesamtlast instance
         gesamtlast.hinzufuegen(
             "Haushalt", leistung_haushalt
         )  # Add household load to total load calculation
@@ -181,13 +178,15 @@ def flask_pvprognose():
         # Retrieve URL and AC power measurement from query parameters
         url = request.args.get("url")
         ac_power_measurement = request.args.get("ac_power_measurement")
-        date_now, date = get_start_enddate(prediction_hours, startdate=datetime.now().date())
+        date_now, date = get_start_enddate(
+            config.eos.prediction_hours, startdate=datetime.now().date()
+        )
 
         ###############
         # PV Forecast
         ###############
         PVforecast = PVForecast(
-            prediction_hours=prediction_hours, url=url
+            prediction_hours=config.eos.prediction_hours, url=url
         )  # Instantiate PVForecast with given parameters
         if isfloat(ac_power_measurement):  # Check if the AC power measurement is a valid float
             PVforecast.update_ac_power_measurement(
@@ -243,7 +242,7 @@ def flask_optimize():
 
         # Optional min SoC PV Battery
         if "min_soc_prozent" not in parameter:
-            parameter["min_soc_prozent"] = None
+            parameter["min_soc_prozent"] = 0
 
         # Perform optimization simulation
         result = opt_class.optimierung_ems(parameter=parameter, start_hour=datetime.now().hour)
@@ -255,9 +254,10 @@ def flask_optimize():
 @app.route("/visualization_results.pdf")
 def get_pdf():
     # Endpoint to serve the generated PDF with visualization results
-    return send_from_directory(
-        os.path.abspath(output_dir), "visualization_results.pdf"
-    )  # Adjust the directory if needed
+    output_path = config.working_dir / config.directories.output
+    if not output_path.is_dir():
+        raise SetupIncomplete(f"Output path does not exist: {output_path}.")
+    return send_from_directory(output_path, "visualization_results.pdf")
 
 
 @app.route("/site-map")
@@ -293,6 +293,8 @@ def root():
 
 if __name__ == "__main__":
     try:
+        config.run_setup()
+
         # Set host and port from environment variables or defaults
         host = os.getenv("FLASK_RUN_HOST", "0.0.0.0")
         port = os.getenv("FLASK_RUN_PORT", 8503)

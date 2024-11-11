@@ -4,7 +4,8 @@ import pytest
 from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import HomeAppliance
-from akkudoktoreos.class_inverter import Wechselrichter  # Example import
+from akkudoktoreos.class_inverter import Wechselrichter
+from akkudoktoreos.config import AppConfig
 
 prediction_hours = 48
 optimization_hours = 24
@@ -13,10 +14,8 @@ start_hour = 1
 
 # Example initialization of necessary components
 @pytest.fixture
-def create_ems_instance():
-    """
-    Fixture to create an EnergieManagementSystem instance with given test parameters.
-    """
+def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
+    """Fixture to create an EnergieManagementSystem instance with given test parameters."""
     # Initialize the battery and the inverter
     akku = PVAkku(kapazitaet_wh=5000, start_soc_prozent=80, hours=48, min_soc_prozent=10)
     akku.reset()
@@ -191,6 +190,7 @@ def create_ems_instance():
 
     # Initialize the energy management system with the respective parameters
     ems = EnergieManagementSystem(
+        config=tmp_config.eos,
         pv_prognose_wh=pv_prognose_wh,
         strompreis_euro_pro_wh=strompreis_euro_pro_wh,
         einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
@@ -204,9 +204,7 @@ def create_ems_instance():
 
 
 def test_simulation(create_ems_instance):
-    """
-    Test the EnergieManagementSystem simulation method.
-    """
+    """Test the EnergieManagementSystem simulation method."""
     ems = create_ems_instance
 
     # Simulate starting from hour 1 (this value can be adjusted)

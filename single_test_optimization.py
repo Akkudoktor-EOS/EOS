@@ -5,9 +5,8 @@ import time
 import numpy as np
 
 from akkudoktoreos.class_numpy_encoder import NumpyEncoder
-
-# Import necessary modules from the project
 from akkudoktoreos.class_optimize import optimization_problem
+from akkudoktoreos.config import get_working_dir, load_config
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 start_hour = 0
@@ -276,10 +275,10 @@ parameter = {
 # Startzeit nehmen
 start_time = time.time()
 
-# Initialize the optimization problem
-opt_class = optimization_problem(
-    prediction_hours=48, strafe=10, optimization_hours=24, verbose=True, fixed_seed=42
-)
+# Initialize the optimization problem using the default configuration
+working_dir = get_working_dir()
+config = load_config(working_dir)
+opt_class = optimization_problem(config, verbose=True, fixed_seed=42)
 
 # Perform the optimisation based on the provided parameters and start hour
 ergebnis = opt_class.optimierung_ems(parameter=parameter, start_hour=start_hour)
@@ -299,17 +298,19 @@ ac_charge, dc_charge, discharge = (
 )
 
 visualisiere_ergebnisse(
-    gesamtlast,
-    pv_forecast,
-    strompreis_euro_pro_wh,
-    ergebnis["result"],
-    ac_charge,
-    dc_charge,
-    discharge,
-    temperature_forecast,
-    start_hour,
-    48,
-    np.full(48, parameter["einspeiseverguetung_euro_pro_wh"]),
+    gesamtlast=gesamtlast,
+    pv_forecast=pv_forecast,
+    strompreise=strompreis_euro_pro_wh,
+    ergebnisse=ergebnis["result"],
+    ac=ac_charge,
+    dc=dc_charge,
+    discharge=discharge,
+    temperature=temperature_forecast,
+    start_hour=start_hour,
+    einspeiseverguetung_euro_pro_wh=np.full(
+        config.eos.feed_in_tariff_eur_per_wh, parameter["einspeiseverguetung_euro_pro_wh"]
+    ),
+    config=config,
     filename="visualization_results.pdf",
     extra_data=None,
 )
