@@ -115,13 +115,13 @@ def flask_gesamtlast():
     adjuster = LoadPredictionAdjuster(measured_data, predicted_data, lf)
     adjuster.calculate_weighted_mean()  # Calculate weighted mean for adjustment
     adjuster.adjust_predictions()  # Adjust predictions based on measured data
-    future_predictions = adjuster.predict_next_hours(config.eos.prediction_hours)  # Predict future load
+    future_predictions = adjuster.predict_next_hours(
+        config.eos.prediction_hours
+    )  # Predict future load
 
     # Extract household power predictions
     leistung_haushalt = future_predictions["Adjusted Pred"].values
-    gesamtlast = LoadAggregator(
-        prediction_hours=config.eos.prediction_hours
-    )
+    gesamtlast = LoadAggregator(prediction_hours=config.eos.prediction_hours)
     gesamtlast.add_load(
         "Haushalt", leistung_haushalt
     )  # Add household load to total load calculation
