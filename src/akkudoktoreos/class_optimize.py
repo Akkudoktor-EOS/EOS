@@ -7,7 +7,7 @@ from deap import algorithms, base, creator, tools
 from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
-from akkudoktoreos.class_inverter import Wechselrichter
+from akkudoktoreos.class_inverter import Inverter
 from akkudoktoreos.config import AppConfig
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
@@ -421,7 +421,7 @@ class optimization_problem:
         )
 
         # Initialize the inverter and energy management system
-        wr = Wechselrichter(10000, akku)
+        wr = Inverter(10000, akku)
         ems = EnergieManagementSystem(
             config=self._config.eos,
             gesamtlast=parameter["gesamtlast"],

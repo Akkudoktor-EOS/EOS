@@ -18,7 +18,7 @@ class EnergieManagementSystem:
         haushaltsgeraet: Optional[object] = None,
         wechselrichter: Optional[object] = None,
     ):
-        self.akku = wechselrichter.akku
+        self.akku = wechselrichter.battery
         self.gesamtlast = gesamtlast
         self.pv_prognose_wh = pv_prognose_wh
         self.strompreis_euro_pro_wh = strompreis_euro_pro_wh
@@ -110,7 +110,7 @@ class EnergieManagementSystem:
             erzeugung = self.pv_prognose_wh[stunde]
             self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[stunde], stunde)
             netzeinspeisung, netzbezug, verluste, eigenverbrauch = (
-                self.wechselrichter.energie_verarbeiten(erzeugung, verbrauch, stunde)
+                self.wechselrichter.process_energy(erzeugung, verbrauch, stunde)
             )
 
             # AC PV Battery Charge
