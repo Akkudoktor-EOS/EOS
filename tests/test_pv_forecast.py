@@ -25,6 +25,7 @@ Usage:
 """
 
 import json
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -252,6 +253,9 @@ def test_report_ac_power_and_measurement(pv_forecast_instance, sample_forecast_r
     assert report == sample_forecast_report
 
 
+@pytest.mark.skipif(
+    sys.platform.startswith("win"), reason="'other_timezone' fixture not supported on Windows"
+)
 def test_timezone_behaviour(
     pv_forecast_instance, sample_forecast_report, sample_forecast_start, other_timezone
 ):

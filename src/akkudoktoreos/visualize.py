@@ -1,5 +1,4 @@
 import datetime
-import os
 
 # Set the backend for matplotlib to Agg
 import matplotlib
@@ -8,7 +7,7 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.class_sommerzeit import ist_dst_wechsel
-from akkudoktoreos.config import output_dir
+from akkudoktoreos.config import AppConfig, SetupIncomplete
 
 matplotlib.use("Agg")
 
@@ -23,22 +22,24 @@ def visualisiere_ergebnisse(
     discharge,  # Discharge allowed
     temperature,
     start_hour,
-    prediction_hours,
     einspeiseverguetung_euro_pro_wh,
+    config: AppConfig,
     filename="visualization_results.pdf",
     extra_data=None,
 ):
     #####################
     # 24-hour visualization
     #####################
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    output_file = os.path.join(output_dir, filename)
+    output_dir = config.working_dir / config.directories.output
+    if not output_dir.is_dir():
+        raise SetupIncomplete(f"Output path does not exist: {output_dir}.")
+
+    output_file = output_dir.joinpath(filename)
     with PdfPages(output_file) as pdf:
         # Load and PV generation
         plt.figure(figsize=(14, 14))
         plt.subplot(3, 3, 1)
-        hours = np.arange(0, prediction_hours)
+        hours = np.arange(0, config.eos.prediction_hours)
 
         gesamtlast_array = np.array(gesamtlast)
         # Plot individual loads
@@ -101,9 +102,9 @@ def visualisiere_ergebnisse(
         plt.figure(figsize=(14, 10))
 
         if ist_dst_wechsel(datetime.datetime.now()):
-            hours = np.arange(start_hour, prediction_hours - 1)
+            hours = np.arange(start_hour, config.eos.prediction_hours - 1)
         else:
-            hours = np.arange(start_hour, prediction_hours)
+            hours = np.arange(start_hour, config.eos.prediction_hours)
 
         # Energy flow, grid feed-in, and grid consumption
         plt.subplot(3, 2, 1)
@@ -187,7 +188,7 @@ def visualisiere_ergebnisse(
 
         # Plot for AC, DC charging, and Discharge status using bar charts
         ax1 = plt.subplot(3, 2, 5)
-        hours = np.arange(0, prediction_hours)
+        hours = np.arange(0, config.eos.prediction_hours)
         # Plot AC charging as bars (relative values between 0 and 1)
         plt.bar(hours, ac, width=0.4, label="AC Charging (relative)", color="blue", alpha=0.6)
 
@@ -209,16 +210,16 @@ def visualisiere_ergebnisse(
 
         # Configure the plot
         ax1.legend(loc="upper left")
-        ax1.set_xlim(0, prediction_hours)
+        ax1.set_xlim(0, config.eos.prediction_hours)
         ax1.set_xlabel("Hour")
         ax1.set_ylabel("Relative Power (0-1) / Discharge (0 or 1)")
         ax1.set_title("AC/DC Charging and Discharge Overview")
         ax1.grid(True)
 
         if ist_dst_wechsel(datetime.datetime.now()):
-            hours = np.arange(start_hour, prediction_hours - 1)
+            hours = np.arange(start_hour, config.eos.prediction_hours - 1)
         else:
-            hours = np.arange(start_hour, prediction_hours)
+            hours = np.arange(start_hour, config.eos.prediction_hours)
 
         pdf.savefig()  # Save the current figure state to the PDF
         plt.close()  # Close the current figure to free up memory

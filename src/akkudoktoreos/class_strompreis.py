@@ -1,11 +1,13 @@
 import hashlib
 import json
-import os
 import zoneinfo
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import numpy as np
 import requests
+
+from akkudoktoreos.config import AppConfig, SetupIncomplete
 
 
 def repeat_to_shape(array, target_shape):
@@ -23,53 +25,57 @@ def repeat_to_shape(array, target_shape):
 
 class HourlyElectricityPriceForecast:
     def __init__(
-        self, source, cache_dir="cache", charges=0.000228, prediction_hours=24, cache=True
+        self, source: str | Path, config: AppConfig, charges=0.000228, use_cache=True
     ):  # 228
-        self.cache_dir = cache_dir
-        self.cache = cache
-        os.makedirs(self.cache_dir, exist_ok=True)
-        self.cache_time_file = os.path.join(self.cache_dir, "cache_timestamp.txt")
+        self.cache_dir = config.working_dir / config.directories.cache
+        self.use_cache = use_cache
+        if not self.cache_dir.is_dir():
+            raise SetupIncomplete(f"Output path does not exist: {self.cache_dir}.")
+
+        self.cache_time_file = self.cache_dir / "cache_timestamp.txt"
         self.prices = self.load_data(source)
         self.charges = charges
-        self.prediction_hours = prediction_hours
+        self.prediction_hours = config.eos.prediction_hours
 
-    def load_data(self, source):
-        cache_filename = self.get_cache_filename(source)
-        if source.startswith("http"):
-            if os.path.exists(cache_filename) and not self.is_cache_expired() and self.cache:
+    def load_data(self, source: str | Path):
+        cache_file = self.get_cache_file(source)
+        if isinstance(source, str):
+            if cache_file.is_file() and not self.is_cache_expired() and self.use_cache:
                 print("Loading data from cache...")
-                with open(cache_filename, "r") as file:
+                with cache_file.open("r") as file:
                     json_data = json.load(file)
             else:
                 print("Loading data from the URL...")
                 response = requests.get(source)
                 if response.status_code == 200:
                     json_data = response.json()
-                    with open(cache_filename, "w") as file:
+                    with cache_file.open("w") as file:
                         json.dump(json_data, file)
                     self.update_cache_timestamp()
                 else:
                     raise Exception(f"Error fetching data: {response.status_code}")
-        else:
-            with open(source, "r") as file:
+        elif source.is_file():
+            with source.open("r") as file:
                 json_data = json.load(file)
+        else:
+            raise ValueError(f"Input is not a valid path: {source}")
         return json_data["values"]
 
-    def get_cache_filename(self, url):
+    def get_cache_file(self, url):
         hash_object = hashlib.sha256(url.encode())
         hex_dig = hash_object.hexdigest()
-        return os.path.join(self.cache_dir, f"cache_{hex_dig}.json")
+        return self.cache_dir / f"cache_{hex_dig}.json"
 
     def is_cache_expired(self):
-        if not os.path.exists(self.cache_time_file):
+        if not self.cache_time_file.is_file():
             return True
-        with open(self.cache_time_file, "r") as file:
+        with self.cache_time_file.open("r") as file:
             timestamp_str = file.read()
             last_cache_time = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
         return datetime.now() - last_cache_time > timedelta(hours=1)
 
     def update_cache_timestamp(self):
-        with open(self.cache_time_file, "w") as file:
+        with self.cache_time_file.open("w") as file:
             file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
     def get_price_for_date(self, date_str):
