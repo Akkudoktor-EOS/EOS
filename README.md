@@ -238,7 +238,7 @@ This object contains the results of the simulation and provides insights into va
   - **Type**: Float
 - **Gesamtkosten_Euro**: The total costs in euros.
   - **Type**: Float
-- **home_appliance_wh_per_hour**: The energy consumption of a household appliance in watt-hours per hour.
+- **Home_appliance_wh_per_hour**: The energy consumption of a household appliance in watt-hours per hour.
   - **Type**: Array
   - **Element Type**: Float
   - **Length**: 35
@@ -285,7 +285,7 @@ An object containing the simulated data.
     - **Type**: Float
   - **Gesamtkosten_Euro**: The total simulated costs in euros.
     - **Type**: Float
-  - **home_appliance_wh_per_hour**: An array of floats representing the simulated energy consumption of a household appliance in watt-hours per hour.
+  - **Home_appliance_wh_per_hour**: An array of floats representing the simulated energy consumption of a household appliance in watt-hours per hour.
     - **Type**: Array
     - **Element Type**: Float
     - **Length**: 35

@@ -256,7 +256,7 @@ def test_simulation(create_ems_instance):
         "Gesamtkosten_Euro",
         "Verluste_Pro_Stunde",
         "Gesamt_Verluste",
-        "home_appliance_wh_per_hour",
+        "Home_appliance_wh_per_hour",
     ]
 
     for key in expected_keys:
@@ -330,12 +330,12 @@ def test_simulation(create_ems_instance):
     assert (
         np.nansum(
             np.where(
-                np.equal(result["home_appliance_wh_per_hour"], None),
+                np.equal(result["Home_appliance_wh_per_hour"], None),
                 np.nan,
-                np.array(result["home_appliance_wh_per_hour"]),
+                np.array(result["Home_appliance_wh_per_hour"]),
             )
         )
         == 2000
-    ), "The sum of 'home_appliance_wh_per_hour' should be 2000."
+    ), "The sum of 'Home_appliance_wh_per_hour' should be 2000."
 
     print("All tests passed successfully.")

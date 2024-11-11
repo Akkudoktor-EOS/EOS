@@ -170,7 +170,7 @@ def test_simulation(create_ems_instance):
         "Gesamtkosten_Euro",
         "Verluste_Pro_Stunde",
         "Gesamt_Verluste",
-        "home_appliance_wh_per_hour",
+        "Home_appliance_wh_per_hour",
     ]
 
     for key in expected_keys:

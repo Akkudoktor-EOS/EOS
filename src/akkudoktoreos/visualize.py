@@ -118,7 +118,7 @@ def visualisiere_ergebnisse(
         )
         plt.plot(
             hours,
-            ergebnisse["home_appliance_wh_per_hour"],
+            ergebnisse["Home_appliance_wh_per_hour"],
             label="Household Device (Wh)",
             marker="o",
             linestyle="--",

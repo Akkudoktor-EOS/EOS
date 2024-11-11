@@ -480,7 +480,7 @@ class optimization_problem:
             "Einnahmen_Euro_pro_Stunde",
             "E-Auto_SoC_pro_Stunde",
             "Verluste_Pro_Stunde",
-            "home_appliance_wh_per_hour",
+            "Home_appliance_wh_per_hour",
         ]
 
         # Loop through each key in the list

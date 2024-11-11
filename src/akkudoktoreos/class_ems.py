@@ -157,7 +157,7 @@ class EnergieManagementSystem:
             "Gesamtkosten_Euro": np.nansum(kosten_euro_pro_stunde),
             "Verluste_Pro_Stunde": verluste_wh_pro_stunde,
             "Gesamt_Verluste": np.nansum(verluste_wh_pro_stunde),
-            "home_appliance_wh_per_hour": home_appliance_wh_per_hour,
+            "Home_appliance_wh_per_hour": home_appliance_wh_per_hour,
         }
 
         return out
