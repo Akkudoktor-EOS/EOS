@@ -1,5 +1,6 @@
 import logging
 import os
+import platform
 import subprocess
 import sys
 import time
@@ -94,7 +95,9 @@ def other_timezone():
 
     # Change the timezone to another
     os.environ["TZ"] = other_tz
-    time.tzset()  # For Unix/Linux to apply the timezone change
+    # Apply tzset only on Unix-based systems
+    if platform.system() != "Windows":
+        time.tzset()
 
     yield os.environ["TZ"]  # Yield control back to the test case
 
