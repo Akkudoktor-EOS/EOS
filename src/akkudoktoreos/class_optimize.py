@@ -497,7 +497,8 @@ class optimization_problem:
             o[key] = element_list
 
         # Return final results as a dictionary
-        return {            "ac_charge": ac_charge.tolist(),
+        return {
+            "ac_charge": ac_charge.tolist(),
             "dc_charge": dc_charge.tolist(),
             "discharge_allowed": discharge.tolist(),
             "eautocharge_hours_float": eautocharge_hours_float,

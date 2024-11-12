@@ -106,7 +106,7 @@ class Battery:
 
     def set_charge_allowed_for_hour(self, charge, hour):
         assert hour < self.hours
-        self.charge_array[hour] = charge 
+        self.charge_array[hour] = charge
 
     def set_charge_per_hour(self, charge_array):
         assert len(charge_array) == self.hours
