@@ -313,19 +313,19 @@ class optimization_problem:
         individual.extra_data = (
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
-            parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent(),
+            parameter["eauto_min_soc"] - ems.eauto.charge_state_percent(),
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
 
-        restwert_akku = ems.akku.aktueller_energieinhalt() * parameter["preis_euro_pro_wh_akku"]
+        restwert_akku = ems.akku.current_energy() * parameter["preis_euro_pro_wh_akku"]
         # print(ems.akku.aktueller_energieinhalt()," * ", parameter["preis_euro_pro_wh_akku"] , " ", restwert_akku, " ", gesamtbilanz)
         gesamtbilanz += -restwert_akku
         # print(gesamtbilanz)
         if self.optimize_ev:
             gesamtbilanz += max(
                 0,
-                (parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent()) * self.strafe,
+                (parameter["eauto_min_soc"] - ems.eauto.charge_state_percent()) * self.strafe,
             )
 
         return (gesamtbilanz,)
@@ -401,7 +401,7 @@ class optimization_problem:
         eauto = Battery(
             capacity_wh=parameter["eauto_cap"],
             hours=self.prediction_hours,
-            charging_efficiency=parameter["eauto_charge_efficiency"],
+            charge_efficiency=parameter["eauto_charge_efficiency"],
             discharge_efficiency=1.0,
             max_charging_power_w=parameter["eauto_charge_power"],
             start_soc_percent=parameter["eauto_soc"],
@@ -497,8 +497,7 @@ class optimization_problem:
             o[key] = element_list
 
         # Return final results as a dictionary
-        return {
-            "ac_charge": ac_charge.tolist(),
+        return {            "ac_charge": ac_charge.tolist(),
             "dc_charge": dc_charge.tolist(),
             "discharge_allowed": discharge.tolist(),
             "eautocharge_hours_float": eautocharge_hours_float,

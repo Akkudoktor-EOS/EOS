@@ -22,6 +22,8 @@ def replace_nan_with_none(
         return None
     else:
         return data
+
+
 from akkudoktoreos.config import EOSConfig
 
 
@@ -117,14 +119,14 @@ class EnergieManagementSystem:
 
             # E-Auto handling
             if self.eauto and self.ev_charge_hours[stunde] > 0:
-                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(
+                geladene_menge_eauto, verluste_eauto = self.eauto.charge(
                     None, stunde, relative_power=self.ev_charge_hours[stunde]
                 )
                 verbrauch += geladene_menge_eauto
                 verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
 
             if self.eauto:
-                eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
+                eauto_soc_pro_stunde[stunde_since_now] = self.eauto.charge_state_percent()
             # Process inverter logic
             erzeugung = self.pv_prognose_wh[stunde]
             self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[stunde], stunde)
@@ -135,7 +137,7 @@ class EnergieManagementSystem:
             # AC PV Battery Charge
             if self.ac_charge_hours[stunde] > 0.0:
                 self.akku.set_charge_allowed_for_hour(1, stunde)
-                geladene_menge, verluste_wh = self.akku.energie_laden(
+                geladene_menge, verluste_wh = self.akku.charge(
                     None, stunde, relative_power=self.ac_charge_hours[stunde]
                 )
                 # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.ladezustand_in_prozent())

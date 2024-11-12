@@ -30,9 +30,7 @@ class Battery:
         self.capacity_wh = capacity_wh
         self.start_soc_percent = start_soc_percent
         self.soc_wh = (start_soc_percent / 100) * capacity_wh
-        self.hours = (
-            hours if hours is not None else 24
-        )  # Default to 24 hours if not specified
+        self.hours = hours if hours is not None else 24  # Default to 24 hours if not specified
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
         # Charge and discharge efficiency
@@ -48,7 +46,7 @@ class Battery:
         self.max_soc_wh = (self.max_soc_percent / 100) * self.capacity_wh
 
     def to_dict(self) -> dict:
-        """Convert Battery object to dictionary
+        """Convert Battery object to dictionary.
 
         Returns:
             dict: dictionary containing all data
@@ -60,7 +58,7 @@ class Battery:
             "hours": self.hours,
             "discharge_array": self.discharge_array.tolist(),  # Convert np.array to list
             "charge_array": self.charge_array.tolist(),
-            "charging_efficiency": self.charging_efficiency,
+            "charge_efficiency": self.charge_efficiency,
             "discharge_efficiency": self.discharge_efficiency,
             "max_charge_power_w": self.max_charging_power_w,
         }
@@ -94,7 +92,7 @@ class Battery:
         return obj
 
     def reset(self):
-        """Reset battery fields 'soc_wh', 'discharge_array' and 'charge_array'"""
+        """Reset battery fields 'soc_wh', 'discharge_array' and 'charge_array'."""
         self.soc_wh = (self.start_soc_percent / 100) * self.capacity_wh
         # Ensure soc_wh is within min and max limits
         self.soc_wh = min(max(self.soc_wh, self.min_soc_wh), self.max_soc_wh)
@@ -106,6 +104,10 @@ class Battery:
         assert len(discharge_array) == self.hours
         self.discharge_array = np.array(discharge_array)
 
+    def set_charge_allowed_for_hour(self, charge, hour):
+        assert hour < self.hours
+        self.charge_array[hour] = charge 
+
     def set_charge_per_hour(self, charge_array):
         assert len(charge_array) == self.hours
         self.charge_array = np.array(charge_array)
@@ -114,7 +116,7 @@ class Battery:
         return (self.soc_wh / self.capacity_wh) * 100
 
     def discharge(self, wh: int, hour: int) -> Tuple[float, float]:
-        """Discharge battery with provided watt hours and duration in hours
+        """Discharge battery with provided watt hours and duration in hours.
 
         Args:
             wh: Watt hours to discharge
@@ -127,12 +129,8 @@ class Battery:
             return 0.0, 0.0  # No energy discharge and no losses
 
         # Calculate the maximum energy that can be discharged considering min_soc and efficiency
-        max_possible_discharge_wh = (
-            self.soc_wh - self.min_soc_wh
-        ) * self.discharge_efficiency
-        max_possible_discharge_wh = max(
-            max_possible_discharge_wh, 0.0
-        )  # Ensure non-negative
+        max_possible_discharge_wh = (self.soc_wh - self.min_soc_wh) * self.discharge_efficiency
+        max_possible_discharge_wh = max(max_possible_discharge_wh, 0.0)  # Ensure non-negative
 
         # Consider the maximum discharge power of the battery
         max_released_wh = min(max_possible_discharge_wh, self.max_charging_power_w)
@@ -157,18 +155,21 @@ class Battery:
         # Return the actually discharged energy and the losses
         return actual_released_wh, loss_wh
 
-    def charge(self, wh: int, hour: int) -> Tuple[float, float]:
+    def charge(self, wh: int, hour: int, relative_power=0.0) -> Tuple[float, float]:
         """Charge battery with provided watt hours and time in hours.
 
         Args:
             wh (int): Watt hours to charge
             hour (int): Time to charge
+            relative_power (float): Default=0.0
 
         Returns:
             Tuple[float, float]: Charged energy, loss watt hours
         """
         if hour and self.charge_array[hour - 1] == 0:
             return 0, 0  # Charging not allowed in this hour
+        if relative_power > 0.0:
+            wh = self.max_charging_power_w * relative_power
 
         # If no value for wh is given, use the maximum charging power
         wh = wh if wh is not None else self.max_charging_power_w
@@ -179,9 +180,7 @@ class Battery:
 
         # Calculate the maximum energy that can be charged considering max_soc and efficiency
         if self.charge_efficiency > 0:
-            max_possible_charge_wh = (
-                self.max_soc_wh - self.soc_wh
-            ) / self.charge_efficiency
+            max_possible_charge_wh = (self.max_soc_wh - self.soc_wh) / self.charge_efficiency
         else:
             max_possible_charge_wh = 0.0
         max_possible_charge_wh = max(max_possible_charge_wh, 0.0)  # Ensure non-negative
@@ -203,9 +202,12 @@ class Battery:
         return charged_energy, loss_wh
 
     def current_energy(self) -> float:
-        """
-        This method returns the current remaining energy considering efficiency.
+        """This method returns the current remaining energy considering efficiency.
+
         It accounts for both charging and discharging efficiency.
+
+        Returns:
+            max(usable_energy, 0.0)
         """
         # Calculate remaining energy considering discharge efficiency
         usable_energy = (self.soc_wh - self.min_soc_wh) * self.discharge_efficiency
