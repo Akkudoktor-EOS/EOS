@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from deap import algorithms, base, creator, tools
 
-from akkudoktoreos.class_akku import PVAkku
+from akkudoktoreos.battery import Battery
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter
@@ -313,19 +313,19 @@ class optimization_problem:
         individual.extra_data = (
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
-            parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent(),
+            parameter["eauto_min_soc"] - ems.eauto.charge_state_percent(),
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
 
-        restwert_akku = ems.akku.aktueller_energieinhalt() * parameter["preis_euro_pro_wh_akku"]
+        restwert_akku = ems.akku.current_energy() * parameter["preis_euro_pro_wh_akku"]
         # print(ems.akku.aktueller_energieinhalt()," * ", parameter["preis_euro_pro_wh_akku"] , " ", restwert_akku, " ", gesamtbilanz)
         gesamtbilanz += -restwert_akku
         # print(gesamtbilanz)
         if self.optimize_ev:
             gesamtbilanz += max(
                 0,
-                (parameter["eauto_min_soc"] - ems.eauto.ladezustand_in_prozent()) * self.strafe,
+                (parameter["eauto_min_soc"] - ems.eauto.charge_state_percent()) * self.strafe,
             )
 
         return (gesamtbilanz,)
@@ -386,26 +386,25 @@ class optimization_problem:
         )
 
         # Initialize PV and EV batteries
-        akku = PVAkku(
-            kapazitaet_wh=parameter["pv_akku_cap"],
+        akku = Battery(
+            capacity_wh=parameter["pv_akku_cap"],
             hours=self.prediction_hours,
-            start_soc_prozent=parameter["pv_soc"],
-            min_soc_prozent=parameter["min_soc_prozent"],
-            max_ladeleistung_w=5000,
+            start_soc_percent=parameter["pv_soc"],
+            min_soc_percent=parameter["min_soc_prozent"],
+            max_charging_power_w=5000,
         )
         akku.set_charge_per_hour(np.full(self.prediction_hours, 1))
 
         self.optimize_ev = True
         if parameter["eauto_min_soc"] - parameter["eauto_soc"] < 0:
             self.optimize_ev = False
-
-        eauto = PVAkku(
-            kapazitaet_wh=parameter["eauto_cap"],
+        eauto = Battery(
+            capacity_wh=parameter["eauto_cap"],
             hours=self.prediction_hours,
-            lade_effizienz=parameter["eauto_charge_efficiency"],
-            entlade_effizienz=1.0,
-            max_ladeleistung_w=parameter["eauto_charge_power"],
-            start_soc_prozent=parameter["eauto_soc"],
+            charge_efficiency=parameter["eauto_charge_efficiency"],
+            discharge_efficiency=1.0,
+            max_charging_power_w=parameter["eauto_charge_power"],
+            start_soc_percent=parameter["eauto_soc"],
         )
         eauto.set_charge_per_hour(np.full(self.prediction_hours, 1))
 

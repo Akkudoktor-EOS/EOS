@@ -3,6 +3,27 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np
 
+from akkudoktoreos.battery import Battery
+
+
+def replace_nan_with_none(
+    data: Union[np.ndarray, dict, list, float],
+) -> Union[List, dict, float, None]:
+    if data is None:
+        return None
+    if isinstance(data, np.ndarray):
+        # Use numpy vectorized approach
+        return np.where(np.isnan(data), None, data).tolist()
+    elif isinstance(data, dict):
+        return {key: replace_nan_with_none(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [replace_nan_with_none(element) for element in data]
+    elif isinstance(data, (float, np.floating)) and np.isnan(data):
+        return None
+    else:
+        return data
+
+
 from akkudoktoreos.config import EOSConfig
 
 
@@ -13,12 +34,12 @@ class EnergieManagementSystem:
         pv_prognose_wh: Optional[np.ndarray] = None,
         strompreis_euro_pro_wh: Optional[np.ndarray] = None,
         einspeiseverguetung_euro_pro_wh: Optional[np.ndarray] = None,
-        eauto: Optional[object] = None,
+        eauto: Optional[Battery] = None,
         gesamtlast: Optional[np.ndarray] = None,
         haushaltsgeraet: Optional[object] = None,
         wechselrichter: Optional[object] = None,
     ):
-        self.akku = wechselrichter.akku
+        self.akku: Battery = wechselrichter.akku
         self.gesamtlast = gesamtlast
         self.pv_prognose_wh = pv_prognose_wh
         self.strompreis_euro_pro_wh = strompreis_euro_pro_wh
@@ -81,9 +102,9 @@ class EnergieManagementSystem:
         haushaltsgeraet_wh_pro_stunde = np.full((total_hours), np.nan)
 
         # Set initial state
-        akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
+        akku_soc_pro_stunde[0] = self.akku.charge_state_percent()
         if self.eauto:
-            eauto_soc_pro_stunde[0] = self.eauto.ladezustand_in_prozent()
+            eauto_soc_pro_stunde[0] = self.eauto.charge_state_percent()
 
         for stunde in range(start_stunde, ende):
             stunde_since_now = stunde - start_stunde
@@ -98,14 +119,14 @@ class EnergieManagementSystem:
 
             # E-Auto handling
             if self.eauto and self.ev_charge_hours[stunde] > 0:
-                geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(
+                geladene_menge_eauto, verluste_eauto = self.eauto.charge(
                     None, stunde, relative_power=self.ev_charge_hours[stunde]
                 )
                 verbrauch += geladene_menge_eauto
                 verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
 
             if self.eauto:
-                eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
+                eauto_soc_pro_stunde[stunde_since_now] = self.eauto.charge_state_percent()
             # Process inverter logic
             erzeugung = self.pv_prognose_wh[stunde]
             self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[stunde], stunde)
@@ -116,7 +137,7 @@ class EnergieManagementSystem:
             # AC PV Battery Charge
             if self.ac_charge_hours[stunde] > 0.0:
                 self.akku.set_charge_allowed_for_hour(1, stunde)
-                geladene_menge, verluste_wh = self.akku.energie_laden(
+                geladene_menge, verluste_wh = self.akku.charge(
                     None, stunde, relative_power=self.ac_charge_hours[stunde]
                 )
                 # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.ladezustand_in_prozent())
@@ -138,7 +159,7 @@ class EnergieManagementSystem:
             )
 
             # Akku SOC tracking
-            akku_soc_pro_stunde[stunde_since_now] = self.akku.ladezustand_in_prozent()
+            akku_soc_pro_stunde[stunde_since_now] = self.akku.charge_state_percent()
 
         # Total cost and return
         gesamtkosten_euro = np.nansum(kosten_euro_pro_stunde) - np.nansum(einnahmen_euro_pro_stunde)

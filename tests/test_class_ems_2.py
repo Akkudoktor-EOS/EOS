@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.class_akku import PVAkku
+from akkudoktoreos.battery import Battery
 from akkudoktoreos.class_ems import EnergieManagementSystem
 from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
 from akkudoktoreos.class_inverter import Wechselrichter
@@ -17,7 +17,7 @@ start_hour = 0
 def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
     """Fixture to create an EnergieManagementSystem instance with given test parameters."""
     # Initialize the battery and the inverter
-    akku = PVAkku(kapazitaet_wh=5000, start_soc_prozent=80, hours=48, min_soc_prozent=10)
+    akku = Battery(capacity_wh=5000, start_soc_percent=80, hours=48, min_soc_percent=10)
     akku.reset()
     wechselrichter = Wechselrichter(10000, akku)
 
@@ -30,7 +30,7 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
     home_appliance.set_startzeitpunkt(2)
 
     # Example initialization of electric car battery
-    eauto = PVAkku(kapazitaet_wh=26400, start_soc_prozent=100, hours=48, min_soc_prozent=100)
+    eauto = Battery(capacity_wh=26400, start_soc_percent=100, hours=48, min_soc_percent=100)
 
     # Parameters based on previous example data
     pv_prognose_wh = np.full(prediction_hours, 0)
