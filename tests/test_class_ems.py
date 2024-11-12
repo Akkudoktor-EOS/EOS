@@ -3,7 +3,7 @@ import pytest
 
 from akkudoktoreos.class_akku import PVAkku
 from akkudoktoreos.class_ems import EnergieManagementSystem
-from akkudoktoreos.class_haushaltsgeraet import HomeAppliance
+from akkudoktoreos.class_home_appliance import HomeAppliance
 from akkudoktoreos.class_inverter import Wechselrichter
 from akkudoktoreos.config import AppConfig
 
