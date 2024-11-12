@@ -52,12 +52,9 @@ opt_class = optimization_problem(config)
 def fastapi_strompreis() -> list[float]:
     # Get the current date and the end date based on prediction hours
     date_now, date = get_start_enddate(config.eos.prediction_hours, startdate=datetime.now().date())
-    filepath = os.path.join(
-        r"test_data", r"strompreise_akkudokAPI.json"
-    )  # Adjust the path to the JSON file
     price_forecast = HourlyElectricityPriceForecast(
         source=f"https://api.akkudoktor.net/prices?start={date_now}&end={date}",
-        config=config.eos.prediction_hours,
+        config=config,
         use_cache=False,
     )
     specific_date_prices = price_forecast.get_price_for_daterange(
@@ -232,6 +229,7 @@ if __name__ == "__main__":
         config.run_setup()
     except Exception as e:
         print(f"Failed to initialize: {e}")
+        exit(1)
 
     # Set host and port from environment variables or defaults
     host = os.getenv("EOS_RUN_HOST", "0.0.0.0")
@@ -242,3 +240,7 @@ if __name__ == "__main__":
         print(
             f"Could not bind to host {host}:{port}. Error: {e}"
         )  # Error handling for binding issues
+        exit(1)
+else:
+    # started from cli / dev server
+    config.run_setup()
