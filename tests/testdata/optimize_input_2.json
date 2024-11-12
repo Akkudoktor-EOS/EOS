@@ -40,8 +40,8 @@
     "eauto_soc": 5,
     "pvpowernow": 211.137503624,
     "start_solution": null,
-    "haushaltsgeraet_wh": 5000,
-    "haushaltsgeraet_dauer": 2,
+    "home_appliance_wh": 5000,
+    "home_appliance_duration": 2,
     "min_soc_prozent": 15
   }
   
