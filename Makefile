@@ -69,11 +69,11 @@ clean:
 
 run:
 	@echo "Starting FastAPI server, please wait..."
-	.venv/bin/python -m akkudoktoreosserver.fastapi_server
+	.venv/bin/python -m akkudoktoreos.server.fastapi_server
 
 run-dev:
 	@echo "Starting FastAPI development server, please wait..."
-	.venv/bin/fastapi dev src/akkudoktoreosserver/fastapi_server.py
+	.venv/bin/fastapi dev src/akkudoktoreos/server/fastapi_server.py
 
 # Target to setup tests.
 test-setup: pip-dev

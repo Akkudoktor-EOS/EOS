@@ -28,11 +28,10 @@ optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
 
 [tool.setuptools.packages.find]
 where = ["src/"]
-include = ["akkudoktoreos", "akkudoktoreosserver", ]
+include = ["akkudoktoreos"]
 
 [tool.setuptools.package-data]
-akkudoktoreos = ["*.json", ]
-akkudoktoreosserver = ["data/*.npz", ]
+akkudoktoreos = ["*.json", "data/*.npz", ]
 
 [tool.pyright]
 # used in Pylance extension for language server

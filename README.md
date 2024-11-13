@@ -86,7 +86,15 @@ source .venv/bin/activate
 To use the system, run `fastapi_server.py`, which starts the server:
 
 ```bash
-./fastapi_server.py
+./src/akkudoktoreos/server/fastapi_server.py
+```
+
+### Docker
+
+To run the system with Docker:
+
+```bash
+docker compose up --build
 ```
 
 ## Classes and Functionalities
@@ -111,7 +119,6 @@ These classes work together to enable a detailed simulation and optimization of 
 
 Each class is designed to be easily customized and extended to integrate additional functions or improvements. For example, new methods can be added for more accurate modeling of PV system or battery behavior. Developers are invited to modify and extend the system according to their needs.
 
-# Server API
+## Server API
 
-See the Swagger documentation for detailed information: [EOS OpenAPI Spec](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json)
->>>>>>> 4b4cbf2 (Move API doc from README to pydantic model classes (swagger))
+See the Swagger documentation for detailed information: [EOS OpenAPI Spec](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/docs/akkudoktoreos/openapi.json)

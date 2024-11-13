@@ -50,7 +50,7 @@ def server(xprocess, tmp_path: Path):
         # assure server to be installed
         try:
             subprocess.run(
-                [sys.executable, "-c", "import akkudoktoreosserver"],
+                [sys.executable, "-c", "import akkudoktoreos.server"],
                 check=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -65,7 +65,7 @@ def server(xprocess, tmp_path: Path):
             )
 
         # command to start server process
-        args = [sys.executable, "-m", "akkudoktoreosserver.fastapi_server"]
+        args = [sys.executable, "-m", "akkudoktoreos.server.fastapi_server"]
         env = {EOS_DIR: f"{tmp_path}", **os.environ.copy()}
 
         # startup pattern
@@ -81,14 +81,14 @@ def server(xprocess, tmp_path: Path):
         terminate_on_interrupt = True
 
     # ensure process is running and return its logfile
-    logfile = xprocess.ensure("akkudoktoreosserver", Starter)
+    logfile = xprocess.ensure("eos", Starter)
 
     # create url/port info to the server
     url = "http://127.0.0.1:8503"
     yield url
 
     # clean up whole process tree afterwards
-    xprocess.getinfo("akkudoktoreosserver").terminate()
+    xprocess.getinfo("eos").terminate()
 
 
 @pytest.fixture

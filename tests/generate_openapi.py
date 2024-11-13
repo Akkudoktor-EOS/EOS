@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi.openapi.utils import get_openapi
 
-from akkudoktoreosserver.fastapi_server import app
+from akkudoktoreos.server.fastapi_server import app
 
 
 def generate_openapi(filename: str | Path = "openapi.json"):

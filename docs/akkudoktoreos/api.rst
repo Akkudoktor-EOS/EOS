@@ -13,4 +13,3 @@ EOS API
    :recursive:
 
    akkudoktoreos
-   akkudoktoreosserver

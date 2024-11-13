@@ -2,10 +2,12 @@
 
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated, Any, Optional
 
 import matplotlib
 import uvicorn
+from fastapi.exceptions import HTTPException
 
 # Sets the Matplotlib backend to 'Agg' for rendering plots in environments without a display
 matplotlib.use("Agg")
@@ -46,6 +48,11 @@ working_dir = get_working_dir()
 # copy config to working directory. Make this a CLI option later
 config = load_config(working_dir, True)
 opt_class = optimization_problem(config)
+server_dir = Path(__file__).parent.resolve()
+
+
+class PdfResponse(FileResponse):
+    media_type = "application/pdf"
 
 
 @app.get("/strompreis")
@@ -65,11 +72,11 @@ def fastapi_strompreis() -> list[float]:
 
 @app.post("/gesamtlast")
 def fastapi_gesamtlast(
-    year_energy: float, measured_data: list[dict[str, Any]], hours: int = 48
+    year_energy: float,
+    measured_data: list[dict[str, Any]],
+    hours: int = config.eos.prediction_hours,
 ) -> list[float]:
     """Endpoint to handle total load calculation based on the latest measured data."""
-    prediction_hours = hours
-
     # Measured data in JSON format
     measured_data_df = pd.DataFrame(measured_data)
     measured_data_df["time"] = pd.to_datetime(measured_data_df["time"])
@@ -84,8 +91,9 @@ def fastapi_gesamtlast(
     measured_data_df["time"] = measured_data_df["time"].dt.tz_localize(None)
 
     # Instantiate LoadForecast and generate forecast data
-    file_path = os.path.join("data", "load_profiles.npz")
-    lf = LoadForecast(filepath=file_path, year_energy=year_energy)
+    lf = LoadForecast(
+        filepath=server_dir / ".." / "data" / "load_profiles.npz", year_energy=year_energy
+    )
     forecast_list = []
 
     # Generate daily forecasts for the date range based on measured data
@@ -95,8 +103,8 @@ def fastapi_gesamtlast(
         date_str = single_date.strftime("%Y-%m-%d")
         daily_forecast = lf.get_daily_stats(date_str)
         mean_values = daily_forecast[0]
-        hours = [single_date + pd.Timedelta(hours=i) for i in range(24)]
-        daily_forecast_df = pd.DataFrame({"time": hours, "Last Pred": mean_values})
+        fc_hours = [single_date + pd.Timedelta(hours=i) for i in range(24)]
+        daily_forecast_df = pd.DataFrame({"time": fc_hours, "Last Pred": mean_values})
         forecast_list.append(daily_forecast_df)
 
     # Concatenate all daily forecasts into a single DataFrame
@@ -106,11 +114,11 @@ def fastapi_gesamtlast(
     adjuster = LoadPredictionAdjuster(measured_data_df, predicted_data, lf)
     adjuster.calculate_weighted_mean()  # Calculate weighted mean for adjustment
     adjuster.adjust_predictions()  # Adjust predictions based on measured data
-    future_predictions = adjuster.predict_next_hours(prediction_hours)  # Predict future load
+    future_predictions = adjuster.predict_next_hours(hours)  # Predict future load
 
     # Extract household power predictions
     leistung_haushalt = future_predictions["Adjusted Pred"].values
-    gesamtlast = Gesamtlast(prediction_hours=prediction_hours)
+    gesamtlast = Gesamtlast(prediction_hours=hours)
     gesamtlast.hinzufuegen(
         "Haushalt", leistung_haushalt
     )  # Add household load to total load calculation
@@ -129,13 +137,8 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     ###############
     # Load Forecast
     ###############
-    server_dir = os.path.dirname(os.path.realpath(__file__))
-    file_path = os.path.join(server_dir, "data", "load_profiles.npz")
-
-    print(file_path)
-
     lf = LoadForecast(
-        filepath=file_path, year_energy=year_energy
+        filepath=server_dir / ".." / "data" / "load_profiles.npz", year_energy=year_energy
     )  # Instantiate LoadForecast with specified parameters
     leistung_haushalt = lf.get_stats_for_date_range(date_now, date)[
         0
@@ -204,13 +207,16 @@ def fastapi_optimize(
     return result
 
 
-@app.get("/visualization_results.pdf")
+@app.get("/visualization_results.pdf", response_class=PdfResponse)
 def get_pdf():
     # Endpoint to serve the generated PDF with visualization results
     output_path = config.working_dir / config.directories.output
     if not output_path.is_dir():
         raise SetupIncomplete(f"Output path does not exist: {output_path}.")
-    return FileResponse(output_path / "visualization_results.pdf")
+    file_path = output_path / "visualization_results.pdf"
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="No visualization result available.")
+    return FileResponse(file_path)
 
 
 @app.get("/site-map", include_in_schema=False)
