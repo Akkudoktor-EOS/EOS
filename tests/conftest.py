@@ -70,7 +70,7 @@ def server(xprocess, tmp_path: Path):
 
         # startup pattern
         pattern = "Application startup complete."
-        # search the first 12 lines for the startup pattern, if not found
+        # search the first 30 lines for the startup pattern, if not found
         # a RuntimeError will be raised informing the user
         max_read_lines = 30
 

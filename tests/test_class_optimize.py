@@ -65,7 +65,9 @@ def test_optimize(
     # Call the optimization function
     ergebnis = opt_class.optimierung_ems(parameters=input_data, start_hour=start_hour, ngen=ngen)
     # with open(f"new_{fn_out}", "w") as f_out:
-    #     json.dump(ergebnis, f_out, indent=4)
+    #     from akkudoktoreos.class_numpy_encoder import NumpyEncoder
+    #     json_data_str = NumpyEncoder.dumps(ergebnis)
+    #     json.dump(json.loads(json_data_str), f_out, indent=4)
 
     # Assert that the output contains all expected entries.
     # This does not assert that the optimization always gives the same result!

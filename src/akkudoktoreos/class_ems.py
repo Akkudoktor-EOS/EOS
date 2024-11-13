@@ -37,7 +37,7 @@ class EnergieManagementSystemParameters(BaseModel):
                 and pv_prognose_length != len(self.einspeiseverguetung_euro_pro_wh)
             )
         ):
-            raise ValueError("Input lists have different lenghts")
+            raise ValueError("Input lists have different lengths")
         return self
 
 
