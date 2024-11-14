@@ -3,6 +3,15 @@ from typing import Any
 
 import numpy as np
 
+from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.utils.logutil import get_logger
+
+logger = get_logger(__name__)
+
+
+class UtilsCommonSettings(SettingsBaseModel):
+    pass
+
 
 class NumpyEncoder(json.JSONEncoder):
     @classmethod
