@@ -22,3 +22,6 @@ def test_server(server, tmp_path: Path):
 
     config = load_config(tmp_path, False)
     assert len(result.json()) == config.eos.prediction_hours
+
+    result = requests.get(f"{server}/strompreis")
+    assert result.status_code == HTTPStatus.OK
