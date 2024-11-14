@@ -24,7 +24,8 @@ Example usage:
 
 import re
 from datetime import date, datetime, timedelta
-from typing import Any, Literal, Optional, Set, Union, overload
+from typing import Any, Optional, Set, Union
+
 import pendulum
 from pendulum import DateTime
 from pendulum.tz.timezone import Timezone
@@ -33,26 +34,6 @@ from timezonefinder import TimezoneFinder
 from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
-
-
-@overload
-def to_datetime(
-    date_input: Union[datetime, date, str, int, float, None],
-    as_string: str | Literal[True],
-    to_timezone: Optional[Union[Timezone, str]] = None,
-    to_naiv: Optional[bool] = None,
-    to_maxtime: Optional[bool] = None,
-) -> str: ...
-
-
-@overload
-def to_datetime(
-    date_input: Union[datetime, date, str, int, float, None],
-    as_string: Literal[False] | None = None,
-    to_timezone: Optional[Union[Timezone, str]] = None,
-    to_naiv: Optional[bool] = None,
-    to_maxtime: Optional[bool] = None,
-) -> datetime: ...
 
 
 def to_datetime(
