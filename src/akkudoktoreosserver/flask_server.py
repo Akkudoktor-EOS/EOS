@@ -140,9 +140,7 @@ def flask_gesamtlast():
 @app.route("/gesamtlast_simple", methods=["GET"])
 def flask_gesamtlast_simple():
     if request.method == "GET":
-        year_energy = request.args.get(
-            "year_energy"
-        )  # get year for predicted annual energy demand
+        year_energy = request.args.get("year_energy")  # get year for predicted annual energy demand
         if year_energy is None:
             year_energy = float(datetime.now().year)
         else:
