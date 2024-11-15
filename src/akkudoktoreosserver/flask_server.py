@@ -142,7 +142,7 @@ def flask_gesamtlast_simple():
     if request.method == "GET":
         year_energy = request.args.get(
             "year_energy"
-        )  # Get annual energy value from query parameters
+        )  # get year for predicted annual energy demand
         if year_energy is None:
             year_energy = float(datetime.now().year)
         else:
