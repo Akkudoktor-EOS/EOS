@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import pandas as pd
-from flask import Flask, jsonify, redirect, request, send_from_directory, url_for
+from flask import Flask, jsonify, redirect, request, send_from_directory, url_for, Response
 
 from akkudoktoreos.class_load import LoadForecast
 from akkudoktoreos.class_load_container import Gesamtlast
@@ -132,9 +132,13 @@ def flask_gesamtlast():
 @app.route("/gesamtlast_simple", methods=["GET"])
 def flask_gesamtlast_simple():
     if request.method == "GET":
-        year_energy = float(
-            request.args.get("year_energy")
+        year_energy = request.args.get(
+            "year_energy"
         )  # Get annual energy value from query parameters
+        if year_energy is None:
+            year_energy = float(datetime.now().year)
+        else:
+            year_energy = float(year_energy)
         date_now, date = get_start_enddate(
             config.eos.prediction_hours, startdate=datetime.now().date()
         )  # Get the current date and prediction end date
@@ -255,9 +259,20 @@ def flask_optimize():
 def get_pdf():
     # Endpoint to serve the generated PDF with visualization results
     output_path = config.working_dir / config.directories.output
+    pdf_filename = "visualization_results.pdf"
+
+    # Check if the output directory exists
     if not output_path.is_dir():
         raise SetupIncomplete(f"Output path does not exist: {output_path}.")
-    return send_from_directory(output_path, "visualization_results.pdf")
+
+    # Check if the specific file exists in the output directory
+    pdf_file_path = output_path / pdf_filename
+    if not pdf_file_path.is_file():
+        # Return a 204 No Content response
+        return Response(status=204)
+
+    # Serve the file if everything is okay
+    return send_from_directory(output_path, pdf_filename)
 
 
 @app.route("/site-map")

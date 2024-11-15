@@ -259,7 +259,7 @@ class PVForecast:
         else:
             self._forecast_start = None
         self.prediction_hours = prediction_hours
-        self._tz_name = None
+        self._tz_name = "Europe/Berlin"
 
         if self.data or self.filepath or self.url:
             self.process_data(

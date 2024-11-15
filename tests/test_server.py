@@ -22,3 +22,22 @@ def test_server(server, tmp_path: Path):
 
     config = load_config(tmp_path, False)
     assert len(result.json()) == config.eos.prediction_hours
+
+    result = requests.get(f"{server}/gesamtlast_simple")
+    assert result.status_code == HTTPStatus.OK
+
+    result = requests.get(f"{server}/pvforecast")
+    assert result.status_code == HTTPStatus.OK
+
+    # Assert that the status code is either 200 OK or 204 No Content
+    assert result.status_code in {
+        HTTPStatus.OK,
+        HTTPStatus.NO_CONTENT,
+    }, f"Unexpected status code: {result.status_code}"
+
+    if result.status_code == HTTPStatus.OK:
+        # If the status is 200, check that content is returned
+        assert result.content, "Expected content, but none was returned."
+    elif result.status_code == HTTPStatus.NO_CONTENT:
+        # If the status is 204, ensure no content is returned
+        assert not result.content, "204 No Content response should have no content."
