@@ -108,6 +108,11 @@ def validate_pv_forecast_data(data) -> str:
     return data_type
 
 
+class ForecastResponse(BaseModel):
+    temperature: list[float]
+    pvpower: list[float]
+
+
 class ForecastData:
     """Stores forecast data for PV power and weather parameters.
 

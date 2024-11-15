@@ -254,3 +254,6 @@ visualize_output_*.pdf
 
 # Test images
 *_pdf.png
+
+# Test files
+openapi-new.json

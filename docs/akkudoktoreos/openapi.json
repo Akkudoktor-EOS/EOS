@@ -31,7 +31,7 @@
     "/gesamtlast": {
       "post": {
         "summary": "Fastapi Gesamtlast",
-        "description": "Endpoint to handle total load calculation based on the latest measured data",
+        "description": "Endpoint to handle total load calculation based on the latest measured data.",
         "operationId": "fastapi_gesamtlast_gesamtlast_post",
         "parameters": [
           {
@@ -260,8 +260,10 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "application/json": {
-                "schema": {}
+              "application/pdf": {
+                "schema": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -399,7 +401,7 @@
           "start_soc_prozent"
         ],
         "title": "EAutoResult",
-        "description": "\"This object contains information related to the electric vehicle and its charging and discharging behavior"
+        "description": "This object contains information related to the electric vehicle and its charging and discharging behavior."
       },
       "EnergieManagementSystemParameters": {
         "properties": {
@@ -420,9 +422,19 @@
             "description": "An array of floats representing the electricity price in euros per watt-hour for different time intervals."
           },
           "einspeiseverguetung_euro_pro_wh": {
-            "type": "number",
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "number"
+              }
+            ],
             "title": "Einspeiseverguetung Euro Pro Wh",
-            "description": "A float representing the feed-in compensation in euros per watt-hour."
+            "description": "A float or array of floats representing the feed-in compensation in euros per watt-hour."
           },
           "preis_euro_pro_wh_akku": {
             "type": "number",
@@ -567,21 +579,29 @@
       },
       "OptimizeResponse": {
         "properties": {
-          "discharge_hours_bin": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array",
-            "title": "Discharge Hours Bin",
-            "description": "An array that indicates for each hour of the forecast period whether energy is discharged from the battery or not. The values are either `0` (no discharge) or `1` (discharge)."
-          },
-          "eautocharge_hours_float": {
+          "ac_charge": {
             "items": {
               "type": "number"
             },
             "type": "array",
-            "title": "Eautocharge Hours Float",
-            "description": "An array of binary values (0 or 1) that indicates whether the EV will be charged in a certain hour."
+            "title": "Ac Charge",
+            "description": "Array with AC charging values as relative power (0-1), other values set to 0."
+          },
+          "dc_charge": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Dc Charge",
+            "description": "Array with DC charging values as relative power (0-1), other values set to 0."
+          },
+          "discharge_allowed": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Discharge Allowed",
+            "description": "Array with discharge values (1 for discharge, 0 otherwise)."
           },
           "result": {
             "$ref": "#/components/schemas/SimulationResult"
@@ -619,8 +639,9 @@
         },
         "type": "object",
         "required": [
-          "discharge_hours_bin",
-          "eautocharge_hours_float",
+          "ac_charge",
+          "dc_charge",
+          "discharge_allowed",
           "result",
           "eauto_obj"
         ],
@@ -869,7 +890,7 @@
           "akku_soc_pro_stunde"
         ],
         "title": "SimulationResult",
-        "description": "This object contains the results of the simulation and provides insights into various parameters over the entire forecast period"
+        "description": "This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."
       },
       "ValidationError": {
         "properties": {
