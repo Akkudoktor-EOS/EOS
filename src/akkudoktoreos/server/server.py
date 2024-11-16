@@ -7,7 +7,7 @@ from pydantic import Field, IPvAnyAddress, field_validator
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.utils.logutil import get_logger
 
-logger = get_logger(__name__, logging_level="DEBUG")
+logger = get_logger(__name__)
 
 
 class ServerCommonSettings(SettingsBaseModel):
