@@ -51,6 +51,12 @@ dist: pip
 
 # Target to generate HTML documentation
 docs: pip-dev
+	cp README.md docs/develop/getting_started.md
+	# remove top level header and coresponding description
+	sed -i '/^##[^#]/,$$!d' docs/develop/getting_started.md
+	sed -i "1i\# Getting Started\n" docs/develop/getting_started.md
+	cp CONTRIBUTING.md docs/develop
+	sed -i "s/README.md/getting_started.md/g" docs/develop/CONTRIBUTING.md
 	.venv/bin/sphinx-build -M html docs build/docs
 	@echo "Documentation generated to build/docs/html/."
 
@@ -91,7 +97,7 @@ test-full:
 
 # Target to format code.
 format:
-	pre-commit run --all-files
+	.venv/bin/pre-commit run --all-files
 
 # Run entire setup on docker
 docker-run:
