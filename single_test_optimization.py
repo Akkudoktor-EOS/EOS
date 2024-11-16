@@ -325,7 +325,7 @@ visualisiere_ergebnisse(
 )
 
 report = VisualizationReport(config, "grouped_energy_report.pdf")
-x_hours = np.arange(0, 48)
+x_hours = np.arange(0, config.eos.prediction_hours)
 
 # Group 1:
 report.create_line_chart(
