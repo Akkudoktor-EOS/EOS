@@ -5,12 +5,12 @@ import time
 import numpy as np
 
 from akkudoktoreos.class_numpy_encoder import NumpyEncoder
-from akkudoktoreos.class_visualize import VisualizationReport
 from akkudoktoreos.class_optimize import (
     OptimizationParameters,
     OptimizeResponse,
     optimization_problem,
 )
+from akkudoktoreos.class_visualize import VisualizationReport
 from akkudoktoreos.config import get_working_dir, load_config
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
@@ -324,37 +324,37 @@ visualisiere_ergebnisse(
     extra_data=ergebnis["extra_data"],
 )
 
-report = VisualizationReport("grouped_energy_report.pdf")
+report = VisualizationReport(config, "grouped_energy_report.pdf")
 x_hours = np.arange(0, 48)
 
 # Group 1:
 report.create_line_chart(
     x_hours,
-    [parameter["gesamtlast"], parameter["gesamtlast"]],
+    [parameters.ems.gesamtlast],
     title="Load Profile",
     xlabel="Hours",
     ylabel="Load (Wh)",
-    labels=["Load (Wh)", "Total Load (Wh)"],
-    markers=["o", "s"],
-    line_styles=["-", "--"],
+    labels=["Total Load (Wh)"],
+    markers=["s"],
+    line_styles=["-"],
 )
 report.create_line_chart(
     x_hours,
-    [parameter["pv_forecast"]],
+    [parameters.ems.pv_prognose_wh],
     title="PV Forecast",
     xlabel="Hours",
     ylabel="PV Generation (Wh)",
 )
 report.create_line_chart(
     x_hours,
-    [np.full(48, parameter["einspeiseverguetung_euro_pro_wh"])],
+    [np.full(48, parameters.ems.einspeiseverguetung_euro_pro_wh)],
     title="Remuneration",
     xlabel="Hours",
     ylabel="€/Wh",
 )
 report.create_line_chart(
     x_hours,
-    [parameter["temperature_forecast"]],
+    [parameters.temperature_forecast],
     title="Temperature Forecast",
     xlabel="Hours",
     ylabel="°C",
@@ -389,7 +389,7 @@ report.finalize_group()
 # Group 3:
 report.create_line_chart(
     x_hours,
-    [ergebnis["result"]["akku_soc_pro_stunde"], ergebnis["result"]["E-Auto_SoC_pro_Stunde"]],
+    [ergebnis["result"]["akku_soc_pro_stunde"], ergebnis["result"]["EAuto_SoC_pro_Stunde"]],
     title="Battery SOC",
     xlabel="Hours",
     ylabel="%",
@@ -397,7 +397,7 @@ report.create_line_chart(
 )
 report.create_line_chart(
     x_hours,
-    [parameter["strompreis_euro_pro_wh"]],
+    [parameters.ems.strompreis_euro_pro_wh],
     title="Electricity Price",
     xlabel="Hours",
     ylabel="Price (€/Wh)",
@@ -470,6 +470,9 @@ if filtered_balance.size > 0:
     )
 else:
     print("No data available for filtered balance violin plot (Constraint < 0.01)")
+
+if filtered_balance.size > 0 or filtered_losses.size > 0:
+    report.finalize_group()
 
 # Generate the PDF report
 report.generate_pdf()

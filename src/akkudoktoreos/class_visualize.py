@@ -4,16 +4,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
-from akkudoktoreos.config import output_dir
+from akkudoktoreos.config import AppConfig, SetupIncomplete
 
 
 class VisualizationReport:
-    def __init__(self, filename="visualization_results.pdf"):
+    def __init__(self, config: AppConfig, filename="visualization_results.pdf"):
         # Initialize the report with a given filename and empty groups
         self.filename = filename
         self.groups = []  # Store groups of charts
         self.current_group = []  # Store current group of charts being created
         self.pdf_pages = None  # Handle for the PDF output
+        self.config = config
 
     def add_chart_to_group(self, chart_func):
         """Add a chart function to the current group."""
@@ -29,8 +30,9 @@ class VisualizationReport:
 
     def _initialize_pdf(self):
         """Create the output directory if it doesn't exist and initialize the PDF."""
+        output_dir = self.config.working_dir / self.config.directories.output
         if not os.path.exists(output_dir):
-            os.makedirs(output_dir)  # Create output directory
+            raise SetupIncomplete(f"Output path does not exist: {output_dir}.")
         output_file = os.path.join(output_dir, self.filename)  # Full path for PDF
         self.pdf_pages = PdfPages(output_file)  # Initialize PdfPages
 
@@ -182,7 +184,11 @@ class VisualizationReport:
 
 if __name__ == "__main__":
     # Example usage
-    report = VisualizationReport("example_report.pdf")
+    from akkudoktoreos.config import get_working_dir, load_config
+
+    working_dir = get_working_dir()
+    config = load_config(working_dir)
+    report = VisualizationReport(config, "example_report.pdf")
     x_hours = np.arange(0, 4)  # Define x-axis values (e.g., hours)
 
     # Group 1: Adding charts to be displayed on the same page
