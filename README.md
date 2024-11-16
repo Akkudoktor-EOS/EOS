@@ -60,7 +60,7 @@ cd EOS
 Next, create a virtual environment. This serves to store the Python dependencies, which we will install later using `pip`:
 
 ```bash
-virtualenv .venv
+python -m venv .venv
 ```
 
 Finally, install the Python dependencies for EOS:
@@ -75,18 +75,12 @@ To always use the Python version from the virtual environment, you should activa
 source .venv/bin/activate
 ```
 
-(for Bash users, the default under Linux) or
-
-```zsh
-. .venv/bin/activate
-```
-
 ## Usage
 
-To use the system, run `fastapi_server.py`, which starts the server:
+To use the system and start the server, run `fastapi_server.py` in the previously activated virtual environment:
 
 ```bash
-./src/akkudoktoreos/server/fastapi_server.py
+fastapi run src/akkudoktoreos/server/fastapi_server.py
 ```
 
 ### Docker
