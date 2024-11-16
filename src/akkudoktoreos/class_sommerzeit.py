@@ -2,6 +2,7 @@ import datetime
 import zoneinfo
 
 
+# currently unused
 def ist_dst_wechsel(tag: datetime.datetime, timezone="Europe/Berlin") -> bool:
     """Checks if Daylight Saving Time (DST) starts or ends on a given day."""
     tz = zoneinfo.ZoneInfo(timezone)
