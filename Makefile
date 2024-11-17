@@ -16,7 +16,7 @@ help:
 	@echo "  docker-build - Rebuild docker image"
 	@echo "  docs         - Generate HTML documentation (in build/docs/html/)."
 	@echo "  read-docs    - Read HTML documentation in your browser."
-	@echo "  run          - Run FastAPI server in the virtual environment (needs install before)."
+	@echo "  run          - Run FastAPI production server in the virtual environment."
 	@echo "  run-dev      - Run FastAPI development server in the virtual environment (automatically reloads)."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
@@ -75,11 +75,11 @@ clean:
 
 run:
 	@echo "Starting FastAPI server, please wait..."
-	.venv/bin/python -m akkudoktoreos.server.fastapi_server
+	.venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
 
 run-dev:
 	@echo "Starting FastAPI development server, please wait..."
-	.venv/bin/fastapi dev src/akkudoktoreos/server/fastapi_server.py
+	.venv/bin/fastapi dev --port 8503 src/akkudoktoreos/server/fastapi_server.py
 
 # Target to setup tests.
 test-setup: pip-dev
