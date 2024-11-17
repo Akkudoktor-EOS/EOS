@@ -261,3 +261,160 @@ if __name__ == "__main__":
 
     # Generate the PDF report
     report.generate_pdf()
+
+
+def prepare_visualize(config, parameters, results):
+    report = VisualizationReport(config, "visualization_results2.pdf")
+    x_hours = np.arange(0, config.eos.prediction_hours)
+
+    # Group 1:
+    report.create_line_chart(
+        x_hours,
+        [parameters.ems.gesamtlast],
+        title="Load Profile",
+        xlabel="Hours",
+        ylabel="Load (Wh)",
+        labels=["Total Load (Wh)"],
+        markers=["s"],
+        line_styles=["-"],
+    )
+    report.create_line_chart(
+        x_hours,
+        [parameters.ems.pv_prognose_wh],
+        title="PV Forecast",
+        xlabel="Hours",
+        ylabel="PV Generation (Wh)",
+    )
+    report.create_line_chart(
+        x_hours,
+        [np.full(48, parameters.ems.einspeiseverguetung_euro_pro_wh)],
+        title="Remuneration",
+        xlabel="Hours",
+        ylabel="€/Wh",
+    )
+    report.create_line_chart(
+        x_hours,
+        [parameters.temperature_forecast],
+        title="Temperature Forecast",
+        xlabel="Hours",
+        ylabel="°C",
+    )
+    report.finalize_group()
+
+    # Group 2:
+    report.create_line_chart(
+        x_hours,
+        [
+            results["result"]["Last_Wh_pro_Stunde"],
+            results["result"]["Haushaltsgeraet_wh_pro_stunde"],
+            results["result"]["Netzeinspeisung_Wh_pro_Stunde"],
+            results["result"]["Netzbezug_Wh_pro_Stunde"],
+            results["result"]["Verluste_Pro_Stunde"],
+        ],
+        title="Energy Flow per Hour",
+        xlabel="Hours",
+        ylabel="Energy (Wh)",
+        labels=[
+            "Load (Wh)",
+            "Household Device (Wh)",
+            "Grid Feed-in (Wh)",
+            "Grid Consumption (Wh)",
+            "Losses (Wh)",
+        ],
+        markers=["o", "o", "x", "^", "^"],
+        line_styles=["-", "--", ":", "-.", "-"],
+    )
+    report.finalize_group()
+
+    # Group 3:
+    report.create_line_chart(
+        x_hours,
+        [results["result"]["akku_soc_pro_stunde"], results["result"]["EAuto_SoC_pro_Stunde"]],
+        title="Battery SOC",
+        xlabel="Hours",
+        ylabel="%",
+        markers=["o", "x"],
+    )
+    report.create_line_chart(
+        x_hours,
+        [parameters.ems.strompreis_euro_pro_wh],
+        title="Electricity Price",
+        xlabel="Hours",
+        ylabel="Price (€/Wh)",
+    )
+    report.create_bar_chart(
+        x_hours,
+        [results["ac_charge"], results["dc_charge"], results["discharge_allowed"]],
+        title="AC/DC Charging and Discharge Overview",
+        ylabel="Relative Power (0-1) / Discharge (0 or 1)",
+        label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
+        colors=["blue", "green", "red"],
+        bottom=3,
+    )
+    report.finalize_group()
+
+    # Group 4:
+    report.create_line_chart(
+        x_hours,
+        [
+            results["result"]["Kosten_Euro_pro_Stunde"],
+            results["result"]["Einnahmen_Euro_pro_Stunde"],
+        ],
+        title="Financial Balance per Hour",
+        xlabel="Hours",
+        ylabel="Euro",
+        labels=["Costs", "Revenue"],
+    )
+
+    extra_data = results["extra_data"]
+
+    report.create_scatter_plot(
+        extra_data["verluste"],
+        extra_data["bilanz"],
+        title="",
+        xlabel="losses",
+        ylabel="balance",
+        c=extra_data["nebenbedingung"],
+    )
+
+    report.finalize_group()
+
+    # Group 1: Scatter plot of losses vs balance with color-coded constraints
+    f1 = np.array(extra_data["verluste"])  # Losses
+    f2 = np.array(extra_data["bilanz"])  # Balance
+    n1 = np.array(extra_data["nebenbedingung"])  # Constraints
+
+    # Filter data where 'nebenbedingung' < 0.01
+    filtered_indices = n1 < 0.01
+    filtered_losses = f1[filtered_indices]
+    filtered_balance = f2[filtered_indices]
+
+    # Group 2: Violin plot for filtered losses
+    if filtered_losses.size > 0:
+        report.create_violin_plot(
+            data_list=[filtered_losses],  # Data for filtered losses
+            labels=["Filtered Losses"],  # Label for the violin plot
+            title="Violin Plot for Filtered Losses (Constraint < 0.01)",
+            xlabel="Losses",
+            ylabel="Values",
+        )
+    else:
+        print("No data available for filtered losses violin plot (Constraint < 0.01)")
+
+    # Group 3: Violin plot for filtered balance
+    if filtered_balance.size > 0:
+        report.create_violin_plot(
+            data_list=[filtered_balance],  # Data for filtered balance
+            labels=["Filtered Balance"],  # Label for the violin plot
+            title="Violin Plot for Filtered Balance (Constraint < 0.01)",
+            xlabel="Balance",
+            ylabel="Values",
+        )
+    else:
+        print("No data available for filtered balance violin plot (Constraint < 0.01)")
+
+    if filtered_balance.size > 0 or filtered_losses.size > 0:
+        report.finalize_group()
+
+    # Generate the PDF report
+    report.generate_pdf()

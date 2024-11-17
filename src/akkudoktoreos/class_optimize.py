@@ -17,7 +17,9 @@ from akkudoktoreos.class_haushaltsgeraet import (
 )
 from akkudoktoreos.class_inverter import Wechselrichter, WechselrichterParameters
 from akkudoktoreos.config import AppConfig
+
 from akkudoktoreos.visualize import visualisiere_ergebnisse
+from akkudoktoreos.class_visualize import prepare_visualize
 
 
 class OptimizationParameters(BaseModel):
@@ -606,7 +608,6 @@ class optimization_problem:
             config=self._config,
             extra_data=extra_data,
         )
-
         # List output keys where the first element needs to be changed to None
         keys_to_modify = [
             "Last_Wh_pro_Stunde",
@@ -636,7 +637,7 @@ class optimization_problem:
             o[key] = element_list
 
         # Return final results as a dictionary
-        return {
+        results = {
             "ac_charge": ac_charge.tolist(),
             "dc_charge": dc_charge.tolist(),
             "discharge_allowed": discharge.tolist(),
@@ -648,3 +649,5 @@ class optimization_problem:
             "simulation_data": o,
             "extra_data": extra_data,
         }
+        prepare_visualize(self._config, parameters, results)
+        return results

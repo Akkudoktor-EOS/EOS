@@ -10,9 +10,7 @@ from akkudoktoreos.class_optimize import (
     OptimizeResponse,
     optimization_problem,
 )
-from akkudoktoreos.class_visualize import VisualizationReport
 from akkudoktoreos.config import get_working_dir, load_config
-from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 start_hour = 0
 
@@ -281,7 +279,6 @@ parameters = OptimizationParameters(
     }
 )
 
-# Startzeit nehmen
 start_time = time.time()
 
 # Initialize the optimization problem using the default configuration
@@ -290,7 +287,7 @@ config = load_config(working_dir)
 opt_class = optimization_problem(config, verbose=True, fixed_seed=42)
 
 # Perform the optimisation based on the provided parameters and start hour
-ergebnis = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
+results = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
 
 # Endzeit nehmen
 end_time = time.time()
@@ -299,185 +296,9 @@ end_time = time.time()
 elapsed_time = end_time - start_time
 print(f"Elapsed time: {elapsed_time:.4f} seconds")
 
-
-ac_charge, dc_charge, discharge = (
-    ergebnis["ac_charge"],
-    ergebnis["dc_charge"],
-    ergebnis["discharge_allowed"],
-)
-
-visualisiere_ergebnisse(
-    parameters.ems.gesamtlast,
-    parameters.ems.pv_prognose_wh,
-    parameters.ems.strompreis_euro_pro_wh,
-    ergebnis["result"],
-    ac_charge,
-    dc_charge,
-    discharge,
-    parameters.temperature_forecast,
-    start_hour,
-    einspeiseverguetung_euro_pro_wh=np.full(
-        config.eos.feed_in_tariff_eur_per_wh, parameters.ems.einspeiseverguetung_euro_pro_wh
-    ),
-    config=config,
-    filename="visualization_results.pdf",
-    extra_data=ergebnis["extra_data"],
-)
-
-report = VisualizationReport(config, "grouped_energy_report.pdf")
-x_hours = np.arange(0, config.eos.prediction_hours)
-
-# Group 1:
-report.create_line_chart(
-    x_hours,
-    [parameters.ems.gesamtlast],
-    title="Load Profile",
-    xlabel="Hours",
-    ylabel="Load (Wh)",
-    labels=["Total Load (Wh)"],
-    markers=["s"],
-    line_styles=["-"],
-)
-report.create_line_chart(
-    x_hours,
-    [parameters.ems.pv_prognose_wh],
-    title="PV Forecast",
-    xlabel="Hours",
-    ylabel="PV Generation (Wh)",
-)
-report.create_line_chart(
-    x_hours,
-    [np.full(48, parameters.ems.einspeiseverguetung_euro_pro_wh)],
-    title="Remuneration",
-    xlabel="Hours",
-    ylabel="€/Wh",
-)
-report.create_line_chart(
-    x_hours,
-    [parameters.temperature_forecast],
-    title="Temperature Forecast",
-    xlabel="Hours",
-    ylabel="°C",
-)
-report.finalize_group()
-
-# Group 2:
-report.create_line_chart(
-    x_hours,
-    [
-        ergebnis["result"]["Last_Wh_pro_Stunde"],
-        ergebnis["result"]["Haushaltsgeraet_wh_pro_stunde"],
-        ergebnis["result"]["Netzeinspeisung_Wh_pro_Stunde"],
-        ergebnis["result"]["Netzbezug_Wh_pro_Stunde"],
-        ergebnis["result"]["Verluste_Pro_Stunde"],
-    ],
-    title="Energy Flow per Hour",
-    xlabel="Hours",
-    ylabel="Energy (Wh)",
-    labels=[
-        "Load (Wh)",
-        "Household Device (Wh)",
-        "Grid Feed-in (Wh)",
-        "Grid Consumption (Wh)",
-        "Losses (Wh)",
-    ],
-    markers=["o", "o", "x", "^", "^"],
-    line_styles=["-", "--", ":", "-.", "-"],
-)
-report.finalize_group()
-
-# Group 3:
-report.create_line_chart(
-    x_hours,
-    [ergebnis["result"]["akku_soc_pro_stunde"], ergebnis["result"]["EAuto_SoC_pro_Stunde"]],
-    title="Battery SOC",
-    xlabel="Hours",
-    ylabel="%",
-    markers=["o", "x"],
-)
-report.create_line_chart(
-    x_hours,
-    [parameters.ems.strompreis_euro_pro_wh],
-    title="Electricity Price",
-    xlabel="Hours",
-    ylabel="Price (€/Wh)",
-)
-report.create_bar_chart(
-    x_hours,
-    [ac_charge, dc_charge, discharge],
-    title="AC/DC Charging and Discharge Overview",
-    ylabel="Relative Power (0-1) / Discharge (0 or 1)",
-    label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
-    colors=["blue", "green", "red"],
-    bottom=3,
-)
-report.finalize_group()
-
-# Group 4:
-report.create_line_chart(
-    x_hours,
-    [ergebnis["result"]["Kosten_Euro_pro_Stunde"], ergebnis["result"]["Einnahmen_Euro_pro_Stunde"]],
-    title="Financial Balance per Hour",
-    xlabel="Hours",
-    ylabel="Euro",
-    labels=["Costs", "Revenue"],
-)
-
-extra_data = ergebnis["extra_data"]
-
-report.create_scatter_plot(
-    extra_data["verluste"],
-    extra_data["bilanz"],
-    title="",
-    xlabel="losses",
-    ylabel="balance",
-    c=extra_data["nebenbedingung"],
-)
-
-report.finalize_group()
-
-# Group 1: Scatter plot of losses vs balance with color-coded constraints
-f1 = np.array(extra_data["verluste"])  # Losses
-f2 = np.array(extra_data["bilanz"])  # Balance
-n1 = np.array(extra_data["nebenbedingung"])  # Constraints
-
-
-# Filter data where 'nebenbedingung' < 0.01
-filtered_indices = n1 < 0.01
-filtered_losses = f1[filtered_indices]
-filtered_balance = f2[filtered_indices]
-
-# Group 2: Violin plot for filtered losses
-if filtered_losses.size > 0:
-    report.create_violin_plot(
-        data_list=[filtered_losses],  # Data for filtered losses
-        labels=["Filtered Losses"],  # Label for the violin plot
-        title="Violin Plot for Filtered Losses (Constraint < 0.01)",
-        xlabel="Losses",
-        ylabel="Values",
-    )
-else:
-    print("No data available for filtered losses violin plot (Constraint < 0.01)")
-
-# Group 3: Violin plot for filtered balance
-if filtered_balance.size > 0:
-    report.create_violin_plot(
-        data_list=[filtered_balance],  # Data for filtered balance
-        labels=["Filtered Balance"],  # Label for the violin plot
-        title="Violin Plot for Filtered Balance (Constraint < 0.01)",
-        xlabel="Balance",
-        ylabel="Values",
-    )
-else:
-    print("No data available for filtered balance violin plot (Constraint < 0.01)")
-
-if filtered_balance.size > 0 or filtered_losses.size > 0:
-    report.finalize_group()
-
-# Generate the PDF report
-report.generate_pdf()
-
-json_data = NumpyEncoder.dumps(ergebnis)
+json_data = NumpyEncoder.dumps(results)
 print(json_data)
 
-OptimizeResponse(**ergebnis)
+# prepare_visualize(config, parameters, results) # alreaedy done in the class_optimize
+
+OptimizeResponse(**results)
