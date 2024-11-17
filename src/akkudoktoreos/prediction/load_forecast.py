@@ -1,4 +1,5 @@
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 
@@ -6,14 +7,12 @@ import numpy as np
 
 
 class LoadForecast:
-    def __init__(self, filepath=None, year_energy=None):
+    def __init__(self, filepath: str | Path, year_energy: float):
         self.filepath = filepath
-        self.data = None
-        self.data_year_energy = None
         self.year_energy = year_energy
         self.load_data()
 
-    def get_daily_stats(self, date_str):
+    def get_daily_stats(self, date_str: str):
         """Returns the 24-hour profile with mean and standard deviation for a given date.
 
         :param date_str: Date as a string in the format "YYYY-MM-DD"
@@ -29,7 +28,7 @@ class LoadForecast:
         daily_stats = self.data_year_energy[day_of_year - 1]  # -1 because indexing starts at 0
         return daily_stats
 
-    def get_hourly_stats(self, date_str, hour):
+    def get_hourly_stats(self, date_str: str, hour: int):
         """Returns the mean and standard deviation for a specific hour of a given date.
 
         :param date_str: Date as a string in the format "YYYY-MM-DD"
@@ -47,7 +46,7 @@ class LoadForecast:
 
         return hourly_stats
 
-    def get_stats_for_date_range(self, start_date_str, end_date_str):
+    def get_stats_for_date_range(self, start_date_str: str, end_date_str: str):
         """Returns the means and standard deviations for a date range.
 
         :param start_date_str: Start date as a string in the format "YYYY-MM-DD"
@@ -83,9 +82,10 @@ class LoadForecast:
 
     def get_price_data(self):
         """Returns price data (currently not implemented)."""
-        return self.price_data
+        raise NotImplementedError
+        # return self.price_data
 
-    def _convert_to_datetime(self, date_str):
+    def _convert_to_datetime(self, date_str: str) -> datetime:
         """Converts a date string to a datetime object."""
         return datetime.strptime(date_str, "%Y-%m-%d")
 

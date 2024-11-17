@@ -4,7 +4,7 @@ from akkudoktoreos.devices.battery import PVAkku
 
 
 class WechselrichterParameters(BaseModel):
-    max_leistung_wh: float = Field(10000, gt=0)
+    max_leistung_wh: float = Field(default=10000, gt=0)
 
 
 class Wechselrichter:

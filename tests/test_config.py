@@ -49,7 +49,7 @@ def test_config_merge(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         # custom configuration is broken but not updated.
-        load_config(tmp_path, tmp_path, False)
+        load_config(tmp_path, True, False)
 
     with config_file.open("r") as f_in:
         # custom configuration is not changed.

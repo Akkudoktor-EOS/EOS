@@ -15,7 +15,7 @@ from akkudoktoreos.config import EOS_DIR, AppConfig, load_config
 def load_config_tmp(tmp_path: Path) -> AppConfig:
     """Creates an AppConfig from default.config.json with a tmp output directory."""
     config = load_config(tmp_path)
-    config.directories.output = tmp_path
+    config.directories.output = str(tmp_path)
     return config
 
 

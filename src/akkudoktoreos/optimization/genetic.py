@@ -7,13 +7,20 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from typing_extensions import Self
 
 from akkudoktoreos.config import AppConfig
-from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
+from akkudoktoreos.devices.battery import (
+    EAutoParameters,
+    EAutoResult,
+    PVAkku,
+    PVAkkuParameters,
+)
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
 from akkudoktoreos.prediction.ems import (
     EnergieManagementSystem,
     EnergieManagementSystemParameters,
+    SimulationResult,
 )
+from akkudoktoreos.utils.utils import NumpyEncoder
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
@@ -21,19 +28,20 @@ class OptimizationParameters(BaseModel):
     ems: EnergieManagementSystemParameters
     pv_akku: PVAkkuParameters
     wechselrichter: WechselrichterParameters = WechselrichterParameters()
-    eauto: EAutoParameters
+    eauto: Optional[EAutoParameters]
     dishwasher: Optional[HomeApplianceParameters] = None
-    temperature_forecast: list[float] = Field(
-        "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
+    temperature_forecast: Optional[list[float]] = Field(
+        default=None,
+        description="An array of floats representing the temperature forecast in degrees Celsius for different time intervals.",
     )
     start_solution: Optional[list[float]] = Field(
-        None, description="Can be `null` or contain a previous solution (if available)."
+        default=None, description="Can be `null` or contain a previous solution (if available)."
     )
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
         arr_length = len(self.ems.pv_prognose_wh)
-        if arr_length != len(self.temperature_forecast):
+        if self.temperature_forecast is not None and arr_length != len(self.temperature_forecast):
             raise ValueError("Input lists have different lenghts")
         return self
 
@@ -44,100 +52,6 @@ class OptimizationParameters(BaseModel):
         if start_solution is not None and len(start_solution) < 2:
             raise ValueError("Requires at least two values.")
         return start_solution
-
-
-class EAutoResult(BaseModel):
-    """This object contains information related to the electric vehicle and its charging and discharging behavior."""
-
-    charge_array: list[float] = Field(
-        description="Indicates for each hour whether the EV is charging (`0` for no charging, `1` for charging)."
-    )
-    discharge_array: list[int] = Field(
-        description="Indicates for each hour whether the EV is discharging (`0` for no discharging, `1` for discharging)."
-    )
-    entlade_effizienz: float = Field(description="The discharge efficiency as a float.")
-    hours: int = Field("Amount of hours the simulation is done for.")
-    kapazitaet_wh: int = Field("The capacity of the EV’s battery in watt-hours.")
-    lade_effizienz: float = Field("The charging efficiency as a float.")
-    max_ladeleistung_w: int = Field(description="The maximum charging power of the EV in watts.")
-    soc_wh: float = Field(
-        description="The state of charge of the battery in watt-hours at the start of the simulation."
-    )
-    start_soc_prozent: int = Field(
-        description="The state of charge of the battery in percentage at the start of the simulation."
-    )
-
-
-class SimulationResult(BaseModel):
-    """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
-
-    Last_Wh_pro_Stunde: list[Optional[float]] = Field(description="TBD")
-    EAuto_SoC_pro_Stunde: list[Optional[float]] = Field(
-        description="The state of charge of the EV for each hour."
-    )
-    Einnahmen_Euro_pro_Stunde: list[Optional[float]] = Field(
-        description="The revenue from grid feed-in or other sources in euros per hour."
-    )
-    Gesamt_Verluste: float = Field(
-        description="The total losses in watt-hours over the entire period."
-    )
-    Gesamtbilanz_Euro: float = Field(
-        description="The total balance of revenues minus costs in euros."
-    )
-    Gesamteinnahmen_Euro: float = Field(description="The total revenues in euros.")
-    Gesamtkosten_Euro: float = Field(description="The total costs in euros.")
-    Home_appliance_wh_per_hour: list[Optional[float]] = Field(
-        description="The energy consumption of a household appliance in watt-hours per hour."
-    )
-    Kosten_Euro_pro_Stunde: list[Optional[float]] = Field(
-        description="The costs in euros per hour."
-    )
-    Netzbezug_Wh_pro_Stunde: list[Optional[float]] = Field(
-        description="The grid energy drawn in watt-hours per hour."
-    )
-    Netzeinspeisung_Wh_pro_Stunde: list[Optional[float]] = Field(
-        description="The energy fed into the grid in watt-hours per hour."
-    )
-    Verluste_Pro_Stunde: list[Optional[float]] = Field(
-        description="The losses in watt-hours per hour."
-    )
-    akku_soc_pro_stunde: list[Optional[float]] = Field(
-        description="The state of charge of the battery (not the EV) in percentage per hour."
-    )
-
-
-# class SimulationData(BaseModel):
-#    """An object containing the simulated data."""
-#
-#    Last_Wh_pro_Stunde: list[Optional[float]] = Field(description="TBD")
-#    EAuto_SoC_pro_Stunde: list[Optional[float]] = Field(
-#        description="An array of floats representing the simulated state of charge of the electric car per hour.",
-#    )
-#    Einnahmen_Euro_pro_Stunde: list[Optional[float]] = Field(
-#        description="An array of floats representing the simulated income in euros per hour."
-#    )
-#    Gesamt_Verluste: float = Field(description="The total simulated losses in watt-hours.")
-#    Gesamtbilanz_Euro: float = Field(description="The total simulated balance in euros.")
-#    Gesamteinnahmen_Euro: float = Field(description="The total simulated income in euros.")
-#    Gesamtkosten_Euro: float = Field(description="The total simulated costs in euros.")
-#    Home_appliance_wh_per_hour: list[Optional[float]] = Field(
-#        description="An array of floats representing the simulated energy consumption of a household appliance in watt-hours per hour."
-#    )
-#    Kosten_Euro_pro_Stunde: list[Optional[float]] = Field(
-#        description="An array of floats representing the simulated costs in euros per hour."
-#    )
-#    Netzbezug_Wh_pro_Stunde: list[Optional[float]] = Field(
-#        description="An array of floats representing the simulated grid consumption in watt-hours per hour."
-#    )
-#    Netzeinspeisung_Wh_pro_Stunde: list[Optional[float]] = Field(
-#        description="An array of floats representing the simulated grid feed-in in watt-hours per hour."
-#    )
-#    Verluste_Pro_Stunde: list[Optional[float]] = Field(
-#        description="An array of floats representing the simulated losses per hour."
-#    )
-#    akku_soc_pro_stunde: list[Optional[float]] = Field(
-#        description="An array of floats representing the simulated state of charge of the battery in percentage per hour."
-#    )
 
 
 class OptimizeResponse(BaseModel):
@@ -152,17 +66,35 @@ class OptimizeResponse(BaseModel):
     discharge_allowed: list[int] = Field(
         description="Array with discharge values (1 for discharge, 0 otherwise)."
     )
+    eautocharge_hours_float: Optional[list[float]] = Field(description="TBD")
     result: SimulationResult
-    eauto_obj: EAutoResult
+    eauto_obj: Optional[EAutoResult]
     start_solution: Optional[list[float]] = Field(
-        None,
+        default=None,
         description="An array of binary values (0 or 1) representing a possible starting solution for the simulation.",
     )
     washingstart: Optional[int] = Field(
-        None,
+        default=None,
         description="Can be `null` or contain an object representing the start of washing (if applicable).",
     )
-    # simulation_data: Optional[SimulationData] = None
+
+    @field_validator(
+        "ac_charge",
+        "dc_charge",
+        "discharge_allowed",
+        mode="before",
+    )
+    def convert_numpy(cls, field: Any) -> Any:
+        return NumpyEncoder.convert_numpy(field)[0]
+
+    @field_validator(
+        "eauto_obj",
+        mode="before",
+    )
+    def convert_eauto(cls, field: Any) -> Any:
+        if isinstance(field, PVAkku):
+            return EAutoResult(**field.to_dict())
+        return field
 
 
 class optimization_problem:
@@ -176,7 +108,7 @@ class optimization_problem:
         self._config = config
         self.prediction_hours = config.eos.prediction_hours
         self.strafe = config.eos.penalty
-        self.opti_param = None
+        self.opti_param: dict[str, Any] = {}
         self.fixed_eauto_hours = config.eos.prediction_hours - config.eos.optimization_hours
         self.possible_charge_values = config.eos.available_charging_rates_in_percentage
         self.verbose = verbose
@@ -189,7 +121,7 @@ class optimization_problem:
             random.seed(fixed_seed)
 
     def decode_charge_discharge(
-        self, discharge_hours_bin: np.ndarray
+        self, discharge_hours_bin: list[int]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Decode the input array `discharge_hours_bin` into three separate arrays for AC charging, DC charging, and discharge.
 
@@ -209,25 +141,27 @@ class optimization_problem:
         - discharge (np.ndarray): Array with discharge values (1 for discharge, 0 otherwise).
         """
         # Convert the input list to a NumPy array, if it's not already
-        discharge_hours_bin = np.array(discharge_hours_bin)
+        discharge_hours_bin_np = np.array(discharge_hours_bin)
 
         # Create ac_charge array: Only consider values between 2 and 6 (AC charging power levels), set the rest to 0
         ac_charge = np.where(
-            (discharge_hours_bin >= 2) & (discharge_hours_bin <= 6), discharge_hours_bin - 1, 0
+            (discharge_hours_bin_np >= 2) & (discharge_hours_bin_np <= 6),
+            discharge_hours_bin_np - 1,
+            0,
         )
         ac_charge = ac_charge / 5.0  # Normalize AC charge to range between 0 and 1
 
         # Create dc_charge array: 7 = Not allowed (mapped to 0), 8 = Allowed (mapped to 1)
         # Create dc_charge array: Only if DC charge optimization is enabled
         if self.optimize_dc_charge:
-            dc_charge = np.where(discharge_hours_bin == 8, 1, 0)
+            dc_charge = np.where(discharge_hours_bin_np == 8, 1, 0)
         else:
             dc_charge = np.ones_like(
-                discharge_hours_bin
+                discharge_hours_bin_np
             )  # Set DC charge to 0 if optimization is disabled
 
         # Create discharge array: Only consider value 1 (Discharge), set the rest to 0 (binary output)
-        discharge = np.where(discharge_hours_bin == 1, 1, 0)
+        discharge = np.where(discharge_hours_bin_np == 1, 1, 0)
 
         return ac_charge, dc_charge, discharge
 
@@ -317,8 +251,8 @@ class optimization_problem:
         return creator.Individual(individual_components)
 
     def split_individual(
-        self, individual: list[float]
-    ) -> Tuple[list[int], list[float], Optional[int]]:
+        self, individual: list[int]
+    ) -> tuple[list[int], Optional[list[int]], Optional[int]]:
         """Split the individual solution into its components.
 
         Components:
@@ -327,18 +261,18 @@ class optimization_problem:
         3. Dishwasher start time (integer if applicable).
         """
         discharge_hours_bin = individual[: self.prediction_hours]
-        eautocharge_hours_float = (
+        eautocharge_hours_index = (
             individual[self.prediction_hours : self.prediction_hours * 2]
             if self.optimize_ev
             else None
         )
 
         washingstart_int = (
-            individual[-1]
+            int(individual[-1])
             if self.opti_param and self.opti_param.get("home_appliance", 0) > 0
             else None
         )
-        return discharge_hours_bin, eautocharge_hours_float, washingstart_int
+        return discharge_hours_bin, eautocharge_hours_index, washingstart_int
 
     def setup_deap_environment(self, opti_param: dict[str, Any], start_hour: int) -> None:
         """Set up the DEAP environment with fitness and individual creation rules."""
@@ -403,7 +337,7 @@ class optimization_problem:
         self.toolbox.register("select", tools.selTournament, tournsize=3)
 
     def evaluate_inner(
-        self, individual: list[float], ems: EnergieManagementSystem, start_hour: int
+        self, individual: list[int], ems: EnergieManagementSystem, start_hour: int
     ) -> dict[str, Any]:
         """Simulates the energy management system (EMS) using the provided individual solution.
 
@@ -413,7 +347,7 @@ class optimization_problem:
         discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
             individual
         )
-        if self.opti_param.get("home_appliance", 0) > 0:
+        if washingstart_int is not None:
             ems.set_home_appliance_start(washingstart_int, global_start_hour=start_hour)
 
         ac, dc, discharge = self.decode_charge_discharge(discharge_hours_bin)
@@ -424,19 +358,19 @@ class optimization_problem:
             ems.set_akku_dc_charge_hours(dc)
         ems.set_akku_ac_charge_hours(ac)
 
-        if self.optimize_ev:
+        if eautocharge_hours_index is not None:
             eautocharge_hours_float = [
                 self._config.eos.available_charging_rates_in_percentage[i]
                 for i in eautocharge_hours_index
             ]
-            ems.set_ev_charge_hours(eautocharge_hours_float)
+            ems.set_ev_charge_hours(np.array(eautocharge_hours_float))
         else:
             ems.set_ev_charge_hours(np.full(self.prediction_hours, 0))
         return ems.simuliere(start_hour)
 
     def evaluate(
         self,
-        individual: list[float],
+        individual: list[int],
         ems: EnergieManagementSystem,
         parameters: OptimizationParameters,
         start_hour: int,
@@ -450,7 +384,7 @@ class optimization_problem:
 
         gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
 
-        discharge_hours_bin, eautocharge_hours_float, _ = self.split_individual(individual)
+        discharge_hours_bin, eautocharge_hours_index, _ = self.split_individual(individual)
 
         # Small Penalty for not discharging
         gesamtbilanz += sum(
@@ -460,13 +394,15 @@ class optimization_problem:
         # Penalty for not meeting the minimum SOC (State of Charge) requirement
         # if parameters.eauto_min_soc_prozent - ems.eauto.ladezustand_in_prozent() <= 0.0 and  self.optimize_ev:
         #     gesamtbilanz += sum(
-        #         self.strafe for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
+        #         self.strafe for ladeleistung in eautocharge_hours_index if ladeleistung != 0.0
         #     )
 
-        individual.extra_data = (
+        individual.extra_data = (  # type: ignore[attr-defined]
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
-            parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent(),
+            parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent()
+            if parameters.eauto and ems.eauto
+            else 0,
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
@@ -478,7 +414,11 @@ class optimization_problem:
         if self.optimize_ev:
             gesamtbilanz += max(
                 0,
-                (parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent())
+                (
+                    parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent()
+                    if parameters.eauto and ems.eauto
+                    else 0
+                )
                 * self.strafe,
             )
 
@@ -515,7 +455,7 @@ class optimization_problem:
             verbose=self.verbose,
         )
 
-        member = {"bilanz": [], "verluste": [], "nebenbedingung": []}
+        member: dict[str, list] = {"bilanz": [], "verluste": [], "nebenbedingung": []}
         for ind in population:
             if hasattr(ind, "extra_data"):
                 extra_value1, extra_value2, extra_value3 = ind.extra_data
@@ -528,12 +468,10 @@ class optimization_problem:
     def optimierung_ems(
         self,
         parameters: OptimizationParameters,
-        start_hour: Optional[int] = None,
+        start_hour: int,
         worst_case: bool = False,
-        startdate: Optional[Any] = None,  # startdate is not used!
-        *,
         ngen: int = 600,
-    ) -> dict[str, Any]:
+    ) -> OptimizeResponse:
         """Perform EMS (Energy Management System) optimization and visualize results."""
         einspeiseverguetung_euro_pro_wh = np.full(
             self.prediction_hours, parameters.ems.einspeiseverguetung_euro_pro_wh
@@ -546,15 +484,18 @@ class optimization_problem:
         )
         akku.set_charge_per_hour(np.full(self.prediction_hours, 1))
 
-        self.optimize_ev = True
-        if parameters.eauto.min_soc_prozent - parameters.eauto.start_soc_prozent < 0:
+        eauto: Optional[PVAkku] = None
+        if parameters.eauto:
+            eauto = PVAkku(
+                parameters.eauto,
+                hours=self.prediction_hours,
+            )
+            eauto.set_charge_per_hour(np.full(self.prediction_hours, 1))
+            self.optimize_ev = (
+                parameters.eauto.min_soc_prozent - parameters.eauto.start_soc_prozent >= 0
+            )
+        else:
             self.optimize_ev = False
-
-        eauto = PVAkku(
-            parameters.eauto,
-            hours=self.prediction_hours,
-        )
-        eauto.set_charge_per_hour(np.full(self.prediction_hours, 1))
 
         # Initialize household appliance if applicable
         dishwasher = (
@@ -571,9 +512,9 @@ class optimization_problem:
         ems = EnergieManagementSystem(
             self._config.eos,
             parameters.ems,
+            wechselrichter=wr,
             eauto=eauto,
             home_appliance=dishwasher,
-            wechselrichter=wr,
         )
 
         # Setup the DEAP environment and optimization process
@@ -586,14 +527,17 @@ class optimization_problem:
 
         # Perform final evaluation on the best solution
         o = self.evaluate_inner(start_solution, ems, start_hour)
-        discharge_hours_bin, eautocharge_hours_float, washingstart_int = self.split_individual(
+        discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
             start_solution
         )
-        if self.optimize_ev:
-            eautocharge_hours_float = [
+        eautocharge_hours_float = (
+            [
                 self._config.eos.available_charging_rates_in_percentage[i]
-                for i in eautocharge_hours_float
+                for i in eautocharge_hours_index
             ]
+            if eautocharge_hours_index is not None
+            else None
+        )
 
         ac_charge, dc_charge, discharge = self.decode_charge_discharge(discharge_hours_bin)
         # Visualize the results
@@ -612,43 +556,15 @@ class optimization_problem:
             extra_data=extra_data,
         )
 
-        # List output keys where the first element needs to be changed to None
-        keys_to_modify = [
-            "Last_Wh_pro_Stunde",
-            "Netzeinspeisung_Wh_pro_Stunde",
-            "akku_soc_pro_stunde",
-            "Netzbezug_Wh_pro_Stunde",
-            "Kosten_Euro_pro_Stunde",
-            "Einnahmen_Euro_pro_Stunde",
-            "EAuto_SoC_pro_Stunde",
-            "Verluste_Pro_Stunde",
-            "Home_appliance_wh_per_hour",
-        ]
-
-        # Loop through each key in the list
-        for key in keys_to_modify:
-            # Convert the NumPy array to a list
-            element_list = o[key].tolist()
-
-            # Change the first value to None
-            # element_list[0] = None
-            # Change the NaN to None (JSON)
-            element_list = [
-                None if isinstance(x, (int, float)) and np.isnan(x) else x for x in element_list
-            ]
-
-            # Assign the modified list back to the dictionary
-            o[key] = element_list
-
-        # Return final results as a dictionary
-        return {
-            "ac_charge": ac_charge.tolist(),
-            "dc_charge": dc_charge.tolist(),
-            "discharge_allowed": discharge.tolist(),
-            "eautocharge_hours_float": eautocharge_hours_float,
-            "result": o,
-            "eauto_obj": ems.eauto.to_dict(),
-            "start_solution": start_solution,
-            "washingstart": washingstart_int,
-            # "simulation_data": o,
-        }
+        return OptimizeResponse(
+            **{
+                "ac_charge": ac_charge,
+                "dc_charge": dc_charge,
+                "discharge_allowed": discharge,
+                "eautocharge_hours_float": eautocharge_hours_float,
+                "result": SimulationResult(**o),
+                "eauto_obj": ems.eauto,
+                "start_solution": start_solution,
+                "washingstart": washingstart_int,
+            }
+        )

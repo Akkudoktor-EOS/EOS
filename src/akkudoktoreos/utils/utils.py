@@ -1,6 +1,7 @@
 import datetime
 import json
 import zoneinfo
+from typing import Any
 
 import numpy as np
 
@@ -20,11 +21,21 @@ def ist_dst_wechsel(tag: datetime.datetime, timezone="Europe/Berlin") -> bool:
 
 
 class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
+    @classmethod
+    def convert_numpy(cls, obj: Any) -> tuple[Any, bool]:
         if isinstance(obj, np.ndarray):
-            return obj.tolist()  # Convert NumPy arrays to lists
+            # Convert NumPy arrays to lists
+            return [
+                None if isinstance(x, (int, float)) and np.isnan(x) else x for x in obj.tolist()
+            ], True
         if isinstance(obj, np.generic):
-            return obj.item()  # Convert NumPy scalars to native Python types
+            return obj.item(), True  # Convert NumPy scalars to native Python types
+        return obj, False
+
+    def default(self, obj):
+        obj, converted = NumpyEncoder.convert_numpy(obj)
+        if converted:
+            return obj
         return super(NumpyEncoder, self).default(obj)
 
     @staticmethod

@@ -44,13 +44,13 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
     )
 
     # Parameters based on previous example data
-    pv_prognose_wh = np.full(prediction_hours, 0)
+    pv_prognose_wh = [0.0] * prediction_hours
     pv_prognose_wh[10] = 5000.0
     pv_prognose_wh[11] = 5000.0
 
-    strompreis_euro_pro_wh = np.full(48, 0.001)
-    strompreis_euro_pro_wh[0:10] = 0.00001
-    strompreis_euro_pro_wh[11:15] = 0.00005
+    strompreis_euro_pro_wh = [0.001] * prediction_hours
+    strompreis_euro_pro_wh[0:10] = [0.00001] * 10
+    strompreis_euro_pro_wh[11:15] = [0.00005] * 4
     strompreis_euro_pro_wh[20] = 0.00001
 
     einspeiseverguetung_euro_pro_wh = [0.00007] * len(strompreis_euro_pro_wh)
@@ -116,9 +116,9 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
             preis_euro_pro_wh_akku=0,
             gesamtlast=gesamtlast,
         ),
+        wechselrichter=wechselrichter,
         eauto=eauto,
         home_appliance=home_appliance,
-        wechselrichter=wechselrichter,
     )
 
     ac = np.full(prediction_hours, 0)

@@ -22,7 +22,7 @@ class HomeAppliance:
         self.duration_h = parameters.duration_h  # Duration of use in hours
         self.load_curve = np.zeros(self.hours)  # Initialize the load curve with zeros
 
-    def set_starting_time(self, start_hour, global_start_hour=0):
+    def set_starting_time(self, start_hour: int, global_start_hour: int = 0):
         """Sets the start time of the device and generates the corresponding load curve.
 
         :param start_hour: The hour at which the device should start.

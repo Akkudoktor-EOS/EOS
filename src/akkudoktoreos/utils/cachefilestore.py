@@ -25,6 +25,8 @@ Notes:
 - Cache files are automatically associated with the current date unless specified.
 """
 
+from __future__ import annotations
+
 import hashlib
 import inspect
 import os
@@ -32,7 +34,7 @@ import pickle
 import tempfile
 import threading
 from datetime import date, datetime, time, timedelta
-from typing import List, Optional, Union
+from typing import IO, Generic, List, Optional, TypeVar, Union
 
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_timedelta
 from akkudoktoreos.utils.logutil import get_logger
@@ -40,15 +42,18 @@ from akkudoktoreos.utils.logutil import get_logger
 logger = get_logger(__file__)
 
 
-class CacheFileStoreMeta(type):
+T = TypeVar("T")
+
+
+class CacheFileStoreMeta(type, Generic[T]):
     """A thread-safe implementation of CacheFileStore."""
 
-    _instances = {}
+    _instances: dict[CacheFileStoreMeta[T], T] = {}
 
     _lock: threading.Lock = threading.Lock()
     """Lock object to synchronize threads on first access to CacheFileStore."""
 
-    def __call__(cls):
+    def __call__(cls) -> T:
         """Return CacheFileStore instance."""
         with cls._lock:
             if cls not in cls._instances:
@@ -86,12 +91,12 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         This constructor sets up an empty key-value store (a dictionary) where each key
         corresponds to a cache file that is associated with a given key and an optional date.
         """
-        self._store = {}
+        self._store: dict[str, tuple[IO[bytes], datetime]] = {}
         self._store_lock = threading.Lock()
 
     def _generate_cache_file_key(
         self, key: str, until_datetime: Union[datetime, None]
-    ) -> (str, datetime):
+    ) -> tuple[str, datetime]:
         """Generates a unique cache file key based on the key and date.
 
         The cache file key is a combination of the input key and the date (if provided),
@@ -152,10 +157,10 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
 
     def _is_valid_cache_item(
         self,
-        cache_item: (),
-        until_datetime: datetime = None,
-        at_datetime: datetime = None,
-        before_datetime: datetime = None,
+        cache_item: tuple[IO[bytes], datetime],
+        until_datetime: Optional[datetime] = None,
+        at_datetime: Optional[datetime] = None,
+        before_datetime: Optional[datetime] = None,
     ):
         cache_file_datetime = cache_item[1]  # Extract the datetime associated with the cache item
         if (
@@ -169,9 +174,9 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
     def _search(
         self,
         key: str,
-        until_datetime: Union[datetime, date, str, int, float] = None,
-        at_datetime: Union[datetime, date, str, int, float] = None,
-        before_datetime: Union[datetime, date, str, int, float] = None,
+        until_datetime: Union[datetime, date, str, int, float, None] = None,
+        at_datetime: Union[datetime, date, str, int, float, None] = None,
+        before_datetime: Union[datetime, date, str, int, float, None] = None,
     ):
         """Searches for a cached item that matches the key and falls within the datetime range.
 
@@ -193,20 +198,23 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
                              otherwise returns `None`.
         """
         # Convert input to datetime if they are not None
-        if until_datetime:
-            until_datetime = to_datetime(until_datetime)
-        if at_datetime:
-            at_datetime = to_datetime(at_datetime)
-        if before_datetime:
-            before_datetime = to_datetime(before_datetime)
+        until_datetime_dt: Optional[datetime] = None
+        if until_datetime is not None:
+            until_datetime_dt = to_datetime(until_datetime)
+        at_datetime_dt: Optional[datetime] = None
+        if at_datetime is not None:
+            at_datetime_dt = to_datetime(at_datetime)
+        before_datetime_dt: Optional[datetime] = None
+        if before_datetime is not None:
+            before_datetime_dt = to_datetime(before_datetime)
 
         for cache_file_key, cache_item in self._store.items():
             # Check if the cache file datetime matches the given criteria
             if self._is_valid_cache_item(
                 cache_item,
-                until_datetime=until_datetime,
-                at_datetime=at_datetime,
-                before_datetime=before_datetime,
+                until_datetime=until_datetime_dt,
+                at_datetime=at_datetime_dt,
+                before_datetime=before_datetime_dt,
             ):
                 # This cache file is within the given datetime range
                 # Extract the datetime associated with the cache item
@@ -262,20 +270,20 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
             >>> cache_file.seek(0)
             >>> print(cache_file.read())  # Output: 'Some cached data'
         """
-        until_datetime = self._until_datetime_by_options(
+        until_datetime_dt = self._until_datetime_by_options(
             until_datetime=until_datetime, until_date=until_date, with_ttl=with_ttl
         )
 
-        cache_file_key, until_date = self._generate_cache_file_key(key, until_datetime)
+        cache_file_key, _ = self._generate_cache_file_key(key, until_datetime_dt)
         with self._store_lock:  # Synchronize access to _store
-            if cache_file_key in self._store:
+            if (cache_file_item := self._store.get(cache_file_key)) is not None:
                 # File already available
-                cache_file_obj, until_datetime = self._store.get(cache_file_key)
+                cache_file_obj = cache_file_item[0]
             else:
                 cache_file_obj = tempfile.NamedTemporaryFile(
                     mode=mode, delete=delete, suffix=suffix
                 )
-                self._store[cache_file_key] = (cache_file_obj, until_datetime)
+                self._store[cache_file_key] = (cache_file_obj, until_datetime_dt)
             cache_file_obj.seek(0)
             return cache_file_obj
 
@@ -309,11 +317,11 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         Example:
             >>> cache_store.set('example_file', io.BytesIO(b'Some binary data'))
         """
-        until_datetime = self._until_datetime_by_options(
+        until_datetime_dt = self._until_datetime_by_options(
             until_datetime=until_datetime, until_date=until_date, with_ttl=with_ttl
         )
 
-        cache_file_key, until_date = self._generate_cache_file_key(key, until_datetime)
+        cache_file_key, until_date = self._generate_cache_file_key(key, until_datetime_dt)
         with self._store_lock:  # Synchronize access to _store
             if cache_file_key in self._store:
                 raise ValueError(f"Key already in store: `{key}`.")

@@ -182,12 +182,7 @@ def fastapi_pvprognose(url: str, ac_power_measurement: Optional[float] = None) -
     pv_forecast = PVforecast.get_pv_forecast_for_date_range(date_now, date)
     temperature_forecast = PVforecast.get_temperature_for_date_range(date_now, date)
 
-    # Return both forecasts as a JSON response
-    ret = {
-        "temperature": temperature_forecast.tolist(),
-        "pvpower": pv_forecast.tolist(),
-    }
-    return ret
+    return ForecastResponse(temperature=temperature_forecast.tolist(), pvpower=pv_forecast.tolist())
 
 
 @app.post("/optimize")
@@ -203,7 +198,6 @@ def fastapi_optimize(
     # Perform optimization simulation
     result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
     # print(result)
-    # convert to JSON (None accepted by dumps)
     return result
 
 

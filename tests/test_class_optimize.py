@@ -54,7 +54,7 @@ def test_optimize(
 
     file = DIR_TESTDATA / fn_out
     with file.open("r") as f_out:
-        expected_output_data = json.load(f_out)
+        expected_result = OptimizeResponse(**json.load(f_out))
 
     opt_class = optimization_problem(tmp_config, fixed_seed=42)
     start_hour = 10
@@ -72,9 +72,7 @@ def test_optimize(
     # Assert that the output contains all expected entries.
     # This does not assert that the optimization always gives the same result!
     # Reproducibility and mathematical accuracy should be tested on the level of individual components.
-    compare_dict(ergebnis, expected_output_data)
+    compare_dict(ergebnis.model_dump(), expected_result.model_dump())
 
     # The function creates a visualization result PDF as a side-effect.
     visualisiere_ergebnisse_patch.assert_called_once()
-
-    OptimizeResponse(**ergebnis)
