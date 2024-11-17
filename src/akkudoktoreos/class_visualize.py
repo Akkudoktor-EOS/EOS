@@ -287,7 +287,7 @@ def prepare_visualize(config, parameters, results):
     )
     report.create_line_chart(
         x_hours,
-        [np.full(48, parameters.ems.einspeiseverguetung_euro_pro_wh)],
+        [np.full(config.eos.prediction_hours, parameters.ems.einspeiseverguetung_euro_pro_wh)],
         title="Remuneration",
         xlabel="Hours",
         ylabel="€/Wh",

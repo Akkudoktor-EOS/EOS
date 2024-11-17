@@ -16,10 +16,9 @@ from akkudoktoreos.class_haushaltsgeraet import (
     HaushaltsgeraetParameters,
 )
 from akkudoktoreos.class_inverter import Wechselrichter, WechselrichterParameters
-from akkudoktoreos.config import AppConfig
-
-from akkudoktoreos.visualize import visualisiere_ergebnisse
 from akkudoktoreos.class_visualize import prepare_visualize
+from akkudoktoreos.config import AppConfig
+from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
 class OptimizationParameters(BaseModel):
