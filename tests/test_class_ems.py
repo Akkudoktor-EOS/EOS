@@ -35,7 +35,7 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
         ),
         hours=prediction_hours,
     )
-    home_appliance.set_startzeitpunkt(2)
+    home_appliance.set_starting_time(2)
 
     # Example initialization of electric car battery
     eauto = PVAkku(

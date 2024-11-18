@@ -79,7 +79,7 @@ class EnergieManagementSystem:
         self.ev_charge_hours = ds
 
     def set_home_appliance_start(self, ds: List[int], global_start_hour: int = 0) -> None:
-        self.home_appliance.set_startzeitpunkt(ds, global_start_hour=global_start_hour)
+        self.home_appliance.set_starting_time(ds, global_start_hour=global_start_hour)
 
     def reset(self) -> None:
         self.eauto.reset()
