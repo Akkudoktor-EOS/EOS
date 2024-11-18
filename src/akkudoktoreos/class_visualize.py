@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
 
 def prepare_visualize(config, parameters, results):
-    report = VisualizationReport(config, "visualization_results2.pdf")
+    report = VisualizationReport(config, "visualization_results.pdf")
     x_hours = np.arange(0, config.eos.prediction_hours)
 
     # Group 1:
