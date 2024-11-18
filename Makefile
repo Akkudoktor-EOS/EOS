@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip install dist test test-full docker-run docs read-docs clean
+.PHONY: help venv pip install dist test test-full docker-run docker-build docs read-docs clean format run run-dev
 
 # Default target
 all: help
@@ -10,12 +10,14 @@ help:
 	@echo "  venv         - Set up a Python 3 virtual environment."
 	@echo "  pip          - Install dependencies from requirements.txt."
 	@echo "  pip-dev      - Install dependencies from requirements-dev.txt."
+	@echo "  format       - Format source code."
 	@echo "  install      - Install EOS in editable form (development mode) into virtual environment."
 	@echo "  docker-run   - Run entire setup on docker"
 	@echo "  docker-build - Rebuild docker image"
 	@echo "  docs         - Generate HTML documentation (in build/docs/html/)."
 	@echo "  read-docs    - Read HTML documentation in your browser."
-	@echo "  run          - Run flask_server in the virtual environment (needs install before)."
+	@echo "  run          - Run FastAPI production server in the virtual environment."
+	@echo "  run-dev      - Run FastAPI development server in the virtual environment (automatically reloads)."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
 
@@ -49,6 +51,12 @@ dist: pip
 
 # Target to generate HTML documentation
 docs: pip-dev
+	cp README.md docs/develop/getting_started.md
+	# remove top level header and coresponding description
+	sed -i '/^##[^#]/,$$!d' docs/develop/getting_started.md
+	sed -i "1i\# Getting Started\n" docs/develop/getting_started.md
+	cp CONTRIBUTING.md docs/develop
+	sed -i "s/README.md/getting_started.md/g" docs/develop/CONTRIBUTING.md
 	.venv/bin/sphinx-build -M html docs build/docs
 	@echo "Documentation generated to build/docs/html/."
 
@@ -66,8 +74,12 @@ clean:
 	@echo "Deletion complete."
 
 run:
-	@echo "Starting flask server, please wait..."
-	.venv/bin/python -m akkudoktoreosserver.flask_server
+	@echo "Starting FastAPI server, please wait..."
+	.venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
+
+run-dev:
+	@echo "Starting FastAPI development server, please wait..."
+	.venv/bin/fastapi dev --port 8503 src/akkudoktoreos/server/fastapi_server.py
 
 # Target to setup tests.
 test-setup: pip-dev
@@ -83,9 +95,13 @@ test-full:
 	@echo "Running all tests..."
 	.venv/bin/pytest --full-run
 
+# Target to format code.
+format:
+	.venv/bin/pre-commit run --all-files
+
 # Run entire setup on docker
 docker-run:
 	@docker compose up --remove-orphans
 
 docker-build:
-	@docker compose build
+	@docker compose build --pull

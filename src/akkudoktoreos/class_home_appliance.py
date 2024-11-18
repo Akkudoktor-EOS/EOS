@@ -1,11 +1,25 @@
 import numpy as np
+from pydantic import BaseModel, Field
+
+
+class HomeApplianceParameters(BaseModel):
+    consumption_wh: int = Field(
+        gt=0,
+        description="An integer representing the energy consumption of a household device in watt-hours.",
+    )
+    duration_h: int = Field(
+        gt=0,
+        description="An integer representing the usage duration of a household device in hours.",
+    )
 
 
 class HomeAppliance:
-    def __init__(self, hours=None, consumption_wh=None, duration_h=None):
+    def __init__(self, parameters: HomeApplianceParameters, hours=None):
         self.hours = hours  # Total duration for which the planning is done
-        self.consumption_wh = consumption_wh  # Total energy consumption of the device in kWh
-        self.duration_h = duration_h  # Duration of use in hours
+        self.consumption_wh = (
+            parameters.consumption_wh
+        )  # Total energy consumption of the device in kWh
+        self.duration_h = parameters.duration_h  # Duration of use in hours
         self.load_curve = np.zeros(self.hours)  # Initialize the load curve with zeros
 
     def set_startzeitpunkt(self, start_hour, global_start_hour=0):

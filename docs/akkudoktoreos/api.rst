@@ -4,8 +4,8 @@
 
 .. _akkudoktoreos_api:
 
-EOS API
-=======
+ EOS API
+=========
 
 .. autosummary::
    :toctree: _autosummary
@@ -13,4 +13,3 @@ EOS API
    :recursive:
 
    akkudoktoreos
-   akkudoktoreosserver

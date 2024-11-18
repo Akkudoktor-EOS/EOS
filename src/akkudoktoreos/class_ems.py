@@ -2,27 +2,63 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 import numpy as np
+from pydantic import BaseModel, Field, model_validator
+from typing_extensions import Self
 
+from akkudoktoreos.class_akku import PVAkku
+from akkudoktoreos.class_home_appliance import HomeAppliance
+from akkudoktoreos.class_inverter import Wechselrichter
 from akkudoktoreos.config import EOSConfig
+
+
+class EnergieManagementSystemParameters(BaseModel):
+    pv_prognose_wh: list[float] = Field(
+        description="An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+    )
+    strompreis_euro_pro_wh: list[float] = Field(
+        description="An array of floats representing the electricity price in euros per watt-hour for different time intervals."
+    )
+    einspeiseverguetung_euro_pro_wh: list[float] | float = Field(
+        description="A float or array of floats representing the feed-in compensation in euros per watt-hour."
+    )
+    preis_euro_pro_wh_akku: float
+    gesamtlast: list[float] = Field(
+        description="An array of floats representing the total load (consumption) in watts for different time intervals."
+    )
+
+    @model_validator(mode="after")
+    def validate_list_length(self) -> Self:
+        pv_prognose_length = len(self.pv_prognose_wh)
+        if (
+            pv_prognose_length != len(self.strompreis_euro_pro_wh)
+            or pv_prognose_length != len(self.gesamtlast)
+            or (
+                isinstance(self.einspeiseverguetung_euro_pro_wh, list)
+                and pv_prognose_length != len(self.einspeiseverguetung_euro_pro_wh)
+            )
+        ):
+            raise ValueError("Input lists have different lengths")
+        return self
 
 
 class EnergieManagementSystem:
     def __init__(
         self,
         config: EOSConfig,
-        pv_prognose_wh: Optional[np.ndarray] = None,
-        strompreis_euro_pro_wh: Optional[np.ndarray] = None,
-        einspeiseverguetung_euro_pro_wh: Optional[np.ndarray] = None,
-        eauto: Optional[object] = None,
-        gesamtlast: Optional[np.ndarray] = None,
-        home_appliance: Optional[object] = None,
-        wechselrichter: Optional[object] = None,
+        parameters: EnergieManagementSystemParameters,
+        eauto: Optional[PVAkku] = None,
+        home_appliance: Optional[HomeAppliance] = None,
+        wechselrichter: Optional[Wechselrichter] = None,
     ):
         self.akku = wechselrichter.akku
-        self.gesamtlast = gesamtlast
-        self.pv_prognose_wh = pv_prognose_wh
-        self.strompreis_euro_pro_wh = strompreis_euro_pro_wh
-        self.einspeiseverguetung_euro_pro_wh = einspeiseverguetung_euro_pro_wh
+        self.gesamtlast = np.array(parameters.gesamtlast, float)
+        self.pv_prognose_wh = np.array(parameters.pv_prognose_wh, float)
+        self.strompreis_euro_pro_wh = np.array(parameters.strompreis_euro_pro_wh, float)
+        self.einspeiseverguetung_euro_pro_wh_arr = (
+            parameters.einspeiseverguetung_euro_pro_wh
+            if isinstance(parameters.einspeiseverguetung_euro_pro_wh, list)
+            else np.full(len(self.gesamtlast), parameters.einspeiseverguetung_euro_pro_wh, float)
+        )
         self.eauto = eauto
         self.home_appliance = home_appliance
         self.wechselrichter = wechselrichter
@@ -134,7 +170,7 @@ class EnergieManagementSystem:
                 netzbezug * self.strompreis_euro_pro_wh[stunde]
             )
             einnahmen_euro_pro_stunde[stunde_since_now] = (
-                netzeinspeisung * self.einspeiseverguetung_euro_pro_wh[stunde]
+                netzeinspeisung * self.einspeiseverguetung_euro_pro_wh_arr[stunde]
             )
 
             # Akku SOC tracking
@@ -152,7 +188,7 @@ class EnergieManagementSystem:
             "akku_soc_pro_stunde": akku_soc_pro_stunde,
             "Einnahmen_Euro_pro_Stunde": einnahmen_euro_pro_stunde,
             "Gesamtbilanz_Euro": gesamtkosten_euro,
-            "E-Auto_SoC_pro_Stunde": eauto_soc_pro_stunde,
+            "EAuto_SoC_pro_Stunde": eauto_soc_pro_stunde,
             "Gesamteinnahmen_Euro": np.nansum(einnahmen_euro_pro_stunde),
             "Gesamtkosten_Euro": np.nansum(kosten_euro_pro_stunde),
             "Verluste_Pro_Stunde": verluste_wh_pro_stunde,

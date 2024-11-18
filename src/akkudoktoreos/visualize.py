@@ -1,12 +1,9 @@
-import datetime
-
 # Set the backend for matplotlib to Agg
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
-from akkudoktoreos.class_sommerzeit import ist_dst_wechsel
 from akkudoktoreos.config import AppConfig, SetupIncomplete
 
 matplotlib.use("Agg")
@@ -100,11 +97,7 @@ def visualisiere_ergebnisse(
         #####################
 
         plt.figure(figsize=(14, 10))
-
-        if ist_dst_wechsel(datetime.datetime.now()):
-            hours = np.arange(start_hour, config.eos.prediction_hours - 1)
-        else:
-            hours = np.arange(start_hour, config.eos.prediction_hours)
+        hours = np.arange(start_hour, config.eos.prediction_hours)
 
         # Energy flow, grid feed-in, and grid consumption
         plt.subplot(3, 2, 1)
@@ -179,7 +172,7 @@ def visualisiere_ergebnisse(
         plt.plot(hours, ergebnisse["akku_soc_pro_stunde"], label="PV Battery (%)", marker="x")
         plt.plot(
             hours,
-            ergebnisse["E-Auto_SoC_pro_Stunde"],
+            ergebnisse["EAuto_SoC_pro_Stunde"],
             label="E-Car Battery (%)",
             marker="x",
         )
@@ -216,10 +209,7 @@ def visualisiere_ergebnisse(
         ax1.set_title("AC/DC Charging and Discharge Overview")
         ax1.grid(True)
 
-        if ist_dst_wechsel(datetime.datetime.now()):
-            hours = np.arange(start_hour, config.eos.prediction_hours - 1)
-        else:
-            hours = np.arange(start_hour, config.eos.prediction_hours)
+        hours = np.arange(start_hour, config.eos.prediction_hours)
 
         pdf.savefig()  # Save the current figure state to the PDF
         plt.close()  # Close the current figure to free up memory

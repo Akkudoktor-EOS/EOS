@@ -19,13 +19,37 @@ There are just too many possibilities and the project would drown in tickets oth
 We welcome code contributions and bug fixes via [Pull Requests](https://github.com/Akkudoktor-EOS/EOS/pulls).
 To make collaboration easier, we require pull requests to pass code style and unit tests.
 
+
+### Setup development environment
+
+Setup virtual environment, then activate virtual environment and install development dependencies.
+See also [README.md](README.md).
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+```
+
+Install make to get access to helpful shortcuts (documentation generation, manual formatting, etc.).
+
+- On Linux (Ubuntu/Debian):
+
+  ```bash
+  sudo apt install make
+  ```
+
+- On MacOS (requires [Homebrew](https://brew.sh)):
+
+  ```zsh
+  brew install make
+  ```
+
+The server can be started with `make run`. A full overview of the main shortcuts is given by `make help`.
+
 ### Code Style
 
 Our code style checks use [`pre-commit`](https://pre-commit.com).
-
-```bash
-pip install -r requirements-dev.txt
-```
 
 To run formatting automatically before every commit:
 
