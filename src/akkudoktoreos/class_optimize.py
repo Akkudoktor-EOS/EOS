@@ -3,7 +3,7 @@ from typing import Any, Optional, Tuple
 
 import numpy as np
 from deap import algorithms, base, creator, tools
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing_extensions import Self
 
 from akkudoktoreos.class_akku import EAutoParameters, PVAkku, PVAkkuParameters
@@ -41,6 +41,14 @@ class OptimizationParameters(BaseModel):
         if arr_length != len(self.temperature_forecast):
             raise ValueError("Input lists have different lenghts")
         return self
+
+    @field_validator("start_solution")
+    def validate_start_solution(
+        cls, start_solution: Optional[list[float]]
+    ) -> Optional[list[float]]:
+        if start_solution is not None and len(start_solution) < 2:
+            raise ValueError("Requires at least two values.")
+        return start_solution
 
 
 class EAutoResult(BaseModel):
