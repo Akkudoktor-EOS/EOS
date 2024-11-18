@@ -33,6 +33,7 @@ class OptimizationParameters(BaseModel):
     start_solution: Optional[list[float]] = Field(
         None, description="Can be `null` or contain a previous solution (if available)."
     )
+    extra_data: Optional[dict[str, list[Any]]] = None
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
@@ -592,21 +593,7 @@ class optimization_problem:
             ]
 
         ac_charge, dc_charge, discharge = self.decode_charge_discharge(discharge_hours_bin)
-        # Visualize the results
-        visualisiere_ergebnisse(
-            parameters.ems.gesamtlast,
-            parameters.ems.pv_prognose_wh,
-            parameters.ems.strompreis_euro_pro_wh,
-            o,
-            ac_charge,
-            dc_charge,
-            discharge,
-            parameters.temperature_forecast,
-            start_hour,
-            einspeiseverguetung_euro_pro_wh,
-            config=self._config,
-            extra_data=extra_data,
-        )
+
         # List output keys where the first element needs to be changed to None
         keys_to_modify = [
             "Last_Wh_pro_Stunde",
@@ -645,7 +632,6 @@ class optimization_problem:
             "eauto_obj": ems.eauto.to_dict(),
             "start_solution": start_solution,
             "spuelstart": spuelstart_int,
-            "simulation_data": o,
             "extra_data": extra_data,
         }
         prepare_visualize(self._config, parameters, results)
