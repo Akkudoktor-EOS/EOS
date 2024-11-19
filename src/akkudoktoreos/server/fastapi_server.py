@@ -16,22 +16,22 @@ import pandas as pd
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, RedirectResponse
 
-from akkudoktoreos.class_load import LoadForecast
-from akkudoktoreos.class_load_container import Gesamtlast
-from akkudoktoreos.class_load_corrector import LoadPredictionAdjuster
-from akkudoktoreos.class_optimize import (
-    OptimizationParameters,
-    OptimizeResponse,
-    optimization_problem,
-)
-from akkudoktoreos.class_pv_forecast import ForecastResponse, PVForecast
-from akkudoktoreos.class_strompreis import HourlyElectricityPriceForecast
 from akkudoktoreos.config import (
     SetupIncomplete,
     get_start_enddate,
     get_working_dir,
     load_config,
 )
+from akkudoktoreos.optimization.genetic import (
+    OptimizationParameters,
+    OptimizeResponse,
+    optimization_problem,
+)
+from akkudoktoreos.prediction.load_container import Gesamtlast
+from akkudoktoreos.prediction.load_corrector import LoadPredictionAdjuster
+from akkudoktoreos.prediction.load_forecast import LoadForecast
+from akkudoktoreos.prediction.price_forecast import HourlyElectricityPriceForecast
+from akkudoktoreos.prediction.pv_forecast import ForecastResponse, PVForecast
 
 app = FastAPI(
     title="Akkudoktor-EOS",

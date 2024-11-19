@@ -1,17 +1,14 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.class_akku import EAutoParameters, PVAkku, PVAkkuParameters
-from akkudoktoreos.class_ems import (
+from akkudoktoreos.config import AppConfig
+from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
+from akkudoktoreos.devices.generic import Haushaltsgeraet, HaushaltsgeraetParameters
+from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
+from akkudoktoreos.prediction.ems import (
     EnergieManagementSystem,
     EnergieManagementSystemParameters,
 )
-from akkudoktoreos.class_haushaltsgeraet import (
-    Haushaltsgeraet,
-    HaushaltsgeraetParameters,
-)
-from akkudoktoreos.class_inverter import Wechselrichter, WechselrichterParameters
-from akkudoktoreos.config import AppConfig
 
 prediction_hours = 48
 optimization_hours = 24

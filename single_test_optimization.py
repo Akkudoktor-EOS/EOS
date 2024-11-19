@@ -4,13 +4,13 @@ import time
 
 import numpy as np
 
-from akkudoktoreos.class_numpy_encoder import NumpyEncoder
-from akkudoktoreos.class_optimize import (
+from akkudoktoreos.config import get_working_dir, load_config
+from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     OptimizeResponse,
     optimization_problem,
 )
-from akkudoktoreos.config import get_working_dir, load_config
+from akkudoktoreos.utils import NumpyEncoder
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 start_hour = 0
