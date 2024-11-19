@@ -6,7 +6,7 @@ from logging.handlers import RotatingFileHandler
 
 import pytest
 
-from akkudoktoreos.logutil import get_logger
+from akkudoktoreos.utils.logutil import get_logger
 
 # -----------------------------
 # get_logger

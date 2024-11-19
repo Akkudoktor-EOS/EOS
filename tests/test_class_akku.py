@@ -1,6 +1,6 @@
 import unittest
 
-from akkudoktoreos.class_akku import PVAkku, PVAkkuParameters
+from akkudoktoreos.devices.battery import PVAkku, PVAkkuParameters
 
 
 class TestPVAkku(unittest.TestCase):

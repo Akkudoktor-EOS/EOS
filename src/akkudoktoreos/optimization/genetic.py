@@ -6,17 +6,14 @@ from deap import algorithms, base, creator, tools
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing_extensions import Self
 
-from akkudoktoreos.class_akku import EAutoParameters, PVAkku, PVAkkuParameters
-from akkudoktoreos.class_ems import (
+from akkudoktoreos.config import AppConfig
+from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
+from akkudoktoreos.devices.generic import Haushaltsgeraet, HaushaltsgeraetParameters
+from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
+from akkudoktoreos.prediction.ems import (
     EnergieManagementSystem,
     EnergieManagementSystemParameters,
 )
-from akkudoktoreos.class_haushaltsgeraet import (
-    Haushaltsgeraet,
-    HaushaltsgeraetParameters,
-)
-from akkudoktoreos.class_inverter import Wechselrichter, WechselrichterParameters
-from akkudoktoreos.config import AppConfig
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
