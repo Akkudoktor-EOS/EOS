@@ -11,7 +11,6 @@ from akkudoktoreos.class_optimize import (
     optimization_problem,
 )
 from akkudoktoreos.config import get_working_dir, load_config
-from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 start_hour = 0
 
@@ -280,7 +279,6 @@ parameters = OptimizationParameters(
     }
 )
 
-# Startzeit nehmen
 start_time = time.time()
 
 # Initialize the optimization problem using the default configuration
@@ -289,7 +287,7 @@ config = load_config(working_dir)
 opt_class = optimization_problem(config, verbose=True, fixed_seed=42)
 
 # Perform the optimisation based on the provided parameters and start hour
-ergebnis = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
+results = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
 
 # Endzeit nehmen
 end_time = time.time()
@@ -298,31 +296,9 @@ end_time = time.time()
 elapsed_time = end_time - start_time
 print(f"Elapsed time: {elapsed_time:.4f} seconds")
 
-
-ac_charge, dc_charge, discharge = (
-    ergebnis["ac_charge"],
-    ergebnis["dc_charge"],
-    ergebnis["discharge_allowed"],
-)
-
-visualisiere_ergebnisse(
-    parameters.ems.gesamtlast,
-    parameters.ems.pv_prognose_wh,
-    parameters.ems.strompreis_euro_pro_wh,
-    ergebnis["result"],
-    ac_charge,
-    dc_charge,
-    discharge,
-    parameters.temperature_forecast,
-    start_hour,
-    einspeiseverguetung_euro_pro_wh=np.full(
-        config.eos.feed_in_tariff_eur_per_wh, parameters.ems.einspeiseverguetung_euro_pro_wh
-    ),
-    config=config,
-)
-
-
-json_data = NumpyEncoder.dumps(ergebnis)
+json_data = NumpyEncoder.dumps(results)
 print(json_data)
 
-OptimizeResponse(**ergebnis)
+# prepare_visualize(config, parameters, results) # alreaedy done in the class_optimize
+
+OptimizeResponse(**results)
