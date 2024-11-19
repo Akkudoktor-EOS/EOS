@@ -7,8 +7,8 @@ from time import sleep
 
 import pytest
 
-from akkudoktoreos.cachefilestore import CacheFileStore, cache_in_file
-from akkudoktoreos.datetimeutil import to_datetime
+from akkudoktoreos.utils.cachefilestore import CacheFileStore, cache_in_file
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 # -----------------------------
 # CacheFileStore

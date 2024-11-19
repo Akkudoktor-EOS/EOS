@@ -5,10 +5,10 @@ import numpy as np
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
 
-from akkudoktoreos.class_akku import PVAkku
-from akkudoktoreos.class_haushaltsgeraet import Haushaltsgeraet
-from akkudoktoreos.class_inverter import Wechselrichter
 from akkudoktoreos.config import EOSConfig
+from akkudoktoreos.devices.battery import PVAkku
+from akkudoktoreos.devices.generic import Haushaltsgeraet
+from akkudoktoreos.devices.inverter import Wechselrichter
 
 
 class EnergieManagementSystemParameters(BaseModel):

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from akkudoktoreos.class_akku import PVAkku
+from akkudoktoreos.devices.battery import PVAkku
 
 
 class WechselrichterParameters(BaseModel):

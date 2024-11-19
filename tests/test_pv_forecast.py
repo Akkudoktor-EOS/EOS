@@ -1,7 +1,7 @@
 """Test Module for PV Power Forecasting Module.
 
 This test module is designed to verify the functionality of the `PVForecast` class
-and its methods in the `class_pv_forecast` module. The tests include validation for
+and its methods in the `prediction.pv_forecast` module. The tests include validation for
 forecast data processing, updating AC power measurements, retrieving forecast data,
 and caching behavior.
 
@@ -19,7 +19,7 @@ Test Cases:
     - test_cache_loading: Tests loading forecast data from a cached file to ensure caching works as expected.
 
 Usage:
-    This test module uses `pytest` and requires the `akkudoktoreos.class_pv_forecast.py` module to be present.
+    This test module uses `pytest` and requires the `akkudoktoreos.prediction.pv_forecast.py` module to be present.
     Run the tests using the command: `pytest test_pv_forecast.py`.
 
 """
@@ -31,8 +31,8 @@ from pathlib import Path
 
 import pytest
 
-from akkudoktoreos.class_pv_forecast import PVForecast, validate_pv_forecast_data
-from akkudoktoreos.datetimeutil import to_datetime
+from akkudoktoreos.prediction.pv_forecast import PVForecast, validate_pv_forecast_data
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 

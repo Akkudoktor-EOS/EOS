@@ -1,6 +1,6 @@
 import pytest
 
-from akkudoktoreos.heatpump import Heatpump
+from akkudoktoreos.devices.heatpump import Heatpump
 
 
 @pytest.fixture(scope="function")

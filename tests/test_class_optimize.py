@@ -5,12 +5,12 @@ from unittest.mock import patch
 
 import pytest
 
-from akkudoktoreos.class_optimize import (
+from akkudoktoreos.config import AppConfig
+from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     OptimizeResponse,
     optimization_problem,
 )
-from akkudoktoreos.config import AppConfig
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 
@@ -37,7 +37,7 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
         ("optimize_input_2.json", "optimize_result_2_full.json", 400),
     ],
 )
-@patch("akkudoktoreos.class_optimize.visualisiere_ergebnisse")
+@patch("akkudoktoreos.optimization.genetic.visualisiere_ergebnisse")
 def test_optimize(
     visualisiere_ergebnisse_patch,
     fn_in: str,
@@ -65,7 +65,7 @@ def test_optimize(
     # Call the optimization function
     ergebnis = opt_class.optimierung_ems(parameters=input_data, start_hour=start_hour, ngen=ngen)
     # with open(f"new_{fn_out}", "w") as f_out:
-    #     from akkudoktoreos.class_numpy_encoder import NumpyEncoder
+    #     from akkudoktoreos.utils import NumpyEncoder
     #     json_data_str = NumpyEncoder.dumps(ergebnis)
     #     json.dump(json.loads(json_data_str), f_out, indent=4)
 
