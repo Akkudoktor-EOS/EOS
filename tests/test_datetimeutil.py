@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from akkudoktoreos.datetimeutil import to_datetime, to_timedelta, to_timezone
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_timedelta, to_timezone
 
 # -----------------------------
 # to_datetime

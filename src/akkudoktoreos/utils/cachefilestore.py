@@ -34,8 +34,8 @@ import threading
 from datetime import date, datetime, time, timedelta
 from typing import List, Optional, Union
 
-from akkudoktoreos.datetimeutil import to_datetime, to_timedelta
-from akkudoktoreos.logutil import get_logger
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_timedelta
+from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__file__)
 

@@ -43,9 +43,9 @@ import pandas as pd
 import requests
 from pydantic import BaseModel, ValidationError
 
-from akkudoktoreos.cachefilestore import cache_in_file
-from akkudoktoreos.datetimeutil import to_datetime
-from akkudoktoreos.logutil import get_logger
+from akkudoktoreos.utils.cachefilestore import cache_in_file
+from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__, logging_level="DEBUG")
 
