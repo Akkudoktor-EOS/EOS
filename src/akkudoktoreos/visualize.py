@@ -5,8 +5,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
+from numpy.typing import NDArray
 
-from akkudoktoreos.config import AppConfig, SetupIncomplete
+from akkudoktoreos.config.config import get_config
 
 matplotlib.use("Agg")
 
@@ -22,23 +23,22 @@ def visualisiere_ergebnisse(
     temperature: Optional[list[float]],
     start_hour: int,
     einspeiseverguetung_euro_pro_wh: np.ndarray,
-    config: AppConfig,
     filename: str = "visualization_results.pdf",
     extra_data: Optional[dict[str, Any]] = None,
 ) -> None:
     #####################
     # 24-hour visualization
     #####################
-    output_dir = config.working_dir / config.directories.output
-    if not output_dir.is_dir():
-        raise SetupIncomplete(f"Output path does not exist: {output_dir}.")
+    config = get_config()
+    output_dir = config.data_output_path
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     output_file = output_dir.joinpath(filename)
     with PdfPages(output_file) as pdf:
         # Load and PV generation
         plt.figure(figsize=(14, 14))
         plt.subplot(3, 3, 1)
-        hours = np.arange(0, config.eos.prediction_hours)
+        hours: NDArray[np.int_] = np.arange(0, config.prediction_hours, dtype=np.int_)
 
         gesamtlast_array = np.array(gesamtlast)
         # Plot individual loads
@@ -100,7 +100,7 @@ def visualisiere_ergebnisse(
         #####################
 
         plt.figure(figsize=(14, 10))
-        hours = np.arange(start_hour, config.eos.prediction_hours)
+        hours = np.arange(start_hour, config.prediction_hours)
 
         # Energy flow, grid feed-in, and grid consumption
         plt.subplot(3, 2, 1)
@@ -184,7 +184,7 @@ def visualisiere_ergebnisse(
 
         # Plot for AC, DC charging, and Discharge status using bar charts
         ax1 = plt.subplot(3, 2, 5)
-        hours = np.arange(0, config.eos.prediction_hours)
+        hours = np.arange(0, config.prediction_hours)
         # Plot AC charging as bars (relative values between 0 and 1)
         plt.bar(hours, ac, width=0.4, label="AC Charging (relative)", color="blue", alpha=0.6)
 
@@ -206,13 +206,13 @@ def visualisiere_ergebnisse(
 
         # Configure the plot
         ax1.legend(loc="upper left")
-        ax1.set_xlim(0, config.eos.prediction_hours)
+        ax1.set_xlim(0, config.prediction_hours)
         ax1.set_xlabel("Hour")
         ax1.set_ylabel("Relative Power (0-1) / Discharge (0 or 1)")
         ax1.set_title("AC/DC Charging and Discharge Overview")
         ax1.grid(True)
 
-        hours = np.arange(start_hour, config.eos.prediction_hours)
+        hours = np.arange(start_hour, config.prediction_hours)
 
         pdf.savefig()  # Save the current figure state to the PDF
         plt.close()  # Close the current figure to free up memory
