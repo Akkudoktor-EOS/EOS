@@ -166,7 +166,7 @@ class optimization_problem:
         return ac_charge, dc_charge, discharge
 
     # Custom mutation function that applies type-specific mutations
-    def mutate(self, individual):
+    def mutate(self, individual: list[int]) -> tuple[list[int]]:
         """Custom mutation function for the individual.
 
         This function mutates different parts of the individual:
@@ -232,7 +232,7 @@ class optimization_problem:
         return (individual,)
 
     # Method to create an individual based on the conditions
-    def create_individual(self):
+    def create_individual(self) -> list[int]:
         # Start with discharge states for the individual
         individual_components = [
             self.toolbox.attr_discharge_state() for _ in range(self.prediction_hours)
@@ -437,7 +437,7 @@ class optimization_problem:
             print("Start optimize:", start_solution)
 
         # Insert the start solution into the population if provided
-        if start_solution not in [None, -1]:
+        if start_solution is not None:
             for _ in range(3):
                 population.insert(0, creator.Individual(start_solution))
 
@@ -455,7 +455,7 @@ class optimization_problem:
             verbose=self.verbose,
         )
 
-        member: dict[str, list] = {"bilanz": [], "verluste": [], "nebenbedingung": []}
+        member: dict[str, list[float]] = {"bilanz": [], "verluste": [], "nebenbedingung": []}
         for ind in population:
             if hasattr(ind, "extra_data"):
                 extra_value1, extra_value2, extra_value3 = ind.extra_data

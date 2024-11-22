@@ -17,7 +17,7 @@ class LoadPredictionAdjuster:
         self.load_forecast = load_forecast
         self.merged_data = self._merge_data()
 
-    def _remove_outliers(self, data: pd.DataFrame, threshold=2) -> pd.DataFrame:
+    def _remove_outliers(self, data: pd.DataFrame, threshold: int = 2) -> pd.DataFrame:
         # Calculate the Z-Score of the 'Last' data
         data["Z-Score"] = np.abs((data["Last"] - data["Last"].mean()) / data["Last"].std())
         # Filter the data based on the threshold
@@ -49,7 +49,9 @@ class LoadPredictionAdjuster:
         merged_data["DayOfWeek"] = merged_data["time"].dt.dayofweek
         return merged_data
 
-    def calculate_weighted_mean(self, train_period_weeks=9, test_period_weeks=1):
+    def calculate_weighted_mean(
+        self, train_period_weeks: int = 9, test_period_weeks: int = 1
+    ) -> None:
         self.merged_data = self._remove_outliers(self.merged_data)
         train_end_date = self.merged_data["time"].max() - pd.Timedelta(weeks=test_period_weeks)
         train_start_date = train_end_date - pd.Timedelta(weeks=train_period_weeks)
@@ -87,7 +89,7 @@ class LoadPredictionAdjuster:
         weighted_mean = (data["Difference"] * weights).sum() / weights.sum()
         return weighted_mean
 
-    def adjust_predictions(self):
+    def adjust_predictions(self) -> None:
         self.train_data["Adjusted Pred"] = self.train_data.apply(self._adjust_row, axis=1)
         self.test_data["Adjusted Pred"] = self.test_data.apply(self._adjust_row, axis=1)
 
@@ -97,11 +99,11 @@ class LoadPredictionAdjuster:
         else:
             return row["Last Pred"] + self.weekend_diff.get(row["Hour"], 0)
 
-    def plot_results(self):
+    def plot_results(self) -> None:
         self._plot_data(self.train_data, "Training")
         self._plot_data(self.test_data, "Testing")
 
-    def _plot_data(self, data: pd.DataFrame, data_type: str):
+    def _plot_data(self, data: pd.DataFrame, data_type: str) -> None:
         plt.figure(figsize=(14, 7))
         plt.plot(data["time"], data["Last"], label=f"Actual Last - {data_type}", color="blue")
         plt.plot(
@@ -125,7 +127,7 @@ class LoadPredictionAdjuster:
         plt.grid(True)
         plt.show()
 
-    def evaluate_model(self):
+    def evaluate_model(self) -> None:
         mse = mean_squared_error(self.test_data["Last"], self.test_data["Adjusted Pred"])
         r2 = r2_score(self.test_data["Last"], self.test_data["Adjusted Pred"])
         print(f"Mean Squared Error: {mse}")

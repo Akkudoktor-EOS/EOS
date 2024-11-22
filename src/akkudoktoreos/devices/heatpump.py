@@ -18,7 +18,7 @@ class Heatpump:
     COP_COEFFICIENT = 0.1
     """COP increase per degree"""
 
-    def __init__(self, max_heat_output, prediction_hours):
+    def __init__(self, max_heat_output: int, prediction_hours: int):
         self.max_heat_output = max_heat_output
         self.prediction_hours = prediction_hours
         self.log = logging.getLogger(__name__)

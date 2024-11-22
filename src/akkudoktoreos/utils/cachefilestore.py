@@ -34,7 +34,7 @@ import pickle
 import tempfile
 import threading
 from datetime import date, datetime, time, timedelta
-from typing import IO, Generic, List, Optional, TypeVar, Union
+from typing import IO, Callable, Generic, List, Optional, ParamSpec, TypeVar, Union
 
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_timedelta
 from akkudoktoreos.utils.logutil import get_logger
@@ -43,6 +43,8 @@ logger = get_logger(__file__)
 
 
 T = TypeVar("T")
+Param = ParamSpec("Param")
+RetType = TypeVar("RetType")
 
 
 class CacheFileStoreMeta(type, Generic[T]):
@@ -85,7 +87,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         >>> print(cache_file.read())  # Output: 'Some data'
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initializes the CacheFileStore instance.
 
         This constructor sets up an empty key-value store (a dictionary) where each key
@@ -119,7 +121,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         cache_key = hashlib.sha256(f"{key}{key_datetime}".encode("utf-8")).hexdigest()
         return (f"{cache_key}", until_datetime)
 
-    def _get_file_path(self, file_obj):
+    def _get_file_path(self, file_obj: IO[bytes]) -> Optional[str]:
         """Retrieve the file path from a file-like object.
 
         Args:
@@ -141,7 +143,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         until_date: Union[datetime, date, str, int, float, None] = None,
         until_datetime: Union[datetime, date, str, int, float, None] = None,
         with_ttl: Union[timedelta, str, int, float, None] = None,
-    ):
+    ) -> datetime:
         """Get until_datetime from the given options."""
         if until_datetime:
             until_datetime = to_datetime(until_datetime)
@@ -161,7 +163,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         until_datetime: Optional[datetime] = None,
         at_datetime: Optional[datetime] = None,
         before_datetime: Optional[datetime] = None,
-    ):
+    ) -> bool:
         cache_file_datetime = cache_item[1]  # Extract the datetime associated with the cache item
         if (
             (until_datetime and until_datetime == cache_file_datetime)
@@ -177,7 +179,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         until_datetime: Union[datetime, date, str, int, float, None] = None,
         at_datetime: Union[datetime, date, str, int, float, None] = None,
         before_datetime: Union[datetime, date, str, int, float, None] = None,
-    ):
+    ) -> Optional[tuple[str, IO[bytes], datetime]]:
         """Searches for a cached item that matches the key and falls within the datetime range.
 
         This method looks for a cache item with a key that matches the given `key`, and whose associated
@@ -239,7 +241,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         mode: str = "wb+",
         delete: bool = False,
         suffix: Optional[str] = None,
-    ):
+    ) -> IO[bytes]:
         """Creates a new file-like tempfile object associated with the given key.
 
         If a cache file with the given key and valid timedate already exists, the existing file is
@@ -290,11 +292,11 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
     def set(
         self,
         key: str,
-        file_obj,
+        file_obj: IO[bytes],
         until_date: Union[datetime, date, str, int, float, None] = None,
         until_datetime: Union[datetime, date, str, int, float, None] = None,
         with_ttl: Union[timedelta, str, int, float, None] = None,
-    ):
+    ) -> None:
         """Stores a file-like object in the cache under the specified key and date.
 
         This method allows you to manually set a file-like object into the cache with a specific key
@@ -335,7 +337,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         until_datetime: Union[datetime, date, str, int, float, None] = None,
         at_datetime: Union[datetime, date, str, int, float, None] = None,
         before_datetime: Union[datetime, date, str, int, float, None] = None,
-    ):
+    ) -> Optional[IO[bytes]]:
         """Retrieves the cache file associated with the given key and validity datetime.
 
         If no cache file is found for the provided key and datetime, the method returns None.
@@ -382,11 +384,11 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
 
     def delete(
         self,
-        key,
+        key: str,
         until_date: Union[datetime, date, str, int, float, None] = None,
         until_datetime: Union[datetime, date, str, int, float, None] = None,
         before_datetime: Union[datetime, date, str, int, float, None] = None,
-    ):
+    ) -> None:
         """Deletes the cache file associated with the given key and datetime.
 
         This method removes the cache file from the store.
@@ -437,8 +439,10 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
                         logger.error(f"Error deleting cache file {file_path}: {e}")
 
     def clear(
-        self, clear_all=False, before_datetime: Union[datetime, date, str, int, float, None] = None
-    ):
+        self,
+        clear_all: bool = False,
+        before_datetime: Union[datetime, date, str, int, float, None] = None,
+    ) -> None:
         """Deletes all cache files or those expiring before `before_datetime`.
 
         Args:
@@ -508,7 +512,7 @@ def cache_in_file(
     mode: str = "wb+",
     delete: bool = False,
     suffix: Optional[str] = None,
-):
+) -> Callable[[Callable[Param, RetType]], Callable[Param, RetType]]:
     """Decorator to cache the output of a function into a temporary file.
 
     The decorator caches function output to a cache file based on its inputs as key to identify the
@@ -553,35 +557,35 @@ def cache_in_file(
         >>> result = expensive_computation(until_date = date.today())
     """
 
-    def decorator(func):
+    def decorator(func: Callable[Param, RetType]) -> Callable[Param, RetType]:
         nonlocal ignore_params, until_date, until_datetime, with_ttl, mode, delete, suffix
         func_source_code = inspect.getsource(func)
 
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Param.args, **kwargs: Param.kwargs) -> RetType:
             nonlocal ignore_params, until_date, until_datetime, with_ttl, mode, delete, suffix
             # Convert args to a dictionary based on the function's signature
             args_names = func.__code__.co_varnames[: func.__code__.co_argcount]
             args_dict = dict(zip(args_names, args))
 
             # Search for caching parameters of function and remove
-            force_update = None
+            force_update: Optional[bool] = None
             for param in ["force_update", "until_datetime", "with_ttl", "until_date"]:
                 if param in kwargs:
                     if param == "force_update":
-                        force_update = kwargs[param]
+                        force_update = kwargs[param]  # type: ignore[assignment]
                         kwargs.pop("force_update")
 
                     if param == "until_datetime":
-                        until_datetime = kwargs[param]
+                        until_datetime = kwargs[param]  # type: ignore[assignment]
                         until_date = None
                         with_ttl = None
                     elif param == "with_ttl":
                         until_datetime = None
                         until_date = None
-                        with_ttl = kwargs[param]
+                        with_ttl = kwargs[param]  # type: ignore[assignment]
                     elif param == "until_date":
                         until_datetime = None
-                        until_date = kwargs[param]
+                        until_date = kwargs[param]  # type: ignore[assignment]
                         with_ttl = None
                     kwargs.pop("until_datetime", None)
                     kwargs.pop("until_date", None)
@@ -597,7 +601,7 @@ def cache_in_file(
             # Create key based on argument names, argument values, and function source code
             key = str(args_dict) + str(kwargs_clone) + str(func_source_code)
 
-            result = None
+            result: Optional[RetType | bytes] = None
             # Get cache file that is currently valid
             cache_file = CacheFileStore().get(key)
             if not force_update and cache_file is not None:
@@ -632,11 +636,11 @@ def cache_in_file(
                     if "b" in mode:
                         pickle.dump(result, cache_file)
                     else:
-                        cache_file.write(result)
+                        cache_file.write(result)  # type: ignore[call-overload]
                 except Exception as e:
                     logger.info(f"Write failed: {e}")
                     CacheFileStore().delete(key)
-            return result
+            return result  # type: ignore[return-value]
 
         return wrapper
 

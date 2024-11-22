@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 from akkudoktoreos.utils.utils import NumpyEncoder
 
 
-def max_ladeleistung_w_field(default=None):
+def max_ladeleistung_w_field(default: Optional[float] = None) -> Optional[float]:
     return Field(
         default=default,
         gt=0,
@@ -14,7 +14,7 @@ def max_ladeleistung_w_field(default=None):
     )
 
 
-def start_soc_prozent_field(description: str):
+def start_soc_prozent_field(description: str) -> int:
     return Field(default=0, ge=0, le=100, description=description)
 
 
@@ -108,7 +108,7 @@ class PVAkku:
         self.min_soc_wh = (self.min_soc_prozent / 100) * self.kapazitaet_wh
         self.max_soc_wh = (self.max_soc_prozent / 100) * self.kapazitaet_wh
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         return {
             "kapazitaet_wh": self.kapazitaet_wh,
             "start_soc_prozent": self.start_soc_prozent,
@@ -121,7 +121,7 @@ class PVAkku:
             "max_ladeleistung_w": self.max_ladeleistung_w,
         }
 
-    def reset(self):
+    def reset(self) -> None:
         self.soc_wh = (self.start_soc_prozent / 100) * self.kapazitaet_wh
         # Ensure soc_wh is within min and max limits
         self.soc_wh = min(max(self.soc_wh, self.min_soc_wh), self.max_soc_wh)
@@ -129,22 +129,22 @@ class PVAkku:
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
 
-    def set_discharge_per_hour(self, discharge_array):
+    def set_discharge_per_hour(self, discharge_array: np.ndarray) -> None:
         assert len(discharge_array) == self.hours
         self.discharge_array = np.array(discharge_array)
 
-    def set_charge_per_hour(self, charge_array):
+    def set_charge_per_hour(self, charge_array: np.ndarray) -> None:
         assert len(charge_array) == self.hours
         self.charge_array = np.array(charge_array)
 
-    def set_charge_allowed_for_hour(self, charge, hour):
+    def set_charge_allowed_for_hour(self, charge: float, hour: int) -> None:
         assert hour < self.hours
         self.charge_array[hour] = charge
 
-    def ladezustand_in_prozent(self):
+    def ladezustand_in_prozent(self) -> float:
         return (self.soc_wh / self.kapazitaet_wh) * 100
 
-    def energie_abgeben(self, wh, hour):
+    def energie_abgeben(self, wh: float, hour: int) -> tuple[float, float]:
         if self.discharge_array[hour] == 0:
             return 0.0, 0.0  # No energy discharge and no losses
 
@@ -175,9 +175,11 @@ class PVAkku:
         # Return the actually discharged energy and the losses
         return tatsaechlich_abgegeben_wh, verluste_wh
 
-    def energie_laden(self, wh, hour, relative_power=0.0):
+    def energie_laden(
+        self, wh: Optional[float], hour: int, relative_power: float = 0.0
+    ) -> tuple[float, float]:
         if hour is not None and self.charge_array[hour] == 0:
-            return 0, 0  # Charging not allowed in this hour
+            return 0.0, 0.0  # Charging not allowed in this hour
         if relative_power > 0.0:
             wh = self.max_ladeleistung_w * relative_power
         # If no value for wh is given, use the maximum charging power
@@ -205,7 +207,7 @@ class PVAkku:
         verluste_wh = effektive_lademenge - geladene_menge
         return geladene_menge, verluste_wh
 
-    def aktueller_energieinhalt(self):
+    def aktueller_energieinhalt(self) -> float:
         """This method returns the current remaining energy considering efficiency.
 
         It accounts for both charging and discharging efficiency.

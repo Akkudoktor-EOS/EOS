@@ -7,7 +7,7 @@ import numpy as np
 
 
 # currently unused
-def ist_dst_wechsel(tag: datetime.datetime, timezone="Europe/Berlin") -> bool:
+def ist_dst_wechsel(tag: datetime.datetime, timezone: str = "Europe/Berlin") -> bool:
     """Checks if Daylight Saving Time (DST) starts or ends on a given day."""
     tz = zoneinfo.ZoneInfo(timezone)
     # Get the current day and the next day
@@ -32,14 +32,14 @@ class NumpyEncoder(json.JSONEncoder):
             return obj.item(), True  # Convert NumPy scalars to native Python types
         return obj, False
 
-    def default(self, obj):
+    def default(self, obj: Any) -> Any:
         obj, converted = NumpyEncoder.convert_numpy(obj)
         if converted:
             return obj
         return super(NumpyEncoder, self).default(obj)
 
     @staticmethod
-    def dumps(data):
+    def dumps(data: Any) -> str:
         """Static method to serialize a Python object into a JSON string using NumpyEncoder.
 
         Args:

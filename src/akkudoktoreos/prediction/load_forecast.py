@@ -12,7 +12,7 @@ class LoadForecast:
         self.year_energy = year_energy
         self.load_data()
 
-    def get_daily_stats(self, date_str: str):
+    def get_daily_stats(self, date_str: str) -> np.ndarray:
         """Returns the 24-hour profile with mean and standard deviation for a given date.
 
         :param date_str: Date as a string in the format "YYYY-MM-DD"
@@ -28,7 +28,7 @@ class LoadForecast:
         daily_stats = self.data_year_energy[day_of_year - 1]  # -1 because indexing starts at 0
         return daily_stats
 
-    def get_hourly_stats(self, date_str: str, hour: int):
+    def get_hourly_stats(self, date_str: str, hour: int) -> np.ndarray:
         """Returns the mean and standard deviation for a specific hour of a given date.
 
         :param date_str: Date as a string in the format "YYYY-MM-DD"
@@ -46,7 +46,7 @@ class LoadForecast:
 
         return hourly_stats
 
-    def get_stats_for_date_range(self, start_date_str: str, end_date_str: str):
+    def get_stats_for_date_range(self, start_date_str: str, end_date_str: str) -> np.ndarray:
         """Returns the means and standard deviations for a date range.
 
         :param start_date_str: Start date as a string in the format "YYYY-MM-DD"
@@ -68,7 +68,7 @@ class LoadForecast:
         stats_for_range = stats_for_range.reshape(stats_for_range.shape[0], -1)
         return stats_for_range
 
-    def load_data(self):
+    def load_data(self) -> None:
         """Loads data from the specified file."""
         try:
             data = np.load(self.filepath)
@@ -80,7 +80,7 @@ class LoadForecast:
         except Exception as e:
             print(f"An error occurred while loading data: {e}")
 
-    def get_price_data(self):
+    def get_price_data(self) -> None:
         """Returns price data (currently not implemented)."""
         raise NotImplementedError
         # return self.price_data

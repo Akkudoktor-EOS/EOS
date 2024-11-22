@@ -14,9 +14,11 @@ class Wechselrichter:
         )
         self.akku = akku  # Connection to a battery object
 
-    def energie_verarbeiten(self, erzeugung, verbrauch, hour):
-        verluste = 0  # Losses during processing
-        netzeinspeisung = 0  # Grid feed-in
+    def energie_verarbeiten(
+        self, erzeugung: float, verbrauch: float, hour: int
+    ) -> tuple[float, float, float, float]:
+        verluste = 0.0  # Losses during processing
+        netzeinspeisung = 0.0  # Grid feed-in
         netzbezug = 0.0  # Grid draw
         eigenverbrauch = 0.0  # Self-consumption
 

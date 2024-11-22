@@ -121,7 +121,7 @@ def test_update_ac_power_measurement(pv_forecast_instance, sample_forecast_start
     forecast_start = pv_forecast_instance.get_forecast_start()
     assert forecast_start == sample_forecast_start
 
-    updated = pv_forecast_instance.update_ac_power_measurement(forecast_start, 1000)
+    updated = pv_forecast_instance.update_ac_power_measurement(1000, forecast_start)
     assert updated is True
     forecast_data = pv_forecast_instance.get_forecast_data()
     assert forecast_data[0].ac_power_measurement == 1000
@@ -130,7 +130,7 @@ def test_update_ac_power_measurement(pv_forecast_instance, sample_forecast_start
 def test_update_ac_power_measurement_no_match(pv_forecast_instance):
     """Test updating AC power measurement where no date matches."""
     date_time = datetime(2023, 10, 2, 1, 0, 0)
-    updated = pv_forecast_instance.update_ac_power_measurement(date_time, 1000)
+    updated = pv_forecast_instance.update_ac_power_measurement(1000, date_time)
     assert not updated
 
 
@@ -265,7 +265,7 @@ def test_timezone_behaviour(
     # Test updating AC power measurement for a specific date.
     date_time = pv_forecast_instance.get_forecast_start()
     assert date_time == sample_forecast_start
-    updated = pv_forecast_instance.update_ac_power_measurement(date_time, 1000)
+    updated = pv_forecast_instance.update_ac_power_measurement(1000, date_time)
     assert updated is True
     forecast_data = pv_forecast_instance.get_forecast_data()
     assert forecast_data[0].ac_power_measurement == 1000

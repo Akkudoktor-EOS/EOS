@@ -5,10 +5,10 @@ from akkudoktoreos.config import AppConfig
 from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
-from akkudoktoreos.optimization.genetic import SimulationResult
 from akkudoktoreos.prediction.ems import (
     EnergieManagementSystem,
     EnergieManagementSystemParameters,
+    SimulationResult,
 )
 
 prediction_hours = 48

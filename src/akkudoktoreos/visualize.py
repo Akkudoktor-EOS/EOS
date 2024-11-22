@@ -1,4 +1,6 @@
 # Set the backend for matplotlib to Agg
+from typing import Any, Optional
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,20 +12,20 @@ matplotlib.use("Agg")
 
 
 def visualisiere_ergebnisse(
-    gesamtlast,
-    pv_forecast,
-    strompreise,
-    ergebnisse,
-    ac,  # AC charging allowed
-    dc,  # DC charging allowed
-    discharge,  # Discharge allowed
-    temperature,
-    start_hour,
-    einspeiseverguetung_euro_pro_wh,
+    gesamtlast: list[float],
+    pv_forecast: list[float],
+    strompreise: list[float],
+    ergebnisse: dict[str, Any],
+    ac: np.ndarray,  # AC charging allowed
+    dc: np.ndarray,  # DC charging allowed
+    discharge: np.ndarray,  # Discharge allowed
+    temperature: Optional[list[float]],
+    start_hour: int,
+    einspeiseverguetung_euro_pro_wh: np.ndarray,
     config: AppConfig,
-    filename="visualization_results.pdf",
-    extra_data=None,
-):
+    filename: str = "visualization_results.pdf",
+    extra_data: Optional[dict[str, Any]] = None,
+) -> None:
     #####################
     # 24-hour visualization
     #####################
@@ -81,13 +83,14 @@ def visualisiere_ergebnisse(
         plt.grid(True)
 
         # Temperature forecast
-        plt.subplot(3, 2, 5)
-        plt.title("Temperature Forecast (°C)")
-        plt.plot(hours, temperature, label="Temperature (°C)", marker="x")
-        plt.xlabel("Hour of the Day")
-        plt.ylabel("°C")
-        plt.legend()
-        plt.grid(True)
+        if temperature is not None:
+            plt.subplot(3, 2, 5)
+            plt.title("Temperature Forecast (°C)")
+            plt.plot(hours, temperature, label="Temperature (°C)", marker="x")
+            plt.xlabel("Hour of the Day")
+            plt.ylabel("°C")
+            plt.legend()
+            plt.grid(True)
 
         pdf.savefig()  # Save the current figure state to the PDF
         plt.close()  # Close the current figure to free up memory
