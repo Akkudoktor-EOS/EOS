@@ -51,6 +51,7 @@ dist: pip
 
 # Target to generate HTML documentation
 docs: pip-dev
+	mkdir -p docs/develop
 	cp README.md docs/develop/getting_started.md
 	# remove top level header and coresponding description
 	sed -i '/^##[^#]/,$$!d' docs/develop/getting_started.md
