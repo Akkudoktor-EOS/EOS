@@ -7,7 +7,7 @@
 Server API
 ##########
 
-For a more detailed documentation see the Swagger interface: `EOS OpenAPI Spec <https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json>`_
+For a more detailed documentation see the Swagger interface: `EOS OpenAPI Spec <https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/docs/akkudoktoreos/openapi.json>`_
 
 .. openapi:: openapi.json
    :examples:
