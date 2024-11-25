@@ -3,7 +3,7 @@ import pytest
 
 from akkudoktoreos.config import AppConfig
 from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
-from akkudoktoreos.devices.generic import Haushaltsgeraet, HaushaltsgeraetParameters
+from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
 from akkudoktoreos.prediction.ems import (
     EnergieManagementSystem,
@@ -28,14 +28,14 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
     wechselrichter = Wechselrichter(WechselrichterParameters(max_leistung_wh=10000), akku)
 
     # Household device (currently not used, set to None)
-    home_appliance = Haushaltsgeraet(
-        HaushaltsgeraetParameters(
-            verbrauch_wh=2000,
-            dauer_h=2,
+    home_appliance = HomeAppliance(
+        HomeApplianceParameters(
+            consumption_wh=2000,
+            duration_h=2,
         ),
         hours=prediction_hours,
     )
-    home_appliance.set_startzeitpunkt(2)
+    home_appliance.set_starting_time(2)
 
     # Example initialization of electric car battery
     eauto = PVAkku(
@@ -117,7 +117,7 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
             gesamtlast=gesamtlast,
         ),
         eauto=eauto,
-        haushaltsgeraet=home_appliance,
+        home_appliance=home_appliance,
         wechselrichter=wechselrichter,
     )
 
@@ -182,7 +182,7 @@ def test_simulation(create_ems_instance):
         "Gesamtkosten_Euro",
         "Verluste_Pro_Stunde",
         "Gesamt_Verluste",
-        "Haushaltsgeraet_wh_pro_stunde",
+        "Home_appliance_wh_per_hour",
     ]
 
     for key in expected_keys:

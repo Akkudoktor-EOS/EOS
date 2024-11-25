@@ -496,27 +496,27 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "HaushaltsgeraetParameters": {
+      "HomeApplianceParameters": {
         "properties": {
-          "verbrauch_wh": {
+          "consumption_wh": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
-            "title": "Verbrauch Wh",
+            "title": "Consumption Wh",
             "description": "An integer representing the energy consumption of a household device in watt-hours."
           },
-          "dauer_h": {
+          "duration_h": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
-            "title": "Dauer H",
+            "title": "Duration H",
             "description": "An integer representing the usage duration of a household device in hours."
           }
         },
         "type": "object",
         "required": [
-          "verbrauch_wh",
-          "dauer_h"
+          "consumption_wh",
+          "duration_h"
         ],
-        "title": "HaushaltsgeraetParameters"
+        "title": "HomeApplianceParameters"
       },
       "OptimizationParameters": {
         "properties": {
@@ -535,10 +535,10 @@
           "eauto": {
             "$ref": "#/components/schemas/EAutoParameters"
           },
-          "spuelmaschine": {
+          "dishwasher": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/HaushaltsgeraetParameters"
+                "$ref": "#/components/schemas/HomeApplianceParameters"
               },
               {
                 "type": "null"
@@ -624,7 +624,7 @@
             "title": "Start Solution",
             "description": "An array of binary values (0 or 1) representing a possible starting solution for the simulation."
           },
-          "spuelstart": {
+          "washingstart": {
             "anyOf": [
               {
                 "type": "integer"
@@ -633,7 +633,7 @@
                 "type": "null"
               }
             ],
-            "title": "Spuelstart",
+            "title": "Washingstart",
             "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
           }
         },
@@ -782,7 +782,7 @@
             "title": "Gesamtkosten Euro",
             "description": "The total costs in euros."
           },
-          "Haushaltsgeraet_wh_pro_stunde": {
+          "Home_appliance_wh_per_hour": {
             "items": {
               "anyOf": [
                 {
@@ -794,7 +794,7 @@
               ]
             },
             "type": "array",
-            "title": "Haushaltsgeraet Wh Pro Stunde",
+            "title": "Home Appliance Wh Per Hour",
             "description": "The energy consumption of a household appliance in watt-hours per hour."
           },
           "Kosten_Euro_pro_Stunde": {
@@ -882,7 +882,7 @@
           "Gesamtbilanz_Euro",
           "Gesamteinnahmen_Euro",
           "Gesamtkosten_Euro",
-          "Haushaltsgeraet_wh_pro_stunde",
+          "Home_appliance_wh_per_hour",
           "Kosten_Euro_pro_Stunde",
           "Netzbezug_Wh_pro_Stunde",
           "Netzeinspeisung_Wh_pro_Stunde",
