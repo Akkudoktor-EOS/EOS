@@ -8,7 +8,7 @@ from typing_extensions import Self
 
 from akkudoktoreos.config import AppConfig
 from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
-from akkudoktoreos.devices.generic import Haushaltsgeraet, HaushaltsgeraetParameters
+from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
 from akkudoktoreos.prediction.ems import (
     EnergieManagementSystem,
@@ -22,7 +22,7 @@ class OptimizationParameters(BaseModel):
     pv_akku: PVAkkuParameters
     wechselrichter: WechselrichterParameters = WechselrichterParameters()
     eauto: EAutoParameters
-    spuelmaschine: Optional[HaushaltsgeraetParameters] = None
+    dishwasher: Optional[HomeApplianceParameters] = None
     temperature_forecast: list[float] = Field(
         "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
     )
@@ -86,7 +86,7 @@ class SimulationResult(BaseModel):
     )
     Gesamteinnahmen_Euro: float = Field(description="The total revenues in euros.")
     Gesamtkosten_Euro: float = Field(description="The total costs in euros.")
-    Haushaltsgeraet_wh_pro_stunde: list[Optional[float]] = Field(
+    Home_appliance_wh_per_hour: list[Optional[float]] = Field(
         description="The energy consumption of a household appliance in watt-hours per hour."
     )
     Kosten_Euro_pro_Stunde: list[Optional[float]] = Field(
@@ -120,7 +120,7 @@ class SimulationResult(BaseModel):
 #    Gesamtbilanz_Euro: float = Field(description="The total simulated balance in euros.")
 #    Gesamteinnahmen_Euro: float = Field(description="The total simulated income in euros.")
 #    Gesamtkosten_Euro: float = Field(description="The total simulated costs in euros.")
-#    Haushaltsgeraet_wh_pro_stunde: list[Optional[float]] = Field(
+#    Home_appliance_wh_per_hour: list[Optional[float]] = Field(
 #        description="An array of floats representing the simulated energy consumption of a household appliance in watt-hours per hour."
 #    )
 #    Kosten_Euro_pro_Stunde: list[Optional[float]] = Field(
@@ -158,7 +158,7 @@ class OptimizeResponse(BaseModel):
         None,
         description="An array of binary values (0 or 1) representing a possible starting solution for the simulation.",
     )
-    spuelstart: Optional[int] = Field(
+    washingstart: Optional[int] = Field(
         None,
         description="Can be `null` or contain an object representing the start of washing (if applicable).",
     )
@@ -285,7 +285,7 @@ class optimization_problem:
             individual[self.prediction_hours : self.prediction_hours * 2] = ev_charge_part_mutated
 
         # Step 3: Mutate appliance start times if household appliances are part of the optimization
-        if self.opti_param["haushaltsgeraete"] > 0:
+        if self.opti_param["home_appliance"] > 0:
             # Extract the appliance part (typically a single value for the start hour)
             appliance_part = [individual[-1]]
 
@@ -311,7 +311,7 @@ class optimization_problem:
             ]
 
         # Add the start time of the household appliance if it's being optimized
-        if self.opti_param["haushaltsgeraete"] > 0:
+        if self.opti_param["home_appliance"] > 0:
             individual_components += [self.toolbox.attr_int()]
 
         return creator.Individual(individual_components)
@@ -333,12 +333,12 @@ class optimization_problem:
             else None
         )
 
-        spuelstart_int = (
+        washingstart_int = (
             individual[-1]
-            if self.opti_param and self.opti_param.get("haushaltsgeraete", 0) > 0
+            if self.opti_param and self.opti_param.get("home_appliance", 0) > 0
             else None
         )
-        return discharge_hours_bin, eautocharge_hours_float, spuelstart_int
+        return discharge_hours_bin, eautocharge_hours_float, washingstart_int
 
     def setup_deap_environment(self, opti_param: dict[str, Any], start_hour: int) -> None:
         """Set up the DEAP environment with fitness and individual creation rules."""
@@ -410,11 +410,11 @@ class optimization_problem:
         This is an internal function.
         """
         ems.reset()
-        discharge_hours_bin, eautocharge_hours_index, spuelstart_int = self.split_individual(
+        discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
             individual
         )
-        if self.opti_param.get("haushaltsgeraete", 0) > 0:
-            ems.set_haushaltsgeraet_start(spuelstart_int, global_start_hour=start_hour)
+        if self.opti_param.get("home_appliance", 0) > 0:
+            ems.set_home_appliance_start(washingstart_int, global_start_hour=start_hour)
 
         ac, dc, discharge = self.decode_charge_discharge(discharge_hours_bin)
 
@@ -557,12 +557,12 @@ class optimization_problem:
         eauto.set_charge_per_hour(np.full(self.prediction_hours, 1))
 
         # Initialize household appliance if applicable
-        spuelmaschine = (
-            Haushaltsgeraet(
-                parameters=parameters.spuelmaschine,
+        dishwasher = (
+            HomeAppliance(
+                parameters=parameters.dishwasher,
                 hours=self.prediction_hours,
             )
-            if parameters.spuelmaschine is not None
+            if parameters.dishwasher is not None
             else None
         )
 
@@ -572,12 +572,12 @@ class optimization_problem:
             self._config.eos,
             parameters.ems,
             eauto=eauto,
-            haushaltsgeraet=spuelmaschine,
+            home_appliance=dishwasher,
             wechselrichter=wr,
         )
 
         # Setup the DEAP environment and optimization process
-        self.setup_deap_environment({"haushaltsgeraete": 1 if spuelmaschine else 0}, start_hour)
+        self.setup_deap_environment({"home_appliance": 1 if dishwasher else 0}, start_hour)
         self.toolbox.register(
             "evaluate",
             lambda ind: self.evaluate(ind, ems, parameters, start_hour, worst_case),
@@ -586,7 +586,7 @@ class optimization_problem:
 
         # Perform final evaluation on the best solution
         o = self.evaluate_inner(start_solution, ems, start_hour)
-        discharge_hours_bin, eautocharge_hours_float, spuelstart_int = self.split_individual(
+        discharge_hours_bin, eautocharge_hours_float, washingstart_int = self.split_individual(
             start_solution
         )
         if self.optimize_ev:
@@ -622,7 +622,7 @@ class optimization_problem:
             "Einnahmen_Euro_pro_Stunde",
             "EAuto_SoC_pro_Stunde",
             "Verluste_Pro_Stunde",
-            "Haushaltsgeraet_wh_pro_stunde",
+            "Home_appliance_wh_per_hour",
         ]
 
         # Loop through each key in the list
@@ -649,6 +649,6 @@ class optimization_problem:
             "result": o,
             "eauto_obj": ems.eauto.to_dict(),
             "start_solution": start_solution,
-            "spuelstart": spuelstart_int,
+            "washingstart": washingstart_int,
             # "simulation_data": o,
         }

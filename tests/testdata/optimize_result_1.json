@@ -475,7 +475,7 @@
           0.0
       ],
       "Gesamt_Verluste": 1859.6205371900821,
-      "Haushaltsgeraet_wh_pro_stunde": [
+      "Home_appliance_wh_per_hour": [
           null,
           null,
           null,
@@ -727,5 +727,5 @@
       1,
       1
   ],
-  "spuelstart": null
+  "washingstart": null
 }

@@ -7,7 +7,7 @@ from typing_extensions import Self
 
 from akkudoktoreos.config import EOSConfig
 from akkudoktoreos.devices.battery import PVAkku
-from akkudoktoreos.devices.generic import Haushaltsgeraet
+from akkudoktoreos.devices.generic import HomeAppliance
 from akkudoktoreos.devices.inverter import Wechselrichter
 
 
@@ -47,7 +47,7 @@ class EnergieManagementSystem:
         config: EOSConfig,
         parameters: EnergieManagementSystemParameters,
         eauto: Optional[PVAkku] = None,
-        haushaltsgeraet: Optional[Haushaltsgeraet] = None,
+        home_appliance: Optional[HomeAppliance] = None,
         wechselrichter: Optional[Wechselrichter] = None,
     ):
         self.akku = wechselrichter.akku
@@ -60,7 +60,7 @@ class EnergieManagementSystem:
             else np.full(len(self.gesamtlast), parameters.einspeiseverguetung_euro_pro_wh, float)
         )
         self.eauto = eauto
-        self.haushaltsgeraet = haushaltsgeraet
+        self.home_appliance = home_appliance
         self.wechselrichter = wechselrichter
         self.ac_charge_hours = np.full(config.prediction_hours, 0)
         self.dc_charge_hours = np.full(config.prediction_hours, 1)
@@ -78,8 +78,8 @@ class EnergieManagementSystem:
     def set_ev_charge_hours(self, ds: List[int]) -> None:
         self.ev_charge_hours = ds
 
-    def set_haushaltsgeraet_start(self, ds: List[int], global_start_hour: int = 0) -> None:
-        self.haushaltsgeraet.set_startzeitpunkt(ds, global_start_hour=global_start_hour)
+    def set_home_appliance_start(self, ds: List[int], global_start_hour: int = 0) -> None:
+        self.home_appliance.set_starting_time(ds, global_start_hour=global_start_hour)
 
     def reset(self) -> None:
         self.eauto.reset()
@@ -114,7 +114,7 @@ class EnergieManagementSystem:
         akku_soc_pro_stunde = np.full((total_hours), np.nan)
         eauto_soc_pro_stunde = np.full((total_hours), np.nan)
         verluste_wh_pro_stunde = np.full((total_hours), np.nan)
-        haushaltsgeraet_wh_pro_stunde = np.full((total_hours), np.nan)
+        home_appliance_wh_per_hour = np.full((total_hours), np.nan)
 
         # Set initial state
         akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
@@ -127,10 +127,10 @@ class EnergieManagementSystem:
             # Accumulate loads and PV generation
             verbrauch = self.gesamtlast[stunde]
             verluste_wh_pro_stunde[stunde_since_now] = 0.0
-            if self.haushaltsgeraet:
-                ha_load = self.haushaltsgeraet.get_last_fuer_stunde(stunde)
+            if self.home_appliance:
+                ha_load = self.home_appliance.get_load_for_hour(stunde)
                 verbrauch += ha_load
-                haushaltsgeraet_wh_pro_stunde[stunde_since_now] = ha_load
+                home_appliance_wh_per_hour[stunde_since_now] = ha_load
 
             # E-Auto handling
             if self.eauto and self.ev_charge_hours[stunde] > 0:
@@ -193,7 +193,7 @@ class EnergieManagementSystem:
             "Gesamtkosten_Euro": np.nansum(kosten_euro_pro_stunde),
             "Verluste_Pro_Stunde": verluste_wh_pro_stunde,
             "Gesamt_Verluste": np.nansum(verluste_wh_pro_stunde),
-            "Haushaltsgeraet_wh_pro_stunde": haushaltsgeraet_wh_pro_stunde,
+            "Home_appliance_wh_per_hour": home_appliance_wh_per_hour,
         }
 
         return out

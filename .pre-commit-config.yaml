@@ -9,6 +9,8 @@ repos:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+      - id: check-merge-conflict
+        exclude: '\.rst$'  # Exclude .rst files
   - repo: https://github.com/PyCQA/isort
     rev: 5.13.2
     hooks:

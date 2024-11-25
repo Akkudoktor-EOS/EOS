@@ -37,9 +37,9 @@
         "start_soc_prozent": 5,
         "min_soc_prozent": 80
     },
-    "spuelmaschine" :{
-        "verbrauch_wh": 5000,
-        "dauer_h": 2
+    "dishwasher" :{
+        "consumption_wh": 5000,
+        "duration_h": 2
     },
     "temperature_forecast": [
       18.3, 17.8, 16.9, 16.2, 15.6, 15.1, 14.6, 14.2, 14.3, 14.8, 15.7, 16.7, 17.4,

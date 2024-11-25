@@ -267,11 +267,11 @@ parameters = OptimizationParameters(
             # Current SOC of the electric car (%)
             "start_soc_prozent": 5,
         },
-        # "spuelmaschine": {
+        # "dishwasher": {
         #     # Household appliance consumption (Wh)
-        #     "verbrauch_wh": 5000,
+        #     "consumption_wh": 5000,
         #     # Duration of appliance usage (hours)
-        #     "dauer_h": 0,
+        #     "duration_h": 0,
         # },
         # Temperature forecast (48 hours)
         "temperature_forecast": temperature_forecast,
