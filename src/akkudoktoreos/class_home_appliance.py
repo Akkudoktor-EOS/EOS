@@ -14,7 +14,7 @@ class HomeApplianceParameters(BaseModel):
 
 
 class HomeAppliance:
-    def __init__(self, parameters: HomeApplianceParameters, hours=None):
+    def __init__(self, parameters: HomeApplianceParameters, hours: int):
         self.hours = hours  # Total duration for which the planning is done
         self.consumption_wh = (
             parameters.consumption_wh
@@ -22,7 +22,7 @@ class HomeAppliance:
         self.duration_h = parameters.duration_h  # Duration of use in hours
         self.load_curve = np.zeros(self.hours)  # Initialize the load curve with zeros
 
-    def set_starting_time(self, start_hour, global_start_hour=0):
+    def set_starting_time(self, start_hour: int, global_start_hour: int = 0) -> None:
         """Sets the start time of the device and generates the corresponding load curve.
 
         :param start_hour: The hour at which the device should start.
@@ -40,15 +40,15 @@ class HomeAppliance:
         # Set the power for the duration of use in the load curve array
         self.load_curve[start_hour : start_hour + self.duration_h] = power_per_hour
 
-    def reset(self):
+    def reset(self) -> None:
         """Resets the load curve."""
         self.load_curve = np.zeros(self.hours)
 
-    def get_load_curve(self):
+    def get_load_curve(self) -> np.ndarray:
         """Returns the current load curve."""
         return self.load_curve
 
-    def get_load_for_hour(self, hour):
+    def get_load_for_hour(self, hour: int) -> float:
         """Returns the load for a specific hour.
 
         :param hour: The hour for which the load is queried.
@@ -59,6 +59,6 @@ class HomeAppliance:
 
         return self.load_curve[hour]
 
-    def get_latest_starting_point(self):
+    def get_latest_starting_point(self) -> int:
         """Returns the latest possible start time at which the device can still run completely."""
         return self.hours - self.duration_h

@@ -1,14 +1,15 @@
 from datetime import datetime
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import numpy as np
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing_extensions import Self
 
 from akkudoktoreos.config import EOSConfig
 from akkudoktoreos.devices.battery import PVAkku
 from akkudoktoreos.devices.generic import HomeAppliance
 from akkudoktoreos.devices.inverter import Wechselrichter
+from akkudoktoreos.utils.utils import NumpyEncoder
 
 
 class EnergieManagementSystemParameters(BaseModel):
@@ -41,14 +42,67 @@ class EnergieManagementSystemParameters(BaseModel):
         return self
 
 
+class SimulationResult(BaseModel):
+    """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
+
+    Last_Wh_pro_Stunde: list[Optional[float]] = Field(description="TBD")
+    EAuto_SoC_pro_Stunde: list[Optional[float]] = Field(
+        description="The state of charge of the EV for each hour."
+    )
+    Einnahmen_Euro_pro_Stunde: list[Optional[float]] = Field(
+        description="The revenue from grid feed-in or other sources in euros per hour."
+    )
+    Gesamt_Verluste: float = Field(
+        description="The total losses in watt-hours over the entire period."
+    )
+    Gesamtbilanz_Euro: float = Field(
+        description="The total balance of revenues minus costs in euros."
+    )
+    Gesamteinnahmen_Euro: float = Field(description="The total revenues in euros.")
+    Gesamtkosten_Euro: float = Field(description="The total costs in euros.")
+    Home_appliance_wh_per_hour: list[Optional[float]] = Field(
+        description="The energy consumption of a household appliance in watt-hours per hour."
+    )
+    Kosten_Euro_pro_Stunde: list[Optional[float]] = Field(
+        description="The costs in euros per hour."
+    )
+    Netzbezug_Wh_pro_Stunde: list[Optional[float]] = Field(
+        description="The grid energy drawn in watt-hours per hour."
+    )
+    Netzeinspeisung_Wh_pro_Stunde: list[Optional[float]] = Field(
+        description="The energy fed into the grid in watt-hours per hour."
+    )
+    Verluste_Pro_Stunde: list[Optional[float]] = Field(
+        description="The losses in watt-hours per hour."
+    )
+    akku_soc_pro_stunde: list[Optional[float]] = Field(
+        description="The state of charge of the battery (not the EV) in percentage per hour."
+    )
+
+    @field_validator(
+        "Last_Wh_pro_Stunde",
+        "Netzeinspeisung_Wh_pro_Stunde",
+        "akku_soc_pro_stunde",
+        "Netzbezug_Wh_pro_Stunde",
+        "Kosten_Euro_pro_Stunde",
+        "Einnahmen_Euro_pro_Stunde",
+        "EAuto_SoC_pro_Stunde",
+        "Verluste_Pro_Stunde",
+        "Home_appliance_wh_per_hour",
+        mode="before",
+    )
+    def convert_numpy(cls, field: Any) -> Any:
+        return NumpyEncoder.convert_numpy(field)[0]
+
+
 class EnergieManagementSystem:
     def __init__(
         self,
         config: EOSConfig,
         parameters: EnergieManagementSystemParameters,
+        wechselrichter: Wechselrichter,
         eauto: Optional[PVAkku] = None,
         home_appliance: Optional[HomeAppliance] = None,
-        wechselrichter: Optional[Wechselrichter] = None,
     ):
         self.akku = wechselrichter.akku
         self.gesamtlast = np.array(parameters.gesamtlast, float)
@@ -66,7 +120,7 @@ class EnergieManagementSystem:
         self.dc_charge_hours = np.full(config.prediction_hours, 1)
         self.ev_charge_hours = np.full(config.prediction_hours, 0)
 
-    def set_akku_discharge_hours(self, ds: List[int]) -> None:
+    def set_akku_discharge_hours(self, ds: np.ndarray) -> None:
         self.akku.set_discharge_per_hour(ds)
 
     def set_akku_ac_charge_hours(self, ds: np.ndarray) -> None:
@@ -75,22 +129,24 @@ class EnergieManagementSystem:
     def set_akku_dc_charge_hours(self, ds: np.ndarray) -> None:
         self.dc_charge_hours = ds
 
-    def set_ev_charge_hours(self, ds: List[int]) -> None:
+    def set_ev_charge_hours(self, ds: np.ndarray) -> None:
         self.ev_charge_hours = ds
 
-    def set_home_appliance_start(self, ds: List[int], global_start_hour: int = 0) -> None:
-        self.home_appliance.set_starting_time(ds, global_start_hour=global_start_hour)
+    def set_home_appliance_start(self, start_hour: int, global_start_hour: int = 0) -> None:
+        assert self.home_appliance is not None
+        self.home_appliance.set_starting_time(start_hour, global_start_hour=global_start_hour)
 
     def reset(self) -> None:
-        self.eauto.reset()
+        if self.eauto:
+            self.eauto.reset()
         self.akku.reset()
 
-    def simuliere_ab_jetzt(self) -> dict:
+    def simuliere_ab_jetzt(self) -> dict[str, Any]:
         jetzt = datetime.now()
         start_stunde = jetzt.hour
         return self.simuliere(start_stunde)
 
-    def simuliere(self, start_stunde: int) -> dict:
+    def simuliere(self, start_stunde: int) -> dict[str, Any]:
         """hour.
 
         akku_soc_pro_stunde begin of the hour, initial hour state!

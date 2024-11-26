@@ -24,3 +24,11 @@ repos:
         args: [--fix]
       # Run the formatter.
       - id: ruff-format
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: 'v1.13.0'
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - "types-requests==2.32.0.20241016"
+          - "pandas-stubs==2.2.3.241009"
+        pass_filenames: false

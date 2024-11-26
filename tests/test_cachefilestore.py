@@ -299,7 +299,7 @@ def test_cache_in_file_decorator_forces_update(cache_store):
     cache_file.write(result2)
 
     # Call the decorated function again with force update (should get result from function)
-    result = my_function(until_date=until_date, force_update=True)
+    result = my_function(until_date=until_date, force_update=True)  # type: ignore[call-arg]
     assert result == result1
 
     # Assure result was written to the same cache file
@@ -319,7 +319,7 @@ def test_cache_in_file_handles_ttl(cache_store):
         return "New result"
 
     # Call the decorated function
-    result = my_function(with_ttl="1 second")
+    result = my_function(with_ttl="1 second")  # type: ignore[call-arg]
 
     # Overwrite cache file
     key = next(iter(cache_store._store))
@@ -330,14 +330,14 @@ def test_cache_in_file_handles_ttl(cache_store):
     cache_file.seek(0)  # Move to the start of the file
     assert cache_file.read() == "Modified result"
 
-    result = my_function(with_ttl="1 second")
+    result = my_function(with_ttl="1 second")  # type: ignore[call-arg]
     assert result == "Modified result"
 
     # Wait one second to let the cache time out
     sleep(1)
 
     # Call again - cache should be timed out
-    result = my_function(with_ttl="1 second")
+    result = my_function(with_ttl="1 second")  # type: ignore[call-arg]
     assert result == "New result"
 
 
@@ -349,7 +349,7 @@ def test_cache_in_file_handles_bytes_return(cache_store):
 
     # Define a function that returns bytes
     @cache_in_file()
-    def my_function(until_date=None):
+    def my_function(until_date=None) -> bytes:
         return b"Some binary data"
 
     # Call the decorated function
@@ -358,7 +358,14 @@ def test_cache_in_file_handles_bytes_return(cache_store):
     # Check if the binary data was written to the cache file
     key = next(iter(cache_store._store))
     cache_file = cache_store._store[key][0]
+    assert len(cache_store._store) == 1
     assert cache_file is not None
     cache_file.seek(0)
     result1 = pickle.load(cache_file)
+    assert result1 == result
+
+    # Access cache
+    result = my_function(until_date=datetime.now() + timedelta(days=1))
+    assert len(cache_store._store) == 1
+    assert cache_store._store[key][0] is not None
     assert result1 == result

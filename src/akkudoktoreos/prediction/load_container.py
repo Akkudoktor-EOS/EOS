@@ -2,11 +2,13 @@ import numpy as np
 
 
 class Gesamtlast:
-    def __init__(self, prediction_hours=24):
-        self.lasten = {}  # Contains names and load arrays for different sources
+    def __init__(self, prediction_hours: int = 24):
+        self.lasten: dict[
+            str, np.ndarray
+        ] = {}  # Contains names and load arrays for different sources
         self.prediction_hours = prediction_hours
 
-    def hinzufuegen(self, name, last_array):
+    def hinzufuegen(self, name: str, last_array: np.ndarray) -> None:
         """Adds an array of loads for a specific source.
 
         :param name: Name of the load source (e.g., "Household", "Heat Pump")
@@ -16,13 +18,13 @@ class Gesamtlast:
             raise ValueError(f"Total load inconsistent lengths in arrays: {name} {len(last_array)}")
         self.lasten[name] = last_array
 
-    def gesamtlast_berechnen(self):
+    def gesamtlast_berechnen(self) -> np.ndarray:
         """Calculates the total load for each hour and returns an array of total loads.
 
         :return: Array of total loads, where each entry corresponds to an hour
         """
         if not self.lasten:
-            return []
+            return np.ndarray(0)
 
         # Assumption: All load arrays have the same length
         stunden = len(next(iter(self.lasten.values())))

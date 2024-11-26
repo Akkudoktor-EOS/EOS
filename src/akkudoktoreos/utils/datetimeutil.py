@@ -24,19 +24,39 @@ Example usage:
 
 import re
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Optional, Union
+from typing import Annotated, Literal, Optional, Union, overload
 from zoneinfo import ZoneInfo
 
 from timezonefinder import TimezoneFinder
 
 
+@overload
+def to_datetime(
+    date_input: Union[datetime, date, str, int, float, None],
+    as_string: str | Literal[True],
+    to_timezone: Optional[Union[ZoneInfo, str]] = None,
+    to_naiv: Optional[bool] = None,
+    to_maxtime: Optional[bool] = None,
+) -> str: ...
+
+
+@overload
+def to_datetime(
+    date_input: Union[datetime, date, str, int, float, None],
+    as_string: Literal[False] | None = None,
+    to_timezone: Optional[Union[ZoneInfo, str]] = None,
+    to_naiv: Optional[bool] = None,
+    to_maxtime: Optional[bool] = None,
+) -> datetime: ...
+
+
 def to_datetime(
     date_input: Union[datetime, date, str, int, float, None],
     as_string: Optional[Union[str, bool]] = None,
-    to_timezone: Optional[Union[timezone, str]] = None,
+    to_timezone: Optional[Union[ZoneInfo, str]] = None,
     to_naiv: Optional[bool] = None,
     to_maxtime: Optional[bool] = None,
-):
+) -> str | datetime:
     """Converts a date input to a datetime object or a formatted string with timezone support.
 
     Args:
@@ -67,7 +87,9 @@ def to_datetime(
 
     Raises:
         ValueError: If the date input is not a valid type or format.
+        RuntimeError: If no local timezone information available.
     """
+    dt_object: Optional[datetime] = None
     if isinstance(date_input, datetime):
         dt_object = date_input
     elif isinstance(date_input, date):
@@ -104,7 +126,6 @@ def to_datetime(
                     dt_object = datetime.strptime(date_input, fmt)
                     break
                 except ValueError as e:
-                    dt_object = None
                     continue
             if dt_object is None:
                 raise ValueError(f"Date string {date_input} does not match any known formats.")
@@ -120,11 +141,13 @@ def to_datetime(
     local_date = datetime.now().astimezone()
     local_tz_name = local_date.tzname()
     local_utc_offset = local_date.utcoffset()
+    if local_tz_name is None or local_utc_offset is None:
+        raise RuntimeError("Could not determine local time zone")
     local_timezone = timezone(local_utc_offset, local_tz_name)
 
     # Get target timezone
     if to_timezone:
-        if isinstance(to_timezone, timezone):
+        if isinstance(to_timezone, ZoneInfo):
             target_timezone = to_timezone
         elif isinstance(to_timezone, str):
             try:
@@ -168,7 +191,11 @@ def to_datetime(
         return dt_object
 
 
-def to_timedelta(input_value):
+def to_timedelta(
+    input_value: Union[
+        timedelta, str, int, float, tuple[int, int, int, int], Annotated[list[int], 4]
+    ],
+) -> timedelta:
     """Converts various input types into a timedelta object.
 
     Args:
@@ -238,7 +265,15 @@ def to_timedelta(input_value):
         raise ValueError(f"Unsupported input type: {type(input_value)}")
 
 
-def to_timezone(lat: float, lon: float, as_string: Optional[bool] = None):
+@overload
+def to_timezone(lat: float, lon: float, as_string: Literal[True]) -> str: ...
+
+
+@overload
+def to_timezone(lat: float, lon: float, as_string: Literal[False] | None = None) -> ZoneInfo: ...
+
+
+def to_timezone(lat: float, lon: float, as_string: Optional[bool] = None) -> str | ZoneInfo:
     """Determines the timezone for a given geographic location specified by latitude and longitude.
 
     By default, it returns a `ZoneInfo` object representing the timezone.
@@ -269,11 +304,13 @@ def to_timezone(lat: float, lon: float, as_string: Optional[bool] = None):
     """
     # Initialize the static variable only once
     if not hasattr(to_timezone, "timezone_finder"):
-        to_timezone.timezone_finder = TimezoneFinder()  # static variable
+        # static variable
+        to_timezone.timezone_finder = TimezoneFinder()  # type: ignore[attr-defined]
 
     # Check and convert coordinates to timezone
+    tz_name: Optional[str] = None
     try:
-        tz_name = to_timezone.timezone_finder.timezone_at(lat=lat, lng=lon)
+        tz_name = to_timezone.timezone_finder.timezone_at(lat=lat, lng=lon)  # type: ignore[attr-defined]
         if not tz_name:
             raise ValueError(f"No timezone found for coordinates: latitude {lat}, longitude {lon}")
     except Exception as e:
