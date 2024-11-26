@@ -363,17 +363,17 @@
           "hours": {
             "type": "integer",
             "title": "Hours",
-            "default": "Amount of hours the simulation is done for."
+            "description": "Amount of hours the simulation is done for."
           },
           "kapazitaet_wh": {
             "type": "integer",
             "title": "Kapazitaet Wh",
-            "default": "The capacity of the EV\u2019s battery in watt-hours."
+            "description": "The capacity of the EV\u2019s battery in watt-hours."
           },
           "lade_effizienz": {
             "type": "number",
             "title": "Lade Effizienz",
-            "default": "The charging efficiency as a float."
+            "description": "The charging efficiency as a float."
           },
           "max_ladeleistung_w": {
             "type": "integer",
@@ -396,6 +396,9 @@
           "charge_array",
           "discharge_array",
           "entlade_effizienz",
+          "hours",
+          "kapazitaet_wh",
+          "lade_effizienz",
           "max_ladeleistung_w",
           "soc_wh",
           "start_soc_prozent"
@@ -533,7 +536,14 @@
             }
           },
           "eauto": {
-            "$ref": "#/components/schemas/EAutoParameters"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EAutoParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "dishwasher": {
             "anyOf": [
@@ -546,12 +556,19 @@
             ]
           },
           "temperature_forecast": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Temperature Forecast",
-            "default": "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
+            "description": "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
           },
           "start_solution": {
             "anyOf": [
@@ -603,11 +620,33 @@
             "title": "Discharge Allowed",
             "description": "Array with discharge values (1 for discharge, 0 otherwise)."
           },
+          "eautocharge_hours_float": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eautocharge Hours Float",
+            "description": "TBD"
+          },
           "result": {
             "$ref": "#/components/schemas/SimulationResult"
           },
           "eauto_obj": {
-            "$ref": "#/components/schemas/EAutoResult"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EAutoResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "start_solution": {
             "anyOf": [
@@ -642,6 +681,7 @@
           "ac_charge",
           "dc_charge",
           "discharge_allowed",
+          "eautocharge_hours_float",
           "result",
           "eauto_obj"
         ],

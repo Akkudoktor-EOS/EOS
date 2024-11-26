@@ -1,28 +1,30 @@
+from datetime import datetime
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error, r2_score
 
+from akkudoktoreos.prediction.load_forecast import LoadForecast
+
 
 class LoadPredictionAdjuster:
-    def __init__(self, measured_data, predicted_data, load_forecast):
+    def __init__(
+        self, measured_data: pd.DataFrame, predicted_data: pd.DataFrame, load_forecast: LoadForecast
+    ):
         self.measured_data = measured_data
         self.predicted_data = predicted_data
         self.load_forecast = load_forecast
         self.merged_data = self._merge_data()
-        self.train_data = None
-        self.test_data = None
-        self.weekday_diff = None
-        self.weekend_diff = None
 
-    def _remove_outliers(self, data, threshold=2):
+    def _remove_outliers(self, data: pd.DataFrame, threshold: int = 2) -> pd.DataFrame:
         # Calculate the Z-Score of the 'Last' data
         data["Z-Score"] = np.abs((data["Last"] - data["Last"].mean()) / data["Last"].std())
         # Filter the data based on the threshold
         filtered_data = data[data["Z-Score"] < threshold]
         return filtered_data.drop(columns=["Z-Score"])
 
-    def _merge_data(self):
+    def _merge_data(self) -> pd.DataFrame:
         # Convert the time column in both DataFrames to datetime
         self.predicted_data["time"] = pd.to_datetime(self.predicted_data["time"])
         self.measured_data["time"] = pd.to_datetime(self.measured_data["time"])
@@ -47,7 +49,9 @@ class LoadPredictionAdjuster:
         merged_data["DayOfWeek"] = merged_data["time"].dt.dayofweek
         return merged_data
 
-    def calculate_weighted_mean(self, train_period_weeks=9, test_period_weeks=1):
+    def calculate_weighted_mean(
+        self, train_period_weeks: int = 9, test_period_weeks: int = 1
+    ) -> None:
         self.merged_data = self._remove_outliers(self.merged_data)
         train_end_date = self.merged_data["time"].max() - pd.Timedelta(weeks=test_period_weeks)
         train_start_date = train_end_date - pd.Timedelta(weeks=train_period_weeks)
@@ -79,27 +83,27 @@ class LoadPredictionAdjuster:
             weekends_train_data.groupby("Hour").apply(self._weighted_mean_diff).dropna()
         )
 
-    def _weighted_mean_diff(self, data):
+    def _weighted_mean_diff(self, data: pd.DataFrame) -> float:
         train_end_date = self.train_data["time"].max()
         weights = 1 / (train_end_date - data["time"]).dt.days.replace(0, np.nan)
         weighted_mean = (data["Difference"] * weights).sum() / weights.sum()
         return weighted_mean
 
-    def adjust_predictions(self):
+    def adjust_predictions(self) -> None:
         self.train_data["Adjusted Pred"] = self.train_data.apply(self._adjust_row, axis=1)
         self.test_data["Adjusted Pred"] = self.test_data.apply(self._adjust_row, axis=1)
 
-    def _adjust_row(self, row):
+    def _adjust_row(self, row: pd.Series) -> pd.Series:
         if row["DayOfWeek"] < 5:
             return row["Last Pred"] + self.weekday_diff.get(row["Hour"], 0)
         else:
             return row["Last Pred"] + self.weekend_diff.get(row["Hour"], 0)
 
-    def plot_results(self):
+    def plot_results(self) -> None:
         self._plot_data(self.train_data, "Training")
         self._plot_data(self.test_data, "Testing")
 
-    def _plot_data(self, data, data_type):
+    def _plot_data(self, data: pd.DataFrame, data_type: str) -> None:
         plt.figure(figsize=(14, 7))
         plt.plot(data["time"], data["Last"], label=f"Actual Last - {data_type}", color="blue")
         plt.plot(
@@ -123,13 +127,13 @@ class LoadPredictionAdjuster:
         plt.grid(True)
         plt.show()
 
-    def evaluate_model(self):
+    def evaluate_model(self) -> None:
         mse = mean_squared_error(self.test_data["Last"], self.test_data["Adjusted Pred"])
         r2 = r2_score(self.test_data["Last"], self.test_data["Adjusted Pred"])
         print(f"Mean Squared Error: {mse}")
         print(f"R-squared: {r2}")
 
-    def predict_next_hours(self, hours_ahead):
+    def predict_next_hours(self, hours_ahead: int) -> pd.DataFrame:
         last_date = self.merged_data["time"].max()
         future_dates = [last_date + pd.Timedelta(hours=i) for i in range(1, hours_ahead + 1)]
         future_df = pd.DataFrame({"time": future_dates})
@@ -139,7 +143,7 @@ class LoadPredictionAdjuster:
         future_df["Adjusted Pred"] = future_df.apply(self._adjust_row, axis=1)
         return future_df
 
-    def _forecast_next_hours(self, timestamp):
+    def _forecast_next_hours(self, timestamp: datetime) -> float:
         date_str = timestamp.strftime("%Y-%m-%d")
         hour = timestamp.hour
         daily_forecast = self.load_forecast.get_daily_stats(date_str)

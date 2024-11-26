@@ -13,7 +13,7 @@ Key features:
 import json
 import os
 import shutil
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -273,9 +273,7 @@ def get_working_dir() -> Path:
     return working_dir
 
 
-def get_start_enddate(
-    prediction_hours: int, startdate: Optional[datetime] = None
-) -> tuple[str, str]:
+def get_start_enddate(prediction_hours: int, startdate: Optional[date] = None) -> tuple[str, str]:
     """Calculate the start and end dates based on the given prediction hours and optional start date.
 
     Args:

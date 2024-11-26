@@ -8,6 +8,7 @@ from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParamet
 from akkudoktoreos.prediction.ems import (
     EnergieManagementSystem,
     EnergieManagementSystemParameters,
+    SimulationResult,
 )
 
 prediction_hours = 48
@@ -211,9 +212,9 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
             preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
             gesamtlast=gesamtlast,
         ),
+        wechselrichter=wechselrichter,
         eauto=eauto,
         home_appliance=home_appliance,
-        wechselrichter=wechselrichter,
     )
 
     return ems
@@ -255,26 +256,7 @@ def test_simulation(create_ems_instance):
 
     # Check that the result is a dictionary
     assert isinstance(result, dict), "Result should be a dictionary."
-
-    # Verify that the expected keys are present in the result
-    expected_keys = [
-        "Last_Wh_pro_Stunde",
-        "Netzeinspeisung_Wh_pro_Stunde",
-        "Netzbezug_Wh_pro_Stunde",
-        "Kosten_Euro_pro_Stunde",
-        "akku_soc_pro_stunde",
-        "Einnahmen_Euro_pro_Stunde",
-        "Gesamtbilanz_Euro",
-        "EAuto_SoC_pro_Stunde",
-        "Gesamteinnahmen_Euro",
-        "Gesamtkosten_Euro",
-        "Verluste_Pro_Stunde",
-        "Gesamt_Verluste",
-        "Home_appliance_wh_per_hour",
-    ]
-
-    for key in expected_keys:
-        assert key in result, f"The key '{key}' should be present in the result."
+    assert SimulationResult(**result) is not None
 
     # Check the length of the main arrays
     assert (
@@ -344,7 +326,7 @@ def test_simulation(create_ems_instance):
     assert (
         np.nansum(
             np.where(
-                np.equal(result["Home_appliance_wh_per_hour"], None),
+                result["Home_appliance_wh_per_hour"] is None,
                 np.nan,
                 np.array(result["Home_appliance_wh_per_hour"]),
             )

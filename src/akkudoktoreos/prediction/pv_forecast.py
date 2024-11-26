@@ -21,7 +21,7 @@ Example:
     )
 
     # Update the AC power measurement for a specific date and time
-    forecast.update_ac_power_measurement(date_time=datetime.now(), ac_power_measurement=1000)
+    forecast.update_ac_power_measurement(ac_power_measurement=1000, date_time=datetime.now())
 
     # Print the forecast data with DC and AC power details
     forecast.print_ac_power_and_measurement()
@@ -36,7 +36,8 @@ Attributes:
 
 import json
 from datetime import date, datetime
-from typing import List, Optional, Union
+from pathlib import Path
+from typing import Any, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -89,21 +90,20 @@ class AkkudoktorForecast(BaseModel):
     values: List[List[AkkudoktorForecastValue]]
 
 
-def validate_pv_forecast_data(data) -> str:
+def validate_pv_forecast_data(data: dict[str, Any]) -> Optional[str]:
     """Validate PV forecast data."""
-    data_type = None
-    error_msg = ""
-
     try:
         AkkudoktorForecast.model_validate(data)
         data_type = "Akkudoktor"
     except ValidationError as e:
+        error_msg = ""
         for error in e.errors():
             field = " -> ".join(str(x) for x in error["loc"])
             message = error["msg"]
             error_type = error["type"]
             error_msg += f"Field: {field}\nError: {message}\nType: {error_type}\n"
         logger.debug(f"Validation did not succeed: {error_msg}")
+        return None
 
     return data_type
 
@@ -167,7 +167,7 @@ class ForecastData:
         """
         return self.dc_power
 
-    def ac_power_measurement(self) -> float:
+    def get_ac_power_measurement(self) -> Optional[float]:
         """Returns the measured AC power.
 
         It returns the measured AC power if available; otherwise None.
@@ -191,7 +191,7 @@ class ForecastData:
         else:
             return self.ac_power
 
-    def get_windspeed_10m(self) -> float:
+    def get_windspeed_10m(self) -> Optional[float]:
         """Returns the wind speed at 10 meters altitude.
 
         Returns:
@@ -199,7 +199,7 @@ class ForecastData:
         """
         return self.windspeed_10m
 
-    def get_temperature(self) -> float:
+    def get_temperature(self) -> Optional[float]:
         """Returns the temperature.
 
         Returns:
@@ -227,10 +227,10 @@ class PVForecast:
 
     def __init__(
         self,
-        data: Optional[dict] = None,
-        filepath: Optional[str] = None,
+        data: Optional[dict[str, Any]] = None,
+        filepath: Optional[str | Path] = None,
         url: Optional[str] = None,
-        forecast_start: Union[datetime, date, str, int, float] = None,
+        forecast_start: Union[datetime, date, str, int, float, None] = None,
         prediction_hours: Optional[int] = None,
     ):
         """Initializes a `PVForecast` instance.
@@ -253,16 +253,15 @@ class PVForecast:
         Example:
             forecast = PVForecast(data=my_forecast_data, forecast_start="2024-10-13", prediction_hours=72)
         """
-        self.meta = {}
-        self.forecast_data = []
-        self.current_measurement = None
+        self.meta: dict[str, Any] = {}
+        self.forecast_data: list[ForecastData] = []
+        self.current_measurement: Optional[float] = None
         self.data = data
         self.filepath = filepath
         self.url = url
+        self._forecast_start: Optional[datetime] = None
         if forecast_start:
             self._forecast_start = to_datetime(forecast_start, to_naiv=True, to_maxtime=False)
-        else:
-            self._forecast_start = None
         self.prediction_hours = prediction_hours
         self._tz_name = None
 
@@ -277,8 +276,8 @@ class PVForecast:
 
     def update_ac_power_measurement(
         self,
+        ac_power_measurement: float,
         date_time: Union[datetime, date, str, int, float, None] = None,
-        ac_power_measurement=None,
     ) -> bool:
         """Updates the AC power measurement for a specific time.
 
@@ -309,10 +308,10 @@ class PVForecast:
 
     def process_data(
         self,
-        data: Optional[dict] = None,
-        filepath: Optional[str] = None,
+        data: Optional[dict[str, Any]] = None,
+        filepath: Optional[str | Path] = None,
         url: Optional[str] = None,
-        forecast_start: Union[datetime, date, str, int, float] = None,
+        forecast_start: Union[datetime, date, str, int, float, None] = None,
         prediction_hours: Optional[int] = None,
     ) -> None:
         """Processes the forecast data from the provided source (in-memory `data`, `filepath`, or `url`).
@@ -368,6 +367,7 @@ class PVForecast:
                 )  # Invalid path
         else:
             raise ValueError("No prediction input data available.")
+        assert data is not None  # make mypy happy
         # Validate input data to be of a known format
         data_format = validate_pv_forecast_data(data)
         if data_format != "Akkudoktor":
@@ -390,7 +390,7 @@ class PVForecast:
             # --------------------------------------------
             # From here Akkudoktor PV forecast data format
             # ---------------------------------------------
-            self.meta = data.get("meta")
+            self.meta = data.get("meta", {})
             all_values = data.get("values")
 
             # timezone of the PV system
@@ -454,7 +454,7 @@ class PVForecast:
         self._forecast_start = self.forecast_data[0].get_date_time()
         logger.debug(f"Forecast start adapted to {self._forecast_start}")
 
-    def load_data_from_file(self, filepath: str) -> dict:
+    def load_data_from_file(self, filepath: str | Path) -> dict[str, Any]:
         """Loads forecast data from a file.
 
         Args:
@@ -467,7 +467,7 @@ class PVForecast:
             data = json.load(file)
         return data
 
-    def load_data_from_url(self, url: str) -> dict:
+    def load_data_from_url(self, url: str) -> dict[str, Any]:
         """Loads forecast data from a URL.
 
         Example:
@@ -488,7 +488,7 @@ class PVForecast:
         return data
 
     @cache_in_file()  # use binary mode by default as we have python objects not text
-    def load_data_from_url_with_caching(self, url: str, until_date=None) -> dict:
+    def load_data_from_url_with_caching(self, url: str) -> dict[str, Any]:
         """Loads data from a URL or from the cache if available.
 
         Args:
@@ -506,7 +506,7 @@ class PVForecast:
             logger.error(data)
         return data
 
-    def get_forecast_data(self):
+    def get_forecast_data(self) -> list[ForecastData]:
         """Returns the forecast data.
 
         Returns:
@@ -516,7 +516,7 @@ class PVForecast:
 
     def get_temperature_forecast_for_date(
         self, input_date: Union[datetime, date, str, int, float, None]
-    ):
+    ) -> np.ndarray:
         """Returns the temperature forecast for a specific date.
 
         Args:
@@ -543,7 +543,7 @@ class PVForecast:
         self,
         start_date: Union[datetime, date, str, int, float, None],
         end_date: Union[datetime, date, str, int, float, None],
-    ):
+    ) -> np.ndarray:
         """Returns the PV forecast for a date range.
 
         Args:
@@ -575,7 +575,7 @@ class PVForecast:
         self,
         start_date: Union[datetime, date, str, int, float, None],
         end_date: Union[datetime, date, str, int, float, None],
-    ):
+    ) -> np.ndarray:
         """Returns the temperature forecast for a given date range.
 
         Args:
@@ -601,7 +601,7 @@ class PVForecast:
         temperature_forecast = [data.get_temperature() for data in date_range_forecast]
         return np.array(temperature_forecast)[: self.prediction_hours]
 
-    def get_forecast_dataframe(self):
+    def get_forecast_dataframe(self) -> pd.DataFrame:
         """Converts the forecast data into a Pandas DataFrame.
 
         Returns:
@@ -623,7 +623,7 @@ class PVForecast:
         df = pd.DataFrame(data)
         return df
 
-    def get_forecast_start(self) -> datetime:
+    def get_forecast_start(self) -> Optional[datetime]:
         """Return the start of the forecast data in local timezone.
 
         Returns:
@@ -678,5 +678,5 @@ if __name__ == "__main__":
         "past_days=5&cellCoEff=-0.36&inverterEfficiency=0.8&albedo=0.25&timezone=Europe%2FBerlin&"
         "hourly=relativehumidity_2m%2Cwindspeed_10m",
     )
-    forecast.update_ac_power_measurement(date_time=datetime.now(), ac_power_measurement=1000)
+    forecast.update_ac_power_measurement(ac_power_measurement=1000, date_time=datetime.now())
     print(forecast.report_ac_power_and_measurement())

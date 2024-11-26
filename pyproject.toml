@@ -72,3 +72,25 @@ convention = "google"
 minversion = "8.3.3"
 pythonpath = [ "src", ]
 testpaths = [ "tests", ]
+
+[tool.mypy]
+files = ["src", "tests"]
+exclude = "class_soc_calc\\.py$"
+check_untyped_defs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "akkudoktoreos.*"
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "sklearn.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "deap.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "xprocess.*"
+ignore_missing_imports = true

@@ -120,7 +120,8 @@ def fastapi_gesamtlast(
     leistung_haushalt = future_predictions["Adjusted Pred"].values
     gesamtlast = Gesamtlast(prediction_hours=hours)
     gesamtlast.hinzufuegen(
-        "Haushalt", leistung_haushalt
+        "Haushalt",
+        leistung_haushalt,  # type: ignore[arg-type]
     )  # Add household load to total load calculation
 
     # Calculate the total load
@@ -182,12 +183,7 @@ def fastapi_pvprognose(url: str, ac_power_measurement: Optional[float] = None) -
     pv_forecast = PVforecast.get_pv_forecast_for_date_range(date_now, date)
     temperature_forecast = PVforecast.get_temperature_for_date_range(date_now, date)
 
-    # Return both forecasts as a JSON response
-    ret = {
-        "temperature": temperature_forecast.tolist(),
-        "pvpower": pv_forecast.tolist(),
-    }
-    return ret
+    return ForecastResponse(temperature=temperature_forecast.tolist(), pvpower=pv_forecast.tolist())
 
 
 @app.post("/optimize")
@@ -203,12 +199,11 @@ def fastapi_optimize(
     # Perform optimization simulation
     result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
     # print(result)
-    # convert to JSON (None accepted by dumps)
     return result
 
 
 @app.get("/visualization_results.pdf", response_class=PdfResponse)
-def get_pdf():
+def get_pdf() -> PdfResponse:
     # Endpoint to serve the generated PDF with visualization results
     output_path = config.working_dir / config.directories.output
     if not output_path.is_dir():
@@ -216,16 +211,16 @@ def get_pdf():
     file_path = output_path / "visualization_results.pdf"
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="No visualization result available.")
-    return FileResponse(file_path)
+    return PdfResponse(file_path)
 
 
 @app.get("/site-map", include_in_schema=False)
-def site_map():
+def site_map() -> RedirectResponse:
     return RedirectResponse(url="/docs")
 
 
 @app.get("/", include_in_schema=False)
-def root():
+def root() -> RedirectResponse:
     # Redirect the root URL to the site map
     return RedirectResponse(url="/docs")
 

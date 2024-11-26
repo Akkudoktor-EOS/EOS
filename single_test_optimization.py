@@ -7,11 +7,8 @@ import numpy as np
 from akkudoktoreos.config import get_working_dir, load_config
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
-    OptimizeResponse,
     optimization_problem,
 )
-from akkudoktoreos.utils import NumpyEncoder
-from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 start_hour = 0
 
@@ -299,30 +296,4 @@ elapsed_time = end_time - start_time
 print(f"Elapsed time: {elapsed_time:.4f} seconds")
 
 
-ac_charge, dc_charge, discharge = (
-    ergebnis["ac_charge"],
-    ergebnis["dc_charge"],
-    ergebnis["discharge_allowed"],
-)
-
-visualisiere_ergebnisse(
-    parameters.ems.gesamtlast,
-    parameters.ems.pv_prognose_wh,
-    parameters.ems.strompreis_euro_pro_wh,
-    ergebnis["result"],
-    ac_charge,
-    dc_charge,
-    discharge,
-    parameters.temperature_forecast,
-    start_hour,
-    einspeiseverguetung_euro_pro_wh=np.full(
-        config.eos.feed_in_tariff_eur_per_wh, parameters.ems.einspeiseverguetung_euro_pro_wh
-    ),
-    config=config,
-)
-
-
-json_data = NumpyEncoder.dumps(ergebnis)
-print(json_data)
-
-OptimizeResponse(**ergebnis)
+print(ergebnis.model_dump())
