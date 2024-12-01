@@ -16,4 +16,9 @@ def test_openapi_spec_current():
         new_spec = json.load(f_new)
     with open(old_spec_path) as f_old:
         old_spec = json.load(f_old)
+
+    # Serialize to ensure comparison is consistent
+    new_spec = json.dumps(new_spec, indent=4, sort_keys=True)
+    old_spec = json.dumps(old_spec, indent=4, sort_keys=True)
+
     assert new_spec == old_spec
