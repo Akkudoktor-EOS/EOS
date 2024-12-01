@@ -4,7 +4,7 @@ import time
 
 import numpy as np
 
-from akkudoktoreos.config import get_working_dir, load_config
+from akkudoktoreos.config.config import get_config
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     optimization_problem,
@@ -281,9 +281,9 @@ parameters = OptimizationParameters(
 start_time = time.time()
 
 # Initialize the optimization problem using the default configuration
-working_dir = get_working_dir()
-config = load_config(working_dir)
-opt_class = optimization_problem(config, verbose=True, fixed_seed=42)
+config_eos = get_config()
+config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
+opt_class = optimization_problem(verbose=True, fixed_seed=42)
 
 # Perform the optimisation based on the provided parameters and start hour
 ergebnis = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
