@@ -953,6 +953,44 @@ class DataSequence(DataBase, MutableSequence):
         array = resampled.values
         return array
 
+    def to_dataframe(
+        self,
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+    ) -> pd.DataFrame:
+        """Converts the sequence of DataRecord instances into a Pandas DataFrame.
+
+        Args:
+            start_datetime (Optional[datetime]): The lower bound for filtering (inclusive).
+                Defaults to the earliest possible datetime if None.
+            end_datetime (Optional[datetime]): The upper bound for filtering (exclusive).
+                Defaults to the latest possible datetime if None.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the filtered data from all records.
+        """
+        if not self.records:
+            return pd.DataFrame()  # Return empty DataFrame if no records exist
+
+        # Use filter_by_datetime to get filtered records
+        filtered_records = self.filter_by_datetime(start_datetime, end_datetime)
+
+        # Convert filtered records to a dictionary list
+        data = [record.model_dump() for record in filtered_records]
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data)
+        if df.empty:
+            return df
+
+        # Ensure `date_time` column exists and use it for the index
+        if not "date_time" in df.columns:
+            error_msg = f"Cannot create dataframe: no `date_time` column in `{df}`."
+            logger.error(error_msg)
+            raise TypeError(error_msg)
+        df.index = pd.DatetimeIndex(df["date_time"])
+        return df
+
     def sort_by_datetime(self, reverse: bool = False) -> None:
         """Sort the DataRecords in the sequence by their date_time attribute.
 
@@ -1465,7 +1503,7 @@ class DataImportMixin:
                 error_msg += f"Field: {field}\nError: {message}\nType: {error_type}\n"
             logger.debug(f"PydanticDateTimeDataFrame import: {error_msg}")
 
-        # Try dictionary with special keys start_datetime and intervall
+        # Try dictionary with special keys start_datetime and interval
         try:
             import_data = PydanticDateTimeData.model_validate_json(json_str)
             self.import_from_dict(import_data.to_dict())
@@ -1525,7 +1563,7 @@ class DataImportMixin:
             and `key_prefix = "load"`, only the "load_mean" key will be processed even though
             both keys are in the record.
         """
-        with import_file_path.open("r") as import_file:
+        with import_file_path.open("r", encoding="utf-8", newline=None) as import_file:
             import_str = import_file.read()
         self.import_from_json(
             import_str, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval

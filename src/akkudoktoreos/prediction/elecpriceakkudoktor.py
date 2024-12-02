@@ -14,10 +14,10 @@ import requests
 from pydantic import ValidationError
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
+from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
-from akkudoktoreos.utils.cacheutil import cache_in_file
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 logger = get_logger(__name__)

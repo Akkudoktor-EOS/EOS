@@ -9,9 +9,9 @@ import pvlib
 import pytest
 from bs4 import BeautifulSoup
 
+from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
-from akkudoktoreos.utils.cacheutil import CacheFileStore
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
 
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
@@ -39,7 +39,9 @@ def provider(config_eos):
 @pytest.fixture
 def sample_clearout_1_html():
     """Fixture that returns sample forecast data report."""
-    with open(FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_HTML, "r") as f_res:
+    with FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_HTML.open(
+        "r", encoding="utf-8", newline=None
+    ) as f_res:
         input_data = f_res.read()
     return input_data
 
@@ -47,7 +49,7 @@ def sample_clearout_1_html():
 @pytest.fixture
 def sample_clearout_1_data():
     """Fixture that returns sample forecast data."""
-    with open(FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA, "r", encoding="utf8") as f_in:
+    with FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA.open("r", encoding="utf-8", newline=None) as f_in:
         json_str = f_in.read()
         data = WeatherClearOutside.from_json(json_str)
     return data
@@ -220,7 +222,9 @@ def test_development_forecast_data(mock_get, provider, sample_clearout_1_html):
     # Fill the instance
     provider.update_data(force_enable=True)
 
-    with open(FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA, "w", encoding="utf8") as f_out:
+    with FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA.open(
+        "w", encoding="utf-8", newline="\n"
+    ) as f_out:
         f_out.write(provider.to_json())
 
 

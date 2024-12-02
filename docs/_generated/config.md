@@ -27,12 +27,10 @@ Validators:
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | data_folder_path | `EOS_GENERAL__DATA_FOLDER_PATH` | `Optional[pathlib.Path]` | `rw` | `None` | Path to EOS data directory. |
 | data_output_subpath | `EOS_GENERAL__DATA_OUTPUT_SUBPATH` | `Optional[pathlib.Path]` | `rw` | `output` | Sub-path for the EOS output data directory. |
-| data_cache_subpath | `EOS_GENERAL__DATA_CACHE_SUBPATH` | `Optional[pathlib.Path]` | `rw` | `cache` | Sub-path for the EOS cache data directory. |
 | latitude | `EOS_GENERAL__LATITUDE` | `Optional[float]` | `rw` | `52.52` | Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°) |
 | longitude | `EOS_GENERAL__LONGITUDE` | `Optional[float]` | `rw` | `13.405` | Longitude in decimal degrees, within -180 to 180 (°) |
 | timezone | | `Optional[str]` | `ro` | `N/A` | Compute timezone based on latitude and longitude. |
 | data_output_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Compute data_output_path based on data_folder_path. |
-| data_cache_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Compute data_cache_path based on data_folder_path. |
 | config_folder_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration directory. |
 | config_file_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration file. |
 :::
@@ -46,7 +44,6 @@ Validators:
        "general": {
            "data_folder_path": null,
            "data_output_subpath": "output",
-           "data_cache_subpath": "cache",
            "latitude": 52.52,
            "longitude": 13.405
        }
@@ -62,14 +59,62 @@ Validators:
        "general": {
            "data_folder_path": null,
            "data_output_subpath": "output",
-           "data_cache_subpath": "cache",
            "latitude": 52.52,
            "longitude": 13.405,
            "timezone": "Europe/Berlin",
            "data_output_path": null,
-           "data_cache_path": null,
            "config_folder_path": "/home/user/.config/net.akkudoktoreos.net",
            "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
+       }
+   }
+```
+
+## Cache Configuration
+
+:::{table} cache
+:widths: 10 20 10 5 5 30
+:align: left
+
+| Name | Environment Variable | Type | Read-Only | Default | Description |
+| ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| subpath | `EOS_CACHE__SUBPATH` | `Optional[pathlib.Path]` | `rw` | `cache` | Sub-path for the EOS cache data directory. |
+| cleanup_interval | `EOS_CACHE__CLEANUP_INTERVAL` | `float` | `rw` | `300` | Intervall in seconds for EOS file cache cleanup. |
+:::
+
+### Example Input/Output
+
+```{eval-rst}
+.. code-block:: json
+
+   {
+       "cache": {
+           "subpath": "cache",
+           "cleanup_interval": 300.0
+       }
+   }
+```
+
+## Energy Management Configuration
+
+:::{table} ems
+:widths: 10 20 10 5 5 30
+:align: left
+
+| Name | Environment Variable | Type | Read-Only | Default | Description |
+| ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| startup_delay | `EOS_EMS__STARTUP_DELAY` | `float` | `rw` | `5` | Startup delay in seconds for EOS energy management runs. |
+| interval | `EOS_EMS__INTERVAL` | `Optional[float]` | `rw` | `None` | Intervall in seconds between EOS energy management runs. |
+:::
+
+### Example Input/Output
+
+```{eval-rst}
+.. code-block:: json
+
+   {
+       "ems": {
+           "startup_delay": 5.0,
+           "interval": 300.0
        }
    }
 ```
@@ -889,9 +934,16 @@ Attributes:
        "general": {
            "data_folder_path": null,
            "data_output_subpath": "output",
-           "data_cache_subpath": "cache",
            "latitude": 52.52,
            "longitude": 13.405
+       },
+       "cache": {
+           "subpath": "cache",
+           "cleanup_interval": 300.0
+       },
+       "ems": {
+           "startup_delay": 5.0,
+           "interval": 300.0
        },
        "logging": {
            "level": "INFO"

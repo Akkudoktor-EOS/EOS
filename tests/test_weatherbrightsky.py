@@ -5,9 +5,9 @@ from unittest.mock import Mock, patch
 import pandas as pd
 import pytest
 
+from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.prediction.weatherbrightsky import WeatherBrightSky
-from akkudoktoreos.utils.cacheutil import CacheFileStore
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
@@ -20,15 +20,15 @@ FILE_TESTDATA_WEATHERBRIGHTSKY_2_JSON = DIR_TESTDATA.joinpath("weatherforecast_b
 def provider(monkeypatch):
     """Fixture to create a WeatherProvider instance."""
     monkeypatch.setenv("EOS_WEATHER__WEATHER_PROVIDER", "BrightSky")
-    monkeypatch.setenv("EOS_PREDICTION__LATITUDE", "50.0")
-    monkeypatch.setenv("EOS_PREDICTION__LONGITUDE", "10.0")
+    monkeypatch.setenv("EOS_GENERAL__LATITUDE", "50.0")
+    monkeypatch.setenv("EOS_GENERAL__LONGITUDE", "10.0")
     return WeatherBrightSky()
 
 
 @pytest.fixture
 def sample_brightsky_1_json():
     """Fixture that returns sample forecast data report."""
-    with open(FILE_TESTDATA_WEATHERBRIGHTSKY_1_JSON, "r") as f_res:
+    with FILE_TESTDATA_WEATHERBRIGHTSKY_1_JSON.open("r", encoding="utf-8", newline=None) as f_res:
         input_data = json.load(f_res)
     return input_data
 
@@ -36,7 +36,7 @@ def sample_brightsky_1_json():
 @pytest.fixture
 def sample_brightsky_2_json():
     """Fixture that returns sample forecast data report."""
-    with open(FILE_TESTDATA_WEATHERBRIGHTSKY_2_JSON, "r") as f_res:
+    with FILE_TESTDATA_WEATHERBRIGHTSKY_2_JSON.open("r", encoding="utf-8", newline=None) as f_res:
         input_data = json.load(f_res)
     return input_data
 
@@ -173,15 +173,18 @@ def test_update_data(mock_get, provider, sample_brightsky_1_json, cache_store):
 # ------------------------------------------------
 
 
-@pytest.mark.skip(reason="For development only")
-def test_brightsky_development_forecast_data(provider):
+def test_brightsky_development_forecast_data(provider, config_eos, is_system_test):
     """Fetch data from real BrightSky server."""
+    if not is_system_test:
+        return
+
     # Preset, as this is usually done by update_data()
-    provider.start_datetime = to_datetime("2024-10-26 00:00:00")
-    provider.latitude = 50.0
-    provider.longitude = 10.0
+    ems_eos = get_ems()
+    ems_eos.set_start_datetime(to_datetime("2024-10-26 00:00:00", in_timezone="Europe/Berlin"))
+    config_eos.general.latitude = 50.0
+    config_eos.general.longitude = 10.0
 
     brightsky_data = provider._request_forecast()
 
-    with open(FILE_TESTDATA_WEATHERBRIGHTSKY_1_JSON, "w") as f_out:
+    with FILE_TESTDATA_WEATHERBRIGHTSKY_1_JSON.open("w", encoding="utf-8", newline="\n") as f_out:
         json.dump(brightsky_data, f_out, indent=4)

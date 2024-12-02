@@ -121,30 +121,40 @@ def run_prediction(provider_id: str, verbose: bool = False) -> str:
     # Initialize the oprediction
     config_eos = get_config()
     prediction_eos = get_prediction()
-    if verbose:
-        print(f"\nProvider ID: {provider_id}")
     if provider_id in ("PVForecastAkkudoktor",):
         settings = config_pvforecast()
-        settings["pvforecast"]["provider"] = provider_id
+        forecast = "pvforecast"
     elif provider_id in ("BrightSky", "ClearOutside"):
         settings = config_weather()
-        settings["weather"]["provider"] = provider_id
+        forecast = "weather"
     elif provider_id in ("ElecPriceAkkudoktor",):
         settings = config_elecprice()
-        settings["elecprice"]["provider"] = provider_id
+        forecast = "elecprice"
     elif provider_id in ("LoadAkkudoktor",):
         settings = config_elecprice()
+        forecast = "load"
         settings["load"]["loadakkudoktor_year_energy"] = 1000
-        settings["load"]["provider"] = provider_id
     else:
         raise ValueError(f"Unknown provider '{provider_id}'.")
+    settings[forecast]["provider"] = provider_id
     config_eos.merge_settings_from_dict(settings)
+
+    provider = prediction_eos.provider_by_id(provider_id)
 
     prediction_eos.update_data()
 
     # Return result of prediction
-    provider = prediction_eos.provider_by_id(provider_id)
     if verbose:
+        print(f"\nProvider ID: {provider.provider_id()}")
+        print("----------")
+        print("\nSettings\n----------")
+        print(settings)
+        print("\nProvider\n----------")
+        print(f"elecprice.provider: {config_eos.elecprice.provider}")
+        print(f"load.provider: {config_eos.load.provider}")
+        print(f"pvforecast.provider: {config_eos.pvforecast.provider}")
+        print(f"weather.provider: {config_eos.weather.provider}")
+        print(f"enabled: {provider.enabled()}")
         for key in provider.record_keys:
             print(f"\n{key}\n----------")
             print(f"Array: {provider.key_to_array(key)}")

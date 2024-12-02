@@ -13,9 +13,9 @@ import pandas as pd
 import pvlib
 import requests
 
+from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.weatherabc import WeatherDataRecord, WeatherProvider
-from akkudoktoreos.utils.cacheutil import cache_in_file
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 logger = get_logger(__name__)

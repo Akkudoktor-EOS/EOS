@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 import requests
 
+from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.elecpriceakkudoktor import (
@@ -13,7 +14,6 @@ from akkudoktoreos.prediction.elecpriceakkudoktor import (
     AkkudoktorElecPriceValue,
     ElecPriceAkkudoktor,
 )
-from akkudoktoreos.utils.cacheutil import CacheFileStore
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
@@ -36,7 +36,9 @@ def provider(monkeypatch, config_eos):
 @pytest.fixture
 def sample_akkudoktor_1_json():
     """Fixture that returns sample forecast data report."""
-    with open(FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON, "r") as f_res:
+    with FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON.open(
+        "r", encoding="utf-8", newline=None
+    ) as f_res:
         input_data = json.load(f_res)
     return input_data
 
@@ -173,7 +175,7 @@ def test_request_forecast_status_codes(
         provider._request_forecast()
 
 
-@patch("akkudoktoreos.utils.cacheutil.CacheFileStore")
+@patch("akkudoktoreos.core.cache.CacheFileStore")
 def test_cache_integration(mock_cache, provider):
     """Test caching of 8-day electricity price data."""
     mock_cache_instance = mock_cache.return_value
@@ -208,5 +210,7 @@ def test_akkudoktor_development_forecast_data(provider):
 
     akkudoktor_data = provider._request_forecast()
 
-    with open(FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON, "w") as f_out:
+    with FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON.open(
+        "w", encoding="utf-8", newline="\n"
+    ) as f_out:
         json.dump(akkudoktor_data, f_out, indent=4)

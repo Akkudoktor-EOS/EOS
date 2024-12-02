@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 
 from akkudoktoreos.core.ems import (
-    EnergieManagementSystem,
-    EnergieManagementSystemParameters,
+    EnergyManagement,
+    EnergyManagementParameters,
     SimulationResult,
     get_ems,
 )
@@ -20,8 +20,8 @@ start_hour = 1
 
 # Example initialization of necessary components
 @pytest.fixture
-def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
-    """Fixture to create an EnergieManagementSystem instance with given test parameters."""
+def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
+    """Fixture to create an EnergyManagement instance with given test parameters."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
         {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
@@ -227,7 +227,7 @@ def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
     # Initialize the energy management system with the respective parameters
     ems = get_ems()
     ems.set_parameters(
-        EnergieManagementSystemParameters(
+        EnergyManagementParameters(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
@@ -243,7 +243,7 @@ def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
 
 
 def test_simulation(create_ems_instance):
-    """Test the EnergieManagementSystem simulation method."""
+    """Test the EnergyManagement simulation method."""
     ems = create_ems_instance
 
     # Simulate starting from hour 1 (this value can be adjusted)

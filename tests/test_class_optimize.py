@@ -86,7 +86,8 @@ def test_optimize(
             parameters=input_data, start_hour=start_hour, ngen=ngen
         )
         # Write test output to file, so we can take it as new data on intended change
-        with open(DIR_TESTDATA / f"new_{fn_out}", "w") as f_out:
+        TESTDATA_FILE = DIR_TESTDATA / f"new_{fn_out}"
+        with TESTDATA_FILE.open("w", encoding="utf-8", newline="\n") as f_out:
             f_out.write(ergebnis.model_dump_json(indent=4, exclude_unset=True))
 
         assert ergebnis.result.Gesamtbilanz_Euro == pytest.approx(

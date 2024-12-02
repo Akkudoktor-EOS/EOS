@@ -26,6 +26,8 @@ def provider(config_eos):
         }
     }
     config_eos.merge_settings_from_dict(settings)
+    assert config_eos.load.provider == "LoadAkkudoktor"
+    assert config_eos.load.provider_settings.loadakkudoktor_year_energy == 1000
     return LoadAkkudoktor()
 
 
