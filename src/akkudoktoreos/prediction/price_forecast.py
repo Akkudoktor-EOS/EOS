@@ -41,6 +41,7 @@ class HourlyElectricityPriceForecast:
         self.prediction_hours = config.eos.prediction_hours
 
     def load_data(self, source: str | Path) -> list[dict[str, Any]]:
+        """Loads data from a cache file or source, returns a list of price entries."""
         cache_file = self.get_cache_file(source)
         if isinstance(source, str):
             if cache_file.is_file() and not self.is_cache_expired() and self.use_cache:
@@ -65,6 +66,7 @@ class HourlyElectricityPriceForecast:
         return json_data["values"]
 
     def get_cache_file(self, url: str | Path) -> Path:
+        """Generates a unique cache file path for the source URL."""
         if isinstance(url, Path):
             url = str(url)
         hash_object = hashlib.sha256(url.encode())
@@ -72,6 +74,7 @@ class HourlyElectricityPriceForecast:
         return self.cache_dir / f"cache_{hex_dig}.json"
 
     def is_cache_expired(self) -> bool:
+        """Checks if the cache has expired based on a one-hour limit."""                                                                
         if not self.cache_time_file.is_file():
             return True
         with self.cache_time_file.open("r") as file:
@@ -80,6 +83,7 @@ class HourlyElectricityPriceForecast:
         return datetime.now() - last_cache_time > timedelta(hours=1)
 
     def update_cache_timestamp(self) -> None:
+        """Updates the cache timestamp to the current time."""
         with self.cache_time_file.open("w") as file:
             file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
@@ -105,11 +109,12 @@ class HourlyElectricityPriceForecast:
         previous_day_str = previous_day.strftime("%Y-%m-%d")
 
         # Extract the price from 00:00 of the previous day
-        last_price_of_previous_day = [
+        previous_day_prices = [
             self.calc_price(entry["marketprice"])
             for entry in self.prices
             if previous_day_str in entry["end"]
-        ][-1]
+        ]
+        last_price_of_previous_day = previous_day_prices[-1] if previous_day_prices else 0
 
         # Extract all prices for the specified date
         date_prices = [
