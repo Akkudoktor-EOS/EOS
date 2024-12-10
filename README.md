@@ -16,16 +16,26 @@ Following sections describe how to locally start the EOS server on `http://local
 
 Install dependencies in virtual environment:
 
+Linux:
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
+Windows:
+```bash
+python -m venv .venv
+ .venv\Scripts\pip install -r requirements.txt
+```
+
 Finally, start EOS fastapi server:
 
+Linux:
 ```bash
 .venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
 ```
+Windows:
+ .venv\Scripts\fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
 
 ### Docker
 
