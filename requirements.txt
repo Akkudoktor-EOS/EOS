@@ -3,7 +3,7 @@ matplotlib==3.9.2
 fastapi[standard]==0.115.5
 uvicorn==0.32.1
 pydantic==2.10.1
-scikit-learn==1.5.2
+scikit-learn==1.6.0
 timezonefinder==6.5.5
 deap==1.4.1
 requests==2.32.3
