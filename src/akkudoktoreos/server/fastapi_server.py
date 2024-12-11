@@ -121,7 +121,7 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     adjuster.adjust_predictions()
     future_predictions = adjuster.predict_next_hours(hours)
 
-    leistung_haushalt = future_predictions["Adjusted Pred"].values
+    leistung_haushalt = future_predictions["Adjusted Pred"].to_numpy()
     gesamtlast = Gesamtlast(prediction_hours=hours)
     gesamtlast.hinzufuegen(
         "Haushalt",
