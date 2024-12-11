@@ -37,7 +37,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Body_fastapi_gesamtlast_gesamtlast_post"
+                "$ref": "#/components/schemas/GesamtlastRequest"
               }
             }
           },
@@ -248,28 +248,6 @@
   },
   "components": {
     "schemas": {
-      "Body_fastapi_gesamtlast_gesamtlast_post": {
-        "properties": {
-          "year_energy": {
-            "type": "number",
-            "title": "Year Energy"
-          },
-          "measured_data": {
-            "items": {
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Measured Data"
-          },
-          "hours": {
-            "type": "integer",
-            "title": "Hours"
-          }
-        },
-        "type": "object",
-        "required": ["year_energy", "measured_data", "hours"],
-        "title": "Body_fastapi_gesamtlast_gesamtlast_post"
-      },
       "EAutoParameters": {
         "properties": {
           "kapazitaet_wh": {
@@ -477,6 +455,28 @@
         "type": "object",
         "required": ["temperature", "pvpower"],
         "title": "ForecastResponse"
+      },
+      "GesamtlastRequest": {
+        "properties": {
+          "year_energy": {
+            "type": "number",
+            "title": "Year Energy"
+          },
+          "measured_data": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Measured Data"
+          },
+          "hours": {
+            "type": "integer",
+            "title": "Hours"
+          }
+        },
+        "type": "object",
+        "required": ["year_energy", "measured_data", "hours"],
+        "title": "GesamtlastRequest"
       },
       "HTTPValidationError": {
         "properties": {
