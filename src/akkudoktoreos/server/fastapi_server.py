@@ -13,7 +13,7 @@ from fastapi.exceptions import HTTPException
 matplotlib.use("Agg")
 
 import pandas as pd
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Body
 from fastapi.responses import FileResponse, RedirectResponse
 
 from akkudoktoreos.config import (
@@ -72,9 +72,9 @@ def fastapi_strompreis() -> list[float]:
 
 @app.post("/gesamtlast")
 def fastapi_gesamtlast(
-    year_energy: float,
-    measured_data: list[dict[str, Any]],
-    hours: int = config.eos.prediction_hours,
+    year_energy: float = Body(..., embed=True),
+    measured_data: list[dict[str, Any]] = Body(...),
+    hours: int = Body(..., embed=True),
 ) -> list[float]:
     """Endpoint to handle total load calculation based on the latest measured data."""
     # Measured data in JSON format
