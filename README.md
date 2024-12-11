@@ -35,8 +35,9 @@ Linux:
 .venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
 ```
 Windows:
+```
  .venv\Scripts\fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
-
+```
 ### Docker
 
 ```bash
