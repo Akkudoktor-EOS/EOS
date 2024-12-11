@@ -13,7 +13,7 @@ from fastapi.exceptions import HTTPException
 matplotlib.use("Agg")
 
 import pandas as pd
-from fastapi import FastAPI, Query, Body
+from fastapi import Body, FastAPI, Query
 from fastapi.responses import FileResponse, RedirectResponse
 
 from akkudoktoreos.config import (
