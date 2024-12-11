@@ -3,7 +3,11 @@ from typing import Any, Optional
 import numpy as np
 from pydantic import BaseModel, Field, field_validator
 
+from akkudoktoreos.devices.devicesabc import DeviceBase
+from akkudoktoreos.utils.logutil import get_logger
 from akkudoktoreos.utils.utils import NumpyEncoder
+
+logger = get_logger(__name__)
 
 
 def max_ladeleistung_w_field(default: Optional[float] = None) -> Optional[float]:
@@ -83,30 +87,85 @@ class EAutoResult(BaseModel):
         return NumpyEncoder.convert_numpy(field)[0]
 
 
-class PVAkku:
-    def __init__(self, parameters: BaseAkkuParameters, hours: int = 24):
-        # Battery capacity in Wh
-        self.kapazitaet_wh = parameters.kapazitaet_wh
-        # Initial state of charge in Wh
-        self.start_soc_prozent = parameters.start_soc_prozent
-        self.soc_wh = (parameters.start_soc_prozent / 100) * parameters.kapazitaet_wh
-        self.hours = hours
+class PVAkku(DeviceBase):
+    def __init__(
+        self,
+        parameters: Optional[BaseAkkuParameters] = None,
+        hours: Optional[int] = 24,
+        provider_id: Optional[str] = None,
+    ):
+        # Configuration initialisation
+        self.provider_id = provider_id
+        self.prefix = "<invalid>"
+        if self.provider_id == "GenericBattery":
+            self.prefix = "battery"
+        elif self.provider_id == "GenericBEV":
+            self.prefix = "bev"
+        # Parameter initialisiation
+        self.parameters = parameters
+        if hours is None:
+            self.hours = self.total_hours
+        else:
+            self.hours = hours
+
+        self.initialised = False
+        # Run setup if parameters are given, otherwise setup() has to be called later when the config is initialised.
+        if self.parameters is not None:
+            self.setup()
+
+    def setup(self) -> None:
+        if self.initialised:
+            return
+        if self.provider_id is not None:
+            # Setup by configuration
+            # Battery capacity in Wh
+            self.kapazitaet_wh = getattr(self.config, f"{self.prefix}_capacity")
+            # Initial state of charge in Wh
+            self.start_soc_prozent = getattr(self.config, f"{self.prefix}_soc_start")
+            self.hours = self.total_hours
+            # Charge and discharge efficiency
+            self.lade_effizienz = getattr(self.config, f"{self.prefix}_charge_efficiency")
+            self.entlade_effizienz = getattr(self.config, f"{self.prefix}_discharge_efficiency")
+            self.max_ladeleistung_w = getattr(self.config, f"{self.prefix}_charge_power_max")
+            # Only assign for storage battery
+            if self.provider_id == "GenericBattery":
+                self.min_soc_prozent = getattr(self.config, f"{self.prefix}_soc_mint")
+            else:
+                self.min_soc_prozent = 0
+            self.max_soc_prozent = getattr(self.config, f"{self.prefix}_soc_mint")
+        elif self.parameters is not None:
+            # Setup by parameters
+            # Battery capacity in Wh
+            self.kapazitaet_wh = self.parameters.kapazitaet_wh
+            # Initial state of charge in Wh
+            self.start_soc_prozent = self.parameters.start_soc_prozent
+            # Charge and discharge efficiency
+            self.lade_effizienz = self.parameters.lade_effizienz
+            self.entlade_effizienz = self.parameters.entlade_effizienz
+            self.max_ladeleistung_w = self.parameters.max_ladeleistung_w
+            # Only assign for storage battery
+            self.min_soc_prozent = (
+                self.parameters.min_soc_prozent
+                if isinstance(self.parameters, PVAkkuParameters)
+                else 0
+            )
+            self.max_soc_prozent = self.parameters.max_soc_prozent
+        else:
+            error_msg = "Parameters and provider ID missing. Can't instantiate."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        # init
+        if self.max_ladeleistung_w is None:
+            self.max_ladeleistung_w = self.kapazitaet_wh
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
-        # Charge and discharge efficiency
-        self.lade_effizienz = parameters.lade_effizienz
-        self.entlade_effizienz = parameters.entlade_effizienz
-        self.max_ladeleistung_w = (
-            parameters.max_ladeleistung_w if parameters.max_ladeleistung_w else self.kapazitaet_wh
-        )
-        # Only assign for storage battery
-        self.min_soc_prozent = (
-            parameters.min_soc_prozent if isinstance(parameters, PVAkkuParameters) else 0
-        )
-        self.max_soc_prozent = parameters.max_soc_prozent
-        # Calculate min and max SoC in Wh
+        # Calculate start, min and max SoC in Wh
+        self.soc_wh = (self.start_soc_prozent / 100) * self.kapazitaet_wh
         self.min_soc_wh = (self.min_soc_prozent / 100) * self.kapazitaet_wh
         self.max_soc_wh = (self.max_soc_prozent / 100) * self.kapazitaet_wh
+
+        self.initialised = True
 
     def to_dict(self) -> dict[str, Any]:
         return {

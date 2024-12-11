@@ -1,18 +1,60 @@
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 from akkudoktoreos.devices.battery import PVAkku
+from akkudoktoreos.devices.devicesabc import DeviceBase
+from akkudoktoreos.utils.logutil import get_logger
+
+logger = get_logger(__name__)
 
 
 class WechselrichterParameters(BaseModel):
     max_leistung_wh: float = Field(default=10000, gt=0)
 
 
-class Wechselrichter:
-    def __init__(self, parameters: WechselrichterParameters, akku: PVAkku):
-        self.max_leistung_wh = (
-            parameters.max_leistung_wh  # Maximum power that the inverter can handle
-        )
+class Wechselrichter(DeviceBase):
+    def __init__(
+        self,
+        parameters: Optional[WechselrichterParameters] = None,
+        akku: Optional[PVAkku] = None,
+        provider_id: Optional[str] = None,
+    ):
+        # Configuration initialisation
+        self.provider_id = provider_id
+        self.prefix = "<invalid>"
+        if self.provider_id == "GenericInverter":
+            self.prefix = "inverter"
+        # Parameter initialisiation
+        self.parameters = parameters
+        if akku is None:
+            # For the moment raise exception
+            # TODO: Make akku configurable by config
+            error_msg = "Battery for PV inverter is mandatory."
+            logger.error(error_msg)
+            raise NotImplementedError(error_msg)
         self.akku = akku  # Connection to a battery object
+
+        self.initialised = False
+        # Run setup if parameters are given, otherwise setup() has to be called later when the config is initialised.
+        if self.parameters is not None:
+            self.setup()
+
+    def setup(self) -> None:
+        if self.initialised:
+            return
+        if self.provider_id is not None:
+            # Setup by configuration
+            self.max_leistung_wh = getattr(self.config, f"{self.prefix}_power_max")
+        elif self.parameters is not None:
+            # Setup by parameters
+            self.max_leistung_wh = (
+                self.parameters.max_leistung_wh  # Maximum power that the inverter can handle
+            )
+        else:
+            error_msg = "Parameters and provider ID missing. Can't instantiate."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
     def energie_verarbeiten(
         self, erzeugung: float, verbrauch: float, hour: int

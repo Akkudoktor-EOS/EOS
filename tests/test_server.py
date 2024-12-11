@@ -1,24 +1,17 @@
 from http import HTTPStatus
-from pathlib import Path
 
 import requests
 
-from akkudoktoreos.config import CONFIG_FILE_NAME, load_config
+from akkudoktoreos.config.config import get_config
+
+config_eos = get_config()
 
 
-def test_fixture_setup(server, tmp_path: Path) -> None:
-    """Test if the fixture sets up the server with the env var."""
-    # validate correct path in server
-    config = load_config(tmp_path, False)
-    assert tmp_path.joinpath(CONFIG_FILE_NAME).is_file()
-    cache = tmp_path / config.directories.cache
-    assert cache.is_dir()
-
-
-def test_server(server, tmp_path: Path):
+def test_server(server):
     """Test the server."""
-    result = requests.get(f"{server}/gesamtlast_simple?year_energy=2000&")
-    assert result.status_code == HTTPStatus.OK
+    # validate correct path in server
+    assert config_eos.data_folder_path is not None
+    assert config_eos.data_folder_path.is_dir()
 
-    config = load_config(tmp_path, False)
-    assert len(result.json()) == config.eos.prediction_hours
+    result = requests.get(f"{server}/config?")
+    assert result.status_code == HTTPStatus.OK
