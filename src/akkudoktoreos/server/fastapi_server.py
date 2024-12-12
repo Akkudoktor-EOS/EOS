@@ -162,7 +162,6 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     # gesamtlast.hinzufuegen("Heatpump", leistung_wp)  # Add heat pump load to total load calculation
 
     last = gesamtlast.gesamtlast_berechnen()  # Calculate total load
-    print(last)  # Output total load
     return last.tolist()  # Return total load as JSON
 
 
