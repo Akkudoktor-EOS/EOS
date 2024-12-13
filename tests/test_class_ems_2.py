@@ -225,7 +225,7 @@ def test_simulation(create_ems_instance):
         abs(result["akku_soc_pro_stunde"][20] - 98) < 1e-5
     ), "'akku_soc_pro_stunde[11]' should be 98."
     assert (
-        abs(result["Last_Wh_pro_Stunde"][20] - 6050.98) < 1e-3
+        abs(result["Last_Wh_pro_Stunde"][20] - 5450.98) < 1e-3
     ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
 
     print("All tests passed successfully.")

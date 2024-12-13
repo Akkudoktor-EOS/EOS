@@ -213,9 +213,7 @@ class EnergieManagementSystem:
                 )
                 # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.ladezustand_in_prozent())
                 verbrauch += geladene_menge
-                verbrauch += verluste_wh
                 netzbezug += geladene_menge
-                netzbezug += verluste_wh
                 verluste_wh_pro_stunde[stunde_since_now] += verluste_wh
 
             netzeinspeisung_wh_pro_stunde[stunde_since_now] = netzeinspeisung

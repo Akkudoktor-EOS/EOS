@@ -28,13 +28,13 @@ class OptimizationParameters(BaseModel):
     ems: EnergieManagementSystemParameters
     pv_akku: PVAkkuParameters
     wechselrichter: WechselrichterParameters = WechselrichterParameters()
-    eauto: Optional[EAutoParameters] = None
+    eauto: Optional[EAutoParameters]
     dishwasher: Optional[HomeApplianceParameters] = None
     temperature_forecast: Optional[list[float]] = Field(
         default=None,
         description="An array of floats representing the temperature forecast in degrees Celsius for different time intervals.",
     )
-    start_solution: Optional[list[int]] = Field(
+    start_solution: Optional[list[float]] = Field(
         default=None, description="Can be `null` or contain a previous solution (if available)."
     )
 
@@ -69,7 +69,7 @@ class OptimizeResponse(BaseModel):
     eautocharge_hours_float: Optional[list[float]] = Field(description="TBD")
     result: SimulationResult
     eauto_obj: Optional[EAutoResult]
-    start_solution: Optional[list[int]] = Field(
+    start_solution: Optional[list[float]] = Field(
         default=None,
         description="An array of binary values (0 or 1) representing a possible starting solution for the simulation.",
     )
@@ -116,13 +116,6 @@ class optimization_problem:
         self.optimize_ev = True
         self.optimize_dc_charge = False
 
-        self.state_levels = {
-            'idle': (0, 4),
-            'discharge': (5, 9),
-            'ac': (10, 14),
-            'dc': (15, 19)
-        }
-
         # Set a fixed seed for random operations if provided
         if fixed_seed is not None:
             random.seed(fixed_seed)
@@ -136,11 +129,11 @@ class optimization_problem:
 
         Parameters:
         - discharge_hours_bin (np.ndarray): Input array with integer values representing the different states.
-        The states are in state_levels
-        idle_min      - idle_max     : No action ("idle")
-        discharge_min - discharge_max: Discharge ("discharge")
-        ac_min        - ac_max       : AC charging with different power levels ("ac_charge")
-        dc_min        - dc_max       : DC charging Dissallowed/allowed ("dc_charge")
+        The states are:
+        0: No action ("idle")
+        1: Discharge ("discharge")
+        2-6: AC charging with different power levels ("ac_charge")
+        7-8: DC charging Dissallowed/allowed ("dc_charge")
 
         Returns:
         - ac_charge (np.ndarray): Array with AC charging values as relative power (0-1), other values set to 0.
@@ -148,28 +141,27 @@ class optimization_problem:
         - discharge (np.ndarray): Array with discharge values (1 for discharge, 0 otherwise).
         """
         # Convert the input list to a NumPy array, if it's not already
-        if not isinstance(discharge_hours_bin, np.ndarray):
-            discharge_hours_bin_np = np.array(discharge_hours_bin)
-        else:
-            discharge_hours_bin_np = discharge_hours_bin
+        discharge_hours_bin_np = np.array(discharge_hours_bin)
 
-        # Create ac_charge array: Only consider values between ac_min and ac_max (AC charging power levels), set the rest to 0
-        ac_min, ac_max = self.state_levels['ac']
-        ac_charge_mask = (discharge_hours_bin_np >= ac_min) & (discharge_hours_bin_np <= ac_max)
-        ac_charge = (discharge_hours_bin_np - (ac_min - 1)) * ac_charge_mask
-        ac_charge = np.clip(ac_charge / (ac_max - (ac_min - 1)), 0, 1)
+        # Create ac_charge array: Only consider values between 2 and 6 (AC charging power levels), set the rest to 0
+        ac_charge = np.where(
+            (discharge_hours_bin_np >= 2) & (discharge_hours_bin_np <= 6),
+            discharge_hours_bin_np - 1,
+            0,
+        )
+        ac_charge = ac_charge / 5.0  # Normalize AC charge to range between 0 and 1
 
-        # Create dc_charge array: dc_min = Not allowed (mapped to 0), dc_max = Allowed (mapped to 1)
+        # Create dc_charge array: 7 = Not allowed (mapped to 0), 8 = Allowed (mapped to 1)
         # Create dc_charge array: Only if DC charge optimization is enabled
         if self.optimize_dc_charge:
-            dc_min, dc_max = self.state_levels['dc']
-            dc_charge = (discharge_hours_bin_np >= dc_min) & (discharge_hours_bin_np <= dc_max)
+            dc_charge = np.where(discharge_hours_bin_np == 8, 1, 0)
         else:
-            dc_charge = np.ones_like(discharge_hours_bin_np)  # Set DC charge to 0 if optimization is disabled
+            dc_charge = np.ones_like(
+                discharge_hours_bin_np
+            )  # Set DC charge to 0 if optimization is disabled
 
         # Create discharge array: Only consider value 1 (Discharge), set the rest to 0 (binary output)
-        discharge_min, discharge_max = self.state_levels['discharge']
-        discharge = (discharge_hours_bin_np >= discharge_min) & (discharge_hours_bin_np <= discharge_max)
+        discharge = np.where(discharge_hours_bin_np == 1, 1, 0)
 
         return ac_charge, dc_charge, discharge
 
@@ -197,11 +189,9 @@ class optimization_problem:
 
         # Ensure that no invalid states are introduced during mutation (valid values: 0-8)
         if self.optimize_dc_charge:
-            dc_max = self.state_levels['dc'][1]
-            charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, dc_max)
+            charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, 8)
         else:
-            ac_max = self.state_levels['ac'][1]
-            charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, ac_max)
+            charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, 6)
 
         # Use split_charge_discharge to split the mutated array into AC charge, DC charge, and discharge components
         # ac_charge, dc_charge, discharge = self.split_charge_discharge(charge_discharge_mutated)
@@ -300,11 +290,9 @@ class optimization_problem:
         # Initialize toolbox with attributes and operations
         self.toolbox = base.Toolbox()
         if self.optimize_dc_charge:
-            dc_max = self.state_levels['dc'][1]
-            self.toolbox.register("attr_discharge_state", random.randint, 0, dc_max)
+            self.toolbox.register("attr_discharge_state", random.randint, 0, 8)
         else:
-            ac_max = self.state_levels['ac'][1]
-            self.toolbox.register("attr_discharge_state", random.randint, 0, ac_max)
+            self.toolbox.register("attr_discharge_state", random.randint, 0, 6)
 
         if self.optimize_ev:
             self.toolbox.register(
@@ -325,14 +313,12 @@ class optimization_problem:
         # Register separate mutation functions for each type of value:
         # - Discharge state mutation (-5, 0, 1)
         if self.optimize_dc_charge:
-            dc_max = self.state_levels['dc'][1]
             self.toolbox.register(
-                "mutate_charge_discharge", tools.mutUniformInt, low=0, up=dc_max, indpb=0.2
+                "mutate_charge_discharge", tools.mutUniformInt, low=0, up=8, indpb=0.2
             )
         else:
-            ac_max = self.state_levels['ac'][1]
             self.toolbox.register(
-                "mutate_charge_discharge", tools.mutUniformInt, low=0, up=ac_max, indpb=0.2
+                "mutate_charge_discharge", tools.mutUniformInt, low=0, up=6, indpb=0.2
             )
         # - Float mutation for EV charging values
         self.toolbox.register(
@@ -439,7 +425,7 @@ class optimization_problem:
         return (gesamtbilanz,)
 
     def optimize(
-        self, start_solution: Optional[list[int]] = None, ngen: int = 400
+        self, start_solution: Optional[list[float]] = None, ngen: int = 400
     ) -> Tuple[Any, dict[str, list[Any]]]:
         """Run the optimization process using a genetic algorithm."""
         population = self.toolbox.population(n=300)
