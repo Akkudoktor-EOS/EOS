@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Optional
 
 import platformdirs
-from pydantic import Field, ValidationError, computed_field
+from pydantic import Field, TypeAdapter, ValidationError, computed_field
 
 # settings
 from akkudoktoreos.config.configabc import SettingsBaseModel
@@ -188,7 +188,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         Returns:
             SettingsEOS: The settings for EOS or None.
         """
-        return ConfigEOS._settings
+        return self.__class__._settings
 
     @classmethod
     def _merge_and_update_settings(cls, settings: SettingsEOS) -> None:
@@ -217,8 +217,8 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         if not isinstance(settings, SettingsEOS):
             raise ValueError(f"Settings must be an instance of SettingsEOS: '{settings}'.")
 
-        if ConfigEOS._settings is None or force:
-            ConfigEOS._settings = settings
+        if self.__class__._settings is None or force:
+            self.__class__._settings = settings
         else:
             self._merge_and_update_settings(settings)
 
@@ -253,7 +253,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
 
         This functions basically deletes the settings provided before.
         """
-        ConfigEOS._settings = None
+        self.__class__._settings = None
 
     def _update_data_folder_path(self) -> None:
         """Updates path to the data directory."""
@@ -358,7 +358,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         with config_file.open("r", encoding=self.ENCODING) as f_in:
             try:
                 json_str = f_in.read()
-                ConfigEOS._file_settings = SettingsEOS.model_validate_json(json_str)
+                self.__class__._file_settings = SettingsEOS.model_validate_json(json_str)
             except ValidationError as exc:
                 raise ValueError(f"Configuration '{config_file}' is incomplete or not valid: {exc}")
 
@@ -382,12 +382,12 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
                 json_str = super().to_json()
                 # Write to file
                 f_out.write(json_str)
-                # Also remember as actual settings
-                ConfigEOS._file_settings = SettingsEOS.model_validate_json(json_str)
+                # Also remeber as actual settings
+                self.__class__._file_settings = self.model_validate_json(json_str)
             except ValidationError as exc:
                 raise ValueError(f"Could not update '{self.config_file_path}': {exc}")
 
-    def _config_value(self, key: str) -> Any:
+    def _config_value(self, key: str, value_type: Any) -> Any:
         """Retrieves the configuration value for a specific key, following a priority order.
 
         Values are fetched in the following order:
@@ -404,14 +404,15 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
             Any: The configuration value, or None if not found.
         """
         # Settings
-        if ConfigEOS._settings:
+        if self.__class__._settings:
             if (value := getattr(self.settings, key, None)) is not None:
                 return value
 
         # Environment variables
         if (value := os.getenv(key)) is not None:
             try:
-                return float(value)
+                adapter = TypeAdapter(value_type)
+                return adapter.validate_json(value)
             except ValueError:
                 return value
 
@@ -425,7 +426,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
             return value
 
         # Field default constants
-        if (value := ConfigEOS.model_fields[key].default) is not None:
+        if (value := self.model_fields[key].default) is not None:
             return value
 
         logger.debug(f"Value for configuration key '{key}' not found or is {value}")
@@ -444,8 +445,8 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         The first non None value in priority order is taken.
         """
         self._update_data_folder_path()
-        for key in self.model_fields:
-            setattr(self, key, self._config_value(key))
+        for key, field_info in self.model_fields.items():
+            setattr(self, key, self._config_value(key, field_info.annotation))
 
 
 def get_config() -> ConfigEOS:

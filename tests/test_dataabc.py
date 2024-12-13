@@ -7,7 +7,6 @@ import pendulum
 import pytest
 from pydantic import Field, ValidationError
 
-from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.dataabc import (
     DataBase,
     DataContainer,
@@ -21,12 +20,6 @@ from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_
 
 # Derived classes for testing
 # ---------------------------
-
-
-class DerivedConfig(SettingsBaseModel):
-    env_var: Optional[int] = Field(default=None, description="Test config by environment var")
-    instance_field: Optional[str] = Field(default=None, description="Test config by instance field")
-    class_constant: Optional[int] = Field(default=None, description="Test config by class constant")
 
 
 class DerivedBase(DataBase):

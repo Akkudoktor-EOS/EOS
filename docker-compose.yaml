@@ -3,6 +3,19 @@ networks:
   default:
     name: "eos"
 services:
+  traefik:
+    image: traefik:v2.10
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "8503:80"
+      - "8580:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      - "traefik.enable=true"
   eos:
     image: "akkudoktor/eos:${EOS_VERSION}"
     read_only: true
@@ -11,7 +24,26 @@ services:
       dockerfile: "Dockerfile"
       args:
         PYTHON_VERSION: "${PYTHON_VERSION}"
-    volumes:
-      - ./src/akkudoktoreos/default.config.json:/opt/eos/EOS.config.json:ro
-    ports:
-      - "${EOS_PORT}:${EOS_PORT}"
+    labels:
+      - "traefik.http.routers.eos.rule=Host(`localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.services.eos.loadbalancer.server.port=8503"
+  eos-frontend:
+    image: "akkudoktor/eos:${EOS_VERSION}"
+    read_only: true
+    build:
+      context: .
+      dockerfile: "Dockerfile"
+      args:
+        PYTHON_VERSION: "${PYTHON_VERSION}"
+    environment:
+      - SESSKEY=s3cret
+    command:
+      - python
+      - -m
+      - akkudoktoreos.server.fasthtml_server
+    labels:
+      - "traefik.http.routers.eos-frontend.rule=Host(`localhost`) && PathPrefix(`/`)"
+      - "traefik.http.middlewares.redirectfrontend.redirectregex.regex=^/.*"
+      - "traefik.http.middlewares.redirectfrontend.redirectregex.replacement=/"
+      - "traefik.http.middlewares.redirectfrontend.redirectregex.permanent=true"
+      - "traefik.http.services.eos-frontend.loadbalancer.server.port=8504"

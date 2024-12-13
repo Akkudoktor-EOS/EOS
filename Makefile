@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip install dist test test-full docker-run docker-build docs read-docs clean format mypy run run-dev
+.PHONY: help venv pip install dist test test-full docker-run docker-build docs read-docs clean format mypy run run-dev run-api run-api-dev run-html run-html-dev
 
 # Default target
 all: help
@@ -17,8 +17,12 @@ help:
 	@echo "  docker-build - Rebuild docker image"
 	@echo "  docs         - Generate HTML documentation (in build/docs/html/)."
 	@echo "  read-docs    - Read HTML documentation in your browser."
-	@echo "  run          - Run FastAPI production server in the virtual environment."
-	@echo "  run-dev      - Run FastAPI development server in the virtual environment (automatically reloads)."
+	@echo "  run          - Run FastAPI/FastHTML production server in the virtual environment."
+	@echo "  run-dev      - Run FastAPI/FastHTML development server in the virtual environment (automatically reloads)."
+	@echo "  run-api      - Run FastAPI production server in the virtual environment."
+	@echo "  run-api-dev  - Run FastAPI development server in the virtual environment (automatically reloads)."
+	@echo "  run-html     - Run FastHTML production server in the virtual environment."
+	@echo "  run-html-dev - Run FastHTML development server in the virtual environment (automatically reloads)."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
 
@@ -76,12 +80,30 @@ clean:
 	@echo "Deletion complete."
 
 run:
+	${MAKE} run-api & \
+	${MAKE} run-html & \
+	wait
+
+run-dev:
+	${MAKE} run-api-dev & \
+	${MAKE} run-html-dev & \
+	wait
+
+run-api:
 	@echo "Starting FastAPI server, please wait..."
 	.venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
 
-run-dev:
+run-api-dev:
 	@echo "Starting FastAPI development server, please wait..."
 	.venv/bin/fastapi dev --port 8503 src/akkudoktoreos/server/fastapi_server.py
+
+run-html:
+	@echo "Starting FastHTML server, please wait..."
+	.venv/bin/python src/akkudoktoreos/server/fasthtml_server.py
+
+run-html-dev:
+	@echo "Starting FastHTML development server, please wait..."
+	server_fasthtml_development=true .venv/bin/python src/akkudoktoreos/server/fasthtml_server.py
 
 # Target to setup tests.
 test-setup: pip-dev
