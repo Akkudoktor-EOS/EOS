@@ -33,40 +33,15 @@
         "summary": "Fastapi Gesamtlast",
         "description": "Endpoint to handle total load calculation based on the latest measured data.",
         "operationId": "fastapi_gesamtlast_gesamtlast_post",
-        "parameters": [
-          {
-            "name": "year_energy",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "number",
-              "title": "Year Energy"
-            }
-          },
-          {
-            "name": "hours",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 48,
-              "title": "Hours"
-            }
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "array",
-                "items": {
-                  "type": "object"
-                },
-                "title": "Measured Data"
+                "$ref": "#/components/schemas/GesamtlastRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -74,10 +49,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
                   "items": {
                     "type": "number"
                   },
+                  "type": "array",
                   "title": "Response Fastapi Gesamtlast Gesamtlast Post"
                 }
               }
@@ -332,9 +307,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "kapazitaet_wh"
-        ],
+        "required": ["kapazitaet_wh"],
         "title": "EAutoParameters"
       },
       "EAutoResult": {
@@ -480,11 +453,30 @@
           }
         },
         "type": "object",
-        "required": [
-          "temperature",
-          "pvpower"
-        ],
+        "required": ["temperature", "pvpower"],
         "title": "ForecastResponse"
+      },
+      "GesamtlastRequest": {
+        "properties": {
+          "year_energy": {
+            "type": "number",
+            "title": "Year Energy"
+          },
+          "measured_data": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Measured Data"
+          },
+          "hours": {
+            "type": "integer",
+            "title": "Hours"
+          }
+        },
+        "type": "object",
+        "required": ["year_energy", "measured_data", "hours"],
+        "title": "GesamtlastRequest"
       },
       "HTTPValidationError": {
         "properties": {
@@ -515,10 +507,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "consumption_wh",
-          "duration_h"
-        ],
+        "required": ["consumption_wh", "duration_h"],
         "title": "HomeApplianceParameters"
       },
       "OptimizationParameters": {
@@ -587,11 +576,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "ems",
-          "pv_akku",
-          "eauto"
-        ],
+        "required": ["ems", "pv_akku", "eauto"],
         "title": "OptimizationParameters"
       },
       "OptimizeResponse": {
@@ -750,9 +735,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "kapazitaet_wh"
-        ],
+        "required": ["kapazitaet_wh"],
         "title": "PVAkkuParameters"
       },
       "SimulationResult": {
@@ -958,11 +941,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
+        "required": ["loc", "msg", "type"],
         "title": "ValidationError"
       },
       "WechselrichterParameters": {

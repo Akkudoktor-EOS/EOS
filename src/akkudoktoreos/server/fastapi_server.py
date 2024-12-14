@@ -3,11 +3,12 @@
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 import matplotlib
 import uvicorn
 from fastapi.exceptions import HTTPException
+from pydantic import BaseModel
 
 # Sets the Matplotlib backend to 'Agg' for rendering plots in environments without a display
 matplotlib.use("Agg")
@@ -70,33 +71,39 @@ def fastapi_strompreis() -> list[float]:
     return specific_date_prices.tolist()
 
 
+class GesamtlastRequest(BaseModel):
+    year_energy: float
+    measured_data: List[Dict[str, Any]]
+    hours: int
+
+
 @app.post("/gesamtlast")
-def fastapi_gesamtlast(
-    year_energy: float,
-    measured_data: list[dict[str, Any]],
-    hours: int = config.eos.prediction_hours,
-) -> list[float]:
+def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     """Endpoint to handle total load calculation based on the latest measured data."""
-    # Measured data in JSON format
+    # Request-Daten extrahieren
+    year_energy = request.year_energy
+    measured_data = request.measured_data
+    hours = request.hours
+
+    # Ab hier bleibt der Code unverändert ...
     measured_data_df = pd.DataFrame(measured_data)
     measured_data_df["time"] = pd.to_datetime(measured_data_df["time"])
 
-    # Ensure datetime has timezone info for accurate calculations
+    # Zeitzonenmanagement
     if measured_data_df["time"].dt.tz is None:
         measured_data_df["time"] = measured_data_df["time"].dt.tz_localize("Europe/Berlin")
     else:
         measured_data_df["time"] = measured_data_df["time"].dt.tz_convert("Europe/Berlin")
 
-    # Remove timezone info after conversion to simplify further processing
+    # Zeitzone entfernen
     measured_data_df["time"] = measured_data_df["time"].dt.tz_localize(None)
 
-    # Instantiate LoadForecast and generate forecast data
+    # Forecast erstellen
     lf = LoadForecast(
         filepath=server_dir / ".." / "data" / "load_profiles.npz", year_energy=year_energy
     )
     forecast_list = []
 
-    # Generate daily forecasts for the date range based on measured data
     for single_date in pd.date_range(
         measured_data_df["time"].min().date(), measured_data_df["time"].max().date()
     ):
@@ -107,25 +114,21 @@ def fastapi_gesamtlast(
         daily_forecast_df = pd.DataFrame({"time": fc_hours, "Last Pred": mean_values})
         forecast_list.append(daily_forecast_df)
 
-    # Concatenate all daily forecasts into a single DataFrame
     predicted_data = pd.concat(forecast_list, ignore_index=True)
 
-    # Create LoadPredictionAdjuster instance to adjust the predictions based on measured data
     adjuster = LoadPredictionAdjuster(measured_data_df, predicted_data, lf)
-    adjuster.calculate_weighted_mean()  # Calculate weighted mean for adjustment
-    adjuster.adjust_predictions()  # Adjust predictions based on measured data
-    future_predictions = adjuster.predict_next_hours(hours)  # Predict future load
+    adjuster.calculate_weighted_mean()
+    adjuster.adjust_predictions()
+    future_predictions = adjuster.predict_next_hours(hours)
 
-    # Extract household power predictions
-    leistung_haushalt = future_predictions["Adjusted Pred"].values
+    leistung_haushalt = future_predictions["Adjusted Pred"].to_numpy()
     gesamtlast = Gesamtlast(prediction_hours=hours)
     gesamtlast.hinzufuegen(
         "Haushalt",
-        leistung_haushalt,  # type: ignore[arg-type]
-    )  # Add household load to total load calculation
+        leistung_haushalt,
+    )
 
-    # Calculate the total load
-    last = gesamtlast.gesamtlast_berechnen()  # Compute total load
+    last = gesamtlast.gesamtlast_berechnen()
     return last.tolist()
 
 
@@ -159,7 +162,6 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     # gesamtlast.hinzufuegen("Heatpump", leistung_wp)  # Add heat pump load to total load calculation
 
     last = gesamtlast.gesamtlast_berechnen()  # Calculate total load
-    print(last)  # Output total load
     return last.tolist()  # Return total load as JSON
 
 

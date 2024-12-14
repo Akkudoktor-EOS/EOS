@@ -2,7 +2,7 @@
 exclude: \.(json|csv)$
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v5.0.0
     hooks:
       - id: check-merge-conflict
       - id: check-toml
@@ -31,4 +31,5 @@ repos:
         additional_dependencies:
           - "types-requests==2.32.0.20241016"
           - "pandas-stubs==2.2.3.241009"
+          - "numpy==2.1.3"
         pass_filenames: false
