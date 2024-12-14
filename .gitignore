@@ -259,3 +259,4 @@ visualize_output_*.pdf
 
 # Test files
 openapi-new.json
+tests/testdata/new_optimize_result*
