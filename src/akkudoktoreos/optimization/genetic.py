@@ -167,7 +167,6 @@ class optimization_problem:
 
     def mutate(self, individual: list[int]) -> tuple[list[int]]:
         """Custom mutation function for the individual."""
-
         # Calculate the number of states
         len_ac = len(self._config.eos.available_charging_rates_in_percentage)
         if self.optimize_dc_charge:
