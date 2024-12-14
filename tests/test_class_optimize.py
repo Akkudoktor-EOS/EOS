@@ -37,10 +37,7 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
         ("optimize_input_2.json", "optimize_result_2_full.json", 400),
     ],
 )
-@patch("akkudoktoreos.optimization.genetic.visualisiere_ergebnisse")
-def test_optimize(
-    visualisiere_ergebnisse_patch, fn_in: str, fn_out: str, ngen: int, is_full_run: bool
-):
+def test_optimize(fn_in: str, fn_out: str, ngen: int, is_full_run: bool):
     """Test optimierung_ems."""
     # Assure configuration holds the correct values
     config_eos = get_config()
@@ -52,8 +49,12 @@ def test_optimize(
         input_data = OptimizationParameters(**json.load(f_in))
 
     file = DIR_TESTDATA / fn_out
-    with file.open("r") as f_out:
-        expected_result = OptimizeResponse(**json.load(f_out))
+    # In case a new test case is added, we don't want to fail here, so the new output is written to disk before
+    try:
+        with file.open("r") as f_out:
+            expected_result = OptimizeResponse(**json.load(f_out))
+    except FileNotFoundError:
+        pass
 
     opt_class = optimization_problem(fixed_seed=42)
     start_hour = 10
@@ -61,15 +62,34 @@ def test_optimize(
     if ngen > 10 and not is_full_run:
         pytest.skip()
 
-    # Call the optimization function
-    ergebnis = opt_class.optimierung_ems(parameters=input_data, start_hour=start_hour, ngen=ngen)
-    # with open(f"new_{fn_out}", "w") as f_out:
-    #    f_out.write(ergebnis.model_dump_json(indent=4, exclude_unset=True))
+    visualize_filename = str((DIR_TESTDATA / f"new_{fn_out}").with_suffix(".pdf"))
 
-    # Assert that the output contains all expected entries.
-    # This does not assert that the optimization always gives the same result!
-    # Reproducibility and mathematical accuracy should be tested on the level of individual components.
-    compare_dict(ergebnis.model_dump(), expected_result.model_dump())
+    def visualize_to_file(*args, **kwargs):
+        from akkudoktoreos.visualize import visualisiere_ergebnisse
 
-    # The function creates a visualization result PDF as a side-effect.
-    visualisiere_ergebnisse_patch.assert_called_once()
+        # Write test output pdf to file, so we can look at it manually
+        kwargs["filename"] = visualize_filename
+        return visualisiere_ergebnisse(*args, **kwargs)
+
+    with patch(
+        "akkudoktoreos.optimization.genetic.visualisiere_ergebnisse", side_effect=visualize_to_file
+    ) as visualisiere_ergebnisse_patch:
+        # Call the optimization function
+        ergebnis = opt_class.optimierung_ems(
+            parameters=input_data, start_hour=start_hour, ngen=ngen
+        )
+        # Write test output to file, so we can take it as new data on intended change
+        with open(DIR_TESTDATA / f"new_{fn_out}", "w") as f_out:
+            f_out.write(ergebnis.model_dump_json(indent=4, exclude_unset=True))
+
+        assert ergebnis.result.Gesamtbilanz_Euro == pytest.approx(
+            expected_result.result.Gesamtbilanz_Euro
+        )
+
+        # Assert that the output contains all expected entries.
+        # This does not assert that the optimization always gives the same result!
+        # Reproducibility and mathematical accuracy should be tested on the level of individual components.
+        compare_dict(ergebnis.model_dump(), expected_result.model_dump())
+
+        # The function creates a visualization result PDF as a side-effect.
+        visualisiere_ergebnisse_patch.assert_called_once()
