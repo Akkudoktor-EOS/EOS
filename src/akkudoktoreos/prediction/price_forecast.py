@@ -74,7 +74,7 @@ class HourlyElectricityPriceForecast:
         return self.cache_dir / f"cache_{hex_dig}.json"
 
     def is_cache_expired(self) -> bool:
-        """Checks if the cache has expired based on a one-hour limit."""                                                                
+        """Checks if the cache has expired based on a one-hour limit."""
         if not self.cache_time_file.is_file():
             return True
         with self.cache_time_file.open("r") as file:
@@ -87,20 +87,26 @@ class HourlyElectricityPriceForecast:
         with self.cache_time_file.open("w") as file:
             file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-    # Calculate the electricity price in kWh with taxes 
     def calc_price(self, euro_pro_mwh: float) -> float:
-        """
-        Provider: Tibber
-        Beschaffung: 1.81
-        Netznutzung: 9.3
-        Steuern, Abgaben und Umlagen: 5.214
-        Mehrwertsteuer: 19% = 1.19
+        """Calculate the final electricity price per kilowatt-hour (kWh).
+
+        This calculation is based on the following cost components:
+        - Provider: Tibber
+        - Procurement: €1.81 per kWh
+        - Grid usage: €9.30 per kWh
+        - Taxes, levies, and surcharges: €5.214 per kWh
+        - Value-added tax (VAT): 19% (multiplied by 1.19)
+
+        Args:
+            euro_pro_mwh (float): The base electricity price in € per megawatt-hour (MWh).
+
+        Returns:
+            float: The final electricity price in € per kilowatt-hour (kWh).
         """
         return (euro_pro_mwh / 10 + 1.81 + 9.3 + 5.214) * 1.19
-    
+
     def get_price_for_date(self, date_str: str) -> np.ndarray:
         """Returns all prices for the specified date, including the price from 00:00 of the previous day."""
-        
         # Convert date string to datetime object
         date_obj = datetime.strptime(date_str, "%Y-%m-%d")
 
