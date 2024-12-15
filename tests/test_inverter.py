@@ -2,7 +2,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from akkudoktoreos.devices.inverter import InverterParameters, Wechselrichter
+from akkudoktoreos.devices.inverter import Inverter
+from akkudoktoreos.devices.inverter import InverterParameters
 
 
 @pytest.fixture
@@ -15,7 +16,7 @@ def mock_battery():
 
 @pytest.fixture
 def inverter(mock_battery):
-    return Wechselrichter(InverterParameters(max_power_wh=500.0), akku=mock_battery)
+    return Inverter(InverterParameters(max_power_wh=500.0), akku=mock_battery)
 
 
 def test_process_energy_excess_generation(inverter, mock_battery):

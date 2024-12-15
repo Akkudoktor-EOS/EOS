@@ -13,7 +13,7 @@ class InverterParameters(BaseModel):
     max_power_wh: float = Field(default=10000, gt=0)
 
 
-class Wechselrichter(DeviceBase):
+class Inverter(DeviceBase):
     def __init__(
         self,
         parameters: Optional[InverterParameters] = None,

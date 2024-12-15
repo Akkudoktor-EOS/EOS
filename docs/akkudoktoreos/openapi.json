@@ -2996,7 +2996,7 @@
           "pv_akku": {
             "$ref": "#/components/schemas/PVAkkuParameters"
           },
-          "wechselrichter": {
+          "inverter": {
             "$ref": "#/components/schemas/InverterParameters",
             "default": {
               "max_power_wh": 10000.0

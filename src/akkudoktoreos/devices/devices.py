@@ -9,7 +9,7 @@ from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.devices.battery import PVAkku
 from akkudoktoreos.devices.devicesabc import DevicesBase
 from akkudoktoreos.devices.generic import HomeAppliance
-from akkudoktoreos.devices.inverter import Wechselrichter
+from akkudoktoreos.devices.inverter import Inverter
 from akkudoktoreos.utils.datetimeutil import to_duration
 from akkudoktoreos.utils.logutil import get_logger
 
@@ -162,9 +162,7 @@ class Devices(SingletonMixin, DevicesBase):
     akku: ClassVar[PVAkku] = PVAkku(provider_id="GenericBattery")
     eauto: ClassVar[PVAkku] = PVAkku(provider_id="GenericBEV")
     home_appliance: ClassVar[HomeAppliance] = HomeAppliance(provider_id="GenericDishWasher")
-    wechselrichter: ClassVar[Wechselrichter] = Wechselrichter(
-        akku=akku, provider_id="GenericInverter"
-    )
+    inverter: ClassVar[Inverter] = Inverter(akku=akku, provider_id="GenericInverter")
 
     def update_data(self) -> None:
         """Update device simulation data."""
@@ -172,7 +170,7 @@ class Devices(SingletonMixin, DevicesBase):
         self.akku.setup()
         self.eauto.setup()
         self.home_appliance.setup()
-        self.wechselrichter.setup()
+        self.inverter.setup()
 
         # Pre-allocate arrays for the results, optimized for speed
         self.last_wh_pro_stunde = np.full((self.total_hours), np.nan)
@@ -245,10 +243,10 @@ class Devices(SingletonMixin, DevicesBase):
             grid_export, grid_import, losses, self_consumption = (0.0, 0.0, 0.0, 0.0)
             if self.akku:
                 self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[hour], hour)
-            if self.wechselrichter:
+            if self.inverter:
                 generation = pvforecast_ac_power[hour]
-                grid_export, grid_import, losses, self_consumption = (
-                    self.wechselrichter.process_energy(generation, consumption, hour)
+                grid_export, grid_import, losses, self_consumption = self.inverter.process_energy(
+                    generation, consumption, hour
                 )
 
             # AC PV Battery Charge
