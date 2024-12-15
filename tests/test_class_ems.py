@@ -1,29 +1,33 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.config import AppConfig
-from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
-from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
-from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
-from akkudoktoreos.prediction.ems import (
+from akkudoktoreos.config.config import get_config
+from akkudoktoreos.core.ems import (
     EnergieManagementSystem,
     EnergieManagementSystemParameters,
     SimulationResult,
+    get_ems,
 )
+from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
+from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
+from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
 
-prediction_hours = 48
-optimization_hours = 24
 start_hour = 1
 
 
 # Example initialization of necessary components
 @pytest.fixture
-def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
+def create_ems_instance() -> EnergieManagementSystem:
     """Fixture to create an EnergieManagementSystem instance with given test parameters."""
+    # Assure configuration holds the correct values
+    config_eos = get_config()
+    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
+    assert config_eos.prediction_hours is not None
+
     # Initialize the battery and the inverter
     akku = PVAkku(
         PVAkkuParameters(kapazitaet_wh=5000, start_soc_prozent=80, min_soc_prozent=10),
-        hours=prediction_hours,
+        hours=config_eos.prediction_hours,
     )
     akku.reset()
     wechselrichter = Wechselrichter(WechselrichterParameters(max_leistung_wh=10000), akku)
@@ -34,16 +38,16 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
             consumption_wh=2000,
             duration_h=2,
         ),
-        hours=prediction_hours,
+        hours=config_eos.prediction_hours,
     )
     home_appliance.set_starting_time(2)
 
     # Example initialization of electric car battery
     eauto = PVAkku(
         EAutoParameters(kapazitaet_wh=26400, start_soc_prozent=10, min_soc_prozent=10),
-        hours=prediction_hours,
+        hours=config_eos.prediction_hours,
     )
-    eauto.set_charge_per_hour(np.full(prediction_hours, 1))
+    eauto.set_charge_per_hour(np.full(config_eos.prediction_hours, 1))
 
     # Parameters based on previous example data
     pv_prognose_wh = [
@@ -203,8 +207,8 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
     ]
 
     # Initialize the energy management system with the respective parameters
-    ems = EnergieManagementSystem(
-        tmp_config.eos,
+    ems = get_ems()
+    ems.set_parameters(
         EnergieManagementSystemParameters(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,

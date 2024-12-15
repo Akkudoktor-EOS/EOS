@@ -51,9 +51,16 @@ select = [
               # Google convention via `convention = "google"`, below.
 ]
 ignore = [
-    # On top of `Pyflakes (F)` to prevent errors for existing sources. Should be removed!!!
+   # Prevent errors due to ruff false positives
+   # ------------------------------------------
+   # On top of `Pyflakes (F)` to allow numpydantic Shape forward annotation
+   "F722",    # forward-annotation-syntax-error: forward annotations that include invalid syntax.
+
+    # Prevent errors for existing sources. Should be removed!!!
+    # ---------------------------------------------------------
+    # On top of `Pyflakes (F)`
     "F841",   # unused-variable: Local variable {name} is assigned to but never used
-    # On top of `pydocstyle (D)` to prevent errors for existing sources. Should be removed!!!
+    # On top of `pydocstyle (D)`
     "D100",   # undocumented-public-module: Missing docstring in public module
     "D101",   # undocumented-public-class: Missing docstring in public class
     "D102",   # undocumented-public-method: Missing docstring in public method

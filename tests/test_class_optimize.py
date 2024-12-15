@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from akkudoktoreos.config import AppConfig
+from akkudoktoreos.config.config import get_config
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     OptimizeResponse,
@@ -39,14 +39,13 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
 )
 @patch("akkudoktoreos.optimization.genetic.visualisiere_ergebnisse")
 def test_optimize(
-    visualisiere_ergebnisse_patch,
-    fn_in: str,
-    fn_out: str,
-    ngen: int,
-    is_full_run: bool,
-    tmp_config: AppConfig,
+    visualisiere_ergebnisse_patch, fn_in: str, fn_out: str, ngen: int, is_full_run: bool
 ):
     """Test optimierung_ems."""
+    # Assure configuration holds the correct values
+    config_eos = get_config()
+    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
+
     # Load input and output data
     file = DIR_TESTDATA / fn_in
     with file.open("r") as f_in:
@@ -56,7 +55,7 @@ def test_optimize(
     with file.open("r") as f_out:
         expected_result = OptimizeResponse(**json.load(f_out))
 
-    opt_class = optimization_problem(tmp_config, fixed_seed=42)
+    opt_class = optimization_problem(fixed_seed=42)
     start_hour = 10
 
     if ngen > 10 and not is_full_run:

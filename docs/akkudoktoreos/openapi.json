@@ -6,6 +6,136 @@
     "version": "0.0.1"
   },
   "paths": {
+    "/config": {
+      "get": {
+        "summary": "Fastapi Config Get",
+        "description": "Get the current configuration.",
+        "operationId": "fastapi_config_get_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigEOS"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Fastapi Config Put",
+        "description": "Merge settings into current configuration.",
+        "operationId": "fastapi_config_put_config_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsEOS"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigEOS"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/prediction/keys": {
+      "get": {
+        "summary": "Fastapi Prediction Keys",
+        "description": "Get a list of available prediction keys.",
+        "operationId": "fastapi_prediction_keys_prediction_keys_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response Fastapi Prediction Keys Prediction Keys Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/prediction": {
+      "get": {
+        "summary": "Fastapi Prediction",
+        "description": "Get the current configuration.",
+        "operationId": "fastapi_prediction_prediction_get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "title": "Response Fastapi Prediction Prediction Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/strompreis": {
       "get": {
         "summary": "Fastapi Strompreis",
@@ -119,15 +249,6 @@
         "summary": "Fastapi Pvprognose",
         "operationId": "fastapi_pvprognose_pvforecast_get",
         "parameters": [
-          {
-            "name": "url",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Url"
-            }
-          },
           {
             "name": "ac_power_measurement",
             "in": "query",
@@ -244,10 +365,2362 @@
           }
         }
       }
+    },
+    "/{path}": {
+      "delete": {
+        "summary": "Proxy Delete",
+        "operationId": "proxy_delete__path__delete",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Proxy Get",
+        "operationId": "proxy_get__path__get",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Proxy Post",
+        "operationId": "proxy_post__path__post",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Proxy Put",
+        "operationId": "proxy_put__path__put",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ConfigEOS": {
+        "properties": {
+          "server_fastapi_host": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "ipvanyaddress"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Fastapi Host",
+            "description": "FastAPI server IP address.",
+            "default": "0.0.0.0"
+          },
+          "server_fastapi_port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Fastapi Port",
+            "description": "FastAPI server IP port number.",
+            "default": 8503
+          },
+          "server_fasthtml_host": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "ipvanyaddress"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Fasthtml Host",
+            "description": "FastHTML server IP address.",
+            "default": "0.0.0.0"
+          },
+          "server_fasthtml_port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Fasthtml Port",
+            "description": "FastHTML server IP port number.",
+            "default": 8504
+          },
+          "weatherimport_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weatherimport File Path",
+            "description": "Path to the file to import weather data from."
+          },
+          "weatherimport_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weatherimport Json",
+            "description": "JSON string, dictionary of weather forecast value lists."
+          },
+          "weather_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Provider",
+            "description": "Weather provider id of provider to be used.",
+            "default": "ClearOutside"
+          },
+          "pvforecastimport_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecastimport File Path",
+            "description": "Path to the file to import pvforecast data from."
+          },
+          "pvforecastimport_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecastimport Json",
+            "description": "JSON string, dictionary of PV forecast float value lists.Keys are 'pvforecast_dc_power', 'pvforecast_ac_power'."
+          },
+          "pvforecast_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast Provider",
+            "description": "PVForecast provider id of provider to be used."
+          },
+          "pvforecast0_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast0_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast0_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast0_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast0_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast0_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast0_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Loss",
+            "description": "Sum of PV system losses in percent"
+          },
+          "pvforecast0_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast0_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast0_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast0_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast0_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast0_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast0_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast0_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast0_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "pvforecast1_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast1_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast1_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast1_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast1_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast1_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast1_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Loss",
+            "description": "Sum of PV system losses in percent",
+            "default": 0
+          },
+          "pvforecast1_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast1_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast1_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast1_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast1_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast1_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast1_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast1_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast1_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "pvforecast2_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast2_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast2_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast2_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast2_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast2_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast2_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Loss",
+            "description": "Sum of PV system losses in percent",
+            "default": 0
+          },
+          "pvforecast2_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast2_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast2_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast2_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast2_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast2_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast2_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast2_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast2_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "pvforecast3_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast3_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast3_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast3_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast3_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast3_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast3_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Loss",
+            "description": "Sum of PV system losses in percent",
+            "default": 0
+          },
+          "pvforecast3_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast3_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast3_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast3_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast3_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast3_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast3_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast3_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast3_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "pvforecast4_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast4_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast4_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast4_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast4_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast4_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast4_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Loss",
+            "description": "Sum of PV system losses in percent",
+            "default": 0
+          },
+          "pvforecast4_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast4_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast4_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast4_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast4_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast4_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast4_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast4_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast4_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "pvforecast5_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast5_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast5_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast5_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast5_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast5_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast5_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Loss",
+            "description": "Sum of PV system losses in percent",
+            "default": 0
+          },
+          "pvforecast5_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast5_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast5_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast5_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast5_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast5_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast5_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast5_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast5_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "load0_import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load0 Import File Path",
+            "description": "Path to the file to import load data from."
+          },
+          "load0_import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load0 Import Json",
+            "description": "JSON string, dictionary of load forecast value lists."
+          },
+          "load1_import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load1 Import File Path",
+            "description": "Path to the file to import load data from."
+          },
+          "load1_import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load1 Import Json",
+            "description": "JSON string, dictionary of load forecast value lists."
+          },
+          "load2_import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load2 Import File Path",
+            "description": "Path to the file to import load data from."
+          },
+          "load2_import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load2 Import Json",
+            "description": "JSON string, dictionary of load forecast value lists."
+          },
+          "load3_import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load3 Import File Path",
+            "description": "Path to the file to import load data from."
+          },
+          "load3_import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load3 Import Json",
+            "description": "JSON string, dictionary of load forecast value lists."
+          },
+          "load4_import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load4 Import File Path",
+            "description": "Path to the file to import load data from."
+          },
+          "load4_import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load4 Import Json",
+            "description": "JSON string, dictionary of load forecast value lists."
+          },
+          "loadakkudoktor_year_energy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loadakkudoktor Year Energy",
+            "description": "Yearly energy consumption (kWh)."
+          },
+          "load0_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load0 Provider",
+            "description": "Load provider id of provider to be used."
+          },
+          "load0_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load0 Name",
+            "description": "Name of the load source."
+          },
+          "load1_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load1 Provider",
+            "description": "Load provider id of provider to be used."
+          },
+          "load1_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load1 Name",
+            "description": "Name of the load source."
+          },
+          "load2_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load2 Provider",
+            "description": "Load provider id of provider to be used."
+          },
+          "load2_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load2 Name",
+            "description": "Name of the load source."
+          },
+          "load3_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load3 Provider",
+            "description": "Load provider id of provider to be used."
+          },
+          "load3_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load3 Name",
+            "description": "Name of the load source."
+          },
+          "load4_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load4 Provider",
+            "description": "Load provider id of provider to be used."
+          },
+          "load4_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load4 Name",
+            "description": "Name of the load source."
+          },
+          "elecpriceimport_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elecpriceimport File Path",
+            "description": "Path to the file to import elecprice data from."
+          },
+          "elecpriceimport_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elecpriceimport Json",
+            "description": "JSON string, dictionary of electricity price forecast value lists."
+          },
+          "elecprice_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elecprice Provider",
+            "description": "Electicity price provider id of provider to be used.",
+            "default": "ElecPriceAkkudoktor"
+          },
+          "prediction_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prediction Hours",
+            "description": "Number of hours into the future for predictions",
+            "default": 48
+          },
+          "prediction_historic_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prediction Historic Hours",
+            "description": "Number of hours into the past for historical predictions data",
+            "default": 48
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 90.0,
+                "minimum": -90.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude",
+            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 180.0,
+                "minimum": -180.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude",
+            "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)"
+          },
+          "optimization_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optimization Hours",
+            "description": "Number of hours into the future for optimizations.",
+            "default": 24
+          },
+          "optimization_penalty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optimization Penalty",
+            "description": "Penalty factor used in optimization.",
+            "default": 10
+          },
+          "optimization_ev_available_charge_rates_percent": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optimization Ev Available Charge Rates Percent",
+            "description": "Charge rates available for the EV in percent of maximum charge.",
+            "default": [
+              0.0,
+              0.375,
+              0.5,
+              0.625,
+              0.75,
+              0.875,
+              1.0
+            ]
+          },
+          "battery_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Provider",
+            "description": "Id of Battery simulation provider."
+          },
+          "battery_capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Capacity",
+            "description": "Battery capacity [Wh]."
+          },
+          "battery_soc_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Soc Start",
+            "description": "Battery initial state of charge [%]."
+          },
+          "battery_soc_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Soc Min",
+            "description": "Battery minimum state of charge [%]."
+          },
+          "battery_soc_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Soc Max",
+            "description": "Battery maximum state of charge [%]."
+          },
+          "battery_charge_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Charge Efficiency",
+            "description": "Battery charging efficiency [%]."
+          },
+          "battery_discharge_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Discharge Efficiency",
+            "description": "Battery discharging efficiency [%]."
+          },
+          "battery_charge_power_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Charge Power Max",
+            "description": "Battery maximum charge power [W]."
+          },
+          "bev_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Provider",
+            "description": "Id of Battery Electric Vehicle simulation provider."
+          },
+          "bev_capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Capacity",
+            "description": "Battery Electric Vehicle capacity [Wh]."
+          },
+          "bev_soc_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Soc Start",
+            "description": "Battery Electric Vehicle initial state of charge [%]."
+          },
+          "bev_soc_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Soc Max",
+            "description": "Battery Electric Vehicle maximum state of charge [%]."
+          },
+          "bev_charge_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Charge Efficiency",
+            "description": "Battery Electric Vehicle charging efficiency [%]."
+          },
+          "bev_discharge_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Discharge Efficiency",
+            "description": "Battery Electric Vehicle discharging efficiency [%]."
+          },
+          "bev_charge_power_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Charge Power Max",
+            "description": "Battery Electric Vehicle maximum charge power [W]."
+          },
+          "dishwasher_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dishwasher Provider",
+            "description": "Id of Dish Washer simulation provider."
+          },
+          "dishwasher_consumption": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dishwasher Consumption",
+            "description": "Dish Washer energy consumption [Wh]."
+          },
+          "dishwasher_duration": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dishwasher Duration",
+            "description": "Dish Washer usage duration [h]."
+          },
+          "inverter_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inverter Provider",
+            "description": "Id of PV Inverter simulation provider."
+          },
+          "inverter_power_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inverter Power Max",
+            "description": "Inverter maximum power [W]."
+          },
+          "data_folder_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Folder Path",
+            "description": "Path to EOS data directory."
+          },
+          "data_output_subpath": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Output Subpath",
+            "description": "Sub-path for the EOS output data directory.",
+            "default": "output"
+          },
+          "data_cache_subpath": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Cache Subpath",
+            "description": "Sub-path for the EOS cache data directory.",
+            "default": "cache"
+          },
+          "config_folder_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Folder Path",
+            "description": "Path to EOS configuration directory."
+          },
+          "config_file_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config File Path",
+            "description": "Path to EOS configuration file."
+          },
+          "pvforecast_planes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pvforecast Planes",
+            "description": "Compute a list of active planes.",
+            "readOnly": true
+          },
+          "pvforecast_planes_peakpower": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pvforecast Planes Peakpower",
+            "description": "Compute a list of the peak power per active planes.",
+            "readOnly": true
+          },
+          "pvforecast_planes_azimuth": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pvforecast Planes Azimuth",
+            "description": "Compute a list of the azimuths per active planes.",
+            "readOnly": true
+          },
+          "pvforecast_planes_tilt": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pvforecast Planes Tilt",
+            "description": "Compute a list of the tilts per active planes.",
+            "readOnly": true
+          },
+          "pvforecast_planes_userhorizon": {
+            "title": "Pvforecast Planes Userhorizon",
+            "description": "Compute a list of the user horizon per active planes.",
+            "readOnly": true
+          },
+          "pvforecast_planes_inverter_paco": {
+            "title": "Pvforecast Planes Inverter Paco",
+            "description": "Compute a list of the maximum power rating of the inverter per active planes.",
+            "readOnly": true
+          },
+          "load_count": {
+            "type": "integer",
+            "title": "Load Count",
+            "description": "Maximum number of loads.",
+            "readOnly": true
+          },
+          "load_providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true,
+            "title": "Load Providers",
+            "description": "Load providers.",
+            "readOnly": true
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone",
+            "description": "Compute timezone based on latitude and longitude.",
+            "readOnly": true
+          },
+          "data_output_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Output Path",
+            "description": "Compute data_output_path based on data_folder_path.",
+            "readOnly": true
+          },
+          "data_cache_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Cache Path",
+            "description": "Compute data_cache_path based on data_folder_path.",
+            "readOnly": true
+          },
+          "config_default_file_path": {
+            "type": "string",
+            "format": "path",
+            "title": "Config Default File Path",
+            "description": "Compute the default config file path.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "pvforecast_planes",
+          "pvforecast_planes_peakpower",
+          "pvforecast_planes_azimuth",
+          "pvforecast_planes_tilt",
+          "pvforecast_planes_userhorizon",
+          "pvforecast_planes_inverter_paco",
+          "load_count",
+          "load_providers",
+          "timezone",
+          "data_output_path",
+          "data_cache_path",
+          "config_default_file_path"
+        ],
+        "title": "ConfigEOS",
+        "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_DIR` environment variable.\n    2. A platform specific default directory for EOS.\n    3. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nAttributes:\n    _settings (ClassVar[SettingsEOS]): Holds application-wide settings.\n    _file_settings (ClassVar[SettingsEOS]): Stores configuration loaded from file.\n    config_folder_path (Optional[Path]): Path to the configuration directory.\n    config_file_path (Optional[Path]): Path to the configuration file.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    ```python\n    config_eos = ConfigEOS()  # Always returns the same instance\n    print(config_eos.prediction_hours)  # Access a setting from the loaded configuration\n    ```"
+      },
       "EAutoParameters": {
         "properties": {
           "kapazitaet_wh": {
@@ -307,7 +2780,9 @@
           }
         },
         "type": "object",
-        "required": ["kapazitaet_wh"],
+        "required": [
+          "kapazitaet_wh"
+        ],
         "title": "EAutoParameters"
       },
       "EAutoResult": {
@@ -414,7 +2889,8 @@
           },
           "preis_euro_pro_wh_akku": {
             "type": "number",
-            "title": "Preis Euro Pro Wh Akku"
+            "title": "Preis Euro Pro Wh Akku",
+            "description": "A float representing the cost of battery energy per watt-hour."
           },
           "gesamtlast": {
             "items": {
@@ -453,7 +2929,10 @@
           }
         },
         "type": "object",
-        "required": ["temperature", "pvpower"],
+        "required": [
+          "temperature",
+          "pvpower"
+        ],
         "title": "ForecastResponse"
       },
       "GesamtlastRequest": {
@@ -475,7 +2954,11 @@
           }
         },
         "type": "object",
-        "required": ["year_energy", "measured_data", "hours"],
+        "required": [
+          "year_energy",
+          "measured_data",
+          "hours"
+        ],
         "title": "GesamtlastRequest"
       },
       "HTTPValidationError": {
@@ -507,7 +2990,10 @@
           }
         },
         "type": "object",
-        "required": ["consumption_wh", "duration_h"],
+        "required": [
+          "consumption_wh",
+          "duration_h"
+        ],
         "title": "HomeApplianceParameters"
       },
       "OptimizationParameters": {
@@ -576,7 +3062,11 @@
           }
         },
         "type": "object",
-        "required": ["ems", "pv_akku", "eauto"],
+        "required": [
+          "ems",
+          "pv_akku",
+          "eauto"
+        ],
         "title": "OptimizationParameters"
       },
       "OptimizeResponse": {
@@ -735,8 +3225,2070 @@
           }
         },
         "type": "object",
-        "required": ["kapazitaet_wh"],
+        "required": [
+          "kapazitaet_wh"
+        ],
         "title": "PVAkkuParameters"
+      },
+      "SettingsEOS": {
+        "properties": {
+          "server_fastapi_host": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "ipvanyaddress"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Fastapi Host",
+            "description": "FastAPI server IP address.",
+            "default": "0.0.0.0"
+          },
+          "server_fastapi_port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Fastapi Port",
+            "description": "FastAPI server IP port number.",
+            "default": 8503
+          },
+          "server_fasthtml_host": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "ipvanyaddress"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Fasthtml Host",
+            "description": "FastHTML server IP address.",
+            "default": "0.0.0.0"
+          },
+          "server_fasthtml_port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Fasthtml Port",
+            "description": "FastHTML server IP port number.",
+            "default": 8504
+          },
+          "weatherimport_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weatherimport File Path",
+            "description": "Path to the file to import weather data from."
+          },
+          "weatherimport_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weatherimport Json",
+            "description": "JSON string, dictionary of weather forecast value lists."
+          },
+          "weather_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Provider",
+            "description": "Weather provider id of provider to be used.",
+            "default": "ClearOutside"
+          },
+          "pvforecastimport_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecastimport File Path",
+            "description": "Path to the file to import pvforecast data from."
+          },
+          "pvforecastimport_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecastimport Json",
+            "description": "JSON string, dictionary of PV forecast float value lists.Keys are 'pvforecast_dc_power', 'pvforecast_ac_power'."
+          },
+          "pvforecast_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast Provider",
+            "description": "PVForecast provider id of provider to be used."
+          },
+          "pvforecast0_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast0_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast0_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast0_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast0_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast0_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast0_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Loss",
+            "description": "Sum of PV system losses in percent"
+          },
+          "pvforecast0_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast0_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast0_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast0_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast0_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast0_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast0_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast0_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast0_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast0 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "pvforecast1_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast1_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast1_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast1_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast1_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast1_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast1_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Loss",
+            "description": "Sum of PV system losses in percent",
+            "default": 0
+          },
+          "pvforecast1_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast1_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast1_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast1_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast1_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast1_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast1_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast1_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast1_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast1 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "pvforecast2_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast2_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast2_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast2_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast2_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast2_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast2_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Loss",
+            "description": "Sum of PV system losses in percent",
+            "default": 0
+          },
+          "pvforecast2_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast2_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast2_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast2_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast2_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast2_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast2_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast2_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast2_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast2 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "pvforecast3_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast3_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast3_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast3_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast3_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast3_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast3_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Loss",
+            "description": "Sum of PV system losses in percent",
+            "default": 0
+          },
+          "pvforecast3_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast3_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast3_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast3_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast3_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast3_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast3_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast3_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast3_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast3 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "pvforecast4_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast4_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast4_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast4_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast4_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast4_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast4_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Loss",
+            "description": "Sum of PV system losses in percent",
+            "default": 0
+          },
+          "pvforecast4_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast4_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast4_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast4_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast4_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast4_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast4_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast4_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast4_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast4 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "pvforecast5_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Surface Tilt",
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "default": 0
+          },
+          "pvforecast5_surface_azimuth": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Surface Azimuth",
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "default": 180
+          },
+          "pvforecast5_userhorizon": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Userhorizon",
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north."
+          },
+          "pvforecast5_peakpower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Peakpower",
+            "description": "Nominal power of PV system in kW."
+          },
+          "pvforecast5_pvtechchoice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Pvtechchoice",
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+            "default": "crystSi"
+          },
+          "pvforecast5_mountingplace": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Mountingplace",
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+            "default": "free"
+          },
+          "pvforecast5_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Loss",
+            "description": "Sum of PV system losses in percent",
+            "default": 0
+          },
+          "pvforecast5_trackingtype": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Trackingtype",
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "default": 0
+          },
+          "pvforecast5_optimal_surface_tilt": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Optimal Surface Tilt",
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast5_optimalangles": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Optimalangles",
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "default": false
+          },
+          "pvforecast5_albedo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Albedo",
+            "description": "Proportion of the light hitting the ground that it reflects back."
+          },
+          "pvforecast5_module_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Module Model",
+            "description": "Model of the PV modules of this plane."
+          },
+          "pvforecast5_inverter_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Inverter Model",
+            "description": "Model of the inverter of this plane."
+          },
+          "pvforecast5_inverter_paco": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Inverter Paco",
+            "description": "AC power rating of the inverter. [W]"
+          },
+          "pvforecast5_modules_per_string": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Modules Per String",
+            "description": "Number of the PV modules of the strings of this plane."
+          },
+          "pvforecast5_strings_per_inverter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pvforecast5 Strings Per Inverter",
+            "description": "Number of the strings of the inverter of this plane."
+          },
+          "load0_import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load0 Import File Path",
+            "description": "Path to the file to import load data from."
+          },
+          "load0_import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load0 Import Json",
+            "description": "JSON string, dictionary of load forecast value lists."
+          },
+          "load1_import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load1 Import File Path",
+            "description": "Path to the file to import load data from."
+          },
+          "load1_import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load1 Import Json",
+            "description": "JSON string, dictionary of load forecast value lists."
+          },
+          "load2_import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load2 Import File Path",
+            "description": "Path to the file to import load data from."
+          },
+          "load2_import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load2 Import Json",
+            "description": "JSON string, dictionary of load forecast value lists."
+          },
+          "load3_import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load3 Import File Path",
+            "description": "Path to the file to import load data from."
+          },
+          "load3_import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load3 Import Json",
+            "description": "JSON string, dictionary of load forecast value lists."
+          },
+          "load4_import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load4 Import File Path",
+            "description": "Path to the file to import load data from."
+          },
+          "load4_import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load4 Import Json",
+            "description": "JSON string, dictionary of load forecast value lists."
+          },
+          "loadakkudoktor_year_energy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loadakkudoktor Year Energy",
+            "description": "Yearly energy consumption (kWh)."
+          },
+          "load0_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load0 Provider",
+            "description": "Load provider id of provider to be used."
+          },
+          "load0_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load0 Name",
+            "description": "Name of the load source."
+          },
+          "load1_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load1 Provider",
+            "description": "Load provider id of provider to be used."
+          },
+          "load1_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load1 Name",
+            "description": "Name of the load source."
+          },
+          "load2_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load2 Provider",
+            "description": "Load provider id of provider to be used."
+          },
+          "load2_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load2 Name",
+            "description": "Name of the load source."
+          },
+          "load3_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load3 Provider",
+            "description": "Load provider id of provider to be used."
+          },
+          "load3_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load3 Name",
+            "description": "Name of the load source."
+          },
+          "load4_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load4 Provider",
+            "description": "Load provider id of provider to be used."
+          },
+          "load4_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load4 Name",
+            "description": "Name of the load source."
+          },
+          "elecpriceimport_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elecpriceimport File Path",
+            "description": "Path to the file to import elecprice data from."
+          },
+          "elecpriceimport_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elecpriceimport Json",
+            "description": "JSON string, dictionary of electricity price forecast value lists."
+          },
+          "elecprice_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elecprice Provider",
+            "description": "Electicity price provider id of provider to be used.",
+            "default": "ElecPriceAkkudoktor"
+          },
+          "prediction_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prediction Hours",
+            "description": "Number of hours into the future for predictions",
+            "default": 48
+          },
+          "prediction_historic_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prediction Historic Hours",
+            "description": "Number of hours into the past for historical predictions data",
+            "default": 48
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 90.0,
+                "minimum": -90.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude",
+            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 180.0,
+                "minimum": -180.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude",
+            "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)"
+          },
+          "optimization_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optimization Hours",
+            "description": "Number of hours into the future for optimizations.",
+            "default": 24
+          },
+          "optimization_penalty": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optimization Penalty",
+            "description": "Penalty factor used in optimization.",
+            "default": 10
+          },
+          "optimization_ev_available_charge_rates_percent": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optimization Ev Available Charge Rates Percent",
+            "description": "Charge rates available for the EV in percent of maximum charge.",
+            "default": [
+              0.0,
+              0.375,
+              0.5,
+              0.625,
+              0.75,
+              0.875,
+              1.0
+            ]
+          },
+          "battery_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Provider",
+            "description": "Id of Battery simulation provider."
+          },
+          "battery_capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Capacity",
+            "description": "Battery capacity [Wh]."
+          },
+          "battery_soc_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Soc Start",
+            "description": "Battery initial state of charge [%]."
+          },
+          "battery_soc_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Soc Min",
+            "description": "Battery minimum state of charge [%]."
+          },
+          "battery_soc_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Soc Max",
+            "description": "Battery maximum state of charge [%]."
+          },
+          "battery_charge_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Charge Efficiency",
+            "description": "Battery charging efficiency [%]."
+          },
+          "battery_discharge_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Discharge Efficiency",
+            "description": "Battery discharging efficiency [%]."
+          },
+          "battery_charge_power_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Charge Power Max",
+            "description": "Battery maximum charge power [W]."
+          },
+          "bev_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Provider",
+            "description": "Id of Battery Electric Vehicle simulation provider."
+          },
+          "bev_capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Capacity",
+            "description": "Battery Electric Vehicle capacity [Wh]."
+          },
+          "bev_soc_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Soc Start",
+            "description": "Battery Electric Vehicle initial state of charge [%]."
+          },
+          "bev_soc_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Soc Max",
+            "description": "Battery Electric Vehicle maximum state of charge [%]."
+          },
+          "bev_charge_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Charge Efficiency",
+            "description": "Battery Electric Vehicle charging efficiency [%]."
+          },
+          "bev_discharge_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Discharge Efficiency",
+            "description": "Battery Electric Vehicle discharging efficiency [%]."
+          },
+          "bev_charge_power_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bev Charge Power Max",
+            "description": "Battery Electric Vehicle maximum charge power [W]."
+          },
+          "dishwasher_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dishwasher Provider",
+            "description": "Id of Dish Washer simulation provider."
+          },
+          "dishwasher_consumption": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dishwasher Consumption",
+            "description": "Dish Washer energy consumption [Wh]."
+          },
+          "dishwasher_duration": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dishwasher Duration",
+            "description": "Dish Washer usage duration [h]."
+          },
+          "inverter_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inverter Provider",
+            "description": "Id of PV Inverter simulation provider."
+          },
+          "inverter_power_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inverter Power Max",
+            "description": "Inverter maximum power [W]."
+          },
+          "data_folder_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Folder Path",
+            "description": "Path to EOS data directory."
+          },
+          "data_output_subpath": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Output Subpath",
+            "description": "Sub-path for the EOS output data directory.",
+            "default": "output"
+          },
+          "data_cache_subpath": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Cache Subpath",
+            "description": "Sub-path for the EOS cache data directory.",
+            "default": "cache"
+          }
+        },
+        "type": "object",
+        "title": "SettingsEOS",
+        "description": "Settings for all EOS."
       },
       "SimulationResult": {
         "properties": {
@@ -941,7 +5493,11 @@
           }
         },
         "type": "object",
-        "required": ["loc", "msg", "type"],
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
         "title": "ValidationError"
       },
       "WechselrichterParameters": {
