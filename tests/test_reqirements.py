@@ -1,10 +1,8 @@
-import pkg_resources
+from importlib.metadata import version, PackageNotFoundError
 from pathlib import Path
 import re
-import pytest
 
 
-@pytest.mark.run(order=1)  # This ensures this test runs first
 def check_package_version(package_spec):
     try:
         # If the package_spec contains "==", it has a version specified
@@ -18,7 +16,7 @@ def check_package_version(package_spec):
                 package_name = re.sub(r"\[.*\]", "", package_name)
 
             # Get the installed version of the package
-            installed_version = pkg_resources.get_distribution(package_name).version
+            installed_version = version(package_name)
 
             # Compare the installed version with the required version
             if installed_version == required_version:
@@ -36,10 +34,10 @@ def check_package_version(package_spec):
                 package_spec = re.sub(r"\[.*\]", "", package_spec)
 
             try:
-                pkg_resources.get_distribution(package_spec)
+                version(package_spec)
                 print(f"[INFO] {package_spec} is installed (no version check performed).")
                 return True  # No version specified, so we just check if installed
-            except pkg_resources.DistributionNotFound:
+            except PackageNotFoundError:
                 print(f"[ERROR] {package_spec} is not installed.")
                 return False
 
