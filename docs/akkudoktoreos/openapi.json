@@ -3137,7 +3137,7 @@
           "eauto_obj"
         ],
         "title": "OptimizeResponse",
-        "description": "**Note**: The first value of \"Last_Wh_pro_Stunde\", \"Netzeinspeisung_Wh_pro_Stunde\" and \"Netzbezug_Wh_pro_Stunde\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
+        "description": "**Note**: The first value of \"Last_Wh_per_hour\", \"Netzeinspeisung_Wh_per_hour\", and \"Netzbezug_Wh_per_hour\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
       },
       "PVAkkuParameters": {
         "properties": {
