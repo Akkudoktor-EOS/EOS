@@ -9,7 +9,7 @@ from akkudoktoreos.core.ems import (
 )
 from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
-from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
+from akkudoktoreos.devices.inverter import Wechselrichter, InverterParameters
 
 start_hour = 0
 
@@ -29,7 +29,7 @@ def create_ems_instance() -> EnergieManagementSystem:
         hours=config_eos.prediction_hours,
     )
     akku.reset()
-    wechselrichter = Wechselrichter(WechselrichterParameters(max_leistung_wh=10000), akku)
+    wechselrichter = Wechselrichter(InverterParameters(max_power_wh=10000), akku)
 
     # Household device (currently not used, set to None)
     home_appliance = HomeAppliance(

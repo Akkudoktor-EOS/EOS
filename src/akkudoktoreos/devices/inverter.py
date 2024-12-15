@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -9,14 +9,14 @@ from akkudoktoreos.utils.logutil import get_logger
 logger = get_logger(__name__)
 
 
-class WechselrichterParameters(BaseModel):
-    max_leistung_wh: float = Field(default=10000, gt=0)
+class InverterParameters(BaseModel):
+    max_power_wh: float = Field(default=10000, gt=0)
 
 
 class Wechselrichter(DeviceBase):
     def __init__(
         self,
-        parameters: Optional[WechselrichterParameters] = None,
+        parameters: Optional[InverterParameters] = None,
         akku: Optional[PVAkku] = None,
         provider_id: Optional[str] = None,
     ):
@@ -45,69 +45,55 @@ class Wechselrichter(DeviceBase):
             return
         if self.provider_id is not None:
             # Setup by configuration
-            self.max_leistung_wh = getattr(self.config, f"{self.prefix}_power_max")
+            self.max_power_wh = getattr(self.config, f"{self.prefix}_power_max")
         elif self.parameters is not None:
             # Setup by parameters
-            self.max_leistung_wh = (
-                self.parameters.max_leistung_wh  # Maximum power that the inverter can handle
+            self.max_power_wh = (
+                self.parameters.max_power_wh  # Maximum power that the inverter can handle
             )
         else:
             error_msg = "Parameters and provider ID missing. Can't instantiate."
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-    def energie_verarbeiten(
-        self, erzeugung: float, verbrauch: float, hour: int
-    ) -> tuple[float, float, float, float]:
-        verluste = 0.0  # Losses during processing
-        netzeinspeisung = 0.0  # Grid feed-in
-        netzbezug = 0.0  # Grid draw
-        eigenverbrauch = 0.0  # Self-consumption
+    def process_energy(
+        self, generation: float, consumption: float, hour: int
+    ) -> Tuple[float, float, float, float]:
+        losses = 0.0
+        grid_export = 0.0
+        grid_import = 0.0
+        self_consumption = 0.0
 
-        if erzeugung >= verbrauch:
-            if verbrauch > self.max_leistung_wh:
-                # If consumption exceeds maximum inverter power
-                verluste += erzeugung - self.max_leistung_wh
-                restleistung_nach_verbrauch = self.max_leistung_wh - verbrauch
-                netzbezug = -restleistung_nach_verbrauch  # Negative indicates feeding into the grid
-                eigenverbrauch = self.max_leistung_wh
-            else:
-                # Remaining power after consumption
-                restleistung_nach_verbrauch = erzeugung - verbrauch
+        if generation >= consumption:
+            # Case 1: Sufficient or excess generation
+            actual_consumption = min(consumption, self.max_power_wh)
+            remaining_energy = generation - actual_consumption
 
-                # Load battery with excess energy
-                geladene_energie, verluste_laden_akku = self.akku.energie_laden(
-                    restleistung_nach_verbrauch, hour
-                )
-                rest_überschuss = restleistung_nach_verbrauch - (
-                    geladene_energie + verluste_laden_akku
-                )
+            # Charge battery with excess energy
+            charged_energy, charging_losses = self.akku.energie_laden(remaining_energy, hour)
+            losses += charging_losses
 
-                # Feed-in to the grid based on remaining capacity
-                if rest_überschuss > self.max_leistung_wh - verbrauch:
-                    netzeinspeisung = self.max_leistung_wh - verbrauch
-                    verluste += rest_überschuss - netzeinspeisung
-                else:
-                    netzeinspeisung = rest_überschuss
+            # Calculate remaining surplus after battery charge
+            remaining_surplus = remaining_energy - (charged_energy + charging_losses)
+            grid_export = min(remaining_surplus, self.max_power_wh - actual_consumption)
 
-                verluste += verluste_laden_akku
-                eigenverbrauch = verbrauch  # Self-consumption is equal to the load
+            # If any remaining surplus can't be fed to the grid, count as losses
+            losses += max(remaining_surplus - grid_export, 0)
+            self_consumption = actual_consumption
 
         else:
-            benötigte_energie = verbrauch - erzeugung  # Energy needed from external sources
-            max_akku_leistung = self.akku.max_ladeleistung_w  # Maximum battery discharge power
+            # Case 2: Insufficient generation, cover shortfall
+            shortfall = consumption - generation
+            available_ac_power = max(self.max_power_wh - generation, 0)
 
-            # Calculate remaining AC power available
-            rest_ac_leistung = max(self.max_leistung_wh - erzeugung, 0)
+            # Discharge battery to cover shortfall, if possible
+            battery_discharge, discharge_losses = self.akku.energie_abgeben(
+                min(shortfall, available_ac_power), hour
+            )
+            losses += discharge_losses
 
-            # Discharge energy from the battery based on need
-            if benötigte_energie < rest_ac_leistung:
-                aus_akku, akku_entladeverluste = self.akku.energie_abgeben(benötigte_energie, hour)
-            else:
-                aus_akku, akku_entladeverluste = self.akku.energie_abgeben(rest_ac_leistung, hour)
+            # Draw remaining required power from the grid (discharge_losses are already substraved in the battery)
+            grid_import = shortfall - battery_discharge
+            self_consumption = generation + battery_discharge
 
-            verluste += akku_entladeverluste  # Include losses from battery discharge
-            netzbezug = benötigte_energie - aus_akku  # Energy drawn from the grid
-            eigenverbrauch = erzeugung + aus_akku  # Total self-consumption
-
-        return netzeinspeisung, netzbezug, verluste, eigenverbrauch
+        return grid_export, grid_import, losses, self_consumption

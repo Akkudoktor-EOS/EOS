@@ -19,7 +19,7 @@ from akkudoktoreos.devices.battery import (
     PVAkkuParameters,
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
-from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
+from akkudoktoreos.devices.inverter import Wechselrichter, InverterParameters
 from akkudoktoreos.utils.utils import NumpyEncoder
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
@@ -27,7 +27,7 @@ from akkudoktoreos.visualize import visualisiere_ergebnisse
 class OptimizationParameters(BaseModel):
     ems: EnergieManagementSystemParameters
     pv_akku: PVAkkuParameters
-    wechselrichter: WechselrichterParameters = WechselrichterParameters()
+    wechselrichter: InverterParameters = InverterParameters()
     eauto: Optional[EAutoParameters]
     dishwasher: Optional[HomeApplianceParameters] = None
     temperature_forecast: Optional[list[float]] = Field(

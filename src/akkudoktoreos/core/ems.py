@@ -357,7 +357,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             if self.wechselrichter:
                 erzeugung = self.pv_prognose_wh[stunde]
                 netzeinspeisung, netzbezug, verluste, eigenverbrauch = (
-                    self.wechselrichter.energie_verarbeiten(erzeugung, verbrauch, stunde)
+                    self.wechselrichter.process_energy(erzeugung, verbrauch, stunde)
                 )
 
             # AC PV Battery Charge
