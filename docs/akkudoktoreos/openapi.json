@@ -2976,6 +2976,18 @@
         "required": ["consumption_wh", "duration_h"],
         "title": "HomeApplianceParameters"
       },
+      "InverterParameters": {
+        "properties": {
+          "max_power_wh": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Power Wh",
+            "default": 10000
+          }
+        },
+        "type": "object",
+        "title": "InverterParameters"
+      },
       "OptimizationParameters": {
         "properties": {
           "ems": {
@@ -2985,7 +2997,11 @@
             "$ref": "#/components/schemas/PVAkkuParameters"
           },
           "wechselrichter": {
-            "$ref": "#/components/schemas/InverterParameters",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InverterParameters"
+              }
+            ],
             "default": {
               "max_power_wh": 10000.0
             }
@@ -5461,18 +5477,6 @@
         "type": "object",
         "required": ["loc", "msg", "type"],
         "title": "ValidationError"
-      },
-      "InverterParameters": {
-        "properties": {
-          "max_power_wh": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Max Power Wh",
-            "default": 10000
-          }
-        },
-        "type": "object",
-        "title": "WechselrichterParameters"
       }
     }
   }
