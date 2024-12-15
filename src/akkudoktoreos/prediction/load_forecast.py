@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
+from pendulum import DateTime
 
 # Load the .npz file when the application starts
 
@@ -46,16 +47,13 @@ class LoadForecast:
 
         return hourly_stats
 
-    def get_stats_for_date_range(self, start_date_str: str, end_date_str: str) -> np.ndarray:
+    def get_stats_for_date_range(self, start_date: DateTime, end_date: DateTime) -> np.ndarray:
         """Returns the means and standard deviations for a date range.
 
-        :param start_date_str: Start date as a string in the format "YYYY-MM-DD"
-        :param end_date_str: End date as a string in the format "YYYY-MM-DD"
+        :param start_date: Start date
+        :param end_date: End date
         :return: An array with aggregated data for the date range
         """
-        start_date = self._convert_to_datetime(start_date_str)
-        end_date = self._convert_to_datetime(end_date_str)
-
         start_day_of_year = start_date.timetuple().tm_yday
         end_day_of_year = end_date.timetuple().tm_yday
 

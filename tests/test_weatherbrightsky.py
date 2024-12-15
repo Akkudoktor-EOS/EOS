@@ -64,7 +64,7 @@ def test_invalid_provider(weather_provider, monkeypatch):
     """Test requesting an unsupported weather_provider."""
     monkeypatch.setenv("weather_provider", "<invalid>")
     weather_provider.config.update()
-    assert weather_provider.enabled() == False
+    assert not weather_provider.enabled()
 
 
 def test_invalid_coordinates(weather_provider, monkeypatch):

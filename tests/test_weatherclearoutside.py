@@ -76,7 +76,7 @@ def test_invalid_provider(weather_provider):
         "weather_provider": "<invalid>",
     }
     config_eos.merge_settings_from_dict(settings)
-    assert weather_provider.enabled() == False
+    assert not weather_provider.enabled()
 
 
 def test_invalid_coordinates(weather_provider):
