@@ -488,10 +488,9 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         )
 
         # Initialize the inverter and energy management system
-        inverter = Inverter(parameters.inverter, akku)
         self.ems.set_parameters(
             parameters.ems,
-            inverter=inverter,
+            inverter=Inverter(parameters.inverter, akku),
             eauto=eauto,
             home_appliance=dishwasher,
         )
