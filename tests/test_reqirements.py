@@ -1,6 +1,6 @@
-from importlib.metadata import version, PackageNotFoundError
-from pathlib import Path
 import re
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
 
 
 def check_package_version(package_spec):
