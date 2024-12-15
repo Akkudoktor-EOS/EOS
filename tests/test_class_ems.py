@@ -10,7 +10,7 @@ from akkudoktoreos.core.ems import (
 )
 from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
-from akkudoktoreos.devices.inverter import Wechselrichter, InverterParameters
+from akkudoktoreos.devices.inverter import InverterParameters, Wechselrichter
 
 start_hour = 1
 

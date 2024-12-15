@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from akkudoktoreos.devices.inverter import Wechselrichter, InverterParameters
+from akkudoktoreos.devices.inverter import InverterParameters, Wechselrichter
 
 
 @pytest.fixture

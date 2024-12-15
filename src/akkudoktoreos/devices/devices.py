@@ -248,7 +248,7 @@ class Devices(SingletonMixin, DevicesBase):
             if self.wechselrichter:
                 erzeugung = pvforecast_ac_power[stunde]
                 netzeinspeisung, netzbezug, verluste, eigenverbrauch = (
-                    self.wechselrichter.energie_verarbeiten(erzeugung, verbrauch, stunde)
+                    self.wechselrichter.process_energy(erzeugung, verbrauch, stunde)
                 )
 
             # AC PV Battery Charge

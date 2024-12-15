@@ -19,7 +19,7 @@ from akkudoktoreos.devices.battery import (
     PVAkkuParameters,
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
-from akkudoktoreos.devices.inverter import Wechselrichter, InverterParameters
+from akkudoktoreos.devices.inverter import InverterParameters, Wechselrichter
 from akkudoktoreos.utils.utils import NumpyEncoder
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
