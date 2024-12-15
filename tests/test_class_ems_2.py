@@ -9,8 +9,7 @@ from akkudoktoreos.core.ems import (
 )
 from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
-from akkudoktoreos.devices.inverter import Inverter
-from akkudoktoreos.devices.inverter import InverterParameters
+from akkudoktoreos.devices.inverter import Inverter, InverterParameters
 
 start_hour = 0
 
