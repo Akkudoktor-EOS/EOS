@@ -2997,11 +2997,7 @@
             "$ref": "#/components/schemas/PVAkkuParameters"
           },
           "wechselrichter": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/InverterParameters"
-              }
-            ],
+            "$ref": "#/components/schemas/InverterParameters",
             "default": {
               "max_power_wh": 10000.0
             }
