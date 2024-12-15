@@ -6,7 +6,12 @@ from deap import algorithms, base, creator, tools
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing_extensions import Self
 
-from akkudoktoreos.config import AppConfig
+from akkudoktoreos.core.coreabc import (
+    ConfigMixin,
+    DevicesMixin,
+    EnergyManagementSystemMixin,
+)
+from akkudoktoreos.core.ems import EnergieManagementSystemParameters, SimulationResult
 from akkudoktoreos.devices.battery import (
     EAutoParameters,
     EAutoResult,
@@ -15,11 +20,6 @@ from akkudoktoreos.devices.battery import (
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
-from akkudoktoreos.prediction.ems import (
-    EnergieManagementSystem,
-    EnergieManagementSystemParameters,
-    SimulationResult,
-)
 from akkudoktoreos.utils.utils import NumpyEncoder
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
@@ -97,20 +97,16 @@ class OptimizeResponse(BaseModel):
         return field
 
 
-class optimization_problem:
+class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin):
     def __init__(
         self,
-        config: AppConfig,
         verbose: bool = False,
         fixed_seed: Optional[int] = None,
     ):
         """Initialize the optimization problem with the required parameters."""
-        self._config = config
-        self.prediction_hours = config.eos.prediction_hours
-        self.strafe = config.eos.penalty
         self.opti_param: dict[str, Any] = {}
-        self.fixed_eauto_hours = config.eos.prediction_hours - config.eos.optimization_hours
-        self.possible_charge_values = config.eos.available_charging_rates_in_percentage
+        self.fixed_eauto_hours = self.config.prediction_hours - self.config.optimization_hours
+        self.possible_charge_values = self.config.optimization_ev_available_charge_rates_percent
         self.verbose = verbose
         self.fix_seed = fixed_seed
         self.optimize_ev = True
@@ -121,7 +117,7 @@ class optimization_problem:
             random.seed(fixed_seed)
 
     def decode_charge_discharge(
-        self, discharge_hours_bin: list[int]
+        self, discharge_hours_bin: list[float]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Decode the input array `discharge_hours_bin` into three separate arrays for AC charging, DC charging, and discharge.
 
@@ -182,7 +178,7 @@ class optimization_problem:
         """
         # Step 1: Mutate the charge/discharge states (idle, discharge, AC charge, DC charge)
         # Extract the relevant part of the individual for prediction hours, which represents the charge/discharge behavior.
-        charge_discharge_part = individual[: self.prediction_hours]
+        charge_discharge_part = individual[: self.config.prediction_hours]
 
         # Apply the mutation to the charge/discharge part
         (charge_discharge_mutated,) = self.toolbox.mutate_charge_discharge(charge_discharge_part)
@@ -200,23 +196,27 @@ class optimization_problem:
         # applying additional constraints or penalties, or keeping track of charging limits.
 
         # Reassign the mutated values back to the individual
-        individual[: self.prediction_hours] = charge_discharge_mutated
+        individual[: self.config.prediction_hours] = charge_discharge_mutated
 
         # Step 2: Mutate EV charging schedule if enabled
         if self.optimize_ev:
             # Extract the relevant part for EV charging schedule
-            ev_charge_part = individual[self.prediction_hours : self.prediction_hours * 2]
+            ev_charge_part = individual[
+                self.config.prediction_hours : self.config.prediction_hours * 2
+            ]
 
             # Apply mutation on the EV charging schedule
             (ev_charge_part_mutated,) = self.toolbox.mutate_ev_charge_index(ev_charge_part)
 
             # Ensure the EV does not charge during fixed hours (set those hours to 0)
-            ev_charge_part_mutated[self.prediction_hours - self.fixed_eauto_hours :] = [
+            ev_charge_part_mutated[self.config.prediction_hours - self.fixed_eauto_hours :] = [
                 0
             ] * self.fixed_eauto_hours
 
             # Reassign the mutated EV charging part back to the individual
-            individual[self.prediction_hours : self.prediction_hours * 2] = ev_charge_part_mutated
+            individual[self.config.prediction_hours : self.config.prediction_hours * 2] = (
+                ev_charge_part_mutated
+            )
 
         # Step 3: Mutate appliance start times if household appliances are part of the optimization
         if self.opti_param["home_appliance"] > 0:
@@ -235,13 +235,13 @@ class optimization_problem:
     def create_individual(self) -> list[int]:
         # Start with discharge states for the individual
         individual_components = [
-            self.toolbox.attr_discharge_state() for _ in range(self.prediction_hours)
+            self.toolbox.attr_discharge_state() for _ in range(self.config.prediction_hours)
         ]
 
         # Add EV charge index values if optimize_ev is True
         if self.optimize_ev:
             individual_components += [
-                self.toolbox.attr_ev_charge_index() for _ in range(self.prediction_hours)
+                self.toolbox.attr_ev_charge_index() for _ in range(self.config.prediction_hours)
             ]
 
         # Add the start time of the household appliance if it's being optimized
@@ -251,8 +251,8 @@ class optimization_problem:
         return creator.Individual(individual_components)
 
     def split_individual(
-        self, individual: list[int]
-    ) -> tuple[list[int], Optional[list[int]], Optional[int]]:
+        self, individual: list[float]
+    ) -> tuple[list[float], Optional[list[float]], Optional[int]]:
         """Split the individual solution into its components.
 
         Components:
@@ -260,9 +260,9 @@ class optimization_problem:
         2. Electric vehicle charge hours (float),
         3. Dishwasher start time (integer if applicable).
         """
-        discharge_hours_bin = individual[: self.prediction_hours]
+        discharge_hours_bin = individual[: self.config.prediction_hours]
         eautocharge_hours_index = (
-            individual[self.prediction_hours : self.prediction_hours * 2]
+            individual[self.config.prediction_hours : self.config.prediction_hours * 2]
             if self.optimize_ev
             else None
         )
@@ -299,7 +299,7 @@ class optimization_problem:
                 "attr_ev_charge_index",
                 random.randint,
                 0,
-                len(self._config.eos.available_charging_rates_in_percentage) - 1,
+                len(self.config.optimization_ev_available_charge_rates_percent) - 1,
             )
         self.toolbox.register("attr_int", random.randint, start_hour, 23)
 
@@ -325,7 +325,7 @@ class optimization_problem:
             "mutate_ev_charge_index",
             tools.mutUniformInt,
             low=0,
-            up=len(self._config.eos.available_charging_rates_in_percentage) - 1,
+            up=len(self.config.optimization_ev_available_charge_rates_percent) - 1,
             indpb=0.2,
         )
         # - Start hour mutation for household devices
@@ -336,49 +336,51 @@ class optimization_problem:
 
         self.toolbox.register("select", tools.selTournament, tournsize=3)
 
-    def evaluate_inner(
-        self, individual: list[int], ems: EnergieManagementSystem, start_hour: int
-    ) -> dict[str, Any]:
+    def evaluate_inner(self, individual: list[float]) -> dict[str, Any]:
         """Simulates the energy management system (EMS) using the provided individual solution.
 
         This is an internal function.
         """
-        ems.reset()
+        self.ems.reset()
         discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
             individual
         )
-        if washingstart_int is not None:
-            ems.set_home_appliance_start(washingstart_int, global_start_hour=start_hour)
+        if self.opti_param.get("home_appliance", 0) > 0:
+            self.ems.set_home_appliance_start(
+                washingstart_int, global_start_hour=self.ems.start_datetime.hour
+            )
 
         ac, dc, discharge = self.decode_charge_discharge(discharge_hours_bin)
 
-        ems.set_akku_discharge_hours(discharge)
+        self.ems.set_akku_discharge_hours(discharge)
         # Set DC charge hours only if DC optimization is enabled
         if self.optimize_dc_charge:
-            ems.set_akku_dc_charge_hours(dc)
-        ems.set_akku_ac_charge_hours(ac)
+            self.ems.set_akku_dc_charge_hours(dc)
+        self.ems.set_akku_ac_charge_hours(ac)
 
         if eautocharge_hours_index is not None:
-            eautocharge_hours_float = [
-                self._config.eos.available_charging_rates_in_percentage[i]
-                for i in eautocharge_hours_index
-            ]
-            ems.set_ev_charge_hours(np.array(eautocharge_hours_float))
+            eautocharge_hours_float = np.array(
+                [
+                    self.config.optimization_ev_available_charge_rates_percent[i]
+                    for i in eautocharge_hours_index
+                ],
+                float,
+            )
+            self.ems.set_ev_charge_hours(eautocharge_hours_float)
         else:
-            ems.set_ev_charge_hours(np.full(self.prediction_hours, 0))
-        return ems.simuliere(start_hour)
+            self.ems.set_ev_charge_hours(np.full(self.config.prediction_hours, 0.0))
+        return self.ems.simuliere(self.ems.start_datetime.hour)
 
     def evaluate(
         self,
-        individual: list[int],
-        ems: EnergieManagementSystem,
+        individual: list[float],
         parameters: OptimizationParameters,
         start_hour: int,
         worst_case: bool,
     ) -> Tuple[float]:
         """Evaluate the fitness of an individual solution based on the simulation results."""
         try:
-            o = self.evaluate_inner(individual, ems, start_hour)
+            o = self.evaluate_inner(individual)
         except Exception as e:
             return (100000.0,)  # Return a high penalty in case of an exception
 
@@ -388,26 +390,28 @@ class optimization_problem:
 
         # Small Penalty for not discharging
         gesamtbilanz += sum(
-            0.01 for i in range(self.prediction_hours) if discharge_hours_bin[i] == 0.0
+            0.01 for i in range(self.config.prediction_hours) if discharge_hours_bin[i] == 0.0
         )
 
         # Penalty for not meeting the minimum SOC (State of Charge) requirement
         # if parameters.eauto_min_soc_prozent - ems.eauto.ladezustand_in_prozent() <= 0.0 and  self.optimize_ev:
         #     gesamtbilanz += sum(
-        #         self.strafe for ladeleistung in eautocharge_hours_index if ladeleistung != 0.0
+        #         self.config.optimization_penalty for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
         #     )
 
         individual.extra_data = (  # type: ignore[attr-defined]
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
-            parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent()
-            if parameters.eauto and ems.eauto
+            parameters.eauto.min_soc_prozent - self.ems.eauto.ladezustand_in_prozent()
+            if parameters.eauto and self.ems.eauto
             else 0,
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
 
-        restwert_akku = ems.akku.aktueller_energieinhalt() * parameters.ems.preis_euro_pro_wh_akku
+        restwert_akku = (
+            self.ems.akku.aktueller_energieinhalt() * parameters.ems.preis_euro_pro_wh_akku
+        )
         # print(ems.akku.aktueller_energieinhalt()," * ", parameters.ems.preis_euro_pro_wh_akku , " ", restwert_akku, " ", gesamtbilanz)
         gesamtbilanz += -restwert_akku
         # print(gesamtbilanz)
@@ -415,11 +419,11 @@ class optimization_problem:
             gesamtbilanz += max(
                 0,
                 (
-                    parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent()
-                    if parameters.eauto and ems.eauto
+                    parameters.eauto.min_soc_prozent - self.ems.eauto.ladezustand_in_prozent()
+                    if parameters.eauto and self.ems.eauto
                     else 0
                 )
-                * self.strafe,
+                * self.config.optimization_penalty,
             )
 
         return (gesamtbilanz,)
@@ -468,29 +472,32 @@ class optimization_problem:
     def optimierung_ems(
         self,
         parameters: OptimizationParameters,
-        start_hour: int,
+        start_hour: Optional[int] = None,
         worst_case: bool = False,
         ngen: int = 600,
     ) -> OptimizeResponse:
         """Perform EMS (Energy Management System) optimization and visualize results."""
+        if start_hour is None:
+            start_hour = self.ems.start_datetime.hour
+
         einspeiseverguetung_euro_pro_wh = np.full(
-            self.prediction_hours, parameters.ems.einspeiseverguetung_euro_pro_wh
+            self.config.prediction_hours, parameters.ems.einspeiseverguetung_euro_pro_wh
         )
 
         # Initialize PV and EV batteries
         akku = PVAkku(
             parameters.pv_akku,
-            hours=self.prediction_hours,
+            hours=self.config.prediction_hours,
         )
-        akku.set_charge_per_hour(np.full(self.prediction_hours, 1))
+        akku.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
 
         eauto: Optional[PVAkku] = None
         if parameters.eauto:
             eauto = PVAkku(
                 parameters.eauto,
-                hours=self.prediction_hours,
+                hours=self.config.prediction_hours,
             )
-            eauto.set_charge_per_hour(np.full(self.prediction_hours, 1))
+            eauto.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
             self.optimize_ev = (
                 parameters.eauto.min_soc_prozent - parameters.eauto.start_soc_prozent >= 0
             )
@@ -501,7 +508,7 @@ class optimization_problem:
         dishwasher = (
             HomeAppliance(
                 parameters=parameters.dishwasher,
-                hours=self.prediction_hours,
+                hours=self.config.prediction_hours,
             )
             if parameters.dishwasher is not None
             else None
@@ -509,30 +516,30 @@ class optimization_problem:
 
         # Initialize the inverter and energy management system
         wr = Wechselrichter(parameters.wechselrichter, akku)
-        ems = EnergieManagementSystem(
-            self._config.eos,
+        self.ems.set_parameters(
             parameters.ems,
             wechselrichter=wr,
             eauto=eauto,
             home_appliance=dishwasher,
         )
+        self.ems.set_start_hour(start_hour)
 
         # Setup the DEAP environment and optimization process
         self.setup_deap_environment({"home_appliance": 1 if dishwasher else 0}, start_hour)
         self.toolbox.register(
             "evaluate",
-            lambda ind: self.evaluate(ind, ems, parameters, start_hour, worst_case),
+            lambda ind: self.evaluate(ind, parameters, start_hour, worst_case),
         )
         start_solution, extra_data = self.optimize(parameters.start_solution, ngen=ngen)
 
         # Perform final evaluation on the best solution
-        o = self.evaluate_inner(start_solution, ems, start_hour)
+        o = self.evaluate_inner(start_solution)
         discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
             start_solution
         )
         eautocharge_hours_float = (
             [
-                self._config.eos.available_charging_rates_in_percentage[i]
+                self.config.optimization_ev_available_charge_rates_percent[i]
                 for i in eautocharge_hours_index
             ]
             if eautocharge_hours_index is not None
@@ -552,7 +559,6 @@ class optimization_problem:
             parameters.temperature_forecast,
             start_hour,
             einspeiseverguetung_euro_pro_wh,
-            config=self._config,
             extra_data=extra_data,
         )
 
@@ -563,7 +569,7 @@ class optimization_problem:
                 "discharge_allowed": discharge,
                 "eautocharge_hours_float": eautocharge_hours_float,
                 "result": SimulationResult(**o),
-                "eauto_obj": ems.eauto,
+                "eauto_obj": self.ems.eauto,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,
             }
