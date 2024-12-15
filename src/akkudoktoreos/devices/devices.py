@@ -111,10 +111,10 @@ class Devices(SingletonMixin, DevicesBase):
     kosten_euro_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, description="The costs in euros per hour."
     )
-    netzbezug_wh_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
+    grid_import_wh_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, description="The grid energy drawn in watt-hours per hour."
     )
-    netzeinspeisung_wh_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
+    grid_export_wh_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, description="The energy fed into the grid in watt-hours per hour."
     )
     verluste_wh_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
@@ -176,8 +176,8 @@ class Devices(SingletonMixin, DevicesBase):
 
         # Pre-allocate arrays for the results, optimized for speed
         self.last_wh_pro_stunde = np.full((self.total_hours), np.nan)
-        self.netzeinspeisung_wh_pro_stunde = np.full((self.total_hours), np.nan)
-        self.netzbezug_wh_pro_stunde = np.full((self.total_hours), np.nan)
+        self.grid_export_wh_pro_stunde = np.full((self.total_hours), np.nan)
+        self.grid_import_wh_pro_stunde = np.full((self.total_hours), np.nan)
         self.kosten_euro_pro_stunde = np.full((self.total_hours), np.nan)
         self.einnahmen_euro_pro_stunde = np.full((self.total_hours), np.nan)
         self.akku_soc_pro_stunde = np.full((self.total_hours), np.nan)
@@ -219,60 +219,60 @@ class Devices(SingletonMixin, DevicesBase):
         einspeiseverguetung_euro_pro_wh_arr = np.full((self.total_hours), 0.078)
 
         for stunde_since_now in range(0, self.total_hours):
-            stunde = self.start_datetime.hour + stunde_since_now
+            hour = self.start_datetime.hour + stunde_since_now
 
             # Accumulate loads and PV generation
-            verbrauch = load_total_mean[stunde_since_now]
+            consumption = load_total_mean[stunde_since_now]
             self.verluste_wh_pro_stunde[stunde_since_now] = 0.0
 
             # Home appliances
             if self.home_appliance:
-                ha_load = self.home_appliance.get_load_for_hour(stunde)
-                verbrauch += ha_load
+                ha_load = self.home_appliance.get_load_for_hour(hour)
+                consumption += ha_load
                 self.home_appliance_wh_per_hour[stunde_since_now] = ha_load
 
             # E-Auto handling
             if self.eauto:
-                if self.ev_charge_hours[stunde] > 0:
+                if self.ev_charge_hours[hour] > 0:
                     geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(
-                        None, stunde, relative_power=self.ev_charge_hours[stunde]
+                        None, hour, relative_power=self.ev_charge_hours[hour]
                     )
-                    verbrauch += geladene_menge_eauto
+                    consumption += geladene_menge_eauto
                     self.verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
                 self.eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
 
             # Process inverter logic
-            netzeinspeisung, netzbezug, verluste, eigenverbrauch = (0.0, 0.0, 0.0, 0.0)
+            grid_export, grid_import, losses, self_consumption = (0.0, 0.0, 0.0, 0.0)
             if self.akku:
-                self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[stunde], stunde)
+                self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[hour], hour)
             if self.wechselrichter:
-                erzeugung = pvforecast_ac_power[stunde]
-                netzeinspeisung, netzbezug, verluste, eigenverbrauch = (
-                    self.wechselrichter.process_energy(erzeugung, verbrauch, stunde)
+                generation = pvforecast_ac_power[hour]
+                grid_export, grid_import, losses, self_consumption = (
+                    self.wechselrichter.process_energy(generation, consumption, hour)
                 )
 
             # AC PV Battery Charge
-            if self.akku and self.ac_charge_hours[stunde] > 0.0:
-                self.akku.set_charge_allowed_for_hour(1, stunde)
+            if self.akku and self.ac_charge_hours[hour] > 0.0:
+                self.akku.set_charge_allowed_for_hour(1, hour)
                 geladene_menge, verluste_wh = self.akku.energie_laden(
-                    None, stunde, relative_power=self.ac_charge_hours[stunde]
+                    None, hour, relative_power=self.ac_charge_hours[hour]
                 )
                 # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.ladezustand_in_prozent())
-                verbrauch += geladene_menge
-                netzbezug += geladene_menge
+                consumption += geladene_menge
+                grid_import += geladene_menge
                 self.verluste_wh_pro_stunde[stunde_since_now] += verluste_wh
 
-            self.netzeinspeisung_wh_pro_stunde[stunde_since_now] = netzeinspeisung
-            self.netzbezug_wh_pro_stunde[stunde_since_now] = netzbezug
-            self.verluste_wh_pro_stunde[stunde_since_now] += verluste
-            self.last_wh_pro_stunde[stunde_since_now] = verbrauch
+            self.grid_export_wh_pro_stunde[stunde_since_now] = grid_export
+            self.grid_import_wh_pro_stunde[stunde_since_now] = grid_import
+            self.verluste_wh_pro_stunde[stunde_since_now] += losses
+            self.last_wh_pro_stunde[stunde_since_now] = consumption
 
             # Financial calculations
             self.kosten_euro_pro_stunde[stunde_since_now] = (
-                netzbezug * self.strompreis_euro_pro_wh[stunde]
+                grid_import * self.strompreis_euro_pro_wh[hour]
             )
             self.einnahmen_euro_pro_stunde[stunde_since_now] = (
-                netzeinspeisung * self.einspeiseverguetung_euro_pro_wh_arr[stunde]
+                grid_export * self.einspeiseverguetung_euro_pro_wh_arr[hour]
             )
 
             # Akku SOC tracking
@@ -285,8 +285,8 @@ class Devices(SingletonMixin, DevicesBase):
         """Provides devices simulation output as a dictionary."""
         out: Dict[str, Optional[Union[np.ndarray, float]]] = {
             "Last_Wh_pro_Stunde": self.last_wh_pro_stunde,
-            "Netzeinspeisung_Wh_pro_Stunde": self.netzeinspeisung_wh_pro_stunde,
-            "Netzbezug_Wh_pro_Stunde": self.netzbezug_wh_pro_stunde,
+            "grid_export_Wh_pro_Stunde": self.grid_export_wh_pro_stunde,
+            "grid_import_Wh_pro_Stunde": self.grid_import_wh_pro_stunde,
             "Kosten_Euro_pro_Stunde": self.kosten_euro_pro_stunde,
             "akku_soc_pro_stunde": self.akku_soc_pro_stunde,
             "Einnahmen_Euro_pro_Stunde": self.einnahmen_euro_pro_stunde,
