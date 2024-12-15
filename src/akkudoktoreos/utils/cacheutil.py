@@ -45,6 +45,7 @@ from typing import (
     Union,
 )
 
+from akkudoktoreos.core.coreabc import ConfigMixin
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 from akkudoktoreos.utils.logutil import get_logger
 
@@ -73,7 +74,7 @@ class CacheFileStoreMeta(type, Generic[T]):
         return cls._instances[cls]
 
 
-class CacheFileStore(metaclass=CacheFileStoreMeta):
+class CacheFileStore(ConfigMixin, metaclass=CacheFileStoreMeta):
     """A key-value store that manages file-like tempfile objects to be used as cache files.
 
     Cache files are associated with a date. If no date is specified, the cache files are
@@ -290,7 +291,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
                 cache_file_obj = cache_file_item[0]
             else:
                 cache_file_obj = tempfile.NamedTemporaryFile(
-                    mode=mode, delete=delete, suffix=suffix
+                    mode=mode, delete=delete, suffix=suffix, dir=self.config.data_cache_path
                 )
                 self._store[cache_file_key] = (cache_file_obj, until_datetime_dt)
             cache_file_obj.seek(0)

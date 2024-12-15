@@ -102,10 +102,15 @@ def fastapi_prediction(key: str) -> list[Union[float | str]]:
 def fastapi_strompreis() -> list[float]:
     # Get the current date and the end date based on prediction hours
     marketprice_series = prediction_eos["elecprice_marketprice"]
+
     # Fetch prices for the specified date range
-    specific_date_prices = marketprice_series.loc[
-        prediction_eos.start_datetime : prediction_eos.end_datetime
-    ]
+    # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
+    if len(marketprice_series) == 0:
+        specific_date_prices = pd.Series()
+    else:
+        specific_date_prices = marketprice_series.loc[
+            prediction_eos.start_datetime : prediction_eos.end_datetime
+        ]
     return specific_date_prices.tolist()
 
 
@@ -202,20 +207,29 @@ class ForecastResponse(PydanticBaseModel):
 
 
 @app.get("/pvforecast")
-def fastapi_pvprognose(ac_power_measurement: Optional[float] = None) -> ForecastResponse:
+def fastapi_pvforecast() -> ForecastResponse:
     ###############
     # PV Forecast
     ###############
     pvforecast_ac_power = prediction_eos["pvforecast_ac_power"]
-    # Fetch prices for the specified date range
-    pvforecast_ac_power = pvforecast_ac_power.loc[
-        prediction_eos.start_datetime : prediction_eos.end_datetime
-    ]
+    # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
+    if len(pvforecast_ac_power) == 0:
+        pvforecast_ac_power = pd.Series()
+    else:
+        # Fetch prices for the specified date range
+        pvforecast_ac_power = pvforecast_ac_power.loc[
+            prediction_eos.start_datetime : prediction_eos.end_datetime
+        ]
+
     pvforecastakkudoktor_temp_air = prediction_eos["pvforecastakkudoktor_temp_air"]
-    # Fetch prices for the specified date range
-    pvforecastakkudoktor_temp_air = pvforecastakkudoktor_temp_air.loc[
-        prediction_eos.start_datetime : prediction_eos.end_datetime
-    ]
+    # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
+    if len(pvforecastakkudoktor_temp_air) == 0:
+        pvforecastakkudoktor_temp_air = pd.Series()
+    else:
+        # Fetch prices for the specified date range
+        pvforecastakkudoktor_temp_air = pvforecastakkudoktor_temp_air.loc[
+            prediction_eos.start_datetime : prediction_eos.end_datetime
+        ]
 
     # Return both forecasts as a JSON response
     return ForecastResponse(

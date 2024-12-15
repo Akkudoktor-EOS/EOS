@@ -50,6 +50,8 @@ def get_logger(
     # Create a logger with the specified name
     logger = logging.getLogger(name)
     logger.propagate = True
+    if (env_level := os.getenv("EOS_LOGGING_LEVEL")) is not None:
+        logging_level = env_level
     if logging_level == "DEBUG":
         level = logging.DEBUG
     elif logging_level == "INFO":
