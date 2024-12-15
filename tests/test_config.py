@@ -75,22 +75,47 @@ def test_default_config_path(reset_config, config_default_dirs, stash_config_fil
     assert config_eos.config_default_file_path.is_file()
 
 
-def test_config_folder_path(reset_config, config_default_dirs, stash_config_file, monkeypatch):
-    """Test that _config_folder_path identifies the correct config directory or None."""
+def test_get_config_file_path(reset_config, config_default_dirs, stash_config_file, monkeypatch):
+    """Test that _get_config_file_path identifies the correct config file."""
     config_default_dir_user, _, _ = config_default_dirs
+    print("begin test")
+
+    def cfg_file(dir: Path) -> Path:
+        return dir.joinpath(ConfigEOS.CONFIG_FILE_NAME)
 
     # All config files are stashed away, no config folder path
-    assert config_eos._config_folder_path() is None
+    assert config_eos._get_config_file_path() == (cfg_file(config_default_dir_user), False)
 
-    config_file_user = config_default_dir_user.joinpath(config_eos.CONFIG_FILE_NAME)
-    shutil.copy2(config_eos.config_default_file_path, config_file_user)
-    assert config_eos._config_folder_path() == config_default_dir_user
+    shutil.copy2(config_eos.config_default_file_path, cfg_file(config_default_dir_user))
+    assert config_eos._get_config_file_path() == (cfg_file(config_default_dir_user), True)
 
     monkeypatch.setenv("EOS_DIR", str(FILE_TESTDATA_CONFIGEOS_1_DIR))
-    assert config_eos._config_folder_path() == FILE_TESTDATA_CONFIGEOS_1_DIR
+    assert config_eos._get_config_file_path() == (cfg_file(FILE_TESTDATA_CONFIGEOS_1_DIR), True)
 
-    # Cleanup after the test
-    os.remove(config_file_user)
+    # Cleanup
+    os.remove(cfg_file(config_default_dir_user))
+
+    monkeypatch.setenv("EOS_CONFIG_DIR", "config")
+    assert config_eos._get_config_file_path() == (
+        cfg_file(FILE_TESTDATA_CONFIGEOS_1_DIR / "config"),
+        False,
+    )
+
+    monkeypatch.setenv("EOS_CONFIG_DIR", FILE_TESTDATA_CONFIGEOS_1_DIR / "config2")
+    assert config_eos._get_config_file_path() == (
+        cfg_file(FILE_TESTDATA_CONFIGEOS_1_DIR / "config2"),
+        False,
+    )
+
+    monkeypatch.delenv("EOS_DIR")
+    monkeypatch.setenv("EOS_CONFIG_DIR", "config3")
+    assert config_eos._get_config_file_path() == (cfg_file(config_default_dir_user), False)
+
+    monkeypatch.setenv("EOS_CONFIG_DIR", FILE_TESTDATA_CONFIGEOS_1_DIR / "config3")
+    assert config_eos._get_config_file_path() == (
+        cfg_file(FILE_TESTDATA_CONFIGEOS_1_DIR / "config3"),
+        False,
+    )
 
 
 def test_config_copy(reset_config, stash_config_file, monkeypatch):
@@ -102,8 +127,7 @@ def test_config_copy(reset_config, stash_config_file, monkeypatch):
     if temp_config_file_path.exists():
         temp_config_file_path.unlink()
     assert not temp_config_file_path.exists()
-    assert config_eos._config_folder_path() is None
-    assert config_eos._config_file_path() == temp_config_file_path
+    assert config_eos._get_config_file_path() == (temp_config_file_path, False)
 
     config_eos.from_config_file()
     assert temp_config_file_path.exists()

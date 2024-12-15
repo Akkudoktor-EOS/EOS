@@ -11,7 +11,10 @@ services:
       dockerfile: "Dockerfile"
       args:
         PYTHON_VERSION: "${PYTHON_VERSION}"
-    volumes:
-      - ./src/akkudoktoreos/default.config.json:/opt/eos/EOS.config.json:ro
+    environment:
+      #- latitude=52.2
+      #- longitude=13.4
+      #- elecprice_charges=0.21
+      - EOS_CONFIG_DIR=config
     ports:
       - "${EOS_PORT}:${EOS_PORT}"

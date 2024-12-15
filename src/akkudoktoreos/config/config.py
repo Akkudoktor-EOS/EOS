@@ -40,6 +40,24 @@ from akkudoktoreos.utils.utils import UtilsCommonSettings
 logger = get_logger(__name__)
 
 
+def get_absolute_path(
+    basepath: Optional[Path | str], subpath: Optional[Path | str]
+) -> Optional[Path]:
+    """Get path based on base path."""
+    if isinstance(basepath, str):
+        basepath = Path(basepath)
+    if subpath is None:
+        return basepath
+
+    if isinstance(subpath, str):
+        subpath = Path(subpath)
+    if subpath.is_absolute():
+        return subpath
+    if basepath is not None:
+        return basepath.joinpath(subpath)
+    return None
+
+
 class ConfigCommonSettings(SettingsBaseModel):
     """Settings for common configuration."""
 
@@ -60,22 +78,14 @@ class ConfigCommonSettings(SettingsBaseModel):
     @property
     def data_output_path(self) -> Optional[Path]:
         """Compute data_output_path based on data_folder_path."""
-        if self.data_output_subpath is None:
-            return self.data_folder_path
-        if self.data_folder_path and self.data_output_subpath:
-            return self.data_folder_path.joinpath(self.data_output_subpath)
-        return None
+        return get_absolute_path(self.data_folder_path, self.data_output_subpath)
 
     # Computed fields
     @computed_field  # type: ignore[prop-decorator]
     @property
     def data_cache_path(self) -> Optional[Path]:
         """Compute data_cache_path based on data_folder_path."""
-        if self.data_cache_subpath is None:
-            return self.data_folder_path
-        if self.data_folder_path and self.data_cache_subpath:
-            return self.data_folder_path.joinpath(self.data_cache_subpath)
-        return None
+        return get_absolute_path(self.data_folder_path, self.data_cache_subpath)
 
 
 class SettingsEOS(
@@ -114,9 +124,10 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
 
     Initialization Process:
       - Upon instantiation, the singleton instance attempts to load a configuration file in this order:
-        1. The directory specified by the `EOS_DIR` environment variable.
-        2. A platform specific default directory for EOS.
-        3. The current working directory.
+        1. The directory specified by the `EOS_CONFIG_DIR` environment variable
+        2. The directory specified by the `EOS_DIR` environment variable.
+        3. A platform specific default directory for EOS.
+        4. The current working directory.
       - The first available configuration file found in these directories is loaded.
       - If no configuration file is found, a default configuration file is created in the platform
         specific default directory, and default settings are loaded into it.
@@ -150,21 +161,29 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
     APP_NAME: ClassVar[str] = "net.akkudoktor.eos"  # reverse order
     APP_AUTHOR: ClassVar[str] = "akkudoktor"
     EOS_DIR: ClassVar[str] = "EOS_DIR"
+    EOS_CONFIG_DIR: ClassVar[str] = "EOS_CONFIG_DIR"
     ENCODING: ClassVar[str] = "UTF-8"
     CONFIG_FILE_NAME: ClassVar[str] = "EOS.config.json"
 
     _settings: ClassVar[Optional[SettingsEOS]] = None
     _file_settings: ClassVar[Optional[SettingsEOS]] = None
 
-    config_folder_path: Optional[Path] = Field(
-        None, description="Path to EOS configuration directory."
-    )
-
-    config_file_path: Optional[Path] = Field(
-        default=None, description="Path to EOS configuration file."
-    )
+    _config_folder_path: Optional[Path] = None
+    _config_file_path: Optional[Path] = None
 
     # Computed fields
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def config_folder_path(self) -> Optional[Path]:
+        """Path to EOS configuration directory."""
+        return self._config_folder_path
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def config_file_path(self) -> Optional[Path]:
+        """Path to EOS configuration file."""
+        return self._config_file_path
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def config_default_file_path(self) -> Path:
@@ -308,47 +327,27 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         data_dir = Path.cwd()
         self.data_folder_path = data_dir
 
-    def _config_folder_path(self) -> Optional[Path]:
-        """Finds the first directory containing a valid configuration file.
+    def _get_config_file_path(self) -> tuple[Path, bool]:
+        """Finds the a valid configuration file or returns the desired path for a new config file.
 
         Returns:
-            Path: The path to the configuration directory, or None if not found.
+            tuple[Path, bool]: The path to the configuration directory and if there is already a config file there
         """
         config_dirs = []
-        config_dir = None
-        env_dir = os.getenv(self.EOS_DIR)
-        logger.debug(f"Envionment '{self.EOS_DIR}': '{env_dir}'")
+        env_base_dir = os.getenv(self.EOS_DIR)
+        env_config_dir = os.getenv(self.EOS_CONFIG_DIR)
+        env_dir = get_absolute_path(env_base_dir, env_config_dir)
+        logger.debug(f"Envionment config dir: '{env_dir}'")
         if env_dir is not None:
-            config_dirs.append(Path(env_dir).resolve())
+            config_dirs.append(env_dir.resolve())
         config_dirs.append(Path(platformdirs.user_config_dir(self.APP_NAME)))
         config_dirs.append(Path.cwd())
         for cdir in config_dirs:
             cfile = cdir.joinpath(self.CONFIG_FILE_NAME)
             if cfile.exists():
                 logger.debug(f"Found config file: '{cfile}'")
-                config_dir = cdir
-                break
-        return config_dir
-
-    def _config_file_path(self) -> Path:
-        """Finds the path to the configuration file.
-
-        Returns:
-            Path: The path to the configuration file. May not exist.
-        """
-        config_file = None
-        config_dir = self._config_folder_path()
-        if config_dir is None:
-            # There is currently no configuration file - create it in default path
-            env_dir = os.getenv(self.EOS_DIR)
-            if env_dir is not None:
-                config_dir = Path(env_dir).resolve()
-            else:
-                config_dir = Path(platformdirs.user_config_dir(self.APP_NAME))
-            config_file = config_dir.joinpath(self.CONFIG_FILE_NAME)
-        else:
-            config_file = config_dir.joinpath(self.CONFIG_FILE_NAME)
-        return config_file
+                return cfile, True
+        return config_dirs[0].joinpath(self.CONFIG_FILE_NAME), False
 
     def from_config_file(self) -> None:
         """Loads the configuration file settings for EOS.
@@ -356,14 +355,14 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         Raises:
             ValueError: If the configuration file is invalid or incomplete.
         """
-        config_file = self._config_file_path()
+        config_file, exists = self._get_config_file_path()
         config_dir = config_file.parent
-        if not config_file.exists():
+        if not exists:
             config_dir.mkdir(parents=True, exist_ok=True)
             try:
                 shutil.copy2(self.config_default_file_path, config_file)
             except Exception as exc:
-                logger.warning(f"Could not copy default config: {exc}. Using default copy...")
+                logger.warning(f"Could not copy default config: {exc}. Using default config...")
                 config_file = self.config_default_file_path
                 config_dir = config_file.parent
 
@@ -376,8 +375,8 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
 
         self.update()
         # Everthing worked, remember the values
-        self.config_folder_path = config_dir
-        self.config_file_path = config_file
+        self._config_folder_path = config_dir
+        self._config_file_path = config_file
 
     def to_config_file(self) -> None:
         """Saves the current configuration to the configuration file.

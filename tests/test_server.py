@@ -7,7 +7,7 @@ from akkudoktoreos.config.config import get_config
 config_eos = get_config()
 
 
-def test_server(server):
+def test_server(server, reset_config, stash_config_file):
     """Test the server."""
     # validate correct path in server
     assert config_eos.data_folder_path is not None

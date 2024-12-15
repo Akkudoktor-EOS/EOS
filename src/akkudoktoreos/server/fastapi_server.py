@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
 
 import httpx
+import pandas as pd
 import uvicorn
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import HTTPException
@@ -412,20 +413,29 @@ class ForecastResponse(PydanticBaseModel):
 
 
 @app.get("/pvforecast")
-def fastapi_pvprognose(ac_power_measurement: Optional[float] = None) -> ForecastResponse:
+def fastapi_pvforecast() -> ForecastResponse:
     ###############
     # PV Forecast
     ###############
     pvforecast_ac_power = prediction_eos["pvforecast_ac_power"]
-    # Fetch prices for the specified date range
-    pvforecast_ac_power = pvforecast_ac_power.loc[
-        prediction_eos.start_datetime : prediction_eos.end_datetime
-    ]
+    # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
+    if len(pvforecast_ac_power) == 0:
+        pvforecast_ac_power = pd.Series()
+    else:
+        # Fetch prices for the specified date range
+        pvforecast_ac_power = pvforecast_ac_power.loc[
+            prediction_eos.start_datetime : prediction_eos.end_datetime
+        ]
+
     pvforecastakkudoktor_temp_air = prediction_eos["pvforecastakkudoktor_temp_air"]
-    # Fetch prices for the specified date range
-    pvforecastakkudoktor_temp_air = pvforecastakkudoktor_temp_air.loc[
-        prediction_eos.start_datetime : prediction_eos.end_datetime
-    ]
+    # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
+    if len(pvforecastakkudoktor_temp_air) == 0:
+        pvforecastakkudoktor_temp_air = pd.Series()
+    else:
+        # Fetch prices for the specified date range
+        pvforecastakkudoktor_temp_air = pvforecastakkudoktor_temp_air.loc[
+            prediction_eos.start_datetime : prediction_eos.end_datetime
+        ]
 
     # Return both forecasts as a JSON response
     return ForecastResponse(

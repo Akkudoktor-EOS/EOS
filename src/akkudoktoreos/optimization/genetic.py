@@ -123,7 +123,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Decode the input array into ac_charge, dc_charge, and discharge arrays."""
         discharge_hours_bin_np = np.array(discharge_hours_bin)
-        len_ac = len(self.config.optimization_ev_available_charge_rates_percent)
+        len_ac = len(self.possible_charge_values)
 
         # Categorization:
         # Idle:       0 .. len_ac-1
@@ -155,9 +155,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         discharge[discharge_mask] = 1  # Set Discharge states to 1
 
         ac_charge = np.zeros_like(discharge_hours_bin_np, dtype=float)
-        ac_charge[ac_mask] = [
-            self.config.optimization_ev_available_charge_rates_percent[i] for i in ac_indices
-        ]
+        ac_charge[ac_mask] = [self.possible_charge_values[i] for i in ac_indices]
 
         # Idle is just 0, already default.
 
@@ -166,7 +164,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
     def mutate(self, individual: list[int]) -> tuple[list[int]]:
         """Custom mutation function for the individual."""
         # Calculate the number of states
-        len_ac = len(self.config.optimization_ev_available_charge_rates_percent)
+        len_ac = len(self.possible_charge_values)
         if self.optimize_dc_charge:
             total_states = 3 * len_ac + 2
         else:
@@ -300,7 +298,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         creator.create("Individual", list, fitness=creator.FitnessMin)
 
         self.toolbox = base.Toolbox()
-        len_ac = len(self.config.optimization_ev_available_charge_rates_percent)
+        len_ac = len(self.possible_charge_values)
 
         # Total number of states without DC:
         # Idle: len_ac states
@@ -378,10 +376,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         if eautocharge_hours_index is not None:
             eautocharge_hours_float = np.array(
-                [
-                    self.config.optimization_ev_available_charge_rates_percent[i]
-                    for i in eautocharge_hours_index
-                ],
+                [self.possible_charge_values[i] for i in eautocharge_hours_index],
                 float,
             )
             self.ems.set_ev_charge_hours(eautocharge_hours_float)
@@ -615,10 +610,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             start_solution
         )
         eautocharge_hours_float = (
-            [
-                self.config.optimization_ev_available_charge_rates_percent[i]
-                for i in eautocharge_hours_index
-            ]
+            [self.possible_charge_values[i] for i in eautocharge_hours_index]
             if eautocharge_hours_index is not None
             else None
         )
