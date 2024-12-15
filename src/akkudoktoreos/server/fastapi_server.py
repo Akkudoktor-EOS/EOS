@@ -1,38 +1,54 @@
 #!/usr/bin/env python3
 
-import os
-from datetime import datetime
+import subprocess
+import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
 
-import matplotlib
-import uvicorn
-from fastapi.exceptions import HTTPException
-from pydantic import BaseModel
-
-# Sets the Matplotlib backend to 'Agg' for rendering plots in environments without a display
-matplotlib.use("Agg")
-
+import httpx
 import pandas as pd
-from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse, RedirectResponse
+import uvicorn
+from fastapi import FastAPI, Query, Request
+from fastapi.exceptions import HTTPException
+from fastapi.responses import FileResponse, RedirectResponse, Response
+from pendulum import DateTime
 
-from akkudoktoreos.config import (
-    SetupIncomplete,
-    get_start_enddate,
-    get_working_dir,
-    load_config,
-)
+from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
+from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     OptimizeResponse,
     optimization_problem,
 )
+
+# Still to be adapted
 from akkudoktoreos.prediction.load_container import Gesamtlast
 from akkudoktoreos.prediction.load_corrector import LoadPredictionAdjuster
 from akkudoktoreos.prediction.load_forecast import LoadForecast
-from akkudoktoreos.prediction.price_forecast import HourlyElectricityPriceForecast
-from akkudoktoreos.prediction.pv_forecast import ForecastResponse, PVForecast
+from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.utils.logutil import get_logger
+
+logger = get_logger(__name__)
+config_eos = get_config()
+prediction_eos = get_prediction()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Lifespan manager for the app."""
+    # On startup
+    if config_eos.server_fasthtml_host and config_eos.server_fasthtml_port:
+        try:
+            fasthtml_process = start_fasthtml_server()
+        except Exception as e:
+            logger.error(f"Failed to start FastHTML server. Error: {e}")
+            sys.exit(1)
+    # Handover to application
+    yield
+    # On shutdown
+    # nothing to do
+
 
 app = FastAPI(
     title="Akkudoktor-EOS",
@@ -43,12 +59,12 @@ app = FastAPI(
         "name": "Apache 2.0",
         "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
     },
+    lifespan=lifespan,
 )
 
-working_dir = get_working_dir()
-# copy config to working directory. Make this a CLI option later
-config = load_config(working_dir, True)
-opt_class = optimization_problem(config)
+# That's the problem
+opt_class = optimization_problem()
+
 server_dir = Path(__file__).parent.resolve()
 
 
@@ -56,22 +72,44 @@ class PdfResponse(FileResponse):
     media_type = "application/pdf"
 
 
+@app.get("/config")
+def fastapi_config_get() -> ConfigEOS:
+    """Get the current configuration."""
+    return config_eos
+
+
+@app.put("/config")
+def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
+    """Merge settings into current configuration."""
+    config_eos.merge_settings(settings)
+    return config_eos
+
+
+@app.get("/prediction/keys")
+def fastapi_prediction_keys() -> list[str]:
+    """Get a list of available prediction keys."""
+    return sorted(list(prediction_eos.keys()))
+
+
+@app.get("/prediction")
+def fastapi_prediction(key: str) -> list[Union[float | str]]:
+    """Get the current configuration."""
+    values = prediction_eos[key].to_list()
+    return values
+
+
 @app.get("/strompreis")
 def fastapi_strompreis() -> list[float]:
     # Get the current date and the end date based on prediction hours
-    date_now, date = get_start_enddate(config.eos.prediction_hours, startdate=datetime.now().date())
-    price_forecast = HourlyElectricityPriceForecast(
-        source=f"https://api.akkudoktor.net/prices?start={date_now}&end={date}",
-        config=config,
-        use_cache=False,
-    )
-    specific_date_prices = price_forecast.get_price_for_daterange(
-        date_now, date
-    )  # Fetch prices for the specified date range
+    marketprice_series = prediction_eos["elecprice_marketprice"]
+    # Fetch prices for the specified date range
+    specific_date_prices = marketprice_series.loc[
+        prediction_eos.start_datetime : prediction_eos.end_datetime
+    ]
     return specific_date_prices.tolist()
 
 
-class GesamtlastRequest(BaseModel):
+class GesamtlastRequest(PydanticBaseModel):
     year_energy: float
     measured_data: List[Dict[str, Any]]
     hours: int
@@ -134,26 +172,19 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
 
 @app.get("/gesamtlast_simple")
 def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
-    date_now, date = get_start_enddate(
-        config.eos.prediction_hours, startdate=datetime.now().date()
-    )  # Get the current date and prediction end date
-
     ###############
     # Load Forecast
     ###############
     lf = LoadForecast(
         filepath=server_dir / ".." / "data" / "load_profiles.npz", year_energy=year_energy
     )  # Instantiate LoadForecast with specified parameters
-    leistung_haushalt = lf.get_stats_for_date_range(date_now, date)[
-        0
-    ]  # Get expected household load for the date range
+    leistung_haushalt = lf.get_stats_for_date_range(
+        prediction_eos.start_datetime, prediction_eos.end_datetime
+    )[0]  # Get expected household load for the date range
 
-    gesamtlast = Gesamtlast(
-        prediction_hours=config.eos.prediction_hours
-    )  # Create Gesamtlast instance
-    gesamtlast.hinzufuegen(
-        "Haushalt", leistung_haushalt
-    )  # Add household load to total load calculation
+    prediction_hours = config_eos.prediction_hours if config_eos.prediction_hours else 48
+    gesamtlast = Gesamtlast(prediction_hours=prediction_hours)  # Create Gesamtlast instance
+    gesamtlast.hinzufuegen("Haushalt", leistung_haushalt)  # Add household to total load calculation
 
     # ###############
     # # WP (Heat Pump)
@@ -165,27 +196,31 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     return last.tolist()  # Return total load as JSON
 
 
-@app.get("/pvforecast")
-def fastapi_pvprognose(url: str, ac_power_measurement: Optional[float] = None) -> ForecastResponse:
-    date_now, date = get_start_enddate(config.eos.prediction_hours, startdate=datetime.now().date())
+class ForecastResponse(PydanticBaseModel):
+    temperature: list[float]
+    pvpower: list[float]
 
+
+@app.get("/pvforecast")
+def fastapi_pvprognose(ac_power_measurement: Optional[float] = None) -> ForecastResponse:
     ###############
     # PV Forecast
     ###############
-    PVforecast = PVForecast(
-        prediction_hours=config.eos.prediction_hours, url=url
-    )  # Instantiate PVForecast with given parameters
-    if ac_power_measurement is not None:
-        PVforecast.update_ac_power_measurement(
-            date_time=datetime.now(),
-            ac_power_measurement=ac_power_measurement,
-        )  # Update measurement
+    pvforecast_ac_power = prediction_eos["pvforecast_ac_power"]
+    # Fetch prices for the specified date range
+    pvforecast_ac_power = pvforecast_ac_power.loc[
+        prediction_eos.start_datetime : prediction_eos.end_datetime
+    ]
+    pvforecastakkudoktor_temp_air = prediction_eos["pvforecastakkudoktor_temp_air"]
+    # Fetch prices for the specified date range
+    pvforecastakkudoktor_temp_air = pvforecastakkudoktor_temp_air.loc[
+        prediction_eos.start_datetime : prediction_eos.end_datetime
+    ]
 
-    # Get PV forecast and temperature forecast for the specified date range
-    pv_forecast = PVforecast.get_pv_forecast_for_date_range(date_now, date)
-    temperature_forecast = PVforecast.get_temperature_for_date_range(date_now, date)
-
-    return ForecastResponse(temperature=temperature_forecast.tolist(), pvpower=pv_forecast.tolist())
+    # Return both forecasts as a JSON response
+    return ForecastResponse(
+        temperature=pvforecastakkudoktor_temp_air.tolist(), pvpower=pvforecast_ac_power.tolist()
+    )
 
 
 @app.post("/optimize")
@@ -196,7 +231,11 @@ def fastapi_optimize(
     ] = None,
 ) -> OptimizeResponse:
     if start_hour is None:
-        start_hour = datetime.now().hour
+        start_hour = DateTime.now().hour
+
+    # TODO: Remove when config and prediction update is done by EMS.
+    config_eos.update()
+    prediction_eos.update_data()
 
     # Perform optimization simulation
     result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
@@ -207,9 +246,9 @@ def fastapi_optimize(
 @app.get("/visualization_results.pdf", response_class=PdfResponse)
 def get_pdf() -> PdfResponse:
     # Endpoint to serve the generated PDF with visualization results
-    output_path = config.working_dir / config.directories.output
+    output_path = config_eos.data_output_path
     if not output_path.is_dir():
-        raise SetupIncomplete(f"Output path does not exist: {output_path}.")
+        raise ValueError(f"Output path does not exist: {output_path}.")
     file_path = output_path / "visualization_results.pdf"
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="No visualization result available.")
@@ -221,29 +260,85 @@ def site_map() -> RedirectResponse:
     return RedirectResponse(url="/docs")
 
 
-@app.get("/", include_in_schema=False)
-def root() -> RedirectResponse:
-    # Redirect the root URL to the site map
-    return RedirectResponse(url="/docs")
+# Keep the proxy last to handle all requests that are not taken by the Rest API.
+# Also keep the single endpoints for delete, get, post, put to assure openapi.json is always build
+# the same way for testing.
+
+
+@app.delete("/{path:path}")
+async def proxy_delete(request: Request, path: str) -> Response:
+    return await proxy(request, path)
+
+
+@app.get("/{path:path}")
+async def proxy_get(request: Request, path: str) -> Response:
+    return await proxy(request, path)
+
+
+@app.post("/{path:path}")
+async def proxy_post(request: Request, path: str) -> Response:
+    return await proxy(request, path)
+
+
+@app.put("/{path:path}")
+async def proxy_put(request: Request, path: str) -> Response:
+    return await proxy(request, path)
+
+
+async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse]:
+    if config_eos.server_fasthtml_host and config_eos.server_fasthtml_port:
+        # Proxy to fasthtml server
+        url = f"http://{config_eos.server_fasthtml_host}:{config_eos.server_fasthtml_port}/{path}"
+        headers = dict(request.headers)
+
+        data = await request.body()
+
+        async with httpx.AsyncClient() as client:
+            if request.method == "GET":
+                response = await client.get(url, headers=headers)
+            elif request.method == "POST":
+                response = await client.post(url, headers=headers, content=data)
+            elif request.method == "PUT":
+                response = await client.put(url, headers=headers, content=data)
+            elif request.method == "DELETE":
+                response = await client.delete(url, headers=headers, content=data)
+
+        return Response(
+            content=response.content,
+            status_code=response.status_code,
+            headers=dict(response.headers),
+        )
+    else:
+        # Redirect the root URL to the site map
+        return RedirectResponse(url="/docs")
+
+
+def start_fasthtml_server() -> subprocess.Popen:
+    """Start the fasthtml server as a subprocess."""
+    server_process = subprocess.Popen(
+        [sys.executable, str(server_dir.joinpath("fasthtml_server.py"))],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return server_process
+
+
+def start_fastapi_server() -> None:
+    """Start FastAPI server."""
+    try:
+        uvicorn.run(
+            app,
+            host=str(config_eos.server_fastapi_host),
+            port=config_eos.server_fastapi_port,
+            log_level="debug",
+            access_log=True,
+        )
+    except Exception as e:
+        logger.error(
+            f"Could not bind to host {config_eos.server_fastapi_host}:{config_eos.server_fastapi_port}. Error: {e}"
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    try:
-        config.run_setup()
-    except Exception as e:
-        print(f"Failed to initialize: {e}")
-        exit(1)
-
-    # Set host and port from environment variables or defaults
-    host = os.getenv("EOS_RUN_HOST", "0.0.0.0")
-    port = os.getenv("EOS_RUN_PORT", 8503)
-    try:
-        uvicorn.run(app, host=host, port=int(port))  # Run the FastAPI application
-    except Exception as e:
-        print(
-            f"Could not bind to host {host}:{port}. Error: {e}"
-        )  # Error handling for binding issues
-        exit(1)
-else:
-    # started from cli / dev server
-    config.run_setup()
+    start_fastapi_server()
