@@ -758,9 +758,9 @@ class DataSequence(DataBase, MutableSequence):
                 raise ValueError(f"Unsupported fill method for non-numeric data: {fill_method}")
 
         # Convert the resampled series to a NumPy array
-        if start_datetime is not None:
+        if start_datetime is not None and len(resampled) > 0:
             resampled = resampled.truncate(before=start_datetime)
-        if end_datetime is not None:
+        if end_datetime is not None and len(resampled) > 0:
             resampled = resampled.truncate(after=end_datetime.subtract(seconds=1))
         array = resampled.values
         return array
@@ -1120,6 +1120,15 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
                 )
         return value
 
+    @property
+    def enabled_providers(self) -> List[Any]:
+        """List of providers that are currently enabled."""
+        enab = []
+        for provider in self.providers:
+            if provider.enabled():
+                enab.append(provider)
+        return enab
+
     def __getitem__(self, key: str) -> pd.Series:
         """Retrieve a Pandas Series for a specified key from the data in each DataProvider.
 
@@ -1135,7 +1144,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
             KeyError: If no provider contains data for the specified key.
         """
         series = None
-        for provider in self.providers:
+        for provider in self.enabled_providers:
             try:
                 series = provider.key_to_series(key)
                 break
@@ -1164,7 +1173,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
         if not isinstance(value, pd.Series):
             raise ValueError("Value must be an instance of pd.Series.")
 
-        for provider in self.providers:
+        for provider in self.enabled_providers:
             try:
                 provider.key_from_series(key, value)
                 break
@@ -1182,7 +1191,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
         Raises:
             KeyError: If the key is not found in any provider.
         """
-        for provider in self.providers:
+        for provider in self.enabled_providers:
             try:
                 provider.key_delete_by_datetime(key)
                 break
@@ -1197,7 +1206,9 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
         Returns:
             Iterator[str]: An iterator over the unique keys from all providers.
         """
-        return iter(set(chain.from_iterable(provider.record_keys for provider in self.providers)))
+        return iter(
+            set(chain.from_iterable(provider.record_keys for provider in self.enabled_providers))
+        )
 
     def __len__(self) -> int:
         """Return the number of keys in the container.
@@ -1205,7 +1216,9 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
         Returns:
             int: The total number of keys in this container.
         """
-        return len(list(chain.from_iterable(provider.record_keys for provider in self.providers)))
+        return len(
+            list(chain.from_iterable(provider.record_keys for provider in self.enabled_providers))
+        )
 
     def __repr__(self) -> str:
         """Provide a string representation of the DataContainer instance.
@@ -1226,7 +1239,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
             force_enable (bool, optional): If True, forces the update even if a provider is disabled.
             force_update (bool, optional): If True, forces the providers to update the data even if still cached.
         """
-        for provider in self.providers:
+        for provider in self.enabled_providers:
             provider.update_data(force_enable=force_enable, force_update=force_update)
 
     def key_to_array(
@@ -1262,7 +1275,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
             Cache the result in memory until the next `update_data` call.
         """
         array = None
-        for provider in self.providers:
+        for provider in self.enabled_providers:
             try:
                 array = provider.key_to_array(
                     key,
@@ -1283,7 +1296,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
     def provider_by_id(self, provider_id: str) -> DataProvider:
         """Retrieves a data provider by its unique identifier.
 
-        This method searches through the list of available providers and
+        This method searches through the list of all available providers and
         returns the first provider whose `provider_id` matches the given
         `provider_id`. If no matching provider is found, the method returns `None`.
 

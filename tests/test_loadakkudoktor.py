@@ -19,8 +19,8 @@ ems_eos = get_ems()
 def load_provider(monkeypatch):
     """Fixture to create a LoadAkkudoktor instance."""
     settings = {
-        "load0_provider": "LoadAkkudoktor",
-        "load0_name": "Akkudoktor Profile",
+        "load_provider": "LoadAkkudoktor",
+        "load_name": "Akkudoktor Profile",
         "loadakkudoktor_year_energy": "1000",
     }
     config_eos.merge_settings_from_dict(settings)
