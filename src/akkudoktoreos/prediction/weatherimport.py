@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 class WeatherImportCommonSettings(SettingsBaseModel):
-    """Common settings for weather data import from file."""
+    """Common settings for weather data import from file or JSON string."""
 
     weatherimport_file_path: Optional[Union[str, Path]] = Field(
         default=None, description="Path to the file to import weather data from."
