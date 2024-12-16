@@ -6,73 +6,72 @@ from pydantic import BaseModel, Field, field_validator
 from akkudoktoreos.utils.utils import NumpyEncoder
 
 
-def max_ladeleistung_w_field(default: Optional[float] = None) -> Optional[float]:
+def max_charge_power_field(default: Optional[float] = None) -> Optional[float]:
+    """Creates a field for maximum charging power."""
     return Field(
         default=default,
         gt=0,
-        description="An integer representing the charging power of the battery in watts.",
+        description="A float representing the maximum charging power of the battery in watts.",
     )
 
 
-def start_soc_prozent_field(description: str) -> int:
+def initial_soc_percent_field(description: str) -> int:
+    """Creates a field for the initial state of charge in percentage."""
     return Field(default=0, ge=0, le=100, description=description)
 
 
-class BaseAkkuParameters(BaseModel):
-    kapazitaet_wh: int = Field(
-        gt=0, description="An integer representing the capacity of the battery in watt-hours."
+class BatteryParameters(BaseModel):
+    """Base model for battery parameters."""
+
+    capacity_wh: int = Field(gt=0, description="The capacity of the battery in watt-hours.")
+    charging_efficiency: float = Field(
+        default=0.88, gt=0, le=1, description="Charging efficiency of the battery."
     )
-    lade_effizienz: float = Field(
-        default=0.88,
-        gt=0,
-        le=1,
-        description="A float representing the charging efficiency of the battery.",
+    discharging_efficiency: float = Field(default=0.88, gt=0, le=1)
+    max_charge_power_w: Optional[float] = max_charge_power_field()
+    initial_soc_percent: int = initial_soc_percent_field(
+        "The initial state of charge of the battery in percentage."
     )
-    entlade_effizienz: float = Field(default=0.88, gt=0, le=1)
-    max_ladeleistung_w: Optional[float] = max_ladeleistung_w_field()
-    start_soc_prozent: int = start_soc_prozent_field(
-        "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
-    )
-    min_soc_prozent: int = Field(
+    min_soc_percent: int = Field(
         default=0,
         ge=0,
         le=100,
-        description="An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+        description="The minimum state of charge (SOC) of the battery in percentage.",
     )
-    max_soc_prozent: int = Field(default=100, ge=0, le=100)
+    max_soc_percent: int = Field(default=100, ge=0, le=100)
 
 
-class PVAkkuParameters(BaseAkkuParameters):
-    max_ladeleistung_w: Optional[float] = max_ladeleistung_w_field(5000)
+class PVBatteryParameters(BatteryParameters):
+    """Model for battery parameters specific to PV systems."""
+
+    max_charge_power_w: Optional[float] = max_charge_power_field(5000)  # why?
 
 
-class EAutoParameters(BaseAkkuParameters):
-    entlade_effizienz: float = 1.0
-    start_soc_prozent: int = start_soc_prozent_field(
-        "An integer representing the current state of charge (SOC) of the battery in percentage."
+class ElectricCarParameters(BatteryParameters):
+    """Model for battery parameters specific to electric cars."""
+
+    discharging_efficiency: float = 1.0
+    initial_soc_percent: int = initial_soc_percent_field(
+        "The current state of charge (SOC) of the EV's battery in percentage."
     )
 
 
-class EAutoResult(BaseModel):
-    """This object contains information related to the electric vehicle and its charging and discharging behavior."""
+class ElectricCarResult(BaseModel):
+    """Model for the result of an electric car simulation."""
 
     charge_array: list[float] = Field(
-        description="Indicates for each hour whether the EV is charging (`0` for no charging, `1` for charging)."
+        description="Indicates whether the EV is charging (`0` for no charging, `1` for charging)."
     )
     discharge_array: list[int] = Field(
-        description="Indicates for each hour whether the EV is discharging (`0` for no discharging, `1` for discharging)."
+        description="Indicates whether the EV is discharging (`0` for no discharging, `1` for discharging)."
     )
-    entlade_effizienz: float = Field(description="The discharge efficiency as a float.")
-    hours: int = Field(description="Amount of hours the simulation is done for.")
-    kapazitaet_wh: int = Field(description="The capacity of the EV’s battery in watt-hours.")
-    lade_effizienz: float = Field(description="The charging efficiency as a float.")
-    max_ladeleistung_w: int = Field(description="The maximum charging power of the EV in watts.")
-    soc_wh: float = Field(
-        description="The state of charge of the battery in watt-hours at the start of the simulation."
-    )
-    start_soc_prozent: int = Field(
-        description="The state of charge of the battery in percentage at the start of the simulation."
-    )
+    discharging_efficiency: float = Field(description="The discharging efficiency.")
+    hours: int = Field(description="Number of hours the simulation runs.")
+    capacity_wh: int = Field(description="The EV’s battery capacity in watt-hours.")
+    charging_efficiency: float = Field(description="The charging efficiency.")
+    max_charge_power_w: int = Field(description="The maximum charging power in watts.")
+    soc_wh: float = Field(description="State of charge in watt-hours at the start.")
+    initial_soc_percent: int = Field(description="Initial state of charge in percentage.")
 
     @field_validator(
         "discharge_array",
@@ -83,213 +82,128 @@ class EAutoResult(BaseModel):
         return NumpyEncoder.convert_numpy(field)[0]
 
 
-class PVAkku:
-    def __init__(self, parameters: BaseAkkuParameters, hours: int = 24):
-        # Battery capacity in Wh
-        self.kapazitaet_wh = parameters.kapazitaet_wh
-        # Initial state of charge in Wh
-        self.start_soc_prozent = parameters.start_soc_prozent
-        self.soc_wh = (parameters.start_soc_prozent / 100) * parameters.kapazitaet_wh
+class PVBattery:
+    def __init__(self, parameters: BatteryParameters, hours: int = 24):
+        """Initializes the battery with the provided parameters."""
+        self.capacity_wh = parameters.capacity_wh
+        self.initial_soc_percent = parameters.initial_soc_percent
+        self.soc_wh = self._calculate_soc_wh(parameters.initial_soc_percent)
         self.hours = hours
+        self.min_soc_percent = self._get_min_soc_percent(parameters)
+        self.max_soc_percent = parameters.max_soc_percent
+        self.min_soc_wh = self._calculate_soc_wh(self.min_soc_percent)
+        self.max_soc_wh = self._calculate_soc_wh(self.max_soc_percent)
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
-        # Charge and discharge efficiency
-        self.lade_effizienz = parameters.lade_effizienz
-        self.entlade_effizienz = parameters.entlade_effizienz
-        self.max_ladeleistung_w = (
-            parameters.max_ladeleistung_w if parameters.max_ladeleistung_w else self.kapazitaet_wh
-        )
-        # Only assign for storage battery
-        self.min_soc_prozent = (
-            parameters.min_soc_prozent if isinstance(parameters, PVAkkuParameters) else 0
-        )
-        self.max_soc_prozent = parameters.max_soc_prozent
-        # Calculate min and max SoC in Wh
-        self.min_soc_wh = (self.min_soc_prozent / 100) * self.kapazitaet_wh
-        self.max_soc_wh = (self.max_soc_prozent / 100) * self.kapazitaet_wh
+        self.charging_efficiency = parameters.charging_efficiency
+        self.discharging_efficiency = parameters.discharging_efficiency
+        self.max_charge_power_w = parameters.max_charge_power_w or self.capacity_wh  # why??
+
+    def _calculate_soc_wh(self, soc_percent: float) -> float:
+        """Calculates the state of charge in watt-hours."""
+        return (soc_percent / 100) * self.capacity_wh
+
+    def _get_min_soc_percent(self, parameters: BatteryParameters) -> int:
+        """Gets the minimum state of charge percentage."""
+        if isinstance(parameters, PVBatteryParameters):
+            return parameters.min_soc_percent
+        return 0
 
     def to_dict(self) -> dict[str, Any]:
+        """Converts the battery instance to a dictionary."""
         return {
-            "kapazitaet_wh": self.kapazitaet_wh,
-            "start_soc_prozent": self.start_soc_prozent,
+            "capacity_wh": self.capacity_wh,
+            "initial_soc_percent": self.initial_soc_percent,
             "soc_wh": self.soc_wh,
             "hours": self.hours,
             "discharge_array": self.discharge_array,
             "charge_array": self.charge_array,
-            "lade_effizienz": self.lade_effizienz,
-            "entlade_effizienz": self.entlade_effizienz,
-            "max_ladeleistung_w": self.max_ladeleistung_w,
+            "charging_efficiency": self.charging_efficiency,
+            "discharging_efficiency": self.discharging_efficiency,
+            "max_charge_power_w": self.max_charge_power_w,
         }
 
     def reset(self) -> None:
-        self.soc_wh = (self.start_soc_prozent / 100) * self.kapazitaet_wh
-        # Ensure soc_wh is within min and max limits
+        """Resets the battery state to its initial values."""
+        self.soc_wh = self._calculate_soc_wh(self.initial_soc_percent)
         self.soc_wh = min(max(self.soc_wh, self.min_soc_wh), self.max_soc_wh)
-
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
 
     def set_discharge_per_hour(self, discharge_array: np.ndarray) -> None:
-        assert len(discharge_array) == self.hours
+        """Sets the discharge values for each hour."""
+        if len(discharge_array) != self.hours:
+            raise ValueError(f"Discharge array must have exactly {self.hours} elements.")
         self.discharge_array = np.array(discharge_array)
 
     def set_charge_per_hour(self, charge_array: np.ndarray) -> None:
-        assert len(charge_array) == self.hours
+        """Sets the charge values for each hour."""
+        if len(charge_array) != self.hours:
+            raise ValueError(f"Charge array must have exactly {self.hours} elements.")
         self.charge_array = np.array(charge_array)
 
     def set_charge_allowed_for_hour(self, charge: float, hour: int) -> None:
-        assert hour < self.hours
+        """Sets the charge for a specific hour."""
+        if hour >= self.hours:
+            raise ValueError(f"Hour {hour} is out of range. Must be less than {self.hours}.")
         self.charge_array[hour] = charge
 
-    def ladezustand_in_prozent(self) -> float:
-        return (self.soc_wh / self.kapazitaet_wh) * 100
+    def current_soc_percentage(self) -> float:
+        """Calculates the current state of charge in percentage."""
+        return (self.soc_wh / self.capacity_wh) * 100
 
-    def energie_abgeben(self, wh: float, hour: int) -> tuple[float, float]:
+    def discharge_energy(self, wh: float, hour: int) -> tuple[float, float]:
+        """Discharges energy from the battery."""
         if self.discharge_array[hour] == 0:
-            return 0.0, 0.0  # No energy discharge and no losses
+            return 0.0, 0.0
 
-        # Calculate the maximum energy that can be discharged considering min_soc and efficiency
-        max_possible_discharge_wh = (self.soc_wh - self.min_soc_wh) * self.entlade_effizienz
-        max_possible_discharge_wh = max(max_possible_discharge_wh, 0.0)  # Ensure non-negative
+        max_possible_discharge_wh = (self.soc_wh - self.min_soc_wh) * self.discharging_efficiency
+        max_possible_discharge_wh = max(max_possible_discharge_wh, 0.0)
 
-        # Consider the maximum discharge power of the battery
-        max_abgebbar_wh = min(max_possible_discharge_wh, self.max_ladeleistung_w)
+        max_possible_discharge_wh = min(max_possible_discharge_wh, self.max_charge_power_w)  # why??
 
-        # The actually discharged energy cannot exceed requested energy or maximum discharge
-        tatsaechlich_abgegeben_wh = min(wh, max_abgebbar_wh)
+        actual_discharge_wh = min(wh, max_possible_discharge_wh)
+        actual_withdrawal_wh = (
+            actual_discharge_wh / self.discharging_efficiency
+            if self.discharging_efficiency > 0
+            else 0.0
+        )
 
-        # Calculate the actual amount withdrawn from the battery (before efficiency loss)
-        if self.entlade_effizienz > 0:
-            tatsaechliche_entnahme_wh = tatsaechlich_abgegeben_wh / self.entlade_effizienz
-        else:
-            tatsaechliche_entnahme_wh = 0.0
-
-        # Update the state of charge considering the actual withdrawal
-        self.soc_wh -= tatsaechliche_entnahme_wh
-        # Ensure soc_wh does not go below min_soc_wh
+        self.soc_wh -= actual_withdrawal_wh
         self.soc_wh = max(self.soc_wh, self.min_soc_wh)
 
-        # Calculate losses due to efficiency
-        verluste_wh = tatsaechliche_entnahme_wh - tatsaechlich_abgegeben_wh
+        losses_wh = actual_withdrawal_wh - actual_discharge_wh
+        return actual_discharge_wh, losses_wh
 
-        # Return the actually discharged energy and the losses
-        return tatsaechlich_abgegeben_wh, verluste_wh
-
-    def energie_laden(
+    def charge_energy(
         self, wh: Optional[float], hour: int, relative_power: float = 0.0
     ) -> tuple[float, float]:
+        """Charges energy into the battery."""
         if hour is not None and self.charge_array[hour] == 0:
-            return 0.0, 0.0  # Charging not allowed in this hour
+            return 0.0, 0.0
+
         if relative_power > 0.0:
-            wh = self.max_ladeleistung_w * relative_power
-        # If no value for wh is given, use the maximum charging power
-        wh = wh if wh is not None else self.max_ladeleistung_w
+            wh = self.max_charge_power_w * relative_power
 
-        # Calculate the maximum energy that can be charged considering max_soc and efficiency
-        if self.lade_effizienz > 0:
-            max_possible_charge_wh = (self.max_soc_wh - self.soc_wh) / self.lade_effizienz
-        else:
-            max_possible_charge_wh = 0.0
-        max_possible_charge_wh = max(max_possible_charge_wh, 0.0)  # Ensure non-negative
+        wh = wh if wh is not None else self.max_charge_power_w
 
-        # The actually charged energy cannot exceed requested energy, charging power, or maximum possible charge
-        effektive_lademenge = min(wh, max_possible_charge_wh)
+        max_possible_charge_wh = (
+            (self.max_soc_wh - self.soc_wh) / self.charging_efficiency
+            if self.charging_efficiency > 0
+            else 0.0
+        )
+        max_possible_charge_wh = max(max_possible_charge_wh, 0.0)
 
-        # Energy actually stored in the battery
-        geladene_menge = effektive_lademenge * self.lade_effizienz
+        effective_charge_wh = min(wh, max_possible_charge_wh)
+        charged_wh = effective_charge_wh * self.charging_efficiency
 
-        # Update soc_wh
-        self.soc_wh += geladene_menge
-        # Ensure soc_wh does not exceed max_soc_wh
+        self.soc_wh += charged_wh
         self.soc_wh = min(self.soc_wh, self.max_soc_wh)
 
-        # Calculate losses
-        verluste_wh = effektive_lademenge - geladene_menge
-        return geladene_menge, verluste_wh
+        losses_wh = effective_charge_wh - charged_wh
+        return charged_wh, losses_wh
 
-    def aktueller_energieinhalt(self) -> float:
-        """This method returns the current remaining energy considering efficiency.
-
-        It accounts for both charging and discharging efficiency.
-        """
-        # Calculate remaining energy considering discharge efficiency
-        nutzbare_energie = (self.soc_wh - self.min_soc_wh) * self.entlade_effizienz
-        return max(nutzbare_energie, 0.0)
-
-
-if __name__ == "__main__":
-    # Test battery discharge below min_soc
-    print("Test: Discharge below min_soc")
-    akku = PVAkku(
-        PVAkkuParameters(
-            kapazitaet_wh=10000,
-            start_soc_prozent=50,
-            min_soc_prozent=20,
-            max_soc_prozent=80,
-        ),
-        hours=1,
-    )
-    akku.reset()
-    print(f"Initial SoC: {akku.ladezustand_in_prozent()}%")
-
-    # Try to discharge 5000 Wh
-    abgegeben_wh, verlust_wh = akku.energie_abgeben(5000, 0)
-    print(f"Energy discharged: {abgegeben_wh} Wh, Losses: {verlust_wh} Wh")
-    print(f"SoC after discharge: {akku.ladezustand_in_prozent()}%")
-    print(f"Expected min SoC: {akku.min_soc_prozent}%")
-
-    # Test battery charge above max_soc
-    print("\nTest: Charge above max_soc")
-    akku = PVAkku(
-        PVAkkuParameters(
-            kapazitaet_wh=10000,
-            start_soc_prozent=50,
-            min_soc_prozent=20,
-            max_soc_prozent=80,
-        ),
-        hours=1,
-    )
-    akku.reset()
-    print(f"Initial SoC: {akku.ladezustand_in_prozent()}%")
-
-    # Try to charge 5000 Wh
-    geladen_wh, verlust_wh = akku.energie_laden(5000, 0)
-    print(f"Energy charged: {geladen_wh} Wh, Losses: {verlust_wh} Wh")
-    print(f"SoC after charge: {akku.ladezustand_in_prozent()}%")
-    print(f"Expected max SoC: {akku.max_soc_prozent}%")
-
-    # Test charging when battery is at max_soc
-    print("\nTest: Charging when at max_soc")
-    akku = PVAkku(
-        PVAkkuParameters(
-            kapazitaet_wh=10000,
-            start_soc_prozent=80,
-            min_soc_prozent=20,
-            max_soc_prozent=80,
-        ),
-        hours=1,
-    )
-    akku.reset()
-    print(f"Initial SoC: {akku.ladezustand_in_prozent()}%")
-
-    geladen_wh, verlust_wh = akku.energie_laden(5000, 0)
-    print(f"Energy charged: {geladen_wh} Wh, Losses: {verlust_wh} Wh")
-    print(f"SoC after charge: {akku.ladezustand_in_prozent()}%")
-
-    # Test discharging when battery is at min_soc
-    print("\nTest: Discharging when at min_soc")
-    akku = PVAkku(
-        PVAkkuParameters(
-            kapazitaet_wh=10000,
-            start_soc_prozent=20,
-            min_soc_prozent=20,
-            max_soc_prozent=80,
-        ),
-        hours=1,
-    )
-    akku.reset()
-    print(f"Initial SoC: {akku.ladezustand_in_prozent()}%")
-
-    abgegeben_wh, verlust_wh = akku.energie_abgeben(5000, 0)
-    print(f"Energy discharged: {abgegeben_wh} Wh, Losses: {verlust_wh} Wh")
-    print(f"SoC after discharge: {akku.ladezustand_in_prozent()}%")
+    def current_energy_content(self) -> float:
+        """Returns the current usable energy in the battery."""
+        usable_energy = (self.soc_wh - self.min_soc_wh) * self.discharging_efficiency
+        return max(usable_energy, 0.0)

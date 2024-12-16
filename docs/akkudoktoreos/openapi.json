@@ -248,28 +248,28 @@
   },
   "components": {
     "schemas": {
-      "EAutoParameters": {
+      "ElectricCarParameters": {
         "properties": {
-          "kapazitaet_wh": {
+          "capacity_wh": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
-            "title": "Kapazitaet Wh",
-            "description": "An integer representing the capacity of the battery in watt-hours."
+            "title": "Capacity Wh",
+            "description": "The capacity of the battery in watt-hours."
           },
-          "lade_effizienz": {
+          "charging_efficiency": {
             "type": "number",
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
-            "title": "Lade Effizienz",
-            "description": "A float representing the charging efficiency of the battery.",
+            "title": "Charging Efficiency",
+            "description": "Charging efficiency of the battery.",
             "default": 0.88
           },
-          "entlade_effizienz": {
+          "discharging_efficiency": {
             "type": "number",
-            "title": "Entlade Effizienz",
+            "title": "Discharging Efficiency",
             "default": 1.0
           },
-          "max_ladeleistung_w": {
+          "max_charge_power_w": {
             "anyOf": [
               {
                 "type": "number",
@@ -279,40 +279,39 @@
                 "type": "null"
               }
             ],
-            "title": "Max Ladeleistung W",
-            "description": "An integer representing the charging power of the battery in watts."
+            "title": "Max Charge Power W",
+            "description": "A float representing the maximum charging power of the battery in watts."
           },
-          "start_soc_prozent": {
+          "initial_soc_percent": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 0.0,
-            "title": "Start Soc Prozent",
-            "description": "An integer representing the current state of charge (SOC) of the battery in percentage.",
+            "title": "Initial Soc Percent",
+            "description": "The current state of charge (SOC) of the EV's battery in percentage.",
             "default": 0
           },
-          "min_soc_prozent": {
+          "min_soc_percent": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 0.0,
-            "title": "Min Soc Prozent",
-            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "title": "Min Soc Percent",
+            "description": "The minimum state of charge (SOC) of the battery in percentage.",
             "default": 0
           },
-          "max_soc_prozent": {
+          "max_soc_percent": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 0.0,
-            "title": "Max Soc Prozent",
+            "title": "Max Soc Percent",
             "default": 100
           }
         },
         "type": "object",
-        "required": [
-          "kapazitaet_wh"
-        ],
-        "title": "EAutoParameters"
+        "required": ["capacity_wh"],
+        "title": "ElectricCarParameters",
+        "description": "Model for battery parameters specific to electric cars."
       },
-      "EAutoResult": {
+      "ElectricCarResult": {
         "properties": {
           "charge_array": {
             "items": {
@@ -320,7 +319,7 @@
             },
             "type": "array",
             "title": "Charge Array",
-            "description": "Indicates for each hour whether the EV is charging (`0` for no charging, `1` for charging)."
+            "description": "Indicates whether the EV is charging (`0` for no charging, `1` for charging)."
           },
           "discharge_array": {
             "items": {
@@ -328,58 +327,58 @@
             },
             "type": "array",
             "title": "Discharge Array",
-            "description": "Indicates for each hour whether the EV is discharging (`0` for no discharging, `1` for discharging)."
+            "description": "Indicates whether the EV is discharging (`0` for no discharging, `1` for discharging)."
           },
-          "entlade_effizienz": {
+          "discharging_efficiency": {
             "type": "number",
-            "title": "Entlade Effizienz",
-            "description": "The discharge efficiency as a float."
+            "title": "Discharging Efficiency",
+            "description": "The discharging efficiency."
           },
           "hours": {
             "type": "integer",
             "title": "Hours",
-            "description": "Amount of hours the simulation is done for."
+            "description": "Number of hours the simulation runs."
           },
-          "kapazitaet_wh": {
+          "capacity_wh": {
             "type": "integer",
-            "title": "Kapazitaet Wh",
-            "description": "The capacity of the EV\u2019s battery in watt-hours."
+            "title": "Capacity Wh",
+            "description": "The EV\u2019s battery capacity in watt-hours."
           },
-          "lade_effizienz": {
+          "charging_efficiency": {
             "type": "number",
-            "title": "Lade Effizienz",
-            "description": "The charging efficiency as a float."
+            "title": "Charging Efficiency",
+            "description": "The charging efficiency."
           },
-          "max_ladeleistung_w": {
+          "max_charge_power_w": {
             "type": "integer",
-            "title": "Max Ladeleistung W",
-            "description": "The maximum charging power of the EV in watts."
+            "title": "Max Charge Power W",
+            "description": "The maximum charging power in watts."
           },
           "soc_wh": {
             "type": "number",
             "title": "Soc Wh",
-            "description": "The state of charge of the battery in watt-hours at the start of the simulation."
+            "description": "State of charge in watt-hours at the start."
           },
-          "start_soc_prozent": {
+          "initial_soc_percent": {
             "type": "integer",
-            "title": "Start Soc Prozent",
-            "description": "The state of charge of the battery in percentage at the start of the simulation."
+            "title": "Initial Soc Percent",
+            "description": "Initial state of charge in percentage."
           }
         },
         "type": "object",
         "required": [
           "charge_array",
           "discharge_array",
-          "entlade_effizienz",
+          "discharging_efficiency",
           "hours",
-          "kapazitaet_wh",
-          "lade_effizienz",
-          "max_ladeleistung_w",
+          "capacity_wh",
+          "charging_efficiency",
+          "max_charge_power_w",
           "soc_wh",
-          "start_soc_prozent"
+          "initial_soc_percent"
         ],
-        "title": "EAutoResult",
-        "description": "This object contains information related to the electric vehicle and its charging and discharging behavior."
+        "title": "ElectricCarResult",
+        "description": "Model for the result of an electric car simulation."
       },
       "EnergieManagementSystemParameters": {
         "properties": {
@@ -455,10 +454,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "temperature",
-          "pvpower"
-        ],
+        "required": ["temperature", "pvpower"],
         "title": "ForecastResponse"
       },
       "GesamtlastRequest": {
@@ -480,11 +476,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "year_energy",
-          "measured_data",
-          "hours"
-        ],
+        "required": ["year_energy", "measured_data", "hours"],
         "title": "GesamtlastRequest"
       },
       "HTTPValidationError": {
@@ -516,10 +508,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "consumption_wh",
-          "duration_h"
-        ],
+        "required": ["consumption_wh", "duration_h"],
         "title": "HomeApplianceParameters"
       },
       "OptimizationParameters": {
@@ -528,7 +517,7 @@
             "$ref": "#/components/schemas/EnergieManagementSystemParameters"
           },
           "pv_akku": {
-            "$ref": "#/components/schemas/PVAkkuParameters"
+            "$ref": "#/components/schemas/PVBatteryParameters"
           },
           "wechselrichter": {
             "$ref": "#/components/schemas/WechselrichterParameters",
@@ -539,7 +528,7 @@
           "eauto": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/EAutoParameters"
+                "$ref": "#/components/schemas/ElectricCarParameters"
               },
               {
                 "type": "null"
@@ -588,11 +577,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "ems",
-          "pv_akku",
-          "eauto"
-        ],
+        "required": ["ems", "pv_akku", "eauto"],
         "title": "OptimizationParameters"
       },
       "OptimizeResponse": {
@@ -642,7 +627,7 @@
           "eauto_obj": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/EAutoResult"
+                "$ref": "#/components/schemas/ElectricCarResult"
               },
               {
                 "type": "null"
@@ -689,30 +674,30 @@
         "title": "OptimizeResponse",
         "description": "**Note**: The first value of \"Last_Wh_per_hour\", \"Netzeinspeisung_Wh_per_hour\", and \"Netzbezug_Wh_per_hour\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
       },
-      "PVAkkuParameters": {
+      "PVBatteryParameters": {
         "properties": {
-          "kapazitaet_wh": {
+          "capacity_wh": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
-            "title": "Kapazitaet Wh",
-            "description": "An integer representing the capacity of the battery in watt-hours."
+            "title": "Capacity Wh",
+            "description": "The capacity of the battery in watt-hours."
           },
-          "lade_effizienz": {
+          "charging_efficiency": {
             "type": "number",
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
-            "title": "Lade Effizienz",
-            "description": "A float representing the charging efficiency of the battery.",
+            "title": "Charging Efficiency",
+            "description": "Charging efficiency of the battery.",
             "default": 0.88
           },
-          "entlade_effizienz": {
+          "discharging_efficiency": {
             "type": "number",
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
-            "title": "Entlade Effizienz",
+            "title": "Discharging Efficiency",
             "default": 0.88
           },
-          "max_ladeleistung_w": {
+          "max_charge_power_w": {
             "anyOf": [
               {
                 "type": "number",
@@ -722,39 +707,38 @@
                 "type": "null"
               }
             ],
-            "title": "Max Ladeleistung W",
-            "description": "An integer representing the charging power of the battery in watts.",
+            "title": "Max Charge Power W",
+            "description": "A float representing the maximum charging power of the battery in watts.",
             "default": 5000
           },
-          "start_soc_prozent": {
+          "initial_soc_percent": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 0.0,
-            "title": "Start Soc Prozent",
-            "description": "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state).",
+            "title": "Initial Soc Percent",
+            "description": "The initial state of charge of the battery in percentage.",
             "default": 0
           },
-          "min_soc_prozent": {
+          "min_soc_percent": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 0.0,
-            "title": "Min Soc Prozent",
-            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "title": "Min Soc Percent",
+            "description": "The minimum state of charge (SOC) of the battery in percentage.",
             "default": 0
           },
-          "max_soc_prozent": {
+          "max_soc_percent": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 0.0,
-            "title": "Max Soc Prozent",
+            "title": "Max Soc Percent",
             "default": 100
           }
         },
         "type": "object",
-        "required": [
-          "kapazitaet_wh"
-        ],
-        "title": "PVAkkuParameters"
+        "required": ["capacity_wh"],
+        "title": "PVBatteryParameters",
+        "description": "Model for battery parameters specific to PV systems."
       },
       "SimulationResult": {
         "properties": {
@@ -959,11 +943,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
+        "required": ["loc", "msg", "type"],
         "title": "ValidationError"
       },
       "WechselrichterParameters": {

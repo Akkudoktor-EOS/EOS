@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from akkudoktoreos.devices.battery import PVAkku
+from akkudoktoreos.devices.battery import PVBattery
 
 
 class WechselrichterParameters(BaseModel):
@@ -8,7 +8,7 @@ class WechselrichterParameters(BaseModel):
 
 
 class Wechselrichter:
-    def __init__(self, parameters: WechselrichterParameters, akku: PVAkku):
+    def __init__(self, parameters: WechselrichterParameters, akku: PVBattery):
         self.max_leistung_wh = (
             parameters.max_leistung_wh  # Maximum power that the inverter can handle
         )
@@ -34,7 +34,7 @@ class Wechselrichter:
                 restleistung_nach_verbrauch = erzeugung - verbrauch
 
                 # Load battery with excess energy
-                geladene_energie, verluste_laden_akku = self.akku.energie_laden(
+                geladene_energie, verluste_laden_akku = self.akku.charge_energy(
                     restleistung_nach_verbrauch, hour
                 )
                 rest_überschuss = restleistung_nach_verbrauch - (
@@ -53,16 +53,16 @@ class Wechselrichter:
 
         else:
             benötigte_energie = verbrauch - erzeugung  # Energy needed from external sources
-            max_akku_leistung = self.akku.max_ladeleistung_w  # Maximum battery discharge power
+            max_akku_leistung = self.akku.max_charge_power_w  # Maximum battery discharge power
 
             # Calculate remaining AC power available
             rest_ac_leistung = max(self.max_leistung_wh - erzeugung, 0)
 
             # Discharge energy from the battery based on need
             if benötigte_energie < rest_ac_leistung:
-                aus_akku, akku_entladeverluste = self.akku.energie_abgeben(benötigte_energie, hour)
+                aus_akku, akku_entladeverluste = self.akku.discharge_energy(benötigte_energie, hour)
             else:
-                aus_akku, akku_entladeverluste = self.akku.energie_abgeben(rest_ac_leistung, hour)
+                aus_akku, akku_entladeverluste = self.akku.discharge_energy(rest_ac_leistung, hour)
 
             verluste += akku_entladeverluste  # Include losses from battery discharge
             netzbezug = benötigte_energie - aus_akku  # Energy drawn from the grid

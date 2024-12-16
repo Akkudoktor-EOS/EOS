@@ -246,23 +246,23 @@ parameters = OptimizationParameters(
         },
         "pv_akku": {
             # Battery capacity (in Wh)
-            "kapazitaet_wh": 26400,
+            "capacity_wh": 26400,
             # Initial state of charge (SOC) of PV battery (%)
-            "start_soc_prozent": 15,
+            "initial_soc_percent": 15,
             # Minimum Soc PV Battery
-            "min_soc_prozent": 15,
+            "min_soc_percent": 15,
         },
         "eauto": {
             # Minimum SOC for electric car
-            "min_soc_prozent": 50,
+            "min_soc_percent": 50,
             # Electric car battery capacity (Wh)
-            "kapazitaet_wh": 60000,
+            "capacity_wh": 60000,
             # Charging efficiency of the electric car
-            "lade_effizienz": 0.95,
+            "charging_efficiency": 0.95,
             # Charging power of the electric car (W)
-            "max_ladeleistung_w": 11040,
+            "max_charge_power_w": 11040,
             # Current SOC of the electric car (%)
-            "start_soc_prozent": 5,
+            "initial_soc_percent": 5,
         },
         # "dishwasher": {
         #     # Household appliance consumption (Wh)

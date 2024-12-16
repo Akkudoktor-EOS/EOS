@@ -8,10 +8,10 @@ from typing_extensions import Self
 
 from akkudoktoreos.config import AppConfig
 from akkudoktoreos.devices.battery import (
-    EAutoParameters,
-    EAutoResult,
-    PVAkku,
-    PVAkkuParameters,
+    ElectricCarParameters,
+    ElectricCarResult,
+    PVBattery,
+    PVBatteryParameters,
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
@@ -26,9 +26,9 @@ from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 class OptimizationParameters(BaseModel):
     ems: EnergieManagementSystemParameters
-    pv_akku: PVAkkuParameters
+    pv_akku: PVBatteryParameters
     wechselrichter: WechselrichterParameters = WechselrichterParameters()
-    eauto: Optional[EAutoParameters]
+    eauto: Optional[ElectricCarParameters]
     dishwasher: Optional[HomeApplianceParameters] = None
     temperature_forecast: Optional[list[float]] = Field(
         default=None,
@@ -68,7 +68,7 @@ class OptimizeResponse(BaseModel):
     )
     eautocharge_hours_float: Optional[list[float]] = Field(description="TBD")
     result: SimulationResult
-    eauto_obj: Optional[EAutoResult]
+    eauto_obj: Optional[ElectricCarResult]
     start_solution: Optional[list[float]] = Field(
         default=None,
         description="An array of binary values (0 or 1) representing a possible starting solution for the simulation.",
@@ -92,8 +92,8 @@ class OptimizeResponse(BaseModel):
         mode="before",
     )
     def convert_eauto(cls, field: Any) -> Any:
-        if isinstance(field, PVAkku):
-            return EAutoResult(**field.to_dict())
+        if isinstance(field, PVBattery):
+            return ElectricCarResult(**field.to_dict())
         return field
 
 
@@ -373,22 +373,21 @@ class optimization_problem:
         individual.extra_data = (  # type: ignore[attr-defined]
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
-            parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent()
+            parameters.eauto.min_soc_percent - ems.eauto.current_soc_percentage()
             if parameters.eauto and ems.eauto
             else 0,
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
 
-        restwert_akku = ems.akku.aktueller_energieinhalt() * parameters.ems.preis_euro_pro_wh_akku
-        # print(ems.akku.aktueller_energieinhalt()," * ", parameters.ems.preis_euro_pro_wh_akku , " ", restwert_akku, " ", gesamtbilanz)
+        restwert_akku = ems.akku.current_energy_content() * parameters.ems.preis_euro_pro_wh_akku
         gesamtbilanz += -restwert_akku
         # print(gesamtbilanz)
         if self.optimize_ev:
             gesamtbilanz += max(
                 0,
                 (
-                    parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent()
+                    parameters.eauto.min_soc_percent - ems.eauto.current_soc_percentage()
                     if parameters.eauto and ems.eauto
                     else 0
                 )
@@ -451,21 +450,21 @@ class optimization_problem:
         )
 
         # Initialize PV and EV batteries
-        akku = PVAkku(
+        akku = PVBattery(
             parameters.pv_akku,
             hours=self.prediction_hours,
         )
         akku.set_charge_per_hour(np.full(self.prediction_hours, 1))
 
-        eauto: Optional[PVAkku] = None
+        eauto: Optional[PVBattery] = None
         if parameters.eauto:
-            eauto = PVAkku(
+            eauto = PVBattery(
                 parameters.eauto,
                 hours=self.prediction_hours,
             )
             eauto.set_charge_per_hour(np.full(self.prediction_hours, 1))
             self.optimize_ev = (
-                parameters.eauto.min_soc_prozent - parameters.eauto.start_soc_prozent >= 0
+                parameters.eauto.min_soc_percent - parameters.eauto.initial_soc_percent >= 0
             )
         else:
             self.optimize_ev = False
