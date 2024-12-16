@@ -2275,15 +2275,7 @@
             ],
             "title": "Optimization Ev Available Charge Rates Percent",
             "description": "Charge rates available for the EV in percent of maximum charge.",
-            "default": [
-              0.0,
-              0.375,
-              0.5,
-              0.625,
-              0.75,
-              0.875,
-              1.0
-            ]
+            "default": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
           },
           "battery_provider": {
             "anyOf": [
@@ -2780,9 +2772,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "kapazitaet_wh"
-        ],
+        "required": ["kapazitaet_wh"],
         "title": "EAutoParameters"
       },
       "EAutoResult": {
@@ -2929,10 +2919,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "temperature",
-          "pvpower"
-        ],
+        "required": ["temperature", "pvpower"],
         "title": "ForecastResponse"
       },
       "GesamtlastRequest": {
@@ -2954,11 +2941,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "year_energy",
-          "measured_data",
-          "hours"
-        ],
+        "required": ["year_energy", "measured_data", "hours"],
         "title": "GesamtlastRequest"
       },
       "HTTPValidationError": {
@@ -2990,11 +2973,20 @@
           }
         },
         "type": "object",
-        "required": [
-          "consumption_wh",
-          "duration_h"
-        ],
+        "required": ["consumption_wh", "duration_h"],
         "title": "HomeApplianceParameters"
+      },
+      "InverterParameters": {
+        "properties": {
+          "max_power_wh": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Power Wh",
+            "default": 10000
+          }
+        },
+        "type": "object",
+        "title": "InverterParameters"
       },
       "OptimizationParameters": {
         "properties": {
@@ -3004,10 +2996,10 @@
           "pv_akku": {
             "$ref": "#/components/schemas/PVAkkuParameters"
           },
-          "wechselrichter": {
-            "$ref": "#/components/schemas/WechselrichterParameters",
+          "inverter": {
+            "$ref": "#/components/schemas/InverterParameters",
             "default": {
-              "max_leistung_wh": 10000.0
+              "max_power_wh": 10000.0
             }
           },
           "eauto": {
@@ -3062,11 +3054,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "ems",
-          "pv_akku",
-          "eauto"
-        ],
+        "required": ["ems", "pv_akku", "eauto"],
         "title": "OptimizationParameters"
       },
       "OptimizeResponse": {
@@ -3225,9 +3213,7 @@
           }
         },
         "type": "object",
-        "required": [
-          "kapazitaet_wh"
-        ],
+        "required": ["kapazitaet_wh"],
         "title": "PVAkkuParameters"
       },
       "SettingsEOS": {
@@ -4994,15 +4980,7 @@
             ],
             "title": "Optimization Ev Available Charge Rates Percent",
             "description": "Charge rates available for the EV in percent of maximum charge.",
-            "default": [
-              0.0,
-              0.375,
-              0.5,
-              0.625,
-              0.75,
-              0.875,
-              1.0
-            ]
+            "default": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
           },
           "battery_provider": {
             "anyOf": [
@@ -5493,24 +5471,8 @@
           }
         },
         "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
+        "required": ["loc", "msg", "type"],
         "title": "ValidationError"
-      },
-      "WechselrichterParameters": {
-        "properties": {
-          "max_leistung_wh": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Max Leistung Wh",
-            "default": 10000
-          }
-        },
-        "type": "object",
-        "title": "WechselrichterParameters"
       }
     }
   }
