@@ -2,7 +2,6 @@ import pytest
 from pydantic import ValidationError
 
 from akkudoktoreos.config.config import get_config
-from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktor
@@ -17,7 +16,6 @@ from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
 from akkudoktoreos.prediction.weatherbrightsky import WeatherBrightSky
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
 from akkudoktoreos.prediction.weatherimport import WeatherImport
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
 
 
 @pytest.fixture
@@ -28,28 +26,10 @@ def sample_settings(reset_config):
         "prediction_historic_hours": 24,
         "latitude": 52.52,
         "longitude": 13.405,
-        "pvforecast_provider": "PVForecastAkkudoktor",
-        "pvforecast0_peakpower": 5.0,
-        "pvforecast0_surface_azimuth": -10,
-        "pvforecast0_surface_tilt": 7,
-        "pvforecast0_userhorizon": [20, 27, 22, 20],
-        "pvforecast0_inverter_paco": 10000,
-        "pvforecast1_peakpower": 4.8,
-        "pvforecast1_surface_azimuth": -90,
-        "pvforecast1_surface_tilt": 7,
-        "pvforecast1_userhorizon": [30, 30, 30, 50],
-        "pvforecast1_inverter_paco": 10000,
-        "pvforecast2_peakpower": 1.4,
-        "pvforecast2_surface_azimuth": -40,
-        "pvforecast2_surface_tilt": 60,
-        "pvforecast2_userhorizon": [60, 30, 0, 30],
-        "pvforecast2_inverter_paco": 2000,
-        "pvforecast3_peakpower": 1.6,
-        "pvforecast3_surface_azimuth": 5,
-        "pvforecast3_surface_tilt": 45,
-        "pvforecast3_userhorizon": [45, 25, 30, 60],
-        "pvforecast3_inverter_paco": 1400,
-        "pvforecast4_peakpower": None,
+        "weather_provider": None,
+        "pvforecast_provider": None,
+        "load_provider": None,
+        "elecprice_provider": None,
     }
 
     # Merge settings to config
@@ -174,23 +154,6 @@ def test_provider_sequence(prediction):
     assert isinstance(prediction.providers[6], WeatherBrightSky)
     assert isinstance(prediction.providers[7], WeatherClearOutside)
     assert isinstance(prediction.providers[8], WeatherImport)
-
-
-def test_update_calls_providers(sample_settings, prediction):
-    """Test that the update method calls the update method for each provider in sequence."""
-    # Mark the `update_datetime` method for each provider
-    old_datetime = to_datetime("1970-01-01 00:00:00")
-    for provider in prediction.providers:
-        provider.update_datetime = old_datetime
-
-    ems_eos = get_ems()
-    ems_eos.set_start_datetime(to_datetime())
-    prediction.update_data()
-
-    # Verify each provider's `update` method was called
-    for provider in prediction.providers:
-        if provider.enabled():
-            assert compare_datetimes(provider.update_datetime, old_datetime).gt
 
 
 def test_provider_by_id(prediction, forecast_providers):

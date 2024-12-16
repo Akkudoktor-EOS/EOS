@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 class ElecPriceImportCommonSettings(SettingsBaseModel):
-    """Common settings for elecprice data import from file."""
+    """Common settings for elecprice data import from file or JSON String."""
 
     elecpriceimport_file_path: Optional[Union[str, Path]] = Field(
         default=None, description="Path to the file to import elecprice data from."
