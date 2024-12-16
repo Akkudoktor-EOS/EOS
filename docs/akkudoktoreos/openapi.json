@@ -307,7 +307,9 @@
           }
         },
         "type": "object",
-        "required": ["kapazitaet_wh"],
+        "required": [
+          "kapazitaet_wh"
+        ],
         "title": "EAutoParameters"
       },
       "EAutoResult": {
@@ -453,7 +455,10 @@
           }
         },
         "type": "object",
-        "required": ["temperature", "pvpower"],
+        "required": [
+          "temperature",
+          "pvpower"
+        ],
         "title": "ForecastResponse"
       },
       "GesamtlastRequest": {
@@ -475,7 +480,11 @@
           }
         },
         "type": "object",
-        "required": ["year_energy", "measured_data", "hours"],
+        "required": [
+          "year_energy",
+          "measured_data",
+          "hours"
+        ],
         "title": "GesamtlastRequest"
       },
       "HTTPValidationError": {
@@ -507,7 +516,10 @@
           }
         },
         "type": "object",
-        "required": ["consumption_wh", "duration_h"],
+        "required": [
+          "consumption_wh",
+          "duration_h"
+        ],
         "title": "HomeApplianceParameters"
       },
       "OptimizationParameters": {
@@ -576,7 +588,11 @@
           }
         },
         "type": "object",
-        "required": ["ems", "pv_akku", "eauto"],
+        "required": [
+          "ems",
+          "pv_akku",
+          "eauto"
+        ],
         "title": "OptimizationParameters"
       },
       "OptimizeResponse": {
@@ -671,7 +687,7 @@
           "eauto_obj"
         ],
         "title": "OptimizeResponse",
-        "description": "**Note**: The first value of \"Last_Wh_pro_Stunde\", \"Netzeinspeisung_Wh_pro_Stunde\" and \"Netzbezug_Wh_pro_Stunde\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
+        "description": "**Note**: The first value of \"Last_Wh_per_hour\", \"Netzeinspeisung_Wh_per_hour\", and \"Netzbezug_Wh_per_hour\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
       },
       "PVAkkuParameters": {
         "properties": {
@@ -735,7 +751,9 @@
           }
         },
         "type": "object",
-        "required": ["kapazitaet_wh"],
+        "required": [
+          "kapazitaet_wh"
+        ],
         "title": "PVAkkuParameters"
       },
       "SimulationResult": {
@@ -941,7 +959,11 @@
           }
         },
         "type": "object",
-        "required": ["loc", "msg", "type"],
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
         "title": "ValidationError"
       },
       "WechselrichterParameters": {
