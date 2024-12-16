@@ -1,6 +1,6 @@
 numpy==2.2.0
 matplotlib==3.9.2
-fastapi[standard]==0.115.5
+fastapi[standard]==0.115.6
 uvicorn==0.32.1
 pydantic==2.10.3
 scikit-learn==1.6.0
