@@ -66,7 +66,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
     @classmethod
     def provider_id(cls) -> str:
         """Return the unique identifier for the Akkudoktor provider."""
-        return "Akkudoktor"
+        return "ElecPriceAkkudoktor"
 
     @classmethod
     def _validate_data(cls, json_str: Union[bytes, Any]) -> AkkudoktorElecPrice:
@@ -98,8 +98,8 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             ValueError: If the API response does not include expected `electricity price` data.
         """
         source = "https://api.akkudoktor.net"
-        date = to_datetime(self.start_datetime, as_string="%Y-%m-%d")
-        last_date = to_datetime(self.end_datetime, as_string="%Y-%m-%d")
+        date = to_datetime(self.start_datetime, as_string="Y-M-D")
+        last_date = to_datetime(self.end_datetime, as_string="Y-M-D")
         response = requests.get(
             f"{source}/prices?date={date}&last_date={last_date}&tz={self.config.timezone}"
         )
@@ -146,6 +146,11 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
                 elecprice_marketprice=akkudoktor_data.values[i].marketpriceEurocentPerKWh,
             )
             self.append(record)
+        if len(self) == 0:
+            # Got no valid forecast data
+            raise ValueError(
+                f"No valid electricity price forecast for date range {self.start_datetime} to {self.end_datetime}."
+            )
         # Assure price starts at start_time
         if compare_datetimes(self[0].date_time, self.start_datetime).gt:
             record = ElecPriceDataRecord(

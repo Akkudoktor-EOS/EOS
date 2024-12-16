@@ -605,8 +605,7 @@
               }
             ],
             "title": "Weather Provider",
-            "description": "Weather provider id of provider to be used.",
-            "default": "ClearOutside"
+            "description": "Weather provider id of provider to be used."
           },
           "pvforecastimport_file_path": {
             "anyOf": [
@@ -2017,7 +2016,7 @@
             "title": "Loadakkudoktor Year Energy",
             "description": "Yearly energy consumption (kWh)."
           },
-          "load0_provider": {
+          "load_provider": {
             "anyOf": [
               {
                 "type": "string"
@@ -2026,10 +2025,10 @@
                 "type": "null"
               }
             ],
-            "title": "Load0 Provider",
+            "title": "Load Provider",
             "description": "Load provider id of provider to be used."
           },
-          "load0_name": {
+          "load_name": {
             "anyOf": [
               {
                 "type": "string"
@@ -2038,103 +2037,7 @@
                 "type": "null"
               }
             ],
-            "title": "Load0 Name",
-            "description": "Name of the load source."
-          },
-          "load1_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load1 Provider",
-            "description": "Load provider id of provider to be used."
-          },
-          "load1_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load1 Name",
-            "description": "Name of the load source."
-          },
-          "load2_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load2 Provider",
-            "description": "Load provider id of provider to be used."
-          },
-          "load2_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load2 Name",
-            "description": "Name of the load source."
-          },
-          "load3_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load3 Provider",
-            "description": "Load provider id of provider to be used."
-          },
-          "load3_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load3 Name",
-            "description": "Name of the load source."
-          },
-          "load4_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load4 Provider",
-            "description": "Load provider id of provider to be used."
-          },
-          "load4_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load4 Name",
+            "title": "Load Name",
             "description": "Name of the load source."
           },
           "elecpriceimport_file_path": {
@@ -2175,8 +2078,7 @@
               }
             ],
             "title": "Elecprice Provider",
-            "description": "Electicity price provider id of provider to be used.",
-            "default": "ElecPriceAkkudoktor"
+            "description": "Electicity price provider id of provider to be used."
           },
           "prediction_hours": {
             "anyOf": [
@@ -2638,22 +2540,6 @@
             "description": "Compute a list of the maximum power rating of the inverter per active planes.",
             "readOnly": true
           },
-          "load_count": {
-            "type": "integer",
-            "title": "Load Count",
-            "description": "Maximum number of loads.",
-            "readOnly": true
-          },
-          "load_providers": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "uniqueItems": true,
-            "title": "Load Providers",
-            "description": "Load providers.",
-            "readOnly": true
-          },
           "timezone": {
             "anyOf": [
               {
@@ -2711,8 +2597,6 @@
           "pvforecast_planes_tilt",
           "pvforecast_planes_userhorizon",
           "pvforecast_planes_inverter_paco",
-          "load_count",
-          "load_providers",
           "timezone",
           "data_output_path",
           "data_cache_path",
@@ -3324,8 +3208,7 @@
               }
             ],
             "title": "Weather Provider",
-            "description": "Weather provider id of provider to be used.",
-            "default": "ClearOutside"
+            "description": "Weather provider id of provider to be used."
           },
           "pvforecastimport_file_path": {
             "anyOf": [
@@ -4736,7 +4619,7 @@
             "title": "Loadakkudoktor Year Energy",
             "description": "Yearly energy consumption (kWh)."
           },
-          "load0_provider": {
+          "load_provider": {
             "anyOf": [
               {
                 "type": "string"
@@ -4745,10 +4628,10 @@
                 "type": "null"
               }
             ],
-            "title": "Load0 Provider",
+            "title": "Load Provider",
             "description": "Load provider id of provider to be used."
           },
-          "load0_name": {
+          "load_name": {
             "anyOf": [
               {
                 "type": "string"
@@ -4757,103 +4640,7 @@
                 "type": "null"
               }
             ],
-            "title": "Load0 Name",
-            "description": "Name of the load source."
-          },
-          "load1_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load1 Provider",
-            "description": "Load provider id of provider to be used."
-          },
-          "load1_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load1 Name",
-            "description": "Name of the load source."
-          },
-          "load2_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load2 Provider",
-            "description": "Load provider id of provider to be used."
-          },
-          "load2_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load2 Name",
-            "description": "Name of the load source."
-          },
-          "load3_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load3 Provider",
-            "description": "Load provider id of provider to be used."
-          },
-          "load3_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load3 Name",
-            "description": "Name of the load source."
-          },
-          "load4_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load4 Provider",
-            "description": "Load provider id of provider to be used."
-          },
-          "load4_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load4 Name",
+            "title": "Load Name",
             "description": "Name of the load source."
           },
           "elecpriceimport_file_path": {
@@ -4894,8 +4681,7 @@
               }
             ],
             "title": "Elecprice Provider",
-            "description": "Electicity price provider id of provider to be used.",
-            "default": "ElecPriceAkkudoktor"
+            "description": "Electicity price provider id of provider to be used."
           },
           "prediction_hours": {
             "anyOf": [
