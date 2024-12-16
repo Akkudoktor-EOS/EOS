@@ -382,7 +382,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
                 json_str = super().to_json()
                 # Write to file
                 f_out.write(json_str)
-                # Also remeber as actual settings
+                # Also remember as actual settings
                 ConfigEOS._file_settings = SettingsEOS.model_validate_json(json_str)
             except ValidationError as exc:
                 raise ValueError(f"Could not update '{self.config_file_path}': {exc}")

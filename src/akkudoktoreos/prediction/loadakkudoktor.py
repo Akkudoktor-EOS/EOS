@@ -39,8 +39,8 @@ class LoadAkkudoktor(LoadProvider):
             profile_data = np.array(
                 list(zip(file_data["yearly_profiles"], file_data["yearly_profiles_std"]))
             )
-            data_year_energy = profile_data * self.config.loadakkudoktor_year_energy
-            # pprint(self.data_year_energy)
+            # Calculate values in W by relative profile data and yearly consumption given in kWh
+            data_year_energy = profile_data * self.config.loadakkudoktor_year_energy * 1000
         except FileNotFoundError:
             error_msg = f"Error: File {load_file} not found."
             logger.error(error_msg)
@@ -54,16 +54,13 @@ class LoadAkkudoktor(LoadProvider):
     def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Adds the load means and standard deviations."""
         data_year_energy = self.load_data()
-        for load in self.loads():
-            attr_load_mean = f"{load}_mean"
-            attr_load_std = f"{load}_std"
-            date = self.start_datetime
-            for i in range(self.config.prediction_hours):
-                # Extract mean and standard deviation for the given day and hour
-                # Day indexing starts at 0, -1 because of that
-                hourly_stats = data_year_energy[date.day_of_year - 1, :, date.hour]
-                self.update_value(date, attr_load_mean, hourly_stats[0])
-                self.update_value(date, attr_load_std, hourly_stats[1])
-                date += to_duration("1 hour")
+        date = self.start_datetime
+        for i in range(self.config.prediction_hours):
+            # Extract mean and standard deviation for the given day and hour
+            # Day indexing starts at 0, -1 because of that
+            hourly_stats = data_year_energy[date.day_of_year - 1, :, date.hour]
+            self.update_value(date, "load_mean", hourly_stats[0])
+            self.update_value(date, "load_std", hourly_stats[1])
+            date += to_duration("1 hour")
         # We are working on fresh data (no cache), report update time
         self.update_datetime = to_datetime(in_timezone=self.config.timezone)

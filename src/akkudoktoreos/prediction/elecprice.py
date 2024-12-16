@@ -7,5 +7,5 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 
 class ElecPriceCommonSettings(SettingsBaseModel):
     elecprice_provider: Optional[str] = Field(
-        "ElecPriceAkkudoktor", description="Electicity price provider id of provider to be used."
+        default=None, description="Electicity price provider id of provider to be used."
     )

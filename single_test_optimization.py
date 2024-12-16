@@ -9,10 +9,137 @@ import time
 import numpy as np
 
 from akkudoktoreos.config.config import get_config
+from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     optimization_problem,
 )
+from akkudoktoreos.prediction.prediction import get_prediction
+
+
+def prepare_optimization_real_parameters() -> OptimizationParameters:
+    """Prepare and return optimization parameters with real world data.
+
+    Returns:
+        OptimizationParameters: Configured optimization parameters
+    """
+    # Make a config
+    settings = {
+        # -- General --
+        "prediction_hours": 48,
+        "prediction_historic_hours": 24,
+        "latitude": 52.52,
+        "longitude": 13.405,
+        # -- Predictions --
+        # PV Forecast
+        "pvforecast_provider": "PVForecastAkkudoktor",
+        "pvforecast0_peakpower": 5.0,
+        "pvforecast0_surface_azimuth": -10,
+        "pvforecast0_surface_tilt": 7,
+        "pvforecast0_userhorizon": [20, 27, 22, 20],
+        "pvforecast0_inverter_paco": 10000,
+        "pvforecast1_peakpower": 4.8,
+        "pvforecast1_surface_azimuth": -90,
+        "pvforecast1_surface_tilt": 7,
+        "pvforecast1_userhorizon": [30, 30, 30, 50],
+        "pvforecast1_inverter_paco": 10000,
+        "pvforecast2_peakpower": 1.4,
+        "pvforecast2_surface_azimuth": -40,
+        "pvforecast2_surface_tilt": 60,
+        "pvforecast2_userhorizon": [60, 30, 0, 30],
+        "pvforecast2_inverter_paco": 2000,
+        "pvforecast3_peakpower": 1.6,
+        "pvforecast3_surface_azimuth": 5,
+        "pvforecast3_surface_tilt": 45,
+        "pvforecast3_userhorizon": [45, 25, 30, 60],
+        "pvforecast3_inverter_paco": 1400,
+        "pvforecast4_peakpower": None,
+        # Weather Forecast
+        "weather_provider": "ClearOutside",
+        # Electricity Price Forecast
+        "elecprice_provider": "ElecPriceAkkudoktor",
+        # Load Forecast
+        "load_provider": "LoadAkkudoktor",
+        "loadakkudoktor_year_energy": 5000,  # Energy consumption per year in kWh
+        # -- Simulations --
+    }
+    config_eos = get_config()
+    prediction_eos = get_prediction()
+    ems_eos = get_ems()
+
+    # Update/ set configuration
+    config_eos.merge_settings_from_dict(settings)
+
+    # Get current prediction data for optimization run
+    ems_eos.set_start_datetime()
+    print(
+        f"Real data prediction from {prediction_eos.start_datetime} to {prediction_eos.end_datetime}"
+    )
+    prediction_eos.update_data()
+
+    # PV Forecast (in W)
+    pv_forecast = prediction_eos.key_to_array(
+        key="pvforecast_ac_power",
+        start_datetime=prediction_eos.start_datetime,
+        end_datetime=prediction_eos.end_datetime,
+    )
+    print(f"pv_forecast: {pv_forecast}")
+
+    # Temperature Forecast (in degree C)
+    temperature_forecast = prediction_eos.key_to_array(
+        key="weather_temp_air",
+        start_datetime=prediction_eos.start_datetime,
+        end_datetime=prediction_eos.end_datetime,
+    )
+    print(f"temperature_forecast: {temperature_forecast}")
+
+    # Electricity Price (in Euro per Wh)
+    electricity_market_price_euros_per_kwh = prediction_eos.key_to_array(
+        key="elecprice_marketprice",
+        start_datetime=prediction_eos.start_datetime,
+        end_datetime=prediction_eos.end_datetime,
+    )
+    strompreis_euro_pro_wh = electricity_market_price_euros_per_kwh * 0.001
+    print(f"strompreis_euro_pro_wh: {strompreis_euro_pro_wh}")
+
+    # Overall System Load (in W)
+    gesamtlast = prediction_eos.key_to_array(
+        key="load_mean",
+        start_datetime=prediction_eos.start_datetime,
+        end_datetime=prediction_eos.end_datetime,
+    )
+    print(f"gesamtlast: {gesamtlast}")
+
+    # Start Solution (binary)
+    start_solution = None
+    print(f"start_solution: {start_solution}")
+
+    # Define parameters for the optimization problem
+    return OptimizationParameters(
+        **{
+            "ems": {
+                "preis_euro_pro_wh_akku": 0e-05,
+                "einspeiseverguetung_euro_pro_wh": 7e-05,
+                "gesamtlast": gesamtlast,
+                "pv_prognose_wh": pv_forecast,
+                "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
+            },
+            "pv_akku": {
+                "kapazitaet_wh": 26400,
+                "start_soc_prozent": 15,
+                "min_soc_prozent": 15,
+            },
+            "eauto": {
+                "min_soc_prozent": 50,
+                "kapazitaet_wh": 60000,
+                "lade_effizienz": 0.95,
+                "max_ladeleistung_w": 11040,
+                "start_soc_prozent": 5,
+            },
+            "temperature_forecast": temperature_forecast,
+            "start_solution": start_solution,
+        }
+    )
 
 
 def prepare_optimization_parameters() -> OptimizationParameters:
@@ -166,7 +293,7 @@ def prepare_optimization_parameters() -> OptimizationParameters:
     )
 
 
-def run_optimization(start_hour: int = 0, verbose: bool = False) -> dict:
+def run_optimization(real_world: bool = False, start_hour: int = 0, verbose: bool = False) -> dict:
     """Run the optimization problem.
 
     Args:
@@ -176,13 +303,20 @@ def run_optimization(start_hour: int = 0, verbose: bool = False) -> dict:
     Returns:
         dict: Optimization result as a dictionary
     """
+    # Prepare parameters
+    if real_world:
+        parameters = prepare_optimization_real_parameters()
+    else:
+        parameters = prepare_optimization_parameters()
+
+    if verbose:
+        print("\nOptimization Parameters:")
+        print(parameters.model_dump_json(indent=4))
+
     # Initialize the optimization problem using the default configuration
     config_eos = get_config()
     config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
     opt_class = optimization_problem(verbose=verbose, fixed_seed=42)
-
-    # Prepare parameters
-    parameters = prepare_optimization_parameters()
 
     # Perform the optimisation based on the provided parameters and start hour
     result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
@@ -198,6 +332,9 @@ def main():
         "--verbose", action="store_true", help="Enable verbose output during optimization"
     )
     parser.add_argument(
+        "--real-world", action="store_true", help="Use real world data for predictions"
+    )
+    parser.add_argument(
         "--start-hour", type=int, default=0, help="Starting hour for optimization (default: 0)"
     )
 
@@ -208,7 +345,10 @@ def main():
         profiler = cProfile.Profile()
         try:
             result = profiler.runcall(
-                run_optimization, start_hour=args.start_hour, verbose=args.verbose
+                run_optimization,
+                real_world=args.real_world,
+                start_hour=args.start_hour,
+                verbose=args.verbose,
             )
             # Print profiling statistics
             stats = pstats.Stats(profiler)
@@ -224,7 +364,9 @@ def main():
         # Run without profiling
         try:
             start_time = time.time()
-            result = run_optimization(start_hour=args.start_hour, verbose=args.verbose)
+            result = run_optimization(
+                real_world=args.real_world, start_hour=args.start_hour, verbose=args.verbose
+            )
             end_time = time.time()
             elapsed_time = end_time - start_time
             print(f"\nElapsed time: {elapsed_time:.4f} seconds.")

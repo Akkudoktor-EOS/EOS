@@ -25,7 +25,7 @@ ems_eos = get_ems()
 @pytest.fixture
 def elecprice_provider(monkeypatch):
     """Fixture to create a ElecPriceProvider instance."""
-    monkeypatch.setenv("elecprice_provider", "Akkudoktor")
+    monkeypatch.setenv("elecprice_provider", "ElecPriceAkkudoktor")
     return ElecPriceAkkudoktor()
 
 
