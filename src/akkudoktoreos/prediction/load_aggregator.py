@@ -30,9 +30,6 @@ class LoadAggregator:
         :return: A list representing the total load for each hour.
                  Returns an empty list if no loads have been added.
         """
-        if not self.loads:
-            return []  # Return empty list if no loads are present
-
         # Optimize the summation using a single loop with zip
         total_load = [sum(hourly_loads) for hourly_loads in zip(*self.loads.values())]
 
