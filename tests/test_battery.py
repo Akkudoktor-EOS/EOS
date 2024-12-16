@@ -1,4 +1,5 @@
 import pytest
+
 from akkudoktoreos.devices.battery import PVBattery, PVBatteryParameters
 
 
