@@ -10,7 +10,7 @@ from akkudoktoreos.core.coreabc import ConfigMixin, PredictionMixin, SingletonMi
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.devices.battery import PVAkku
 from akkudoktoreos.devices.generic import HomeAppliance
-from akkudoktoreos.devices.inverter import Wechselrichter
+from akkudoktoreos.devices.inverter import Inverter
 from akkudoktoreos.utils.datetimeutil import to_datetime
 from akkudoktoreos.utils.logutil import get_logger
 from akkudoktoreos.utils.utils import NumpyEncoder
@@ -155,7 +155,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
     akku: Optional[PVAkku] = Field(default=None, description="TBD.")
     eauto: Optional[PVAkku] = Field(default=None, description="TBD.")
     home_appliance: Optional[HomeAppliance] = Field(default=None, description="TBD.")
-    wechselrichter: Optional[Wechselrichter] = Field(default=None, description="TBD.")
+    inverter: Optional[Inverter] = Field(default=None, description="TBD.")
 
     # -------------------------
     # TODO: Move to devices
@@ -170,7 +170,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
         parameters: EnergieManagementSystemParameters,
         eauto: Optional[PVAkku] = None,
         home_appliance: Optional[HomeAppliance] = None,
-        wechselrichter: Optional[Wechselrichter] = None,
+        inverter: Optional[Inverter] = None,
     ) -> None:
         self.gesamtlast = np.array(parameters.gesamtlast, float)
         self.pv_prognose_wh = np.array(parameters.pv_prognose_wh, float)
@@ -180,13 +180,13 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             if isinstance(parameters.einspeiseverguetung_euro_pro_wh, list)
             else np.full(len(self.gesamtlast), parameters.einspeiseverguetung_euro_pro_wh, float)
         )
-        if wechselrichter is not None:
-            self.akku = wechselrichter.akku
+        if inverter is not None:
+            self.akku = inverter.akku
         else:
             self.akku = None
         self.eauto = eauto
         self.home_appliance = home_appliance
-        self.wechselrichter = wechselrichter
+        self.inverter = inverter
         self.ac_charge_hours = np.full(self.config.prediction_hours, 0.0)
         self.dc_charge_hours = np.full(self.config.prediction_hours, 1.0)
         self.ev_charge_hours = np.full(self.config.prediction_hours, 0.0)
@@ -354,10 +354,10 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             netzeinspeisung, netzbezug, verluste, eigenverbrauch = (0.0, 0.0, 0.0, 0.0)
             if self.akku:
                 self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[stunde], stunde)
-            if self.wechselrichter:
+            if self.inverter:
                 erzeugung = self.pv_prognose_wh[stunde]
-                netzeinspeisung, netzbezug, verluste, eigenverbrauch = (
-                    self.wechselrichter.energie_verarbeiten(erzeugung, verbrauch, stunde)
+                netzeinspeisung, netzbezug, verluste, eigenverbrauch = self.inverter.process_energy(
+                    erzeugung, verbrauch, stunde
                 )
 
             # AC PV Battery Charge
