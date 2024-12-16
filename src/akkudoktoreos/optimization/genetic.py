@@ -42,7 +42,7 @@ class OptimizationParameters(BaseModel):
     def validate_list_length(self) -> Self:
         arr_length = len(self.ems.pv_prognose_wh)
         if self.temperature_forecast is not None and arr_length != len(self.temperature_forecast):
-            raise ValueError("Input lists have different lenghts")
+            raise ValueError("Input lists have different lengths")
         return self
 
     @field_validator("start_solution")
@@ -55,7 +55,7 @@ class OptimizationParameters(BaseModel):
 
 
 class OptimizeResponse(BaseModel):
-    """**Note**: The first value of "Last_Wh_pro_Stunde", "Netzeinspeisung_Wh_pro_Stunde" and "Netzbezug_Wh_pro_Stunde", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
+    """**Note**: The first value of "Last_Wh_per_hour", "Netzeinspeisung_Wh_per_hour", and "Netzbezug_Wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
 
     ac_charge: list[float] = Field(
         description="Array with AC charging values as relative power (0-1), other values set to 0."
@@ -123,110 +123,78 @@ class optimization_problem:
     def decode_charge_discharge(
         self, discharge_hours_bin: list[int]
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Decode the input array `discharge_hours_bin` into three separate arrays for AC charging, DC charging, and discharge.
-
-        The function maps AC and DC charging values to relative power levels (0 to 1), while the discharge remains binary (0 or 1).
-
-        Parameters:
-        - discharge_hours_bin (np.ndarray): Input array with integer values representing the different states.
-        The states are:
-        0: No action ("idle")
-        1: Discharge ("discharge")
-        2-6: AC charging with different power levels ("ac_charge")
-        7-8: DC charging Dissallowed/allowed ("dc_charge")
-
-        Returns:
-        - ac_charge (np.ndarray): Array with AC charging values as relative power (0-1), other values set to 0.
-        - dc_charge (np.ndarray): Array with DC charging values as relative power (0-1), other values set to 0.
-        - discharge (np.ndarray): Array with discharge values (1 for discharge, 0 otherwise).
-        """
-        # Convert the input list to a NumPy array, if it's not already
+        """Decode the input array into ac_charge, dc_charge, and discharge arrays."""
         discharge_hours_bin_np = np.array(discharge_hours_bin)
+        len_ac = len(self._config.eos.available_charging_rates_in_percentage)
 
-        # Create ac_charge array: Only consider values between 2 and 6 (AC charging power levels), set the rest to 0
-        ac_charge = np.where(
-            (discharge_hours_bin_np >= 2) & (discharge_hours_bin_np <= 6),
-            discharge_hours_bin_np - 1,
-            0,
-        )
-        ac_charge = ac_charge / 5.0  # Normalize AC charge to range between 0 and 1
+        # Categorization:
+        # Idle:       0 .. len_ac-1
+        # Discharge:  len_ac .. 2*len_ac - 1
+        # AC Charge:  2*len_ac .. 3*len_ac - 1
+        # DC optional: 3*len_ac (not allowed), 3*len_ac + 1 (allowed)
 
-        # Create dc_charge array: 7 = Not allowed (mapped to 0), 8 = Allowed (mapped to 1)
-        # Create dc_charge array: Only if DC charge optimization is enabled
+        # Idle has no charge, Discharge has binary 1, AC Charge has corresponding values
+        # Idle states
+        idle_mask = (discharge_hours_bin_np >= 0) & (discharge_hours_bin_np < len_ac)
+
+        # Discharge states
+        discharge_mask = (discharge_hours_bin_np >= len_ac) & (discharge_hours_bin_np < 2 * len_ac)
+
+        # AC states
+        ac_mask = (discharge_hours_bin_np >= 2 * len_ac) & (discharge_hours_bin_np < 3 * len_ac)
+        ac_indices = discharge_hours_bin_np[ac_mask] - 2 * len_ac
+
+        # DC states (if enabled)
         if self.optimize_dc_charge:
-            dc_charge = np.where(discharge_hours_bin_np == 8, 1, 0)
+            dc_not_allowed_state = 3 * len_ac
+            dc_allowed_state = 3 * len_ac + 1
+            dc_charge = np.where(discharge_hours_bin_np == dc_allowed_state, 1, 0)
         else:
-            dc_charge = np.ones_like(
-                discharge_hours_bin_np
-            )  # Set DC charge to 0 if optimization is disabled
+            dc_charge = np.ones_like(discharge_hours_bin_np, dtype=float)
 
-        # Create discharge array: Only consider value 1 (Discharge), set the rest to 0 (binary output)
-        discharge = np.where(discharge_hours_bin_np == 1, 1, 0)
+        # Generate the result arrays
+        discharge = np.zeros_like(discharge_hours_bin_np, dtype=int)
+        discharge[discharge_mask] = 1  # Set Discharge states to 1
+
+        ac_charge = np.zeros_like(discharge_hours_bin_np, dtype=float)
+        ac_charge[ac_mask] = [
+            self._config.eos.available_charging_rates_in_percentage[i] for i in ac_indices
+        ]
+
+        # Idle is just 0, already default.
 
         return ac_charge, dc_charge, discharge
 
-    # Custom mutation function that applies type-specific mutations
     def mutate(self, individual: list[int]) -> tuple[list[int]]:
-        """Custom mutation function for the individual.
+        """Custom mutation function for the individual."""
+        # Calculate the number of states
+        len_ac = len(self._config.eos.available_charging_rates_in_percentage)
+        if self.optimize_dc_charge:
+            total_states = 3 * len_ac + 2
+        else:
+            total_states = 3 * len_ac
 
-        This function mutates different parts of the individual:
-        - Mutates the discharge and charge states (AC, DC, idle) using the split_charge_discharge method.
-        - Mutates the EV charging schedule if EV optimization is enabled.
-        - Mutates appliance start times if household appliances are part of the optimization.
-
-        Parameters:
-        - individual (list): The individual being mutated, which includes different optimization parameters.
-
-        Returns:
-        - (tuple): The mutated individual as a tuple (required by DEAP).
-        """
-        # Step 1: Mutate the charge/discharge states (idle, discharge, AC charge, DC charge)
-        # Extract the relevant part of the individual for prediction hours, which represents the charge/discharge behavior.
+        # 1. Mutating the charge_discharge part
         charge_discharge_part = individual[: self.prediction_hours]
-
-        # Apply the mutation to the charge/discharge part
         (charge_discharge_mutated,) = self.toolbox.mutate_charge_discharge(charge_discharge_part)
 
-        # Ensure that no invalid states are introduced during mutation (valid values: 0-8)
-        if self.optimize_dc_charge:
-            charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, 8)
-        else:
-            charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, 6)
-
-        # Use split_charge_discharge to split the mutated array into AC charge, DC charge, and discharge components
-        # ac_charge, dc_charge, discharge = self.split_charge_discharge(charge_discharge_mutated)
-
-        # Optionally: You can process the split arrays further if needed, for example,
-        # applying additional constraints or penalties, or keeping track of charging limits.
-
-        # Reassign the mutated values back to the individual
+        # Instead of a fixed clamping to 0..8 or 0..6 dynamically:
+        charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, total_states - 1)
         individual[: self.prediction_hours] = charge_discharge_mutated
 
-        # Step 2: Mutate EV charging schedule if enabled
+        # 2. Mutating the EV charge part, if active
         if self.optimize_ev:
-            # Extract the relevant part for EV charging schedule
             ev_charge_part = individual[self.prediction_hours : self.prediction_hours * 2]
-
-            # Apply mutation on the EV charging schedule
             (ev_charge_part_mutated,) = self.toolbox.mutate_ev_charge_index(ev_charge_part)
-
-            # Ensure the EV does not charge during fixed hours (set those hours to 0)
             ev_charge_part_mutated[self.prediction_hours - self.fixed_eauto_hours :] = [
                 0
             ] * self.fixed_eauto_hours
-
-            # Reassign the mutated EV charging part back to the individual
             individual[self.prediction_hours : self.prediction_hours * 2] = ev_charge_part_mutated
 
-        # Step 3: Mutate appliance start times if household appliances are part of the optimization
+        # 3. Mutating the appliance start time, if applicable
         if self.opti_param["home_appliance"] > 0:
-            # Extract the appliance part (typically a single value for the start hour)
             appliance_part = [individual[-1]]
-
-            # Apply mutation on the appliance start hour
             (appliance_part_mutated,) = self.toolbox.mutate_hour(appliance_part)
-
-            # Reassign the mutated appliance part back to the individual
             individual[-1] = appliance_part_mutated[0]
 
         return (individual,)
@@ -278,62 +246,67 @@ class optimization_problem:
         """Set up the DEAP environment with fitness and individual creation rules."""
         self.opti_param = opti_param
 
-        # Remove existing FitnessMin and Individual classes from creator if present
+        # Remove existing definitions if any
         for attr in ["FitnessMin", "Individual"]:
             if attr in creator.__dict__:
                 del creator.__dict__[attr]
 
-        # Create new FitnessMin and Individual classes
         creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
         creator.create("Individual", list, fitness=creator.FitnessMin)
 
-        # Initialize toolbox with attributes and operations
         self.toolbox = base.Toolbox()
-        if self.optimize_dc_charge:
-            self.toolbox.register("attr_discharge_state", random.randint, 0, 8)
-        else:
-            self.toolbox.register("attr_discharge_state", random.randint, 0, 6)
+        len_ac = len(self._config.eos.available_charging_rates_in_percentage)
 
+        # Total number of states without DC:
+        # Idle: len_ac states
+        # Discharge: len_ac states
+        # AC-Charge: len_ac states
+        # Total without DC: 3 * len_ac
+
+        # With DC: + 2 states
+        if self.optimize_dc_charge:
+            total_states = 3 * len_ac + 2
+        else:
+            total_states = 3 * len_ac
+
+        # State space: 0 .. (total_states - 1)
+        self.toolbox.register("attr_discharge_state", random.randint, 0, total_states - 1)
+
+        # EV attributes
         if self.optimize_ev:
             self.toolbox.register(
                 "attr_ev_charge_index",
                 random.randint,
                 0,
-                len(self._config.eos.available_charging_rates_in_percentage) - 1,
+                len_ac - 1,
             )
+
+        # Household appliance start time
         self.toolbox.register("attr_int", random.randint, start_hour, 23)
 
-        # Register individual creation function
         self.toolbox.register("individual", self.create_individual)
-
-        # Register population, mating, mutation, and selection functions
         self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
         self.toolbox.register("mate", tools.cxTwoPoint)
-        # self.toolbox.register("mutate", tools.mutFlipBit, indpb=0.1)
-        # Register separate mutation functions for each type of value:
-        # - Discharge state mutation (-5, 0, 1)
-        if self.optimize_dc_charge:
-            self.toolbox.register(
-                "mutate_charge_discharge", tools.mutUniformInt, low=0, up=8, indpb=0.2
-            )
-        else:
-            self.toolbox.register(
-                "mutate_charge_discharge", tools.mutUniformInt, low=0, up=6, indpb=0.2
-            )
-        # - Float mutation for EV charging values
+
+        # Mutation operator for charge/discharge states
+        self.toolbox.register(
+            "mutate_charge_discharge", tools.mutUniformInt, low=0, up=total_states - 1, indpb=0.2
+        )
+
+        # Mutation operator for EV states
         self.toolbox.register(
             "mutate_ev_charge_index",
             tools.mutUniformInt,
             low=0,
-            up=len(self._config.eos.available_charging_rates_in_percentage) - 1,
+            up=len_ac - 1,
             indpb=0.2,
         )
-        # - Start hour mutation for household devices
+
+        # Mutation for household appliance
         self.toolbox.register("mutate_hour", tools.mutUniformInt, low=start_hour, up=23, indpb=0.2)
 
-        # Register custom mutation function
+        # Custom mutate function remains unchanged
         self.toolbox.register("mutate", self.mutate)
-
         self.toolbox.register("select", tools.selTournament, tournsize=3)
 
     def evaluate_inner(
