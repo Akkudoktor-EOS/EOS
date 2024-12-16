@@ -23,7 +23,7 @@ from akkudoktoreos.optimization.genetic import (
 )
 
 # Still to be adapted
-from akkudoktoreos.prediction.load_container import LoadAggregator
+from akkudoktoreos.prediction.load_aggregator import LoadAggregator
 from akkudoktoreos.prediction.load_corrector import LoadPredictionAdjuster
 from akkudoktoreos.prediction.load_forecast import LoadForecast
 from akkudoktoreos.prediction.prediction import get_prediction

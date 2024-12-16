@@ -1,6 +1,4 @@
-from typing import Dict, List, Tuple, Union
-
-import numpy as np
+from collections import defaultdict
 
 
 class LoadAggregator:
@@ -9,12 +7,12 @@ class LoadAggregator:
 
         :param prediction_hours: Number of hours to predict (default: 24)
         """
-        self.loads: Dict[
-            str, List[float]
-        ] = {}  # Dictionary to hold load arrays for different sources
+        self.loads: defaultdict[str, list[float]] = defaultdict(
+            list
+        )  # Dictionary to hold load arrays for different sources
         self.prediction_hours: int = prediction_hours
 
-    def add_load(self, name: str, last_array: Union[List[float], Tuple[float, ...]]) -> None:
+    def add_load(self, name: str, last_array: list[float] | tuple[float, ...]) -> None:
         """Adds a load array for a specific source. Accepts either a Python list or tuple.
 
         :param name: Name of the load source (e.g., "Household", "Heat Pump").
@@ -26,7 +24,7 @@ class LoadAggregator:
             raise ValueError(f"Total load inconsistent lengths in arrays: {name} {len(last_array)}")
         self.loads[name] = list(last_array)
 
-    def calculate_total_load(self) -> List[float]:
+    def calculate_total_load(self) -> list[float]:
         """Calculates the total load for each hour by summing up the loads from all sources.
 
         :return: A list representing the total load for each hour.
@@ -35,9 +33,7 @@ class LoadAggregator:
         if not self.loads:
             return []  # Return empty list if no loads are present
 
-        # Stack all load arrays vertically and sum them across the vertical axis (axis=0)
-        LoadAggregator_array = np.sum(
-            [np.array(loads_array) for loads_array in self.loads.values()], axis=0
-        )
+        # Optimize the summation using a single loop with zip
+        total_load = [sum(hourly_loads) for hourly_loads in zip(*self.loads.values())]
 
-        return LoadAggregator_array.tolist()
+        return total_load
