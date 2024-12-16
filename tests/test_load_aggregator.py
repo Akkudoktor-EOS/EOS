@@ -1,4 +1,5 @@
 import pytest
+
 from akkudoktoreos.prediction.load_aggregator import LoadAggregator
 
 
