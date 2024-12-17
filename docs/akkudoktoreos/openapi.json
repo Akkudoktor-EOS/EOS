@@ -2158,7 +2158,7 @@
             "title": "Battery Capacity",
             "description": "Battery capacity [Wh]."
           },
-          "battery_soc_start": {
+          "battery_initial_soc": {
             "anyOf": [
               {
                 "type": "integer"
@@ -2167,7 +2167,7 @@
                 "type": "null"
               }
             ],
-            "title": "Battery Soc Start",
+            "title": "Battery Initial Soc",
             "description": "Battery initial state of charge [%]."
           },
           "battery_soc_min": {
@@ -2194,7 +2194,7 @@
             "title": "Battery Soc Max",
             "description": "Battery maximum state of charge [%]."
           },
-          "battery_charge_efficiency": {
+          "battery_charging_efficiency": {
             "anyOf": [
               {
                 "type": "number"
@@ -2203,10 +2203,10 @@
                 "type": "null"
               }
             ],
-            "title": "Battery Charge Efficiency",
+            "title": "Battery Charging Efficiency",
             "description": "Battery charging efficiency [%]."
           },
-          "battery_discharge_efficiency": {
+          "battery_discharging_efficiency": {
             "anyOf": [
               {
                 "type": "number"
@@ -2215,10 +2215,10 @@
                 "type": "null"
               }
             ],
-            "title": "Battery Discharge Efficiency",
+            "title": "Battery Discharging Efficiency",
             "description": "Battery discharging efficiency [%]."
           },
-          "battery_charge_power_max": {
+          "battery_max_charging_power": {
             "anyOf": [
               {
                 "type": "integer"
@@ -2227,7 +2227,7 @@
                 "type": "null"
               }
             ],
-            "title": "Battery Charge Power Max",
+            "title": "Battery Max Charging Power",
             "description": "Battery maximum charge power [W]."
           },
           "bev_provider": {
@@ -2254,7 +2254,7 @@
             "title": "Bev Capacity",
             "description": "Battery Electric Vehicle capacity [Wh]."
           },
-          "bev_soc_start": {
+          "bev_initial_soc": {
             "anyOf": [
               {
                 "type": "integer"
@@ -2263,7 +2263,7 @@
                 "type": "null"
               }
             ],
-            "title": "Bev Soc Start",
+            "title": "Bev Initial Soc",
             "description": "Battery Electric Vehicle initial state of charge [%]."
           },
           "bev_soc_max": {
@@ -2278,7 +2278,7 @@
             "title": "Bev Soc Max",
             "description": "Battery Electric Vehicle maximum state of charge [%]."
           },
-          "bev_charge_efficiency": {
+          "bev_charging_efficiency": {
             "anyOf": [
               {
                 "type": "number"
@@ -2287,10 +2287,10 @@
                 "type": "null"
               }
             ],
-            "title": "Bev Charge Efficiency",
+            "title": "Bev Charging Efficiency",
             "description": "Battery Electric Vehicle charging efficiency [%]."
           },
-          "bev_discharge_efficiency": {
+          "bev_discharging_efficiency": {
             "anyOf": [
               {
                 "type": "number"
@@ -2299,10 +2299,10 @@
                 "type": "null"
               }
             ],
-            "title": "Bev Discharge Efficiency",
+            "title": "Bev Discharging Efficiency",
             "description": "Battery Electric Vehicle discharging efficiency [%]."
           },
-          "bev_charge_power_max": {
+          "bev_max_charging_power": {
             "anyOf": [
               {
                 "type": "integer"
@@ -2311,7 +2311,7 @@
                 "type": "null"
               }
             ],
-            "title": "Bev Charge Power Max",
+            "title": "Bev Max Charging Power",
             "description": "Battery Electric Vehicle maximum charge power [W]."
           },
           "dishwasher_provider": {
@@ -4572,7 +4572,7 @@
             "title": "Battery Capacity",
             "description": "Battery capacity [Wh]."
           },
-          "battery_soc_start": {
+          "battery_initial_soc": {
             "anyOf": [
               {
                 "type": "integer"
@@ -4581,7 +4581,7 @@
                 "type": "null"
               }
             ],
-            "title": "Battery Soc Start",
+            "title": "Battery Initial Soc",
             "description": "Battery initial state of charge [%]."
           },
           "battery_soc_min": {
@@ -4608,7 +4608,7 @@
             "title": "Battery Soc Max",
             "description": "Battery maximum state of charge [%]."
           },
-          "battery_charge_efficiency": {
+          "battery_charging_efficiency": {
             "anyOf": [
               {
                 "type": "number"
@@ -4617,10 +4617,10 @@
                 "type": "null"
               }
             ],
-            "title": "Battery Charge Efficiency",
+            "title": "Battery Charging Efficiency",
             "description": "Battery charging efficiency [%]."
           },
-          "battery_discharge_efficiency": {
+          "battery_discharging_efficiency": {
             "anyOf": [
               {
                 "type": "number"
@@ -4629,10 +4629,10 @@
                 "type": "null"
               }
             ],
-            "title": "Battery Discharge Efficiency",
+            "title": "Battery Discharging Efficiency",
             "description": "Battery discharging efficiency [%]."
           },
-          "battery_charge_power_max": {
+          "battery_max_charging_power": {
             "anyOf": [
               {
                 "type": "integer"
@@ -4641,7 +4641,7 @@
                 "type": "null"
               }
             ],
-            "title": "Battery Charge Power Max",
+            "title": "Battery Max Charging Power",
             "description": "Battery maximum charge power [W]."
           },
           "bev_provider": {
@@ -4668,7 +4668,7 @@
             "title": "Bev Capacity",
             "description": "Battery Electric Vehicle capacity [Wh]."
           },
-          "bev_soc_start": {
+          "bev_initial_soc": {
             "anyOf": [
               {
                 "type": "integer"
@@ -4677,7 +4677,7 @@
                 "type": "null"
               }
             ],
-            "title": "Bev Soc Start",
+            "title": "Bev Initial Soc",
             "description": "Battery Electric Vehicle initial state of charge [%]."
           },
           "bev_soc_max": {
@@ -4692,7 +4692,7 @@
             "title": "Bev Soc Max",
             "description": "Battery Electric Vehicle maximum state of charge [%]."
           },
-          "bev_charge_efficiency": {
+          "bev_charging_efficiency": {
             "anyOf": [
               {
                 "type": "number"
@@ -4701,10 +4701,10 @@
                 "type": "null"
               }
             ],
-            "title": "Bev Charge Efficiency",
+            "title": "Bev Charging Efficiency",
             "description": "Battery Electric Vehicle charging efficiency [%]."
           },
-          "bev_discharge_efficiency": {
+          "bev_discharging_efficiency": {
             "anyOf": [
               {
                 "type": "number"
@@ -4713,10 +4713,10 @@
                 "type": "null"
               }
             ],
-            "title": "Bev Discharge Efficiency",
+            "title": "Bev Discharging Efficiency",
             "description": "Battery Electric Vehicle discharging efficiency [%]."
           },
-          "bev_charge_power_max": {
+          "bev_max_charging_power": {
             "anyOf": [
               {
                 "type": "integer"
@@ -4725,7 +4725,7 @@
                 "type": "null"
               }
             ],
-            "title": "Bev Charge Power Max",
+            "title": "Bev Max Charging Power",
             "description": "Battery Electric Vehicle maximum charge power [W]."
           },
           "dishwasher_provider": {

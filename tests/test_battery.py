@@ -6,7 +6,7 @@ from akkudoktoreos.devices.battery import BaseBatteryParameters, Battery
 @pytest.fixture
 def setup_pv_battery():
     params = BaseBatteryParameters(
-        capacity_wh=10000, initial_soc_percentage=50, min_soc_percent=20, max_soc_percent=80
+        capacity_wh=10000, initial_soc_percentage=50, min_soc_percentage=20, max_soc_percentage=80
     )
     battery = Battery(params, hours=24)
     battery.reset()
@@ -24,7 +24,7 @@ def test_battery_discharge_below_min_soc(setup_pv_battery):
 
     # Ensure it discharges energy and stops at the min SOC
     assert discharged_wh > 0
-    assert battery.current_soc_percentage() >= 20  # Ensure it's above min_soc_percent
+    assert battery.current_soc_percentage() >= 20  # Ensure it's above min_soc_percentage
     assert loss_wh >= 0  # Losses should not be negative
     assert discharged_wh == 2640.0, "The energy discharged should be limited by min_soc"
 
@@ -35,7 +35,7 @@ def test_battery_charge_above_max_soc(setup_pv_battery):
 
     # Ensure it charges energy and stops at the max SOC
     assert charged_wh > 0
-    assert battery.current_soc_percentage() <= 80  # Ensure it's below max_soc_percent
+    assert battery.current_soc_percentage() <= 80  # Ensure it's below max_soc_percentage
     assert loss_wh >= 0  # Losses should not be negative
     assert charged_wh == 3000.0, "The energy charged should be limited by max_soc"
 

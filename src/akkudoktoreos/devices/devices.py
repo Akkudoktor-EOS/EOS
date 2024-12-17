@@ -25,7 +25,7 @@ class DevicesCommonSettings(SettingsBaseModel):
         default=None, description="Id of Battery simulation provider."
     )
     battery_capacity: Optional[int] = Field(default=None, description="Battery capacity [Wh].")
-    battery_soc_start: Optional[int] = Field(
+    battery_initial_soc: Optional[int] = Field(
         default=None, description="Battery initial state of charge [%]."
     )
     battery_soc_min: Optional[int] = Field(
@@ -34,13 +34,13 @@ class DevicesCommonSettings(SettingsBaseModel):
     battery_soc_max: Optional[int] = Field(
         default=None, description="Battery maximum state of charge [%]."
     )
-    battery_charge_efficiency: Optional[float] = Field(
+    battery_charging_efficiency: Optional[float] = Field(
         default=None, description="Battery charging efficiency [%]."
     )
-    battery_discharge_efficiency: Optional[float] = Field(
+    battery_discharging_efficiency: Optional[float] = Field(
         default=None, description="Battery discharging efficiency [%]."
     )
-    battery_charge_power_max: Optional[int] = Field(
+    battery_max_charging_power: Optional[int] = Field(
         default=None, description="Battery maximum charge power [W]."
     )
 
@@ -52,19 +52,19 @@ class DevicesCommonSettings(SettingsBaseModel):
     bev_capacity: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle capacity [Wh]."
     )
-    bev_soc_start: Optional[int] = Field(
+    bev_initial_soc: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle initial state of charge [%]."
     )
     bev_soc_max: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle maximum state of charge [%]."
     )
-    bev_charge_efficiency: Optional[float] = Field(
+    bev_charging_efficiency: Optional[float] = Field(
         default=None, description="Battery Electric Vehicle charging efficiency [%]."
     )
-    bev_discharge_efficiency: Optional[float] = Field(
+    bev_discharging_efficiency: Optional[float] = Field(
         default=None, description="Battery Electric Vehicle discharging efficiency [%]."
     )
-    bev_charge_power_max: Optional[int] = Field(
+    bev_max_charging_power: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle maximum charge power [W]."
     )
 

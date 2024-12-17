@@ -116,7 +116,7 @@ class Battery(DeviceBase):
 
         self.parameters = parameters
         if hours is None:
-            self.hours = self.total_hours
+            self.hours = self.total_hours  # TODO where does that come from?
         else:
             self.hours = hours
 
@@ -134,24 +134,26 @@ class Battery(DeviceBase):
         if self.provider_id:
             # Setup from configuration
             self.capacity_wh = getattr(self.config, f"{self.prefix}_capacity")
-            self.initial_soc_percentage = getattr(self.config, f"{self.prefix}_soc_start")
+            self.initial_soc_percentage = getattr(self.config, f"{self.prefix}_initial_soc")
             self.hours = self.total_hours
             self.charging_efficiency = getattr(self.config, f"{self.prefix}_charging_efficiency")
             self.discharging_efficiency = getattr(
                 self.config, f"{self.prefix}_discharging_efficiency"
             )
-            self.max_charge_power_w = getattr(
-                self.config, f"{self.prefix}_charge_power_max"
-            )  # TODO rename cfg value to _max_charging_power
+            self.max_charge_power_w = getattr(self.config, f"{self.prefix}_max_charging_power")
 
             if self.provider_id == "GenericBattery":
                 self.min_soc_percentage = getattr(
-                    self.config, f"{self.prefix}_soc_mint"
-                )  # TODO mint?
+                    self.config,
+                    f"{self.prefix}_soc_min",
+                )
             else:
                 self.min_soc_percentage = 0
 
-            self.max_soc_percentage = getattr(self.config, f"{self.prefix}_soc_mint")  # TODO mint?
+            self.max_soc_percentage = getattr(
+                self.config,
+                f"{self.prefix}_soc_max",
+            )
         elif self.parameters:
             # Setup from parameters
             self.capacity_wh = self.parameters.capacity_wh
@@ -254,7 +256,7 @@ class Battery(DeviceBase):
     ) -> tuple[float, float]:
         """Charges energy into the battery."""
         if hour is not None and self.charge_array[hour] == 0:
-            return 0.0, 0.0
+            return 0.0, 0.0  # Charging not allowed in this hour
 
         if relative_power > 0.0:
             wh = self.max_charge_power_w * relative_power
