@@ -1,4 +1,5 @@
 # Set the backend for matplotlib to Agg
+from pathlib import Path
 from typing import Any, Optional
 
 import matplotlib
@@ -30,10 +31,16 @@ def visualisiere_ergebnisse(
     # 24-hour visualization
     #####################
     config = get_config()
-    output_dir = config.data_output_path
+
+    output_file = Path(filename)
+    if output_file.is_absolute():
+        output_dir = output_file.parent
+    else:
+        assert config.data_output_path is not None
+        output_dir = config.data_output_path
+        output_file = output_dir.joinpath(filename)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    output_file = output_dir.joinpath(filename)
     with PdfPages(output_file) as pdf:
         # Load and PV generation
         plt.figure(figsize=(14, 14))
