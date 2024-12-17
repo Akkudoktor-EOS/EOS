@@ -2,7 +2,7 @@ from typing import Optional, Tuple
 
 from pydantic import BaseModel, Field
 
-from akkudoktoreos.devices.battery import PVAkku
+from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.devicesabc import DeviceBase
 from akkudoktoreos.utils.logutil import get_logger
 
@@ -17,7 +17,7 @@ class Inverter(DeviceBase):
     def __init__(
         self,
         parameters: Optional[InverterParameters] = None,
-        akku: Optional[PVAkku] = None,
+        akku: Optional[Battery] = None,
         provider_id: Optional[str] = None,
     ):
         # Configuration initialisation

@@ -8,7 +8,7 @@ from typing_extensions import Self
 
 from akkudoktoreos.core.coreabc import ConfigMixin, PredictionMixin, SingletonMixin
 from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.devices.battery import PVAkku
+from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.generic import HomeAppliance
 from akkudoktoreos.devices.inverter import Inverter
 from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -152,8 +152,8 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
     # TODO: Move to devices
     # -------------------------
 
-    akku: Optional[PVAkku] = Field(default=None, description="TBD.")
-    eauto: Optional[PVAkku] = Field(default=None, description="TBD.")
+    akku: Optional[Battery] = Field(default=None, description="TBD.")
+    eauto: Optional[Battery] = Field(default=None, description="TBD.")
     home_appliance: Optional[HomeAppliance] = Field(default=None, description="TBD.")
     inverter: Optional[Inverter] = Field(default=None, description="TBD.")
 
@@ -168,7 +168,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
     def set_parameters(
         self,
         parameters: EnergieManagementSystemParameters,
-        eauto: Optional[PVAkku] = None,
+        eauto: Optional[Battery] = None,
         home_appliance: Optional[HomeAppliance] = None,
         inverter: Optional[Inverter] = None,
     ) -> None:

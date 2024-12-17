@@ -13,10 +13,10 @@ from akkudoktoreos.core.coreabc import (
 )
 from akkudoktoreos.core.ems import EnergieManagementSystemParameters, SimulationResult
 from akkudoktoreos.devices.battery import (
-    EAutoParameters,
-    EAutoResult,
-    PVAkku,
-    PVAkkuParameters,
+    BaseBatteryParameters,
+    Battery,
+    ElectricVehicleParameters,
+    ElectricVehicleResult,
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
@@ -26,9 +26,9 @@ from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 class OptimizationParameters(BaseModel):
     ems: EnergieManagementSystemParameters
-    pv_akku: PVAkkuParameters
+    pv_akku: BaseBatteryParameters
     inverter: InverterParameters = InverterParameters()
-    eauto: Optional[EAutoParameters]
+    eauto: Optional[ElectricVehicleParameters]
     dishwasher: Optional[HomeApplianceParameters] = None
     temperature_forecast: Optional[list[float]] = Field(
         default=None,
@@ -68,7 +68,7 @@ class OptimizeResponse(BaseModel):
     )
     eautocharge_hours_float: Optional[list[float]] = Field(description="TBD")
     result: SimulationResult
-    eauto_obj: Optional[EAutoResult]
+    eauto_obj: Optional[ElectricVehicleResult]
     start_solution: Optional[list[float]] = Field(
         default=None,
         description="An array of binary values (0 or 1) representing a possible starting solution for the simulation.",
@@ -92,8 +92,8 @@ class OptimizeResponse(BaseModel):
         mode="before",
     )
     def convert_eauto(cls, field: Any) -> Any:
-        if isinstance(field, PVAkku):
-            return EAutoResult(**field.to_dict())
+        if isinstance(field, Battery):
+            return ElectricVehicleResult(**field.to_dict())
         return field
 
 
@@ -458,15 +458,15 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         )
 
         # Initialize PV and EV batteries
-        akku = PVAkku(
+        akku = Battery(
             parameters.pv_akku,
             hours=self.config.prediction_hours,
         )
         akku.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
 
-        eauto: Optional[PVAkku] = None
+        eauto: Optional[Battery] = None
         if parameters.eauto:
-            eauto = PVAkku(
+            eauto = Battery(
                 parameters.eauto,
                 hours=self.config.prediction_hours,
             )

@@ -6,7 +6,7 @@ from pydantic import Field, computed_field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
-from akkudoktoreos.devices.battery import PVAkku
+from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.devicesabc import DevicesBase
 from akkudoktoreos.devices.generic import HomeAppliance
 from akkudoktoreos.devices.inverter import Inverter
@@ -159,8 +159,8 @@ class Devices(SingletonMixin, DevicesBase):
     # Devices
     # TODO: Make devices class a container of device simulation providers.
     #       Device simulations to be used are then enabled in the configuration.
-    akku: ClassVar[PVAkku] = PVAkku(provider_id="GenericBattery")
-    eauto: ClassVar[PVAkku] = PVAkku(provider_id="GenericBEV")
+    akku: ClassVar[Battery] = Battery(provider_id="GenericBattery")
+    eauto: ClassVar[Battery] = Battery(provider_id="GenericBEV")
     home_appliance: ClassVar[HomeAppliance] = HomeAppliance(provider_id="GenericDishWasher")
     inverter: ClassVar[Inverter] = Inverter(akku=akku, provider_id="GenericInverter")
 

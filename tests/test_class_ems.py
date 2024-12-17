@@ -8,7 +8,11 @@ from akkudoktoreos.core.ems import (
     SimulationResult,
     get_ems,
 )
-from akkudoktoreos.devices.battery import EAutoParameters, PVAkku, PVAkkuParameters
+from akkudoktoreos.devices.battery import (
+    BaseBatteryParameters,
+    Battery,
+    ElectricVehicleParameters,
+)
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
 
@@ -25,8 +29,8 @@ def create_ems_instance() -> EnergieManagementSystem:
     assert config_eos.prediction_hours is not None
 
     # Initialize the battery and the inverter
-    akku = PVAkku(
-        PVAkkuParameters(kapazitaet_wh=5000, start_soc_prozent=80, min_soc_prozent=10),
+    akku = Battery(
+        BaseBatteryParameters(kapazitaet_wh=5000, start_soc_prozent=80, min_soc_prozent=10),
         hours=config_eos.prediction_hours,
     )
     akku.reset()
@@ -43,8 +47,8 @@ def create_ems_instance() -> EnergieManagementSystem:
     home_appliance.set_starting_time(2)
 
     # Example initialization of electric car battery
-    eauto = PVAkku(
-        EAutoParameters(kapazitaet_wh=26400, start_soc_prozent=10, min_soc_prozent=10),
+    eauto = Battery(
+        ElectricVehicleParameters(kapazitaet_wh=26400, start_soc_prozent=10, min_soc_prozent=10),
         hours=config_eos.prediction_hours,
     )
     eauto.set_charge_per_hour(np.full(config_eos.prediction_hours, 1))
