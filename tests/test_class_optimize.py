@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from akkudoktoreos.config.config import get_config
+from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     OptimizeResponse,
@@ -37,10 +37,15 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
         ("optimize_input_2.json", "optimize_result_2_full.json", 400),
     ],
 )
-def test_optimize(fn_in: str, fn_out: str, ngen: int, is_full_run: bool):
+def test_optimize(
+    fn_in: str,
+    fn_out: str,
+    ngen: int,
+    config_eos: ConfigEOS,
+    is_full_run: bool,
+):
     """Test optimierung_ems."""
     # Assure configuration holds the correct values
-    config_eos = get_config()
     config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
 
     # Load input and output data
@@ -69,7 +74,9 @@ def test_optimize(fn_in: str, fn_out: str, ngen: int, is_full_run: bool):
 
         # Write test output pdf to file, so we can look at it manually
         kwargs["filename"] = visualize_filename
-        return visualisiere_ergebnisse(*args, **kwargs)
+        # Patch get_config until visualize is ConfigMixin
+        with patch("akkudoktoreos.visualize.get_config", return_value=config_eos):
+            return visualisiere_ergebnisse(*args, **kwargs)
 
     with patch(
         "akkudoktoreos.optimization.genetic.visualisiere_ergebnisse", side_effect=visualize_to_file
@@ -93,3 +100,4 @@ def test_optimize(fn_in: str, fn_out: str, ngen: int, is_full_run: bool):
 
         # The function creates a visualization result PDF as a side-effect.
         visualisiere_ergebnisse_patch.assert_called_once()
+        assert Path(visualize_filename).exists()

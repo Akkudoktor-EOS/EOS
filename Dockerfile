@@ -9,6 +9,7 @@ ENV MPLCONFIGDIR="/tmp/mplconfigdir"
 ENV EOS_DIR="/opt/eos"
 ENV EOS_CACHE_DIR="${EOS_DIR}/cache"
 ENV EOS_OUTPUT_DIR="${EOS_DIR}/output"
+ENV EOS_CONFIG_DIR="${EOS_DIR}/config"
 
 WORKDIR ${EOS_DIR}
 
@@ -18,7 +19,9 @@ RUN adduser --system --group --no-create-home eos \
     && mkdir -p "${EOS_CACHE_DIR}" \
     && chown eos "${EOS_CACHE_DIR}" \
     && mkdir -p "${EOS_OUTPUT_DIR}" \
-    && chown eos "${EOS_OUTPUT_DIR}"
+    && chown eos "${EOS_OUTPUT_DIR}" \
+    && mkdir -p "${EOS_CONFIG_DIR}" \
+    && chown eos "${EOS_CONFIG_DIR}"
 
 COPY requirements.txt .
 
@@ -34,4 +37,4 @@ EXPOSE 8503
 
 CMD ["python", "-m", "akkudoktoreos.server.fastapi_server"]
 
-VOLUME ["${MPLCONFIGDIR}", "${EOS_CACHE_DIR}", "${EOS_OUTPUT_DIR}"]
+VOLUME ["${MPLCONFIGDIR}", "${EOS_CACHE_DIR}", "${EOS_OUTPUT_DIR}", "${EOS_CONFIG_DIR}"]

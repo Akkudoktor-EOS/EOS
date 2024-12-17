@@ -94,18 +94,28 @@ def fastapi_prediction_keys() -> list[str]:
 @app.get("/prediction")
 def fastapi_prediction(key: str) -> list[Union[float | str]]:
     """Get the current configuration."""
-    values = prediction_eos[key].to_list()
-    return values
+    if (provider := prediction_eos.get(key)) is not None:
+        return provider.to_list()
+    raise HTTPException(status_code=404, detail=f"Prediction not available: {key}")
 
 
 @app.get("/strompreis")
 def fastapi_strompreis() -> list[float]:
     # Get the current date and the end date based on prediction hours
-    marketprice_series = prediction_eos["elecprice_marketprice"]
+    prediction_key = "elecprice_marketprice"
+    marketprice_series = prediction_eos.get(prediction_key)
+
+    if marketprice_series is None:
+        raise HTTPException(status_code=404, detail=f"Prediction not available: {prediction_key}")
+
     # Fetch prices for the specified date range
-    specific_date_prices = marketprice_series.loc[
-        prediction_eos.start_datetime : prediction_eos.end_datetime
-    ]
+    # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
+    if len(marketprice_series) == 0:
+        specific_date_prices = pd.Series()
+    else:
+        specific_date_prices = marketprice_series.loc[
+            prediction_eos.start_datetime : prediction_eos.end_datetime
+        ]
     return specific_date_prices.tolist()
 
 
@@ -202,20 +212,37 @@ class ForecastResponse(PydanticBaseModel):
 
 
 @app.get("/pvforecast")
-def fastapi_pvprognose(ac_power_measurement: Optional[float] = None) -> ForecastResponse:
+def fastapi_pvforecast() -> ForecastResponse:
     ###############
     # PV Forecast
     ###############
-    pvforecast_ac_power = prediction_eos["pvforecast_ac_power"]
-    # Fetch prices for the specified date range
-    pvforecast_ac_power = pvforecast_ac_power.loc[
-        prediction_eos.start_datetime : prediction_eos.end_datetime
-    ]
-    pvforecastakkudoktor_temp_air = prediction_eos["pvforecastakkudoktor_temp_air"]
-    # Fetch prices for the specified date range
-    pvforecastakkudoktor_temp_air = pvforecastakkudoktor_temp_air.loc[
-        prediction_eos.start_datetime : prediction_eos.end_datetime
-    ]
+    prediction_key = "pvforecast_ac_power"
+    pvforecast_ac_power = prediction_eos.get(prediction_key)
+    if pvforecast_ac_power is None:
+        raise HTTPException(status_code=404, detail=f"Prediction not available: {prediction_key}")
+
+    # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
+    if len(pvforecast_ac_power) == 0:
+        pvforecast_ac_power = pd.Series()
+    else:
+        # Fetch prices for the specified date range
+        pvforecast_ac_power = pvforecast_ac_power.loc[
+            prediction_eos.start_datetime : prediction_eos.end_datetime
+        ]
+
+    prediction_key = "pvforecastakkudoktor_temp_air"
+    pvforecastakkudoktor_temp_air = prediction_eos.get(prediction_key)
+    if pvforecastakkudoktor_temp_air is None:
+        raise HTTPException(status_code=404, detail=f"Prediction not available: {prediction_key}")
+
+    # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
+    if len(pvforecastakkudoktor_temp_air) == 0:
+        pvforecastakkudoktor_temp_air = pd.Series()
+    else:
+        # Fetch prices for the specified date range
+        pvforecastakkudoktor_temp_air = pvforecastakkudoktor_temp_air.loc[
+            prediction_eos.start_datetime : prediction_eos.end_datetime
+        ]
 
     # Return both forecasts as a JSON response
     return ForecastResponse(
@@ -247,8 +274,8 @@ def fastapi_optimize(
 def get_pdf() -> PdfResponse:
     # Endpoint to serve the generated PDF with visualization results
     output_path = config_eos.data_output_path
-    if not output_path.is_dir():
-        raise ValueError(f"Output path does not exist: {output_path}.")
+    if output_path is None or not output_path.is_dir():
+        raise HTTPException(status_code=404, detail=f"Output path does not exist: {output_path}.")
     file_path = output_path / "visualization_results.pdf"
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="No visualization result available.")
