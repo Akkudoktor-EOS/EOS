@@ -6,7 +6,7 @@ from akkudoktoreos.devices.battery import BaseBatteryParameters, Battery
 @pytest.fixture
 def setup_pv_battery():
     params = BaseBatteryParameters(
-        capacity_wh=10000, initial_soc_percent=50, min_soc_percent=20, max_soc_percent=80
+        capacity_wh=10000, initial_soc_percentage=50, min_soc_percent=20, max_soc_percent=80
     )
     battery = Battery(params, hours=24)
     battery.reset()

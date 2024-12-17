@@ -28,13 +28,13 @@ class BaseBatteryParameters(BaseModel):
     capacity_wh: int = Field(
         gt=0, description="An integer representing the capacity of the battery in watt-hours."
     )
-    charge_efficiency: float = Field(
+    charging_efficiency: float = Field(
         default=0.88,
         gt=0,
         le=1,
         description="A float representing the charging efficiency of the battery.",
     )
-    discharge_efficiency: float = Field(
+    discharging_efficiency: float = Field(
         default=0.88,
         gt=0,
         le=1,
@@ -65,7 +65,7 @@ class SolarPanelBatteryParameters(BaseBatteryParameters):
 class ElectricVehicleParameters(BaseBatteryParameters):
     """Parameters specific to an electric vehicle (EV)."""
 
-    discharge_efficiency: float = 1.0
+    discharging_efficiency: float = 1.0
     initial_soc_percentage: int = initial_soc_percentage_field(
         "An integer representing the current state of charge (SOC) of the battery in percentage."
     )
@@ -80,10 +80,10 @@ class ElectricVehicleResult(BaseModel):
     discharge_array: list[int] = Field(
         description="Hourly discharging status (0 for no discharging, 1 for discharging)."
     )
-    discharge_efficiency: float = Field(description="The discharge efficiency as a float..")
+    discharging_efficiency: float = Field(description="The discharge efficiency as a float..")
     hours: int = Field(description="Number of hours in the simulation.")
     capacity_wh: int = Field(description="Capacity of the EV’s battery in watt-hours.")
-    charge_efficiency: float = Field(description="Charging efficiency as a float..")
+    charging_efficiency: float = Field(description="Charging efficiency as a float..")
     max_charge_power_w: int = Field(description="Maximum charging power in watts.")
     soc_wh: float = Field(
         description="State of charge of the battery in watt-hours at the start of the simulation."
@@ -136,8 +136,10 @@ class Battery(DeviceBase):
             self.capacity_wh = getattr(self.config, f"{self.prefix}_capacity")
             self.initial_soc_percentage = getattr(self.config, f"{self.prefix}_soc_start")
             self.hours = self.total_hours
-            self.charge_efficiency = getattr(self.config, f"{self.prefix}_charge_efficiency")
-            self.discharge_efficiency = getattr(self.config, f"{self.prefix}_discharge_efficiency")
+            self.charging_efficiency = getattr(self.config, f"{self.prefix}_charging_efficiency")
+            self.discharging_efficiency = getattr(
+                self.config, f"{self.prefix}_discharging_efficiency"
+            )
             self.max_charge_power_w = getattr(
                 self.config, f"{self.prefix}_charge_power_max"
             )  # TODO rename cfg value to _max_charging_power
@@ -154,8 +156,8 @@ class Battery(DeviceBase):
             # Setup from parameters
             self.capacity_wh = self.parameters.capacity_wh
             self.initial_soc_percentage = self.parameters.initial_soc_percentage
-            self.charge_efficiency = self.parameters.charge_efficiency
-            self.discharge_efficiency = self.parameters.discharge_efficiency
+            self.charging_efficiency = self.parameters.charging_efficiency
+            self.discharging_efficiency = self.parameters.discharging_efficiency
             self.max_charge_power_w = self.parameters.max_charge_power_w
             self.min_soc_percentage = (
                 self.parameters.min_soc_percentage
@@ -170,7 +172,7 @@ class Battery(DeviceBase):
 
         # Initialize state of charge
         if self.max_charge_power_w is None:
-            self.max_charge_power_w = self.capacity_wh
+            self.max_charge_power_w = self.capacity_wh  # TODO this should not be equal capacity_wh
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
@@ -188,14 +190,14 @@ class Battery(DeviceBase):
             "hours": self.hours,
             "discharge_array": self.discharge_array,
             "charge_array": self.charge_array,
-            "charge_efficiency": self.charge_efficiency,
-            "discharge_efficiency": self.discharge_efficiency,
+            "charging_efficiency": self.charging_efficiency,
+            "discharging_efficiency": self.discharging_efficiency,
             "max_charge_power_w": self.max_charge_power_w,
         }
 
     def reset(self) -> None:
         """Resets the battery state to its initial values."""
-        self.soc_wh = self._calculate_soc_wh(self.initial_soc_percent)
+        self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
         self.soc_wh = min(max(self.soc_wh, self.min_soc_wh), self.max_soc_wh)
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
@@ -227,15 +229,17 @@ class Battery(DeviceBase):
         if self.discharge_array[hour] == 0:
             return 0.0, 0.0
 
-        max_possible_discharge_wh = (self.soc_wh - self.min_soc_wh) * self.discharge_efficiency
+        max_possible_discharge_wh = (self.soc_wh - self.min_soc_wh) * self.discharging_efficiency
         max_possible_discharge_wh = max(max_possible_discharge_wh, 0.0)
 
-        max_possible_discharge_wh = min(max_possible_discharge_wh, self.max_charge_power_w)  # why??
+        max_possible_discharge_wh = min(
+            max_possible_discharge_wh, self.max_charge_power_w
+        )  # TODO make a new cfg variable max_discharge_power_w
 
         actual_discharge_wh = min(wh, max_possible_discharge_wh)
         actual_withdrawal_wh = (
-            actual_discharge_wh / self.discharge_efficiency
-            if self.discharge_efficiency > 0
+            actual_discharge_wh / self.discharging_efficiency
+            if self.discharging_efficiency > 0
             else 0.0
         )
 
@@ -275,5 +279,5 @@ class Battery(DeviceBase):
 
     def current_energy_content(self) -> float:
         """Returns the current usable energy in the battery."""
-        usable_energy = (self.soc_wh - self.min_soc_wh) * self.discharge_efficiency
+        usable_energy = (self.soc_wh - self.min_soc_wh) * self.discharging_efficiency
         return max(usable_energy, 0.0)

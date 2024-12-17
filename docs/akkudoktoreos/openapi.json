@@ -519,19 +519,19 @@
             "title": "Capacity Wh",
             "description": "An integer representing the capacity of the battery in watt-hours."
           },
-          "charge_efficiency": {
+          "charging_efficiency": {
             "type": "number",
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
-            "title": "Charge Efficiency",
+            "title": "Charging Efficiency",
             "description": "A float representing the charging efficiency of the battery.",
             "default": 0.88
           },
-          "discharge_efficiency": {
+          "discharging_efficiency": {
             "type": "number",
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
-            "title": "Discharge Efficiency",
+            "title": "Discharging Efficiency",
             "description": "A float representing the discharge efficiency of the battery.",
             "default": 0.88
           },
@@ -2560,17 +2560,17 @@
             "title": "Capacity Wh",
             "description": "An integer representing the capacity of the battery in watt-hours."
           },
-          "charge_efficiency": {
+          "charging_efficiency": {
             "type": "number",
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
-            "title": "Charge Efficiency",
+            "title": "Charging Efficiency",
             "description": "A float representing the charging efficiency of the battery.",
             "default": 0.88
           },
-          "discharge_efficiency": {
+          "discharging_efficiency": {
             "type": "number",
-            "title": "Discharge Efficiency",
+            "title": "Discharging Efficiency",
             "default": 1.0
           },
           "max_charge_power_w": {
@@ -2634,9 +2634,9 @@
             "title": "Discharge Array",
             "description": "Hourly discharging status (0 for no discharging, 1 for discharging)."
           },
-          "discharge_efficiency": {
+          "discharging_efficiency": {
             "type": "number",
-            "title": "Discharge Efficiency",
+            "title": "Discharging Efficiency",
             "description": "The discharge efficiency as a float.."
           },
           "hours": {
@@ -2649,9 +2649,9 @@
             "title": "Capacity Wh",
             "description": "Capacity of the EV\u2019s battery in watt-hours."
           },
-          "charge_efficiency": {
+          "charging_efficiency": {
             "type": "number",
-            "title": "Charge Efficiency",
+            "title": "Charging Efficiency",
             "description": "Charging efficiency as a float.."
           },
           "max_charge_power_w": {
@@ -2674,10 +2674,10 @@
         "required": [
           "charge_array",
           "discharge_array",
-          "discharge_efficiency",
+          "discharging_efficiency",
           "hours",
           "capacity_wh",
-          "charge_efficiency",
+          "charging_efficiency",
           "max_charge_power_w",
           "soc_wh",
           "initial_soc_percentage"

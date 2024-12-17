@@ -132,7 +132,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
             "eauto": {
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,
-                "charge_efficiency": 0.95,
+                "charging_efficiency": 0.95,
                 "max_charge_power_w": 11040,
                 "initial_soc_percentage": 5,
             },
@@ -283,7 +283,7 @@ def prepare_optimization_parameters() -> OptimizationParameters:
             "eauto": {
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,
-                "charge_efficiency": 0.95,
+                "charging_efficiency": 0.95,
                 "max_charge_power_w": 11040,
                 "initial_soc_percentage": 5,
             },
