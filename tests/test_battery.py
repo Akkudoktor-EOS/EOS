@@ -24,6 +24,7 @@ def test_battery_discharge_below_min_soc(setup_pv_battery):
 
     # Ensure it discharges energy and stops at the min SOC
     assert discharged_wh > 0
+    print(discharged_wh, loss_wh, battery.current_soc_percentage(), battery.min_soc_percentage)
     assert battery.current_soc_percentage() >= 20  # Ensure it's above min_soc_percentage
     assert loss_wh >= 0  # Losses should not be negative
     assert discharged_wh == 2640.0, "The energy discharged should be limited by min_soc"

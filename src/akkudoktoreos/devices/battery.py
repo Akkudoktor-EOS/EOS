@@ -135,7 +135,7 @@ class Battery(DeviceBase):
             # Setup from configuration
             self.capacity_wh = getattr(self.config, f"{self.prefix}_capacity")
             self.initial_soc_percentage = getattr(self.config, f"{self.prefix}_initial_soc")
-            self.hours = self.total_hours
+            self.hours = self.total_hours  # TODO where does that come from?
             self.charging_efficiency = getattr(self.config, f"{self.prefix}_charging_efficiency")
             self.discharging_efficiency = getattr(
                 self.config, f"{self.prefix}_discharging_efficiency"
@@ -153,7 +153,7 @@ class Battery(DeviceBase):
             self.max_soc_percentage = getattr(
                 self.config,
                 f"{self.prefix}_soc_max",
-            )
+            )  # TODO set to 100 if not there
         elif self.parameters:
             # Setup from parameters
             self.capacity_wh = self.parameters.capacity_wh
@@ -161,6 +161,7 @@ class Battery(DeviceBase):
             self.charging_efficiency = self.parameters.charging_efficiency
             self.discharging_efficiency = self.parameters.discharging_efficiency
             self.max_charge_power_w = self.parameters.max_charge_power_w
+            # Only assign for storage battery
             self.min_soc_percentage = (
                 self.parameters.min_soc_percentage
                 if isinstance(self.parameters, SolarPanelBatteryParameters)
