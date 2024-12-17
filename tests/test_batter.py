@@ -1,6 +1,6 @@
 import pytest
 
-from akkudoktoreos.devices.battery import Battery, BaseBatteryParameters
+from akkudoktoreos.devices.battery import BaseBatteryParameters, Battery
 
 
 @pytest.fixture
