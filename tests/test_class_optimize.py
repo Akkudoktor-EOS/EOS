@@ -37,7 +37,13 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
         ("optimize_input_2.json", "optimize_result_2_full.json", 400),
     ],
 )
-def test_optimize(fn_in: str, fn_out: str, ngen: int, config_eos: ConfigEOS, is_full_run: bool):
+def test_optimize(
+    fn_in: str,
+    fn_out: str,
+    ngen: int,
+    config_eos: ConfigEOS,
+    is_full_run: bool,
+):
     """Test optimierung_ems."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
@@ -94,3 +100,4 @@ def test_optimize(fn_in: str, fn_out: str, ngen: int, config_eos: ConfigEOS, is_
 
         # The function creates a visualization result PDF as a side-effect.
         visualisiere_ergebnisse_patch.assert_called_once()
+        assert Path(visualize_filename).exists()
