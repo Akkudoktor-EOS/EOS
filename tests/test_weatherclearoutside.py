@@ -9,7 +9,6 @@ import pvlib
 import pytest
 from bs4 import BeautifulSoup
 
-from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
 from akkudoktoreos.utils.cacheutil import CacheFileStore
@@ -20,12 +19,9 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_HTML = DIR_TESTDATA.joinpath("weatherforecast_clearout_1.html")
 FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA = DIR_TESTDATA.joinpath("weatherforecast_clearout_1.json")
 
-config_eos = get_config()
-ems_eos = get_ems()
-
 
 @pytest.fixture
-def weather_provider():
+def weather_provider(config_eos):
     """Fixture to create a WeatherProvider instance."""
     settings = {
         "weather_provider": "ClearOutside",
@@ -70,7 +66,7 @@ def test_singleton_instance(weather_provider):
     assert weather_provider is another_instance
 
 
-def test_invalid_provider(weather_provider):
+def test_invalid_provider(weather_provider, config_eos):
     """Test requesting an unsupported weather_provider."""
     settings = {
         "weather_provider": "<invalid>",
@@ -79,7 +75,7 @@ def test_invalid_provider(weather_provider):
     assert not weather_provider.enabled()
 
 
-def test_invalid_coordinates(weather_provider):
+def test_invalid_coordinates(weather_provider, config_eos):
     """Test invalid coordinates raise ValueError."""
     settings = {
         "weather_provider": "ClearOutside",
@@ -118,7 +114,7 @@ def test_irridiance_estimate_from_cloud_cover(weather_provider):
 
 
 @patch("requests.get")
-def test_request_forecast(mock_get, weather_provider, sample_clearout_1_html):
+def test_request_forecast(mock_get, weather_provider, sample_clearout_1_html, config_eos):
     """Test fetching forecast from ClearOutside."""
     # Mock response object
     mock_response = Mock()
@@ -149,6 +145,7 @@ def test_update_data(mock_get, weather_provider, sample_clearout_1_html, sample_
     expected_keep = to_datetime("2024-10-24 00:00:00", in_timezone="Europe/Berlin")
 
     # Call the method
+    ems_eos = get_ems()
     ems_eos.set_start_datetime(expected_start)
     weather_provider.update_data()
 

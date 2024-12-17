@@ -290,6 +290,7 @@ class CacheFileStore(ConfigMixin, metaclass=CacheFileStoreMeta):
                 # File already available
                 cache_file_obj = cache_file_item[0]
             else:
+                self.config.data_cache_path.mkdir(parents=True, exist_ok=True)
                 cache_file_obj = tempfile.NamedTemporaryFile(
                     mode=mode, delete=delete, suffix=suffix, dir=self.config.data_cache_path
                 )
