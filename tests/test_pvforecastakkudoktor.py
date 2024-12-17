@@ -4,7 +4,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.prediction.pvforecastakkudoktor import (
@@ -22,12 +21,8 @@ FILE_TESTDATA_PV_FORECAST_INPUT_1 = DIR_TESTDATA.joinpath("pv_forecast_input_1.j
 FILE_TESTDATA_PV_FORECAST_RESULT_1 = DIR_TESTDATA.joinpath("pv_forecast_result_1.txt")
 
 
-config_eos = get_config()
-ems_eos = get_ems()
-
-
 @pytest.fixture
-def sample_settings(reset_config):
+def sample_settings(config_eos):
     """Fixture that adds settings data to the global config."""
     settings = {
         "prediction_hours": 48,
@@ -223,6 +218,7 @@ def test_pvforecast_akkudoktor_update_with_sample_forecast(
     mock_get.return_value = mock_response
 
     # Test that update properly inserts data records
+    ems_eos = get_ems()
     ems_eos.set_start_datetime(sample_forecast_start)
     provider.update_data(force_enable=True, force_update=True)
     assert compare_datetimes(provider.start_datetime, sample_forecast_start).equal
@@ -230,10 +226,9 @@ def test_pvforecast_akkudoktor_update_with_sample_forecast(
 
 
 # Report Generation Test
-def test_report_ac_power_and_measurement(provider):
+def test_report_ac_power_and_measurement(provider, config_eos):
     # Set the configuration
-    config = get_config()
-    config.merge_settings_from_dict(sample_config_data)
+    config_eos.merge_settings_from_dict(sample_config_data)
 
     record = PVForecastAkkudoktorDataRecord(
         pvforecastakkudoktor_ac_power_measured=900.0,
@@ -275,6 +270,7 @@ def test_timezone_behaviour(
 
     provider.clear()
     assert len(provider) == 0
+    ems_eos = get_ems()
     ems_eos.set_start_datetime(other_start_datetime)
     provider.update_data(force_update=True)
     assert compare_datetimes(provider.start_datetime, other_start_datetime).equal
