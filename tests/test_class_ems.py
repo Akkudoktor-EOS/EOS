@@ -30,7 +30,7 @@ def create_ems_instance() -> EnergieManagementSystem:
 
     # Initialize the battery and the inverter
     akku = Battery(
-        BaseBatteryParameters(kapazitaet_wh=5000, start_soc_prozent=80, min_soc_prozent=10),
+        BaseBatteryParameters(capacity_wh=5000, initial_soc_percentage=80, min_soc_percentage=10),
         hours=config_eos.prediction_hours,
     )
     akku.reset()
@@ -48,7 +48,9 @@ def create_ems_instance() -> EnergieManagementSystem:
 
     # Example initialization of electric car battery
     eauto = Battery(
-        ElectricVehicleParameters(kapazitaet_wh=26400, start_soc_prozent=10, min_soc_prozent=10),
+        ElectricVehicleParameters(
+            capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
+        ),
         hours=config_eos.prediction_hours,
     )
     eauto.set_charge_per_hour(np.full(config_eos.prediction_hours, 1))

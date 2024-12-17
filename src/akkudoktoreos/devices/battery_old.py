@@ -37,7 +37,7 @@ class BaseAkkuParameters(BaseModel):
     start_soc_prozent: int = start_soc_prozent_field(
         "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
     )
-    min_soc_prozent: int = Field(
+    min_soc_percentage: int = Field(
         default=0,
         ge=0,
         le=100,

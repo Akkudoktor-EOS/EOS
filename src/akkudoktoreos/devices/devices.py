@@ -186,9 +186,9 @@ class Devices(SingletonMixin, DevicesBase):
         # Set initial state
         simulation_step = to_duration("1 hour")
         if self.akku:
-            self.akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
+            self.akku_soc_pro_stunde[0] = self.akku.current_soc_percentage()
         if self.eauto:
-            self.eauto_soc_pro_stunde[0] = self.eauto.ladezustand_in_prozent()
+            self.eauto_soc_pro_stunde[0] = self.eauto.current_soc_percentage()
 
         # Get predictions for full device simulation time range
         # gesamtlast[stunde]
@@ -232,12 +232,12 @@ class Devices(SingletonMixin, DevicesBase):
             # E-Auto handling
             if self.eauto:
                 if self.ev_charge_hours[hour] > 0:
-                    geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(
+                    geladene_menge_eauto, verluste_eauto = self.eauto.charge_energy(
                         None, hour, relative_power=self.ev_charge_hours[hour]
                     )
                     consumption += geladene_menge_eauto
                     self.verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
-                self.eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
+                self.eauto_soc_pro_stunde[stunde_since_now] = self.eauto.current_soc_percentage()
 
             # Process inverter logic
             grid_export, grid_import, losses, self_consumption = (0.0, 0.0, 0.0, 0.0)
@@ -252,10 +252,10 @@ class Devices(SingletonMixin, DevicesBase):
             # AC PV Battery Charge
             if self.akku and self.ac_charge_hours[hour] > 0.0:
                 self.akku.set_charge_allowed_for_hour(1, hour)
-                geladene_menge, verluste_wh = self.akku.energie_laden(
+                geladene_menge, verluste_wh = self.akku.charge_energy(
                     None, hour, relative_power=self.ac_charge_hours[hour]
                 )
-                # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.ladezustand_in_prozent())
+                # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.current_soc_percentage())
                 consumption += geladene_menge
                 grid_import += geladene_menge
                 self.verluste_wh_pro_stunde[stunde_since_now] += verluste_wh
@@ -275,7 +275,7 @@ class Devices(SingletonMixin, DevicesBase):
 
             # Akku SOC tracking
             if self.akku:
-                self.akku_soc_pro_stunde[stunde_since_now] = self.akku.ladezustand_in_prozent()
+                self.akku_soc_pro_stunde[stunde_since_now] = self.akku.current_soc_percentage()
             else:
                 self.akku_soc_pro_stunde[stunde_since_now] = 0.0
 

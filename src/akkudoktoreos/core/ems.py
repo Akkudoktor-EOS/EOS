@@ -323,9 +323,9 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
 
         # Set initial state
         if self.akku:
-            akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
+            akku_soc_pro_stunde[0] = self.akku.current_soc_percentage()
         if self.eauto:
-            eauto_soc_pro_stunde[0] = self.eauto.ladezustand_in_prozent()
+            eauto_soc_pro_stunde[0] = self.eauto.current_soc_percentage()
 
         for stunde in range(start_stunde, ende):
             stunde_since_now = stunde - start_stunde
@@ -343,12 +343,12 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             # E-Auto handling
             if self.eauto:
                 if self.ev_charge_hours[stunde] > 0:
-                    geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(
+                    geladene_menge_eauto, verluste_eauto = self.eauto.charge_energy(
                         None, stunde, relative_power=self.ev_charge_hours[stunde]
                     )
                     verbrauch += geladene_menge_eauto
                     verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
-                eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
+                eauto_soc_pro_stunde[stunde_since_now] = self.eauto.current_soc_percentage()
 
             # Process inverter logic
             netzeinspeisung, netzbezug, verluste, eigenverbrauch = (0.0, 0.0, 0.0, 0.0)
@@ -363,10 +363,10 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             # AC PV Battery Charge
             if self.akku and self.ac_charge_hours[stunde] > 0.0:
                 self.akku.set_charge_allowed_for_hour(1, stunde)
-                geladene_menge, verluste_wh = self.akku.energie_laden(
+                geladene_menge, verluste_wh = self.akku.charge_energy(
                     None, stunde, relative_power=self.ac_charge_hours[stunde]
                 )
-                # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.ladezustand_in_prozent())
+                # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.current_soc_percentage())
                 verbrauch += geladene_menge
                 verbrauch += verluste_wh
                 netzbezug += geladene_menge
@@ -388,7 +388,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
 
             # Akku SOC tracking
             if self.akku:
-                akku_soc_pro_stunde[stunde_since_now] = self.akku.ladezustand_in_prozent()
+                akku_soc_pro_stunde[stunde_since_now] = self.akku.current_soc_percentage()
             else:
                 akku_soc_pro_stunde[stunde_since_now] = 0.0
 

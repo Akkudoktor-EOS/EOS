@@ -70,7 +70,7 @@ class Inverter(DeviceBase):
             remaining_energy = generation - actual_consumption
 
             # Charge battery with excess energy
-            charged_energy, charging_losses = self.akku.energie_laden(remaining_energy, hour)
+            charged_energy, charging_losses = self.akku.charge_energy(remaining_energy, hour)
             losses += charging_losses
 
             # Calculate remaining surplus after battery charge
@@ -87,7 +87,7 @@ class Inverter(DeviceBase):
             available_ac_power = max(self.max_power_wh - generation, 0)
 
             # Discharge battery to cover shortfall, if possible
-            battery_discharge, discharge_losses = self.akku.energie_abgeben(
+            battery_discharge, discharge_losses = self.akku.discharge_energy(
                 min(shortfall, available_ac_power), hour
             )
             losses += discharge_losses

@@ -367,7 +367,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         )
 
         # Penalty for not meeting the minimum SOC (State of Charge) requirement
-        # if parameters.eauto_min_soc_prozent - ems.eauto.ladezustand_in_prozent() <= 0.0 and  self.optimize_ev:
+        # if parameters.eauto_min_soc_prozent - ems.eauto.current_soc_percentage() <= 0.0 and  self.optimize_ev:
         #     gesamtbilanz += sum(
         #         self.config.optimization_penalty for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
         #     )
@@ -375,7 +375,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         individual.extra_data = (  # type: ignore[attr-defined]
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
-            parameters.eauto.min_soc_prozent - self.ems.eauto.ladezustand_in_prozent()
+            parameters.eauto.min_soc_percentage - self.ems.eauto.current_soc_percentage()
             if parameters.eauto and self.ems.eauto
             else 0,
         )
@@ -383,16 +383,16 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         # Adjust total balance with battery value and penalties for unmet SOC
 
         restwert_akku = (
-            self.ems.akku.aktueller_energieinhalt() * parameters.ems.preis_euro_pro_wh_akku
+            self.ems.akku.current_energy_content() * parameters.ems.preis_euro_pro_wh_akku
         )
-        # print(ems.akku.aktueller_energieinhalt()," * ", parameters.ems.preis_euro_pro_wh_akku , " ", restwert_akku, " ", gesamtbilanz)
+        # print(ems.akku.current_energy_content()," * ", parameters.ems.preis_euro_pro_wh_akku , " ", restwert_akku, " ", gesamtbilanz)
         gesamtbilanz += -restwert_akku
         # print(gesamtbilanz)
         if self.optimize_ev:
             gesamtbilanz += max(
                 0,
                 (
-                    parameters.eauto.min_soc_prozent - self.ems.eauto.ladezustand_in_prozent()
+                    parameters.eauto.min_soc_percentage - self.ems.eauto.current_soc_percentage()
                     if parameters.eauto and self.ems.eauto
                     else 0
                 )
@@ -472,7 +472,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             )
             eauto.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
             self.optimize_ev = (
-                parameters.eauto.min_soc_prozent - parameters.eauto.start_soc_prozent >= 0
+                parameters.eauto.min_soc_percentage - parameters.eauto.initial_soc_percentage >= 0
             )
         else:
             self.optimize_ev = False
