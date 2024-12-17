@@ -417,7 +417,11 @@ def fastapi_pvforecast() -> ForecastResponse:
     ###############
     # PV Forecast
     ###############
-    pvforecast_ac_power = prediction_eos["pvforecast_ac_power"]
+    prediction_key = "pvforecast_ac_power"
+    pvforecast_ac_power = prediction_eos.get(prediction_key)
+    if pvforecast_ac_power is None:
+        raise HTTPException(status_code=404, detail=f"Prediction not available: {prediction_key}")
+
     # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
     if len(pvforecast_ac_power) == 0:
         pvforecast_ac_power = pd.Series()
@@ -427,7 +431,11 @@ def fastapi_pvforecast() -> ForecastResponse:
             prediction_eos.start_datetime : prediction_eos.end_datetime
         ]
 
-    pvforecastakkudoktor_temp_air = prediction_eos["pvforecastakkudoktor_temp_air"]
+    prediction_key = "pvforecastakkudoktor_temp_air"
+    pvforecastakkudoktor_temp_air = prediction_eos.get(prediction_key)
+    if pvforecastakkudoktor_temp_air is None:
+        raise HTTPException(status_code=404, detail=f"Prediction not available: {prediction_key}")
+
     # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
     if len(pvforecastakkudoktor_temp_air) == 0:
         pvforecastakkudoktor_temp_air = pd.Series()
@@ -467,8 +475,8 @@ def fastapi_optimize(
 def get_pdf() -> PdfResponse:
     # Endpoint to serve the generated PDF with visualization results
     output_path = config_eos.data_output_path
-    if not output_path.is_dir():
-        raise ValueError(f"Output path does not exist: {output_path}.")
+    if output_path is None or not output_path.is_dir():
+        raise HTTPException(status_code=404, detail=f"Output path does not exist: {output_path}.")
     file_path = output_path / "visualization_results.pdf"
     if not file_path.is_file():
         raise HTTPException(status_code=404, detail="No visualization result available.")
