@@ -316,7 +316,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
                 pass
         # From platform specific default path
         try:
-            data_dir = user_data_dir(self.APP_NAME, self.APP_AUTHOR)
+            data_dir = Path(user_data_dir(self.APP_NAME, self.APP_AUTHOR))
             if data_dir is not None:
                 data_dir.mkdir(parents=True, exist_ok=True)
                 self.data_folder_path = data_dir

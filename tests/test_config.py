@@ -47,6 +47,8 @@ def test_computed_paths(config_eos):
     )
     assert config_eos.data_output_path == Path("/base/data/output")
     assert config_eos.data_cache_path == Path("/base/data/cache")
+    # reset settings so the config_eos fixture can verify the default paths
+    config_eos.reset_settings()
 
 
 def test_singleton_behavior(config_eos, config_default_dirs):

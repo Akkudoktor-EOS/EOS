@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 from matplotlib.testing.compare import compare_images
@@ -12,20 +11,18 @@ DIR_TESTDATA = Path(__file__).parent / "testdata"
 reference_file = DIR_TESTDATA / "test_example_report.pdf"
 
 
-def test_generate_pdf_main(config_eos):
+def test_generate_pdf_example(config_eos):
     """Test generation of example visualization report."""
     output_dir = config_eos.data_output_path
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = os.path.join(output_dir, filename)
+    assert output_dir is not None
+    output_file = output_dir / filename
+    assert not output_file.exists()
 
-    # Delete the old generated file if it exists
-    if os.path.isfile(output_file):
-        os.remove(output_file)
-
-    generate_example_report(filename)
+    # Generate PDF
+    generate_example_report()
 
     # Check if the file exists
-    assert os.path.isfile(output_file)
+    assert output_file.exists()
 
     # Compare the generated file with the reference file
     comparison = compare_images(str(reference_file), str(output_file), tol=0)

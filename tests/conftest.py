@@ -76,24 +76,44 @@ def cfg_non_existent(request):
         assert not Path(user_dir).joinpath(ConfigEOS.CONFIG_FILE_NAME).exists()
 
 
+@pytest.fixture(autouse=True)
+def user_config_dir(config_default_dirs):
+    with patch(
+        "akkudoktoreos.config.config.user_config_dir",
+        return_value=str(config_default_dirs[0]),
+    ) as user_dir_patch:
+        yield user_dir_patch
+
+
+@pytest.fixture(autouse=True)
+def user_data_dir(config_default_dirs):
+    with patch(
+        "akkudoktoreos.config.config.user_data_dir",
+        return_value=str(config_default_dirs[-1] / "data"),
+    ) as user_dir_patch:
+        yield user_dir_patch
+
+
 @pytest.fixture
-@patch("akkudoktoreos.config.config.user_config_dir")
-@patch("akkudoktoreos.config.config.user_data_dir")
 def config_eos(
-    user_data_dir_patch,
-    user_config_dir_patch,
     disable_debug_logging,
+    user_config_dir,
+    user_data_dir,
     config_default_dirs,
     monkeypatch,
 ) -> ConfigEOS:
     """Fixture to reset EOS config to default values."""
-    user_data_dir_patch.return_value = str(config_default_dirs[-1] / "data")
-    user_config_dir_patch.return_value = str(config_default_dirs[0])
-    monkeypatch.setenv("data_cache_subpath", str(config_default_dirs[-1] / "cache"))
-    monkeypatch.setenv("data_output_subpath", str(config_default_dirs[-1] / "output"))
-    assert not (config_default_dirs[0] / ConfigEOS.CONFIG_FILE_NAME).exists()
+    monkeypatch.setenv("data_cache_subpath", str(config_default_dirs[-1] / "data/cache"))
+    monkeypatch.setenv("data_output_subpath", str(config_default_dirs[-1] / "data/output"))
+    config_file = config_default_dirs[0] / ConfigEOS.CONFIG_FILE_NAME
+    assert not config_file.exists()
     config_eos = get_config()
     config_eos.reset_settings()
+    assert config_file == config_eos.config_file_path
+    assert config_file.exists()
+    assert config_default_dirs[-1] / "data" == config_eos.data_folder_path
+    assert config_default_dirs[-1] / "data/cache" == config_eos.data_cache_path
+    assert config_default_dirs[-1] / "data/output" == config_eos.data_output_path
     return config_eos
 
 
