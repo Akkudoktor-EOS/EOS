@@ -517,14 +517,14 @@
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Capacity Wh",
-            "description": "Battery capacity in watt-hours (Wh)."
+            "description": "An integer representing the capacity of the battery in watt-hours."
           },
           "charge_efficiency": {
             "type": "number",
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
             "title": "Charge Efficiency",
-            "description": "Charging efficiency of the battery.",
+            "description": "A float representing the charging efficiency of the battery.",
             "default": 0.88
           },
           "discharge_efficiency": {
@@ -532,10 +532,10 @@
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
             "title": "Discharge Efficiency",
-            "description": "Discharge efficiency of the battery.",
+            "description": "A float representing the discharge efficiency of the battery.",
             "default": 0.88
           },
-          "max_charging_power_w": {
+          "max_charge_power_w": {
             "anyOf": [
               {
                 "type": "number",
@@ -545,15 +545,15 @@
                 "type": "null"
               }
             ],
-            "title": "Max Charging Power W",
-            "description": "The maximum charging power of the battery in watts."
+            "title": "Max Charge Power W",
+            "description": "An integer representing the charging power of the battery in watts."
           },
           "initial_soc_percentage": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Initial Soc Percentage",
-            "description": "Initial state of charge of the battery in percentage at the start of the simulation.",
+            "description": "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state).",
             "default": 0
           },
           "min_soc_percentage": {
@@ -561,7 +561,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "Minimum state of charge (SOC) of the battery in percentage.",
+            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
             "default": 0
           },
           "max_soc_percentage": {
@@ -569,7 +569,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Max Soc Percentage",
-            "description": "Maximum state of charge (SOC) of the battery in percentage.",
+            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
             "default": 100
           }
         },
@@ -2558,14 +2558,14 @@
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Capacity Wh",
-            "description": "Battery capacity in watt-hours (Wh)."
+            "description": "An integer representing the capacity of the battery in watt-hours."
           },
           "charge_efficiency": {
             "type": "number",
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
             "title": "Charge Efficiency",
-            "description": "Charging efficiency of the battery.",
+            "description": "A float representing the charging efficiency of the battery.",
             "default": 0.88
           },
           "discharge_efficiency": {
@@ -2573,7 +2573,7 @@
             "title": "Discharge Efficiency",
             "default": 1.0
           },
-          "max_charging_power_w": {
+          "max_charge_power_w": {
             "anyOf": [
               {
                 "type": "number",
@@ -2583,15 +2583,15 @@
                 "type": "null"
               }
             ],
-            "title": "Max Charging Power W",
-            "description": "The maximum charging power of the battery in watts."
+            "title": "Max Charge Power W",
+            "description": "An integer representing the charging power of the battery in watts."
           },
           "initial_soc_percentage": {
             "type": "integer",
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Initial Soc Percentage",
-            "description": "Current state of charge (SOC) of the EV's battery in percentage.",
+            "description": "An integer representing the current state of charge (SOC) of the battery in percentage.",
             "default": 0
           },
           "min_soc_percentage": {
@@ -2599,7 +2599,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "Minimum state of charge (SOC) of the battery in percentage.",
+            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
             "default": 0
           },
           "max_soc_percentage": {
@@ -2607,7 +2607,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Max Soc Percentage",
-            "description": "Maximum state of charge (SOC) of the battery in percentage.",
+            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
             "default": 100
           }
         },
@@ -2637,7 +2637,7 @@
           "discharge_efficiency": {
             "type": "number",
             "title": "Discharge Efficiency",
-            "description": "The discharge efficiency."
+            "description": "The discharge efficiency as a float.."
           },
           "hours": {
             "type": "integer",
@@ -2652,11 +2652,11 @@
           "charge_efficiency": {
             "type": "number",
             "title": "Charge Efficiency",
-            "description": "Charging efficiency."
+            "description": "Charging efficiency as a float.."
           },
-          "max_charging_power_w": {
+          "max_charge_power_w": {
             "type": "integer",
-            "title": "Max Charging Power W",
+            "title": "Max Charge Power W",
             "description": "Maximum charging power in watts."
           },
           "soc_wh": {
@@ -2678,7 +2678,7 @@
           "hours",
           "capacity_wh",
           "charge_efficiency",
-          "max_charging_power_w",
+          "max_charge_power_w",
           "soc_wh",
           "initial_soc_percentage"
         ],
