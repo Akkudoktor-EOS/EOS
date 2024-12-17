@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Sequence
 
 
 class LoadAggregator:
@@ -12,11 +13,11 @@ class LoadAggregator:
         )  # Dictionary to hold load arrays for different sources
         self.prediction_hours: int = prediction_hours
 
-    def add_load(self, name: str, last_array: list[float] | tuple[float, ...]) -> None:
-        """Adds a load array for a specific source. Accepts either a Python list or tuple.
+    def add_load(self, name: str, last_array: Sequence[float]) -> None:
+        """Adds a load array for a specific source. Accepts a Sequence of floats.
 
         :param name: Name of the load source (e.g., "Household", "Heat Pump").
-        :param last_array: List or tuple of loads, where each entry corresponds to an hour.
+        :param last_array: Sequence of loads, where each entry corresponds to an hour.
         :raises ValueError: If the length of last_array doesn't match the prediction hours.
         """
         # Check length of the array without converting
