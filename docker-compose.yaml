@@ -12,8 +12,9 @@ services:
       args:
         PYTHON_VERSION: "${PYTHON_VERSION}"
     environment:
-      #- latitude=52.2
-      #- longitude=13.4
       - EOS_CONFIG_DIR=config
+      - latitude=52.2
+      - longitude=13.4
+      - elecprice_provider=ElecPriceAkkudoktor
     ports:
       - "${EOS_PORT}:${EOS_PORT}"
