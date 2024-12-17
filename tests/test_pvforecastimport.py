@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
@@ -12,12 +11,9 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
 FILE_TESTDATA_PVFORECASTIMPORT_1_JSON = DIR_TESTDATA.joinpath("import_input_1.json")
 
-config_eos = get_config()
-ems_eos = get_ems()
-
 
 @pytest.fixture
-def pvforecast_provider(reset_config, sample_import_1_json):
+def pvforecast_provider(sample_import_1_json, config_eos):
     """Fixture to create a PVForecastProvider instance."""
     settings = {
         "pvforecast_provider": "PVForecastImport",
@@ -26,7 +22,7 @@ def pvforecast_provider(reset_config, sample_import_1_json):
     }
     config_eos.merge_settings_from_dict(settings)
     provider = PVForecastImport()
-    assert provider.enabled() == True
+    assert provider.enabled()
     return provider
 
 
@@ -49,14 +45,14 @@ def test_singleton_instance(pvforecast_provider):
     assert pvforecast_provider is another_instance
 
 
-def test_invalid_provider(pvforecast_provider):
+def test_invalid_provider(pvforecast_provider, config_eos):
     """Test requesting an unsupported pvforecast_provider."""
     settings = {
         "pvforecast_provider": "<invalid>",
         "pvforecastimport_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
     }
     config_eos.merge_settings_from_dict(settings)
-    assert pvforecast_provider.enabled() == False
+    assert not pvforecast_provider.enabled()
 
 
 # ------------------------------------------------
@@ -77,8 +73,9 @@ def test_invalid_provider(pvforecast_provider):
         ("2024-10-27 00:00:00", False),  # DST change in Germany (25 hours/ day)
     ],
 )
-def test_import(pvforecast_provider, sample_import_1_json, start_datetime, from_file):
+def test_import(pvforecast_provider, sample_import_1_json, start_datetime, from_file, config_eos):
     """Test fetching forecast from import."""
+    ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
         config_eos.pvforecastimport_json = None

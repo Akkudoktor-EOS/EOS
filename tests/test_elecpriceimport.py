@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
@@ -12,12 +11,9 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
 FILE_TESTDATA_ELECPRICEIMPORT_1_JSON = DIR_TESTDATA.joinpath("import_input_1.json")
 
-config_eos = get_config()
-ems_eos = get_ems()
-
 
 @pytest.fixture
-def elecprice_provider(reset_config, sample_import_1_json):
+def elecprice_provider(sample_import_1_json, config_eos):
     """Fixture to create a ElecPriceProvider instance."""
     settings = {
         "elecprice_provider": "ElecPriceImport",
@@ -26,7 +22,7 @@ def elecprice_provider(reset_config, sample_import_1_json):
     }
     config_eos.merge_settings_from_dict(settings)
     provider = ElecPriceImport()
-    assert provider.enabled() == True
+    assert provider.enabled()
     return provider
 
 
@@ -49,14 +45,14 @@ def test_singleton_instance(elecprice_provider):
     assert elecprice_provider is another_instance
 
 
-def test_invalid_provider(elecprice_provider):
+def test_invalid_provider(elecprice_provider, config_eos):
     """Test requesting an unsupported elecprice_provider."""
     settings = {
         "elecprice_provider": "<invalid>",
         "elecpriceimport_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
     }
     config_eos.merge_settings_from_dict(settings)
-    assert elecprice_provider.enabled() == False
+    assert not elecprice_provider.enabled()
 
 
 # ------------------------------------------------
@@ -77,8 +73,9 @@ def test_invalid_provider(elecprice_provider):
         ("2024-10-27 00:00:00", False),  # DST change in Germany (25 hours/ day)
     ],
 )
-def test_import(elecprice_provider, sample_import_1_json, start_datetime, from_file):
+def test_import(elecprice_provider, sample_import_1_json, start_datetime, from_file, config_eos):
     """Test fetching forecast from Import."""
+    ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
         config_eos.elecpriceimport_json = None

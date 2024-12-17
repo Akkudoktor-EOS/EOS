@@ -1,17 +1,17 @@
 import logging
-import shutil
+import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Optional
+from unittest.mock import PropertyMock, patch
 
 import pendulum
-import platformdirs
 import pytest
 from xprocess import ProcessStarter
 
-from akkudoktoreos.config.config import get_config
+from akkudoktoreos.config.config import ConfigEOS, get_config
 from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
@@ -42,6 +42,12 @@ def pytest_addoption(parser):
     parser.addoption(
         "--full-run", action="store_true", default=False, help="Run with all optimization tests."
     )
+    parser.addoption(
+        "--check-config-side-effect",
+        action="store_true",
+        default=False,
+        help="Verify that user config file is non-existent (will also fail if user config file exists before test run).",
+    )
 
 
 @pytest.fixture
@@ -49,97 +55,87 @@ def is_full_run(request):
     yield bool(request.config.getoption("--full-run"))
 
 
+@pytest.fixture(autouse=True)
+def config_mixin(config_eos):
+    with patch(
+        "akkudoktoreos.core.coreabc.ConfigMixin.config", new_callable=PropertyMock
+    ) as config_mixin_patch:
+        config_mixin_patch.return_value = config_eos
+        yield config_mixin_patch
+
+
+# Test if test has side effect of writing to system (user) config file
+# Before activating, make sure that no user config file exists (e.g. ~/.config/net.akkudoktoreos.eos/EOS.config.json)
+@pytest.fixture(autouse=True)
+def cfg_non_existent(request):
+    yield
+    if bool(request.config.getoption("--check-config-side-effect")):
+        from platformdirs import user_config_dir
+
+        user_dir = user_config_dir(ConfigEOS.APP_NAME)
+        assert not Path(user_dir).joinpath(ConfigEOS.CONFIG_FILE_NAME).exists()
+
+
 @pytest.fixture
-def reset_config(disable_debug_logging):
+@patch("akkudoktoreos.config.config.user_config_dir")
+@patch("akkudoktoreos.config.config.user_data_dir")
+def config_eos(
+    user_data_dir_patch,
+    user_config_dir_patch,
+    disable_debug_logging,
+    config_default_dirs,
+    monkeypatch,
+) -> ConfigEOS:
     """Fixture to reset EOS config to default values."""
+    user_data_dir_patch.return_value = str(config_default_dirs[-1] / "data")
+    user_config_dir_patch.return_value = str(config_default_dirs[0])
+    monkeypatch.setenv("data_cache_subpath", str(config_default_dirs[-1] / "cache"))
+    monkeypatch.setenv("data_output_subpath", str(config_default_dirs[-1] / "output"))
+    assert not (config_default_dirs[0] / ConfigEOS.CONFIG_FILE_NAME).exists()
     config_eos = get_config()
     config_eos.reset_settings()
-    config_eos.reset_to_defaults()
     return config_eos
 
 
 @pytest.fixture
 def config_default_dirs():
     """Fixture that provides a list of directories to be used as config dir."""
-    config_eos = get_config()
-    # Default config directory from platform user config directory
-    config_default_dir_user = Path(platformdirs.user_config_dir(config_eos.APP_NAME))
-    # Default config directory from current working directory
-    config_default_dir_cwd = Path.cwd()
-    # Default config directory from default config file
-    config_default_dir_default = Path(__file__).parent.parent.joinpath("src/akkudoktoreos/data")
-    return config_default_dir_user, config_default_dir_cwd, config_default_dir_default
+    with tempfile.TemporaryDirectory() as tmp_user_home_dir:
+        # Default config directory from platform user config directory
+        config_default_dir_user = Path(tmp_user_home_dir) / "config"
+        # Default config directory from current working directory
+        config_default_dir_cwd = Path.cwd()
+        # Default config directory from default config file
+        config_default_dir_default = Path(__file__).parent.parent.joinpath("src/akkudoktoreos/data")
+
+        # Default data directory from platform user data directory
+        data_default_dir_user = Path(tmp_user_home_dir)
+        yield (
+            config_default_dir_user,
+            config_default_dir_cwd,
+            config_default_dir_default,
+            data_default_dir_user,
+        )
 
 
 @pytest.fixture
-def stash_config_file(config_default_dirs):
-    """Fixture to temporarily stash away an existing config file during a test.
-
-    If the specified config file exists, it moves the file to a temporary directory.
-    The file is restored to its original location after the test.
-
-    Keep right most in fixture parameter list to assure application at last.
-
-    Returns:
-        Path: Path to the stashed config file.
-    """
-    config_eos = get_config()
-    config_default_dir_user, config_default_dir_cwd, _ = config_default_dirs
-
-    config_file_path_user = config_default_dir_user.joinpath(config_eos.CONFIG_FILE_NAME)
-    config_file_path_cwd = config_default_dir_cwd.joinpath(config_eos.CONFIG_FILE_NAME)
-
-    original_config_file_user = None
-    original_config_file_cwd = None
-    if config_file_path_user.exists():
-        original_config_file_user = config_file_path_user
-    if config_file_path_cwd.exists():
-        original_config_file_cwd = config_file_path_cwd
-
-    temp_dir = tempfile.TemporaryDirectory()
-    temp_file_user = None
-    temp_file_cwd = None
-
-    # If the file exists, move it to the temporary directory
-    if original_config_file_user:
-        temp_file_user = Path(temp_dir.name) / f"user.{original_config_file_user.name}"
-        shutil.move(original_config_file_user, temp_file_user)
-        assert not original_config_file_user.exists()
-        logger.debug(f"Stashed: '{original_config_file_user}'")
-    if original_config_file_cwd:
-        temp_file_cwd = Path(temp_dir.name) / f"cwd.{original_config_file_cwd.name}"
-        shutil.move(original_config_file_cwd, temp_file_cwd)
-        assert not original_config_file_cwd.exists()
-        logger.debug(f"Stashed: '{original_config_file_cwd}'")
-
-    # Yield the temporary file path to the test
-    yield temp_file_user, temp_file_cwd
-
-    # Cleanup after the test
-    if temp_file_user:
-        # Restore the file to its original location
-        shutil.move(temp_file_user, original_config_file_user)
-        assert original_config_file_user.exists()
-    if temp_file_cwd:
-        # Restore the file to its original location
-        shutil.move(temp_file_cwd, original_config_file_cwd)
-        assert original_config_file_cwd.exists()
-    temp_dir.cleanup()
-
-
-@pytest.fixture
-def server(xprocess, tmp_path: Path):
+def server(xprocess, config_eos, config_default_dirs):
     """Fixture to start the server.
 
     Provides URL of the server.
     """
 
     class Starter(ProcessStarter):
+        # Set environment before any subprocess run, to keep custom config dir
+        env = os.environ.copy()
+        env["EOS_DIR"] = str(config_default_dirs[-1])
+
         # assure server to be installed
         try:
             subprocess.run(
                 [sys.executable, "-c", "import akkudoktoreos.server.fastapi_server"],
                 check=True,
+                env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
@@ -154,11 +150,6 @@ def server(xprocess, tmp_path: Path):
 
         # command to start server process
         args = [sys.executable, "-m", "akkudoktoreos.server.fastapi_server"]
-        config_eos = get_config()
-        settings = {
-            "data_folder_path": tmp_path,
-        }
-        config_eos.merge_settings_from_dict(settings)
 
         # startup pattern
         pattern = "Application startup complete."
@@ -174,6 +165,7 @@ def server(xprocess, tmp_path: Path):
 
     # ensure process is running and return its logfile
     pid, logfile = xprocess.ensure("eos", Starter)
+    print(f"View xprocess logfile at: {logfile}")
 
     # create url/port info to the server
     url = "http://127.0.0.1:8503"

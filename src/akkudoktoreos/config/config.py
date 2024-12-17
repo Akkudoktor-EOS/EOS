@@ -14,7 +14,7 @@ import shutil
 from pathlib import Path
 from typing import Any, ClassVar, List, Optional
 
-import platformdirs
+from platformdirs import user_config_dir, user_data_dir
 from pydantic import Field, ValidationError, computed_field
 
 # settings
@@ -316,7 +316,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
                 pass
         # From platform specific default path
         try:
-            data_dir = platformdirs.user_data_dir(self.APP_NAME, self.APP_AUTHOR)
+            data_dir = user_data_dir(self.APP_NAME, self.APP_AUTHOR)
             if data_dir is not None:
                 data_dir.mkdir(parents=True, exist_ok=True)
                 self.data_folder_path = data_dir
@@ -340,7 +340,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         logger.debug(f"Envionment config dir: '{env_dir}'")
         if env_dir is not None:
             config_dirs.append(env_dir.resolve())
-        config_dirs.append(Path(platformdirs.user_config_dir(self.APP_NAME)))
+        config_dirs.append(Path(user_config_dir(self.APP_NAME)))
         config_dirs.append(Path.cwd())
         for cdir in config_dirs:
             cfile = cdir.joinpath(self.CONFIG_FILE_NAME)
