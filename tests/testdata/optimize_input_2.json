@@ -27,15 +27,15 @@
     },
     "pv_akku": {
         "capacity_wh": 26400,
-        "initial_soc_percent": 80,
-        "min_soc_percent": 15
+        "initial_soc_percentage": 80,
+        "min_soc_percentage": 15
     },
     "eauto": {
         "capacity_wh": 60000,
         "charging_efficiency": 0.95,
         "max_charge_power_w": 11040,
-        "initial_soc_percent": 5,
-        "min_soc_percent": 80
+        "initial_soc_percentage": 5,
+        "min_soc_percenaget": 80
     },
     "dishwasher" :{
         "consumption_wh": 5000,

@@ -28,8 +28,8 @@
     "pv_akku": {
         "capacity_wh": 26400,
         "max_charge_power_w": 5000,
-        "initial_soc_percent": 80,
-        "min_soc_percent": 15
+        "initial_soc_percentage": 80,
+        "min_soc_percentage": 15
     },
     "wechselrichter": {
         "max_leistung_wh": 10000
@@ -39,8 +39,8 @@
         "charging_efficiency": 0.95,
         "discharging_efficiency": 1.0,
         "max_charge_power_w": 11040,
-        "initial_soc_percent": 54,
-        "min_soc_percent": 0
+        "initial_soc_percentage": 54,
+        "min_soc_percentage": 0
     },
     "temperature_forecast": [
       18.3, 17.8, 16.9, 16.2, 15.6, 15.1, 14.6, 14.2, 14.3, 14.8, 15.7, 16.7, 17.4,

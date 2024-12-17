@@ -672,7 +672,7 @@
         "charging_efficiency": 0.95,
         "max_charge_power_w": 11040,
         "soc_wh": 60000.0,
-        "initial_soc_percent": 5
+        "initial_soc_percentage": 5
     },
     "start_solution": [
         0.0,

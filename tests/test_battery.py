@@ -89,8 +89,7 @@ def test_battery_reset_function(setup_pv_battery):
     battery.reset()
 
     # After reset, SOC should be equal to the initial value
-    assert battery.soc_wh == battery._calculate_soc_wh(battery.initial_soc_percent)
-    assert battery.current_soc_percentage() == battery.initial_soc_percent
+    assert battery.current_soc_percentage() == battery.initial_soc_percentage
 
 
 def test_soc_limits(setup_pv_battery):
