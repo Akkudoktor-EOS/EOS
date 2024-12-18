@@ -10,11 +10,11 @@ from akkudoktoreos.utils.utils import NumpyEncoder
 logger = get_logger(__name__)
 
 
-def max_charging_power_field(default: Optional[float] = None) -> Optional[float]:
+def max_charging_power_field(description: Optional[str] = "") -> float:
     return Field(
-        default=default,
+        default=10000,
         gt=0,
-        description="An integer representing the charging power of the battery in watts.",
+        description=description,
     )
 
 
@@ -59,7 +59,7 @@ class BaseBatteryParameters(BaseModel):
 
 
 class SolarPanelBatteryParameters(BaseBatteryParameters):
-    max_charge_power_w: Optional[float] = max_charging_power_field(5000)
+    max_charge_power_w: Optional[float] = max_charging_power_field()
 
 
 class ElectricVehicleParameters(BaseBatteryParameters):

@@ -7,7 +7,11 @@ from akkudoktoreos.devices.battery import BaseBatteryParameters, Battery
 @pytest.fixture
 def setup_pv_battery():
     params = BaseBatteryParameters(
-        capacity_wh=10000, initial_soc_percentage=50, min_soc_percentage=20, max_soc_percentage=80
+        capacity_wh=10000,
+        initial_soc_percentage=50,
+        min_soc_percentage=20,
+        max_soc_percentage=80,
+        max_charge_power_w=8000,
     )
     battery = Battery(params, hours=24)
     battery.reset()
@@ -110,7 +114,9 @@ def test_soc_limits(setup_pv_battery):
 def test_max_charge_power_w(setup_pv_battery):
     battery = setup_pv_battery
     battery.setup()
-    assert battery.parameters.max_charge_power_w == 5000, "Default max charge power should be 5000W"
+    assert (
+        battery.parameters.max_charge_power_w == 8000
+    ), "Default max charge power should be 5000W, We ask for 8000W here"
 
 
 def test_charge_energy_within_limits(setup_pv_battery):
@@ -199,7 +205,7 @@ def test_car_and_pv_battery_discharge_and_max_charge_power(setup_pv_battery, set
         pv_battery.current_soc_percentage() >= pv_battery.parameters.min_soc_percentage
     ), "PV battery SOC should stay above min SOC"
     assert (
-        pv_battery.parameters.max_charge_power_w == 5000
+        pv_battery.parameters.max_charge_power_w == 8000
     ), "PV battery max charge power should remain as defined"
 
     # Test discharge for car battery

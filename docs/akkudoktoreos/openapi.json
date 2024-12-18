@@ -546,7 +546,8 @@
               }
             ],
             "title": "Max Charge Power W",
-            "description": "An integer representing the charging power of the battery in watts."
+            "description": "",
+            "default": 5000
           },
           "initial_soc_percentage": {
             "type": "integer",
@@ -2584,7 +2585,8 @@
               }
             ],
             "title": "Max Charge Power W",
-            "description": "An integer representing the charging power of the battery in watts."
+            "description": "",
+            "default": 5000
           },
           "initial_soc_percentage": {
             "type": "integer",
