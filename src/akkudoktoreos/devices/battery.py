@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 def max_charging_power_field(description: Optional[str] = "") -> float:
     return Field(
-        default=10000,
+        default=5000,
         gt=0,
         description=description,
     )

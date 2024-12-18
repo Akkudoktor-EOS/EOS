@@ -13,7 +13,7 @@ from akkudoktoreos.core.coreabc import (
 )
 from akkudoktoreos.core.ems import EnergieManagementSystemParameters, SimulationResult
 from akkudoktoreos.devices.battery import (
-    BaseBatteryParameters,
+    SolarPanelBatteryParameters,
     Battery,
     ElectricVehicleParameters,
     ElectricVehicleResult,
@@ -26,7 +26,7 @@ from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 class OptimizationParameters(BaseModel):
     ems: EnergieManagementSystemParameters
-    pv_akku: BaseBatteryParameters
+    pv_akku: SolarPanelBatteryParameters
     inverter: InverterParameters = InverterParameters()
     eauto: Optional[ElectricVehicleParameters]
     dishwasher: Optional[HomeApplianceParameters] = None
