@@ -153,7 +153,7 @@ class Battery(DeviceBase):
             self.max_soc_percentage = getattr(
                 self.config,
                 f"{self.prefix}_soc_max",
-            )  # TODO set to 100 if not there
+            )
         elif self.parameters:
             # Setup from parameters
             self.capacity_wh = self.parameters.capacity_wh
