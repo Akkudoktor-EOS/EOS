@@ -13,10 +13,10 @@ from akkudoktoreos.core.coreabc import (
 )
 from akkudoktoreos.core.ems import EnergieManagementSystemParameters, SimulationResult
 from akkudoktoreos.devices.battery import (
-    SolarPanelBatteryParameters,
     Battery,
     ElectricVehicleParameters,
     ElectricVehicleResult,
+    SolarPanelBatteryParameters,
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters

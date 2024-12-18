@@ -162,7 +162,11 @@ class Battery(DeviceBase):
             self.discharging_efficiency = self.parameters.discharging_efficiency
             self.max_charge_power_w = self.parameters.max_charge_power_w
             # Only assign for storage battery
-            self.min_soc_percentage = self.parameters.min_soc_percentage
+            self.min_soc_percentage = (
+                self.parameters.min_soc_percentage
+                if isinstance(self.parameters, SolarPanelBatteryParameters)
+                else 0
+            )
             self.max_soc_percentage = self.parameters.max_soc_percentage
         else:
             error_msg = "Parameters and provider ID are missing. Cannot instantiate."
