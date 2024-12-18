@@ -10,7 +10,7 @@ from akkudoktoreos.utils.utils import NumpyEncoder
 logger = get_logger(__name__)
 
 
-def max_charging_power_field(description: Optional[str] = "") -> float:
+def max_charging_power_field(description: Optional[str] = "") -> Field:
     return Field(
         default=5000,
         gt=0,
@@ -18,7 +18,7 @@ def max_charging_power_field(description: Optional[str] = "") -> float:
     )
 
 
-def initial_soc_percentage_field(description: str) -> int:
+def initial_soc_percentage_field(description: str) -> Field:
     return Field(default=0, ge=0, le=100, description=description)
 
 

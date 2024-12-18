@@ -511,74 +511,6 @@
   },
   "components": {
     "schemas": {
-      "BaseBatteryParameters": {
-        "properties": {
-          "capacity_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Capacity Wh",
-            "description": "An integer representing the capacity of the battery in watt-hours."
-          },
-          "charging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Charging Efficiency",
-            "description": "A float representing the charging efficiency of the battery.",
-            "default": 0.88
-          },
-          "discharging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Discharging Efficiency",
-            "description": "A float representing the discharge efficiency of the battery.",
-            "default": 0.88
-          },
-          "max_charge_power_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Charge Power W",
-            "description": "",
-            "default": 5000
-          },
-          "initial_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Initial Soc Percentage",
-            "description": "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state).",
-            "default": 0
-          },
-          "min_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Min Soc Percentage",
-            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
-            "default": 0
-          },
-          "max_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Max Soc Percentage",
-            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
-            "default": 100
-          }
-        },
-        "type": "object",
-        "required": ["capacity_wh"],
-        "title": "BaseBatteryParameters",
-        "description": "Base class for battery parameters with fields for capacity, efficiency, and state of charge."
-      },
       "ConfigEOS": {
         "properties": {
           "server_fastapi_host": {
@@ -2837,7 +2769,7 @@
             "$ref": "#/components/schemas/EnergieManagementSystemParameters"
           },
           "pv_akku": {
-            "$ref": "#/components/schemas/BaseBatteryParameters"
+            "$ref": "#/components/schemas/SolarPanelBatteryParameters"
           },
           "inverter": {
             "$ref": "#/components/schemas/InverterParameters",
@@ -5012,6 +4944,73 @@
         ],
         "title": "SimulationResult",
         "description": "This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."
+      },
+      "SolarPanelBatteryParameters": {
+        "properties": {
+          "capacity_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacity Wh",
+            "description": "An integer representing the capacity of the battery in watt-hours."
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Charging Efficiency",
+            "description": "A float representing the charging efficiency of the battery.",
+            "default": 0.88
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Discharging Efficiency",
+            "description": "A float representing the discharge efficiency of the battery.",
+            "default": 0.88
+          },
+          "max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Charge Power W",
+            "description": "",
+            "default": 5000
+          },
+          "initial_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Initial Soc Percentage",
+            "description": "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state).",
+            "default": 0
+          },
+          "min_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Min Soc Percentage",
+            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "default": 0
+          },
+          "max_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Soc Percentage",
+            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
+            "default": 100
+          }
+        },
+        "type": "object",
+        "required": ["capacity_wh"],
+        "title": "SolarPanelBatteryParameters"
       },
       "ValidationError": {
         "properties": {
