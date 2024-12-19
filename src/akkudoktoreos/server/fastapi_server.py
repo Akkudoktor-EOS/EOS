@@ -80,7 +80,7 @@ app = FastAPI(
 )
 
 # That's the problem
-opt_class = optimization_problem()
+opt_class = optimization_problem(verbose=bool(config_eos.server_fastapi_verbose))
 
 server_dir = Path(__file__).parent.resolve()
 
