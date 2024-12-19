@@ -5,7 +5,7 @@ import pytest
 from matplotlib.testing.compare import compare_images
 
 from akkudoktoreos.config.config import get_config
-from akkudoktoreos.visualize import visualisiere_ergebnisse
+from akkudoktoreos.visualize_old import visualisiere_ergebnisse
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 DIR_IMAGEDATA = DIR_TESTDATA / "images"

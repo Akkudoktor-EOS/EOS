@@ -11,6 +11,9 @@ from akkudoktoreos.optimization.genetic import (
     OptimizeResponse,
     optimization_problem,
 )
+from akkudoktoreos.utils.visualize import (
+    prepare_visualize,  # Import the new prepare_visualize
+)
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 
@@ -64,16 +67,12 @@ def test_optimize(fn_in: str, fn_out: str, ngen: int, is_full_run: bool):
 
     visualize_filename = str((DIR_TESTDATA / f"new_{fn_out}").with_suffix(".pdf"))
 
-    def visualize_to_file(*args, **kwargs):
-        from akkudoktoreos.visualize import visualisiere_ergebnisse
-
-        # Write test output pdf to file, so we can look at it manually
-        kwargs["filename"] = visualize_filename
-        return visualisiere_ergebnisse(*args, **kwargs)
-
     with patch(
-        "akkudoktoreos.optimization.genetic.visualisiere_ergebnisse", side_effect=visualize_to_file
-    ) as visualisiere_ergebnisse_patch:
+        "akkudoktoreos.utils.visualize.prepare_visualize",
+        side_effect=lambda *args, **kwargs: prepare_visualize(
+            *args, filename=visualize_filename, **kwargs
+        ),
+    ) as prepare_visualize_patch:
         # Call the optimization function
         ergebnis = opt_class.optimierung_ems(
             parameters=input_data, start_hour=start_hour, ngen=ngen
@@ -92,4 +91,4 @@ def test_optimize(fn_in: str, fn_out: str, ngen: int, is_full_run: bool):
         compare_dict(ergebnis.model_dump(), expected_result.model_dump())
 
         # The function creates a visualization result PDF as a side-effect.
-        visualisiere_ergebnisse_patch.assert_called_once()
+        prepare_visualize_patch.assert_called_once()

@@ -1,6 +1,6 @@
 import os
 from collections.abc import Sequence
-from typing import Callable, List, Optional, Union
+from typing import Callable, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,8 +13,8 @@ class VisualizationReport:
     def __init__(self, filename: str = "visualization_results.pdf") -> None:
         # Initialize the report with a given filename and empty groups
         self.filename = filename
-        self.groups: List[List[Callable[[], None]]] = []  # Store groups of charts
-        self.current_group: List[
+        self.groups: list[list[Callable[[], None]]] = []  # Store groups of charts
+        self.current_group: list[
             Callable[[], None]
         ] = []  # Store current group of charts being created
         self.pdf_pages = PdfPages(filename)  # Initialize PdfPages directly
@@ -35,11 +35,17 @@ class VisualizationReport:
         """Create the output directory if it doesn't exist and initialize the PDF."""
         config = get_config()
         output_dir = config.data_output_path
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_file = os.path.join(output_dir, self.filename)  # Full path for PDF
+
+        # If self.filename is already a valid path, use it; otherwise, combine it with output_dir
+        if os.path.isabs(self.filename):
+            output_file = self.filename
+        else:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_file = os.path.join(output_dir, self.filename)
+
         self.pdf_pages = PdfPages(output_file)  # Re-initialize PdfPages with the correct path
 
-    def _save_group_to_pdf(self, group: List[Callable[[], None]]) -> None:
+    def _save_group_to_pdf(self, group: list[Callable[[], None]]) -> None:
         """Save a group of charts to the PDF."""
         fig_count = len(group)  # Number of charts in the group
         if fig_count == 0:
@@ -80,13 +86,13 @@ class VisualizationReport:
     def create_line_chart(
         self,
         x: Optional[np.ndarray],
-        y_list: List[Union[np.ndarray, List[float]]],
+        y_list: list[Union[np.ndarray, list[float]]],
         title: str,
         xlabel: str,
         ylabel: str,
-        labels: Optional[List[str]] = None,
-        markers: Optional[List[str]] = None,
-        line_styles: Optional[List[str]] = None,
+        labels: Optional[list[str]] = None,
+        markers: Optional[list[str]] = None,
+        line_styles: Optional[list[str]] = None,
     ) -> None:
         """Create a line chart and add it to the current group."""
 
@@ -156,13 +162,13 @@ class VisualizationReport:
 
     def create_bar_chart(
         self,
-        labels: List[str],
-        values_list: Sequence[Union[int, float, List[Union[int, float]]]],
+        labels: list[str],
+        values_list: Sequence[Union[int, float, list[Union[int, float]]]],
         title: str,
         ylabel: str,
-        xlabels: Optional[List[str]] = None,
-        label_names: Optional[List[str]] = None,
-        colors: Optional[List[str]] = None,
+        xlabels: Optional[list[str]] = None,
+        label_names: Optional[list[str]] = None,
+        colors: Optional[list[str]] = None,
         bar_width: float = 0.35,
         bottom: Optional[int] = None,
     ) -> None:
@@ -206,7 +212,7 @@ class VisualizationReport:
         self.add_chart_to_group(chart)  # Add chart function to current group
 
     def create_violin_plot(
-        self, data_list: List[np.ndarray], labels: List[str], title: str, xlabel: str, ylabel: str
+        self, data_list: list[np.ndarray], labels: list[str], title: str, xlabel: str, ylabel: str
     ) -> None:
         """Create a violin plot and add it to the current group."""
 
@@ -307,11 +313,15 @@ if __name__ == "__main__":
     report.generate_pdf()
 
 
-from akkudoktoreos.optimization.genetic import OptimizationParameters  # circluar import
+from akkudoktoreos.optimization.genetic import OptimizationParameters  # circular import
 
 
-def prepare_visualize(parameters: OptimizationParameters, results: dict) -> None:
-    report = VisualizationReport("visualization_results_new.pdf")
+def prepare_visualize(
+    parameters: OptimizationParameters,
+    results: dict,
+    filename: str = "visualization_results_new.pdf",
+) -> None:
+    report = VisualizationReport(filename)
     # Group 1:
     report.create_line_chart(
         None,
@@ -442,8 +452,6 @@ def prepare_visualize(parameters: OptimizationParameters, results: dict) -> None
         title="Financial Overview",
         ylabel="Euro",
         xlabels=["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"],
-        # label_names=["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"],
-        # colors=[["blue", "green", "red"]],
     )
 
     report.finalize_group()
