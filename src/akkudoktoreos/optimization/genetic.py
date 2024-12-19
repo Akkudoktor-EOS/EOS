@@ -360,9 +360,9 @@ class optimization_problem:
         discharge_hours_bin, eautocharge_hours_index, _ = self.split_individual(individual)
 
         # Small Penalty for not discharging
-        gesamtbilanz += sum(
-            0.01 for i in range(start_hour, self.prediction_hours) if discharge_hours_bin[i] == 0.0
-        )
+        # gesamtbilanz += sum(
+        #    0.01 for i in range(start_hour, self.prediction_hours) if discharge_hours_bin[i] == 0.0
+        # )
 
         # Penalty for not meeting the minimum SOC (State of Charge) requirement
         # if parameters.eauto_min_soc_prozent - ems.eauto.ladezustand_in_prozent() <= 0.0 and  self.optimize_ev:
