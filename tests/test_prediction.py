@@ -1,7 +1,6 @@
 import pytest
 from pydantic import ValidationError
 
-from akkudoktoreos.config.config import get_config
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktor
@@ -19,7 +18,7 @@ from akkudoktoreos.prediction.weatherimport import WeatherImport
 
 
 @pytest.fixture
-def sample_settings(reset_config):
+def sample_settings(config_eos):
     """Fixture that adds settings data to the global config."""
     settings = {
         "prediction_hours": 48,
@@ -33,9 +32,8 @@ def sample_settings(reset_config):
     }
 
     # Merge settings to config
-    config = get_config()
-    config.merge_settings_from_dict(settings)
-    return config
+    config_eos.merge_settings_from_dict(settings)
+    return config_eos
 
 
 @pytest.fixture

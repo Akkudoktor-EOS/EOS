@@ -1,43 +1,33 @@
-import os
-import shutil
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from akkudoktoreos.config.config import ConfigEOS, get_config
+from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 
-config_eos = get_config()
 
-DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
-
-FILE_TESTDATA_CONFIGEOS_1_JSON = DIR_TESTDATA.joinpath(config_eos.CONFIG_FILE_NAME)
-FILE_TESTDATA_CONFIGEOS_1_DIR = FILE_TESTDATA_CONFIGEOS_1_JSON.parent
-
-
-@pytest.fixture
-def reset_config_singleton():
-    """Fixture to reset the ConfigEOS singleton instance before a test."""
-    ConfigEOS.reset_instance()
-    yield
-    ConfigEOS.reset_instance()
+# overwrite config_mixin fixture from conftest
+@pytest.fixture(autouse=True)
+def config_mixin():
+    pass
 
 
-def test_fixture_stash_config_file(stash_config_file, config_default_dirs):
+def test_fixture_new_config_file(config_default_dirs):
     """Assure fixture stash_config_file is working."""
-    config_default_dir_user, config_default_dir_cwd, _ = config_default_dirs
+    config_default_dir_user, config_default_dir_cwd, _, _ = config_default_dirs
 
-    config_file_path_user = config_default_dir_user.joinpath(config_eos.CONFIG_FILE_NAME)
-    config_file_path_cwd = config_default_dir_cwd.joinpath(config_eos.CONFIG_FILE_NAME)
+    config_file_path_user = config_default_dir_user.joinpath(ConfigEOS.CONFIG_FILE_NAME)
+    config_file_path_cwd = config_default_dir_cwd.joinpath(ConfigEOS.CONFIG_FILE_NAME)
 
     assert not config_file_path_user.exists()
     assert not config_file_path_cwd.exists()
 
 
-def test_config_constants():
+def test_config_constants(config_eos):
     """Test config constants are the way expected by the tests."""
     assert config_eos.APP_NAME == "net.akkudoktor.eos"
     assert config_eos.APP_AUTHOR == "akkudoktor"
@@ -46,7 +36,7 @@ def test_config_constants():
     assert config_eos.CONFIG_FILE_NAME == "EOS.config.json"
 
 
-def test_computed_paths(reset_config):
+def test_computed_paths(config_eos):
     """Test computed paths for output and cache."""
     config_eos.merge_settings_from_dict(
         {
@@ -57,56 +47,81 @@ def test_computed_paths(reset_config):
     )
     assert config_eos.data_output_path == Path("/base/data/output")
     assert config_eos.data_cache_path == Path("/base/data/cache")
+    # reset settings so the config_eos fixture can verify the default paths
+    config_eos.reset_settings()
 
 
-def test_singleton_behavior(reset_config_singleton):
+def test_singleton_behavior(config_eos, config_default_dirs):
     """Test that ConfigEOS behaves as a singleton."""
-    instance1 = ConfigEOS()
-    instance2 = ConfigEOS()
+    initial_cfg_file = config_eos.config_file_path
+    with patch(
+        "akkudoktoreos.config.config.user_config_dir", return_value=str(config_default_dirs[0])
+    ):
+        instance1 = ConfigEOS()
+        instance2 = ConfigEOS()
+    assert instance1 is config_eos
     assert instance1 is instance2
+    assert instance1.config_file_path == initial_cfg_file
 
 
-def test_default_config_path(reset_config, config_default_dirs, stash_config_file):
+def test_default_config_path(config_eos, config_default_dirs):
     """Test that the default config file path is computed correctly."""
-    _, _, config_default_dir_default = config_default_dirs
+    _, _, config_default_dir_default, _ = config_default_dirs
 
     expected_path = config_default_dir_default.joinpath("default.config.json")
     assert config_eos.config_default_file_path == expected_path
     assert config_eos.config_default_file_path.is_file()
 
 
-def test_config_folder_path(reset_config, config_default_dirs, stash_config_file, monkeypatch):
-    """Test that _config_folder_path identifies the correct config directory or None."""
-    config_default_dir_user, _, _ = config_default_dirs
+@patch("akkudoktoreos.config.config.user_config_dir")
+def test_get_config_file_path(user_config_dir_patch, config_eos, config_default_dirs, monkeypatch):
+    """Test that _get_config_file_path identifies the correct config file."""
+    config_default_dir_user, _, _, _ = config_default_dirs
+    user_config_dir_patch.return_value = str(config_default_dir_user)
 
-    # All config files are stashed away, no config folder path
-    assert config_eos._config_folder_path() is None
+    def cfg_file(dir: Path) -> Path:
+        return dir.joinpath(ConfigEOS.CONFIG_FILE_NAME)
 
-    config_file_user = config_default_dir_user.joinpath(config_eos.CONFIG_FILE_NAME)
-    shutil.copy2(config_eos.config_default_file_path, config_file_user)
-    assert config_eos._config_folder_path() == config_default_dir_user
+    # Config newly created from fixture with fresh user config directory
+    assert config_eos._get_config_file_path() == (cfg_file(config_default_dir_user), True)
+    cfg_file(config_default_dir_user).unlink()
 
-    monkeypatch.setenv("EOS_DIR", str(FILE_TESTDATA_CONFIGEOS_1_DIR))
-    assert config_eos._config_folder_path() == FILE_TESTDATA_CONFIGEOS_1_DIR
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir_path = Path(temp_dir)
+        monkeypatch.setenv("EOS_DIR", str(temp_dir_path))
+        assert config_eos._get_config_file_path() == (cfg_file(temp_dir_path), False)
 
-    # Cleanup after the test
-    os.remove(config_file_user)
+        monkeypatch.setenv("EOS_CONFIG_DIR", "config")
+        assert config_eos._get_config_file_path() == (
+            cfg_file(temp_dir_path / "config"),
+            False,
+        )
+
+        monkeypatch.setenv("EOS_CONFIG_DIR", str(temp_dir_path / "config2"))
+        assert config_eos._get_config_file_path() == (
+            cfg_file(temp_dir_path / "config2"),
+            False,
+        )
+
+        monkeypatch.delenv("EOS_DIR")
+        monkeypatch.setenv("EOS_CONFIG_DIR", "config3")
+        assert config_eos._get_config_file_path() == (cfg_file(config_default_dir_user), False)
+
+        monkeypatch.setenv("EOS_CONFIG_DIR", str(temp_dir_path / "config3"))
+        assert config_eos._get_config_file_path() == (
+            cfg_file(temp_dir_path / "config3"),
+            False,
+        )
 
 
-def test_config_copy(reset_config, stash_config_file, monkeypatch):
+def test_config_copy(config_eos, monkeypatch):
     """Test if the config is copied to the provided path."""
-    temp_dir = tempfile.TemporaryDirectory()
-    temp_folder_path = Path(temp_dir.name)
-    temp_config_file_path = temp_folder_path.joinpath(config_eos.CONFIG_FILE_NAME).resolve()
-    monkeypatch.setenv(config_eos.EOS_DIR, str(temp_folder_path))
-    if temp_config_file_path.exists():
-        temp_config_file_path.unlink()
-    assert not temp_config_file_path.exists()
-    assert config_eos._config_folder_path() is None
-    assert config_eos._config_file_path() == temp_config_file_path
-
-    config_eos.from_config_file()
-    assert temp_config_file_path.exists()
-
-    # Cleanup after the test
-    temp_dir.cleanup()
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_folder_path = Path(temp_dir)
+        temp_config_file_path = temp_folder_path.joinpath(config_eos.CONFIG_FILE_NAME).resolve()
+        monkeypatch.setenv(config_eos.EOS_DIR, str(temp_folder_path))
+        assert not temp_config_file_path.exists()
+        with patch("akkudoktoreos.config.config.user_config_dir", return_value=temp_dir):
+            assert config_eos._get_config_file_path() == (temp_config_file_path, False)
+            config_eos.from_config_file()
+        assert temp_config_file_path.exists()
