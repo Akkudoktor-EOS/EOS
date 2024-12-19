@@ -1,5 +1,7 @@
 import random
-from typing import Any, Optional, Tuple
+import time
+from pathlib import Path
+from typing import Any, Optional
 
 import numpy as np
 from deap import algorithms, base, creator, tools
@@ -20,6 +22,9 @@ from akkudoktoreos.devices.battery import (
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
+from akkudoktoreos.prediction.self_consumption_probability import (
+    self_consumption_probability_interpolator,
+)
 from akkudoktoreos.utils.utils import NumpyEncoder
 
 
@@ -116,8 +121,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             random.seed(fixed_seed)
 
     def decode_charge_discharge(
-        self, discharge_hours_bin: list[float]
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        self, discharge_hours_bin: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Decode the input array into ac_charge, dc_charge, and discharge arrays."""
         discharge_hours_bin_np = np.array(discharge_hours_bin)
         len_ac = len(self.config.optimization_ev_available_charge_rates_percent)
@@ -137,7 +142,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # AC states
         ac_mask = (discharge_hours_bin_np >= 2 * len_ac) & (discharge_hours_bin_np < 3 * len_ac)
-        ac_indices = discharge_hours_bin_np[ac_mask] - 2 * len_ac
+        ac_indices = (discharge_hours_bin_np[ac_mask] - 2 * len_ac).astype(int)
 
         # DC states (if enabled)
         if self.optimize_dc_charge:
@@ -217,28 +222,71 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         return creator.Individual(individual_components)
 
+    def merge_individual(
+        self,
+        discharge_hours_bin: np.ndarray,
+        eautocharge_hours_index: Optional[np.ndarray],
+        washingstart_int: Optional[int],
+    ) -> list[int]:
+        """Merge the individual components back into a single solution list.
+
+        Parameters:
+            discharge_hours_bin (np.ndarray): Binary discharge hours.
+            eautocharge_hours_index (Optional[np.ndarray]): EV charge hours as integers, or None.
+            washingstart_int (Optional[int]): Dishwasher start time as integer, or None.
+
+        Returns:
+            list[int]: The merged individual solution as a list of integers.
+        """
+        # Start with the discharge hours
+        individual = discharge_hours_bin.tolist()
+
+        # Add EV charge hours if applicable
+        if self.optimize_ev and eautocharge_hours_index is not None:
+            individual.extend(eautocharge_hours_index.tolist())
+        elif self.optimize_ev:
+            # Falls optimize_ev aktiv ist, aber keine EV-Daten vorhanden sind, fügen wir Nullen hinzu
+            individual.extend([0] * self.config.prediction_hours)
+
+        # Add dishwasher start time if applicable
+        if self.opti_param.get("home_appliance", 0) > 0 and washingstart_int is not None:
+            individual.append(washingstart_int)
+        elif self.opti_param.get("home_appliance", 0) > 0:
+            # Falls ein Haushaltsgerät optimiert wird, aber kein Startzeitpunkt vorhanden ist
+            individual.append(0)
+
+        return individual
+
     def split_individual(
-        self, individual: list[float]
-    ) -> tuple[list[float], Optional[list[float]], Optional[int]]:
+        self, individual: list[int]
+    ) -> tuple[np.ndarray, Optional[np.ndarray], Optional[int]]:
         """Split the individual solution into its components.
 
         Components:
-        1. Discharge hours (binary),
-        2. Electric vehicle charge hours (float),
+        1. Discharge hours (binary as int NumPy array),
+        2. Electric vehicle charge hours (float as int NumPy array, if applicable),
         3. Dishwasher start time (integer if applicable).
         """
-        discharge_hours_bin = individual[: self.config.prediction_hours]
+        # Discharge hours as a NumPy array of ints
+        discharge_hours_bin = np.array(individual[: self.config.prediction_hours], dtype=int)
+
+        # EV charge hours as a NumPy array of ints (if optimize_ev is True)
         eautocharge_hours_index = (
-            individual[self.config.prediction_hours : self.config.prediction_hours * 2]
+            np.array(
+                individual[self.config.prediction_hours : self.config.prediction_hours * 2],
+                dtype=int,
+            )
             if self.optimize_ev
             else None
         )
 
+        # Washing machine start time as an integer (if applicable)
         washingstart_int = (
             int(individual[-1])
             if self.opti_param and self.opti_param.get("home_appliance", 0) > 0
             else None
         )
+
         return discharge_hours_bin, eautocharge_hours_index, washingstart_int
 
     def setup_deap_environment(self, opti_param: dict[str, Any], start_hour: int) -> None:
@@ -308,7 +356,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         self.toolbox.register("mutate", self.mutate)
         self.toolbox.register("select", tools.selTournament, tournsize=3)
 
-    def evaluate_inner(self, individual: list[float]) -> dict[str, Any]:
+    def evaluate_inner(self, individual: list[int]) -> dict[str, Any]:
         """Simulates the energy management system (EMS) using the provided individual solution.
 
         This is an internal function.
@@ -340,16 +388,17 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             )
             self.ems.set_ev_charge_hours(eautocharge_hours_float)
         else:
-            self.ems.set_ev_charge_hours(np.full(self.config.prediction_hours, 0.0))
+            self.ems.set_ev_charge_hours(np.full(self.config.prediction_hours, 0))
+
         return self.ems.simuliere(self.ems.start_datetime.hour)
 
     def evaluate(
         self,
-        individual: list[float],
+        individual: list[int],
         parameters: OptimizationParameters,
         start_hour: int,
         worst_case: bool,
-    ) -> Tuple[float]:
+    ) -> tuple[float]:
         """Evaluate the fitness of an individual solution based on the simulation results."""
         try:
             o = self.evaluate_inner(individual)
@@ -358,19 +407,39 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
 
-        discharge_hours_bin, eautocharge_hours_index, _ = self.split_individual(individual)
-
-        # Small Penalty for not discharging
-        gesamtbilanz += sum(
-            0.01 for i in range(self.config.prediction_hours) if discharge_hours_bin[i] == 0.0
+        discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
+            individual
         )
 
-        # Penalty for not meeting the minimum SOC (State of Charge) requirement
-        # if parameters.eauto_min_soc_prozent - ems.eauto.current_soc_percentage() <= 0.0 and  self.optimize_ev:
-        #     gesamtbilanz += sum(
-        #         self.config.optimization_penalty for ladeleistung in eautocharge_hours_float if ladeleistung != 0.0
-        #     )
+        # EV 100% & charge not allowed
+        if self.optimize_ev:
+            eauto_soc_per_hour = np.array(o.get("EAuto_SoC_pro_Stunde", []))  # Beispielkey
 
+            if eauto_soc_per_hour is None or eautocharge_hours_index is None:
+                raise ValueError("eauto_soc_per_hour or eautocharge_hours_index is None")
+            min_length = min(eauto_soc_per_hour.size, eautocharge_hours_index.size)
+            eauto_soc_per_hour_tail = eauto_soc_per_hour[-min_length:]
+            eautocharge_hours_index_tail = eautocharge_hours_index[-min_length:]
+
+            # Mask
+            invalid_charge_mask = (eauto_soc_per_hour_tail == 100) & (
+                eautocharge_hours_index_tail > 0
+            )
+
+            if np.any(invalid_charge_mask):
+                invalid_indices = np.where(invalid_charge_mask)[0]
+                if len(invalid_indices) > 1:
+                    eautocharge_hours_index_tail[invalid_indices[1:]] = 0
+
+                eautocharge_hours_index[-min_length:] = eautocharge_hours_index_tail.tolist()
+
+                adjusted_individual = self.merge_individual(
+                    discharge_hours_bin, eautocharge_hours_index, washingstart_int
+                )
+
+                individual[:] = adjusted_individual  # Aktualisiere das ursprüngliche individual
+
+        # Berechnung weiterer Metriken
         individual.extra_data = (  # type: ignore[attr-defined]
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
@@ -380,13 +449,11 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
-
         restwert_akku = (
             self.ems.akku.current_energy_content() * parameters.ems.preis_euro_pro_wh_akku
         )
-        # print(ems.akku.current_energy_content()," * ", parameters.ems.preis_euro_pro_wh_akku , " ", restwert_akku, " ", gesamtbilanz)
         gesamtbilanz += -restwert_akku
-        # print(gesamtbilanz)
+
         if self.optimize_ev:
             gesamtbilanz += max(
                 0,
@@ -401,8 +468,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         return (gesamtbilanz,)
 
     def optimize(
-        self, start_solution: Optional[list[float]] = None, ngen: int = 400
-    ) -> Tuple[Any, dict[str, list[Any]]]:
+        self, start_solution: Optional[list[float]] = None, ngen: int = 200
+    ) -> tuple[Any, dict[str, list[Any]]]:
         """Run the optimization process using a genetic algorithm."""
         population = self.toolbox.population(n=300)
         hof = tools.HallOfFame(1)
@@ -414,7 +481,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # Insert the start solution into the population if provided
         if start_solution is not None:
-            for _ in range(3):
+            for _ in range(10):
                 population.insert(0, creator.Individual(start_solution))
 
         # Run the evolutionary algorithm
@@ -446,7 +513,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         parameters: OptimizationParameters,
         start_hour: Optional[int] = None,
         worst_case: bool = False,
-        ngen: int = 600,
+        ngen: int = 400,
     ) -> OptimizeResponse:
         """Perform EMS (Energy Management System) optimization and visualize results."""
         if start_hour is None:
@@ -454,6 +521,11 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         einspeiseverguetung_euro_pro_wh = np.full(
             self.config.prediction_hours, parameters.ems.einspeiseverguetung_euro_pro_wh
+        )
+
+        # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
+        sc = self_consumption_probability_interpolator(
+            Path(__file__).parent.resolve() / ".." / "data" / "regular_grid_interpolator.pkl"
         )
 
         # Initialize PV and EV batteries
@@ -487,9 +559,14 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         )
 
         # Initialize the inverter and energy management system
+        inverter = Inverter(
+            sc,
+            parameters.inverter,
+            akku,
+        )
         self.ems.set_parameters(
             parameters.ems,
-            inverter=Inverter(parameters.inverter, akku),
+            inverter=inverter,
             eauto=eauto,
             home_appliance=dishwasher,
         )
@@ -501,8 +578,14 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             "evaluate",
             lambda ind: self.evaluate(ind, parameters, start_hour, worst_case),
         )
+
+        if self.verbose:
+            start_time = time.time()
         start_solution, extra_data = self.optimize(parameters.start_solution, ngen=ngen)
 
+        if self.verbose:
+            elapsed_time = time.time() - start_time
+            print(f"Time evaluate inner: {elapsed_time:.4f} sec.")
         # Perform final evaluation on the best solution
         o = self.evaluate_inner(start_solution)
         discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
