@@ -1,6 +1,7 @@
-from typing import Optional, Tuple
+from typing import Optional
 
 from pydantic import BaseModel, Field
+from scipy.interpolate import RegularGridInterpolator
 
 from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.devicesabc import DeviceBase
@@ -16,6 +17,7 @@ class InverterParameters(BaseModel):
 class Inverter(DeviceBase):
     def __init__(
         self,
+        self_consumption_predictor: RegularGridInterpolator,
         parameters: Optional[InverterParameters] = None,
         akku: Optional[Battery] = None,
         provider_id: Optional[str] = None,
@@ -34,6 +36,7 @@ class Inverter(DeviceBase):
             logger.error(error_msg)
             raise NotImplementedError(error_msg)
         self.akku = akku  # Connection to a battery object
+        self.self_consumption_predictor = self_consumption_predictor
 
         self.initialised = False
         # Run setup if parameters are given, otherwise setup() has to be called later when the config is initialised.
@@ -58,28 +61,60 @@ class Inverter(DeviceBase):
 
     def process_energy(
         self, generation: float, consumption: float, hour: int
-    ) -> Tuple[float, float, float, float]:
+    ) -> tuple[float, float, float, float]:
         losses = 0.0
         grid_export = 0.0
         grid_import = 0.0
         self_consumption = 0.0
 
         if generation >= consumption:
-            # Case 1: Sufficient or excess generation
-            actual_consumption = min(consumption, self.max_power_wh)
-            remaining_energy = generation - actual_consumption
+            if consumption > self.max_power_wh:
+                # If consumption exceeds maximum inverter power
+                losses += generation - self.max_power_wh
+                remaining_power = self.max_power_wh - consumption
+                grid_import = -remaining_power  # Negative indicates feeding into the grid
+                self_consumption = self.max_power_wh
+            else:
+                scr = self.self_consumption_predictor.calculate_self_consumption(
+                    consumption, generation
+                )
 
-            # Charge battery with excess energy
-            charged_energy, charging_losses = self.akku.charge_energy(remaining_energy, hour)
-            losses += charging_losses
+                # Remaining power after consumption
+                remaining_power = (generation - consumption) * scr  # EVQ
+                # Remaining load Self Consumption not perfect
+                remaining_load_evq = (generation - consumption) * (1.0 - scr)
 
-            # Calculate remaining surplus after battery charge
-            remaining_surplus = remaining_energy - (charged_energy + charging_losses)
-            grid_export = min(remaining_surplus, self.max_power_wh - actual_consumption)
+                if remaining_load_evq > 0:
+                    # Akku muss den Restverbrauch decken
+                    from_battery, discharge_losses = self.akku.discharge_energy(
+                        remaining_load_evq, hour
+                    )
+                    remaining_load_evq -= from_battery  # Restverbrauch nach Akkuentladung
+                    losses += discharge_losses
 
-            # If any remaining surplus can't be fed to the grid, count as losses
-            losses += max(remaining_surplus - grid_export, 0)
-            self_consumption = actual_consumption
+                    # Wenn der Akku den Restverbrauch nicht vollständig decken kann, wird der Rest ins Netz gezogen
+                    if remaining_load_evq > 0:
+                        grid_import += remaining_load_evq
+                        remaining_load_evq = 0
+                else:
+                    from_battery = 0.0
+
+                if remaining_power > 0:
+                    # Load battery with excess energy
+                    charged_energie, charge_losses = self.akku.charge_energy(remaining_power, hour)
+                    remaining_surplus = remaining_power - (charged_energie + charge_losses)
+
+                    # Feed-in to the grid based on remaining capacity
+                    if remaining_surplus > self.max_power_wh - consumption:
+                        grid_export = self.max_power_wh - consumption
+                        losses += remaining_surplus - grid_export
+                    else:
+                        grid_export = remaining_surplus
+
+                    losses += charge_losses
+                self_consumption = (
+                    consumption + from_battery
+                )  # Self-consumption is equal to the load
 
         else:
             # Case 2: Insufficient generation, cover shortfall
