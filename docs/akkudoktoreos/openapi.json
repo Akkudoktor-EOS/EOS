@@ -1072,6 +1072,19 @@
             "description": "FastAPI server IP port number.",
             "default": 8503
           },
+          "server_fastapi_verbose": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Fastapi Verbose",
+            "description": "Enable debug output",
+            "default": false
+          },
           "server_fastapi_startup_server_fasthtml": {
             "anyOf": [
               {
@@ -3712,6 +3725,19 @@
             "description": "FastAPI server IP port number.",
             "default": 8503
           },
+          "server_fastapi_verbose": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Fastapi Verbose",
+            "description": "Enable debug output",
+            "default": false
+          },
           "server_fastapi_startup_server_fasthtml": {
             "anyOf": [
               {
@@ -5775,6 +5801,21 @@
             "type": "array",
             "title": "Akku Soc Pro Stunde",
             "description": "The state of charge of the battery (not the EV) in percentage per hour."
+          },
+          "Electricity_price": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Electricity Price",
+            "description": "Used Electricity Price, including predictions"
           }
         },
         "type": "object",
@@ -5791,7 +5832,8 @@
           "Netzbezug_Wh_pro_Stunde",
           "Netzeinspeisung_Wh_pro_Stunde",
           "Verluste_Pro_Stunde",
-          "akku_soc_pro_stunde"
+          "akku_soc_pro_stunde",
+          "Electricity_price"
         ],
         "title": "SimulationResult",
         "description": "This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."
