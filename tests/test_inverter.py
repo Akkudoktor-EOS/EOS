@@ -1,8 +1,12 @@
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
+from akkudoktoreos.prediction.self_consumption_probability import (
+    self_consumption_probability_interpolator,
+)
 
 
 @pytest.fixture
@@ -15,25 +19,38 @@ def mock_battery():
 
 @pytest.fixture
 def inverter(mock_battery):
-    return Inverter(InverterParameters(max_power_wh=500.0), akku=mock_battery)
+    sc = self_consumption_probability_interpolator(
+        Path(__file__).parent.resolve()
+        / ".."
+        / "src"
+        / "akkudoktoreos"
+        / "data"
+        / "regular_grid_interpolator.pkl"
+    )
+    return Inverter(sc, InverterParameters(max_power_wh=500.0), akku=mock_battery)
 
 
 def test_process_energy_excess_generation(inverter, mock_battery):
     # Battery charges 100 Wh with 10 Wh loss
-    mock_battery.charge_energy.return_value = (100.0, 10.0)
     generation = 600.0
     consumption = 200.0
     hour = 12
+
+    mock_battery.charge_energy.return_value = (100.0, 10.0)
 
     grid_export, grid_import, losses, self_consumption = inverter.process_energy(
         generation, consumption, hour
     )
 
-    assert grid_export == pytest.approx(290.0, rel=1e-2)  # 290 Wh feed-in after battery charges
-    assert grid_import == 0.0  # No grid draw
+    assert grid_export == pytest.approx(
+        286.1737223461208, rel=1e-2
+    )  # 290 Wh feed-in after battery charges
+    assert grid_import == pytest.approx(3.826277653879151, rel=1e-2)  # Little grid draw
     assert losses == 10.0  # Battery charging losses
     assert self_consumption == 200.0  # All consumption is met
-    mock_battery.charge_energy.assert_called_once_with(400.0, hour)
+    mock_battery.charge_energy.assert_called_once_with(
+        pytest.approx(396.1737223461208, rel=1e-2), hour
+    )
 
 
 def test_process_energy_generation_equals_consumption(inverter, mock_battery):
@@ -50,7 +67,8 @@ def test_process_energy_generation_equals_consumption(inverter, mock_battery):
     assert losses == 0.0  # No losses
     assert self_consumption == 300.0  # All consumption is met with generation
 
-    mock_battery.charge_energy.assert_called_once_with(0.0, hour)
+    mock_battery.charge_energy.assert_not_called()
+    mock_battery.discharge_energy.assert_not_called()
 
 
 def test_process_energy_battery_discharges(inverter, mock_battery):
@@ -103,12 +121,14 @@ def test_process_energy_battery_full_at_start(inverter, mock_battery):
     )
 
     assert grid_export == pytest.approx(
-        300.0, rel=1e-2
+        296.39026480502736, rel=1e-2
     )  # All excess energy should be fed into the grid
-    assert grid_import == 0.0  # No grid draw
+    assert grid_import == pytest.approx(3.609735194972663, rel=1e-2)  # Almost no grid draw
     assert losses == 0.0  # No losses
     assert self_consumption == 200.0  # Only consumption is met
-    mock_battery.charge_energy.assert_called_once_with(300.0, hour)
+    mock_battery.charge_energy.assert_called_once_with(
+        pytest.approx(296.39026480502736, rel=1e-2), hour
+    )
 
 
 def test_process_energy_insufficient_generation_no_battery(inverter, mock_battery):
@@ -185,10 +205,14 @@ def test_process_energy_zero_consumption(inverter, mock_battery):
     )
 
     assert grid_export == pytest.approx(390.0, rel=1e-2)  # Excess energy after battery charges
-    assert grid_import == 0.0  # No grid draw as no consumption
+    assert grid_import == pytest.approx(
+        0.022862368543430378, rel=1e-2
+    )  # Almost no grid draw as no consumption
     assert losses == 10.0  # Charging losses
     assert self_consumption == 0.0  # Zero consumption
-    mock_battery.charge_energy.assert_called_once_with(500.0, hour)
+    mock_battery.charge_energy.assert_called_once_with(
+        pytest.approx(499.97713763145657, rel=1e-2), hour
+    )
 
 
 def test_process_energy_zero_generation_zero_consumption(inverter, mock_battery):

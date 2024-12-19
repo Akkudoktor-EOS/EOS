@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -14,6 +16,9 @@ from akkudoktoreos.devices.battery import (
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
+from akkudoktoreos.prediction.self_consumption_probability import (
+    self_consumption_probability_interpolator,
+)
 
 start_hour = 0
 
@@ -34,8 +39,19 @@ def create_ems_instance() -> EnergieManagementSystem:
         ),
         hours=config_eos.prediction_hours,
     )
+
+    # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
+    sc = self_consumption_probability_interpolator(
+        Path(__file__).parent.resolve()
+        / ".."
+        / "src"
+        / "akkudoktoreos"
+        / "data"
+        / "regular_grid_interpolator.pkl"
+    )
+
     akku.reset()
-    inverter = Inverter(InverterParameters(max_power_wh=10000), akku)
+    inverter = Inverter(sc, InverterParameters(max_power_wh=10000), akku)
 
     # Household device (currently not used, set to None)
     home_appliance = HomeAppliance(

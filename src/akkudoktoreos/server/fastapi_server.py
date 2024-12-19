@@ -63,7 +63,7 @@ app = FastAPI(
 )
 
 # That's the problem
-opt_class = optimization_problem()
+opt_class = optimization_problem(verbose=bool(config_eos.server_fastapi_verbose))
 
 server_dir = Path(__file__).parent.resolve()
 
@@ -106,6 +106,25 @@ def fastapi_strompreis() -> list[float]:
     specific_date_prices = marketprice_series.loc[
         prediction_eos.start_datetime : prediction_eos.end_datetime
     ]
+    # TODO merge
+    # date_start_pred, date_end = get_start_enddate(
+    #    config.eos.prediction_hours, startdate=datetime.now().date()
+    # )
+    # date_start = (datetime.now().date() - timedelta(days=8)).strftime("%Y-%m-%d")
+    # price_forecast = HourlyElectricityPriceForecast(
+    #    source=f"https://api.akkudoktor.net/prices?start={date_start}&end={date_end}",
+    #    config=config,
+    #    use_cache=False,
+    #    charges=config.eos.electricty_price_fixed_fee,
+    # )
+    ## seven Day mean
+    # specific_date_prices = price_forecast.get_price_for_daterange(
+    #    date_start, date_end
+    # )  # Fetch prices for the specified date range
+
+    # specific_date_prices = price_forecast.get_price_for_daterange(
+    #    date_start_pred, date_end, repeat=True
+    # )
     return specific_date_prices.tolist()
 
 
