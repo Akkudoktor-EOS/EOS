@@ -17,7 +17,7 @@ class VisualizationReport:
         self.current_group: list[
             Callable[[], None]
         ] = []  # Store current group of charts being created
-        self.pdf_pages = PdfPages(filename)  # Initialize PdfPages directly
+        self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
 
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
         """Add a chart function to the current group."""
@@ -43,7 +43,9 @@ class VisualizationReport:
             output_dir.mkdir(parents=True, exist_ok=True)
             output_file = os.path.join(output_dir, self.filename)
 
-        self.pdf_pages = PdfPages(output_file)  # Re-initialize PdfPages with the correct path
+        self.pdf_pages = PdfPages(
+            output_file, metadata={}
+        )  # Re-initialize PdfPages without metadata
 
     def _save_group_to_pdf(self, group: list[Callable[[], None]]) -> None:
         """Save a group of charts to the PDF."""
@@ -183,7 +185,6 @@ class VisualizationReport:
                 -bar_width * (num_groups - 1) / 2, bar_width * (num_groups - 1) / 2, num_groups
             )  # Bar offsets
             for i, values in enumerate(values_list):
-                print(values, i)
                 bottom_use = None
                 if bottom == i + 1:  # Set bottom if specified
                     bottom_use = 1
@@ -443,7 +444,6 @@ def prepare_visualize(
             results["result"]["Gesamtbilanz_Euro"],
         ]
     ]
-    print(values_list)
     labels = ["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"]
 
     report.create_bar_chart(
