@@ -1,4 +1,5 @@
 import os
+from collections.abc import Sequence
 from typing import Callable, List, Optional, Union
 
 import matplotlib.pyplot as plt
@@ -156,9 +157,10 @@ class VisualizationReport:
     def create_bar_chart(
         self,
         labels: List[str],
-        values_list: List[Union[int, float]],
+        values_list: Sequence[Union[int, float, List[Union[int, float]]]],
         title: str,
         ylabel: str,
+        xlabels: Optional[List[str]] = None,
         label_names: Optional[List[str]] = None,
         colors: Optional[List[str]] = None,
         bar_width: float = 0.35,
@@ -174,8 +176,8 @@ class VisualizationReport:
             offset = np.linspace(
                 -bar_width * (num_groups - 1) / 2, bar_width * (num_groups - 1) / 2, num_groups
             )  # Bar offsets
-
             for i, values in enumerate(values_list):
+                print(values, i)
                 bottom_use = None
                 if bottom == i + 1:  # Set bottom if specified
                     bottom_use = 1
@@ -191,11 +193,12 @@ class VisualizationReport:
                     alpha=0.6,
                     bottom=bottom_use,
                 )  # Create bar
-
+            if xlabels:
+                plt.xticks(x, labels)  # Add custom labels to the x-axis
             plt.title(title)  # Set title
             plt.ylabel(ylabel)  # Set y-axis label
 
-            if colors:
+            if colors and label_names:
                 plt.legend()  # Show legend if colors are provided
             plt.grid(True, zorder=0)  # Show grid in the background
             plt.xlim(-0.5, len(labels) - 0.5)  # Set x-axis limits
@@ -268,7 +271,7 @@ if __name__ == "__main__":
     )
     report.create_bar_chart(
         ["Costs", "Revenue", "Balance"],
-        [500.0, 600.0, 100.0],
+        [[500.0], [600.0], [100.0]],
         title="Financial Overview",
         ylabel="Euro",
         label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
@@ -399,6 +402,7 @@ def prepare_visualize(parameters: OptimizationParameters, results: dict) -> None
     report.finalize_group()
 
     # Group 4:
+
     report.create_line_chart(
         None,
         [
@@ -412,7 +416,6 @@ def prepare_visualize(parameters: OptimizationParameters, results: dict) -> None
     )
 
     extra_data = results["extra_data"]
-
     report.create_scatter_plot(
         extra_data["verluste"],
         extra_data["bilanz"],
@@ -420,6 +423,27 @@ def prepare_visualize(parameters: OptimizationParameters, results: dict) -> None
         xlabel="losses",
         ylabel="balance",
         c=extra_data["nebenbedingung"],
+    )
+
+    # Example usage
+    values_list = [
+        [
+            results["result"]["Gesamtkosten_Euro"],
+            results["result"]["Gesamteinnahmen_Euro"],
+            results["result"]["Gesamtbilanz_Euro"],
+        ]
+    ]
+    print(values_list)
+    labels = ["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"]
+
+    report.create_bar_chart(
+        labels=labels,
+        values_list=values_list,
+        title="Financial Overview",
+        ylabel="Euro",
+        xlabels=["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"],
+        # label_names=["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"],
+        # colors=[["blue", "green", "red"]],
     )
 
     report.finalize_group()
