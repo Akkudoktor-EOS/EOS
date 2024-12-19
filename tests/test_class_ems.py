@@ -9,9 +9,9 @@ from akkudoktoreos.core.ems import (
     get_ems,
 )
 from akkudoktoreos.devices.battery import (
-    SolarPanelBatteryParameters,
     Battery,
     ElectricVehicleParameters,
+    SolarPanelBatteryParameters,
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters

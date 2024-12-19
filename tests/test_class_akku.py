@@ -1,6 +1,6 @@
 import unittest
 
-from akkudoktoreos.devices.battery import SolarPanelBatteryParameters, Battery
+from akkudoktoreos.devices.battery import Battery, SolarPanelBatteryParameters
 
 
 class TestBattery(unittest.TestCase):

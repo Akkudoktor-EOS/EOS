@@ -8,7 +8,6 @@ from akkudoktoreos.core.ems import (
     get_ems,
 )
 from akkudoktoreos.devices.battery import (
-    BaseBatteryParameters,
     Battery,
     ElectricVehicleParameters,
     SolarPanelBatteryParameters,

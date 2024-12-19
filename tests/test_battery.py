@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.battery import SolarPanelBatteryParameters, Battery
+from akkudoktoreos.devices.battery import Battery, SolarPanelBatteryParameters
 
 
 @pytest.fixture
