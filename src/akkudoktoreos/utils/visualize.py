@@ -4,7 +4,6 @@ from typing import Callable, List, Optional, Union
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
-from numpy.typing import NDArray
 
 from akkudoktoreos.config.config import get_config
 
@@ -17,7 +16,7 @@ class VisualizationReport:
         self.current_group: List[
             Callable[[], None]
         ] = []  # Store current group of charts being created
-        self.pdf_pages: Optional[PdfPages] = None  # Handle for the PDF output
+        self.pdf_pages = PdfPages(filename)  # Initialize PdfPages directly
 
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
         """Add a chart function to the current group."""
@@ -37,7 +36,7 @@ class VisualizationReport:
         output_dir = config.data_output_path
         output_dir.mkdir(parents=True, exist_ok=True)
         output_file = os.path.join(output_dir, self.filename)  # Full path for PDF
-        self.pdf_pages = PdfPages(output_file)  # Initialize PdfPages
+        self.pdf_pages = PdfPages(output_file)  # Re-initialize PdfPages with the correct path
 
     def _save_group_to_pdf(self, group: List[Callable[[], None]]) -> None:
         """Save a group of charts to the PDF."""
@@ -61,7 +60,9 @@ class VisualizationReport:
             cols = 2 if fig_count > 1 else 1  # Determine number of columns
             rows = (fig_count // 2) + (fig_count % 2)  # Calculate required rows
             fig, axs = plt.subplots(rows, cols, figsize=(14, 7 * rows))  # Create subplots
-            axs = np.array(axs).reshape(-1)  # Flatten axes for easy indexing
+            # If axs is a 2D array of axes, flatten it into a 1D list
+            if isinstance(axs, np.ndarray):
+                axs = axs.flatten().tolist()
 
         # Draw each chart in the corresponding axes
         for idx, chart_func in enumerate(group):
@@ -71,14 +72,14 @@ class VisualizationReport:
         # Hide any unused axes
         for idx in range(fig_count, len(axs)):
             axs[idx].set_visible(False)  # Hide unused axes
-
         self.pdf_pages.savefig(fig)  # Save the figure to the PDF
+
         plt.close(fig)  # Close the figure to free up memory
 
     def create_line_chart(
         self,
         x: Optional[np.ndarray],
-        y_list: List[np.ndarray],
+        y_list: List[Union[np.ndarray, List[float]]],
         title: str,
         xlabel: str,
         ylabel: str,
@@ -91,7 +92,17 @@ class VisualizationReport:
         def chart() -> None:
             nonlocal x  # Allow modifying `x` within the nested function
             if x is None:  # Generate x values if not provided
-                x = np.arange(len(y_list[0]))  # Assumes all y_data have the same length
+                if isinstance(y_list[0], np.ndarray):
+                    x = np.arange(len(y_list[0]))  # Use the length of the first ndarray
+                elif isinstance(y_list[0], float):
+                    # Handle case where y_list[0] is a float
+                    x = np.arange(
+                        len(y_list)
+                    )  # If y_list is of floats, create range based on the list length
+                else:
+                    raise TypeError(
+                        "y_list elements must be either np.ndarray or float"
+                    )  # Raise error if not ndarray or float
 
             for idx, y_data in enumerate(y_list):
                 label = labels[idx] if labels else None  # Chart label
@@ -135,7 +146,7 @@ class VisualizationReport:
     def create_bar_chart(
         self,
         labels: List[str],
-        values_list: List[Union[List[float], np.ndarray]],
+        values_list: List[Union[int, float]],
         title: str,
         ylabel: str,
         label_names: Optional[List[str]] = None,
@@ -247,7 +258,7 @@ if __name__ == "__main__":
     )
     report.create_bar_chart(
         ["Costs", "Revenue", "Balance"],
-        [500, 600, 100],
+        [500.0, 600.0, 100.0],
         title="Financial Overview",
         ylabel="Euro",
         label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
@@ -283,10 +294,12 @@ if __name__ == "__main__":
     report.generate_pdf()
 
 
+# from akkudoktoreos.optimization.genetic import OptimizationParameters #circluar import
+
+
 def prepare_visualize(parameters, results: dict) -> None:
     report = VisualizationReport("visualization_results_new.pdf")
-    config = get_config()
-    x_hours = None
+    x_hours = None  # will be calculated depending on the length of the data
     # Group 1:
     report.create_line_chart(
         x_hours,
@@ -313,6 +326,7 @@ def prepare_visualize(parameters, results: dict) -> None:
         xlabel="Hours",
         ylabel="€/Wh",
     )
+    print(type(parameters.temperature_forecast), parameters.temperature_forecast)
     report.create_line_chart(
         x_hours,
         [parameters.temperature_forecast],
@@ -365,7 +379,7 @@ def prepare_visualize(parameters, results: dict) -> None:
     )
     print("!23!", [results["ac_charge"], results["dc_charge"], results["discharge_allowed"]])
     report.create_bar_chart(
-        np.arange(len(results["ac_charge"])),
+        list(str(i) for i in range(len(results["ac_charge"]))),
         [results["ac_charge"], results["dc_charge"], results["discharge_allowed"]],
         title="AC/DC Charging and Discharge Overview",
         ylabel="Relative Power (0-1) / Discharge (0 or 1)",
