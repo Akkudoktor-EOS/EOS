@@ -17,12 +17,14 @@ Following sections describe how to locally start the EOS server on `http://local
 Install dependencies in virtual environment:
 
 Linux:
+
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
 Windows:
+
 ```bash
 python -m venv .venv
  .venv\Scripts\pip install -r requirements.txt
@@ -31,13 +33,17 @@ python -m venv .venv
 Finally, start EOS fastapi server:
 
 Linux:
+
 ```bash
 .venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
 ```
+
 Windows:
+
 ```
  .venv\Scripts\fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
 ```
+
 ### Docker
 
 ```bash
@@ -67,7 +73,7 @@ If the configuration keys in the `EOS.config.json` file are missing or different
 
 This project uses various classes to simulate and optimize the components of an energy system. Each class represents a specific aspect of the system, as described below:
 
-- `PVAkku`: Simulates a battery storage system, including capacity, state of charge, and now charge and discharge losses.
+- `Battery`: Simulates a battery storage system, including capacity, state of charge, and now charge and discharge losses.
 
 - `PVForecast`: Provides forecast data for photovoltaic generation, based on weather data and historical generation data.
 
@@ -89,7 +95,6 @@ Each class is designed to be easily customized and extended to integrate additio
 
 See the Swagger API documentation for detailed information: [EOS OpenAPI Spec](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/docs/akkudoktoreos/openapi.json)
 
-
 ## Further resources
 
- - [Installation guide (de)](https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/)
+- [Installation guide (de)](https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/)

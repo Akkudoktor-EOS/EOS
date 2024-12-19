@@ -26,21 +26,21 @@
         ]
     },
     "pv_akku": {
-        "kapazitaet_wh": 26400,
-        "max_ladeleistung_w": 5000,
-        "start_soc_prozent": 80,
-        "min_soc_prozent": 15
+        "capacity_wh": 26400,
+        "max_charge_power_w": 5000,
+        "initial_soc_percentage": 80,
+        "min_soc_percentage": 15
     },
-    "inverter": {
-        "max_power_wh": 10000
+    "wechselrichter": {
+        "max_leistung_wh": 10000
     },
     "eauto": {
-        "kapazitaet_wh": 60000,
-        "lade_effizienz": 0.95,
-        "entlade_effizienz": 1.0,
-        "max_ladeleistung_w": 11040,
-        "start_soc_prozent": 54,
-        "min_soc_prozent": 0
+        "capacity_wh": 60000,
+        "charging_efficiency": 0.95,
+        "discharging_efficiency": 1.0,
+        "max_charge_power_w": 11040,
+        "initial_soc_percentage": 54,
+        "min_soc_percentage": 0
     },
     "temperature_forecast": [
       18.3, 17.8, 16.9, 16.2, 15.6, 15.1, 14.6, 14.2, 14.3, 14.8, 15.7, 16.7, 17.4,
