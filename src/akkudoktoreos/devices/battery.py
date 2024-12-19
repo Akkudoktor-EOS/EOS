@@ -10,7 +10,7 @@ from akkudoktoreos.utils.utils import NumpyEncoder
 logger = get_logger(__name__)
 
 
-def max_charging_power_field(description: Optional[str] = None) -> Field:
+def max_charging_power_field(description: Optional[str] = None) -> float:
     if description is None:
         description = "Maximum charging power in watts."
     return Field(
@@ -20,7 +20,7 @@ def max_charging_power_field(description: Optional[str] = None) -> Field:
     )
 
 
-def initial_soc_percentage_field(description: str) -> Field:
+def initial_soc_percentage_field(description: str) -> int:
     return Field(default=0, ge=0, le=100, description=description)
 
 
