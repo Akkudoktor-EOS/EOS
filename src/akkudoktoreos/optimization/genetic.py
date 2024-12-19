@@ -361,7 +361,7 @@ class optimization_problem:
 
         # Small Penalty for not discharging
         gesamtbilanz += sum(
-            0.01 for i in range(self.prediction_hours) if discharge_hours_bin[i] == 0.0
+            0.01 for i in range(start_hour, self.prediction_hours) if discharge_hours_bin[i] == 0.0
         )
 
         # Penalty for not meeting the minimum SOC (State of Charge) requirement
