@@ -21,7 +21,6 @@ from akkudoktoreos.devices.battery import (
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
 from akkudoktoreos.utils.utils import NumpyEncoder
-from akkudoktoreos.utils.visualize import prepare_visualize
 from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
@@ -546,6 +545,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             "spuelstart": washingstart_int,
             "extra_data": extra_data,
         }
+        from akkudoktoreos.utils.visualize import prepare_visualize
 
         prepare_visualize(parameters, visualize)
 

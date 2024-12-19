@@ -61,8 +61,8 @@ class VisualizationReport:
             rows = (fig_count // 2) + (fig_count % 2)  # Calculate required rows
             fig, axs = plt.subplots(rows, cols, figsize=(14, 7 * rows))  # Create subplots
             # If axs is a 2D array of axes, flatten it into a 1D list
-            if isinstance(axs, np.ndarray):
-                axs = axs.flatten().tolist()
+            # if isinstance(axs, np.ndarray):
+            axs = list(np.array(axs).reshape(-1))
 
         # Draw each chart in the corresponding axes
         for idx, chart_func in enumerate(group):
@@ -91,18 +91,28 @@ class VisualizationReport:
 
         def chart() -> None:
             nonlocal x  # Allow modifying `x` within the nested function
-            if x is None:  # Generate x values if not provided
-                if isinstance(y_list[0], np.ndarray):
-                    x = np.arange(len(y_list[0]))  # Use the length of the first ndarray
-                elif isinstance(y_list[0], float):
-                    # Handle case where y_list[0] is a float
-                    x = np.arange(
-                        len(y_list)
-                    )  # If y_list is of floats, create range based on the list length
+
+            # Check if x needs to be generated
+            if x is None:
+                first_element = y_list[0]
+
+                # Case 1: y_list contains np.ndarray elements
+                if isinstance(first_element, np.ndarray):
+                    x = np.arange(len(first_element))  # Use the length of the first ndarray
+                # Case 2: y_list contains float elements (1D list)
+                elif isinstance(first_element, float):
+                    x = np.arange(len(y_list))  # Create range based on the list length
+                # Case 3: y_list is a nested list of floats
+                elif isinstance(first_element, list) and all(
+                    isinstance(i, float) for i in first_element
+                ):
+                    max_len = max(len(sublist) for sublist in y_list)
+                    x = np.arange(max_len)  # Generate x values for the longest sublist
                 else:
+                    print(f"Unsupported y_list structure: {type(y_list)}, {y_list}")
                     raise TypeError(
-                        "y_list elements must be either np.ndarray or float"
-                    )  # Raise error if not ndarray or float
+                        "y_list elements must be np.ndarray, float, or a nested list of floats"
+                    )
 
             for idx, y_data in enumerate(y_list):
                 label = labels[idx] if labels else None  # Chart label
@@ -294,15 +304,14 @@ if __name__ == "__main__":
     report.generate_pdf()
 
 
-# from akkudoktoreos.optimization.genetic import OptimizationParameters #circluar import
+from akkudoktoreos.optimization.genetic import OptimizationParameters  # circluar import
 
 
-def prepare_visualize(parameters, results: dict) -> None:
+def prepare_visualize(parameters: OptimizationParameters, results: dict) -> None:
     report = VisualizationReport("visualization_results_new.pdf")
-    x_hours = None  # will be calculated depending on the length of the data
     # Group 1:
     report.create_line_chart(
-        x_hours,
+        None,
         [parameters.ems.gesamtlast],
         title="Load Profile",
         xlabel="Hours",
@@ -312,7 +321,7 @@ def prepare_visualize(parameters, results: dict) -> None:
         line_styles=["-"],
     )
     report.create_line_chart(
-        x_hours,
+        None,
         [parameters.ems.pv_prognose_wh],
         title="PV Forecast",
         xlabel="Hours",
@@ -320,25 +329,25 @@ def prepare_visualize(parameters, results: dict) -> None:
     )
 
     report.create_line_chart(
-        x_hours,
+        None,
         [np.full(len(parameters.ems.gesamtlast), parameters.ems.einspeiseverguetung_euro_pro_wh)],
         title="Remuneration",
         xlabel="Hours",
         ylabel="€/Wh",
     )
-    print(type(parameters.temperature_forecast), parameters.temperature_forecast)
-    report.create_line_chart(
-        x_hours,
-        [parameters.temperature_forecast],
-        title="Temperature Forecast",
-        xlabel="Hours",
-        ylabel="°C",
-    )
+    if parameters.temperature_forecast:
+        report.create_line_chart(
+            None,
+            [parameters.temperature_forecast],
+            title="Temperature Forecast",
+            xlabel="Hours",
+            ylabel="°C",
+        )
     report.finalize_group()
 
     # Group 2:
     report.create_line_chart(
-        x_hours,
+        None,
         [
             results["result"]["Last_Wh_pro_Stunde"],
             results["result"]["Home_appliance_wh_per_hour"],
@@ -363,7 +372,7 @@ def prepare_visualize(parameters, results: dict) -> None:
 
     # Group 3:
     report.create_line_chart(
-        x_hours,
+        None,
         [results["result"]["akku_soc_pro_stunde"], results["result"]["EAuto_SoC_pro_Stunde"]],
         title="Battery SOC",
         xlabel="Hours",
@@ -371,13 +380,13 @@ def prepare_visualize(parameters, results: dict) -> None:
         markers=["o", "x"],
     )
     report.create_line_chart(
-        x_hours,
+        None,
         [parameters.ems.strompreis_euro_pro_wh],
         title="Electricity Price",
         xlabel="Hours",
         ylabel="Price (€/Wh)",
     )
-    print("!23!", [results["ac_charge"], results["dc_charge"], results["discharge_allowed"]])
+
     report.create_bar_chart(
         list(str(i) for i in range(len(results["ac_charge"]))),
         [results["ac_charge"], results["dc_charge"], results["discharge_allowed"]],
@@ -391,7 +400,7 @@ def prepare_visualize(parameters, results: dict) -> None:
 
     # Group 4:
     report.create_line_chart(
-        x_hours,
+        None,
         [
             results["result"]["Kosten_Euro_pro_Stunde"],
             results["result"]["Einnahmen_Euro_pro_Stunde"],
