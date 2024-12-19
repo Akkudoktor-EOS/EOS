@@ -69,8 +69,8 @@ def test_optimize(fn_in: str, fn_out: str, ngen: int, is_full_run: bool):
 
     with patch(
         "akkudoktoreos.utils.visualize.prepare_visualize",
-        side_effect=lambda *args, **kwargs: prepare_visualize(
-            *args, filename=visualize_filename, **kwargs
+        side_effect=lambda parameters, results, *args, **kwargs: prepare_visualize(
+            parameters, results, filename=visualize_filename, **kwargs
         ),
     ) as prepare_visualize_patch:
         # Call the optimization function
