@@ -617,13 +617,13 @@
             1,
             1
         ],
-        "entlade_effizienz": 1.0,
+        "discharging_efficiency": 1.0,
         "hours": 48,
-        "kapazitaet_wh": 60000,
-        "lade_effizienz": 0.95,
-        "max_ladeleistung_w": 11040,
+        "capacity_wh": 60000,
+        "charging_efficiency": 0.95,
+        "max_charge_power_w": 11040,
         "soc_wh": 32400.000000000004,
-        "start_soc_prozent": 54
+        "initial_soc_percentage": 54
     },
     "start_solution": [
         18.0,

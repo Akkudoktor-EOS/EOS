@@ -6,7 +6,7 @@ from pydantic import Field, computed_field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
-from akkudoktoreos.devices.battery import PVAkku
+from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.devicesabc import DevicesBase
 from akkudoktoreos.devices.generic import HomeAppliance
 from akkudoktoreos.devices.inverter import Inverter
@@ -25,7 +25,7 @@ class DevicesCommonSettings(SettingsBaseModel):
         default=None, description="Id of Battery simulation provider."
     )
     battery_capacity: Optional[int] = Field(default=None, description="Battery capacity [Wh].")
-    battery_soc_start: Optional[int] = Field(
+    battery_initial_soc: Optional[int] = Field(
         default=None, description="Battery initial state of charge [%]."
     )
     battery_soc_min: Optional[int] = Field(
@@ -34,13 +34,13 @@ class DevicesCommonSettings(SettingsBaseModel):
     battery_soc_max: Optional[int] = Field(
         default=None, description="Battery maximum state of charge [%]."
     )
-    battery_charge_efficiency: Optional[float] = Field(
+    battery_charging_efficiency: Optional[float] = Field(
         default=None, description="Battery charging efficiency [%]."
     )
-    battery_discharge_efficiency: Optional[float] = Field(
+    battery_discharging_efficiency: Optional[float] = Field(
         default=None, description="Battery discharging efficiency [%]."
     )
-    battery_charge_power_max: Optional[int] = Field(
+    battery_max_charging_power: Optional[int] = Field(
         default=None, description="Battery maximum charge power [W]."
     )
 
@@ -52,19 +52,19 @@ class DevicesCommonSettings(SettingsBaseModel):
     bev_capacity: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle capacity [Wh]."
     )
-    bev_soc_start: Optional[int] = Field(
+    bev_initial_soc: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle initial state of charge [%]."
     )
     bev_soc_max: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle maximum state of charge [%]."
     )
-    bev_charge_efficiency: Optional[float] = Field(
+    bev_charging_efficiency: Optional[float] = Field(
         default=None, description="Battery Electric Vehicle charging efficiency [%]."
     )
-    bev_discharge_efficiency: Optional[float] = Field(
+    bev_discharging_efficiency: Optional[float] = Field(
         default=None, description="Battery Electric Vehicle discharging efficiency [%]."
     )
-    bev_charge_power_max: Optional[int] = Field(
+    bev_max_charging_power: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle maximum charge power [W]."
     )
 
@@ -159,8 +159,8 @@ class Devices(SingletonMixin, DevicesBase):
     # Devices
     # TODO: Make devices class a container of device simulation providers.
     #       Device simulations to be used are then enabled in the configuration.
-    akku: ClassVar[PVAkku] = PVAkku(provider_id="GenericBattery")
-    eauto: ClassVar[PVAkku] = PVAkku(provider_id="GenericBEV")
+    akku: ClassVar[Battery] = Battery(provider_id="GenericBattery")
+    eauto: ClassVar[Battery] = Battery(provider_id="GenericBEV")
     home_appliance: ClassVar[HomeAppliance] = HomeAppliance(provider_id="GenericDishWasher")
     inverter: ClassVar[Inverter] = Inverter(akku=akku, provider_id="GenericInverter")
 
@@ -186,9 +186,9 @@ class Devices(SingletonMixin, DevicesBase):
         # Set initial state
         simulation_step = to_duration("1 hour")
         if self.akku:
-            self.akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
+            self.akku_soc_pro_stunde[0] = self.akku.current_soc_percentage()
         if self.eauto:
-            self.eauto_soc_pro_stunde[0] = self.eauto.ladezustand_in_prozent()
+            self.eauto_soc_pro_stunde[0] = self.eauto.current_soc_percentage()
 
         # Get predictions for full device simulation time range
         # gesamtlast[stunde]
@@ -232,12 +232,12 @@ class Devices(SingletonMixin, DevicesBase):
             # E-Auto handling
             if self.eauto:
                 if self.ev_charge_hours[hour] > 0:
-                    geladene_menge_eauto, verluste_eauto = self.eauto.energie_laden(
+                    geladene_menge_eauto, verluste_eauto = self.eauto.charge_energy(
                         None, hour, relative_power=self.ev_charge_hours[hour]
                     )
                     consumption += geladene_menge_eauto
                     self.verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
-                self.eauto_soc_pro_stunde[stunde_since_now] = self.eauto.ladezustand_in_prozent()
+                self.eauto_soc_pro_stunde[stunde_since_now] = self.eauto.current_soc_percentage()
 
             # Process inverter logic
             grid_export, grid_import, losses, self_consumption = (0.0, 0.0, 0.0, 0.0)
@@ -252,10 +252,10 @@ class Devices(SingletonMixin, DevicesBase):
             # AC PV Battery Charge
             if self.akku and self.ac_charge_hours[hour] > 0.0:
                 self.akku.set_charge_allowed_for_hour(1, hour)
-                geladene_menge, verluste_wh = self.akku.energie_laden(
+                geladene_menge, verluste_wh = self.akku.charge_energy(
                     None, hour, relative_power=self.ac_charge_hours[hour]
                 )
-                # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.ladezustand_in_prozent())
+                # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.current_soc_percentage())
                 consumption += geladene_menge
                 grid_import += geladene_menge
                 self.verluste_wh_pro_stunde[stunde_since_now] += verluste_wh
@@ -275,7 +275,7 @@ class Devices(SingletonMixin, DevicesBase):
 
             # Akku SOC tracking
             if self.akku:
-                self.akku_soc_pro_stunde[stunde_since_now] = self.akku.ladezustand_in_prozent()
+                self.akku_soc_pro_stunde[stunde_since_now] = self.akku.current_soc_percentage()
             else:
                 self.akku_soc_pro_stunde[stunde_since_now] = 0.0
 
