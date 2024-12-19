@@ -2517,7 +2517,7 @@
               }
             ],
             "title": "Max Charge Power W",
-            "description": "",
+            "description": "Maximum charging power in watts.",
             "default": 5000
           },
           "initial_soc_percentage": {
@@ -4980,7 +4980,7 @@
               }
             ],
             "title": "Max Charge Power W",
-            "description": "",
+            "description": "Maximum charging power in watts.",
             "default": 5000
           },
           "initial_soc_percentage": {

@@ -10,7 +10,9 @@ from akkudoktoreos.utils.utils import NumpyEncoder
 logger = get_logger(__name__)
 
 
-def max_charging_power_field(description: Optional[str] = "") -> Field:
+def max_charging_power_field(description: Optional[str] = None) -> Field:
+    if description is None:
+        description = "Maximum charging power in watts."
     return Field(
         default=5000,
         gt=0,
