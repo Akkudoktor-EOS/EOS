@@ -31,25 +31,39 @@ class Wechselrichter:
                 eigenverbrauch = self.max_leistung_wh
             else:
                 # Remaining power after consumption
-                restleistung_nach_verbrauch = erzeugung - verbrauch
+                restleistung_nach_verbrauch = (erzeugung - verbrauch) * 0.95  # EVQ
+                # Remaining load Self Consumption not perfect
+                restlast_evq = (erzeugung - verbrauch) * (1.0 - 0.95)
 
-                # Load battery with excess energy
-                geladene_energie, verluste_laden_akku = self.akku.energie_laden(
-                    restleistung_nach_verbrauch, hour
-                )
-                rest_überschuss = restleistung_nach_verbrauch - (
-                    geladene_energie + verluste_laden_akku
-                )
+                if restlast_evq > 0:
+                    # Akku muss den Restverbrauch decken
+                    aus_akku, akku_entladeverluste = self.akku.energie_abgeben(restlast_evq, hour)
+                    restlast_evq -= aus_akku  # Restverbrauch nach Akkuentladung
+                    verluste += akku_entladeverluste
 
-                # Feed-in to the grid based on remaining capacity
-                if rest_überschuss > self.max_leistung_wh - verbrauch:
-                    netzeinspeisung = self.max_leistung_wh - verbrauch
-                    verluste += rest_überschuss - netzeinspeisung
-                else:
-                    netzeinspeisung = rest_überschuss
+                    # Wenn der Akku den Restverbrauch nicht vollständig decken kann, wird der Rest ins Netz gezogen
+                    if restlast_evq > 0:
+                        netzbezug += restlast_evq
+                        restlast_evq = 0
 
-                verluste += verluste_laden_akku
-                eigenverbrauch = verbrauch  # Self-consumption is equal to the load
+                if restleistung_nach_verbrauch > 0:
+                    # Load battery with excess energy
+                    geladene_energie, verluste_laden_akku = self.akku.energie_laden(
+                        restleistung_nach_verbrauch, hour
+                    )
+                    rest_überschuss = restleistung_nach_verbrauch - (
+                        geladene_energie + verluste_laden_akku
+                    )
+
+                    # Feed-in to the grid based on remaining capacity
+                    if rest_überschuss > self.max_leistung_wh - verbrauch:
+                        netzeinspeisung = self.max_leistung_wh - verbrauch
+                        verluste += rest_überschuss - netzeinspeisung
+                    else:
+                        netzeinspeisung = rest_überschuss
+
+                    verluste += verluste_laden_akku
+                eigenverbrauch = verbrauch + aus_akku  # Self-consumption is equal to the load
 
         else:
             benötigte_energie = verbrauch - erzeugung  # Energy needed from external sources
