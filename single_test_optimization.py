@@ -361,21 +361,15 @@ def main():
             print(f"Error during optimization: {e}", file=sys.stderr)
             sys.exit(1)
     else:
-        # Run without profiling
-        try:
-            start_time = time.time()
-            result = run_optimization(
-                real_world=args.real_world, start_hour=args.start_hour, verbose=args.verbose
-            )
-            end_time = time.time()
-            elapsed_time = end_time - start_time
-            print(f"\nElapsed time: {elapsed_time:.4f} seconds.")
-            print("\nOptimization Result:")
-            print(result)
-
-        except Exception as e:
-            print(f"Error during optimization: {e}", file=sys.stderr)
-            sys.exit(1)
+        start_time = time.time()
+        result = run_optimization(
+            real_world=args.real_world, start_hour=args.start_hour, verbose=args.verbose
+        )
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        print(f"\nElapsed time: {elapsed_time:.4f} seconds.")
+        print("\nOptimization Result:")
+        print(result)
 
 
 if __name__ == "__main__":
