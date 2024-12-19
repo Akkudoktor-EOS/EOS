@@ -1,12 +1,12 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.battery import BaseBatteryParameters, Battery
+from akkudoktoreos.devices.battery import SolarPanelBatteryParameters, Battery
 
 
 @pytest.fixture
 def setup_pv_battery():
-    params = BaseBatteryParameters(
+    params = SolarPanelBatteryParameters(
         capacity_wh=10000,
         initial_soc_percentage=50,
         min_soc_percentage=20,

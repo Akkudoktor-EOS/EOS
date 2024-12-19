@@ -9,7 +9,7 @@ from akkudoktoreos.core.ems import (
     get_ems,
 )
 from akkudoktoreos.devices.battery import (
-    BaseBatteryParameters,
+    SolarPanelBatteryParameters,
     Battery,
     ElectricVehicleParameters,
 )
@@ -30,7 +30,9 @@ def create_ems_instance() -> EnergieManagementSystem:
 
     # Initialize the battery and the inverter
     akku = Battery(
-        BaseBatteryParameters(capacity_wh=5000, initial_soc_percentage=80, min_soc_percentage=10),
+        SolarPanelBatteryParameters(
+            capacity_wh=5000, initial_soc_percentage=80, min_soc_percentage=10
+        ),
         hours=config_eos.prediction_hours,
     )
     akku.reset()

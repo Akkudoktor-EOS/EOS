@@ -1,6 +1,6 @@
 import unittest
 
-from akkudoktoreos.devices.battery import BaseBatteryParameters, Battery
+from akkudoktoreos.devices.battery import SolarPanelBatteryParameters, Battery
 
 
 class TestBattery(unittest.TestCase):
@@ -14,7 +14,7 @@ class TestBattery(unittest.TestCase):
 
     def test_initial_state_of_charge(self):
         akku = Battery(
-            BaseBatteryParameters(
+            SolarPanelBatteryParameters(
                 capacity_wh=self.capacity_wh,
                 initial_soc_percentage=50,
                 min_soc_percentage=self.min_soc_percentage,
@@ -26,7 +26,7 @@ class TestBattery(unittest.TestCase):
 
     def test_discharge_below_min_soc(self):
         akku = Battery(
-            BaseBatteryParameters(
+            SolarPanelBatteryParameters(
                 capacity_wh=self.capacity_wh,
                 initial_soc_percentage=50,
                 min_soc_percentage=self.min_soc_percentage,
@@ -47,7 +47,7 @@ class TestBattery(unittest.TestCase):
 
     def test_charge_above_max_soc(self):
         akku = Battery(
-            BaseBatteryParameters(
+            SolarPanelBatteryParameters(
                 capacity_wh=self.capacity_wh,
                 initial_soc_percentage=50,
                 min_soc_percentage=self.min_soc_percentage,
@@ -68,7 +68,7 @@ class TestBattery(unittest.TestCase):
 
     def test_charging_at_max_soc(self):
         akku = Battery(
-            BaseBatteryParameters(
+            SolarPanelBatteryParameters(
                 capacity_wh=self.capacity_wh,
                 initial_soc_percentage=80,
                 min_soc_percentage=self.min_soc_percentage,
@@ -88,7 +88,7 @@ class TestBattery(unittest.TestCase):
 
     def test_discharging_at_min_soc(self):
         akku = Battery(
-            BaseBatteryParameters(
+            SolarPanelBatteryParameters(
                 capacity_wh=self.capacity_wh,
                 initial_soc_percentage=20,
                 min_soc_percentage=self.min_soc_percentage,
@@ -109,7 +109,7 @@ class TestBattery(unittest.TestCase):
     def test_soc_limits(self):
         # Test to ensure that SoC never exceeds max_soc or drops below min_soc
         akku = Battery(
-            BaseBatteryParameters(
+            SolarPanelBatteryParameters(
                 capacity_wh=self.capacity_wh,
                 initial_soc_percentage=50,
                 min_soc_percentage=self.min_soc_percentage,
