@@ -1,8 +1,9 @@
 import os
+from typing import Callable, List, Optional, Union
+
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
-from typing import Callable, List, Optional, Union
 from numpy.typing import NDArray
 
 from akkudoktoreos.config.config import get_config
@@ -76,7 +77,7 @@ class VisualizationReport:
 
     def create_line_chart(
         self,
-        x: np.ndarray,
+        x: Optional[np.ndarray],
         y_list: List[np.ndarray],
         title: str,
         xlabel: str,
@@ -88,6 +89,10 @@ class VisualizationReport:
         """Create a line chart and add it to the current group."""
 
         def chart() -> None:
+            nonlocal x  # Allow modifying `x` within the nested function
+            if x is None:  # Generate x values if not provided
+                x = np.arange(len(y_list[0]))  # Assumes all y_data have the same length
+
             for idx, y_data in enumerate(y_list):
                 label = labels[idx] if labels else None  # Chart label
                 marker = markers[idx] if markers and idx < len(markers) else "o"  # Marker style
@@ -143,7 +148,6 @@ class VisualizationReport:
         def chart() -> None:
             num_groups = len(values_list)  # Number of data groups
             num_bars = len(labels)  # Number of bars (categories)
-
             # Calculate the positions for each bar group on the x-axis
             x = np.arange(num_bars)  # x positions for bars
             offset = np.linspace(
@@ -282,8 +286,7 @@ if __name__ == "__main__":
 def prepare_visualize(parameters, results: dict) -> None:
     report = VisualizationReport("visualization_results_new.pdf")
     config = get_config()
-    x_hours: NDArray[np.int_] = np.arange(0, len(parameters.ems.gesamtlast), dtype=np.int_)
-
+    x_hours = None
     # Group 1:
     report.create_line_chart(
         x_hours,
@@ -360,8 +363,9 @@ def prepare_visualize(parameters, results: dict) -> None:
         xlabel="Hours",
         ylabel="Price (€/Wh)",
     )
+    print("!23!", [results["ac_charge"], results["dc_charge"], results["discharge_allowed"]])
     report.create_bar_chart(
-        x_hours,
+        np.arange(len(results["ac_charge"])),
         [results["ac_charge"], results["dc_charge"], results["discharge_allowed"]],
         title="AC/DC Charging and Discharge Overview",
         ylabel="Relative Power (0-1) / Discharge (0 or 1)",
