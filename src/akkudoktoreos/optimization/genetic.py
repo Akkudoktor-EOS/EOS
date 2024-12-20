@@ -5,6 +5,7 @@ import numpy as np
 from deap import algorithms, base, creator, tools
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing_extensions import Self
+from pathlib import Path
 
 from akkudoktoreos.config import AppConfig
 from akkudoktoreos.devices.battery import (
@@ -12,6 +13,9 @@ from akkudoktoreos.devices.battery import (
     EAutoResult,
     PVAkku,
     PVAkkuParameters,
+)
+from akkudoktoreos.prediction.self_consumption_probability import (
+    self_consumption_probability_interpolator,
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
@@ -142,7 +146,7 @@ class optimization_problem:
 
         # AC states
         ac_mask = (discharge_hours_bin_np >= 2 * len_ac) & (discharge_hours_bin_np < 3 * len_ac)
-        ac_indices = discharge_hours_bin_np[ac_mask] - 2 * len_ac
+        ac_indices = (discharge_hours_bin_np[ac_mask] - 2 * len_ac).astype(int)
 
         # DC states (if enabled)
         if self.optimize_dc_charge:
@@ -350,10 +354,10 @@ class optimization_problem:
         worst_case: bool,
     ) -> Tuple[float]:
         """Evaluate the fitness of an individual solution based on the simulation results."""
-        try:
-            o = self.evaluate_inner(individual, ems, start_hour)
-        except Exception as e:
-            return (100000.0,)  # Return a high penalty in case of an exception
+        # try:
+        o = self.evaluate_inner(individual, ems, start_hour)
+        # except Exception as e:
+        #    return (100000.0,)  # Return a high penalty in case of an exception
 
         gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
 
@@ -443,11 +447,16 @@ class optimization_problem:
         parameters: OptimizationParameters,
         start_hour: int,
         worst_case: bool = False,
-        ngen: int = 600,
+        ngen: int = 200,
     ) -> OptimizeResponse:
         """Perform EMS (Energy Management System) optimization and visualize results."""
         einspeiseverguetung_euro_pro_wh = np.full(
             self.prediction_hours, parameters.ems.einspeiseverguetung_euro_pro_wh
+        )
+
+        # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
+        sc = self_consumption_probability_interpolator(
+            Path(__file__).parent.resolve() / ".." / "data" / "regular_grid_interpolator.pkl"
         )
 
         # Initialize PV and EV batteries
@@ -481,7 +490,11 @@ class optimization_problem:
         )
 
         # Initialize the inverter and energy management system
-        wr = Wechselrichter(parameters.wechselrichter, akku)
+        wr = Wechselrichter(
+            parameters.wechselrichter,
+            akku,
+            self_consumption_predictor=sc,
+        )
         ems = EnergieManagementSystem(
             self._config.eos,
             parameters.ems,
