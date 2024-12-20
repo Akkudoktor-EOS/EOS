@@ -225,26 +225,32 @@ class optimization_problem:
 
     def split_individual(
         self, individual: list[int]
-    ) -> tuple[list[int], Optional[list[int]], Optional[int]]:
-        """Split the individual solution into its components.
+    ) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[int]]:
+        """
+        Split the individual solution into its components.
 
         Components:
-        1. Discharge hours (binary),
-        2. Electric vehicle charge hours (float),
+        1. Discharge hours (binary as int NumPy array),
+        2. Electric vehicle charge hours (float as int NumPy array, if applicable),
         3. Dishwasher start time (integer if applicable).
         """
-        discharge_hours_bin = individual[: self.prediction_hours]
+        # Discharge hours as a NumPy array of ints
+        discharge_hours_bin = np.array(individual[: self.prediction_hours], dtype=int)
+
+        # EV charge hours as a NumPy array of ints (if optimize_ev is True)
         eautocharge_hours_index = (
-            individual[self.prediction_hours : self.prediction_hours * 2]
+            np.array(individual[self.prediction_hours : self.prediction_hours * 2], dtype=int)
             if self.optimize_ev
             else None
         )
 
+        # Washing machine start time as an integer (if applicable)
         washingstart_int = (
             int(individual[-1])
             if self.opti_param and self.opti_param.get("home_appliance", 0) > 0
             else None
         )
+
         return discharge_hours_bin, eautocharge_hours_index, washingstart_int
 
     def setup_deap_environment(self, opti_param: dict[str, Any], start_hour: int) -> None:
@@ -371,12 +377,13 @@ class optimization_problem:
         #    0.01 for i in range(start_hour, self.prediction_hours) if discharge_hours_bin[i] == 0.0
         # )
 
-        # Penalty for charging EV, with battery full
-        len_soc = len(o["EAuto_SoC_pro_Stunde"])
-        eautocharge_hours = np.array(eautocharge_hours_index)
-        relevant_indices = eautocharge_hours[-len_soc:]
-        mask = (o["EAuto_SoC_pro_Stunde"] == 100) & (relevant_indices != 0)
-        gesamtbilanz += np.sum(mask) * 0.01
+        # if self.optimize_ev:
+        #     # Penalty for charging EV, with battery full
+        #     len_soc = len(o["EAuto_SoC_pro_Stunde"])
+        #     eautocharge_hours = np.array(eautocharge_hours_index)
+        #     relevant_indices = eautocharge_hours[-len_soc:]
+        #     mask = (o["EAuto_SoC_pro_Stunde"] == 100) & (relevant_indices != 0)
+        #     gesamtbilanz += np.sum(mask) * 0.1
 
         individual.extra_data = (  # type: ignore[attr-defined]
             o["Gesamtbilanz_Euro"],
@@ -419,7 +426,7 @@ class optimization_problem:
 
         # Insert the start solution into the population if provided
         if start_solution is not None:
-            for _ in range(3):
+            for _ in range(10):
                 population.insert(0, creator.Individual(start_solution))
 
         # Run the evolutionary algorithm
@@ -451,7 +458,7 @@ class optimization_problem:
         parameters: OptimizationParameters,
         start_hour: int,
         worst_case: bool = False,
-        ngen: int = 200,
+        ngen: int = 400,
     ) -> OptimizeResponse:
         """Perform EMS (Energy Management System) optimization and visualize results."""
         einspeiseverguetung_euro_pro_wh = np.full(
