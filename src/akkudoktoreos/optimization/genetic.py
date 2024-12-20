@@ -223,6 +223,42 @@ class optimization_problem:
 
         return creator.Individual(individual_components)
 
+    def merge_individual(
+        self,
+        discharge_hours_bin: np.ndarray,
+        eautocharge_hours_index: Optional[np.ndarray],
+        washingstart_int: Optional[int],
+    ) -> list[int]:
+        """
+        Merge the individual components back into a single solution list.
+
+        Parameters:
+            discharge_hours_bin (np.ndarray): Binary discharge hours.
+            eautocharge_hours_index (Optional[np.ndarray]): EV charge hours as integers, or None.
+            washingstart_int (Optional[int]): Dishwasher start time as integer, or None.
+
+        Returns:
+            list[int]: The merged individual solution as a list of integers.
+        """
+        # Start with the discharge hours
+        individual = discharge_hours_bin.tolist()
+
+        # Add EV charge hours if applicable
+        if self.optimize_ev and eautocharge_hours_index is not None:
+            individual.extend(eautocharge_hours_index.tolist())
+        elif self.optimize_ev:
+            # Falls optimize_ev aktiv ist, aber keine EV-Daten vorhanden sind, fügen wir Nullen hinzu
+            individual.extend([0] * self.prediction_hours)
+
+        # Add dishwasher start time if applicable
+        if self.opti_param.get("home_appliance", 0) > 0 and washingstart_int is not None:
+            individual.append(washingstart_int)
+        elif self.opti_param.get("home_appliance", 0) > 0:
+            # Falls ein Haushaltsgerät optimiert wird, aber kein Startzeitpunkt vorhanden ist
+            individual.append(0)
+
+        return individual
+
     def split_individual(
         self, individual: list[int]
     ) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[int]]:
@@ -370,21 +406,46 @@ class optimization_problem:
 
         gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
 
-        discharge_hours_bin, eautocharge_hours_index, _ = self.split_individual(individual)
+        discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
+            individual
+        )
 
-        # Small Penalty for not discharging
-        # gesamtbilanz += sum(
-        #    0.01 for i in range(start_hour, self.prediction_hours) if discharge_hours_bin[i] == 0.0
-        # )
+        # EV 100% & charge not allowed
+        if self.optimize_ev:
+            eauto_soc_per_hour = np.array(o.get("EAuto_SoC_pro_Stunde", []))  # Beispielkey
 
-        # if self.optimize_ev:
-        #     # Penalty for charging EV, with battery full
-        #     len_soc = len(o["EAuto_SoC_pro_Stunde"])
-        #     eautocharge_hours = np.array(eautocharge_hours_index)
-        #     relevant_indices = eautocharge_hours[-len_soc:]
-        #     mask = (o["EAuto_SoC_pro_Stunde"] == 100) & (relevant_indices != 0)
-        #     gesamtbilanz += np.sum(mask) * 0.1
+            # Angleichung von hinten
+            min_length = min(len(eauto_soc_per_hour), len(eautocharge_hours_index))
+            eauto_soc_per_hour_tail = eauto_soc_per_hour[-min_length:]
+            eautocharge_hours_index_tail = np.array(eautocharge_hours_index[-min_length:])
 
+            # Erstelle die Maske für die relevanten Abschnitte
+            invalid_charge_mask = (eauto_soc_per_hour_tail == 100) & (
+                eautocharge_hours_index_tail > 0
+            )
+
+            # Überprüfen und anpassen der Ladezeiten
+            if np.any(invalid_charge_mask):
+                # Ignoriere den ersten ungültigen Eintrag
+                invalid_indices = np.where(invalid_charge_mask)[0]
+                if (
+                    len(invalid_indices) > 1
+                ):  # Nur anpassen, wenn mehr als ein ungültiger Eintrag vorliegt
+                    eautocharge_hours_index_tail[invalid_indices[1:]] = 0
+
+                # Aktualisiere die letzten min_length-Einträge von eautocharge_hours_index
+                eautocharge_hours_index[-min_length:] = eautocharge_hours_index_tail.tolist()
+
+                # Rückschreiben der Anpassungen in `individual`
+                adjusted_individual = self.merge_individual(
+                    discharge_hours_bin, eautocharge_hours_index, washingstart_int
+                )
+
+                # print("Vor:", individual)
+                individual[:] = adjusted_individual  # Aktualisiere das ursprüngliche individual
+                # print("Nach:", individual)#
+
+        # Berechnung weiterer Metriken
         individual.extra_data = (  # type: ignore[attr-defined]
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
@@ -394,11 +455,9 @@ class optimization_problem:
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
-
         restwert_akku = ems.akku.aktueller_energieinhalt() * parameters.ems.preis_euro_pro_wh_akku
-        # print(ems.akku.aktueller_energieinhalt()," * ", parameters.ems.preis_euro_pro_wh_akku , " ", restwert_akku, " ", gesamtbilanz)
         gesamtbilanz += -restwert_akku
-        # print(gesamtbilanz)
+
         if self.optimize_ev:
             gesamtbilanz += max(
                 0,
@@ -524,14 +583,18 @@ class optimization_problem:
         if self.verbose == True:
             start_time = time.time()
         start_solution, extra_data = self.optimize(parameters.start_solution, ngen=ngen)
+
         if self.verbose == True:
             elapsed_time = time.time() - start_time
             print(f"Time evaluate inner: {elapsed_time:.4f} sec.")
         # Perform final evaluation on the best solution
+        print(start_solution[start_hour:])
+        print(start_hour)
         o = self.evaluate_inner(start_solution, ems, start_hour)
         discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
             start_solution
         )
+
         eautocharge_hours_float = (
             [
                 self._config.eos.available_charging_rates_in_percentage[i]
