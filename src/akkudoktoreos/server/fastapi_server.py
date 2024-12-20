@@ -196,7 +196,7 @@ def fastapi_optimize(
     ] = None,
 ) -> OptimizeResponse:
     if start_hour is None:
-        start_hour = 10  # datetime.now().hour
+        start_hour = datetime.now().hour
 
     # Perform optimization simulation
     result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
