@@ -1,6 +1,7 @@
 import random
+from tabnanny import verbose
 from typing import Any, Optional, Tuple
-
+import time
 import numpy as np
 from deap import algorithms, base, creator, tools
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -354,10 +355,11 @@ class optimization_problem:
         worst_case: bool,
     ) -> Tuple[float]:
         """Evaluate the fitness of an individual solution based on the simulation results."""
-        # try:
-        o = self.evaluate_inner(individual, ems, start_hour)
-        # except Exception as e:
-        #    return (100000.0,)  # Return a high penalty in case of an exception
+
+        try:
+            o = self.evaluate_inner(individual, ems, start_hour)
+        except Exception as e:
+            return (100000.0,)  # Return a high penalty in case of an exception
 
         gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
 
@@ -509,8 +511,13 @@ class optimization_problem:
             "evaluate",
             lambda ind: self.evaluate(ind, ems, parameters, start_hour, worst_case),
         )
-        start_solution, extra_data = self.optimize(parameters.start_solution, ngen=ngen)
 
+        if self.verbose == True:
+            start_time = time.time()
+        start_solution, extra_data = self.optimize(parameters.start_solution, ngen=ngen)
+        if self.verbose == True:
+            elapsed_time = time.time() - start_time
+            print(f"Time evaluate inner: {elapsed_time:.4f} sec.")
         # Perform final evaluation on the best solution
         o = self.evaluate_inner(start_solution, ems, start_hour)
         discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
