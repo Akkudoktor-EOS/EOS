@@ -7,7 +7,7 @@ from deap import algorithms, base, creator, tools
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing_extensions import Self
 from pathlib import Path
-
+import sys
 from akkudoktoreos.config import AppConfig
 from akkudoktoreos.devices.battery import (
     EAutoParameters,
@@ -344,6 +344,7 @@ class optimization_problem:
             ems.set_ev_charge_hours(np.array(eautocharge_hours_float))
         else:
             ems.set_ev_charge_hours(np.full(self.prediction_hours, 0))
+
         return ems.simuliere(start_hour)
 
     def evaluate(
@@ -370,11 +371,12 @@ class optimization_problem:
         #    0.01 for i in range(start_hour, self.prediction_hours) if discharge_hours_bin[i] == 0.0
         # )
 
-        # Penalty for not meeting the minimum SOC (State of Charge) requirement
-        # if parameters.eauto_min_soc_prozent - ems.eauto.ladezustand_in_prozent() <= 0.0 and  self.optimize_ev:
-        #     gesamtbilanz += sum(
-        #         self.strafe for ladeleistung in eautocharge_hours_index if ladeleistung != 0.0
-        #     )
+        # Penalty for charging EV, with battery full
+        len_soc = len(o["EAuto_SoC_pro_Stunde"])
+        eautocharge_hours = np.array(eautocharge_hours_index)
+        relevant_indices = eautocharge_hours[-len_soc:]
+        mask = (o["EAuto_SoC_pro_Stunde"] == 100) & (relevant_indices != 0)
+        gesamtbilanz += np.sum(mask) * 0.01
 
         individual.extra_data = (  # type: ignore[attr-defined]
             o["Gesamtbilanz_Euro"],

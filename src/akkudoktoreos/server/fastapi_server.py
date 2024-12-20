@@ -48,7 +48,7 @@ app = FastAPI(
 working_dir = get_working_dir()
 # copy config to working directory. Make this a CLI option later
 config = load_config(working_dir, True)
-opt_class = optimization_problem(config, verbose=False)
+opt_class = optimization_problem(config, verbose=True)
 server_dir = Path(__file__).parent.resolve()
 
 
