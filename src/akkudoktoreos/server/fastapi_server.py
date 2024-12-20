@@ -48,7 +48,7 @@ app = FastAPI(
 working_dir = get_working_dir()
 # copy config to working directory. Make this a CLI option later
 config = load_config(working_dir, True)
-opt_class = optimization_problem(config)
+opt_class = optimization_problem(config, verbose=False)
 server_dir = Path(__file__).parent.resolve()
 
 
@@ -196,7 +196,7 @@ def fastapi_optimize(
     ] = None,
 ) -> OptimizeResponse:
     if start_hour is None:
-        start_hour = datetime.now().hour
+        start_hour = 10  # datetime.now().hour
 
     # Perform optimization simulation
     result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)

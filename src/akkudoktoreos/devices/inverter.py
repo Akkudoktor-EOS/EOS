@@ -1,6 +1,9 @@
 from pydantic import BaseModel, Field
 
 from akkudoktoreos.devices.battery import PVAkku
+from akkudoktoreos.prediction.self_consumption_probability import (
+    self_consumption_probability_interpolator,
+)
 
 
 class WechselrichterParameters(BaseModel):
@@ -8,11 +11,17 @@ class WechselrichterParameters(BaseModel):
 
 
 class Wechselrichter:
-    def __init__(self, parameters: WechselrichterParameters, akku: PVAkku):
+    def __init__(
+        self,
+        parameters: WechselrichterParameters,
+        akku: PVAkku,
+        self_consumption_predictor: self_consumption_probability_interpolator,
+    ):
         self.max_leistung_wh = (
             parameters.max_leistung_wh  # Maximum power that the inverter can handle
         )
         self.akku = akku  # Connection to a battery object
+        self.self_consumption_predictor = self_consumption_predictor
 
     def energie_verarbeiten(
         self, erzeugung: float, verbrauch: float, hour: int
@@ -21,7 +30,7 @@ class Wechselrichter:
         netzeinspeisung = 0.0  # Grid feed-in
         netzbezug = 0.0  # Grid draw
         eigenverbrauch = 0.0  # Self-consumption
-
+        aus_akku = 0.0
         if erzeugung >= verbrauch:
             if verbrauch > self.max_leistung_wh:
                 # If consumption exceeds maximum inverter power
@@ -30,10 +39,14 @@ class Wechselrichter:
                 netzbezug = -restleistung_nach_verbrauch  # Negative indicates feeding into the grid
                 eigenverbrauch = self.max_leistung_wh
             else:
+                scr = self.self_consumption_predictor.calculate_self_consumption(
+                    verbrauch, erzeugung
+                )
+
                 # Remaining power after consumption
-                restleistung_nach_verbrauch = (erzeugung - verbrauch) * 0.95  # EVQ
+                restleistung_nach_verbrauch = (erzeugung - verbrauch) * scr  # EVQ
                 # Remaining load Self Consumption not perfect
-                restlast_evq = (erzeugung - verbrauch) * (1.0 - 0.95)
+                restlast_evq = (erzeugung - verbrauch) * (1.0 - scr)
 
                 if restlast_evq > 0:
                     # Akku muss den Restverbrauch decken

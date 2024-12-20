@@ -10,9 +10,11 @@ class self_consumption_probability_interpolator:
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
         self.interpolator = None
+        print("OPEN")
         # Load the RegularGridInterpolator
-        with open("regular_grid_interpolator.pkl", "rb") as file:
-            interpolator = pickle.load(self.filepath)
+        with open(self.filepath, "rb") as file:
+            print("OPENED")
+            self.interpolator = pickle.load(file)
 
     def calculate_self_consumption(self, load_1h_power: float, pv_power: float) -> float:
         """Calculate the PV self-consumption rate using RegularGridInterpolator.
@@ -29,11 +31,13 @@ class self_consumption_probability_interpolator:
 
         # Get probabilities for all partial loads
         points = np.array([np.full_like(partial_loads, load_1h_power), partial_loads]).T
-        probabilities = interpolator(points)
+        if self.interpolator == None:
+            return -1.0
+        probabilities = self.interpolator(points)
         probabilities = probabilities / probabilities.sum()
-        for i, w in enumerate(partial_loads):
-            print(w, ": ", probabilities[i])
-        print(probabilities.sum())
+        # for i, w in enumerate(partial_loads):
+        #    print(w, ": ", probabilities[i])
+        # print(probabilities.sum())
         # Ensure probabilities are within [0, 1]
         probabilities = np.clip(probabilities, 0, 1)
 
