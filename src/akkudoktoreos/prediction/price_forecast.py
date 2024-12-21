@@ -3,7 +3,8 @@ import json
 import zoneinfo
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Sequence, Optional
+from typing import Any, Optional, Sequence
+
 import numpy as np
 import requests
 
@@ -28,7 +29,7 @@ class HourlyElectricityPriceForecast:
         self,
         source: str | Path,
         config: AppConfig,
-        charges: float = 0.000228,
+        charges: float = 0.00021,
         use_cache: bool = True,
     ):  # 228
         self.cache_dir = config.working_dir / config.directories.cache
@@ -36,7 +37,7 @@ class HourlyElectricityPriceForecast:
         if not self.cache_dir.is_dir():
             raise SetupIncomplete(f"Output path does not exist: {self.cache_dir}.")
 
-        self.seven_day_mean = None
+        self.seven_day_mean = np.array([])
         self.cache_time_file = self.cache_dir / "cache_timestamp.txt"
         self.prices = self.load_data(source)
         self.charges = charges
@@ -97,7 +98,7 @@ class HourlyElectricityPriceForecast:
 
         # Extract the price from 00:00 of the previous day
         previous_day_prices = [
-            entry["marketpriceEurocentPerKWh"] + self.charges
+            entry["marketpriceEurocentPerKWh"]  # + self.charges
             for entry in self.prices
             if previous_day_str in entry["end"]
         ]
@@ -105,21 +106,22 @@ class HourlyElectricityPriceForecast:
 
         # Extract all prices for the specified date
         date_prices = [
-            entry["marketpriceEurocentPerKWh"] + self.charges
+            entry["marketpriceEurocentPerKWh"]  # + self.charges
             for entry in self.prices
             if date_str in entry["end"]
         ]
-        print(f"getPrice: {len(date_prices)}")
+        # print(f"getPrice: {len(date_prices)}")
 
         # Add the last price of the previous day at the start of the list
         if len(date_prices) == 23:
             date_prices.insert(0, last_price_of_previous_day)
-
+        # print(np.array(date_prices) / (1000.0 * 100.0))
+        # print("PRICE:")
+        # print(np.array(date_prices) / (1000.0 * 100.0) + self.charges)
         return np.array(date_prices) / (1000.0 * 100.0) + self.charges
 
     def get_average_price_last_7_days(self, end_date_str: Optional[str] = None) -> np.ndarray:
-        """
-        Calculate the hourly average electricity price for the last 7 days.
+        """Calculate the hourly average electricity price for the last 7 days.
 
         Parameters:
             end_date_str (Optional[str]): End date in the format "YYYY-MM-DD".
@@ -138,8 +140,8 @@ class HourlyElectricityPriceForecast:
         else:
             end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
 
-        if self.seven_day_mean != None:
-            return self.seven_day_mean
+        if self.seven_day_mean.size > 0:
+            return np.array([self.seven_day_mean])
 
         # Calculate the start date (7 days before the end date)
         start_date = end_date - timedelta(days=7)
@@ -176,7 +178,6 @@ class HourlyElectricityPriceForecast:
         self, start_date_str: str, end_date_str: str, repeat: bool = False
     ) -> np.ndarray:
         """Returns all prices between the start and end dates."""
-
         start_date_utc = datetime.strptime(start_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         end_date_utc = datetime.strptime(end_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         start_date = start_date_utc.astimezone(zoneinfo.ZoneInfo("Europe/Berlin"))
@@ -194,9 +195,9 @@ class HourlyElectricityPriceForecast:
             # print(date_str, ":", daily_prices)
         price_list_np = np.array(price_list)
 
-        print(price_list_np)
+        # print(price_list_np.shape, " ", self.prediction_hours)
         # If prediction hours are greater than 0 and repeat is True
-
+        # print(price_list_np)
         if self.prediction_hours > 0 and repeat:
             # Check if price_list_np is shorter than prediction_hours
             if price_list_np.size < self.prediction_hours:
@@ -208,5 +209,5 @@ class HourlyElectricityPriceForecast:
 
                 # Concatenate existing values with the repeated values
                 price_list_np = np.concatenate((price_list_np, additional_values))
-
+        # print(price_list_np)
         return price_list_np

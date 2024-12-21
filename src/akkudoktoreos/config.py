@@ -56,6 +56,7 @@ class EOSConfig(BaseModel):
     penalty: int
     available_charging_rates_in_percentage: list[float]
     feed_in_tariff_eur_per_wh: int
+    electricty_price_fixed_fee: float
 
 
 class BaseConfig(BaseModel):

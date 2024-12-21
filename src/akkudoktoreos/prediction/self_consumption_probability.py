@@ -1,22 +1,24 @@
 #!/usr/bin/env python
-import numpy as np
 import pickle
 from functools import lru_cache
 
 # from scipy.interpolate import RegularGridInterpolator
 from pathlib import Path
+from typing import Tuple
+
+import numpy as np
 
 
 class self_consumption_probability_interpolator:
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
-        self.interpolator = None
+        # self.interpolator = None
         # Load the RegularGridInterpolator
         with open(self.filepath, "rb") as file:
             self.interpolator = pickle.load(file)
 
     @lru_cache(maxsize=128)
-    def generate_points(self, load_1h_power: float, pv_power: float):
+    def generate_points(self, load_1h_power: float, pv_power: float) -> Tuple:
         """Generate the grid points for interpolation."""
         partial_loads = np.arange(0, pv_power + 50, 50)
         points = np.array([np.full_like(partial_loads, load_1h_power), partial_loads]).T
