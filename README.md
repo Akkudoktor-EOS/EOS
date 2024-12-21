@@ -12,43 +12,61 @@ The project requires Python 3.9 or newer. Currently there are no official packag
 
 Following sections describe how to locally start the EOS server on `http://localhost:8503`.
 
-### Run from source
-
-Install dependencies in virtual environment:
-
-Linux:
-
-```bash
-python -m venv .venv
-.venv/bin/pip install -r requirements.txt
-```
-
-Windows:
-
-```bash
-python -m venv .venv
- .venv\Scripts\pip install -r requirements.txt
-```
-
-Finally, start EOS fastapi server:
-
-Linux:
-
-```bash
-.venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
-```
-
-Windows:
-
-```
- .venv\Scripts\fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
-```
-
 ### Docker
+
+Currently there are no ready-to-use images available. To start the system with Docker the image must be first built. This can be done with following command which starts the system after building it:
 
 ```bash
 docker compose up --build
 ```
+
+EOS can then be accessed at `http://localhost:8503/docs` or `http://localhost:8503/` (config GUI).
+
+### Run from source
+
+Install dependencies in a virtual environment:
+
+- Linux/MacOS:
+
+  ```bash
+  python -m venv .venv
+  .venv/bin/pip install -r requirements.txt
+  ```
+
+- Windows:
+
+  ```bash
+  python -m venv .venv
+   .venv\Scripts\pip install -r requirements.txt
+  ```
+
+Finally, start EOS fastapi server for access at `http://localhost:8503/`:
+
+- Linux/macOS:
+
+  ```bash
+  .venv/bin/python src/akkudoktoreos/server/fastapi_server.py
+  ```
+
+- Windows:
+
+  ```
+  .venv\Scripts\python src/akkudoktoreos/server/fastapi_server.py
+  ```
+
+EOS fasthtml server (currently displays configuration) can be accessed at `http://localhost:8504/`:
+
+- Linux/macOS:
+
+  ```bash
+  .venv/bin/python src/akkudoktoreos/server/fasthtml_server.py
+  ```
+
+- Windows:
+
+  ```
+  .venv\Scripts\python src/akkudoktoreos/server/fasthtml_server.py
+  ```
 
 ## Configuration
 

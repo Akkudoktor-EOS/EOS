@@ -10,7 +10,7 @@ Please report flaws or vulnerabilities in the [GitHub Issue Tracker](https://git
 
 ## Ideas & Features
 
-Please first discuss the idea in a [GitHub Discussion](https://github.com/Akkudoktor-EOS/EOS/discussions) or the [Akkudoktor Forum](https://www.akkudoktor.net/forum/diy-energie-optimierungssystem-opensource-projekt/) before opening an issue.
+Please first discuss the idea in a [GitHub Discussion](https://github.com/Akkudoktor-EOS/EOS/discussions) or the [Akkudoktor Forum](https://akkudoktor.net/c/der-akkudoktor/eos/85) before opening an issue.
 
 There are just too many possibilities and the project would drown in tickets otherwise.
 
@@ -45,13 +45,25 @@ Install make to get access to helpful shortcuts (documentation generation, manua
   brew install make
   ```
 
-The server can be started with `make run`. A full overview of the main shortcuts is given by `make help`.
+Install development dependencies:
 
-### Code Style
+```bash
+make pip-dev
+```
 
-Our code style checks use [`pre-commit`](https://pre-commit.com).
+Start the servers (API server and HTML server with automatic reload on file changes):
 
-To run formatting automatically before every commit:
+```bash
+make run-dev
+```
+
+A full overview of the main shortcuts is given by `make help`.
+
+### Code Style and Type Checking
+
+[`pre-commit`](https://pre-commit.com) is used for code style and type checks.
+
+To run those checks automatically before every commit:
 
 ```bash
 pre-commit install
@@ -63,10 +75,24 @@ Or run them manually:
 pre-commit run --all-files
 ```
 
+Note: The type check with mypy does not use the mypy installed in the current virtual environment and might lead therefore to different results compared to the pre-commit execution.
+
 ### Tests
 
 Use `pytest` to run tests locally:
 
 ```bash
-python -m pytest -vs --cov src --cov-report term-missing tests/
+pytest
+```
+
+Show more debug output and coverage:
+
+```bash
+pytest -vs --cov src --cov-report term-missing
+```
+
+To run all optimization tests (takes some time):
+
+```bash
+pytest --full-run
 ```
