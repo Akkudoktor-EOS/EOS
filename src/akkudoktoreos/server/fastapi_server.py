@@ -67,6 +67,7 @@ def fastapi_strompreis() -> list[float]:
         source=f"https://api.akkudoktor.net/prices?start={date_start}&end={date_end}",
         config=config,
         use_cache=False,
+        charges=config.eos.electricty_price_fixed_fee,
     )
     # seven Day mean
     specific_date_prices = price_forecast.get_price_for_daterange(

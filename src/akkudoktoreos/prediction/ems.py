@@ -78,6 +78,9 @@ class SimulationResult(BaseModel):
     akku_soc_pro_stunde: list[Optional[float]] = Field(
         description="The state of charge of the battery (not the EV) in percentage per hour."
     )
+    Electricity_price: list[Optional[float]] = Field(
+        description="Used Electricity Price, including predictions"
+    )
 
     @field_validator(
         "Last_Wh_pro_Stunde",
@@ -89,6 +92,7 @@ class SimulationResult(BaseModel):
         "EAuto_SoC_pro_Stunde",
         "Verluste_Pro_Stunde",
         "Home_appliance_wh_per_hour",
+        "Electricity_price",
         mode="before",
     )
     def convert_numpy(cls, field: Any) -> Any:
@@ -171,6 +175,7 @@ class EnergieManagementSystem:
         eauto_soc_pro_stunde = np.full((total_hours), np.nan)
         verluste_wh_pro_stunde = np.full((total_hours), np.nan)
         home_appliance_wh_per_hour = np.full((total_hours), np.nan)
+        electricity_price_per_hour = np.full((total_hours), np.nan)
 
         # Set initial state
         akku_soc_pro_stunde[0] = self.akku.ladezustand_in_prozent()
@@ -222,7 +227,7 @@ class EnergieManagementSystem:
             netzbezug_wh_pro_stunde[stunde_since_now] = netzbezug
             verluste_wh_pro_stunde[stunde_since_now] += verluste
             last_wh_pro_stunde[stunde_since_now] = verbrauch
-
+            electricity_price_per_hour[stunde_since_now] = self.strompreis_euro_pro_wh[stunde]
             # Financial calculations
             kosten_euro_pro_stunde[stunde_since_now] = (
                 netzbezug * self.strompreis_euro_pro_wh[stunde]
@@ -252,6 +257,6 @@ class EnergieManagementSystem:
             "Verluste_Pro_Stunde": verluste_wh_pro_stunde,
             "Gesamt_Verluste": np.nansum(verluste_wh_pro_stunde),
             "Home_appliance_wh_per_hour": home_appliance_wh_per_hour,
+            "Electricity_price": electricity_price_per_hour,
         }
-
         return out
