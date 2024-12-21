@@ -4,6 +4,9 @@ EOS.config.json
 docs/develop/CONTRIBUTING.md
 docs/develop/getting_started.md
 
+# fasthtml
+.sesskey
+
 # Default ignore folders and files for VS Code, Python
 
 .vscode/*

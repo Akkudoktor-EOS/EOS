@@ -29,6 +29,9 @@ class ServerCommonSettings(SettingsBaseModel):
     server_fasthtml_port: Optional[int] = Field(
         default=8504, description="FastHTML server IP port number."
     )
+    server_fasthtml_development: Optional[bool] = Field(
+        default=False, description="FastHTML development server (live reload)."
+    )
 
     @field_validator("server_fastapi_port", "server_fasthtml_port")
     def validate_server_port(cls, value: Optional[int]) -> Optional[int]:

@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
 
-import subprocess
 import sys
-from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
+from typing import Annotated, Any, Dict, List, Optional, Union
 
-import httpx
 import pandas as pd
 import uvicorn
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import HTTPException
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, RedirectResponse
 from pendulum import DateTime
 
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
@@ -34,22 +31,6 @@ config_eos = get_config()
 prediction_eos = get_prediction()
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Lifespan manager for the app."""
-    # On startup
-    if config_eos.server_fasthtml_host and config_eos.server_fasthtml_port:
-        try:
-            fasthtml_process = start_fasthtml_server()
-        except Exception as e:
-            logger.error(f"Failed to start FastHTML server. Error: {e}")
-            sys.exit(1)
-    # Handover to application
-    yield
-    # On shutdown
-    # nothing to do
-
-
 app = FastAPI(
     title="Akkudoktor-EOS",
     description="This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.",
@@ -59,7 +40,7 @@ app = FastAPI(
         "name": "Apache 2.0",
         "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
     },
-    lifespan=lifespan,
+    root_path="/api",
 )
 
 # That's the problem
@@ -255,72 +236,9 @@ def get_pdf() -> PdfResponse:
     return PdfResponse(file_path)
 
 
-@app.get("/site-map", include_in_schema=False)
-def site_map() -> RedirectResponse:
-    return RedirectResponse(url="/docs")
-
-
-# Keep the proxy last to handle all requests that are not taken by the Rest API.
-# Also keep the single endpoints for delete, get, post, put to assure openapi.json is always build
-# the same way for testing.
-
-
-@app.delete("/{path:path}")
-async def proxy_delete(request: Request, path: str) -> Response:
-    return await proxy(request, path)
-
-
-@app.get("/{path:path}")
-async def proxy_get(request: Request, path: str) -> Response:
-    return await proxy(request, path)
-
-
-@app.post("/{path:path}")
-async def proxy_post(request: Request, path: str) -> Response:
-    return await proxy(request, path)
-
-
-@app.put("/{path:path}")
-async def proxy_put(request: Request, path: str) -> Response:
-    return await proxy(request, path)
-
-
-async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse]:
-    if config_eos.server_fasthtml_host and config_eos.server_fasthtml_port:
-        # Proxy to fasthtml server
-        url = f"http://{config_eos.server_fasthtml_host}:{config_eos.server_fasthtml_port}/{path}"
-        headers = dict(request.headers)
-
-        data = await request.body()
-
-        async with httpx.AsyncClient() as client:
-            if request.method == "GET":
-                response = await client.get(url, headers=headers)
-            elif request.method == "POST":
-                response = await client.post(url, headers=headers, content=data)
-            elif request.method == "PUT":
-                response = await client.put(url, headers=headers, content=data)
-            elif request.method == "DELETE":
-                response = await client.delete(url, headers=headers, content=data)
-
-        return Response(
-            content=response.content,
-            status_code=response.status_code,
-            headers=dict(response.headers),
-        )
-    else:
-        # Redirect the root URL to the site map
-        return RedirectResponse(url="/docs")
-
-
-def start_fasthtml_server() -> subprocess.Popen:
-    """Start the fasthtml server as a subprocess."""
-    server_process = subprocess.Popen(
-        [sys.executable, str(server_dir.joinpath("fasthtml_server.py"))],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return server_process
+@app.get("/", include_in_schema=False)
+def root(request: Request) -> RedirectResponse:
+    return RedirectResponse(url=f"{request.scope.get('root_path')}/docs")
 
 
 def start_fastapi_server() -> None:

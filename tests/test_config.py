@@ -2,8 +2,10 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
+from typing import Optional
 
 import pytest
+from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.config import ConfigEOS, get_config
 from akkudoktoreos.utils.logutil import get_logger
@@ -110,3 +112,52 @@ def test_config_copy(reset_config, stash_config_file, monkeypatch):
 
     # Cleanup after the test
     temp_dir.cleanup()
+
+
+class DerivedConfigEOS(ConfigEOS):
+    env_var_int: Optional[int] = Field(default=None, description="Test config by environment var")
+    env_var_str: Optional[str] = Field(default=None, description="Test config by environment var")
+    env_var_list: Optional[list[int]] = Field(
+        default=None, description="Test config by environment var"
+    )
+    env_var_list_or_int: Optional[list[int] | int] = Field(
+        default=None, description="Test config by environment var"
+    )
+
+
+class TestConfig:
+    @pytest.fixture
+    def test_config(self, reset_config):
+        # Provide default values for configuration
+        test_config = DerivedConfigEOS()
+        test_config.update()
+        return test_config
+
+    def test_config_value_from_env_variable_invalid_type(self, test_config, monkeypatch):
+        monkeypatch.setenv("env_var_int", "2.5")
+        with pytest.raises(ValidationError):
+            test_config.update()
+        assert test_config.env_var_int is None
+
+    def test_config_value_from_env_variable_compatible_type(self, test_config, monkeypatch):
+        monkeypatch.setenv("env_var_int", "2.0")
+        test_config.update()
+        assert test_config.env_var_int == 2
+
+    def test_config_value_from_env_variable_str(self, test_config, monkeypatch):
+        monkeypatch.setenv("env_var_str", "custom string")
+        test_config.update()
+        assert test_config.env_var_str == "custom string"
+
+    def test_config_value_from_env_variable_list(self, test_config, monkeypatch):
+        monkeypatch.setenv("env_var_list", "[42, 1]")
+        test_config.update()
+        assert test_config.env_var_list == [42, 1]
+
+    def test_config_value_from_env_variable_list_or_int(self, test_config, monkeypatch):
+        monkeypatch.setenv("env_var_list_or_int", "42")
+        test_config.update()
+        assert test_config.env_var_list_or_int == 42
+        monkeypatch.setenv("env_var_list_or_int", "[42]")
+        test_config.update()
+        assert test_config.env_var_list_or_int == [42]

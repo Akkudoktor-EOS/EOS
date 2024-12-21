@@ -1,5 +1,8 @@
+import os
+import sys
+
 import uvicorn
-from fasthtml.common import H1, FastHTML, Table, Td, Th, Thead, Titled, Tr
+from fasthtml.common import H1, Table, Td, Th, Thead, Titled, Tr, fast_app
 
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.utils.logutil import get_logger
@@ -19,8 +22,9 @@ for field_name in config_eos.model_fields:
     configs.append(config)
 
 
-app = FastHTML()
-rt = app.route
+app, rt = fast_app(
+    secret_key=os.getenv("SESSKEY"), live=bool(config_eos.server_fasthtml_development)
+)
 
 
 def config_table() -> Table:
@@ -44,17 +48,23 @@ def get():  # type: ignore
     return Titled("EOS Config App", H1("Configuration"), config_table())
 
 
-if __name__ == "__main__":
+def start_fasthtml_server() -> None:
+    """STart FastHTML server."""
     try:
-        logger.info(
-            f"Starting {config_eos.server_fasthtml_host}:{config_eos.server_fasthtml_port}."
-        )
         uvicorn.run(
-            app, host=str(config_eos.server_fasthtml_host), port=config_eos.server_fasthtml_port
+            "__main__:app",
+            host=str(config_eos.server_fasthtml_host),
+            port=config_eos.server_fasthtml_port,
+            log_level="debug",
+            access_log=True,
+            reload=bool(config_eos.server_fasthtml_development),
         )
     except Exception as e:
-        # Error handling for binding issues
         logger.error(
             f"Could not bind to host {config_eos.server_fasthtml_host}:{config_eos.server_fasthtml_port}. Error: {e}"
         )
-        exit(1)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    start_fasthtml_server()
