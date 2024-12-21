@@ -1,13 +1,13 @@
 import random
-from tabnanny import verbose
-from typing import Any, Optional, Tuple
 import time
+from pathlib import Path
+from typing import Any, Optional, Tuple
+
 import numpy as np
 from deap import algorithms, base, creator, tools
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing_extensions import Self
-from pathlib import Path
-import sys
+
 from akkudoktoreos.config import AppConfig
 from akkudoktoreos.devices.battery import (
     EAutoParameters,
@@ -15,15 +15,15 @@ from akkudoktoreos.devices.battery import (
     PVAkku,
     PVAkkuParameters,
 )
-from akkudoktoreos.prediction.self_consumption_probability import (
-    self_consumption_probability_interpolator,
-)
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParameters
 from akkudoktoreos.prediction.ems import (
     EnergieManagementSystem,
     EnergieManagementSystemParameters,
     SimulationResult,
+)
+from akkudoktoreos.prediction.self_consumption_probability import (
+    self_consumption_probability_interpolator,
 )
 from akkudoktoreos.utils.utils import NumpyEncoder
 from akkudoktoreos.visualize import visualisiere_ergebnisse
@@ -126,7 +126,7 @@ class optimization_problem:
             random.seed(fixed_seed)
 
     def decode_charge_discharge(
-        self, discharge_hours_bin: list[int]
+        self, discharge_hours_bin: np.ndarray
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Decode the input array into ac_charge, dc_charge, and discharge arrays."""
         discharge_hours_bin_np = np.array(discharge_hours_bin)
@@ -229,8 +229,7 @@ class optimization_problem:
         eautocharge_hours_index: Optional[np.ndarray],
         washingstart_int: Optional[int],
     ) -> list[int]:
-        """
-        Merge the individual components back into a single solution list.
+        """Merge the individual components back into a single solution list.
 
         Parameters:
             discharge_hours_bin (np.ndarray): Binary discharge hours.
@@ -262,8 +261,7 @@ class optimization_problem:
     def split_individual(
         self, individual: list[int]
     ) -> Tuple[np.ndarray, Optional[np.ndarray], Optional[int]]:
-        """
-        Split the individual solution into its components.
+        """Split the individual solution into its components.
 
         Components:
         1. Discharge hours (binary as int NumPy array),
@@ -398,7 +396,6 @@ class optimization_problem:
         worst_case: bool,
     ) -> Tuple[float]:
         """Evaluate the fitness of an individual solution based on the simulation results."""
-
         try:
             o = self.evaluate_inner(individual, ems, start_hour)
         except Exception as e:
@@ -414,36 +411,29 @@ class optimization_problem:
         if self.optimize_ev:
             eauto_soc_per_hour = np.array(o.get("EAuto_SoC_pro_Stunde", []))  # Beispielkey
 
-            # Angleichung von hinten
-            min_length = min(len(eauto_soc_per_hour), len(eautocharge_hours_index))
+            if eauto_soc_per_hour is None or eautocharge_hours_index is None:
+                raise ValueError("eauto_soc_per_hour or eautocharge_hours_index is None")
+            min_length = min(eauto_soc_per_hour.size, eautocharge_hours_index.size)
             eauto_soc_per_hour_tail = eauto_soc_per_hour[-min_length:]
-            eautocharge_hours_index_tail = np.array(eautocharge_hours_index[-min_length:])
+            eautocharge_hours_index_tail = eautocharge_hours_index[-min_length:]
 
-            # Erstelle die Maske für die relevanten Abschnitte
+            # Mask
             invalid_charge_mask = (eauto_soc_per_hour_tail == 100) & (
                 eautocharge_hours_index_tail > 0
             )
 
-            # Überprüfen und anpassen der Ladezeiten
             if np.any(invalid_charge_mask):
-                # Ignoriere den ersten ungültigen Eintrag
                 invalid_indices = np.where(invalid_charge_mask)[0]
-                if (
-                    len(invalid_indices) > 1
-                ):  # Nur anpassen, wenn mehr als ein ungültiger Eintrag vorliegt
+                if len(invalid_indices) > 1:
                     eautocharge_hours_index_tail[invalid_indices[1:]] = 0
 
-                # Aktualisiere die letzten min_length-Einträge von eautocharge_hours_index
                 eautocharge_hours_index[-min_length:] = eautocharge_hours_index_tail.tolist()
 
-                # Rückschreiben der Anpassungen in `individual`
                 adjusted_individual = self.merge_individual(
                     discharge_hours_bin, eautocharge_hours_index, washingstart_int
                 )
 
-                # print("Vor:", individual)
                 individual[:] = adjusted_individual  # Aktualisiere das ursprüngliche individual
-                # print("Nach:", individual)#
 
         # Berechnung weiterer Metriken
         individual.extra_data = (  # type: ignore[attr-defined]
@@ -472,7 +462,7 @@ class optimization_problem:
         return (gesamtbilanz,)
 
     def optimize(
-        self, start_solution: Optional[list[float]] = None, ngen: int = 400
+        self, start_solution: Optional[list[float]] = None, ngen: int = 200
     ) -> Tuple[Any, dict[str, list[Any]]]:
         """Run the optimization process using a genetic algorithm."""
         population = self.toolbox.population(n=300)
@@ -588,13 +578,11 @@ class optimization_problem:
             elapsed_time = time.time() - start_time
             print(f"Time evaluate inner: {elapsed_time:.4f} sec.")
         # Perform final evaluation on the best solution
-        print(start_solution[start_hour:])
-        print(start_hour)
+
         o = self.evaluate_inner(start_solution, ems, start_hour)
         discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
             start_solution
         )
-
         eautocharge_hours_float = (
             [
                 self._config.eos.available_charging_rates_in_percentage[i]
@@ -620,7 +608,6 @@ class optimization_problem:
             config=self._config,
             extra_data=extra_data,
         )
-
         return OptimizeResponse(
             **{
                 "ac_charge": ac_charge,

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -8,6 +10,9 @@ from akkudoktoreos.devices.inverter import Wechselrichter, WechselrichterParamet
 from akkudoktoreos.prediction.ems import (
     EnergieManagementSystem,
     EnergieManagementSystemParameters,
+)
+from akkudoktoreos.prediction.self_consumption_probability import (
+    self_consumption_probability_interpolator,
 )
 
 prediction_hours = 48
@@ -24,8 +29,16 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
         PVAkkuParameters(kapazitaet_wh=5000, start_soc_prozent=80, min_soc_prozent=10),
         hours=prediction_hours,
     )
+
+    # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
+    sc = self_consumption_probability_interpolator(
+        Path(__file__).parent.resolve() / ".." / "data" / "regular_grid_interpolator.pkl"
+    )
+
     akku.reset()
-    wechselrichter = Wechselrichter(WechselrichterParameters(max_leistung_wh=10000), akku)
+    wechselrichter = Wechselrichter(
+        WechselrichterParameters(max_leistung_wh=10000), akku, self_consumption_predictor=sc
+    )
 
     # Household device (currently not used, set to None)
     home_appliance = HomeAppliance(
