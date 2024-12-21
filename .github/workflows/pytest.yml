@@ -30,6 +30,7 @@ jobs:
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
+        if: success() || failure()
         with:
           name: optimize-results
           path: tests/testdata/new_optimize_result*
