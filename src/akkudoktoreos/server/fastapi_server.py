@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Optional
 
@@ -59,15 +59,23 @@ class PdfResponse(FileResponse):
 @app.get("/strompreis")
 def fastapi_strompreis() -> list[float]:
     # Get the current date and the end date based on prediction hours
-    date_now, date = get_start_enddate(config.eos.prediction_hours, startdate=datetime.now().date())
+    date_start_pred, date_end = get_start_enddate(
+        config.eos.prediction_hours, startdate=datetime.now().date()
+    )
+    date_start = (datetime.now().date() - timedelta(days=8)).strftime("%Y-%m-%d")
     price_forecast = HourlyElectricityPriceForecast(
-        source=f"https://api.akkudoktor.net/prices?start={date_now}&end={date}",
+        source=f"https://api.akkudoktor.net/prices?start={date_start}&end={date_end}",
         config=config,
         use_cache=False,
     )
+    # seven Day mean
     specific_date_prices = price_forecast.get_price_for_daterange(
-        date_now, date
+        date_start, date_end
     )  # Fetch prices for the specified date range
+
+    specific_date_prices = price_forecast.get_price_for_daterange(
+        date_start_pred, date_end, repeat=True
+    )
     return specific_date_prices.tolist()
 
 

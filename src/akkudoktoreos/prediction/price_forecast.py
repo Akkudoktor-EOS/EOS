@@ -3,8 +3,7 @@ import json
 import zoneinfo
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Sequence
-
+from typing import Any, Sequence, Optional
 import numpy as np
 import requests
 
@@ -37,10 +36,12 @@ class HourlyElectricityPriceForecast:
         if not self.cache_dir.is_dir():
             raise SetupIncomplete(f"Output path does not exist: {self.cache_dir}.")
 
+        self.seven_day_mean = None
         self.cache_time_file = self.cache_dir / "cache_timestamp.txt"
         self.prices = self.load_data(source)
         self.charges = charges
         self.prediction_hours = config.eos.prediction_hours
+        self.seven_day_mean = self.get_average_price_last_7_days()
 
     def load_data(self, source: str | Path) -> list[dict[str, Any]]:
         cache_file = self.get_cache_file(source)
@@ -116,10 +117,66 @@ class HourlyElectricityPriceForecast:
 
         return np.array(date_prices) / (1000.0 * 100.0) + self.charges
 
-    def get_price_for_daterange(self, start_date_str: str, end_date_str: str) -> np.ndarray:
+    def get_average_price_last_7_days(self, end_date_str: Optional[str] = None) -> np.ndarray:
+        """
+        Calculate the hourly average electricity price for the last 7 days.
+
+        Parameters:
+            end_date_str (Optional[str]): End date in the format "YYYY-MM-DD".
+                                        If not provided, today's date will be used.
+
+        Returns:
+            np.ndarray: A NumPy array of 24 elements, each representing the hourly
+                        average price over the last 7 days.
+
+        Raises:
+            ValueError: If there is insufficient data to calculate the averages.
+        """
+        # Determine the end date (use today's date if not provided)
+        if end_date_str is None:
+            end_date = datetime.now().date() - timedelta(days=1)
+        else:
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+
+        if self.seven_day_mean != None:
+            return self.seven_day_mean
+
+        # Calculate the start date (7 days before the end date)
+        start_date = end_date - timedelta(days=7)
+
+        # Convert dates to strings
+        start_date_str = start_date.strftime("%Y-%m-%d")
+        end_date_str = end_date.strftime("%Y-%m-%d")
+
+        # Retrieve price data for the specified date range
+        price_data = self.get_price_for_daterange(start_date_str, end_date_str)
+
+        # Ensure there is enough data for 7 full days (7 days × 24 hours)
+        if price_data.size < 7 * 24:
+            raise ValueError(
+                "Not enough data to calculate the average for the last 7 days.", price_data
+            )
+        # Calculate the overall average price across all data
+        # overall_average_price = np.mean(price_data)
+
+        # Create an array of 24 hourly values filled with the overall average
+        # average_prices = np.full(24, overall_average_price)
+
+        # print("Overall AVG (duplicated for 24 hours):", average_prices)
+        # return average_prices
+        # Reshape the data into a 7x24 matrix (7 rows for days, 24 columns for hours)
+        price_matrix = price_data.reshape(-1, 24)
+
+        # Calculate the average price for each hour across the 7 days
+        average_prices = np.mean(price_matrix, axis=0)
+        # print("AVG:", average_prices)
+        return average_prices
+
+    def get_price_for_daterange(
+        self, start_date_str: str, end_date_str: str, repeat: bool = False
+    ) -> np.ndarray:
         """Returns all prices between the start and end dates."""
-        print(start_date_str)
-        print(end_date_str)
+
         start_date_utc = datetime.strptime(start_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         end_date_utc = datetime.strptime(end_date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         start_date = start_date_utc.astimezone(zoneinfo.ZoneInfo("Europe/Berlin"))
@@ -134,11 +191,22 @@ class HourlyElectricityPriceForecast:
             if daily_prices.size == 24:
                 price_list.extend(daily_prices)
             start_date += timedelta(days=1)
-
+            # print(date_str, ":", daily_prices)
         price_list_np = np.array(price_list)
 
-        # If prediction hours are greater than 0, reshape the price list
-        if self.prediction_hours > 0:
-            price_list_np = repeat_to_shape(price_list_np, (self.prediction_hours,))
+        print(price_list_np)
+        # If prediction hours are greater than 0 and repeat is True
+
+        if self.prediction_hours > 0 and repeat:
+            # Check if price_list_np is shorter than prediction_hours
+            if price_list_np.size < self.prediction_hours:
+                # Repeat the seven_day_mean array to cover the missing hours
+                repeat_count = (self.prediction_hours // self.seven_day_mean.size) + 1
+                additional_values = np.tile(self.seven_day_mean, repeat_count)[
+                    : self.prediction_hours - price_list_np.size
+                ]
+
+                # Concatenate existing values with the repeated values
+                price_list_np = np.concatenate((price_list_np, additional_values))
 
         return price_list_np
