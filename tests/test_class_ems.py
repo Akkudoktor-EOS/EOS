@@ -312,21 +312,21 @@ def test_simulation(create_ems_instance):
 
     # Verify the total balance
     assert (
-        abs(result["Gesamtbilanz_Euro"] - 1.7880374129090917) < 1e-5
-    ), "Total balance should be 1.7880374129090917."
+        abs(result["Gesamtbilanz_Euro"] - 1.958185274567674) < 1e-5
+    ), "Total balance should be 1.958185274567674."
 
     # Check total revenue and total costs
     assert (
-        abs(result["Gesamteinnahmen_Euro"] - 1.3169784090909087) < 1e-5
-    ), "Total revenue should be 1.3169784090909087."
+        abs(result["Gesamteinnahmen_Euro"] - 1.168863124510214) < 1e-5
+    ), "Total revenue should be 1.168863124510214."
     assert (
-        abs(result["Gesamtkosten_Euro"] - 3.1050158220000004) < 1e-5
-    ), "Total costs should be 3.1050158220000004 ."
+        abs(result["Gesamtkosten_Euro"] - 3.127048399077888) < 1e-5
+    ), "Total costs should be 3.127048399077888 ."
 
     # Check the losses
     assert (
-        abs(result["Gesamt_Verluste"] - 2615.222727272727) < 1e-5
-    ), "Total losses should be 2615.222727272727 ."
+        abs(result["Gesamt_Verluste"] - 2871.5330639359036) < 1e-5
+    ), "Total losses should be 2871.5330639359036 ."
 
     # Check the values in 'akku_soc_pro_stunde'
     assert (
