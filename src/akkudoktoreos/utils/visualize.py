@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
-from akkudoktoreos.config.config import get_config
+from akkudoktoreos.core.coreabc import ConfigMixin
 from akkudoktoreos.optimization.genetic import OptimizationParameters
 
 
-class VisualizationReport:
+class VisualizationReport(ConfigMixin):
     def __init__(self, filename: str = "visualization_results.pdf") -> None:
         # Initialize the report with a given filename and empty groups
         self.filename = filename
@@ -34,8 +34,7 @@ class VisualizationReport:
 
     def _initialize_pdf(self) -> None:
         """Create the output directory if it doesn't exist and initialize the PDF."""
-        config = get_config()
-        output_dir = config.data_output_path
+        output_dir = self.config.data_output_path
 
         # If self.filename is already a valid path, use it; otherwise, combine it with output_dir
         if os.path.isabs(self.filename):
@@ -312,6 +311,10 @@ def prepare_visualize(
         title="Battery SOC",
         xlabel="Hours",
         ylabel="%",
+        labels=[
+            "Battery SOC (%)",
+            "Electric Vehicle SOC (%)",
+        ],
         markers=["o", "x"],
     )
     report.create_line_chart(
