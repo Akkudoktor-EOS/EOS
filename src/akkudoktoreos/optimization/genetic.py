@@ -385,7 +385,7 @@ class optimization_problem:
         else:
             ems.set_ev_charge_hours(np.full(self.prediction_hours, 0))
 
-        return ems.simuliere(start_hour)
+        return ems.simulate(start_hour)
 
     def evaluate(
         self,
@@ -439,21 +439,23 @@ class optimization_problem:
         individual.extra_data = (  # type: ignore[attr-defined]
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
-            parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent()
-            if parameters.eauto and ems.eauto
+            parameters.eauto.min_soc_prozent - ems.ev.ladezustand_in_prozent()
+            if parameters.eauto and ems.ev
             else 0,
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
-        restwert_akku = ems.akku.aktueller_energieinhalt() * parameters.ems.preis_euro_pro_wh_akku
+        restwert_akku = (
+            ems.battery.aktueller_energieinhalt() * parameters.ems.preis_euro_pro_wh_akku
+        )
         gesamtbilanz += -restwert_akku
 
         if self.optimize_ev:
             gesamtbilanz += max(
                 0,
                 (
-                    parameters.eauto.min_soc_prozent - ems.eauto.ladezustand_in_prozent()
-                    if parameters.eauto and ems.eauto
+                    parameters.eauto.min_soc_prozent - ems.ev.ladezustand_in_prozent()
+                    if parameters.eauto and ems.ev
                     else 0
                 )
                 * self.strafe,
@@ -558,8 +560,8 @@ class optimization_problem:
         ems = EnergieManagementSystem(
             self._config.eos,
             parameters.ems,
-            wechselrichter=wr,
-            eauto=eauto,
+            inverter=wr,
+            ev=eauto,
             home_appliance=dishwasher,
         )
 
@@ -615,7 +617,7 @@ class optimization_problem:
                 "discharge_allowed": discharge,
                 "eautocharge_hours_float": eautocharge_hours_float,
                 "result": SimulationResult(**o),
-                "eauto_obj": ems.eauto,
+                "eauto_obj": ems.ev,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,
             }

@@ -104,28 +104,30 @@ class EnergieManagementSystem:
         self,
         config: EOSConfig,
         parameters: EnergieManagementSystemParameters,
-        wechselrichter: Wechselrichter,
-        eauto: Optional[PVAkku] = None,
+        inverter: Wechselrichter,
+        ev: Optional[PVAkku] = None,
         home_appliance: Optional[HomeAppliance] = None,
     ):
-        self.akku = wechselrichter.akku
-        self.gesamtlast = np.array(parameters.gesamtlast, float)
-        self.pv_prognose_wh = np.array(parameters.pv_prognose_wh, float)
-        self.strompreis_euro_pro_wh = np.array(parameters.strompreis_euro_pro_wh, float)
-        self.einspeiseverguetung_euro_pro_wh_arr = (
+        self.battery = inverter.akku
+        self.load_energy_array = np.array(parameters.gesamtlast, float)
+        self.pv_prediction_wh = np.array(parameters.pv_prognose_wh, float)
+        self.elect_price_hourly = np.array(parameters.strompreis_euro_pro_wh, float)
+        self.elect_revenue_per_hour_arr = (
             parameters.einspeiseverguetung_euro_pro_wh
             if isinstance(parameters.einspeiseverguetung_euro_pro_wh, list)
-            else np.full(len(self.gesamtlast), parameters.einspeiseverguetung_euro_pro_wh, float)
+            else np.full(
+                len(self.load_energy_array), parameters.einspeiseverguetung_euro_pro_wh, float
+            )
         )
-        self.eauto = eauto
+        self.ev = ev
         self.home_appliance = home_appliance
-        self.wechselrichter = wechselrichter
+        self.inverter = inverter
         self.ac_charge_hours = np.full(config.prediction_hours, 0)
         self.dc_charge_hours = np.full(config.prediction_hours, 1)
         self.ev_charge_hours = np.full(config.prediction_hours, 0)
 
     def set_akku_discharge_hours(self, ds: np.ndarray) -> None:
-        self.akku.set_discharge_per_hour(ds)
+        self.battery.set_discharge_per_hour(ds)
 
     def set_akku_ac_charge_hours(self, ds: np.ndarray) -> None:
         self.ac_charge_hours = ds
@@ -141,28 +143,27 @@ class EnergieManagementSystem:
         self.home_appliance.set_starting_time(start_hour, global_start_hour=global_start_hour)
 
     def reset(self) -> None:
-        if self.eauto:
-            self.eauto.reset()
-        self.akku.reset()
+        if self.ev:
+            self.ev.reset()
+        self.battery.reset()
 
-    def simuliere_ab_jetzt(self) -> dict[str, Any]:
-        jetzt = datetime.now()
-        start_stunde = jetzt.hour
-        return self.simuliere(start_stunde)
+    def simulate_start_now(self) -> dict[str, Any]:
+        start_hour = datetime.now().hour
+        return self.simulate(start_hour)
 
-    def simuliere(self, start_hour: int) -> dict[str, Any]:
+    def simulate(self, start_hour: int) -> dict[str, Any]:
         """hour.
 
         akku_soc_pro_stunde begin of the hour, initial hour state!
         last_wh_pro_stunde integral of  last hour (end state)
         """
-        lastkurve_wh = self.gesamtlast
+        load_energy_array = self.load_energy_array
         assert (
-            len(lastkurve_wh) == len(self.pv_prognose_wh) == len(self.strompreis_euro_pro_wh)
-        ), f"Array sizes do not match: Load Curve = {len(lastkurve_wh)}, PV Forecast = {len(self.pv_prognose_wh)}, Electricity Price = {len(self.strompreis_euro_pro_wh)}"
+            len(load_energy_array) == len(self.pv_prediction_wh) == len(self.elect_price_hourly)
+        ), f"Array sizes do not match: Load Curve = {len(load_energy_array)}, PV Forecast = {len(self.pv_prediction_wh)}, Electricity Price = {len(self.elect_price_hourly)}"
 
         # Optimized total hours calculation
-        end_hour = len(lastkurve_wh)
+        end_hour = len(load_energy_array)
         total_hours = end_hour - start_hour
 
         # Pre-allocate arrays for the results, optimized for speed
@@ -178,21 +179,21 @@ class EnergieManagementSystem:
         electricity_price_per_hour = np.full((total_hours), np.nan)
 
         # Set initial state
-        soc_per_hour[0] = self.akku.ladezustand_in_prozent()
-        if self.eauto:
-            soc_ev_per_hour[0] = self.eauto.ladezustand_in_prozent()
+        soc_per_hour[0] = self.battery.ladezustand_in_prozent()
+        if self.ev:
+            soc_ev_per_hour[0] = self.ev.ladezustand_in_prozent()
 
         # All States
         for hour in range(start_hour, end_hour):
             hour_since_now = hour - start_hour
 
             # save begin states
-            soc_per_hour[hour_since_now] = self.akku.ladezustand_in_prozent()
-            if self.eauto:
-                soc_ev_per_hour[hour_since_now] = self.eauto.ladezustand_in_prozent()
+            soc_per_hour[hour_since_now] = self.battery.ladezustand_in_prozent()
+            if self.ev:
+                soc_ev_per_hour[hour_since_now] = self.ev.ladezustand_in_prozent()
 
             # Accumulate loads and PV generation
-            consumption = self.gesamtlast[hour]
+            consumption = self.load_energy_array[hour]
             losses_wh_per_hour[hour_since_now] = 0.0
             if self.home_appliance:
                 ha_load = self.home_appliance.get_load_for_hour(hour)
@@ -200,24 +201,24 @@ class EnergieManagementSystem:
                 home_appliance_wh_per_hour[hour_since_now] = ha_load
 
             # E-Auto handling
-            if self.eauto and self.ev_charge_hours[hour] > 0:
-                loaded_energy_ev, verluste_eauto = self.eauto.energie_laden(
+            if self.ev and self.ev_charge_hours[hour] > 0:
+                loaded_energy_ev, verluste_eauto = self.ev.energie_laden(
                     None, hour, relative_power=self.ev_charge_hours[hour]
                 )
                 consumption += loaded_energy_ev
                 losses_wh_per_hour[hour_since_now] += verluste_eauto
 
             # Process inverter logic
-            energy_produced = self.pv_prognose_wh[hour]
-            self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[hour], hour)
+            energy_produced = self.pv_prediction_wh[hour]
+            self.battery.set_charge_allowed_for_hour(self.dc_charge_hours[hour], hour)
             energy_feedin_grid_actual, energy_consumption_grid_actual, losses, eigenverbrauch = (
-                self.wechselrichter.energie_verarbeiten(energy_produced, consumption, hour)
+                self.inverter.energie_verarbeiten(energy_produced, consumption, hour)
             )
 
             # AC PV Battery Charge
             if self.ac_charge_hours[hour] > 0.0:
-                self.akku.set_charge_allowed_for_hour(1, hour)
-                battery_charged_energy_actual, battery_losses_actual = self.akku.energie_laden(
+                self.battery.set_charge_allowed_for_hour(1, hour)
+                battery_charged_energy_actual, battery_losses_actual = self.battery.energie_laden(
                     None, hour, relative_power=self.ac_charge_hours[hour]
                 )
                 # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.ladezustand_in_prozent())
@@ -231,13 +232,13 @@ class EnergieManagementSystem:
             consumption_energy_per_hour[hour_since_now] = energy_consumption_grid_actual
             losses_wh_per_hour[hour_since_now] += losses
             loads_energy_per_hour[hour_since_now] = consumption
-            electricity_price_per_hour[hour_since_now] = self.strompreis_euro_pro_wh[hour]
+            electricity_price_per_hour[hour_since_now] = self.elect_price_hourly[hour]
             # Financial calculations
             costs_per_hour[hour_since_now] = (
-                energy_consumption_grid_actual * self.strompreis_euro_pro_wh[hour]
+                energy_consumption_grid_actual * self.elect_price_hourly[hour]
             )
             revenue_per_hour[hour_since_now] = (
-                energy_feedin_grid_actual * self.einspeiseverguetung_euro_pro_wh_arr[hour]
+                energy_feedin_grid_actual * self.elect_revenue_per_hour_arr[hour]
             )
 
         # Total cost and return

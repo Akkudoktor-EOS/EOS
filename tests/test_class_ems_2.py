@@ -134,8 +134,8 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
             preis_euro_pro_wh_akku=0,
             gesamtlast=gesamtlast,
         ),
-        wechselrichter=wechselrichter,
-        eauto=eauto,
+        inverter=wechselrichter,
+        ev=eauto,
         home_appliance=home_appliance,
     )
 
@@ -154,7 +154,7 @@ def test_simulation(create_ems_instance):
     ems = create_ems_instance
 
     # Simulate starting from hour 0 (this value can be adjusted)
-    result = ems.simuliere(start_hour=start_hour)
+    result = ems.simulate(start_hour=start_hour)
 
     # --- Pls do not remove! ---
     # visualisiere_ergebnisse(
