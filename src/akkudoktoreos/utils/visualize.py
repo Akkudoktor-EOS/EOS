@@ -251,7 +251,7 @@ def prepare_visualize(
     report = VisualizationReport(filename)
     # Group 1:
     report.create_line_chart(
-        start_hour,
+        None,
         [parameters.ems.gesamtlast],
         title="Load Profile",
         xlabel="Hours",
@@ -287,7 +287,7 @@ def prepare_visualize(
 
     # Group 2:
     report.create_line_chart(
-        None,
+        start_hour,
         [
             results["result"]["Last_Wh_pro_Stunde"],
             results["result"]["Home_appliance_wh_per_hour"],
@@ -312,7 +312,7 @@ def prepare_visualize(
 
     # Group 3:
     report.create_line_chart(
-        None,
+        start_hour,
         [results["result"]["akku_soc_pro_stunde"], results["result"]["EAuto_SoC_pro_Stunde"]],
         title="Battery SOC",
         xlabel="Hours",
@@ -345,7 +345,7 @@ def prepare_visualize(
     # Group 4:
 
     report.create_line_chart(
-        None,
+        start_hour,
         [
             results["result"]["Kosten_Euro_pro_Stunde"],
             results["result"]["Einnahmen_Euro_pro_Stunde"],
