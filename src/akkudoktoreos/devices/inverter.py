@@ -19,7 +19,7 @@ class Inverter(DeviceBase):
         self,
         self_consumption_predictor: RegularGridInterpolator,
         parameters: Optional[InverterParameters] = None,
-        akku: Optional[Battery] = None,
+        battery: Optional[Battery] = None,
         provider_id: Optional[str] = None,
     ):
         # Configuration initialisation
@@ -29,13 +29,13 @@ class Inverter(DeviceBase):
             self.prefix = "inverter"
         # Parameter initialisiation
         self.parameters = parameters
-        if akku is None:
+        if battery is None:
             # For the moment raise exception
-            # TODO: Make akku configurable by config
+            # TODO: Make battery configurable by config
             error_msg = "Battery for PV inverter is mandatory."
             logger.error(error_msg)
             raise NotImplementedError(error_msg)
-        self.akku = akku  # Connection to a battery object
+        self.battery = battery  # Connection to a battery object
         self.self_consumption_predictor = self_consumption_predictor
 
         self.initialised = False
@@ -86,7 +86,7 @@ class Inverter(DeviceBase):
 
                 if remaining_load_evq > 0:
                     # Akku muss den Restverbrauch decken
-                    from_battery, discharge_losses = self.akku.discharge_energy(
+                    from_battery, discharge_losses = self.battery.discharge_energy(
                         remaining_load_evq, hour
                     )
                     remaining_load_evq -= from_battery  # Restverbrauch nach Akkuentladung
@@ -101,7 +101,9 @@ class Inverter(DeviceBase):
 
                 if remaining_power > 0:
                     # Load battery with excess energy
-                    charged_energie, charge_losses = self.akku.charge_energy(remaining_power, hour)
+                    charged_energie, charge_losses = self.battery.charge_energy(
+                        remaining_power, hour
+                    )
                     remaining_surplus = remaining_power - (charged_energie + charge_losses)
 
                     # Feed-in to the grid based on remaining capacity
@@ -122,7 +124,7 @@ class Inverter(DeviceBase):
             available_ac_power = max(self.max_power_wh - generation, 0)
 
             # Discharge battery to cover shortfall, if possible
-            battery_discharge, discharge_losses = self.akku.discharge_energy(
+            battery_discharge, discharge_losses = self.battery.discharge_energy(
                 min(shortfall, available_ac_power), hour
             )
             losses += discharge_losses

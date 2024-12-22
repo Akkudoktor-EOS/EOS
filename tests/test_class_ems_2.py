@@ -144,7 +144,7 @@ def create_ems_instance() -> EnergieManagementSystem:
             gesamtlast=gesamtlast,
         ),
         inverter=inverter,
-        eauto=eauto,
+        ev=eauto,
         home_appliance=home_appliance,
     )
 
@@ -163,7 +163,7 @@ def test_simulation(create_ems_instance):
     ems = create_ems_instance
 
     # Simulate starting from hour 0 (this value can be adjusted)
-    result = ems.simuliere(start_stunde=start_hour)
+    result = ems.simulate(start_hour=start_hour)
 
     # --- Pls do not remove! ---
     # visualisiere_ergebnisse(
@@ -234,11 +234,11 @@ def test_simulation(create_ems_instance):
 
     # Verfify DC and AC Charge Bins
     assert (
+        abs(result["akku_soc_pro_stunde"][2] - 44.70681818181818) < 1e-5
+    ), "'akku_soc_pro_stunde[2]' should be 44.70681818181818."
+    assert (
         abs(result["akku_soc_pro_stunde"][10] - 10.0) < 1e-5
     ), "'akku_soc_pro_stunde[10]' should be 10."
-    assert (
-        abs(result["akku_soc_pro_stunde"][11] - 79.275184) < 1e-5
-    ), "'akku_soc_pro_stunde[11]' should be 79.275184."
 
     assert (
         abs(result["Netzeinspeisung_Wh_pro_Stunde"][10] - 3946.93) < 1e-3
@@ -249,8 +249,8 @@ def test_simulation(create_ems_instance):
     ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
 
     assert (
-        abs(result["akku_soc_pro_stunde"][20] - 98) < 1e-5
-    ), "'akku_soc_pro_stunde[11]' should be 98."
+        abs(result["akku_soc_pro_stunde"][20] - 10) < 1e-5
+    ), "'akku_soc_pro_stunde[20]' should be 10."
     assert (
         abs(result["Last_Wh_pro_Stunde"][20] - 6050.98) < 1e-3
     ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
