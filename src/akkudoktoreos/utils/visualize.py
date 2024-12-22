@@ -9,6 +9,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.optimization.genetic import OptimizationParameters
 
+
 class VisualizationReport:
     def __init__(self, filename: str = "visualization_results.pdf") -> None:
         # Initialize the report with a given filename and empty groups
