@@ -102,7 +102,7 @@ class VisualizationReport(ConfigMixin):
             nonlocal start_hour  # Allow modifying `x` within the nested function
             if start_hour is None:
                 start_hour = 0
-            first_element = list(y_list[0])
+            first_element = y_list[0]
             x: np.ndarray
             # Case 1: y_list contains np.ndarray elements
             if isinstance(first_element, np.ndarray):
