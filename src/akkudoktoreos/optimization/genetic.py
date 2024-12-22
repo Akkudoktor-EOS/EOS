@@ -532,7 +532,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         }
         from akkudoktoreos.utils.visualize import prepare_visualize
 
-        prepare_visualize(parameters, visualize)
+        prepare_visualize(parameters, visualize, start_hour=start_hour)
 
         return OptimizeResponse(
             **{

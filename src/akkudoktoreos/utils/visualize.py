@@ -87,7 +87,7 @@ class VisualizationReport(ConfigMixin):
 
     def create_line_chart(
         self,
-        x: Optional[np.ndarray],
+        start_hour: Optional[int],
         y_list: list[Union[np.ndarray, list[float]]],
         title: str,
         xlabel: str,
@@ -99,29 +99,34 @@ class VisualizationReport(ConfigMixin):
         """Create a line chart and add it to the current group."""
 
         def chart() -> None:
-            nonlocal x  # Allow modifying `x` within the nested function
-
-            # Check if x needs to be generated
-            if x is None:
-                first_element = y_list[0]
-
-                # Case 1: y_list contains np.ndarray elements
-                if isinstance(first_element, np.ndarray):
-                    x = np.arange(len(first_element))  # Use the length of the first ndarray
-                # Case 2: y_list contains float elements (1D list)
-                elif isinstance(first_element, float):
-                    x = np.arange(len(y_list))  # Create range based on the list length
-                # Case 3: y_list is a nested list of floats
-                elif isinstance(first_element, list) and all(
-                    isinstance(i, float) for i in first_element
-                ):
-                    max_len = max(len(sublist) for sublist in y_list)
-                    x = np.arange(max_len)  # Generate x values for the longest sublist
-                else:
-                    print(f"Unsupported y_list structure: {type(y_list)}, {y_list}")
-                    raise TypeError(
-                        "y_list elements must be np.ndarray, float, or a nested list of floats"
-                    )
+            nonlocal start_hour  # Allow modifying `x` within the nested function
+            if start_hour is None:
+                start_hour = 0
+            first_element = list(y_list[0])
+            x: np.ndarray
+            # Case 1: y_list contains np.ndarray elements
+            if isinstance(first_element, np.ndarray):
+                x = np.arange(
+                    start_hour, start_hour + len(first_element)
+                )  # Start at x and extend by ndarray length
+            # Case 2: y_list contains float elements (1D list)
+            elif isinstance(first_element, float):
+                x = np.arange(
+                    start_hour, start_hour + len(y_list)
+                )  # Start at x and extend by list length
+            # Case 3: y_list is a nested list of floats
+            elif isinstance(first_element, list) and all(
+                isinstance(i, float) for i in first_element
+            ):
+                max_len = max(len(sublist) for sublist in y_list)
+                x = np.arange(
+                    start_hour, start_hour + max_len
+                )  # Start at x and extend by max sublist length
+            else:
+                print(f"Unsupported y_list structure: {type(y_list)}, {y_list}")
+                raise TypeError(
+                    "y_list elements must be np.ndarray, float, or a nested list of floats"
+                )
 
             for idx, y_data in enumerate(y_list):
                 label = labels[idx] if labels else None  # Chart label
@@ -241,11 +246,12 @@ def prepare_visualize(
     parameters: OptimizationParameters,
     results: dict,
     filename: str = "visualization_results_new.pdf",
+    start_hour: Optional[int] = 0,
 ) -> None:
     report = VisualizationReport(filename)
     # Group 1:
     report.create_line_chart(
-        None,
+        start_hour,
         [parameters.ems.gesamtlast],
         title="Load Profile",
         xlabel="Hours",
@@ -424,7 +430,7 @@ def prepare_visualize(
 if __name__ == "__main__":
     # Example usage
     report = VisualizationReport("example_report.pdf")
-    x_hours = np.arange(0, 4)  # Define x-axis values (e.g., hours)
+    x_hours = 0  # Define x-axis start values (e.g., hours)
 
     # Group 1: Adding charts to be displayed on the same page
     report.create_line_chart(
