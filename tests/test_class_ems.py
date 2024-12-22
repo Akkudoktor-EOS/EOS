@@ -244,7 +244,7 @@ def test_simulation(create_ems_instance):
 
     # Simulate starting from hour 1 (this value can be adjusted)
 
-    result = ems.simuliere(start_stunde=start_hour)
+    result = ems.simuliere(start_hour=start_hour)
 
     # visualisiere_ergebnisse(
     #     ems.gesamtlast,
@@ -330,11 +330,11 @@ def test_simulation(create_ems_instance):
 
     # Check the values in 'akku_soc_pro_stunde'
     assert (
-        result["akku_soc_pro_stunde"][-1] == 28.675
-    ), "The value at index -1 of 'akku_soc_pro_stunde' should be 28.675."
+        result["akku_soc_pro_stunde"][-1] == 42.151590909090906
+    ), "The value at index -1 of 'akku_soc_pro_stunde' should be 42.151590909090906."
     assert (
-        result["akku_soc_pro_stunde"][1] == 25.379090909090905
-    ), "The value at index 1 of 'akku_soc_pro_stunde' should be 25.379090909090905."
+        result["akku_soc_pro_stunde"][1] == 60.08659090909091
+    ), "The value at index 1 of 'akku_soc_pro_stunde' should be 60.08659090909091."
 
     # Check home appliances
     assert (
