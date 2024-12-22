@@ -25,7 +25,7 @@ def inverter(mock_battery):
         / "data"
         / "regular_grid_interpolator.pkl"
     )
-    return Inverter(sc, InverterParameters(max_power_wh=500.0), akku=mock_battery)
+    return Inverter(sc, InverterParameters(max_power_wh=500.0), battery=mock_battery)
 
 
 def test_process_energy_excess_generation(inverter, mock_battery):
