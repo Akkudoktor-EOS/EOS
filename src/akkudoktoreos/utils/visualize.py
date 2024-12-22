@@ -7,7 +7,7 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.config.config import get_config
-
+from akkudoktoreos.optimization.genetic import OptimizationParameters
 
 class VisualizationReport:
     def __init__(self, filename: str = "visualization_results.pdf") -> None:
@@ -237,86 +237,6 @@ class VisualizationReport:
         self.pdf_pages.close()  # Close the PDF to finalize the report
 
 
-if __name__ == "__main__":
-    # Example usage
-    report = VisualizationReport("example_report.pdf")
-    x_hours = np.arange(0, 4)  # Define x-axis values (e.g., hours)
-
-    # Group 1: Adding charts to be displayed on the same page
-    report.create_line_chart(
-        x_hours,
-        [np.array([10, 20, 30, 40])],
-        title="Load Profile",
-        xlabel="Hours",
-        ylabel="Load (Wh)",
-    )
-    report.create_line_chart(
-        x_hours,
-        [np.array([5, 15, 25, 35])],
-        title="PV Forecast",
-        xlabel="Hours",
-        ylabel="PV Generation (Wh)",
-    )
-    report.create_line_chart(
-        x_hours,
-        [np.array([5, 15, 25, 35])],
-        title="PV Forecast",
-        xlabel="Hours",
-        ylabel="PV Generation (Wh)",
-    )
-    # Note: If there are only 3 charts per page, the first is as wide as the page
-
-    report.finalize_group()  # Finalize the first group of charts
-
-    # Group 2: Adding more charts to be displayed on another page
-    report.create_line_chart(
-        x_hours,
-        [np.array([0.2, 0.25, 0.3, 0.35])],
-        title="Electricity Price",
-        xlabel="Hours",
-        ylabel="Price (€/Wh)",
-    )
-    report.create_bar_chart(
-        ["Costs", "Revenue", "Balance"],
-        [[500.0], [600.0], [100.0]],
-        title="Financial Overview",
-        ylabel="Euro",
-        label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
-        colors=["red", "green", "blue"],
-    )
-    report.create_scatter_plot(
-        np.array([5, 6, 7, 8]),
-        np.array([100, 200, 150, 250]),
-        title="Scatter Plot",
-        xlabel="Losses",
-        ylabel="Balance",
-        c=np.array([0.1, 0.2, 0.3, 0.4]),
-    )
-    report.finalize_group()  # Finalize the second group of charts
-
-    # Group 3: Adding a violin plot
-    data = [np.random.normal(0, std, 100) for std in range(1, 5)]  # Example data for violin plot
-    report.create_violin_plot(
-        data,
-        labels=["Group 1", "Group 2", "Group 3", "Group 4"],
-        title="Violin Plot",
-        xlabel="Groups",
-        ylabel="Values",
-    )
-    data = [np.random.normal(0, 1, 100)]  # Example data for violin plot
-    report.create_violin_plot(
-        data, labels=["Group 1"], title="Violin Plot", xlabel="Group", ylabel="Values"
-    )
-
-    report.finalize_group()  # Finalize the third group of charts
-
-    # Generate the PDF report
-    report.generate_pdf()
-
-
-from akkudoktoreos.optimization.genetic import OptimizationParameters  # circular import
-
-
 def prepare_visualize(
     parameters: OptimizationParameters,
     results: dict,
@@ -492,6 +412,83 @@ def prepare_visualize(
 
     if filtered_balance.size > 0 or filtered_losses.size > 0:
         report.finalize_group()
+
+    # Generate the PDF report
+    report.generate_pdf()
+
+
+if __name__ == "__main__":
+    # Example usage
+    report = VisualizationReport("example_report.pdf")
+    x_hours = np.arange(0, 4)  # Define x-axis values (e.g., hours)
+
+    # Group 1: Adding charts to be displayed on the same page
+    report.create_line_chart(
+        x_hours,
+        [np.array([10, 20, 30, 40])],
+        title="Load Profile",
+        xlabel="Hours",
+        ylabel="Load (Wh)",
+    )
+    report.create_line_chart(
+        x_hours,
+        [np.array([5, 15, 25, 35])],
+        title="PV Forecast",
+        xlabel="Hours",
+        ylabel="PV Generation (Wh)",
+    )
+    report.create_line_chart(
+        x_hours,
+        [np.array([5, 15, 25, 35])],
+        title="PV Forecast",
+        xlabel="Hours",
+        ylabel="PV Generation (Wh)",
+    )
+    # Note: If there are only 3 charts per page, the first is as wide as the page
+
+    report.finalize_group()  # Finalize the first group of charts
+
+    # Group 2: Adding more charts to be displayed on another page
+    report.create_line_chart(
+        x_hours,
+        [np.array([0.2, 0.25, 0.3, 0.35])],
+        title="Electricity Price",
+        xlabel="Hours",
+        ylabel="Price (€/Wh)",
+    )
+    report.create_bar_chart(
+        ["Costs", "Revenue", "Balance"],
+        [[500.0], [600.0], [100.0]],
+        title="Financial Overview",
+        ylabel="Euro",
+        label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
+        colors=["red", "green", "blue"],
+    )
+    report.create_scatter_plot(
+        np.array([5, 6, 7, 8]),
+        np.array([100, 200, 150, 250]),
+        title="Scatter Plot",
+        xlabel="Losses",
+        ylabel="Balance",
+        c=np.array([0.1, 0.2, 0.3, 0.4]),
+    )
+    report.finalize_group()  # Finalize the second group of charts
+
+    # Group 3: Adding a violin plot
+    data = [np.random.normal(0, std, 100) for std in range(1, 5)]  # Example data for violin plot
+    report.create_violin_plot(
+        data,
+        labels=["Group 1", "Group 2", "Group 3", "Group 4"],
+        title="Violin Plot",
+        xlabel="Groups",
+        ylabel="Values",
+    )
+    data = [np.random.normal(0, 1, 100)]  # Example data for violin plot
+    report.create_violin_plot(
+        data, labels=["Group 1"], title="Violin Plot", xlabel="Group", ylabel="Values"
+    )
+
+    report.finalize_group()  # Finalize the third group of charts
 
     # Generate the PDF report
     report.generate_pdf()
