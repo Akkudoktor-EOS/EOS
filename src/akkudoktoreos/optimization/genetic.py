@@ -388,7 +388,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         else:
             self.ems.set_ev_charge_hours(np.full(self.config.prediction_hours, 0))
 
-        return self.ems.simuliere(self.ems.start_datetime.hour)
+        return self.ems.simulate(self.ems.start_datetime.hour)
 
     def evaluate(
         self,
@@ -441,14 +441,14 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         individual.extra_data = (  # type: ignore[attr-defined]
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
-            parameters.eauto.min_soc_percentage - self.ems.eauto.current_soc_percentage()
-            if parameters.eauto and self.ems.eauto
+            parameters.eauto.min_soc_percentage - self.ems.ev.current_soc_percentage()
+            if parameters.eauto and self.ems.ev
             else 0,
         )
 
         # Adjust total balance with battery value and penalties for unmet SOC
         restwert_akku = (
-            self.ems.akku.current_energy_content() * parameters.ems.preis_euro_pro_wh_akku
+            self.ems.battery.current_energy_content() * parameters.ems.preis_euro_pro_wh_akku
         )
         gesamtbilanz += -restwert_akku
 
@@ -456,8 +456,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             gesamtbilanz += max(
                 0,
                 (
-                    parameters.eauto.min_soc_percentage - self.ems.eauto.current_soc_percentage()
-                    if parameters.eauto and self.ems.eauto
+                    parameters.eauto.min_soc_percentage - self.ems.ev.current_soc_percentage()
+                    if parameters.eauto and self.ems.ev
                     else 0
                 )
                 * self.config.optimization_penalty,
@@ -565,7 +565,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         self.ems.set_parameters(
             parameters.ems,
             inverter=inverter,
-            eauto=eauto,
+            ev=eauto,
             home_appliance=dishwasher,
         )
         self.ems.set_start_hour(start_hour)
@@ -606,7 +606,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             "discharge_allowed": discharge.tolist(),
             "eautocharge_hours_float": eautocharge_hours_float,
             "result": o,
-            "eauto_obj": self.ems.eauto.to_dict(),
+            "eauto_obj": self.ems.ev.to_dict(),
             "start_solution": start_solution,
             "spuelstart": washingstart_int,
             "extra_data": extra_data,
@@ -622,7 +622,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
                 "discharge_allowed": discharge,
                 "eautocharge_hours_float": eautocharge_hours_float,
                 "result": SimulationResult(**o),
-                "eauto_obj": self.ems.eauto,
+                "eauto_obj": self.ems.ev,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,
             }

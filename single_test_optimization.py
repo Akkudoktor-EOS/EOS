@@ -315,7 +315,7 @@ def run_optimization(real_world: bool = False, start_hour: int = 0, verbose: boo
 
     # Initialize the optimization problem using the default configuration
     config_eos = get_config()
-    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
+    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 48})
     opt_class = optimization_problem(verbose=verbose, fixed_seed=42)
 
     # Perform the optimisation based on the provided parameters and start hour

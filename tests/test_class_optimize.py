@@ -44,7 +44,7 @@ def test_optimize(fn_in: str, fn_out: str, ngen: int, is_full_run: bool):
     """Test optimierung_ems."""
     # Assure configuration holds the correct values
     config_eos = get_config()
-    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
+    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 48})
 
     # Load input and output data
     file = DIR_TESTDATA / fn_in
