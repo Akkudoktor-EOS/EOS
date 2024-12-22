@@ -15,7 +15,7 @@
   "loadakkudoktor_year_energy": null,
   "longitude": null,
   "optimization_ev_available_charge_rates_percent": [],
-  "optimization_hours": 24,
+  "optimization_hours": 48,
   "optimization_penalty": null,
   "prediction_historic_hours": 48,
   "prediction_hours": 48,

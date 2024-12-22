@@ -135,19 +135,19 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
     # TODO: Take from prediction
     # -------------------------
 
-    gesamtlast: Optional[NDArray[Shape["*"], float]] = Field(
+    load_energy_array: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
         description="An array of floats representing the total load (consumption) in watts for different time intervals.",
     )
-    pv_prognose_wh: Optional[NDArray[Shape["*"], float]] = Field(
+    pv_prediction_wh: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
         description="An array of floats representing the forecasted photovoltaic output in watts for different time intervals.",
     )
-    strompreis_euro_pro_wh: Optional[NDArray[Shape["*"], float]] = Field(
+    elect_price_hourly: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
         description="An array of floats representing the electricity price in euros per watt-hour for different time intervals.",
     )
-    einspeiseverguetung_euro_pro_wh_arr: Optional[NDArray[Shape["*"], float]] = Field(
+    elect_revenue_per_hour_arr: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
         description="An array of floats representing the feed-in compensation in euros per watt-hour.",
     )
@@ -156,8 +156,8 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
     # TODO: Move to devices
     # -------------------------
 
-    akku: Optional[Battery] = Field(default=None, description="TBD.")
-    eauto: Optional[Battery] = Field(default=None, description="TBD.")
+    battery: Optional[Battery] = Field(default=None, description="TBD.")
+    ev: Optional[Battery] = Field(default=None, description="TBD.")
     home_appliance: Optional[HomeAppliance] = Field(default=None, description="TBD.")
     inverter: Optional[Inverter] = Field(default=None, description="TBD.")
 
@@ -172,23 +172,25 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
     def set_parameters(
         self,
         parameters: EnergieManagementSystemParameters,
-        eauto: Optional[Battery] = None,
+        ev: Optional[Battery] = None,
         home_appliance: Optional[HomeAppliance] = None,
         inverter: Optional[Inverter] = None,
     ) -> None:
-        self.gesamtlast = np.array(parameters.gesamtlast, float)
-        self.pv_prognose_wh = np.array(parameters.pv_prognose_wh, float)
-        self.strompreis_euro_pro_wh = np.array(parameters.strompreis_euro_pro_wh, float)
-        self.einspeiseverguetung_euro_pro_wh_arr = (
+        self.load_energy_array = np.array(parameters.gesamtlast, float)
+        self.pv_prediction_wh = np.array(parameters.pv_prognose_wh, float)
+        self.elect_price_hourly = np.array(parameters.strompreis_euro_pro_wh, float)
+        self.elect_revenue_per_hour_arr = (
             parameters.einspeiseverguetung_euro_pro_wh
             if isinstance(parameters.einspeiseverguetung_euro_pro_wh, list)
-            else np.full(len(self.gesamtlast), parameters.einspeiseverguetung_euro_pro_wh, float)
+            else np.full(
+                len(self.load_energy_array), parameters.einspeiseverguetung_euro_pro_wh, float
+            )
         )
         if inverter is not None:
-            self.akku = inverter.akku
+            self.battery = inverter.battery
         else:
-            self.akku = None
-        self.eauto = eauto
+            self.battery = None
+        self.ev = ev
         self.home_appliance = home_appliance
         self.inverter = inverter
         self.ac_charge_hours = np.full(self.config.prediction_hours, 0.0)
@@ -196,8 +198,8 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
         self.ev_charge_hours = np.full(self.config.prediction_hours, 0.0)
 
     def set_akku_discharge_hours(self, ds: np.ndarray) -> None:
-        if self.akku is not None:
-            self.akku.set_discharge_per_hour(ds)
+        if self.battery is not None:
+            self.battery.set_discharge_per_hour(ds)
 
     def set_akku_ac_charge_hours(self, ds: np.ndarray) -> None:
         self.ac_charge_hours = ds
@@ -213,10 +215,10 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             self.home_appliance.set_starting_time(ds, global_start_hour=global_start_hour)
 
     def reset(self) -> None:
-        if self.eauto:
-            self.eauto.reset()
-        if self.akku:
-            self.akku.reset()
+        if self.ev:
+            self.ev.reset()
+        if self.battery:
+            self.battery.reset()
 
     def run(
         self,
@@ -269,12 +271,11 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             start_datetime = to_datetime().set(hour=start_hour, minute=0, second=0, microsecond=0)
             self.set_start_datetime(start_datetime)
 
-    def simuliere_ab_jetzt(self) -> dict[str, Any]:
-        jetzt = to_datetime().now()
-        start_stunde = jetzt.hour
-        return self.simuliere(start_stunde)
+    def simulate_start_now(self) -> dict[str, Any]:
+        start_hour = to_datetime().now().hour
+        return self.simulate(start_hour)
 
-    def simuliere(self, start_stunde: int) -> dict[str, Any]:
+    def simulate(self, start_hour: int) -> dict[str, Any]:
         """hour.
 
         akku_soc_pro_stunde begin of the hour, initial hour state!
@@ -282,139 +283,150 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
         """
         # Check for simulation integrity
         if (
-            self.gesamtlast is None
-            or self.pv_prognose_wh is None
-            or self.strompreis_euro_pro_wh is None
+            self.load_energy_array is None
+            or self.pv_prediction_wh is None
+            or self.elect_price_hourly is None
             or self.ev_charge_hours is None
             or self.ac_charge_hours is None
             or self.dc_charge_hours is None
-            or self.einspeiseverguetung_euro_pro_wh_arr is None
+            or self.elect_revenue_per_hour_arr is None
         ):
             error_msg = (
                 f"Mandatory data missing - "
-                f"Load Curve: {self.gesamtlast}, "
-                f"PV Forecast: {self.pv_prognose_wh}, "
-                f"Electricity Price: {self.strompreis_euro_pro_wh}, "
+                f"Load Curve: {self.load_energy_array}, "
+                f"PV Forecast: {self.pv_prediction_wh}, "
+                f"Electricity Price: {self.elect_price_hourly}, "
                 f"EV Charge Hours: {self.ev_charge_hours}, "
                 f"AC Charge Hours: {self.ac_charge_hours}, "
                 f"DC Charge Hours: {self.dc_charge_hours}, "
-                f"Feed-in tariff: {self.einspeiseverguetung_euro_pro_wh_arr}"
+                f"Feed-in tariff: {self.elect_revenue_per_hour_arr}"
             )
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        lastkurve_wh = self.gesamtlast
+        load_energy_array = self.load_energy_array
 
-        if not (len(lastkurve_wh) == len(self.pv_prognose_wh) == len(self.strompreis_euro_pro_wh)):
-            error_msg = f"Array sizes do not match: Load Curve = {len(lastkurve_wh)}, PV Forecast = {len(self.pv_prognose_wh)}, Electricity Price = {len(self.strompreis_euro_pro_wh)}"
+        if not (
+            len(load_energy_array) == len(self.pv_prediction_wh) == len(self.elect_price_hourly)
+        ):
+            error_msg = f"Array sizes do not match: Load Curve = {len(load_energy_array)}, PV Forecast = {len(self.pv_prediction_wh)}, Electricity Price = {len(self.elect_price_hourly)}"
             logger.error(error_msg)
             raise ValueError(error_msg)
 
         # Optimized total hours calculation
-        ende = len(lastkurve_wh)
-        total_hours = ende - start_stunde
+        end_hour = len(load_energy_array)
+        total_hours = end_hour - start_hour
 
         # Pre-allocate arrays for the results, optimized for speed
-        last_wh_pro_stunde = np.full((total_hours), np.nan)
-        netzeinspeisung_wh_pro_stunde = np.full((total_hours), np.nan)
-        netzbezug_wh_pro_stunde = np.full((total_hours), np.nan)
-        kosten_euro_pro_stunde = np.full((total_hours), np.nan)
-        einnahmen_euro_pro_stunde = np.full((total_hours), np.nan)
-        akku_soc_pro_stunde = np.full((total_hours), np.nan)
-        eauto_soc_pro_stunde = np.full((total_hours), np.nan)
-        verluste_wh_pro_stunde = np.full((total_hours), np.nan)
+        loads_energy_per_hour = np.full((total_hours), np.nan)
+        feedin_energy_per_hour = np.full((total_hours), np.nan)
+        consumption_energy_per_hour = np.full((total_hours), np.nan)
+        costs_per_hour = np.full((total_hours), np.nan)
+        revenue_per_hour = np.full((total_hours), np.nan)
+        soc_per_hour = np.full((total_hours), np.nan)  # Hour End State
+        soc_ev_per_hour = np.full((total_hours), np.nan)
+        losses_wh_per_hour = np.full((total_hours), np.nan)
         home_appliance_wh_per_hour = np.full((total_hours), np.nan)
         electricity_price_per_hour = np.full((total_hours), np.nan)
 
         # Set initial state
-        if self.akku:
-            akku_soc_pro_stunde[0] = self.akku.current_soc_percentage()
-        if self.eauto:
-            eauto_soc_pro_stunde[0] = self.eauto.current_soc_percentage()
+        if self.battery:
+            soc_per_hour[0] = self.battery.current_soc_percentage()
+        if self.ev:
+            soc_ev_per_hour[0] = self.ev.current_soc_percentage()
 
-        for stunde in range(start_stunde, ende):
-            stunde_since_now = stunde - start_stunde
+        for hour in range(start_hour, end_hour):
+            hour_since_now = hour - start_hour
+
+            # save begin states
+            if self.battery:
+                soc_per_hour[hour_since_now] = self.battery.current_soc_percentage()
+            else:
+                soc_per_hour[hour_since_now] = 0.0
+            if self.ev:
+                soc_ev_per_hour[hour_since_now] = self.ev.current_soc_percentage()
 
             # Accumulate loads and PV generation
-            verbrauch = self.gesamtlast[stunde]
-            verluste_wh_pro_stunde[stunde_since_now] = 0.0
+            consumption = self.load_energy_array[hour]
+            losses_wh_per_hour[hour_since_now] = 0.0
 
             # Home appliances
             if self.home_appliance:
-                ha_load = self.home_appliance.get_load_for_hour(stunde)
-                verbrauch += ha_load
-                home_appliance_wh_per_hour[stunde_since_now] = ha_load
+                ha_load = self.home_appliance.get_load_for_hour(hour)
+                consumption += ha_load
+                home_appliance_wh_per_hour[hour_since_now] = ha_load
 
             # E-Auto handling
-            if self.eauto:
-                if self.ev_charge_hours[stunde] > 0:
-                    geladene_menge_eauto, verluste_eauto = self.eauto.charge_energy(
-                        None, stunde, relative_power=self.ev_charge_hours[stunde]
+            if self.ev:
+                if self.ev_charge_hours[hour] > 0:
+                    loaded_energy_ev, verluste_eauto = self.ev.charge_energy(
+                        None, hour, relative_power=self.ev_charge_hours[hour]
                     )
-                    verbrauch += geladene_menge_eauto
-                    verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
-                eauto_soc_pro_stunde[stunde_since_now] = self.eauto.current_soc_percentage()
+                    consumption += loaded_energy_ev
+                    losses_wh_per_hour[hour_since_now] += verluste_eauto
 
             # Process inverter logic
-            netzeinspeisung, netzbezug, verluste, eigenverbrauch = (0.0, 0.0, 0.0, 0.0)
-            if self.akku:
-                self.akku.set_charge_allowed_for_hour(self.dc_charge_hours[stunde], stunde)
+            energy_feedin_grid_actual, energy_consumption_grid_actual, losses, eigenverbrauch = (
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            )
+            if self.battery:
+                self.battery.set_charge_allowed_for_hour(self.dc_charge_hours[hour], hour)
             if self.inverter:
-                erzeugung = self.pv_prognose_wh[stunde]
-                netzeinspeisung, netzbezug, verluste, eigenverbrauch = self.inverter.process_energy(
-                    erzeugung, verbrauch, stunde
-                )
+                energy_produced = self.pv_prediction_wh[hour]
+                (
+                    energy_feedin_grid_actual,
+                    energy_consumption_grid_actual,
+                    losses,
+                    eigenverbrauch,
+                ) = self.inverter.process_energy(energy_produced, consumption, hour)
 
             # AC PV Battery Charge
-            if self.akku and self.ac_charge_hours[stunde] > 0.0:
-                self.akku.set_charge_allowed_for_hour(1, stunde)
-                geladene_menge, verluste_wh = self.akku.charge_energy(
-                    None, stunde, relative_power=self.ac_charge_hours[stunde]
+            if self.battery and self.ac_charge_hours[hour] > 0.0:
+                self.battery.set_charge_allowed_for_hour(1, hour)
+                battery_charged_energy_actual, battery_losses_actual = self.battery.charge_energy(
+                    None, hour, relative_power=self.ac_charge_hours[hour]
                 )
-                # print(stunde, " ", geladene_menge, " ",self.ac_charge_hours[stunde]," ",self.akku.current_soc_percentage())
-                verbrauch += geladene_menge
-                verbrauch += verluste_wh
-                netzbezug += geladene_menge
-                netzbezug += verluste_wh
-                verluste_wh_pro_stunde[stunde_since_now] += verluste_wh
+                # print(hour, " ", battery_charged_energy_actual, " ",self.ac_charge_hours[hour]," ",self.battery.current_soc_percentage())
+                consumption += battery_charged_energy_actual
+                consumption += battery_losses_actual
+                energy_consumption_grid_actual += battery_charged_energy_actual
+                energy_consumption_grid_actual += battery_losses_actual
+                losses_wh_per_hour[hour_since_now] += battery_losses_actual
 
-            netzeinspeisung_wh_pro_stunde[stunde_since_now] = netzeinspeisung
-            netzbezug_wh_pro_stunde[stunde_since_now] = netzbezug
-            verluste_wh_pro_stunde[stunde_since_now] += verluste
-            last_wh_pro_stunde[stunde_since_now] = verbrauch
-            electricity_price_per_hour[stunde_since_now] = self.strompreis_euro_pro_wh[stunde]
+            feedin_energy_per_hour[hour_since_now] = energy_feedin_grid_actual
+            consumption_energy_per_hour[hour_since_now] = energy_consumption_grid_actual
+            losses_wh_per_hour[hour_since_now] += losses
+            loads_energy_per_hour[hour_since_now] = consumption
+            electricity_price_per_hour[hour_since_now] = self.elect_price_hourly[hour]
 
             # Financial calculations
-            kosten_euro_pro_stunde[stunde_since_now] = (
-                netzbezug * self.strompreis_euro_pro_wh[stunde]
+            costs_per_hour[hour_since_now] = (
+                energy_consumption_grid_actual * self.elect_price_hourly[hour]
             )
-            einnahmen_euro_pro_stunde[stunde_since_now] = (
-                netzeinspeisung * self.einspeiseverguetung_euro_pro_wh_arr[stunde]
+            revenue_per_hour[hour_since_now] = (
+                energy_feedin_grid_actual * self.elect_revenue_per_hour_arr[hour]
             )
-
-            # Akku SOC tracking
-            if self.akku:
-                akku_soc_pro_stunde[stunde_since_now] = self.akku.current_soc_percentage()
-            else:
-                akku_soc_pro_stunde[stunde_since_now] = 0.0
 
         # Total cost and return
-        gesamtkosten_euro = np.nansum(kosten_euro_pro_stunde) - np.nansum(einnahmen_euro_pro_stunde)
+        gesamtkosten_euro = np.nansum(costs_per_hour) - np.nansum(revenue_per_hour)
 
         # Prepare output dictionary
         out: Dict[str, Union[np.ndarray, float]] = {
-            "Last_Wh_pro_Stunde": last_wh_pro_stunde,
-            "Netzeinspeisung_Wh_pro_Stunde": netzeinspeisung_wh_pro_stunde,
-            "Netzbezug_Wh_pro_Stunde": netzbezug_wh_pro_stunde,
-            "Kosten_Euro_pro_Stunde": kosten_euro_pro_stunde,
-            "akku_soc_pro_stunde": akku_soc_pro_stunde,
-            "Einnahmen_Euro_pro_Stunde": einnahmen_euro_pro_stunde,
+            "Last_Wh_pro_Stunde": loads_energy_per_hour,
+            "Netzeinspeisung_Wh_pro_Stunde": feedin_energy_per_hour,
+            "Netzbezug_Wh_pro_Stunde": consumption_energy_per_hour,
+            "Kosten_Euro_pro_Stunde": costs_per_hour,
+            "akku_soc_pro_stunde": soc_per_hour,
+            "Einnahmen_Euro_pro_Stunde": revenue_per_hour,
             "Gesamtbilanz_Euro": gesamtkosten_euro,
-            "EAuto_SoC_pro_Stunde": eauto_soc_pro_stunde,
-            "Gesamteinnahmen_Euro": np.nansum(einnahmen_euro_pro_stunde),
-            "Gesamtkosten_Euro": np.nansum(kosten_euro_pro_stunde),
-            "Verluste_Pro_Stunde": verluste_wh_pro_stunde,
-            "Gesamt_Verluste": np.nansum(verluste_wh_pro_stunde),
+            "EAuto_SoC_pro_Stunde": soc_ev_per_hour,
+            "Gesamteinnahmen_Euro": np.nansum(revenue_per_hour),
+            "Gesamtkosten_Euro": np.nansum(costs_per_hour),
+            "Verluste_Pro_Stunde": losses_wh_per_hour,
+            "Gesamt_Verluste": np.nansum(losses_wh_per_hour),
             "Home_appliance_wh_per_hour": home_appliance_wh_per_hour,
             "Electricity_price": electricity_price_per_hour,
         }
