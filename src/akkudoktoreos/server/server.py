@@ -23,6 +23,7 @@ class ServerCommonSettings(SettingsBaseModel):
     server_fastapi_port: Optional[int] = Field(
         default=8503, description="FastAPI server IP port number."
     )
+    server_fastapi_verbose: Optional[bool] = Field(default=False, description="Enable debug output")
     server_fasthtml_host: Optional[IPvAnyAddress] = Field(
         default="0.0.0.0", description="FastHTML server IP address."
     )
