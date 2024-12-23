@@ -1,16 +1,19 @@
 name: docker-build
 
 on:
-  release:
-    types: [published]
+  # pipeline runs per trigger condition, so release trigger not required as tag is sufficient
+  #release:
+  #  types: [published]
   push:
     branches:
       - 'main'
+      - 'feature/config-overhaul'
     tags:
       - 'v*'
   pull_request:
     branches:
       - 'main'
+      - 'feature/config-overhaul'
 
 env:
   DOCKERHUB_REPO: akkudoktor/eos
@@ -18,11 +21,15 @@ env:
   EOS_LICENSE: Apache-2.0
 
 # From https://docs.docker.com/build/ci/github-actions/multi-platform/
-# Adjusted rw permissions, manually set undetected license (label+annotation),
-# set description for index manifest, add attestation, conditionally don't push on pr,
-# on pr just use amd64 platform
+# Changes:
+#  - adjusted rw permissions
+#  - manually set undetected license (label+annotation)
+#  - set description for index manifest
+#  - add attestation
+#  - conditionally don't push on pr
+#  - on pr just use amd64 platform
 jobs:
-  # Build platform matrix excludes. if conditional with matrix on job level not
+  # Build platform matrix excludes. if-conditional with matrix on job level is not
   # supported, see https://github.com/actions/runner/issues/1985
   platform-excludes:
     runs-on: ubuntu-latest
