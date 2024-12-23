@@ -8,7 +8,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Installation
 
-The project requires Python 3.9 or newer. Currently there are no official packages or images published.
+The project requires Python 3.9 or newer. Official docker images can be found at [akkudoktor/eos](https://hub.docker.com/r/akkudoktor/eos).
 
 Following sections describe how to locally start the EOS server on `http://localhost:8503`.
 
@@ -41,7 +41,7 @@ Windows:
 ### Docker
 
 ```bash
-docker compose up --build
+docker compose up
 ```
 
 ## Configuration
