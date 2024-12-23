@@ -5,7 +5,7 @@ networks:
 services:
   eos:
     image: "akkudoktor/eos:${EOS_VERSION}"
-    read_only: true
+    #read_only: true
     build:
       context: .
       dockerfile: "Dockerfile"
