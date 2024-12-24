@@ -21,7 +21,6 @@ from akkudoktoreos.devices.battery import (
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
 from akkudoktoreos.utils.utils import NumpyEncoder
-from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
 class OptimizationParameters(BaseModel):
@@ -520,19 +519,20 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         ac_charge, dc_charge, discharge = self.decode_charge_discharge(discharge_hours_bin)
         # Visualize the results
-        visualisiere_ergebnisse(
-            parameters.ems.gesamtlast,
-            parameters.ems.pv_prognose_wh,
-            parameters.ems.strompreis_euro_pro_wh,
-            o,
-            ac_charge,
-            dc_charge,
-            discharge,
-            parameters.temperature_forecast,
-            start_hour,
-            einspeiseverguetung_euro_pro_wh,
-            extra_data=extra_data,
-        )
+        visualize = {
+            "ac_charge": ac_charge.tolist(),
+            "dc_charge": dc_charge.tolist(),
+            "discharge_allowed": discharge.tolist(),
+            "eautocharge_hours_float": eautocharge_hours_float,
+            "result": o,
+            "eauto_obj": self.ems.eauto.to_dict(),
+            "start_solution": start_solution,
+            "spuelstart": washingstart_int,
+            "extra_data": extra_data,
+        }
+        from akkudoktoreos.utils.visualize import prepare_visualize
+
+        prepare_visualize(parameters, visualize, start_hour=start_hour)
 
         return OptimizeResponse(
             **{
