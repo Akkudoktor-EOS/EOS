@@ -1,5 +1,5 @@
 numpy==2.2.0
-matplotlib==3.9.2
+matplotlib==3.10.0
 fastapi[standard]==0.115.6
 uvicorn==0.34.0
 pydantic==2.10.4
