@@ -26,7 +26,6 @@ from akkudoktoreos.prediction.self_consumption_probability import (
     self_consumption_probability_interpolator,
 )
 from akkudoktoreos.utils.utils import NumpyEncoder
-from akkudoktoreos.visualize import visualisiere_ergebnisse
 
 
 class OptimizationParameters(BaseModel):
@@ -596,20 +595,23 @@ class optimization_problem:
 
         ac_charge, dc_charge, discharge = self.decode_charge_discharge(discharge_hours_bin)
         # Visualize the results
-        visualisiere_ergebnisse(
-            parameters.ems.gesamtlast,
-            parameters.ems.pv_prognose_wh,
-            parameters.ems.strompreis_euro_pro_wh,
-            o,
-            ac_charge,
-            dc_charge,
-            discharge,
-            parameters.temperature_forecast,
-            start_hour,
-            einspeiseverguetung_euro_pro_wh,
-            config=self._config,
-            extra_data=extra_data,
+        from akkudoktoreos.utils.visualize import (  # import here to prevent circular import
+            prepare_visualize,
         )
+
+        visualize = {
+            "ac_charge": ac_charge.tolist(),
+            "dc_charge": dc_charge.tolist(),
+            "discharge_allowed": discharge.tolist(),
+            "eautocharge_hours_float": eautocharge_hours_float,
+            "result": o,
+            "eauto_obj": ems.ev,
+            "start_solution": start_solution,
+            "spuelstart": washingstart_int,
+            "extra_data": extra_data,
+        }
+
+        prepare_visualize(parameters, visualize, config=self._config, start_hour=start_hour)
         return OptimizeResponse(
             **{
                 "ac_charge": ac_charge,
