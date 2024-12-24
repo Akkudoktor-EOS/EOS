@@ -12,4 +12,4 @@ pandas==2.2.3
 pendulum==3.0.0
 platformdirs==4.3.6
 pvlib==0.11.1
-pydantic==2.10.3
+pydantic==2.10.4
