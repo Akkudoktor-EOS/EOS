@@ -96,7 +96,9 @@ def test_import(pvforecast_provider, sample_import_1_json, start_datetime, from_
     assert pvforecast_provider.total_hours is not None
     assert compare_datetimes(pvforecast_provider.start_datetime, ems_eos.start_datetime).equal
     values = sample_import_1_json["pvforecast_ac_power"]
-    value_datetime_mapping = pvforecast_provider.import_datetimes(len(values))
+    value_datetime_mapping = pvforecast_provider.import_datetimes(
+        ems_eos.start_datetime, len(values)
+    )
     for i, mapping in enumerate(value_datetime_mapping):
         assert i < len(pvforecast_provider.records)
         expected_datetime, expected_value_index = mapping

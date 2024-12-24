@@ -2,13 +2,13 @@
 
 import io
 import pickle
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from time import sleep
 
 import pytest
 
 from akkudoktoreos.utils.cacheutil import CacheFileStore, cache_in_file
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
 # -----------------------------
 # CacheFileStore
@@ -18,24 +18,63 @@ from akkudoktoreos.utils.datetimeutil import to_datetime
 @pytest.fixture
 def cache_store():
     """A pytest fixture that creates a new CacheFileStore instance for testing."""
-    return CacheFileStore()
+    cache = CacheFileStore()
+    cache.clear(clear_all=True)
+    assert len(cache._store) == 0
+    return cache
 
 
 def test_generate_cache_file_key(cache_store):
     """Test cache file key generation based on URL and date."""
     key = "http://example.com"
-    until_dt = to_datetime("2024-10-01").date()
-    cache_file_key, cache_file_until_dt = cache_store._generate_cache_file_key(key, until_dt)
+
+    # Provide until date - assure until_dt is used.
+    until_dt = to_datetime("2024-10-01")
+    cache_file_key, cache_file_until_dt, ttl_duration = cache_store._generate_cache_file_key(
+        key=key, until_datetime=until_dt
+    )
     assert cache_file_key is not None
-    assert cache_file_until_dt == until_dt
+    assert compare_datetimes(cache_file_until_dt, until_dt).equal
+
+    # Provide until date again - assure same key is generated.
+    cache_file_key1, cache_file_until_dt1, ttl_duration1 = cache_store._generate_cache_file_key(
+        key=key, until_datetime=until_dt
+    )
+    assert cache_file_key1 == cache_file_key
+    assert compare_datetimes(cache_file_until_dt1, until_dt).equal
 
     # Provide no until date - assure today EOD is used.
-    until_dt = datetime.combine(date.today(), time.max)
-    cache_file_key, cache_file_until_dt = cache_store._generate_cache_file_key(key, None)
-    assert cache_file_until_dt == until_dt
-    cache_file_key1, cache_file_until_dt1 = cache_store._generate_cache_file_key(key, until_dt)
-    assert cache_file_key == cache_file_key1
-    assert cache_file_until_dt == until_dt
+    no_until_dt = to_datetime().end_of("day")
+    cache_file_key, cache_file_until_dt, ttl_duration = cache_store._generate_cache_file_key(key)
+    assert cache_file_key is not None
+    assert compare_datetimes(cache_file_until_dt, no_until_dt).equal
+
+    # Provide with_ttl - assure until_dt is used.
+    until_dt = to_datetime().add(hours=1)
+    cache_file_key, cache_file_until_dt, ttl_duration = cache_store._generate_cache_file_key(
+        key, with_ttl="1 hour"
+    )
+    assert cache_file_key is not None
+    assert compare_datetimes(cache_file_until_dt, until_dt).approximately_equal
+    assert ttl_duration == to_duration("1 hour")
+
+    # Provide with_ttl again - assure same key is generated.
+    until_dt = to_datetime().add(hours=1)
+    cache_file_key1, cache_file_until_dt1, ttl_duration1 = cache_store._generate_cache_file_key(
+        key=key, with_ttl="1 hour"
+    )
+    assert cache_file_key1 == cache_file_key
+    assert compare_datetimes(cache_file_until_dt1, until_dt).approximately_equal
+    assert ttl_duration1 == to_duration("1 hour")
+
+    # Provide different with_ttl - assure different key is generated.
+    until_dt = to_datetime().add(hours=1, minutes=1)
+    cache_file_key2, cache_file_until_dt2, ttl_duration2 = cache_store._generate_cache_file_key(
+        key=key, with_ttl="1 hour 1 minute"
+    )
+    assert cache_file_key2 != cache_file_key
+    assert compare_datetimes(cache_file_until_dt2, until_dt).approximately_equal
+    assert ttl_duration2 == to_duration("1 hour 1 minute")
 
 
 def test_get_file_path(cache_store):
@@ -44,6 +83,77 @@ def test_get_file_path(cache_store):
     file_path = cache_store._get_file_path(cache_file)
 
     assert file_path is not None
+
+
+def test_until_datetime_by_options(cache_store):
+    """Test until datetime calculation based on options."""
+    now = to_datetime()
+
+    # Test with until_datetime
+    result, ttl_duration = cache_store._until_datetime_by_options(until_datetime=now)
+    assert result == now
+    assert ttl_duration is None
+
+    # -- From now on we expect a until_datetime in one hour
+    ttl_duration_expected = to_duration("1 hour")
+
+    # Test with with_ttl as timedelta
+    until_datetime_expected = to_datetime().add(hours=1)
+    ttl = timedelta(hours=1)
+    result, ttl_duration = cache_store._until_datetime_by_options(with_ttl=ttl)
+    assert compare_datetimes(result, until_datetime_expected).approximately_equal
+    assert ttl_duration == ttl_duration_expected
+
+    # Test with with_ttl as int (seconds)
+    until_datetime_expected = to_datetime().add(hours=1)
+    ttl_seconds = 3600
+    result, ttl_duration = cache_store._until_datetime_by_options(with_ttl=ttl_seconds)
+    assert compare_datetimes(result, until_datetime_expected).approximately_equal
+    assert ttl_duration == ttl_duration_expected
+
+    # Test with with_ttl as string ("1 hour")
+    until_datetime_expected = to_datetime().add(hours=1)
+    ttl_string = "1 hour"
+    result, ttl_duration = cache_store._until_datetime_by_options(with_ttl=ttl_string)
+    assert compare_datetimes(result, until_datetime_expected).approximately_equal
+    assert ttl_duration == ttl_duration_expected
+
+    # -- From now on we expect a until_datetime today at end of day
+    until_datetime_expected = to_datetime().end_of("day")
+    ttl_duration_expected = None
+
+    # Test default case (end of today)
+    result, ttl_duration = cache_store._until_datetime_by_options()
+    assert compare_datetimes(result, until_datetime_expected).equal
+    assert ttl_duration == ttl_duration_expected
+
+    # -- From now on we expect a until_datetime in one day at end of day
+    until_datetime_expected = to_datetime().add(days=1).end_of("day")
+    assert ttl_duration == ttl_duration_expected
+
+    # Test with until_date as date
+    until_date = date.today() + timedelta(days=1)
+    result, ttl_duration = cache_store._until_datetime_by_options(until_date=until_date)
+    assert compare_datetimes(result, until_datetime_expected).equal
+    assert ttl_duration == ttl_duration_expected
+
+    # -- Test with multiple options (until_datetime takes precedence)
+    specific_datetime = to_datetime().add(days=2)
+    result, ttl_duration = cache_store._until_datetime_by_options(
+        until_date=to_datetime().add(days=1).date(),
+        until_datetime=specific_datetime,
+        with_ttl=ttl,
+    )
+    assert compare_datetimes(result, specific_datetime).equal
+    assert ttl_duration is None
+
+    # Test with invalid inputs
+    with pytest.raises(ValueError):
+        cache_store._until_datetime_by_options(until_date="invalid-date")
+    with pytest.raises(ValueError):
+        cache_store._until_datetime_by_options(with_ttl="invalid-ttl")
+    with pytest.raises(ValueError):
+        cache_store._until_datetime_by_options(until_datetime="invalid-datetime")
 
 
 def test_create_cache_file(cache_store):
@@ -145,7 +255,7 @@ def test_clear_cache_files_by_date(cache_store):
     assert cache_store.get("file2") is cache_file2
 
     # Clear cache files that are older than today
-    cache_store.clear(before_datetime=datetime.combine(date.today(), time.min))
+    cache_store.clear(before_datetime=to_datetime().start_of("day"))
 
     # Ensure the files are in the store
     assert cache_store.get("file1") is cache_file1
@@ -228,7 +338,7 @@ def test_cache_in_file_decorator_caches_function_result(cache_store):
 
     # Check if the result was written to the cache file
     key = next(iter(cache_store._store))
-    cache_file = cache_store._store[key][0]
+    cache_file = cache_store._store[key].cache_file
     assert cache_file is not None
 
     # Assert correct content was written to the file
@@ -248,12 +358,12 @@ def test_cache_in_file_decorator_uses_cache(cache_store):
         return "New result"
 
     # Call the decorated function (should store result in cache)
-    result = my_function(until_date=datetime.now() + timedelta(days=1))
+    result = my_function(until_date=to_datetime().add(days=1))
     assert result == "New result"
 
     # Assert result was written to cache file
     key = next(iter(cache_store._store))
-    cache_file = cache_store._store[key][0]
+    cache_file = cache_store._store[key].cache_file
     assert cache_file is not None
     cache_file.seek(0)  # Move to the start of the file
     assert cache_file.read() == result
@@ -264,7 +374,7 @@ def test_cache_in_file_decorator_uses_cache(cache_store):
     cache_file.write(result2)
 
     # Call the decorated function again (should get result from cache)
-    result = my_function(until_date=datetime.now() + timedelta(days=1))
+    result = my_function(until_date=to_datetime().add(days=1))
     assert result == result2
 
 
@@ -279,7 +389,7 @@ def test_cache_in_file_decorator_forces_update_data(cache_store):
     def my_function(until_date=None):
         return "New result"
 
-    until_date = datetime.now() + timedelta(days=1)
+    until_date = to_datetime().add(days=1).date()
 
     # Call the decorated function (should store result in cache)
     result1 = "New result"
@@ -288,7 +398,7 @@ def test_cache_in_file_decorator_forces_update_data(cache_store):
 
     # Assert result was written to cache file
     key = next(iter(cache_store._store))
-    cache_file = cache_store._store[key][0]
+    cache_file = cache_store._store[key].cache_file
     assert cache_file is not None
     cache_file.seek(0)  # Move to the start of the file
     assert cache_file.read() == result
@@ -297,6 +407,8 @@ def test_cache_in_file_decorator_forces_update_data(cache_store):
     result2 = "Cached result"
     cache_file.seek(0)
     cache_file.write(result2)
+    cache_file.seek(0)  # Move to the start of the file
+    assert cache_file.read() == result2
 
     # Call the decorated function again with force update (should get result from function)
     result = my_function(until_date=until_date, force_update=True)  # type: ignore[call-arg]
@@ -309,9 +421,6 @@ def test_cache_in_file_decorator_forces_update_data(cache_store):
 
 def test_cache_in_file_handles_ttl(cache_store):
     """Test that the cache_infile decorator handles the with_ttl parameter."""
-    # Clear store to assure it is empty
-    cache_store.clear(clear_all=True)
-    assert len(cache_store._store) == 0
 
     # Define a simple function to decorate
     @cache_in_file(mode="w+")
@@ -319,26 +428,37 @@ def test_cache_in_file_handles_ttl(cache_store):
         return "New result"
 
     # Call the decorated function
-    result = my_function(with_ttl="1 second")  # type: ignore[call-arg]
+    result1 = my_function(with_ttl="1 second")  # type: ignore[call-arg]
+    assert result1 == "New result"
+    assert len(cache_store._store) == 1
+    key = list(cache_store._store.keys())[0]
 
-    # Overwrite cache file
+    # Assert result was written to cache file
     key = next(iter(cache_store._store))
-    cache_file = cache_store._store[key][0]
+    cache_file = cache_store._store[key].cache_file
     assert cache_file is not None
     cache_file.seek(0)  # Move to the start of the file
-    cache_file.write("Modified result")
-    cache_file.seek(0)  # Move to the start of the file
-    assert cache_file.read() == "Modified result"
+    assert cache_file.read() == result1
 
+    # Modify cache file
+    result2 = "Cached result"
+    cache_file.seek(0)
+    cache_file.write(result2)
+    cache_file.seek(0)  # Move to the start of the file
+    assert cache_file.read() == result2
+
+    # Call the decorated function again
     result = my_function(with_ttl="1 second")  # type: ignore[call-arg]
-    assert result == "Modified result"
+    cache_file.seek(0)  # Move to the start of the file
+    assert cache_file.read() == result2
+    assert result == result2
 
     # Wait one second to let the cache time out
-    sleep(1)
+    sleep(2)
 
     # Call again - cache should be timed out
     result = my_function(with_ttl="1 second")  # type: ignore[call-arg]
-    assert result == "New result"
+    assert result == result1
 
 
 def test_cache_in_file_handles_bytes_return(cache_store):
@@ -357,7 +477,7 @@ def test_cache_in_file_handles_bytes_return(cache_store):
 
     # Check if the binary data was written to the cache file
     key = next(iter(cache_store._store))
-    cache_file = cache_store._store[key][0]
+    cache_file = cache_store._store[key].cache_file
     assert len(cache_store._store) == 1
     assert cache_file is not None
     cache_file.seek(0)
@@ -367,5 +487,5 @@ def test_cache_in_file_handles_bytes_return(cache_store):
     # Access cache
     result = my_function(until_date=datetime.now() + timedelta(days=1))
     assert len(cache_store._store) == 1
-    assert cache_store._store[key][0] is not None
+    assert cache_store._store[key].cache_file is not None
     assert result1 == result

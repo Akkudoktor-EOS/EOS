@@ -31,21 +31,23 @@ import os
 import pickle
 import tempfile
 import threading
-from datetime import date, datetime, time, timedelta
 from typing import (
     IO,
     Any,
     Callable,
+    Dict,
     Generic,
     List,
     Literal,
     Optional,
     ParamSpec,
     TypeVar,
-    Union,
 )
 
-from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
+from pendulum import DateTime, Duration
+from pydantic import BaseModel, ConfigDict, Field
+
+from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
@@ -54,6 +56,21 @@ logger = get_logger(__name__)
 T = TypeVar("T")
 Param = ParamSpec("Param")
 RetType = TypeVar("RetType")
+
+
+class CacheFileRecord(BaseModel):
+    # Enable custom serialization globally in config
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        use_enum_values=True,
+        validate_assignment=True,
+    )
+
+    cache_file: Any = Field(..., description="File descriptor of the cache file.")
+    until_datetime: DateTime = Field(..., description="Datetime until the cache file is valid.")
+    ttl_duration: Optional[Duration] = Field(
+        default=None, description="Duration the cache file is valid."
+    )
 
 
 class CacheFileStoreMeta(type, Generic[T]):
@@ -102,12 +119,36 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         This constructor sets up an empty key-value store (a dictionary) where each key
         corresponds to a cache file that is associated with a given key and an optional date.
         """
-        self._store: dict[str, tuple[IO[bytes], datetime]] = {}
+        self._store: Dict[str, CacheFileRecord] = {}
         self._store_lock = threading.Lock()
 
+    def _until_datetime_by_options(
+        self,
+        until_date: Optional[Any] = None,
+        until_datetime: Optional[Any] = None,
+        with_ttl: Optional[Any] = None,
+    ) -> tuple[DateTime, Optional[Duration]]:
+        """Get until_datetime and ttl_duration from the given options."""
+        ttl_duration = None
+        if until_datetime:
+            until_datetime = to_datetime(until_datetime)
+        elif with_ttl:
+            ttl_duration = to_duration(with_ttl)
+            until_datetime = to_datetime() + ttl_duration
+        elif until_date:
+            until_datetime = to_datetime(until_date).end_of("day")
+        else:
+            # end of today
+            until_datetime = to_datetime().end_of("day")
+        return (until_datetime, ttl_duration)
+
     def _generate_cache_file_key(
-        self, key: str, until_datetime: Union[datetime, None]
-    ) -> tuple[str, datetime]:
+        self,
+        key: str,
+        until_date: Optional[Any] = None,
+        until_datetime: Optional[Any] = None,
+        with_ttl: Optional[Any] = None,
+    ) -> tuple[str, DateTime, Optional[Duration]]:
         """Generates a unique cache file key based on the key and date.
 
         The cache file key is a combination of the input key and the date (if provided),
@@ -115,7 +156,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
 
         Args:
             key (str): The key that identifies the cache file.
-            until_datetime (Optional[Any]): The datetime
+            until_datetime (Optional[DateTime]): The datetime
                 until the cache file is valid. The default is the current date at maximum time
                 (23:59:59).
 
@@ -123,12 +164,18 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
             A tuple of:
                 str: A hashed string that serves as the unique identifier for the cache file.
                 datetime: The datetime until the the cache file is valid.
+                Optional[ttl_duration]: Duration for ttl control.
         """
-        if until_datetime is None:
-            until_datetime = datetime.combine(date.today(), time.max)
-        key_datetime = to_datetime(until_datetime, as_string="UTC")
+        until_datetime_dt, ttl_duration = self._until_datetime_by_options(
+            until_date, until_datetime, with_ttl
+        )
+        if ttl_duration:
+            # We need a special key for with_ttl, only encoding the with_ttl
+            key_datetime = ttl_duration.in_words()
+        else:
+            key_datetime = to_datetime(until_datetime_dt, as_string="UTC")
         cache_key = hashlib.sha256(f"{key}{key_datetime}".encode("utf-8")).hexdigest()
-        return (f"{cache_key}", until_datetime)
+        return (f"{cache_key}", until_datetime_dt, ttl_duration)
 
     def _get_file_path(self, file_obj: IO[bytes]) -> Optional[str]:
         """Retrieve the file path from a file-like object.
@@ -147,37 +194,17 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
             file_path = file_obj.name  # Get the file path from the cache file object
         return file_path
 
-    def _until_datetime_by_options(
-        self,
-        until_date: Optional[Any] = None,
-        until_datetime: Optional[Any] = None,
-        with_ttl: Union[timedelta, str, int, float, None] = None,
-    ) -> datetime:
-        """Get until_datetime from the given options."""
-        if until_datetime:
-            until_datetime = to_datetime(until_datetime)
-        elif with_ttl:
-            with_ttl = to_duration(with_ttl)
-            until_datetime = to_datetime(datetime.now() + with_ttl)
-        elif until_date:
-            until_datetime = to_datetime(to_datetime(until_date).date())
-        else:
-            # end of today
-            until_datetime = to_datetime(datetime.combine(date.today(), time.max))
-        return until_datetime
-
     def _is_valid_cache_item(
         self,
-        cache_item: tuple[IO[bytes], datetime],
-        until_datetime: Optional[datetime] = None,
-        at_datetime: Optional[datetime] = None,
-        before_datetime: Optional[datetime] = None,
+        cache_item: CacheFileRecord,
+        until_datetime: Optional[DateTime] = None,
+        at_datetime: Optional[DateTime] = None,
+        before_datetime: Optional[DateTime] = None,
     ) -> bool:
-        cache_file_datetime = cache_item[1]  # Extract the datetime associated with the cache item
         if (
-            (until_datetime and until_datetime == cache_file_datetime)
-            or (at_datetime and at_datetime <= cache_file_datetime)
-            or (before_datetime and cache_file_datetime < before_datetime)
+            (until_datetime and until_datetime == cache_item.until_datetime)
+            or (at_datetime and at_datetime <= cache_item.until_datetime)
+            or (before_datetime and cache_item.until_datetime < before_datetime)
         ):
             return True
         return False
@@ -188,7 +215,8 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         until_datetime: Optional[Any] = None,
         at_datetime: Optional[Any] = None,
         before_datetime: Optional[Any] = None,
-    ) -> Optional[tuple[str, IO[bytes], datetime]]:
+        ttl_duration: Optional[Any] = None,
+    ) -> tuple[str, Optional[CacheFileRecord]]:
         """Searches for a cached item that matches the key and falls within the datetime range.
 
         This method looks for a cache item with a key that matches the given `key`, and whose associated
@@ -203,48 +231,62 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
             before_datetime (Optional[Any]): The datetime to compare the cache item's datetime to be before.
 
         Returns:
-            Optional[tuple]: Returns the cache_file_key, chache_file, cache_file_datetime if found,
-                             otherwise returns `None`.
+            tuple[str, Optional[CacheFileRecord]]: Returns the cache_file_key, cache file record if found, otherwise returns `None`.
         """
         # Convert input to datetime if they are not None
-        until_datetime_dt: Optional[datetime] = None
-        if until_datetime is not None:
-            until_datetime_dt = to_datetime(until_datetime)
-        at_datetime_dt: Optional[datetime] = None
-        if at_datetime is not None:
-            at_datetime_dt = to_datetime(at_datetime)
-        before_datetime_dt: Optional[datetime] = None
-        if before_datetime is not None:
-            before_datetime_dt = to_datetime(before_datetime)
+        if ttl_duration is not None:
+            # TTL duration - use current datetime
+            if until_datetime or at_datetime or before_datetime:
+                raise NotImplementedError(
+                    f"Search with ttl_duration and datetime filter until:{until_datetime}, at:{at_datetime}, before:{before_datetime} is not implemented"
+                )
+            at_datetime = to_datetime()
+        else:
+            if until_datetime is not None:
+                until_datetime = to_datetime(until_datetime)
+            if at_datetime is not None:
+                at_datetime = to_datetime(at_datetime)
+            if before_datetime is not None:
+                before_datetime = to_datetime(before_datetime)
+            if until_datetime is None and at_datetime is None and before_datetime is None:
+                at_datetime = to_datetime().end_of("day")
 
         for cache_file_key, cache_item in self._store.items():
             # Check if the cache file datetime matches the given criteria
             if self._is_valid_cache_item(
                 cache_item,
-                until_datetime=until_datetime_dt,
-                at_datetime=at_datetime_dt,
-                before_datetime=before_datetime_dt,
+                until_datetime=until_datetime,
+                at_datetime=at_datetime,
+                before_datetime=before_datetime,
             ):
                 # This cache file is within the given datetime range
-                # Extract the datetime associated with the cache item
-                cache_file_datetime = cache_item[1]
-
                 # Generate a cache file key based on the given key and the cache file datetime
-                generated_key, _until_dt = self._generate_cache_file_key(key, cache_file_datetime)
+                if cache_item.ttl_duration:
+                    generated_key, _until_dt, _ttl_duration = self._generate_cache_file_key(
+                        key, with_ttl=cache_item.ttl_duration
+                    )
+                else:
+                    generated_key, _until_dt, _ttl_duration = self._generate_cache_file_key(
+                        key, until_datetime=cache_item.until_datetime
+                    )
+
+                logger.debug(
+                    f"Search: ttl:{ttl_duration}, until:{until_datetime}, at:{at_datetime}, before:{before_datetime} -> hit: {generated_key == cache_file_key}, item: {cache_item.cache_file.seek(0), cache_item.cache_file.read()}"
+                )
 
                 if generated_key == cache_file_key:
-                    # The key matches, return the key and the cache item
-                    return (cache_file_key, cache_item[0], cache_file_datetime)
+                    # The key matches, return the cache item
+                    return (cache_file_key, cache_item)
 
         # Return None if no matching cache item is found
-        return None
+        return ("<not found>", None)
 
     def create(
         self,
         key: str,
         until_date: Optional[Any] = None,
         until_datetime: Optional[Any] = None,
-        with_ttl: Union[timedelta, str, int, float, None] = None,
+        with_ttl: Optional[Any] = None,
         mode: str = "wb+",
         delete: bool = False,
         suffix: Optional[str] = None,
@@ -261,8 +303,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
             until_datetime (Optional[Any]): The datetime
                 until the cache file is valid. Time of day is set to maximum time (23:59:59) if not
                 provided.
-            with_ttl (Union[timedelta, str, int, float, None], optional): The time to live that
-                the cache file is valid. Time starts now.
+            with_ttl (Optional[Any]): The time to live that the cache file is valid. Time starts now.
             mode (str, optional): The mode in which the tempfile is opened
                 (e.g., 'w+', 'r+', 'wb+'). Defaults to 'wb+'.
             delete (bool, optional): Whether to delete the file after it is closed.
@@ -279,20 +320,22 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
             >>> cache_file.seek(0)
             >>> print(cache_file.read())  # Output: 'Some cached data'
         """
-        until_datetime_dt = self._until_datetime_by_options(
-            until_datetime=until_datetime, until_date=until_date, with_ttl=with_ttl
+        cache_file_key, until_datetime_dt, ttl_duration = self._generate_cache_file_key(
+            key, until_datetime=until_datetime, until_date=until_date, with_ttl=with_ttl
         )
-
-        cache_file_key, _ = self._generate_cache_file_key(key, until_datetime_dt)
         with self._store_lock:  # Synchronize access to _store
-            if (cache_file_item := self._store.get(cache_file_key)) is not None:
+            if (cache_item := self._store.get(cache_file_key)) is not None:
                 # File already available
-                cache_file_obj = cache_file_item[0]
+                cache_file_obj = cache_item.cache_file
             else:
                 cache_file_obj = tempfile.NamedTemporaryFile(
                     mode=mode, delete=delete, suffix=suffix
                 )
-                self._store[cache_file_key] = (cache_file_obj, until_datetime_dt)
+                self._store[cache_file_key] = CacheFileRecord(
+                    cache_file=cache_file_obj,
+                    until_datetime=until_datetime_dt,
+                    ttl_duration=ttl_duration,
+                )
             cache_file_obj.seek(0)
             return cache_file_obj
 
@@ -302,7 +345,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         file_obj: IO[bytes],
         until_date: Optional[Any] = None,
         until_datetime: Optional[Any] = None,
-        with_ttl: Union[timedelta, str, int, float, None] = None,
+        with_ttl: Optional[Any] = None,
     ) -> None:
         """Stores a file-like object in the cache under the specified key and date.
 
@@ -317,8 +360,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
             until_datetime (Optional[Any]): The datetime
                 until the cache file is valid. Time of day is set to maximum time (23:59:59) if not
                 provided.
-            with_ttl (Union[timedelta, str, int, float, None], optional): The time to live that
-                the cache file is valid. Time starts now.
+            with_ttl (Optional[Any]): The time to live that the cache file is valid. Time starts now.
 
         Raises:
             ValueError: If the key is already in store.
@@ -326,16 +368,26 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         Example:
             >>> cache_store.set('example_file', io.BytesIO(b'Some binary data'))
         """
-        until_datetime_dt = self._until_datetime_by_options(
-            until_datetime=until_datetime, until_date=until_date, with_ttl=with_ttl
+        cache_file_key, until_datetime_dt, ttl_duration = self._generate_cache_file_key(
+            key, until_datetime=until_datetime, until_date=until_date, with_ttl=with_ttl
         )
-
-        cache_file_key, until_date = self._generate_cache_file_key(key, until_datetime_dt)
         with self._store_lock:  # Synchronize access to _store
             if cache_file_key in self._store:
-                raise ValueError(f"Key already in store: `{key}`.")
+                if ttl_duration:
+                    # Special with_ttl case
+                    if compare_datetimes(
+                        self._store[cache_file_key].until_datetime, to_datetime()
+                    ).lt:
+                        # File is outdated - replace by new file
+                        self.delete(key=cache_file_key)
+                    else:
+                        raise ValueError(f"Key already in store: `{key}`.")
+                else:
+                    raise ValueError(f"Key already in store: `{key}`.")
 
-            self._store[cache_file_key] = (file_obj, until_date)
+            self._store[cache_file_key] = CacheFileRecord(
+                cache_file=file_obj, until_datetime=until_datetime_dt, ttl_duration=ttl_duration
+            )
 
     def get(
         self,
@@ -344,6 +396,7 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         until_datetime: Optional[Any] = None,
         at_datetime: Optional[Any] = None,
         before_datetime: Optional[Any] = None,
+        ttl_duration: Optional[Any] = None,
     ) -> Optional[IO[bytes]]:
         """Retrieves the cache file associated with the given key and validity datetime.
 
@@ -362,6 +415,8 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
                 provided. Defaults to the current datetime if None is provided.
             before_datetime (Optional[Any]): The datetime
                 to compare the cache files datetime to be before.
+            ttl_duration (Optional[Any]): The time to live to compare the cache files time to live
+                to be equal.
 
         Returns:
             file_obj: The file-like cache object, or None if no file is found.
@@ -373,21 +428,20 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
             >>>     print(cache_file.read())  # Output: Cached data (if exists)
         """
         if until_datetime or until_date:
-            until_datetime = self._until_datetime_by_options(
+            until_datetime, _ttl_duration = self._until_datetime_by_options(
                 until_datetime=until_datetime, until_date=until_date
             )
-        elif at_datetime:
-            at_datetime = to_datetime(at_datetime)
-        elif before_datetime:
-            before_datetime = to_datetime(before_datetime)
-        else:
-            at_datetime = to_datetime(datetime.now())
-
         with self._store_lock:  # Synchronize access to _store
-            search_item = self._search(key, until_datetime, at_datetime, before_datetime)
+            _cache_file_key, search_item = self._search(
+                key,
+                until_datetime=until_datetime,
+                at_datetime=at_datetime,
+                before_datetime=before_datetime,
+                ttl_duration=ttl_duration,
+            )
             if search_item is None:
                 return None
-            return search_item[1]
+            return search_item.cache_file
 
     def delete(
         self,
@@ -418,17 +472,15 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
         elif before_datetime:
             before_datetime = to_datetime(before_datetime)
         else:
-            today = datetime.now().date()  # Get today's date
-            tomorrow = today + timedelta(days=1)  # Add one day to get tomorrow's date
-            before_datetime = to_datetime(datetime.combine(tomorrow, time.min))
+            # Make before_datetime tommorow at start of day
+            before_datetime = to_datetime().add(days=1).start_of("day")
 
         with self._store_lock:  # Synchronize access to _store
-            search_item = self._search(key, until_datetime, None, before_datetime)
+            cache_file_key, search_item = self._search(
+                key, until_datetime=until_datetime, before_datetime=before_datetime
+            )
             if search_item:
-                cache_file_key = search_item[0]
-                cache_file = search_item[1]
-                cache_file_datetime = search_item[2]
-                file_path = self._get_file_path(cache_file)
+                file_path = self._get_file_path(search_item.cache_file)
                 if file_path is None:
                     logger.warning(
                         f"The cache file with key '{cache_file_key}' is an in memory "
@@ -436,9 +488,10 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
                     )
                     self._store.pop(cache_file_key)
                     return
-                file_path = cache_file.name  # Get the file path from the cache file object
+                # Get the file path from the cache file object
+                file_path = search_item.cache_file.name
                 del self._store[cache_file_key]
-                if os.path.exists(file_path):
+                if file_path and os.path.exists(file_path):
                     try:
                         os.remove(file_path)
                         logger.debug(f"Deleted cache file: {file_path}")
@@ -462,30 +515,31 @@ class CacheFileStore(metaclass=CacheFileStoreMeta):
             OSError: If there's an error during file deletion.
         """
         delete_keys = []  # List of keys to delete, prevent deleting when traversing the store
-        clear_timestamp = None
+
+        # Some weired logic to prevent calling to_datetime on clear_all.
+        # Clear_all may be set on __del__. At this time some info for to_datetime will
+        # not be available anymore.
+        if not clear_all:
+            if before_datetime is None:
+                before_datetime = to_datetime().start_of("day")
+            else:
+                before_datetime = to_datetime(before_datetime)
 
         with self._store_lock:  # Synchronize access to _store
             for cache_file_key, cache_item in self._store.items():
-                cache_file = cache_item[0]
-
                 # Some weired logic to prevent calling to_datetime on clear_all.
                 # Clear_all may be set on __del__. At this time some info for to_datetime will
                 # not be available anymore.
-                clear_file = clear_all
-                if not clear_all:
-                    if clear_timestamp is None:
-                        before_datetime = to_datetime(before_datetime, to_maxtime=False)
-                        # Convert the threshold date to a timestamp (seconds since epoch)
-                        clear_timestamp = to_datetime(before_datetime).timestamp()
-                    cache_file_timestamp = to_datetime(cache_item[1]).timestamp()
-                    if cache_file_timestamp < clear_timestamp:
-                        clear_file = True
+                if clear_all:
+                    clear_file = True
+                else:
+                    clear_file = compare_datetimes(cache_item.until_datetime, before_datetime).lt
 
                 if clear_file:
                     # We have to clear this cache file
                     delete_keys.append(cache_file_key)
 
-                    file_path = self._get_file_path(cache_file)
+                    file_path = self._get_file_path(cache_item.cache_file)
 
                     if file_path is None:
                         # In memory file like object
@@ -516,7 +570,7 @@ def cache_in_file(
     force_update: Optional[bool] = None,
     until_date: Optional[Any] = None,
     until_datetime: Optional[Any] = None,
-    with_ttl: Union[timedelta, str, int, float, None] = None,
+    with_ttl: Optional[Any] = None,
     mode: Literal["w", "w+", "wb", "wb+", "r", "r+", "rb", "rb+"] = "wb+",
     delete: bool = False,
     suffix: Optional[str] = None,
@@ -620,7 +674,7 @@ def cache_in_file(
                     elif param == "with_ttl":
                         until_datetime = None
                         until_date = None
-                        with_ttl = kwargs[param]  # type: ignore[assignment]
+                        with_ttl = kwargs[param]
                     elif param == "until_date":
                         until_datetime = None
                         until_date = kwargs[param]
@@ -642,7 +696,9 @@ def cache_in_file(
 
             result: Optional[RetType | bytes] = None
             # Get cache file that is currently valid
-            cache_file = CacheFileStore().get(key)
+            cache_file = CacheFileStore().get(
+                key, until_date=until_date, until_datetime=until_datetime, ttl_duration=with_ttl
+            )
             if not force_update and cache_file is not None:
                 # cache file is available
                 try:

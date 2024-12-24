@@ -531,10 +531,9 @@ class TestDataImportProvider:
         ],
     )
     def test_import_datetimes(self, provider, start_datetime, value_count, expected_mapping_count):
-        ems_eos = get_ems()
-        ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
+        start_datetime = to_datetime(start_datetime, in_timezone="Europe/Berlin")
 
-        value_datetime_mapping = provider.import_datetimes(value_count)
+        value_datetime_mapping = provider.import_datetimes(start_datetime, value_count)
 
         assert len(value_datetime_mapping) == expected_mapping_count
 
@@ -551,11 +550,10 @@ class TestDataImportProvider:
         self, set_other_timezone, provider, start_datetime, value_count, expected_mapping_count
     ):
         original_tz = set_other_timezone("Etc/UTC")
-        ems_eos = get_ems()
-        ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
-        assert ems_eos.start_datetime.timezone.name == "Europe/Berlin"
+        start_datetime = to_datetime(start_datetime, in_timezone="Europe/Berlin")
+        assert start_datetime.timezone.name == "Europe/Berlin"
 
-        value_datetime_mapping = provider.import_datetimes(value_count)
+        value_datetime_mapping = provider.import_datetimes(start_datetime, value_count)
 
         assert len(value_datetime_mapping) == expected_mapping_count
 

@@ -12,10 +12,15 @@ import uvicorn
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import FileResponse, RedirectResponse, Response
-from pendulum import DateTime
 
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
-from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.core.pydantic import (
+    PydanticBaseModel,
+    PydanticDateTimeData,
+    PydanticDateTimeDataFrame,
+    PydanticDateTimeSeries,
+)
+from akkudoktoreos.measurement.measurement import get_measurement
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     OptimizeResponse,
@@ -27,10 +32,12 @@ from akkudoktoreos.prediction.load_aggregator import LoadAggregator
 from akkudoktoreos.prediction.load_corrector import LoadPredictionAdjuster
 from akkudoktoreos.prediction.load_forecast import LoadForecast
 from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.utils.datetimeutil import to_datetime
 from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 config_eos = get_config()
+measurement_eos = get_measurement()
 prediction_eos = get_prediction()
 
 
@@ -72,30 +79,86 @@ class PdfResponse(FileResponse):
     media_type = "application/pdf"
 
 
-@app.get("/config")
+@app.get("/v1/config")
 def fastapi_config_get() -> ConfigEOS:
     """Get the current configuration."""
     return config_eos
 
 
-@app.put("/config")
+@app.put("/v1/config")
 def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
     """Merge settings into current configuration."""
     config_eos.merge_settings(settings)
     return config_eos
 
 
-@app.get("/prediction/keys")
-def fastapi_prediction_keys() -> list[str]:
+@app.get("/v1/measurement/keys")
+def fastapi_measurement_keys_get() -> list[str]:
+    """Get a list of available measurement keys."""
+    return sorted(measurement_eos.record_keys)
+
+
+@app.get("/v1/measurement/series")
+def fastapi_measurement_series_get(key: str) -> PydanticDateTimeSeries:
+    """Get the measurements of given key as series."""
+    if key not in measurement_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    series = measurement_eos.key_to_series(key=key)
+    return PydanticDateTimeSeries.from_series(series)
+
+
+@app.put("/v1/measurement/series")
+def fastapi_measurement_series_put(
+    datetime: Any, key: str, value: Union[float | str]
+) -> PydanticDateTimeSeries:
+    """Merge the measurement of given key into EOS measurements at given datetime."""
+    if key not in measurement_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    measurement_eos.update_value(datetime, key, value)
+    series = measurement_eos.key_to_series(key=key)
+    return PydanticDateTimeSeries.from_series(series)
+
+
+@app.put("/v1/measurement/dataframe")
+def fastapi_measurement_dataframe_put(data: PydanticDateTimeDataFrame) -> None:
+    """Merge the measurement data given as dataframe into EOS measurements."""
+    dataframe = data.to_dataframe()
+    measurement_eos.import_from_dataframe(dataframe)
+
+
+@app.put("/v1/measurement/data")
+def fastapi_measurement_data_put(data: PydanticDateTimeData) -> None:
+    """Merge the measurement data given as datetime data into EOS measurements."""
+    datetimedata = data.to_dict()
+    measurement_eos.import_from_dict(datetimedata)
+
+
+@app.get("/v1/prediction/keys")
+def fastapi_prediction_keys_get() -> list[str]:
     """Get a list of available prediction keys."""
-    return sorted(list(prediction_eos.keys()))
+    return sorted(prediction_eos.record_keys)
 
 
-@app.get("/prediction")
-def fastapi_prediction(key: str) -> list[Union[float | str]]:
-    """Get the current configuration."""
-    values = prediction_eos[key].to_list()
-    return values
+@app.get("/v1/prediction/series")
+def fastapi_prediction_series_get(key: str) -> PydanticDateTimeSeries:
+    """Get prediction for given key as series."""
+    if key not in prediction_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    series = prediction_eos.key_to_series(key=key)
+    return PydanticDateTimeSeries.from_series(series)
+
+
+@app.put("/v1/prediction/series")
+def fastapi_prediction_series_put(
+    key: str, value: PydanticDateTimeSeries
+) -> PydanticDateTimeSeries:
+    """Merge prediction given as series into given key."""
+    if key not in prediction_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    series = value.to_series()
+    prediction_eos.key_from_series(key=key, series=series)
+    series = prediction_eos.key_to_series(key=key)
+    return PydanticDateTimeSeries.from_series(series)
 
 
 @app.get("/strompreis")
@@ -103,10 +166,11 @@ def fastapi_strompreis() -> list[float]:
     # Get the current date and the end date based on prediction hours
     marketprice_series = prediction_eos["elecprice_marketprice"]
     # Fetch prices for the specified date range
-    specific_date_prices = marketprice_series.loc[
-        prediction_eos.start_datetime : prediction_eos.end_datetime
-    ]
-    return specific_date_prices.tolist()
+    return prediction_eos.key_to_array(
+        key="elecprice_marketprice",
+        start_datetime=prediction_eos.start_datetime,
+        end_datetime=prediction_eos.end_datetime,
+    ).tolist()
 
 
 class GesamtlastRequest(PydanticBaseModel):
@@ -231,7 +295,7 @@ def fastapi_optimize(
     ] = None,
 ) -> OptimizeResponse:
     if start_hour is None:
-        start_hour = DateTime.now().hour
+        start_hour = to_datetime().hour
 
     # TODO: Remove when config and prediction update is done by EMS.
     config_eos.update()

@@ -228,9 +228,9 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
     def merge_settings_from_dict(self, data: dict) -> None:
         """Merges the provided dictionary data into the current instance.
 
-        Creates a new settings instance with all optional fields reset to None,
-        then applies the dictionary data through validation, and finally merges
-        the validated settings into the current instance.
+        Creates a new settings instance, then applies the dictionary data through validation,
+        and finally merges the validated settings into the current instance. None values
+        are not merged.
 
         Args:
             data (dict): Dictionary containing field values to merge into the
@@ -245,7 +245,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
             >>> config.merge_settings_from_dict(new_data)
         """
         # Create new settings instance with reset optional fields and merged data
-        settings = SettingsEOS.from_dict_with_reset(data)
+        settings = SettingsEOS.from_dict(data)
         self.merge_settings(settings)
 
     def reset_settings(self) -> None:
