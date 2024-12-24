@@ -1,32 +1,42 @@
-import json
+import os
+import subprocess
 from pathlib import Path
 
-import pytest
 from matplotlib.testing.compare import compare_images
 
-from akkudoktoreos.config import AppConfig
-from akkudoktoreos.visualize import visualisiere_ergebnisse
+from akkudoktoreos.config import get_working_dir, load_config
+
+filename = "example_report.pdf"
+
+working_dir = get_working_dir()
+config = load_config(working_dir)
+output_dir = config.working_dir / config.directories.output
+
+# If self.filename is already a valid path, use it; otherwise, combine it with output_dir
+if os.path.isabs(filename):
+    output_file = filename
+else:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_file = os.path.join(output_dir, filename)
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
-DIR_IMAGEDATA = DIR_TESTDATA / "images"
+reference_file = DIR_TESTDATA / "test_example_report.pdf"
 
 
-@pytest.mark.parametrize(
-    "fn_in, fn_out, fn_out_base",
-    [("visualize_input_1.json", "visualize_output_1.pdf", "visualize_base_output_1.pdf")],
-)
-def test_visualisiere_ergebnisse(fn_in, fn_out, fn_out_base, tmp_config: AppConfig):
-    with open(DIR_TESTDATA / fn_in, "r") as f:
-        input_data = json.load(f)
-    visualisiere_ergebnisse(config=tmp_config, **input_data)
-    output_file: Path = tmp_config.working_dir / tmp_config.directories.output / fn_out
+def test_generate_pdf_main():
+    # Delete the old generated file if it exists
+    if os.path.isfile(output_file):
+        os.remove(output_file)
 
-    assert output_file.is_file()
-    assert (
-        compare_images(
-            str(output_file),
-            str(DIR_IMAGEDATA / fn_out_base),
-            0,
-        )
-        is None
-    )
+    # Execute the __main__ block of visualize.py by running it as a script
+    script_path = Path(__file__).parent.parent / "src" / "akkudoktoreos" / "utils" / "visualize.py"
+    subprocess.run(["python", str(script_path)], check=True)
+
+    # Check if the file exists
+    assert os.path.isfile(output_file)
+
+    # Compare the generated file with the reference file
+    comparison = compare_images(str(reference_file), str(output_file), tol=0)
+
+    # Assert that there are no differences
+    assert comparison is None, f"Images differ: {comparison}"
