@@ -1,7 +1,7 @@
 numpy==2.2.0
 numpydantic==1.6.4
 matplotlib==3.9.2
-fastapi[standard]==0.115.5
+fastapi[standard]==0.115.6
 python-fasthtml==0.9.1
 uvicorn==0.34.0
 scikit-learn==1.6.0
