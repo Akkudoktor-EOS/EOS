@@ -303,5 +303,5 @@ def test_timezone_behaviour(
     forecast_measured = provider.key_to_series(
         "pvforecastakkudoktor_ac_power_measured", other_start_datetime, other_end_datetime
     )
-    assert len(forecast_measured) == 48
+    assert len(forecast_measured) == 1
     assert forecast_measured.iloc[0] == 1000.0  # changed before

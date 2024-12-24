@@ -96,7 +96,9 @@ def test_import(elecprice_provider, sample_import_1_json, start_datetime, from_f
     assert elecprice_provider.total_hours is not None
     assert compare_datetimes(elecprice_provider.start_datetime, ems_eos.start_datetime).equal
     values = sample_import_1_json["elecprice_marketprice"]
-    value_datetime_mapping = elecprice_provider.import_datetimes(len(values))
+    value_datetime_mapping = elecprice_provider.import_datetimes(
+        ems_eos.start_datetime, len(values)
+    )
     for i, mapping in enumerate(value_datetime_mapping):
         assert i < len(elecprice_provider.records)
         expected_datetime, expected_value_index = mapping

@@ -23,6 +23,9 @@ class ServerCommonSettings(SettingsBaseModel):
     server_fastapi_port: Optional[int] = Field(
         default=8503, description="FastAPI server IP port number."
     )
+    server_fastapi_startup_server_fasthtml: Optional[bool] = Field(
+        default=True, description="FastAPI server to startup application FastHTML server."
+    )
     server_fasthtml_host: Optional[IPvAnyAddress] = Field(
         default="0.0.0.0", description="FastHTML server IP address."
     )

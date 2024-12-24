@@ -124,10 +124,10 @@ def run_prediction(provider_id: str, verbose: bool = False) -> str:
 
 def main():
     """Main function to run the optimization script with optional profiling."""
-    parser = argparse.ArgumentParser(description="Run Energy Optimization Simulation")
+    parser = argparse.ArgumentParser(description="Run Prediction")
     parser.add_argument("--profile", action="store_true", help="Enable performance profiling")
     parser.add_argument(
-        "--verbose", action="store_true", help="Enable verbose output during optimization"
+        "--verbose", action="store_true", help="Enable verbose output during prediction"
     )
     parser.add_argument("--provider-id", type=str, default=0, help="Provider ID of prediction")
 

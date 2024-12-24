@@ -346,6 +346,127 @@ class TestDataSequence:
         assert array[1] == 7
         assert array[2] == last_datetime.day
 
+    def test_key_to_array_linear_interpolation(self, sequence):
+        """Test key_to_array with linear interpolation for numeric data."""
+        interval = to_duration("1 hour")
+        record1 = self.create_test_record(pendulum.datetime(2023, 11, 6, 0), 0.8)
+        record2 = self.create_test_record(pendulum.datetime(2023, 11, 6, 2), 1.0)  # Gap of 2 hours
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6),
+            end_datetime=pendulum.datetime(2023, 11, 6, 3),
+            interval=interval,
+            fill_method="linear",
+        )
+        assert len(array) == 3
+        assert array[0] == 0.8
+        assert array[1] == 0.9  # Interpolated value
+        assert array[2] == 1.0
+
+    def test_key_to_array_ffill(self, sequence):
+        """Test key_to_array with forward filling for missing values."""
+        interval = to_duration("1 hour")
+        record1 = self.create_test_record(pendulum.datetime(2023, 11, 6, 0), 0.8)
+        record2 = self.create_test_record(pendulum.datetime(2023, 11, 6, 2), 1.0)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6),
+            end_datetime=pendulum.datetime(2023, 11, 6, 3),
+            interval=interval,
+            fill_method="ffill",
+        )
+        assert len(array) == 3
+        assert array[0] == 0.8
+        assert array[1] == 0.8  # Forward-filled value
+        assert array[2] == 1.0
+
+    def test_key_to_array_bfill(self, sequence):
+        """Test key_to_array with backward filling for missing values."""
+        interval = to_duration("1 hour")
+        record1 = self.create_test_record(pendulum.datetime(2023, 11, 6, 0), 0.8)
+        record2 = self.create_test_record(pendulum.datetime(2023, 11, 6, 2), 1.0)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6),
+            end_datetime=pendulum.datetime(2023, 11, 6, 3),
+            interval=interval,
+            fill_method="bfill",
+        )
+        assert len(array) == 3
+        assert array[0] == 0.8
+        assert array[1] == 1.0  # Backward-filled value
+        assert array[2] == 1.0
+
+    def test_key_to_array_with_truncation(self, sequence):
+        """Test truncation behavior in key_to_array."""
+        interval = to_duration("1 hour")
+        record1 = self.create_test_record(pendulum.datetime(2023, 11, 5, 23), 0.8)
+        record2 = self.create_test_record(pendulum.datetime(2023, 11, 6, 1), 1.0)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6),
+            end_datetime=pendulum.datetime(2023, 11, 6, 2),
+            interval=interval,
+        )
+        assert len(array) == 2
+        assert array[0] == 0.9  # Interpolated from previous day
+        assert array[1] == 1.0
+
+    def test_key_to_array_with_none(self, sequence):
+        """Test handling of empty series in key_to_array."""
+        interval = to_duration("1 hour")
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6),
+            end_datetime=pendulum.datetime(2023, 11, 6, 3),
+            interval=interval,
+        )
+        assert isinstance(array, np.ndarray)
+        assert np.all(array == None)
+
+    def test_key_to_array_with_one(self, sequence):
+        """Test handling of one element series in key_to_array."""
+        interval = to_duration("1 hour")
+        record1 = self.create_test_record(pendulum.datetime(2023, 11, 5, 23), 0.8)
+        sequence.insert_by_datetime(record1)
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6),
+            end_datetime=pendulum.datetime(2023, 11, 6, 2),
+            interval=interval,
+        )
+        assert len(array) == 2
+        assert array[0] == 0.8  # Interpolated from previous day
+        assert array[1] == 0.8
+
+    def test_key_to_array_invalid_fill_method(self, sequence):
+        """Test invalid fill_method raises an error."""
+        interval = to_duration("1 hour")
+        record1 = self.create_test_record(pendulum.datetime(2023, 11, 6, 0), 0.8)
+        sequence.insert_by_datetime(record1)
+
+        with pytest.raises(ValueError, match="Unsupported fill method: invalid"):
+            sequence.key_to_array(
+                key="data_value",
+                start_datetime=pendulum.datetime(2023, 11, 6),
+                end_datetime=pendulum.datetime(2023, 11, 6, 1),
+                interval=interval,
+                fill_method="invalid",
+            )
+
     def test_to_datetimeindex(self, sequence2):
         record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
         record2 = self.create_test_record(datetime(2023, 11, 6), 0.9)
@@ -531,10 +652,9 @@ class TestDataImportProvider:
         ],
     )
     def test_import_datetimes(self, provider, start_datetime, value_count, expected_mapping_count):
-        ems_eos = get_ems()
-        ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
+        start_datetime = to_datetime(start_datetime, in_timezone="Europe/Berlin")
 
-        value_datetime_mapping = provider.import_datetimes(value_count)
+        value_datetime_mapping = provider.import_datetimes(start_datetime, value_count)
 
         assert len(value_datetime_mapping) == expected_mapping_count
 
@@ -551,11 +671,10 @@ class TestDataImportProvider:
         self, set_other_timezone, provider, start_datetime, value_count, expected_mapping_count
     ):
         original_tz = set_other_timezone("Etc/UTC")
-        ems_eos = get_ems()
-        ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
-        assert ems_eos.start_datetime.timezone.name == "Europe/Berlin"
+        start_datetime = to_datetime(start_datetime, in_timezone="Europe/Berlin")
+        assert start_datetime.timezone.name == "Europe/Berlin"
 
-        value_datetime_mapping = provider.import_datetimes(value_count)
+        value_datetime_mapping = provider.import_datetimes(start_datetime, value_count)
 
         assert len(value_datetime_mapping) == expected_mapping_count
 
@@ -636,7 +755,7 @@ class TestDataContainer:
         del container_with_providers["data_value"]
         series = container_with_providers["data_value"]
         assert series.name == "data_value"
-        assert series.tolist() == [None, None, None]
+        assert series.tolist() == []
 
     def test_delitem_non_existing_key(self, container_with_providers):
         with pytest.raises(KeyError, match="Key 'non_existent_key' not found"):
