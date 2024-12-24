@@ -5,13 +5,13 @@ from akkudoktoreos.devices.heatpump import Heatpump
 
 @pytest.fixture(scope="function")
 def hp_5kw_24h() -> Heatpump:
-    """Heatpump with 5 kw heating power and 24 h prediction."""
+    """Heatpump with 5 kW heating power and 24 h prediction."""
     return Heatpump(5000, 24)
 
 
 class TestHeatpump:
     def test_cop(self, hp_5kw_24h: Heatpump):
-        """Testing calculate COP for variouse outside temperatures."""
+        """Testing calculate COP for various outside temperatures."""
         assert hp_5kw_24h.calculate_cop(-10) == 2.0
         assert hp_5kw_24h.calculate_cop(0) == 3.0
         assert hp_5kw_24h.calculate_cop(10) == 4.0
@@ -24,7 +24,7 @@ class TestHeatpump:
             hp_5kw_24h.calculate_cop(out_temp_max)
 
     def test_heating_output(self, hp_5kw_24h: Heatpump):
-        """Testing calculate of heating output."""
+        """Testing calculation of heating output."""
         assert hp_5kw_24h.calculate_heating_output(-10.0) == 5000
         assert hp_5kw_24h.calculate_heating_output(0.0) == 5000
         assert hp_5kw_24h.calculate_heating_output(10.0) == pytest.approx(4939.583)

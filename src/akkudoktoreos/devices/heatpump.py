@@ -3,10 +3,10 @@ from typing import List, Sequence
 
 
 class Heatpump:
-    MAX_HEATOUTPUT = 5000
+    MAX_HEAT_OUTPUT = 5000
     """Maximum heating power in watts"""
 
-    BASE_HEATPOWER = 235.0
+    BASE_HEAT_POWER = 235.0
     """Base heating power value"""
 
     TEMPERATURE_COEFFICIENT = -11.645
@@ -32,7 +32,7 @@ class Heatpump:
         Returns:
             bool: True if in range
         """
-        return temp_celsius > -100 and temp_celsius < 100
+        return -100 < temp_celsius < 100
 
     def calculate_cop(self, outside_temperature_celsius: float) -> float:
         """Calculate the coefficient of performance (COP) based on outside temperature.
@@ -54,7 +54,10 @@ class Heatpump:
             cop = self.COP_BASE + (outside_temperature_celsius * self.COP_COEFFICIENT)
             return max(cop, 1)
         else:
-            err_msg = f"Outside temperature '{outside_temperature_celsius}' not in range (min: -100 Celsius, max: 100 Celsius) "
+            err_msg = (
+                f"Outside temperature '{outside_temperature_celsius}' not in range "
+                "(min: -100 Celsius, max: 100 Celsius)"
+            )
             self.log.error(err_msg)
             raise ValueError(err_msg)
 
@@ -74,12 +77,15 @@ class Heatpump:
         """
         if self.__check_outside_temperature_range__(outside_temperature_celsius):
             heat_output = (
-                (self.BASE_HEATPOWER + outside_temperature_celsius * self.TEMPERATURE_COEFFICIENT)
+                (self.BASE_HEAT_POWER + outside_temperature_celsius * self.TEMPERATURE_COEFFICIENT)
                 * 1000
             ) / 24.0
             return min(self.max_heat_output, heat_output)
         else:
-            err_msg = f"Outside temperature '{outside_temperature_celsius}' not in range (min: -100 Celsius, max: 100 Celsius) "
+            err_msg = (
+                f"Outside temperature '{outside_temperature_celsius}' not in range "
+                "(min: -100 Celsius, max: 100 Celsius)"
+            )
             self.log.error(err_msg)
             raise ValueError(err_msg)
 
@@ -100,7 +106,10 @@ class Heatpump:
                 1164 - 77.8 * outside_temperature_celsius + 1.62 * outside_temperature_celsius**2.0
             )
         else:
-            err_msg = f"Outside temperature '{outside_temperature_celsius}' not in range (min: -100 Celsius, max: 100 Celsius) "
+            err_msg = (
+                f"Outside temperature '{outside_temperature_celsius}' not in range "
+                "(min: -100 Celsius, max: 100 Celsius)"
+            )
             self.log.error(err_msg)
             raise ValueError(err_msg)
 
@@ -110,7 +119,8 @@ class Heatpump:
 
         if len(temperatures) != self.prediction_hours:
             raise ValueError(
-                f"The temperature array must contain exactly {self.prediction_hours} entries, one for each hour of the day."
+                f"The temperature array must contain exactly {self.prediction_hours} entries, "
+                "one for each hour of the day."
             )
 
         for temp in temperatures:
@@ -121,19 +131,21 @@ class Heatpump:
 
 # Example usage of the class
 if __name__ == "__main__":
-    max_heizleistung = 5000  # 5 kW heating power
-    start_innentemperatur = 15  # Initial indoor temperature
-    isolationseffizienz = 0.8  # Insulation efficiency
-    gewuenschte_innentemperatur = 20  # Desired indoor temperature
-    hp = Heatpump(max_heizleistung, 24)  # Initialize heat pump with prediction hours
+    max_heating_power = 5000  # 5 kW heating power
+    initial_indoor_temperature = 15  # Initial indoor temperature
+    insulation_efficiency = 0.8  # Insulation efficiency
+    desired_indoor_temperature = 20  # Desired indoor temperature
+    hp = Heatpump(max_heating_power, 24)  # Initialize heat pump with prediction hours
 
     # Print COP for various outside temperatures
     print(hp.calculate_cop(-10), " ", hp.calculate_cop(0), " ", hp.calculate_cop(10))
 
     # 24 hours of outside temperatures (example values)
-    temperaturen = [ 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -5, -2, 5, ]  # fmt: skip
+    temperatures = [
+        10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -5, -2, 5,
+    ]  # fmt: skip
 
     # Calculate the 24-hour power data
-    leistungsdaten = hp.simulate_24h(temperaturen)
+    power_data = hp.simulate_24h(temperatures)
 
-    print(leistungsdaten)
+    print(power_data)
