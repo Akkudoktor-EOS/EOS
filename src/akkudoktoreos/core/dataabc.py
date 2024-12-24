@@ -21,10 +21,21 @@ import pandas as pd
 import pendulum
 from numpydantic import NDArray, Shape
 from pendulum import DateTime, Duration
-from pydantic import AwareDatetime, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    AwareDatetime,
+    ConfigDict,
+    Field,
+    ValidationError,
+    computed_field,
+    field_validator,
+)
 
 from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin, StartMixin
-from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.core.pydantic import (
+    PydanticBaseModel,
+    PydanticDateTimeData,
+    PydanticDateTimeDataFrame,
+)
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 from akkudoktoreos.utils.logutil import get_logger
 
@@ -54,7 +65,7 @@ class DataRecord(DataBase, MutableMapping):
         - Supports non-standard data types like `datetime`.
     """
 
-    date_time: Optional[AwareDatetime] = Field(default=None, description="DateTime")
+    date_time: Optional[DateTime] = Field(default=None, description="DateTime")
 
     # Pydantic v2 model configuration
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
@@ -573,6 +584,7 @@ class DataSequence(DataBase, MutableSequence):
         key: str,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
+        dropna: Optional[bool] = None,
     ) -> Dict[DateTime, Any]:
         """Extract a dictionary indexed by the date_time field of the DataRecords.
 
@@ -583,6 +595,7 @@ class DataSequence(DataBase, MutableSequence):
             key (str): The field name in the DataRecord from which to extract values.
             start_datetime (datetime, optional): The start date to filter records (inclusive).
             end_datetime (datetime, optional): The end date to filter records (exclusive).
+            dropna: (bool, optional): Whether to drop NA/ None values before processing. Defaults to True.
 
         Returns:
             Dict[datetime, Any]: A dictionary with the date_time of each record as the key
@@ -597,6 +610,8 @@ class DataSequence(DataBase, MutableSequence):
         end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
 
         # Create a dictionary to hold date_time and corresponding values
+        if dropna is None:
+            dropna = True
         filtered_data = {
             to_datetime(record.date_time, as_string=True): getattr(record, key, None)
             for record in self.records
@@ -611,6 +626,7 @@ class DataSequence(DataBase, MutableSequence):
         key: str,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
+        dropna: Optional[bool] = None,
     ) -> Tuple[List[DateTime], List[Optional[float]]]:
         """Extracts two lists from data records within an optional date range.
 
@@ -622,6 +638,7 @@ class DataSequence(DataBase, MutableSequence):
             key (str): The key of the attribute in DataRecord to extract.
             start_datetime (datetime, optional): The start date for filtering the records (inclusive).
             end_datetime (datetime, optional): The end date for filtering the records (exclusive).
+            dropna: (bool, optional): Whether to drop NA/ None values before processing. Defaults to True.
 
         Returns:
             tuple: A tuple containing a list of datetime values and a list of extracted values.
@@ -637,7 +654,7 @@ class DataSequence(DataBase, MutableSequence):
         # Create two lists to hold date_time and corresponding values
         filtered_records = []
         for record in self.records:
-            if record.date_time is None:
+            if record.date_time is None or (dropna and getattr(record, key, None) is None):
                 continue
             if (
                 start_datetime is None or compare_datetimes(record.date_time, start_datetime).ge
@@ -653,6 +670,7 @@ class DataSequence(DataBase, MutableSequence):
         key: str,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
+        dropna: Optional[bool] = None,
     ) -> pd.Series:
         """Extract a series indexed by the date_time field from data records within an optional date range.
 
@@ -660,6 +678,7 @@ class DataSequence(DataBase, MutableSequence):
             key (str): The field name in the DataRecord from which to extract values.
             start_datetime (datetime, optional): The start date for filtering the records (inclusive).
             end_datetime (datetime, optional): The end date for filtering the records (exclusive).
+            dropna: (bool, optional): Whether to drop NA/ None values before processing. Defaults to True.
 
         Returns:
             pd.Series: A Pandas Series with the index as the date_time of each record
@@ -668,7 +687,9 @@ class DataSequence(DataBase, MutableSequence):
         Raises:
             KeyError: If the specified key is not found in any of the DataRecords.
         """
-        dates, values = self.key_to_lists(key, start_datetime, end_datetime)
+        dates, values = self.key_to_lists(
+            key=key, start_datetime=start_datetime, end_datetime=end_datetime, dropna=dropna
+        )
         return pd.Series(data=values, index=pd.DatetimeIndex(dates), name=key)
 
     def key_from_series(self, key: str, series: pd.Series) -> None:
@@ -704,6 +725,7 @@ class DataSequence(DataBase, MutableSequence):
         end_datetime: Optional[DateTime] = None,
         interval: Optional[Duration] = None,
         fill_method: Optional[str] = None,
+        dropna: Optional[bool] = None,
     ) -> NDArray[Shape["*"], Any]:
         """Extract an array indexed by fixed time intervals from data records within an optional date range.
 
@@ -717,6 +739,7 @@ class DataSequence(DataBase, MutableSequence):
                 - 'ffill': Forward fill missing values.
                 - 'bfill': Backward fill missing values.
                 - 'none': Defaults to 'linear' for numeric values, otherwise 'ffill'.
+            dropna: (bool, optional): Whether to drop NA/ None values before processing. Defaults to True.
 
         Returns:
             np.ndarray: A NumPy Array of the values extracted from the specified key.
@@ -727,7 +750,7 @@ class DataSequence(DataBase, MutableSequence):
         resampled = None
         if interval is None:
             interval = to_duration("1 hour")
-        series = self.key_to_series(key)
+        series = self.key_to_series(key=key, dropna=dropna)
 
         # Handle missing values
         if series.dtype in [np.float64, np.float32, np.int64, np.int32]:
@@ -955,18 +978,29 @@ class DataProvider(SingletonMixin, DataSequence):
         self.sort_by_datetime()
 
 
-class DataImportProvider(DataProvider):
-    """Abstract base class for data providers that import generic data.
+class DataImportMixin:
+    """Mixin class for import of generic data.
 
     This class is designed to handle generic data provided in the form of a key-value dictionary.
     - **Keys**: Represent identifiers from the record keys of a specific data.
     - **Values**: Are lists of data values starting at a specified `start_datetime`, where
       each value corresponds to a subsequent time interval (e.g., hourly).
 
-    Subclasses must implement the logic for managing generic data based on the imported records.
+    Two special keys are handled. `start_datetime` may be used to defined the starting datetime of
+    the values. `ìnterval` may be used to define the fixed time interval between two values.
+
+    On import `self.update_value(datetime, key, value)` is called which has to be provided.
+    Also `self.start_datetime` may be necessary as a default in case `start_datetime`is not given.
     """
 
-    def import_datetimes(self, value_count: int) -> List[Tuple[DateTime, int]]:
+    # Attributes required but defined elsehere.
+    # - start_datetime
+    # - record_keys_writable
+    # - update_valu
+
+    def import_datetimes(
+        self, start_datetime: DateTime, value_count: int, interval: Optional[Duration] = None
+    ) -> List[Tuple[DateTime, int]]:
         """Generates a list of tuples containing timestamps and their corresponding value indices.
 
         The function accounts for daylight saving time (DST) transitions:
@@ -975,7 +1009,9 @@ class DataImportProvider(DataProvider):
         but they share the same value index.
 
         Args:
+            start_datetime (DateTime): Start datetime of values
             value_count (int): The number of timestamps to generate.
+            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
 
         Returns:
             List[Tuple[DateTime, int]]:
@@ -990,7 +1026,7 @@ class DataImportProvider(DataProvider):
 
         Example:
             >>> start_datetime = pendulum.datetime(2024, 11, 3, 0, 0, tz="America/New_York")
-            >>> import_datetimes(5)
+            >>> import_datetimes(start_datetime, 5)
             [(DateTime(2024, 11, 3, 0, 0, tzinfo=Timezone('America/New_York')), 0),
             (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),
             (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),  # Repeated hour
@@ -998,7 +1034,16 @@ class DataImportProvider(DataProvider):
             (DateTime(2024, 11, 3, 3, 0, tzinfo=Timezone('America/New_York')), 3)]
         """
         timestamps_with_indices: List[Tuple[DateTime, int]] = []
-        value_datetime = self.start_datetime
+
+        if interval is None:
+            interval = to_duration("1 hour")
+        interval_steps_per_hour = int(3600 / interval.total_seconds())
+        if interval.total_seconds() * interval_steps_per_hour != 3600:
+            error_msg = f"Interval {interval} does not fit into hour."
+            logger.error(error_msg)
+            raise NotImplementedError(error_msg)
+
+        value_datetime = start_datetime
         value_index = 0
 
         while value_index < value_count:
@@ -1006,37 +1051,219 @@ class DataImportProvider(DataProvider):
             logger.debug(f"{i}: Insert at {value_datetime} with index {value_index}")
             timestamps_with_indices.append((value_datetime, value_index))
 
-            # Check if there is a DST transition
-            next_time = value_datetime.add(hours=1)
-            if next_time <= value_datetime:
-                # Check if there is a DST transition (i.e., ambiguous time during fall back)
-                # Repeat the hour value (reuse value index)
-                value_datetime = next_time
-                logger.debug(f"{i+1}: Repeat at {value_datetime} with index {value_index}")
-                timestamps_with_indices.append((value_datetime, value_index))
-            elif next_time.hour != value_datetime.hour + 1 and value_datetime.hour != 23:
-                # Skip the hour value (spring forward in value index)
-                value_index += 1
-                logger.debug(f"{i+1}: Skip   at {next_time} with index {value_index}")
+            next_time = value_datetime.add(seconds=interval.total_seconds())
 
-            # Increment value index and value_datetime for new hour
+            # Check if there is a DST transition
+            if next_time.dst() != value_datetime.dst():
+                if next_time.hour == value_datetime.hour:
+                    # We jump back by 1 hour
+                    # Repeat the value(s) (reuse value index)
+                    for i in range(interval_steps_per_hour):
+                        logger.debug(f"{i+1}: Repeat at {next_time} with index {value_index}")
+                        timestamps_with_indices.append((next_time, value_index))
+                        next_time = next_time.add(seconds=interval.total_seconds())
+                else:
+                    # We jump forward by 1 hour
+                    # Drop the value(s)
+                    logger.debug(
+                        f"{i+1}: Skip {interval_steps_per_hour} at {next_time} with index {value_index}"
+                    )
+                    value_index += interval_steps_per_hour
+
+            # Increment value index and value_datetime for new interval
             value_index += 1
-            value_datetime = value_datetime.add(hours=1)
+            value_datetime = next_time
 
         return timestamps_with_indices
 
-    def import_from_json(self, json_str: str, key_prefix: str = "") -> None:
+    def import_from_dict(
+        self,
+        import_data: dict,
+        key_prefix: str = "",
+        start_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+    ) -> None:
+        """Updates generic data by importing it from a dictionary.
+
+        This method reads generic data from a dictionary, matches keys based on the
+        record keys and the provided `key_prefix`, and updates the data values sequentially.
+        All value lists must have the same length.
+
+        Args:
+            import_data (dict): Dictionary containing the generic data with optional
+                'start_datetime' and 'interval' keys.
+            key_prefix (str, optional): A prefix to filter relevant keys from the generic data.
+                Only keys starting with this prefix will be considered. Defaults to an empty string.
+            start_datetime (DateTime, optional): Start datetime of values if not in dict.
+            interval (Duration, optional): The fixed time interval if not in dict.
+
+        Raises:
+            ValueError: If value lists have different lengths or if datetime conversion fails.
+        """
+        # Handle datetime and interval from dict or parameters
+        if "start_datetime" in import_data:
+            try:
+                start_datetime = to_datetime(import_data["start_datetime"])
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid start_datetime in import data: {e}")
+
+        if start_datetime is None:
+            start_datetime = self.start_datetime  # type: ignore
+
+        if "interval" in import_data:
+            try:
+                interval = to_duration(import_data["interval"])
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid interval in import data: {e}")
+
+        # Filter keys based on key_prefix and record_keys_writable
+        valid_keys = [
+            key
+            for key in import_data.keys()
+            if key.startswith(key_prefix)
+            and key in self.record_keys_writable  # type: ignore
+            and key not in ("start_datetime", "interval")
+        ]
+
+        if not valid_keys:
+            return
+
+        # Validate all value lists have the same length
+        value_lengths = []
+        for key in valid_keys:
+            value_list = import_data[key]
+            if not isinstance(value_list, (list, tuple, np.ndarray)):
+                raise ValueError(f"Value for key '{key}' must be a list, tuple, or array")
+            value_lengths.append(len(value_list))
+
+        if len(set(value_lengths)) > 1:
+            raise ValueError(
+                f"All value lists must have the same length. Found lengths: "
+                f"{dict(zip(valid_keys, value_lengths))}"
+            )
+
+        # Generate datetime mapping once for the common length
+        values_count = value_lengths[0]
+        value_datetime_mapping = self.import_datetimes(
+            start_datetime, values_count, interval=interval
+        )
+
+        # Process each valid key
+        for key in valid_keys:
+            try:
+                value_list = import_data[key]
+
+                # Update values, skipping any None/NaN
+                for value_datetime, value_index in value_datetime_mapping:
+                    value = value_list[value_index]
+                    if value is not None and not pd.isna(value):
+                        self.update_value(value_datetime, key, value)  # type: ignore
+
+            except (IndexError, TypeError) as e:
+                raise ValueError(f"Error processing values for key '{key}': {e}")
+
+    def import_from_dataframe(
+        self,
+        df: pd.DataFrame,
+        key_prefix: str = "",
+        start_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+    ) -> None:
+        """Updates generic data by importing it from a pandas DataFrame.
+
+        This method reads generic data from a DataFrame, matches columns based on the
+        record keys and the provided `key_prefix`, and updates the data values using
+        the DataFrame's index as timestamps.
+
+        Args:
+            df (pd.DataFrame): DataFrame containing the generic data with datetime index
+                or sequential values.
+            key_prefix (str, optional): A prefix to filter relevant columns from the DataFrame.
+                Only columns starting with this prefix will be considered. Defaults to an empty string.
+            start_datetime (DateTime, optional): Start datetime if DataFrame doesn't have datetime index.
+            interval (Duration, optional): The fixed time interval if DataFrame doesn't have datetime index.
+
+        Raises:
+            ValueError: If DataFrame structure is invalid or datetime conversion fails.
+        """
+        # Validate DataFrame
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError("Input must be a pandas DataFrame")
+
+        # Handle datetime index
+        if isinstance(df.index, pd.DatetimeIndex):
+            try:
+                index_datetimes = [to_datetime(dt) for dt in df.index]
+                has_datetime_index = True
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Invalid datetime index in DataFrame: {e}")
+        else:
+            if start_datetime is None:
+                start_datetime = self.start_datetime  # type: ignore
+            has_datetime_index = False
+
+        # Filter columns based on key_prefix and record_keys_writable
+        valid_columns = [
+            col
+            for col in df.columns
+            if col.startswith(key_prefix) and col in self.record_keys_writable  # type: ignore
+        ]
+
+        if not valid_columns:
+            return
+
+        # For DataFrame, length validation is implicit since all columns have same length
+        values_count = len(df)
+
+        # Generate value_datetime_mapping once if not using datetime index
+        if not has_datetime_index:
+            value_datetime_mapping = self.import_datetimes(
+                start_datetime, values_count, interval=interval
+            )
+
+        # Process each valid column
+        for column in valid_columns:
+            try:
+                values = df[column].tolist()
+
+                if has_datetime_index:
+                    # Use the DataFrame's datetime index
+                    for dt, value in zip(index_datetimes, values):
+                        if value is not None and not pd.isna(value):
+                            self.update_value(dt, column, value)  # type: ignore
+                else:
+                    # Use the pre-generated datetime mapping
+                    for value_datetime, value_index in value_datetime_mapping:
+                        value = values[value_index]
+                        if value is not None and not pd.isna(value):
+                            self.update_value(value_datetime, column, value)  # type: ignore
+
+            except Exception as e:
+                raise ValueError(f"Error processing column '{column}': {e}")
+
+    def import_from_json(
+        self,
+        json_str: str,
+        key_prefix: str = "",
+        start_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+    ) -> None:
         """Updates generic data by importing it from a JSON string.
 
         This method reads generic data from a JSON string, matches keys based on the
         record keys and the provided `key_prefix`, and updates the data values sequentially,
-        starting from the `start_datetime`. Each data value is associated with an hourly
-        interval.
+        starting from the `start_datetime`.
+
+        If start_datetime and or interval is given in the JSON dict it will be used. Otherwise
+        the given parameters are used. If None is given start_datetime defaults to
+        'self.start_datetime' and interval defaults to 1 hour.
 
         Args:
             json_str (str): The JSON string containing the generic data.
             key_prefix (str, optional): A prefix to filter relevant keys from the generic data.
                 Only keys starting with this prefix will be considered. Defaults to an empty string.
+            start_datetime (DateTime, optional): Start datetime of values.
+            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
 
         Raises:
             JSONDecodeError: If the file content is not valid JSON.
@@ -1045,22 +1272,56 @@ class DataImportProvider(DataProvider):
             Given a JSON string with the following content:
             ```json
             {
-                "load0_mean": [20.5, 21.0, 22.1],
-                "load1_mean": [50, 55, 60]
+                "start_datetime" = "2024-11-10 00:00:00"
+                "interval" = "30 minutes"
+                "load_mean": [20.5, 21.0, 22.1],
+                "other_xyz: [10.5, 11.0, 12.1],
             }
             ```
-            and `key_prefix = "load1"`, only the "load1_mean" key will be processed even though
+            and `key_prefix = "load"`, only the "load_mean" key will be processed even though
             both keys are in the record.
         """
-        import_data = json.loads(json_str)
-        for key in self.record_keys_writable:
-            if key.startswith(key_prefix) and key in import_data:
-                value_list = import_data[key]
-                value_datetime_mapping = self.import_datetimes(len(value_list))
-                for value_datetime, value_index in value_datetime_mapping:
-                    self.update_value(value_datetime, key, value_list[value_index])
+        # Try pandas dataframe with orient="split"
+        try:
+            import_data = PydanticDateTimeDataFrame.model_validate_json(json_str)
+            self.import_from_dataframe(import_data.to_dataframe())
+            return
+        except ValidationError as e:
+            error_msg = ""
+            for error in e.errors():
+                field = " -> ".join(str(x) for x in error["loc"])
+                message = error["msg"]
+                error_type = error["type"]
+                error_msg += f"Field: {field}\nError: {message}\nType: {error_type}\n"
+            logger.debug(f"PydanticDateTimeDataFrame import: {error_msg}")
 
-    def import_from_file(self, import_file_path: Path, key_prefix: str = "") -> None:
+        # Try dictionary with special keys start_datetime and intervall
+        try:
+            import_data = PydanticDateTimeData.model_validate_json(json_str)
+            self.import_from_dict(import_data.to_dict())
+            return
+        except ValidationError as e:
+            error_msg = ""
+            for error in e.errors():
+                field = " -> ".join(str(x) for x in error["loc"])
+                message = error["msg"]
+                error_type = error["type"]
+                error_msg += f"Field: {field}\nError: {message}\nType: {error_type}\n"
+            logger.debug(f"PydanticDateTimeData import: {error_msg}")
+
+        # Use simple dict format
+        import_data = json.loads(json_str)
+        self.import_from_dict(
+            import_data, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval
+        )
+
+    def import_from_file(
+        self,
+        import_file_path: Path,
+        key_prefix: str = "",
+        start_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+    ) -> None:
         """Updates generic data by importing it from a file.
 
         This method reads generic data from a JSON file, matches keys based on the
@@ -1068,10 +1329,16 @@ class DataImportProvider(DataProvider):
         starting from the `start_datetime`. Each data value is associated with an hourly
         interval.
 
+        If start_datetime and or interval is given in the JSON dict it will be used. Otherwise
+        the given parameters are used. If None is given start_datetime defaults to
+        'self.start_datetime' and interval defaults to 1 hour.
+
         Args:
             import_file_path (Path): The path to the JSON file containing the generic data.
             key_prefix (str, optional): A prefix to filter relevant keys from the generic data.
                 Only keys starting with this prefix will be considered. Defaults to an empty string.
+            start_datetime (DateTime, optional): Start datetime of values.
+            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
 
         Raises:
             FileNotFoundError: If the specified file does not exist.
@@ -1081,16 +1348,32 @@ class DataImportProvider(DataProvider):
             Given a JSON file with the following content:
             ```json
             {
-                "load0_mean": [20.5, 21.0, 22.1],
-                "load1_mean": [50, 55, 60]
+                "load_mean": [20.5, 21.0, 22.1],
+                "other_xyz: [10.5, 11.0, 12.1],
             }
             ```
-            and `key_prefix = "load1"`, only the "load1_mean" key will be processed even though
+            and `key_prefix = "load"`, only the "load_mean" key will be processed even though
             both keys are in the record.
         """
         with import_file_path.open("r") as import_file:
             import_str = import_file.read()
-        self.import_from_json(import_str, key_prefix)
+        self.import_from_json(
+            import_str, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval
+        )
+
+
+class DataImportProvider(DataImportMixin, DataProvider):
+    """Abstract base class for data providers that import generic data.
+
+    This class is designed to handle generic data provided in the form of a key-value dictionary.
+    - **Keys**: Represent identifiers from the record keys of a specific data.
+    - **Values**: Are lists of data values starting at a specified `start_datetime`, where
+      each value corresponds to a subsequent time interval (e.g., hourly).
+
+    Subclasses must implement the logic for managing generic data based on the imported records.
+    """
+
+    pass
 
 
 class DataContainer(SingletonMixin, DataBase, MutableMapping):
@@ -1128,6 +1411,24 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
             if provider.enabled():
                 enab.append(provider)
         return enab
+
+    @property
+    def record_keys(self) -> List[str]:
+        """Returns the keys of all fields in the data records of all enabled providers."""
+        key_set = set(
+            chain.from_iterable(provider.record_keys for provider in self.enabled_providers)
+        )
+        return list(key_set)
+
+    @property
+    def record_keys_writable(self) -> List[str]:
+        """Returns the keys of all fields in the data records that are writable of all enabled providers."""
+        key_set = set(
+            chain.from_iterable(
+                provider.record_keys_writable for provider in self.enabled_providers
+            )
+        )
+        return list(key_set)
 
     def __getitem__(self, key: str) -> pd.Series:
         """Retrieve a Pandas Series for a specified key from the data in each DataProvider.
@@ -1206,9 +1507,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
         Returns:
             Iterator[str]: An iterator over the unique keys from all providers.
         """
-        return iter(
-            set(chain.from_iterable(provider.record_keys for provider in self.enabled_providers))
-        )
+        return iter(self.record_keys)
 
     def __len__(self) -> int:
         """Return the number of keys in the container.
@@ -1216,9 +1515,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
         Returns:
             int: The total number of keys in this container.
         """
-        return len(
-            list(chain.from_iterable(provider.record_keys for provider in self.enabled_providers))
-        )
+        return len(self.record_keys)
 
     def __repr__(self) -> str:
         """Provide a string representation of the DataContainer instance.

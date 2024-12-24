@@ -6,11 +6,11 @@
     "version": "0.0.1"
   },
   "paths": {
-    "/config": {
+    "/v1/config": {
       "get": {
         "summary": "Fastapi Config Get",
         "description": "Get the current configuration.",
-        "operationId": "fastapi_config_get_config_get",
+        "operationId": "fastapi_config_get_v1_config_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -27,7 +27,7 @@
       "put": {
         "summary": "Fastapi Config Put",
         "description": "Merge settings into current configuration.",
-        "operationId": "fastapi_config_put_config_put",
+        "operationId": "fastapi_config_put_v1_config_put",
         "requestBody": {
           "content": {
             "application/json": {
@@ -62,11 +62,11 @@
         }
       }
     },
-    "/prediction/keys": {
+    "/v1/measurement/keys": {
       "get": {
-        "summary": "Fastapi Prediction Keys",
-        "description": "Get a list of available prediction keys.",
-        "operationId": "fastapi_prediction_keys_prediction_keys_get",
+        "summary": "Fastapi Measurement Keys Get",
+        "description": "Get a list of available measurement keys.",
+        "operationId": "fastapi_measurement_keys_get_v1_measurement_keys_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -77,7 +77,7 @@
                     "type": "string"
                   },
                   "type": "array",
-                  "title": "Response Fastapi Prediction Keys Prediction Keys Get"
+                  "title": "Response Fastapi Measurement Keys Get V1 Measurement Keys Get"
                 }
               }
             }
@@ -85,11 +85,11 @@
         }
       }
     },
-    "/prediction": {
+    "/v1/measurement/series": {
       "get": {
-        "summary": "Fastapi Prediction",
-        "description": "Get the current configuration.",
-        "operationId": "fastapi_prediction_prediction_get",
+        "summary": "Fastapi Measurement Series Get",
+        "description": "Get the measurements of given key as series.",
+        "operationId": "fastapi_measurement_series_get_v1_measurement_series_get",
         "parameters": [
           {
             "name": "key",
@@ -107,18 +107,254 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
+                  "$ref": "#/components/schemas/PydanticDateTimeSeries"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Fastapi Measurement Series Put",
+        "description": "Merge the measurement of given key into EOS measurements at given datetime.",
+        "operationId": "fastapi_measurement_series_put_v1_measurement_series_put",
+        "parameters": [
+          {
+            "name": "datetime",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "title": "Datetime"
+            }
+          },
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "value",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "title": "Value"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PydanticDateTimeSeries"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/measurement/dataframe": {
+      "put": {
+        "summary": "Fastapi Measurement Dataframe Put",
+        "description": "Merge the measurement data given as dataframe into EOS measurements.",
+        "operationId": "fastapi_measurement_dataframe_put_v1_measurement_dataframe_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PydanticDateTimeDataFrame"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/measurement/data": {
+      "put": {
+        "summary": "Fastapi Measurement Data Put",
+        "description": "Merge the measurement data given as datetime data into EOS measurements.",
+        "operationId": "fastapi_measurement_data_put_v1_measurement_data_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PydanticDateTimeData"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/prediction/keys": {
+      "get": {
+        "summary": "Fastapi Prediction Keys Get",
+        "description": "Get a list of available prediction keys.",
+        "operationId": "fastapi_prediction_keys_get_v1_prediction_keys_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
                   "items": {
-                    "anyOf": [
-                      {
-                        "type": "number"
-                      },
-                      {
-                        "type": "string"
-                      }
-                    ]
+                    "type": "string"
                   },
-                  "title": "Response Fastapi Prediction Prediction Get"
+                  "type": "array",
+                  "title": "Response Fastapi Prediction Keys Get V1 Prediction Keys Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/prediction/series": {
+      "get": {
+        "summary": "Fastapi Prediction Series Get",
+        "description": "Get prediction for given key as series.",
+        "operationId": "fastapi_prediction_series_get_v1_prediction_series_get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PydanticDateTimeSeries"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Fastapi Prediction Series Put",
+        "description": "Merge prediction given as series into given key.",
+        "operationId": "fastapi_prediction_series_put_v1_prediction_series_put",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PydanticDateTimeSeries"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PydanticDateTimeSeries"
                 }
               }
             }
@@ -2065,7 +2301,15 @@
             ],
             "title": "Optimization Ev Available Charge Rates Percent",
             "description": "Charge rates available for the EV in percent of maximum charge.",
-            "default": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+            "default": [
+              0.0,
+              0.375,
+              0.5,
+              0.625,
+              0.75,
+              0.875,
+              1.0
+            ]
           },
           "battery_provider": {
             "anyOf": [
@@ -2546,7 +2790,9 @@
           }
         },
         "type": "object",
-        "required": ["capacity_wh"],
+        "required": [
+          "capacity_wh"
+        ],
         "title": "ElectricVehicleParameters",
         "description": "Parameters specific to an electric vehicle (EV)."
       },
@@ -2694,7 +2940,10 @@
           }
         },
         "type": "object",
-        "required": ["temperature", "pvpower"],
+        "required": [
+          "temperature",
+          "pvpower"
+        ],
         "title": "ForecastResponse"
       },
       "GesamtlastRequest": {
@@ -2716,7 +2965,11 @@
           }
         },
         "type": "object",
-        "required": ["year_energy", "measured_data", "hours"],
+        "required": [
+          "year_energy",
+          "measured_data",
+          "hours"
+        ],
         "title": "GesamtlastRequest"
       },
       "HTTPValidationError": {
@@ -2748,7 +3001,10 @@
           }
         },
         "type": "object",
-        "required": ["consumption_wh", "duration_h"],
+        "required": [
+          "consumption_wh",
+          "duration_h"
+        ],
         "title": "HomeApplianceParameters"
       },
       "InverterParameters": {
@@ -2829,7 +3085,11 @@
           }
         },
         "type": "object",
-        "required": ["ems", "pv_akku", "eauto"],
+        "required": [
+          "ems",
+          "pv_akku",
+          "eauto"
+        ],
         "title": "OptimizationParameters"
       },
       "OptimizeResponse": {
@@ -2925,6 +3185,111 @@
         ],
         "title": "OptimizeResponse",
         "description": "**Note**: The first value of \"Last_Wh_per_hour\", \"Netzeinspeisung_Wh_per_hour\", and \"Netzbezug_Wh_per_hour\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
+      },
+      "PydanticDateTimeData": {
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "type": "object",
+        "title": "PydanticDateTimeData",
+        "description": "Pydantic model for time series data with consistent value lengths.\n\nThis model validates a dictionary where:\n- Keys are strings representing data series names\n- Values are lists of numeric or string values\n- Special keys 'start_datetime' and 'interval' can contain string values\nfor time series indexing\n- All value lists must have the same length\n\nExample:\n    {\n        \"start_datetime\": \"2024-01-01 00:00:00\",  # optional\n        \"interval\": \"1 Hour\",                     # optional\n        \"load_mean\": [20.5, 21.0, 22.1],\n        \"load_min\": [18.5, 19.0, 20.1]\n    }"
+      },
+      "PydanticDateTimeDataFrame": {
+        "properties": {
+          "data": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Data"
+          },
+          "dtypes": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Dtypes"
+          },
+          "tz": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tz",
+            "description": "Timezone for datetime values"
+          },
+          "datetime_columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Datetime Columns",
+            "description": "Columns to be treated as datetime"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "PydanticDateTimeDataFrame",
+        "description": "Pydantic model for validating pandas DataFrame data with datetime index."
+      },
+      "PydanticDateTimeSeries": {
+        "properties": {
+          "data": {
+            "type": "object",
+            "title": "Data"
+          },
+          "dtype": {
+            "type": "string",
+            "title": "Dtype",
+            "default": "float64"
+          },
+          "tz": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tz"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "PydanticDateTimeSeries",
+        "description": "Pydantic model for validating pandas Series with datetime index in JSON format.\n\nThis model handles Series data serialized with orient='index', where the keys are\ndatetime strings and values are the series values. Provides validation and\nconversion between JSON and pandas Series with datetime index.\n\nAttributes:\n    data (Dict[str, Any]): Dictionary mapping datetime strings to values.\n    dtype (str): The data type of the series values.\n    tz (str | None): Timezone name if the datetime index is timezone-aware."
       },
       "SettingsEOS": {
         "properties": {
@@ -4480,7 +4845,15 @@
             ],
             "title": "Optimization Ev Available Charge Rates Percent",
             "description": "Charge rates available for the EV in percent of maximum charge.",
-            "default": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+            "default": [
+              0.0,
+              0.375,
+              0.5,
+              0.625,
+              0.75,
+              0.875,
+              1.0
+            ]
           },
           "battery_provider": {
             "anyOf": [
@@ -5009,7 +5382,9 @@
           }
         },
         "type": "object",
-        "required": ["capacity_wh"],
+        "required": [
+          "capacity_wh"
+        ],
         "title": "SolarPanelBatteryParameters"
       },
       "ValidationError": {
@@ -5038,7 +5413,11 @@
           }
         },
         "type": "object",
-        "required": ["loc", "msg", "type"],
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
         "title": "ValidationError"
       }
     }

@@ -96,7 +96,7 @@ def test_import(weather_provider, sample_import_1_json, start_datetime, from_fil
     assert weather_provider.total_hours is not None
     assert compare_datetimes(weather_provider.start_datetime, ems_eos.start_datetime).equal
     values = sample_import_1_json["weather_temp_air"]
-    value_datetime_mapping = weather_provider.import_datetimes(len(values))
+    value_datetime_mapping = weather_provider.import_datetimes(ems_eos.start_datetime, len(values))
     for i, mapping in enumerate(value_datetime_mapping):
         assert i < len(weather_provider.records)
         expected_datetime, expected_value_index = mapping
