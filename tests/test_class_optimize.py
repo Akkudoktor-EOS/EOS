@@ -62,6 +62,7 @@ def test_optimize(fn_in: str, fn_out: str, ngen: int, is_full_run: bool):
     opt_class = optimization_problem(fixed_seed=42)
     start_hour = 10
 
+    # Activate with pytest --full-run
     if ngen > 10 and not is_full_run:
         pytest.skip()
 
