@@ -432,9 +432,25 @@ class optimization_problem:
                     discharge_hours_bin, eautocharge_hours_index, washingstart_int
                 )
 
-                individual[:] = adjusted_individual  # Aktualisiere das ursprüngliche individual
+                individual[:] = adjusted_individual
 
-        # Berechnung weiterer Metriken
+        # New check: Activate discharge when battery SoC is 0
+        battery_soc_per_hour = np.array(
+            o.get("Battery_SoC_pro_Stunde", [])
+        )  # Example key for battery SoC
+
+        if battery_soc_per_hour is not None:
+            # Find hours where battery SoC is 0
+            zero_soc_mask = battery_soc_per_hour == 0
+            discharge_hours_bin[zero_soc_mask] = 1  # Activate discharge for these hours
+
+            # Merge the updated discharge_hours_bin back into the individual
+            adjusted_individual = self.merge_individual(
+                discharge_hours_bin, eautocharge_hours_index, washingstart_int
+            )
+            individual[:] = adjusted_individual
+
+        # More metrics
         individual.extra_data = (  # type: ignore[attr-defined]
             o["Gesamtbilanz_Euro"],
             o["Gesamt_Verluste"],
