@@ -99,6 +99,7 @@ class HourlyElectricityPriceForecast:
         # Extract the price from 00:00 of the previous day
         previous_day_prices = [
             entry["marketprice"]  # + self.charges
+            entry["marketprice"]  # + self.charges
             for entry in self.prices
             if previous_day_str in entry["end"]
         ]
@@ -107,6 +108,7 @@ class HourlyElectricityPriceForecast:
         # Extract all prices for the specified date
         date_prices = [
             entry["marketprice"]  # + self.charges
+            entry["marketprice"]  # + self.charges
             for entry in self.prices
             if date_str in entry["end"]
         ]
@@ -114,6 +116,8 @@ class HourlyElectricityPriceForecast:
         # Add the last price of the previous day at the start of the list
         if len(date_prices) == 23:
             date_prices.insert(0, last_price_of_previous_day)
+
+        return np.array(date_prices) / (1000.0 * 1000.0) + self.charges
 
         return np.array(date_prices) / (1000.0 * 1000.0) + self.charges
 
@@ -159,6 +163,12 @@ class HourlyElectricityPriceForecast:
         # Reshape the data into a 7x24 matrix (7 rows for days, 24 columns for hours)
         price_matrix = price_data.reshape(-1, 24)
         # Calculate the average price for each hour across the 7 days
+        average_prices = np.average(
+            price_matrix,
+            axis=0,
+            weights=np.array([1, 2, 4, 8, 16, 32, 64]) / np.sum(np.array([1, 2, 4, 8, 16, 32, 64])),
+        )
+        return average_prices
         average_prices = np.average(
             price_matrix,
             axis=0,
