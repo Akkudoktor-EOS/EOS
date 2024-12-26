@@ -56,8 +56,8 @@ class PdfResponse(FileResponse):
     media_type = "application/pdf"
 
 
-@app.get("/strompreis")
-def fastapi_strompreis() -> list[float]:
+@app.get("/electricity_price")
+def fastapi_electricity_price() -> list[float]:
     # Get the current date and the end date based on prediction hours
     date_start_pred, date_end = get_start_enddate(
         config.eos.prediction_hours, startdate=datetime.now().date()
@@ -80,14 +80,14 @@ def fastapi_strompreis() -> list[float]:
     return specific_date_prices.tolist()
 
 
-class GesamtlastRequest(BaseModel):
+class LoadTotalRequest(BaseModel):
     year_energy: float
     measured_data: List[Dict[str, Any]]
     hours: int
 
 
-@app.post("/gesamtlast")
-def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
+@app.post("/load_total")
+def fastapi_load_total(request: LoadTotalRequest) -> list[float]:
     """Endpoint to handle total load calculation based on the latest measured data."""
     # extract request data
     year_energy = request.year_energy
@@ -130,18 +130,18 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     adjuster.adjust_predictions()
     future_predictions = adjuster.predict_next_hours(hours)
 
-    leistung_haushalt = future_predictions["Adjusted Pred"].to_numpy()
+    load_site = future_predictions["Adjusted Pred"].to_numpy()
     gesamtlast = Gesamtlast(prediction_hours=hours)
     gesamtlast.hinzufuegen(
         "Haushalt",
-        leistung_haushalt,
+        load_site,
     )
 
     last = gesamtlast.gesamtlast_berechnen()
     return last.tolist()
 
 
-@app.get("/gesamtlast_simple")
+@app.get("/load_total_simple")
 def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     date_now, date = get_start_enddate(
         config.eos.prediction_hours, startdate=datetime.now().date()
@@ -175,7 +175,7 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
 
 
 @app.get("/pvforecast")
-def fastapi_pvprognose(url: str, ac_power_measurement: Optional[float] = None) -> ForecastResponse:
+def fastapi_pv_forecast(url: str, ac_power_measurement: Optional[float] = None) -> ForecastResponse:
     date_now, date = get_start_enddate(config.eos.prediction_hours, startdate=datetime.now().date())
 
     ###############
