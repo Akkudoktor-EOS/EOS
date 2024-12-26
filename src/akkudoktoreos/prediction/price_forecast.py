@@ -176,7 +176,6 @@ class HourlyElectricityPriceForecast:
 
         return np.array(average_prices_with_final_weight)
 
-
     def get_price_for_daterange(
         self, start_date_str: str, end_date_str: str, repeat: bool = False
     ) -> np.ndarray:
