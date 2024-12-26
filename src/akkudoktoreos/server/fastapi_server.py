@@ -390,8 +390,8 @@ def fastapi_prediction_list_get(
     return prediction_list
 
 
-@app.get("/strompreis")
-def fastapi_strompreis() -> list[float]:
+@app.get("/electricity_price")
+def fastapi_electricity_price() -> list[float]:
     """Deprecated: Electricity Market Price Prediction per Wh (€/Wh).
 
     Note:
@@ -406,7 +406,6 @@ def fastapi_strompreis() -> list[float]:
 
     # Create electricity price forecast
     prediction_eos.update_data(force_update=True)
-
     # Get the current date and the end date based on prediction hours
     # Fetch prices for the specified date range
     return prediction_eos.key_to_array(
@@ -416,14 +415,14 @@ def fastapi_strompreis() -> list[float]:
     ).tolist()
 
 
-class GesamtlastRequest(PydanticBaseModel):
+class LoadTotalRequest(PydanticBaseModel):
     year_energy: float
     measured_data: List[Dict[str, Any]]
     hours: int
 
 
-@app.post("/gesamtlast")
-def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
+@app.post("/load_total")
+def fastapi_load_total(request: LoadTotalRequest) -> list[float]:
     """Deprecated: Total Load Prediction with adjustment.
 
     Endpoint to handle total load prediction adjusted by latest measured data.
@@ -472,7 +471,7 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     return prediction_list
 
 
-@app.get("/gesamtlast_simple")
+@app.get("/load_total_simple")
 def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     """Deprecated: Total Load Prediction.
 
@@ -505,7 +504,7 @@ class ForecastResponse(PydanticBaseModel):
 
 
 @app.get("/pvforecast")
-def fastapi_pvforecast() -> ForecastResponse:
+def fastapi_pv_forecast() -> ForecastResponse:
     ###############
     # PV Forecast
     ###############
