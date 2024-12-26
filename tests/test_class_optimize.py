@@ -8,8 +8,8 @@ import pytest
 from akkudoktoreos.config import AppConfig
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
-    OptimizeResponse,
-    optimization_problem,
+    OptimizationProblem,
+    OptimizationResponse,
 )
 from akkudoktoreos.utils.visualize import prepare_visualize
 
@@ -55,11 +55,11 @@ def test_optimize(
     # In case a new test case is added, we don't want to fail here, so the new output is written to disk before
     try:
         with file.open("r") as f_out:
-            expected_result = OptimizeResponse(**json.load(f_out))
+            expected_result = OptimizationResponse(**json.load(f_out))
     except FileNotFoundError:
         pass
 
-    opt_class = optimization_problem(tmp_config, fixed_seed=42)
+    opt_class = OptimizationProblem(tmp_config, fixed_seed=42)
     start_hour = 10
 
     # Activate with pytest --full-run

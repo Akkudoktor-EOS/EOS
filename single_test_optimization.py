@@ -7,7 +7,7 @@ import numpy as np
 from akkudoktoreos.config import get_working_dir, load_config
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
-    optimization_problem,
+    OptimizationProblem,
 )
 
 start_hour = 0
@@ -283,7 +283,7 @@ start_time = time.time()
 # Initialize the optimization problem using the default configuration
 working_dir = get_working_dir()
 config = load_config(working_dir)
-opt_class = optimization_problem(config, verbose=True, fixed_seed=42)
+opt_class = OptimizationProblem(config, verbose=True, fixed_seed=42)
 
 # Perform the optimisation based on the provided parameters and start hour
 ergebnis = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)

@@ -58,7 +58,7 @@ class OptimizationParameters(BaseModel):
         return start_solution
 
 
-class OptimizeResponse(BaseModel):
+class OptimizationResponse(BaseModel):
     """**Note**: The first value of "Last_Wh_per_hour", "Netzeinspeisung_Wh_per_hour", and "Netzbezug_Wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
 
     ac_charge: list[float] = Field(
@@ -101,7 +101,7 @@ class OptimizeResponse(BaseModel):
         return field
 
 
-class optimization_problem:
+class OptimizationProblem:
     def __init__(
         self,
         config: AppConfig,
@@ -534,7 +534,7 @@ class optimization_problem:
         start_hour: int,
         worst_case: bool = False,
         ngen: int = 400,
-    ) -> OptimizeResponse:
+    ) -> OptimizationResponse:
         """Perform EMS (Energy Management System) optimization and visualize results."""
         einspeiseverguetung_euro_pro_wh = np.full(
             self.prediction_hours, parameters.ems.einspeiseverguetung_euro_pro_wh
@@ -637,7 +637,7 @@ class optimization_problem:
         }
 
         prepare_visualize(parameters, visualize, config=self._config, start_hour=start_hour)
-        return OptimizeResponse(
+        return OptimizationResponse(
             **{
                 "ac_charge": ac_charge,
                 "dc_charge": dc_charge,

@@ -25,8 +25,8 @@ from akkudoktoreos.config import (
 )
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
-    OptimizeResponse,
-    optimization_problem,
+    OptimizationProblem,
+    OptimizationResponse,
 )
 from akkudoktoreos.prediction.load_container import Gesamtlast
 from akkudoktoreos.prediction.load_corrector import LoadPredictionAdjuster
@@ -48,7 +48,7 @@ app = FastAPI(
 working_dir = get_working_dir()
 # copy config to working directory. Make this a CLI option later
 config = load_config(working_dir, True)
-opt_class = optimization_problem(config, verbose=True)
+opt_class = OptimizationProblem(config, verbose=True)
 server_dir = Path(__file__).parent.resolve()
 
 
@@ -203,7 +203,7 @@ def fastapi_optimize(
     start_hour: Annotated[
         Optional[int], Query(description="Defaults to current hour of the day.")
     ] = None,
-) -> OptimizeResponse:
+) -> OptimizationResponse:
     if start_hour is None:
         start_hour = datetime.now().hour
 
