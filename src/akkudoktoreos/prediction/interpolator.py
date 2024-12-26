@@ -7,7 +7,7 @@ import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
 
-class self_consumption_probability_interpolator:
+class SelfConsumptionPropabilityInterpolator:
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
         # self.interpolator = None
