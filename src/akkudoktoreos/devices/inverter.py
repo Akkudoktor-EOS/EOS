@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 
 from akkudoktoreos.devices.battery import PVAkku
 from akkudoktoreos.prediction.self_consumption_probability import (
-    self_consumption_probability_interpolator,
+    SelfConsumptionProbabilityInterpolator,
 )
 
 
@@ -15,7 +15,7 @@ class Wechselrichter:
         self,
         parameters: WechselrichterParameters,
         akku: PVAkku,
-        self_consumption_predictor: self_consumption_probability_interpolator,
+        self_consumption_predictor: SelfConsumptionProbabilityInterpolator,
     ):
         self.max_leistung_wh = (
             parameters.max_leistung_wh  # Maximum power that the inverter can handle

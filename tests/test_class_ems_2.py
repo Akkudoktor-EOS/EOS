@@ -12,7 +12,7 @@ from akkudoktoreos.prediction.ems import (
     EnergieManagementSystemParameters,
 )
 from akkudoktoreos.prediction.self_consumption_probability import (
-    self_consumption_probability_interpolator,
+    SelfConsumptionProbabilityInterpolator,
 )
 
 prediction_hours = 48
@@ -31,7 +31,7 @@ def create_ems_instance(tmp_config: AppConfig) -> EnergieManagementSystem:
     )
 
     # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
-    sc = self_consumption_probability_interpolator(
+    sc = SelfConsumptionProbabilityInterpolator(
         Path(__file__).parent.resolve()
         / ".."
         / "src"

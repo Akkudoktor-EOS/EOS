@@ -23,7 +23,7 @@ from akkudoktoreos.prediction.ems import (
     SimulationResult,
 )
 from akkudoktoreos.prediction.self_consumption_probability import (
-    self_consumption_probability_interpolator,
+    SelfConsumptionProbabilityInterpolator,
 )
 from akkudoktoreos.utils.utils import NumpyEncoder
 
@@ -541,7 +541,7 @@ class OptimizationProblem:
         )
 
         # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
-        sc = self_consumption_probability_interpolator(
+        sc = SelfConsumptionProbabilityInterpolator(
             Path(__file__).parent.resolve() / ".." / "data" / "regular_grid_interpolator.pkl"
         )
 

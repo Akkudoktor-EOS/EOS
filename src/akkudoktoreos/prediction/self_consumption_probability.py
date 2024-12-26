@@ -9,7 +9,7 @@ from typing import Tuple
 import numpy as np
 
 
-class self_consumption_probability_interpolator:
+class SelfConsumptionProbabilityInterpolator:
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
         # self.interpolator = None
