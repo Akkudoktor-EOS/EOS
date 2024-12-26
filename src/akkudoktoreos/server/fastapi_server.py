@@ -89,25 +89,25 @@ class GesamtlastRequest(BaseModel):
 @app.post("/gesamtlast")
 def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     """Endpoint to handle total load calculation based on the latest measured data."""
-    # Request-Daten extrahieren
+    # extract request data
     year_energy = request.year_energy
     measured_data = request.measured_data
     hours = request.hours
 
-    # Ab hier bleibt der Code unverändert ...
+    # convert request data into DataFrame structure
     measured_data_df = pd.DataFrame(measured_data)
     measured_data_df["time"] = pd.to_datetime(measured_data_df["time"])
 
-    # Zeitzonenmanagement
+    # add time zone information if missing or convert to Europe/Berlin if present
     if measured_data_df["time"].dt.tz is None:
         measured_data_df["time"] = measured_data_df["time"].dt.tz_localize("Europe/Berlin")
     else:
         measured_data_df["time"] = measured_data_df["time"].dt.tz_convert("Europe/Berlin")
 
-    # Zeitzone entfernen
+    # remove time zone information while keeping local time
     measured_data_df["time"] = measured_data_df["time"].dt.tz_localize(None)
 
-    # Forecast erstellen
+    # create forecast
     lf = LoadForecast(
         filepath=server_dir / ".." / "data" / "load_profiles.npz", year_energy=year_energy
     )
