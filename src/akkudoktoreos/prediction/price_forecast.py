@@ -166,12 +166,6 @@ class HourlyElectricityPriceForecast:
             axis=0,
             weights=np.array([1, 2, 4, 8, 16, 32, 64]) / np.sum(np.array([1, 2, 4, 8, 16, 32, 64])),
         )
-        return average_prices
-        average_prices = np.average(
-            price_matrix,
-            axis=0,
-            weights=np.array([1, 2, 4, 8, 16, 32, 64]) / np.sum(np.array([1, 2, 4, 8, 16, 32, 64])),
-        )
 
         final_weights = np.linspace(1, 0, price_matrix.shape[1])
 
