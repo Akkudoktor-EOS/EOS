@@ -142,7 +142,7 @@ def fastapi_load_total(request: LoadTotalRequest) -> list[float]:
 
 
 @app.get("/load_total_simple")
-def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
+def fastapi_load_total_simple(year_energy: float) -> list[float]:
     date_now, date = get_start_enddate(
         config.eos.prediction_hours, startdate=datetime.now().date()
     )  # Get the current date and prediction end date
@@ -174,7 +174,8 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     return last.tolist()  # Return total load as JSON
 
 
-@app.get("/pvforecast")
+@app.get("/pv_forecast")
+@app.get("/pvforecast", deprecated=True)
 def fastapi_pv_forecast(url: str, ac_power_measurement: Optional[float] = None) -> ForecastResponse:
     date_now, date = get_start_enddate(config.eos.prediction_hours, startdate=datetime.now().date())
 
