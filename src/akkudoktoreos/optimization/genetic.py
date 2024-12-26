@@ -436,13 +436,22 @@ class optimization_problem:
 
         # New check: Activate discharge when battery SoC is 0
         battery_soc_per_hour = np.array(
-            o.get("Battery_SoC_pro_Stunde", [])
+            o.get("akku_soc_pro_stunde", [])
         )  # Example key for battery SoC
 
         if battery_soc_per_hour is not None:
+            if battery_soc_per_hour is None or discharge_hours_bin is None:
+                raise ValueError("battery_soc_per_hour or discharge_hours_bin is None")
+            min_length = min(battery_soc_per_hour.size, discharge_hours_bin.size)
+            battery_soc_per_hour_tail = battery_soc_per_hour[-min_length:]
+            discharge_hours_bin_tail = discharge_hours_bin[-min_length:]
+            len_ac = len(self._config.eos.available_charging_rates_in_percentage)
+
             # Find hours where battery SoC is 0
-            zero_soc_mask = battery_soc_per_hour == 0
-            discharge_hours_bin[zero_soc_mask] = 1  # Activate discharge for these hours
+            zero_soc_mask = battery_soc_per_hour_tail == 0
+            discharge_hours_bin_tail[zero_soc_mask] = (
+                len_ac + 2
+            )  # Activate discharge for these hours
 
             # Merge the updated discharge_hours_bin back into the individual
             adjusted_individual = self.merge_individual(
