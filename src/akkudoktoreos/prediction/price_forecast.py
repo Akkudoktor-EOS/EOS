@@ -99,7 +99,6 @@ class HourlyElectricityPriceForecast:
         # Extract the price from 00:00 of the previous day
         previous_day_prices = [
             entry["marketprice"]  # + self.charges
-            entry["marketprice"]  # + self.charges
             for entry in self.prices
             if previous_day_str in entry["end"]
         ]
@@ -107,7 +106,6 @@ class HourlyElectricityPriceForecast:
 
         # Extract all prices for the specified date
         date_prices = [
-            entry["marketprice"]  # + self.charges
             entry["marketprice"]  # + self.charges
             for entry in self.prices
             if date_str in entry["end"]
@@ -174,6 +172,7 @@ class HourlyElectricityPriceForecast:
             axis=0,
             weights=np.array([1, 2, 4, 8, 16, 32, 64]) / np.sum(np.array([1, 2, 4, 8, 16, 32, 64])),
         )
+
         final_weights = np.linspace(1, 0, price_matrix.shape[1])
 
         # Weight last known price linear falling
