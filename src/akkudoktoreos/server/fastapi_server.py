@@ -472,7 +472,7 @@ def fastapi_load_total(request: LoadTotalRequest) -> list[float]:
 
 
 @app.get("/load_total_simple")
-def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
+def fastapi_load_total_simple(year_energy: float) -> list[float]:
     """Deprecated: Total Load Prediction.
 
     Endpoint to handle total load prediction.
@@ -503,7 +503,8 @@ class ForecastResponse(PydanticBaseModel):
     pvpower: list[float]
 
 
-@app.get("/pvforecast")
+@app.get("/pv_forecast")
+@app.get("/pvforecast", deprecated=True)
 def fastapi_pv_forecast() -> ForecastResponse:
     ###############
     # PV Forecast
