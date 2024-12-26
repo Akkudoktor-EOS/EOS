@@ -16,9 +16,7 @@ from akkudoktoreos.devices.battery import (
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
-from akkudoktoreos.prediction.self_consumption_probability import (
-    self_consumption_probability_interpolator,
-)
+from akkudoktoreos.prediction.interpolator import SelfConsumptionPropabilityInterpolator
 
 start_hour = 0
 
@@ -41,7 +39,7 @@ def create_ems_instance() -> EnergieManagementSystem:
     )
 
     # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
-    sc = self_consumption_probability_interpolator(
+    sc = SelfConsumptionPropabilityInterpolator(
         Path(__file__).parent.resolve()
         / ".."
         / "src"
