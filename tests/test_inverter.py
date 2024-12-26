@@ -4,9 +4,7 @@ from unittest.mock import Mock
 import pytest
 
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
-from akkudoktoreos.prediction.self_consumption_probability import (
-    self_consumption_probability_interpolator,
-)
+from akkudoktoreos.prediction.interpolator import SelfConsumptionPropabilityInterpolator
 
 
 @pytest.fixture
@@ -19,7 +17,7 @@ def mock_battery():
 
 @pytest.fixture
 def inverter(mock_battery):
-    sc = self_consumption_probability_interpolator(
+    sc = SelfConsumptionPropabilityInterpolator(
         Path(__file__).parent.resolve()
         / ".."
         / "src"
