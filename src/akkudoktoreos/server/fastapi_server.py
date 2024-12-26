@@ -182,20 +182,22 @@ def fastapi_pv_forecast(url: str, ac_power_measurement: Optional[float] = None) 
     ###############
     # PV Forecast
     ###############
-    PVforecast = PVForecast(
+    pv_forecast = PVForecast(
         prediction_hours=config.eos.prediction_hours, url=url
     )  # Instantiate PVForecast with given parameters
     if ac_power_measurement is not None:
-        PVforecast.update_ac_power_measurement(
+        pv_forecast.update_ac_power_measurement(
             date_time=datetime.now(),
             ac_power_measurement=ac_power_measurement,
         )  # Update measurement
 
     # Get PV forecast and temperature forecast for the specified date range
-    pv_forecast = PVforecast.get_pv_forecast_for_date_range(date_now, date)
-    temperature_forecast = PVforecast.get_temperature_for_date_range(date_now, date)
+    pv_forecast_array = pv_forecast.get_pv_forecast_for_date_range(date_now, date)
+    temperature_forecast = pv_forecast.get_temperature_for_date_range(date_now, date)
 
-    return ForecastResponse(temperature=temperature_forecast.tolist(), pvpower=pv_forecast.tolist())
+    return ForecastResponse(
+        temperature=temperature_forecast.tolist(), pvpower=pv_forecast_array.tolist()
+    )
 
 
 @app.post("/optimize")
