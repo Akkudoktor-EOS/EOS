@@ -69,6 +69,7 @@ class HomeAppliance(DeviceBase):
         """Sets the start time of the device and generates the corresponding load curve.
 
         :param start_hour: The hour at which the device should start.
+        :param global_start_hour: The start hour of the current optimization (defaults to current hour)
         """
         self.reset_load_curve()
         # Check if the duration of use is within the available time frame
