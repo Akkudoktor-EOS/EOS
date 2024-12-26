@@ -63,8 +63,8 @@ def test_optimize(
     start_hour = 10
 
     # Activate with pytest --full-run
-    if ngen > 10 and not is_full_run:
-        pytest.skip()
+    # if ngen > 10 and not is_full_run:
+    #    pytest.skip()
 
     visualize_filename = str((DIR_TESTDATA / f"new_{fn_out}").with_suffix(".pdf"))
 

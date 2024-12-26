@@ -155,24 +155,25 @@ class HourlyElectricityPriceForecast:
             raise ValueError(
                 "Not enough data to calculate the average for the last 7 days.", price_data
             )
-        # Calculate the overall average price across all data
-        # overall_average_price = np.mean(price_data)
 
-        # Create an array of 24 hourly values filled with the overall average
-        # average_prices = np.full(24, overall_average_price)
-
-        # print("Overall AVG (duplicated for 24 hours):", average_prices)
-        # return average_prices
         # Reshape the data into a 7x24 matrix (7 rows for days, 24 columns for hours)
         price_matrix = price_data.reshape(-1, 24)
-
         # Calculate the average price for each hour across the 7 days
         average_prices = np.average(
             price_matrix,
             axis=0,
             weights=np.array([1, 2, 4, 8, 16, 32, 64]) / np.sum(np.array([1, 2, 4, 8, 16, 32, 64])),
         )
-        return average_prices
+        final_weights = np.linspace(1, 0, price_matrix.shape[1])
+
+        # Weight last known price linear falling
+        average_prices_with_final_weight = [
+            (average_prices[i] * (1 - final_weights[i]))
+            + (price_matrix[-1, -1] * (final_weights[i]))
+            for i in range(price_matrix.shape[1])
+        ]
+
+        return np.array(average_prices_with_final_weight)
 
     def get_price_for_daterange(
         self, start_date_str: str, end_date_str: str, repeat: bool = False
