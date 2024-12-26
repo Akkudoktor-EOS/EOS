@@ -56,7 +56,7 @@ class OptimizationParameters(BaseModel):
         return start_solution
 
 
-class OptimizeResponse(BaseModel):
+class OptimizationResponse(BaseModel):
     """**Note**: The first value of "Last_Wh_per_hour", "Netzeinspeisung_Wh_per_hour", and "Netzbezug_Wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
 
     ac_charge: list[float] = Field(
@@ -99,7 +99,7 @@ class OptimizeResponse(BaseModel):
         return field
 
 
-class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin):
+class OptimizationProblem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin):
     def __init__(
         self,
         verbose: bool = False,
@@ -532,7 +532,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         start_hour: Optional[int] = None,
         worst_case: bool = False,
         ngen: int = 400,
-    ) -> OptimizeResponse:
+    ) -> OptimizationResponse:
         """Perform EMS (Energy Management System) optimization and visualize results."""
         if start_hour is None:
             start_hour = self.ems.start_datetime.hour
@@ -632,7 +632,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         prepare_visualize(parameters, visualize, start_hour=start_hour)
 
-        return OptimizeResponse(
+        return OptimizationResponse(
             **{
                 "ac_charge": ac_charge,
                 "dc_charge": dc_charge,

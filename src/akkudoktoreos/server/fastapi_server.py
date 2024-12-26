@@ -24,8 +24,8 @@ from akkudoktoreos.core.pydantic import (
 from akkudoktoreos.measurement.measurement import get_measurement
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
-    OptimizeResponse,
-    optimization_problem,
+    OptimizationProblem,
+    OptimizationResponse,
 )
 from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
@@ -173,8 +173,7 @@ app = FastAPI(
 )
 
 # That's the problem
-opt_class = optimization_problem(verbose=bool(config_eos.server_fastapi_verbose))
-
+opt_class = OptimizationProblem(verbose=bool(config_eos.server_fastapi_verbose))
 server_dir = Path(__file__).parent.resolve()
 
 
@@ -550,7 +549,7 @@ def fastapi_optimize(
     start_hour: Annotated[
         Optional[int], Query(description="Defaults to current hour of the day.")
     ] = None,
-) -> OptimizeResponse:
+) -> OptimizationResponse:
     if start_hour is None:
         start_hour = to_datetime().hour
 

@@ -834,7 +834,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OptimizeResponse"
+                  "$ref": "#/components/schemas/OptimizationResponse"
                 }
               }
             }
@@ -3487,7 +3487,7 @@
         ],
         "title": "OptimizationParameters"
       },
-      "OptimizeResponse": {
+      "OptimizationResponse": {
         "properties": {
           "ac_charge": {
             "items": {
@@ -3578,7 +3578,7 @@
           "result",
           "eauto_obj"
         ],
-        "title": "OptimizeResponse",
+        "title": "OptimizationResponse",
         "description": "**Note**: The first value of \"Last_Wh_per_hour\", \"Netzeinspeisung_Wh_per_hour\", and \"Netzbezug_Wh_per_hour\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
       },
       "PydanticDateTimeData": {
