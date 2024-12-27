@@ -593,7 +593,7 @@ class OptimizationProblem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin
         )
         self.ems.set_start_hour(start_hour)
 
-        # Setup the DEAP environment and optimization process
+        # Set up the DEAP environment and optimization process
         self.setup_deap_environment({"home_appliance": 1 if dishwasher else 0}, start_hour)
         self.toolbox.register(
             "evaluate",
