@@ -82,6 +82,7 @@ class SimulationResult(BaseModel):
         description="Used Electricity Price, including predictions"
     )
 
+    @classmethod
     @field_validator(
         "Last_Wh_pro_Stunde",
         "Netzeinspeisung_Wh_pro_Stunde",

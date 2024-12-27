@@ -74,6 +74,7 @@ class EAutoResult(BaseModel):
         description="The state of charge of the battery in percentage at the start of the simulation."
     )
 
+    @classmethod
     @field_validator(
         "discharge_array",
         "charge_array",

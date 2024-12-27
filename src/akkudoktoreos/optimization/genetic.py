@@ -49,6 +49,7 @@ class OptimizationParameters(BaseModel):
             raise ValueError("Input lists have different lengths")
         return self
 
+    @classmethod
     @field_validator("start_solution")
     def validate_start_solution(
         cls, start_solution: Optional[list[float]]
@@ -82,6 +83,7 @@ class OptimizationResponse(BaseModel):
         description="Can be `null` or contain an object representing the start of washing (if applicable).",
     )
 
+    @classmethod
     @field_validator(
         "ac_charge",
         "dc_charge",
@@ -91,6 +93,7 @@ class OptimizationResponse(BaseModel):
     def convert_numpy(cls, field: Any) -> Any:
         return NumpyEncoder.convert_numpy(field)[0]
 
+    @classmethod
     @field_validator(
         "eauto_obj",
         mode="before",
