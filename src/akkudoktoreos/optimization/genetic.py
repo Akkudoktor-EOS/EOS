@@ -592,7 +592,7 @@ class OptimizationProblem:
             home_appliance=dishwasher,
         )
 
-        # Setup the DEAP environment and optimization process
+        # Set up the DEAP environment and optimization process
         self.setup_deap_environment({"home_appliance": 1 if dishwasher else 0}, start_hour)
         self.toolbox.register(
             "evaluate",
