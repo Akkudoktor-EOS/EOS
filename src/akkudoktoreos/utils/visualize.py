@@ -247,7 +247,7 @@ def prepare_visualize(
     parameters: OptimizationParameters,
     results: dict,
     config: AppConfig,
-    filename: str = "visualization_results_new.pdf",
+    filename: str = "visualization_results.pdf",
     start_hour: Optional[int] = 0,
 ) -> None:
     report = VisualizationReport(config, filename)
