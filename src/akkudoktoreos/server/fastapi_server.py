@@ -165,10 +165,10 @@ def fastapi_load_total_simple(year_energy: float) -> list[float]:
     )  # Add household load to total load calculation
 
     # ###############
-    # # WP (Heat Pump)
+    # # Heat Pump
     # ##############
-    # leistung_wp = wp.simulate_24h(temperature_forecast)  # Simulate heat pump load for 24 hours
-    # gesamtlast.hinzufuegen("Heatpump", leistung_wp)  # Add heat pump load to total load calculation
+    # power_heat_pump = wp.simulate_24h(temperature_forecast)  # Simulate heat pump load for 24 hours
+    # load_total.add("Heatpump", power_heat_pump)  # Add heat pump load to total load calculation
 
     last = gesamtlast.gesamtlast_berechnen()  # Calculate total load
     return last.tolist()  # Return total load as JSON
