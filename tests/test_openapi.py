@@ -7,7 +7,7 @@ DIR_TESTDATA = Path(__file__).parent / "testdata"
 
 
 def test_openapi_spec_current(config_eos):
-    """Verify the openapi spec hasn´t changed."""
+    """Verify the openapi spec hasn't changed."""
     old_spec_path = DIR_PROJECT_ROOT / "docs" / "akkudoktoreos" / "openapi.json"
     new_spec_path = DIR_TESTDATA / "openapi-new.json"
     # Patch get_config and import within guard to patch global variables within the fastapi_server module.
