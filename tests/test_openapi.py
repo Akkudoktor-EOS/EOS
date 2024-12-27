@@ -8,7 +8,7 @@ DIR_TESTDATA = Path(__file__).parent / "testdata"
 
 
 def test_openapi_spec_current():
-    """Verify the openapi spec hasn´t changed."""
+    """Verify the openapi spec hasn't changed."""
     old_spec_path = DIR_PROJECT_ROOT / "docs" / "akkudoktoreos" / "openapi.json"
     new_spec_path = DIR_TESTDATA / "openapi-new.json"
     generate_openapi(new_spec_path)
