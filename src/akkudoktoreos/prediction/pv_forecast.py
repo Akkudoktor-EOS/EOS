@@ -80,9 +80,9 @@ class AkkudoktorForecastValue(BaseModel):
     power: float
     sunTilt: float
     sunAzimuth: float
-    temperature: float
-    relativehumidity_2m: float
-    windspeed_10m: float
+    temperature: Optional[float]
+    relativehumidity_2m: Optional[float]
+    windspeed_10m: Optional[float]
 
 
 class AkkudoktorForecast(BaseModel):
@@ -109,8 +109,8 @@ def validate_pv_forecast_data(data: dict[str, Any]) -> Optional[str]:
 
 
 class ForecastResponse(BaseModel):
-    temperature: list[float]
-    pvpower: list[float]
+    temperature: list[Optional[float]]
+    pvpower: list[Optional[float]]
 
 
 class ForecastData:

@@ -89,7 +89,7 @@ class VisualizationReport:
     def create_line_chart(
         self,
         start_hour: Optional[int],
-        y_list: list[Union[np.ndarray, list[float]]],
+        y_list: list[Union[np.ndarray, list[Optional[float]], list[float]]],
         title: str,
         xlabel: str,
         ylabel: str,
