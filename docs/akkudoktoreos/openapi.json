@@ -2511,7 +2511,20 @@
               }
             ],
             "title": "Elecprice Provider",
-            "description": "Electicity price provider id of provider to be used."
+            "description": "Electricity price provider id of provider to be used."
+          },
+          "elecprice_charges": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elecprice Charges",
+            "description": "Electricity price charges (\u20ac/kWh)."
           },
           "prediction_hours": {
             "anyOf": [
@@ -5138,7 +5151,20 @@
               }
             ],
             "title": "Elecprice Provider",
-            "description": "Electicity price provider id of provider to be used."
+            "description": "Electricity price provider id of provider to be used."
+          },
+          "elecprice_charges": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elecprice Charges",
+            "description": "Electricity price charges (\u20ac/kWh)."
           },
           "prediction_hours": {
             "anyOf": [
