@@ -19,7 +19,7 @@ from akkudoktoreos.utils.datetimeutil import (
 
 # Test cases for valid pendulum.duration inputs
 @pytest.mark.parametrize(
-    "test_case, local_timezone, date_input, as_string, in_timezone, to_naiv, to_maxtime, expected_output",
+    "test_case, local_timezone, date_input, as_string, in_timezone, to_naiv, to_maxtime, expected_output, expected_approximately",
     [
         # ---------------------------------------
         # from string to pendulum.datetime object
@@ -34,6 +34,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 1, 1, 0, 0, 0, tz="Etc/UTC"),
+            False,
         ),
         (
             "TC002",
@@ -44,6 +45,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 1, 1, 0, 0, 0, tz="Europe/Berlin"),
+            False,
         ),
         (
             "TC003",
@@ -54,6 +56,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2023, 12, 31, 23, 0, 0, tz="Etc/UTC"),
+            False,
         ),
         (
             "TC004",
@@ -64,6 +67,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 1, 1, 0, 0, 0, tz="Europe/Paris"),
+            False,
         ),
         (
             "TC005",
@@ -74,6 +78,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 1, 1, 1, 0, 0, tz="Europe/Berlin"),
+            False,
         ),
         (
             "TC006",
@@ -84,6 +89,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2023, 12, 31, 23, 0, 0, tz="Etc/UTC"),
+            False,
         ),
         (
             "TC007",
@@ -102,6 +108,7 @@ from akkudoktoreos.utils.datetimeutil import (
                 0,
                 tz="Atlantic/Canary",
             ),
+            False,
         ),
         (
             "TC008",
@@ -112,6 +119,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 1, 1, 13, 0, 0, tz="Europe/Berlin"),
+            False,
         ),
         (
             "TC009",
@@ -122,6 +130,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 1, 1, 11, 0, 0, tz="Etc/UTC"),
+            False,
         ),
         # - with timezone
         (
@@ -133,6 +142,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 2, 2, 0, 0, 0, tz="Europe/Berlin"),
+            False,
         ),
         (
             "TC011",
@@ -143,6 +153,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             None,
             pendulum.datetime(2024, 3, 3, 10, 20, 30, 0, tz="Europe/Berlin"),
+            False,
         ),
         (
             "TC012",
@@ -153,6 +164,7 @@ from akkudoktoreos.utils.datetimeutil import (
             False,
             None,
             pendulum.datetime(2024, 4, 4, 10, 20, 30, 0, tz="Europe/Berlin"),
+            False,
         ),
         (
             "TC013",
@@ -163,6 +175,7 @@ from akkudoktoreos.utils.datetimeutil import (
             True,
             None,
             pendulum.naive(2024, 5, 5, 10, 20, 30, 0),
+            False,
         ),
         # - without local timezone as UTC
         (
@@ -174,6 +187,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 2, 2, 0, 0, 0, tz="UTC"),
+            False,
         ),
         (
             "TC015",
@@ -184,6 +198,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             None,
             pendulum.datetime(2024, 3, 3, 10, 20, 30, 0, tz="UTC"),
+            False,
         ),
         # ---------------------------------------
         # from pendulum.datetime to pendulum.datetime object
@@ -197,6 +212,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 4, 4, 0, 0, 0, tz="Etc/UTC"),
+            False,
         ),
         (
             "TC017",
@@ -207,6 +223,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 4, 4, 3, 0, 0, tz="Europe/Berlin"),
+            False,
         ),
         (
             "TC018",
@@ -217,6 +234,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 4, 4, 3, 0, 0, tz="Europe/Berlin"),
+            False,
         ),
         (
             "TC019",
@@ -227,6 +245,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             False,
             pendulum.datetime(2024, 4, 4, 0, 0, 0, tz="Etc/UTC"),
+            False,
         ),
         # ---------------------------------------
         # from string to UTC string
@@ -242,6 +261,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             None,
             "2023-11-06T00:00:00Z",
+            False,
         ),
         #    local timezone "Europe/Berlin"
         (
@@ -253,6 +273,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             None,
             "2023-11-05T23:00:00Z",
+            False,
         ),
         # - no microseconds
         (
@@ -264,6 +285,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             None,
             "2024-10-29T23:00:00Z",
+            False,
         ),
         (
             "TC023",
@@ -274,6 +296,7 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             None,
             "2024-10-30T00:00:00Z",
+            False,
         ),
         # - with microseconds
         (
@@ -285,6 +308,23 @@ from akkudoktoreos.utils.datetimeutil import (
             None,
             None,
             "2024-10-07T08:20:30Z",
+            False,
+        ),
+        # ---------------------------------------
+        # from None to pendulum.datetime object
+        # ---------------------------------------
+        # - no timezone
+        #   local timezone
+        (
+            "TC025",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            pendulum.now(),
+            True,
         ),
     ],
 )
@@ -298,6 +338,7 @@ def test_to_datetime(
     to_naiv,
     to_maxtime,
     expected_output,
+    expected_approximately,
 ):
     """Test pendulum.datetime conversion with valid inputs."""
     set_other_timezone(local_timezone)
@@ -326,7 +367,10 @@ def test_to_datetime(
         # print(f"Expected: {expected_output} tz={expected_output.timezone}")
         # print(f"Result:   {result} tz={result.timezone}")
         # print(f"Compare:  {compare}")
-        assert compare.equal == True
+        if expected_approximately:
+            assert compare.time_diff < 200
+        else:
+            assert compare.equal == True
 
 
 # -----------------------------

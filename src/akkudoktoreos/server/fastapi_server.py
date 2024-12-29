@@ -7,38 +7,55 @@ from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
 
 import httpx
-import pandas as pd
 import uvicorn
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import FileResponse, RedirectResponse, Response
-from pendulum import DateTime
 
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
-from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.pydantic import (
+    PydanticBaseModel,
+    PydanticDateTimeData,
+    PydanticDateTimeDataFrame,
+    PydanticDateTimeSeries,
+)
+from akkudoktoreos.measurement.measurement import get_measurement
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     OptimizeResponse,
     optimization_problem,
 )
-
-# Still to be adapted
-from akkudoktoreos.prediction.load_aggregator import LoadAggregator
-from akkudoktoreos.prediction.load_corrector import LoadPredictionAdjuster
-from akkudoktoreos.prediction.load_forecast import LoadForecast
 from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 config_eos = get_config()
+measurement_eos = get_measurement()
 prediction_eos = get_prediction()
+ems_eos = get_ems()
+
+
+def start_fasthtml_server() -> subprocess.Popen:
+    """Start the fasthtml server as a subprocess."""
+    server_process = subprocess.Popen(
+        [sys.executable, str(server_dir.joinpath("fasthtml_server.py"))],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return server_process
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
-    if config_eos.server_fasthtml_host and config_eos.server_fasthtml_port:
+    if (
+        config_eos.server_fastapi_startup_server_fasthtml
+        and config_eos.server_fasthtml_host
+        and config_eos.server_fasthtml_port
+    ):
         try:
             fasthtml_process = start_fasthtml_server()
         except Exception as e:
@@ -72,41 +89,238 @@ class PdfResponse(FileResponse):
     media_type = "application/pdf"
 
 
-@app.get("/config")
+@app.get("/v1/config")
 def fastapi_config_get() -> ConfigEOS:
     """Get the current configuration."""
     return config_eos
 
 
-@app.put("/config")
-def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
-    """Merge settings into current configuration."""
+@app.put("/v1/config")
+def fastapi_config_put(
+    settings: SettingsEOS,
+    save: Optional[bool] = None,
+) -> ConfigEOS:
+    """Merge settings into current configuration.
+
+    Args:
+        settings (SettingsEOS): The settings to merge into the current configuration.
+        save (Optional[bool]): Save the resulting configuration to the configuration file.
+            Defaults to False.
+    """
     config_eos.merge_settings(settings)
+    if save:
+        try:
+            config_eos.to_config_file()
+        except:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Cannot save configuration to file '{config_eos.config_file_path}'.",
+            )
     return config_eos
 
 
-@app.get("/prediction/keys")
-def fastapi_prediction_keys() -> list[str]:
+@app.get("/v1/measurement/keys")
+def fastapi_measurement_keys_get() -> list[str]:
+    """Get a list of available measurement keys."""
+    return sorted(measurement_eos.record_keys)
+
+
+@app.get("/v1/measurement/load-mr/series/by-name")
+def fastapi_measurement_load_mr_series_by_name_get(name: str) -> PydanticDateTimeSeries:
+    """Get the meter reading of given load name as series."""
+    key = measurement_eos.name_to_key(name=name, topic="measurement_load")
+    if key is None:
+        raise HTTPException(
+            status_code=404, detail=f"Measurement load with name '{name}' not available."
+        )
+    if key not in measurement_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    pdseries = measurement_eos.key_to_series(key=key)
+    return PydanticDateTimeSeries.from_series(pdseries)
+
+
+@app.put("/v1/measurement/load-mr/value/by-name")
+def fastapi_measurement_load_mr_value_by_name_put(
+    datetime: Any, name: str, value: Union[float | str]
+) -> PydanticDateTimeSeries:
+    """Merge the meter reading of given load name and value into EOS measurements at given datetime."""
+    key = measurement_eos.name_to_key(name=name, topic="measurement_load")
+    if key is None:
+        raise HTTPException(
+            status_code=404, detail=f"Measurement load with name '{name}' not available."
+        )
+    if key not in measurement_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    measurement_eos.update_value(datetime, key, value)
+    pdseries = measurement_eos.key_to_series(key=key)
+    return PydanticDateTimeSeries.from_series(pdseries)
+
+
+@app.put("/v1/measurement/load-mr/series/by-name")
+def fastapi_measurement_load_mr_series_by_name_put(
+    name: str, series: PydanticDateTimeSeries
+) -> PydanticDateTimeSeries:
+    """Merge the meter readings series of given load name into EOS measurements at given datetime."""
+    key = measurement_eos.name_to_key(name=name, topic="measurement_load")
+    if key is None:
+        raise HTTPException(
+            status_code=404, detail=f"Measurement load with name '{name}' not available."
+        )
+    if key not in measurement_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    pdseries = series.to_series()  # make pandas series from PydanticDateTimeSeries
+    measurement_eos.key_from_series(key=key, series=pdseries)
+    pdseries = measurement_eos.key_to_series(key=key)
+    return PydanticDateTimeSeries.from_series(pdseries)
+
+
+@app.get("/v1/measurement/series")
+def fastapi_measurement_series_get(key: str) -> PydanticDateTimeSeries:
+    """Get the measurements of given key as series."""
+    if key not in measurement_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    pdseries = measurement_eos.key_to_series(key=key)
+    return PydanticDateTimeSeries.from_series(pdseries)
+
+
+@app.put("/v1/measurement/value")
+def fastapi_measurement_value_put(
+    datetime: Any, key: str, value: Union[float | str]
+) -> PydanticDateTimeSeries:
+    """Merge the measurement of given key and value into EOS measurements at given datetime."""
+    if key not in measurement_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    measurement_eos.update_value(datetime, key, value)
+    pdseries = measurement_eos.key_to_series(key=key)
+    return PydanticDateTimeSeries.from_series(pdseries)
+
+
+@app.put("/v1/measurement/series")
+def fastapi_measurement_series_put(
+    key: str, series: PydanticDateTimeSeries
+) -> PydanticDateTimeSeries:
+    """Merge measurement given as series into given key."""
+    if key not in measurement_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    pdseries = series.to_series()  # make pandas series from PydanticDateTimeSeries
+    measurement_eos.key_from_series(key=key, series=pdseries)
+    pdseries = measurement_eos.key_to_series(key=key)
+    return PydanticDateTimeSeries.from_series(pdseries)
+
+
+@app.put("/v1/measurement/dataframe")
+def fastapi_measurement_dataframe_put(data: PydanticDateTimeDataFrame) -> None:
+    """Merge the measurement data given as dataframe into EOS measurements."""
+    dataframe = data.to_dataframe()
+    measurement_eos.import_from_dataframe(dataframe)
+
+
+@app.put("/v1/measurement/data")
+def fastapi_measurement_data_put(data: PydanticDateTimeData) -> None:
+    """Merge the measurement data given as datetime data into EOS measurements."""
+    datetimedata = data.to_dict()
+    measurement_eos.import_from_dict(datetimedata)
+
+
+@app.get("/v1/prediction/keys")
+def fastapi_prediction_keys_get() -> list[str]:
     """Get a list of available prediction keys."""
-    return sorted(list(prediction_eos.keys()))
+    return sorted(prediction_eos.record_keys)
 
 
-@app.get("/prediction")
-def fastapi_prediction(key: str) -> list[Union[float | str]]:
-    """Get the current configuration."""
-    values = prediction_eos[key].to_list()
-    return values
+@app.get("/v1/prediction/series")
+def fastapi_prediction_series_get(
+    key: str,
+    start_datetime: Optional[str] = None,
+    end_datetime: Optional[str] = None,
+) -> PydanticDateTimeSeries:
+    """Get prediction for given key within given date range as series.
+
+    Args:
+        start_datetime: Starting datetime (inclusive).
+            Defaults to start datetime of latest prediction.
+        end_datetime: Ending datetime (exclusive).
+            Defaults to end datetime of latest prediction.
+    """
+    if key not in prediction_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    if start_datetime is None:
+        start_datetime = prediction_eos.start_datetime
+    else:
+        start_datetime = to_datetime(start_datetime)
+    if end_datetime is None:
+        end_datetime = prediction_eos.end_datetime
+    else:
+        end_datetime = to_datetime(end_datetime)
+    pdseries = prediction_eos.key_to_series(
+        key=key, start_datetime=start_datetime, end_datetime=end_datetime
+    )
+    return PydanticDateTimeSeries.from_series(pdseries)
+
+
+@app.get("/v1/prediction/list")
+def fastapi_prediction_list_get(
+    key: str,
+    start_datetime: Optional[str] = None,
+    end_datetime: Optional[str] = None,
+    interval: Optional[str] = None,
+) -> List[Any]:
+    """Get prediction for given key within given date range as value list.
+
+    Args:
+        start_datetime: Starting datetime (inclusive).
+            Defaults to start datetime of latest prediction.
+        end_datetime: Ending datetime (exclusive).
+            Defaults to end datetime of latest prediction.
+        interval: Time duration for each interval
+            Defaults to 1 hour.
+    """
+    if key not in prediction_eos.record_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+    if start_datetime is None:
+        start_datetime = prediction_eos.start_datetime
+    else:
+        start_datetime = to_datetime(start_datetime)
+    if end_datetime is None:
+        end_datetime = prediction_eos.end_datetime
+    else:
+        end_datetime = to_datetime(end_datetime)
+    if interval is None:
+        interval = to_duration("1 hour")
+    else:
+        interval = to_duration(interval)
+    prediction_list = prediction_eos.key_to_array(
+        key=key,
+        start_datetime=start_datetime,
+        end_datetime=end_datetime,
+        interval=interval,
+    ).tolist()
+    return prediction_list
 
 
 @app.get("/strompreis")
 def fastapi_strompreis() -> list[float]:
+    """Deprecated: Electricity Market Price Prediction.
+
+    Note:
+        Use '/v1/prediction/list?key=elecprice_marketprice' instead.
+    """
+    settings = SettingsEOS(
+        elecprice_provider="ElecPriceAkkudoktor",
+    )
+    config_eos.merge_settings(settings=settings)
+    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
+
+    # Create electricity price forecast
+    prediction_eos.update_data(force_update=True)
+
     # Get the current date and the end date based on prediction hours
-    marketprice_series = prediction_eos["elecprice_marketprice"]
     # Fetch prices for the specified date range
-    specific_date_prices = marketprice_series.loc[
-        prediction_eos.start_datetime : prediction_eos.end_datetime
-    ]
-    return specific_date_prices.tolist()
+    return prediction_eos.key_to_array(
+        key="elecprice_marketprice",
+        start_datetime=prediction_eos.start_datetime,
+        end_datetime=prediction_eos.end_datetime,
+    ).tolist()
 
 
 class GesamtlastRequest(PydanticBaseModel):
@@ -117,83 +331,79 @@ class GesamtlastRequest(PydanticBaseModel):
 
 @app.post("/gesamtlast")
 def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
-    """Endpoint to handle total load calculation based on the latest measured data."""
-    # Request-Daten extrahieren
-    year_energy = request.year_energy
-    measured_data = request.measured_data
-    hours = request.hours
+    """Deprecated: Total Load Prediction with adjustment.
 
-    # Ab hier bleibt der Code unverändert ...
-    measured_data_df = pd.DataFrame(measured_data)
-    measured_data_df["time"] = pd.to_datetime(measured_data_df["time"])
+    Endpoint to handle total load prediction adjusted by latest measured data.
 
-    # Zeitzonenmanagement
-    if measured_data_df["time"].dt.tz is None:
-        measured_data_df["time"] = measured_data_df["time"].dt.tz_localize("Europe/Berlin")
-    else:
-        measured_data_df["time"] = measured_data_df["time"].dt.tz_convert("Europe/Berlin")
-
-    # Zeitzone entfernen
-    measured_data_df["time"] = measured_data_df["time"].dt.tz_localize(None)
-
-    # Forecast erstellen
-    lf = LoadForecast(
-        filepath=server_dir / ".." / "data" / "load_profiles.npz", year_energy=year_energy
+    Note:
+        Use '/v1/prediction/list?key=load_mean_adjusted' instead.
+        Load energy meter readings to be added to EOS measurement by:
+        '/v1/measurement/load-mr/value/by-name' or
+        '/v1/measurement/value'
+    """
+    settings = SettingsEOS(
+        prediction_hours=request.hours,
+        load_provider="LoadAkkudoktor",
+        loadakkudoktor_year_energy=request.year_energy,
     )
-    forecast_list = []
+    config_eos.merge_settings(settings=settings)
+    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
 
-    for single_date in pd.date_range(
-        measured_data_df["time"].min().date(), measured_data_df["time"].max().date()
-    ):
-        date_str = single_date.strftime("%Y-%m-%d")
-        daily_forecast = lf.get_daily_stats(date_str)
-        mean_values = daily_forecast[0]
-        fc_hours = [single_date + pd.Timedelta(hours=i) for i in range(24)]
-        daily_forecast_df = pd.DataFrame({"time": fc_hours, "Last Pred": mean_values})
-        forecast_list.append(daily_forecast_df)
+    # Insert measured data into EOS measurement
+    # Convert from energy per interval to dummy energy meter readings
+    measurement_key = "measurement_load0_mr"
+    measurement_eos.key_delete_by_datetime(key=measurement_key)  # delete all load0_mr measurements
+    energy = {}
+    for data_dict in request.measured_data:
+        for date_time, value in data_dict.items():
+            dt_str = to_datetime(date_time, as_string=True)
+            energy[dt_str] = value
+    energy_mr = 0
+    for i, key in enumerate(sorted(energy)):
+        energy_mr += energy[key]
+        dt = to_datetime(key)
+        if i == 0:
+            # first element, add start value before
+            dt_before = dt - to_duration("1 hour")
+            measurement_eos.update_value(date=dt_before, key=measurement_key, value=0.0)
+        measurement_eos.update_value(date=dt, key=measurement_key, value=energy_mr)
 
-    predicted_data = pd.concat(forecast_list, ignore_index=True)
+    # Create load forecast
+    prediction_eos.update_data(force_update=True)
 
-    adjuster = LoadPredictionAdjuster(measured_data_df, predicted_data, lf)
-    adjuster.calculate_weighted_mean()
-    adjuster.adjust_predictions()
-    future_predictions = adjuster.predict_next_hours(hours)
-
-    leistung_haushalt = future_predictions["Adjusted Pred"].to_numpy()
-    gesamtlast = LoadAggregator(prediction_hours=hours)
-    gesamtlast.add_load(
-        "Haushalt",
-        tuple(leistung_haushalt),
-    )
-
-    return gesamtlast.calculate_total_load()
+    prediction_list = prediction_eos.key_to_array(
+        key="load_mean_adjusted",
+        start_datetime=prediction_eos.start_datetime,
+        end_datetime=prediction_eos.end_datetime,
+    ).tolist()
+    return prediction_list
 
 
 @app.get("/gesamtlast_simple")
 def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
-    ###############
-    # Load Forecast
-    ###############
-    lf = LoadForecast(
-        filepath=server_dir / ".." / "data" / "load_profiles.npz", year_energy=year_energy
-    )  # Instantiate LoadForecast with specified parameters
-    leistung_haushalt = lf.get_stats_for_date_range(
-        prediction_eos.start_datetime, prediction_eos.end_datetime
-    )[0]  # Get expected household load for the date range
+    """Deprecated: Total Load Prediction.
 
-    prediction_hours = config_eos.prediction_hours if config_eos.prediction_hours else 48
-    gesamtlast = LoadAggregator(prediction_hours=prediction_hours)  # Create Gesamtlast instance
-    gesamtlast.add_load(
-        "Haushalt", tuple(leistung_haushalt)
-    )  # Add household to total load calculation
+    Endpoint to handle total load prediction.
 
-    # ###############
-    # # WP (Heat Pump)
-    # ##############
-    # leistung_wp = wp.simulate_24h(temperature_forecast)  # Simulate heat pump load for 24 hours
-    # gesamtlast.hinzufuegen("Heatpump", leistung_wp)  # Add heat pump load to total load calculation
+    Note:
+        Use '/v1/prediction/list?key=load_mean' instead.
+    """
+    settings = SettingsEOS(
+        load_provider="LoadAkkudoktor",
+        loadakkudoktor_year_energy=year_energy,
+    )
+    config_eos.merge_settings(settings=settings)
+    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
 
-    return gesamtlast.calculate_total_load()
+    # Create load forecast
+    prediction_eos.update_data(force_update=True)
+
+    prediction_list = prediction_eos.key_to_array(
+        key="load_mean",
+        start_datetime=prediction_eos.start_datetime,
+        end_datetime=prediction_eos.end_datetime,
+    ).tolist()
+    return prediction_list
 
 
 class ForecastResponse(PydanticBaseModel):
@@ -231,7 +441,7 @@ def fastapi_optimize(
     ] = None,
 ) -> OptimizeResponse:
     if start_hour is None:
-        start_hour = DateTime.now().hour
+        start_hour = to_datetime().hour
 
     # TODO: Remove when config and prediction update is done by EMS.
     config_eos.update()
@@ -311,16 +521,6 @@ async def proxy(request: Request, path: str) -> Union[Response | RedirectRespons
     else:
         # Redirect the root URL to the site map
         return RedirectResponse(url="/docs")
-
-
-def start_fasthtml_server() -> subprocess.Popen:
-    """Start the fasthtml server as a subprocess."""
-    server_process = subprocess.Popen(
-        [sys.executable, str(server_dir.joinpath("fasthtml_server.py"))],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return server_process
 
 
 def start_fastapi_server() -> None:

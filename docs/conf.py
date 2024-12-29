@@ -23,7 +23,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx_rtd_theme",
-    "sphinxcontrib.openapi",
+    # "sphinxcontrib.openapi", buggy
     "myst_parser",
 ]
 
@@ -118,7 +118,7 @@ autodoc_default_options = {
 autosummary_generate = True
 
 # -- Options for openapi -----------------------------------------------------
-openapi_default_renderer = "httpdomain:old"
+# openapi_default_renderer = "httpdomain:old" buggy
 
 # -- Options for napoleon -------------------------------------------------
 napoleon_google_docstring = True
