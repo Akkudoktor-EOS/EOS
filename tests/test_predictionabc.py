@@ -406,7 +406,7 @@ class TestPredictionContainer:
         del container_with_providers["prediction_value"]
         series = container_with_providers["prediction_value"]
         assert series.name == "prediction_value"
-        assert series.tolist() == [None, None, None]
+        assert series.tolist() == []
 
     def test_delitem_non_existing_key(self, container_with_providers):
         with pytest.raises(KeyError, match="Key 'non_existent_key' not found"):

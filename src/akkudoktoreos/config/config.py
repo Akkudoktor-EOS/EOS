@@ -12,7 +12,7 @@ Key features:
 import os
 import shutil
 from pathlib import Path
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar, List, Optional
 
 import platformdirs
 from pydantic import Field, ValidationError, computed_field
@@ -21,6 +21,7 @@ from pydantic import Field, ValidationError, computed_field
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.devices.devices import DevicesCommonSettings
+from akkudoktoreos.measurement.measurement import MeasurementCommonSettings
 from akkudoktoreos.optimization.optimization import OptimizationCommonSettings
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImportCommonSettings
@@ -80,6 +81,7 @@ class ConfigCommonSettings(SettingsBaseModel):
 class SettingsEOS(
     ConfigCommonSettings,
     DevicesCommonSettings,
+    MeasurementCommonSettings,
     OptimizationCommonSettings,
     PredictionCommonSettings,
     ElecPriceCommonSettings,
@@ -169,6 +171,16 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         """Compute the default config file path."""
         return Path(__file__).parent.parent.joinpath("data/default.config.json")
 
+    # Computed fields
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def config_keys(self) -> List[str]:
+        """Returns the keys of all fields in the configuration."""
+        key_list = []
+        key_list.extend(list(self.model_fields.keys()))
+        key_list.extend(list(self.__pydantic_decorators__.computed_fields.keys()))
+        return key_list
+
     def __init__(self) -> None:
         """Initializes the singleton ConfigEOS instance.
 
@@ -228,9 +240,9 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
     def merge_settings_from_dict(self, data: dict) -> None:
         """Merges the provided dictionary data into the current instance.
 
-        Creates a new settings instance with all optional fields reset to None,
-        then applies the dictionary data through validation, and finally merges
-        the validated settings into the current instance.
+        Creates a new settings instance, then applies the dictionary data through validation,
+        and finally merges the validated settings into the current instance. None values
+        are not merged.
 
         Args:
             data (dict): Dictionary containing field values to merge into the
@@ -245,7 +257,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
             >>> config.merge_settings_from_dict(new_data)
         """
         # Create new settings instance with reset optional fields and merged data
-        settings = SettingsEOS.from_dict_with_reset(data)
+        settings = SettingsEOS.from_dict(data)
         self.merge_settings(settings)
 
     def reset_settings(self) -> None:
@@ -377,7 +389,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         """
         if not self.config_file_path:
             raise ValueError("Configuration file path unknown.")
-        with self.config_file_path.open("r", encoding=self.ENCODING) as f_out:
+        with self.config_file_path.open("w", encoding=self.ENCODING) as f_out:
             try:
                 json_str = super().to_json()
                 # Write to file

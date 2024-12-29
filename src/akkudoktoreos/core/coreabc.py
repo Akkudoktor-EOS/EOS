@@ -21,6 +21,7 @@ from akkudoktoreos.utils.logutil import get_logger
 logger = get_logger(__name__)
 
 config_eos: Any = None
+measurement_eos: Any = None
 prediction_eos: Any = None
 devices_eos: Any = None
 ems_eos: Any = None
@@ -50,7 +51,7 @@ class ConfigMixin:
 
     @property
     def config(self) -> Any:
-        """Convenience method/ attribute to retrieve the EOS onfiguration data.
+        """Convenience method/ attribute to retrieve the EOS configuration data.
 
         Returns:
             ConfigEOS: The configuration.
@@ -63,6 +64,46 @@ class ConfigMixin:
             config_eos = get_config()
 
         return config_eos
+
+
+class MeasurementMixin:
+    """Mixin class for managing EOS measurement data.
+
+    This class serves as a foundational component for EOS-related classes requiring access
+    to global measurement data. It provides a `measurement` property that dynamically retrieves
+    the measurement instance, ensuring up-to-date access to measurement results.
+
+    Usage:
+        Subclass this base class to gain access to the `measurement` attribute, which retrieves the
+        global measurement instance lazily to avoid import-time circular dependencies.
+
+    Attributes:
+        measurement (Measurement): Property to access the global EOS measurement data.
+
+    Example:
+        ```python
+        class MyOptimizationClass(MeasurementMixin):
+            def analyze_mymeasurement(self):
+                measurement_data = self.measurement.mymeasurement
+                # Perform analysis
+        ```
+    """
+
+    @property
+    def measurement(self) -> Any:
+        """Convenience method/ attribute to retrieve the EOS measurement data.
+
+        Returns:
+            Measurement: The measurement.
+        """
+        # avoid circular dependency at import time
+        global measurement_eos
+        if measurement_eos is None:
+            from akkudoktoreos.measurement.measurement import get_measurement
+
+            measurement_eos = get_measurement()
+
+        return measurement_eos
 
 
 class PredictionMixin:

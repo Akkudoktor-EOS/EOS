@@ -6,18 +6,20 @@ import pytest
 
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.measurement.measurement import MeasurementDataRecord, get_measurement
 from akkudoktoreos.prediction.loadakkudoktor import (
     LoadAkkudoktor,
     LoadAkkudoktorCommonSettings,
 )
+from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
 config_eos = get_config()
 ems_eos = get_ems()
 
 
 @pytest.fixture
-def load_provider(monkeypatch):
-    """Fixture to create a LoadAkkudoktor instance."""
+def load_provider():
+    """Fixture to initialise the LoadAkkudoktor instance."""
     settings = {
         "load_provider": "LoadAkkudoktor",
         "load_name": "Akkudoktor Profile",
@@ -25,6 +27,30 @@ def load_provider(monkeypatch):
     }
     config_eos.merge_settings_from_dict(settings)
     return LoadAkkudoktor()
+
+
+@pytest.fixture
+def measurement_eos():
+    """Fixture to initialise the Measurement instance."""
+    measurement = get_measurement()
+    load0_mr = 500
+    load1_mr = 500
+    dt = to_datetime("2024-01-01T00:00:00")
+    interval = to_duration("1 hour")
+    for i in range(25):
+        measurement.records.append(
+            MeasurementDataRecord(
+                date_time=dt,
+                measurement_load0_mr=load0_mr,
+                measurement_load1_mr=load1_mr,
+            )
+        )
+        dt += interval
+        load0_mr += 50
+        load1_mr += 50
+    assert compare_datetimes(measurement.min_datetime, to_datetime("2024-01-01T00:00:00")).equal
+    assert compare_datetimes(measurement.max_datetime, to_datetime("2024-01-02T00:00:00")).equal
+    return measurement
 
 
 @pytest.fixture
@@ -97,3 +123,90 @@ def test_update_data(mock_load_data, load_provider):
 
     # Validate that update_value is called
     assert len(load_provider) > 0
+
+
+def test_calculate_adjustment(load_provider, measurement_eos):
+    """Test `_calculate_adjustment` for various scenarios."""
+    data_year_energy = np.random.rand(365, 2, 24)
+
+    # Call the method and validate results
+    weekday_adjust, weekend_adjust = load_provider._calculate_adjustment(data_year_energy)
+    assert weekday_adjust.shape == (24,)
+    assert weekend_adjust.shape == (24,)
+
+    data_year_energy = np.zeros((365, 2, 24))
+    weekday_adjust, weekend_adjust = load_provider._calculate_adjustment(data_year_energy)
+
+    assert weekday_adjust.shape == (24,)
+    expected = np.array(
+        [
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+            100.0,
+        ]
+    )
+    np.testing.assert_array_equal(weekday_adjust, expected)
+
+    assert weekend_adjust.shape == (24,)
+    expected = np.array(
+        [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        ]
+    )
+    np.testing.assert_array_equal(weekend_adjust, expected)
+
+
+def test_load_provider_adjustments_with_mock_data(load_provider):
+    """Test full integration of adjustments with mock data."""
+    with patch(
+        "akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktor._calculate_adjustment"
+    ) as mock_adjust:
+        mock_adjust.return_value = (np.zeros(24), np.zeros(24))
+
+        # Test execution
+        load_provider._update_data()
+        assert mock_adjust.called

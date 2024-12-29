@@ -19,7 +19,7 @@ Example usage:
     >>> to_duration("2 days 5 hours")
 
     # Timezone detection
-    >>> to_timezone(location={40.7128, -74.0060})
+    >>> to_timezone(location=(40.7128, -74.0060))
 """
 
 import re
@@ -27,7 +27,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, List, Literal, Optional, Tuple, Union, overload
 
 import pendulum
-from pendulum import DateTime
+from pendulum import Date, DateTime, Duration
 from pendulum.tz.timezone import Timezone
 from timezonefinder import TimezoneFinder
 
@@ -71,6 +71,7 @@ def to_datetime(
         date_input (Optional[Any]): The date input to convert. Supported types include:
             - `str`: A date string in various formats (e.g., "2024-10-13", "13 Oct 2024").
             - `pendulum.DateTime`: A Pendulum DateTime object.
+            - `pendulum.Date`: A Pendulum Date object, which will be converted to a datetime at the start or end of the day.
             - `datetime.datetime`: A standard Python datetime object.
             - `datetime.date`: A date object, which will be converted to a datetime at the start or end of the day.
             - `int` or `float`: A Unix timestamp, interpreted as seconds since the epoch (UTC).
@@ -123,6 +124,14 @@ def to_datetime(
 
     if isinstance(date_input, DateTime):
         dt = date_input
+    elif isinstance(date_input, Date):
+        dt = pendulum.datetime(
+            year=date_input.year, month=date_input.month, day=date_input.day, tz=in_timezone
+        )
+        if to_maxtime:
+            dt = dt.end_of("day")
+        else:
+            dt = dt.start_of("day")
     elif isinstance(date_input, str):
         # Convert to timezone aware datetime
         dt = None
@@ -162,13 +171,21 @@ def to_datetime(
                 logger.debug(f"Date string {date_input} does not match any Pendulum formats: {e}")
                 dt = None
         if dt is None:
+            # Some special values
+            if date_input.lower() == "infinity":
+                # Subtract one year from max as max datetime will create an overflow error in certain context.
+                dt = DateTime.max.subtract(years=1)
+        if dt is None:
+            try:
+                timestamp = float(date_input)
+                dt = pendulum.from_timestamp(timestamp, tz="UTC")
+            except (ValueError, TypeError) as e:
+                logger.debug(f"Date string {date_input} does not match timestamp format: {e}")
+                dt = None
+        if dt is None:
             raise ValueError(f"Date string {date_input} does not match any known formats.")
     elif date_input is None:
-        dt = (
-            pendulum.today(tz=in_timezone).end_of("day")
-            if to_maxtime
-            else pendulum.today(tz=in_timezone).start_of("day")
-        )
+        dt = pendulum.now(tz=in_timezone)
     elif isinstance(date_input, datetime):
         dt = pendulum.instance(date_input)
     elif isinstance(date_input, date):
@@ -206,19 +223,19 @@ def to_datetime(
 
 
 def to_duration(
-    input_value: Union[timedelta, str, int, float, Tuple[int, int, int, int], List[int]],
-) -> timedelta:
-    """Converts various input types into a timedelta object using pendulum.
+    input_value: Union[Duration, timedelta, str, int, float, Tuple[int, int, int, int], List[int]],
+) -> Duration:
+    """Converts various input types into a Duration object using pendulum.
 
     Args:
-        input_value (Union[timedelta, str, int, float, tuple, list]): Input to be converted
+        input_value (Union[Duration, timedelta, str, int, float, tuple, list]): Input to be converted
             into a timedelta:
             - str: A duration string like "2 days", "5 hours", "30 minutes", or a combination.
             - int/float: Number representing seconds.
             - tuple/list: A tuple or list in the format (days, hours, minutes, seconds).
 
     Returns:
-        timedelta: A timedelta object corresponding to the input value.
+        duration: A Duration object corresponding to the input value.
 
     Raises:
         ValueError: If the input format is not supported.
@@ -233,18 +250,21 @@ def to_duration(
         >>> to_duration((1, 2, 30, 15))
         timedelta(days=1, seconds=90315)
     """
-    if isinstance(input_value, timedelta):
+    if isinstance(input_value, Duration):
         return input_value
+
+    if isinstance(input_value, timedelta):
+        return pendulum.duration(seconds=input_value.total_seconds())
 
     if isinstance(input_value, (int, float)):
         # Handle integers or floats as seconds
-        return timedelta(seconds=input_value)
+        return pendulum.duration(seconds=input_value)
 
     elif isinstance(input_value, (tuple, list)):
         # Handle tuple or list: (days, hours, minutes, seconds)
         if len(input_value) == 4:
             days, hours, minutes, seconds = input_value
-            return timedelta(days=days, hours=hours, minutes=minutes, seconds=seconds)
+            return pendulum.duration(days=days, hours=hours, minutes=minutes, seconds=seconds)
         else:
             error_msg = f"Expected a tuple or list of length 4, got {len(input_value)}"
             logger.error(error_msg)
@@ -340,7 +360,7 @@ def to_timezone(
         >>> to_timezone(utc_offset=5.5, as_string=True)
         'UTC+05:30'
 
-        >>> to_timezone(location={40.7128, -74.0060})
+        >>> to_timezone(location=(40.7128, -74.0060))
         <Timezone [America/New_York]>
 
         >>> to_timezone()
