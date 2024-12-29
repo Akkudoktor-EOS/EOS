@@ -10,7 +10,6 @@ from scipy.interpolate import RegularGridInterpolator
 class SelfConsumptionPropabilityInterpolator:
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
-        # self.interpolator = None
         # Load the RegularGridInterpolator
         with open(self.filepath, "rb") as file:
             self.interpolator: RegularGridInterpolator = pickle.load(file)
