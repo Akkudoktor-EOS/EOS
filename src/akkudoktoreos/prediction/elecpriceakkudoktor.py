@@ -204,22 +204,24 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         elecprice_cache_file.seek(0)
         self.elecprice_8days = np.load(elecprice_cache_file)
 
+        # Get elecprice_charges
+        charges = self.config.elecprice_charges if self.config.elecprice_charges else 0.0
+
         for i in range(values_len):
             original_datetime = akkudoktor_data.values[i].start
             dt = to_datetime(original_datetime, in_timezone=self.config.timezone)
             akkudoktor_value = akkudoktor_data.values[i]
+            price = akkudoktor_value.marketpriceEurocentPerKWh / 100 + charges
 
             if compare_datetimes(dt, self.start_datetime).lt:
                 # forecast data is too old
-                self.elecprice_8days[dt.hour, dt.day_of_week] = (
-                    akkudoktor_value.marketpriceEurocentPerKWh
-                )
+                self.elecprice_8days[dt.hour, dt.day_of_week] = price
                 continue
-            self.elecprice_8days[dt.hour, 7] = akkudoktor_value.marketpriceEurocentPerKWh
+            self.elecprice_8days[dt.hour, 7] = price
 
             record = ElecPriceDataRecord(
                 date_time=dt,
-                elecprice_marketprice=akkudoktor_value.marketpriceEurocentPerKWh,
+                elecprice_marketprice=price,
             )
             self.append(record)
 
