@@ -427,9 +427,9 @@ def prepare_visualize(
     report.generate_pdf()
 
 
-if __name__ == "__main__":
-    # Example usage
-    report = VisualizationReport("example_report.pdf")
+def generate_example_report(filename: str = "example_report.pdf") -> None:
+    """Generate example visualization report."""
+    report = VisualizationReport(filename)
     x_hours = 0  # Define x-axis start values (e.g., hours)
 
     # Group 1: Adding charts to be displayed on the same page
@@ -502,3 +502,7 @@ if __name__ == "__main__":
 
     # Generate the PDF report
     report.generate_pdf()
+
+
+if __name__ == "__main__":
+    generate_example_report()

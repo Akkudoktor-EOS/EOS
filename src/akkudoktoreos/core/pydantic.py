@@ -1,68 +1,43 @@
 """Module for managing and serializing Pydantic-based models with custom support.
 
-This module introduces the `PydanticBaseModel` class, which extends Pydantic’s `BaseModel` to facilitate
-custom serialization and deserialization for `pendulum.DateTime` objects. The main features include
-automatic handling of `pendulum.DateTime` fields, custom serialization to ISO 8601 format, and utility
-methods for converting model instances to and from dictionary and JSON formats.
+This module provides classes that extend Pydantic’s functionality to include robust handling
+of `pendulum.DateTime` fields, offering seamless serialization and deserialization into ISO 8601 format.
+These enhancements facilitate the use of Pydantic models in applications requiring timezone-aware
+datetime fields and consistent data serialization.
 
-Key Classes:
-    - PendulumDateTime: A custom type adapter that provides serialization and deserialization
-        functionality for `pendulum.DateTime` objects, converting them to ISO 8601 strings and back.
-    - PydanticBaseModel: A base model class for handling prediction records or configuration data
-        with automatic Pendulum DateTime handling and additional methods for JSON and dictionary
-        conversion.
-
-Classes:
-    PendulumDateTime(TypeAdapter[pendulum.DateTime]): Type adapter for `pendulum.DateTime` fields
-        with ISO 8601 serialization. Includes:
-        - serialize: Converts `pendulum.DateTime` instances to ISO 8601 string.
-        - deserialize: Converts ISO 8601 strings to `pendulum.DateTime` instances.
-        - is_iso8601: Validates if a string matches the ISO 8601 date format.
-
-    PydanticBaseModel(BaseModel): Extends `pydantic.BaseModel` to handle `pendulum.DateTime` fields
-        and adds convenience methods for dictionary and JSON serialization. Key methods:
-        - model_dump: Dumps the model, converting `pendulum.DateTime` fields to ISO 8601.
-        - model_construct: Constructs a model instance with automatic deserialization of
-            `pendulum.DateTime` fields from ISO 8601.
-        - to_dict: Serializes the model instance to a dictionary.
-        - from_dict: Constructs a model instance from a dictionary.
-        - to_json: Converts the model instance to a JSON string.
-        - from_json: Creates a model instance from a JSON string.
-
-Usage Example:
-    # Define custom settings in a model using PydanticBaseModel
-    class PredictionCommonSettings(PydanticBaseModel):
-        prediction_start: pendulum.DateTime = Field(...)
-
-    # Serialize a model instance to a dictionary or JSON
-    config = PredictionCommonSettings(prediction_start=pendulum.now())
-    config_dict = config.to_dict()
-    config_json = config.to_json()
-
-    # Deserialize from dictionary or JSON
-    new_config = PredictionCommonSettings.from_dict(config_dict)
-    restored_config = PredictionCommonSettings.from_json(config_json)
-
-Dependencies:
-    - `pendulum`: Required for handling timezone-aware datetime fields.
-    - `pydantic`: Required for model and validation functionality.
-
-Notes:
-    - This module enables custom handling of Pendulum DateTime fields within Pydantic models,
-      which is particularly useful for applications requiring consistent ISO 8601 datetime formatting
-      and robust timezone-aware datetime support.
+Key Features:
+- Custom type adapter for `pendulum.DateTime` fields with automatic serialization to ISO 8601 strings.
+- Utility methods for converting models to and from dictionaries and JSON strings.
+- Validation tools for maintaining data consistency, including specialized support for
+  pandas DataFrames and Series with datetime indexes.
 """
 
 import json
 import re
-from typing import Any, Type
+from typing import Any, Dict, List, Optional, Type, Union
+from zoneinfo import ZoneInfo
 
+import pandas as pd
 import pendulum
-from pydantic import BaseModel, ConfigDict, TypeAdapter
+from pandas.api.types import is_datetime64_any_dtype
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    TypeAdapter,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+)
+
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 
-# Custom type adapter for Pendulum DateTime fields
-class PendulumDateTime(TypeAdapter[pendulum.DateTime]):
+class PydanticTypeAdapterDateTime(TypeAdapter[pendulum.DateTime]):
+    """Custom type adapter for Pendulum DateTime fields."""
+
     @classmethod
     def serialize(cls, value: Any) -> str:
         """Convert pendulum.DateTime to ISO 8601 string."""
@@ -105,41 +80,69 @@ class PydanticBaseModel(BaseModel):
         validate_assignment=True,
     )
 
+    @field_validator("*", mode="before")
+    def validate_and_convert_pendulum(cls, value: Any, info: ValidationInfo) -> Any:
+        """Validator to convert fields of type `pendulum.DateTime`.
+
+        Converts fields to proper `pendulum.DateTime` objects, ensuring correct input types.
+
+        This method is invoked for every field before the field value is set. If the field's type
+        is `pendulum.DateTime`, it tries to convert string or timestamp values to `pendulum.DateTime`
+        objects. If the value cannot be converted, a validation error is raised.
+
+        Args:
+            value: The value to be assigned to the field.
+            info: Validation information for the field.
+
+        Returns:
+            The converted value, if successful.
+
+        Raises:
+            ValidationError: If the value cannot be converted to `pendulum.DateTime`.
+        """
+        # Get the field name and expected type
+        field_name = info.field_name
+        expected_type = cls.model_fields[field_name].annotation
+
+        # Convert
+        if expected_type is pendulum.DateTime or expected_type is AwareDatetime:
+            try:
+                value = to_datetime(value)
+            except:
+                pass
+        return value
+
     # Override Pydantic’s serialization for all DateTime fields
     def model_dump(self, *args: Any, **kwargs: Any) -> dict:
         """Custom dump method to handle serialization for DateTime fields."""
         result = super().model_dump(*args, **kwargs)
         for key, value in result.items():
             if isinstance(value, pendulum.DateTime):
-                result[key] = PendulumDateTime.serialize(value)
+                result[key] = PydanticTypeAdapterDateTime.serialize(value)
         return result
 
     @classmethod
-    def model_construct(cls, data: dict) -> "PydanticBaseModel":
+    def model_construct(
+        cls, _fields_set: set[str] | None = None, **values: Any
+    ) -> "PydanticBaseModel":
         """Custom constructor to handle deserialization for DateTime fields."""
-        for key, value in data.items():
-            if isinstance(value, str) and PendulumDateTime.is_iso8601(value):
-                data[key] = PendulumDateTime.deserialize(value)
-        return super().model_construct(data)
+        for key, value in values.items():
+            if isinstance(value, str) and PydanticTypeAdapterDateTime.is_iso8601(value):
+                values[key] = PydanticTypeAdapterDateTime.deserialize(value)
+        return super().model_construct(_fields_set, **values)
 
-    def reset_optional(self) -> "PydanticBaseModel":
-        """Resets all optional fields in the model to None.
-
-        Iterates through all model fields and sets any optional (non-required)
-        fields to None. The modification is done in-place on the current instance.
-
-        Returns:
-            PydanticBaseModel: The current instance with all optional fields
-                reset to None.
-
-        Example:
-            >>> settings = PydanticBaseModel(name="test", optional_field="value")
-            >>> settings.reset_optional()
-            >>> assert settings.optional_field is None
-        """
-        for field_name, field in self.model_fields.items():
-            if field.is_required is False:  # Check if field is optional
-                setattr(self, field_name, None)
+    def reset_to_defaults(self) -> "PydanticBaseModel":
+        """Resets the fields to their default values."""
+        for field_name, field_info in self.model_fields.items():
+            if field_info.default_factory is not None:  # Handle fields with default_factory
+                default_value = field_info.default_factory()
+            else:
+                default_value = field_info.default
+            try:
+                setattr(self, field_name, default_value)
+            except (AttributeError, TypeError, ValidationError):
+                # Skip fields that are read-only or dynamically computed or can not be set to default
+                pass
         return self
 
     def to_dict(self) -> dict:
@@ -167,40 +170,6 @@ class PydanticBaseModel(BaseModel):
         """
         return cls.model_validate(data)
 
-    @classmethod
-    def from_dict_with_reset(cls, data: dict | None = None) -> "PydanticBaseModel":
-        """Creates a new instance with reset optional fields, then updates from dict.
-
-        First creates an instance with default values, resets all optional fields
-        to None, then updates the instance with the provided dictionary data if any.
-
-        Args:
-            data (dict | None): Dictionary containing field values to initialize
-                the instance with. Defaults to None.
-
-        Returns:
-            PydanticBaseModel: A new instance with all optional fields initially
-                reset to None and then updated with provided data.
-
-        Example:
-            >>> data = {"name": "test", "optional_field": "value"}
-            >>> settings = PydanticBaseModel.from_dict_with_reset(data)
-            >>> # All non-specified optional fields will be None
-        """
-        # Create instance with model defaults
-        instance = cls()
-
-        # Reset all optional fields to None
-        instance.reset_optional()
-
-        # Update with provided data if any
-        if data:
-            # Use model_validate to ensure proper type conversion and validation
-            updated_instance = instance.model_validate({**instance.model_dump(), **data})
-            return updated_instance
-
-        return instance
-
     def to_json(self) -> str:
         """Convert the PydanticBaseModel instance to a JSON string.
 
@@ -224,3 +193,287 @@ class PydanticBaseModel(BaseModel):
         """
         data = json.loads(json_str)
         return cls.model_validate(data)
+
+
+class PydanticDateTimeData(RootModel):
+    """Pydantic model for time series data with consistent value lengths.
+
+    This model validates a dictionary where:
+    - Keys are strings representing data series names
+    - Values are lists of numeric or string values
+    - Special keys 'start_datetime' and 'interval' can contain string values
+    for time series indexing
+    - All value lists must have the same length
+
+    Example:
+        {
+            "start_datetime": "2024-01-01 00:00:00",  # optional
+            "interval": "1 Hour",                     # optional
+            "load_mean": [20.5, 21.0, 22.1],
+            "load_min": [18.5, 19.0, 20.1]
+        }
+    """
+
+    root: Dict[str, Union[str, List[Union[float, int, str, None]]]]
+
+    @field_validator("root", mode="after")
+    @classmethod
+    def validate_root(
+        cls, value: Dict[str, Union[str, List[Union[float, int, str, None]]]]
+    ) -> Dict[str, Union[str, List[Union[float, int, str, None]]]]:
+        # Validate that all keys are strings
+        if not all(isinstance(k, str) for k in value.keys()):
+            raise ValueError("All keys in the dictionary must be strings.")
+
+        # Validate that no lists contain only None values
+        for v in value.values():
+            if isinstance(v, list) and all(item is None for item in v):
+                raise ValueError("Lists cannot contain only None values.")
+
+        # Validate that all lists have consistent lengths (if they are lists)
+        list_lengths = [len(v) for v in value.values() if isinstance(v, list)]
+        if len(set(list_lengths)) > 1:
+            raise ValueError("All lists in the dictionary must have the same length.")
+
+        # Validate special keys
+        if "start_datetime" in value.keys():
+            value["start_datetime"] = to_datetime(value["start_datetime"])
+        if "interval" in value.keys():
+            value["interval"] = to_duration(value["interval"])
+
+        return value
+
+    def to_dict(self) -> Dict[str, Union[str, List[Union[float, int, str, None]]]]:
+        """Convert the model to a plain dictionary.
+
+        Returns:
+            Dict containing the validated data.
+        """
+        return self.root
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "PydanticDateTimeData":
+        """Create a PydanticDateTimeData instance from a dictionary.
+
+        Args:
+            data: Input dictionary
+
+        Returns:
+            PydanticDateTimeData instance
+        """
+        return cls(root=data)
+
+
+class PydanticDateTimeDataFrame(PydanticBaseModel):
+    """Pydantic model for validating pandas DataFrame data with datetime index."""
+
+    data: Dict[str, Dict[str, Any]]
+    dtypes: Dict[str, str] = Field(default_factory=dict)
+    tz: Optional[str] = Field(default=None, description="Timezone for datetime values")
+    datetime_columns: list[str] = Field(
+        default_factory=lambda: ["date_time"], description="Columns to be treated as datetime"
+    )
+
+    @field_validator("tz")
+    def validate_timezone(cls, v: Optional[str]) -> Optional[str]:
+        """Validate that the timezone is valid."""
+        if v is not None:
+            try:
+                ZoneInfo(v)
+            except KeyError:
+                raise ValueError(f"Invalid timezone: {v}")
+        return v
+
+    @field_validator("data", mode="before")
+    @classmethod
+    def validate_data(cls, v: Dict[str, Any], info: ValidationInfo) -> Dict[str, Any]:
+        if not v:
+            return v
+
+        # Validate consistent columns
+        columns = set(next(iter(v.values())).keys())
+        if not all(set(row.keys()) == columns for row in v.values()):
+            raise ValueError("All rows must have the same columns")
+
+        # Convert index datetime strings
+        try:
+            d = {
+                to_datetime(dt, as_string=True, in_timezone=info.data.get("tz")): value
+                for dt, value in v.items()
+            }
+            v = d
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid datetime string in index: {e}")
+
+        # Convert datetime columns
+        datetime_cols = info.data.get("datetime_columns", [])
+        try:
+            for dt_str, value in v.items():
+                for column_name, column_value in value.items():
+                    if column_name in datetime_cols and column_value is not None:
+                        v[dt_str][column_name] = to_datetime(
+                            column_value, in_timezone=info.data.get("tz")
+                        )
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid datetime value in column: {e}")
+
+        return v
+
+    @field_validator("dtypes")
+    @classmethod
+    def validate_dtypes(cls, v: Dict[str, str], info: ValidationInfo) -> Dict[str, str]:
+        if not v:
+            return v
+
+        valid_dtypes = {"int64", "float64", "bool", "datetime64[ns]", "object", "string"}
+        invalid_dtypes = set(v.values()) - valid_dtypes
+        if invalid_dtypes:
+            raise ValueError(f"Unsupported dtypes: {invalid_dtypes}")
+
+        data = info.data.get("data", {})
+        if data:
+            columns = set(next(iter(data.values())).keys())
+            if not all(col in columns for col in v.keys()):
+                raise ValueError("dtype columns must exist in data columns")
+        return v
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """Convert the validated model data to a pandas DataFrame."""
+        df = pd.DataFrame.from_dict(self.data, orient="index")
+
+        # Convert index to datetime
+        index = pd.Index([to_datetime(dt, in_timezone=self.tz) for dt in df.index])
+        df.index = index
+
+        dtype_mapping = {
+            "int": int,
+            "float": float,
+            "str": str,
+            "bool": bool,
+        }
+
+        # Apply dtypes
+        for col, dtype in self.dtypes.items():
+            if dtype == "datetime64[ns]":
+                df[col] = pd.to_datetime(to_datetime(df[col], in_timezone=self.tz))
+            elif dtype in dtype_mapping.keys():
+                df[col] = df[col].astype(dtype_mapping[dtype])
+            else:
+                pass
+
+        return df
+
+    @classmethod
+    def from_dataframe(
+        cls, df: pd.DataFrame, tz: Optional[str] = None
+    ) -> "PydanticDateTimeDataFrame":
+        """Create a PydanticDateTimeDataFrame instance from a pandas DataFrame."""
+        index = pd.Index([to_datetime(dt, as_string=True, in_timezone=tz) for dt in df.index])
+        df.index = index
+
+        datetime_columns = [col for col in df.columns if is_datetime64_any_dtype(df[col])]
+
+        return cls(
+            data=df.to_dict(orient="index"),
+            dtypes={col: str(dtype) for col, dtype in df.dtypes.items()},
+            tz=tz,
+            datetime_columns=datetime_columns,
+        )
+
+
+class PydanticDateTimeSeries(PydanticBaseModel):
+    """Pydantic model for validating pandas Series with datetime index in JSON format.
+
+    This model handles Series data serialized with orient='index', where the keys are
+    datetime strings and values are the series values. Provides validation and
+    conversion between JSON and pandas Series with datetime index.
+
+    Attributes:
+        data (Dict[str, Any]): Dictionary mapping datetime strings to values.
+        dtype (str): The data type of the series values.
+        tz (str | None): Timezone name if the datetime index is timezone-aware.
+    """
+
+    data: Dict[str, Any]
+    dtype: str = Field(default="float64")
+    tz: Optional[str] = Field(default=None)
+
+    @field_validator("data", mode="after")
+    @classmethod
+    def validate_datetime_index(cls, v: Dict[str, Any], info: ValidationInfo) -> Dict[str, Any]:
+        """Validate that all keys can be parsed as datetime strings.
+
+        Args:
+            v: Dictionary with datetime string keys and series values.
+
+        Returns:
+            The validated data dictionary.
+
+        Raises:
+            ValueError: If any key cannot be parsed as a datetime.
+        """
+        tz = info.data.get("tz")
+        if tz is not None:
+            try:
+                ZoneInfo(tz)
+            except KeyError:
+                tz = None
+        try:
+            # Attempt to parse each key as datetime
+            d = dict()
+            for dt_str, value in v.items():
+                d[to_datetime(dt_str, as_string=True, in_timezone=tz)] = value
+            return d
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid datetime string in index: {e}")
+
+    @field_validator("tz")
+    def validate_timezone(cls, v: Optional[str]) -> Optional[str]:
+        """Validate that the timezone is valid."""
+        if v is not None:
+            try:
+                ZoneInfo(v)
+            except KeyError:
+                raise ValueError(f"Invalid timezone: {v}")
+        return v
+
+    def to_series(self) -> pd.Series:
+        """Convert the validated model data to a pandas Series.
+
+        Returns:
+            A pandas Series with datetime index constructed from the model data.
+        """
+        index = [to_datetime(dt, in_timezone=self.tz) for dt in list(self.data.keys())]
+
+        series = pd.Series(data=list(self.data.values()), index=index, dtype=self.dtype)
+        return series
+
+    @classmethod
+    def from_series(cls, series: pd.Series, tz: Optional[str] = None) -> "PydanticDateTimeSeries":
+        """Create a PydanticDateTimeSeries instance from a pandas Series.
+
+        Args:
+            series: The pandas Series with datetime index to convert.
+
+        Returns:
+            A new instance containing the Series data.
+
+        Raises:
+            ValueError: If series index is not datetime type.
+
+        Example:
+            >>> dates = pd.date_range('2024-01-01', periods=3)
+            >>> s = pd.Series([1.1, 2.2, 3.3], index=dates)
+            >>> model = PydanticDateTimeSeries.from_series(s)
+        """
+        index = pd.Index([to_datetime(dt, as_string=True, in_timezone=tz) for dt in series.index])
+        series.index = index
+
+        if len(index) > 0:
+            tz = to_datetime(series.index[0]).timezone.name
+
+        return cls(
+            data=series.to_dict(),
+            dtype=str(series.dtype),
+            tz=tz,
+        )

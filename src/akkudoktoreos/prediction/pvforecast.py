@@ -70,7 +70,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast0_inverter_paco: Optional[int] = Field(
         default=None, description="AC power rating of the inverter. [W]"
     )
-    pvforecast0_modules_per_string: Optional[str] = Field(
+    pvforecast0_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
     pvforecast0_strings_per_inverter: Optional[str] = Field(
@@ -124,7 +124,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast1_inverter_paco: Optional[int] = Field(
         default=None, description="AC power rating of the inverter. [W]"
     )
-    pvforecast1_modules_per_string: Optional[str] = Field(
+    pvforecast1_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
     pvforecast1_strings_per_inverter: Optional[str] = Field(
@@ -178,7 +178,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast2_inverter_paco: Optional[int] = Field(
         default=None, description="AC power rating of the inverter. [W]"
     )
-    pvforecast2_modules_per_string: Optional[str] = Field(
+    pvforecast2_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
     pvforecast2_strings_per_inverter: Optional[str] = Field(
@@ -232,7 +232,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast3_inverter_paco: Optional[int] = Field(
         default=None, description="AC power rating of the inverter. [W]"
     )
-    pvforecast3_modules_per_string: Optional[str] = Field(
+    pvforecast3_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
     pvforecast3_strings_per_inverter: Optional[str] = Field(
@@ -286,7 +286,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast4_inverter_paco: Optional[int] = Field(
         default=None, description="AC power rating of the inverter. [W]"
     )
-    pvforecast4_modules_per_string: Optional[str] = Field(
+    pvforecast4_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
     pvforecast4_strings_per_inverter: Optional[str] = Field(
@@ -340,7 +340,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast5_inverter_paco: Optional[int] = Field(
         default=None, description="AC power rating of the inverter. [W]"
     )
-    pvforecast5_modules_per_string: Optional[str] = Field(
+    pvforecast5_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
     pvforecast5_strings_per_inverter: Optional[str] = Field(

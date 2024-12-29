@@ -13,6 +13,7 @@ from typing import List, Optional
 from pendulum import DateTime
 from pydantic import Field, computed_field
 
+from akkudoktoreos.core.coreabc import MeasurementMixin
 from akkudoktoreos.core.dataabc import (
     DataBase,
     DataContainer,
@@ -27,10 +28,11 @@ from akkudoktoreos.utils.logutil import get_logger
 logger = get_logger(__name__)
 
 
-class PredictionBase(DataBase):
+class PredictionBase(DataBase, MeasurementMixin):
     """Base class for handling prediction data.
 
-    Enables access to EOS configuration data (attribute `config`).
+    Enables access to EOS configuration data (attribute `config`) and EOS measurement data
+    (attribute `measurement`).
     """
 
     pass
