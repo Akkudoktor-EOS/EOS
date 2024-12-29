@@ -407,7 +407,7 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
 
 
 class ForecastResponse(PydanticBaseModel):
-    temperature: list[float]
+    temperature: list[Optional[float]]
     pvpower: list[float]
 
 
