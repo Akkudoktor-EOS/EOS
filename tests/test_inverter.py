@@ -1,10 +1,8 @@
-from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
 
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
-from akkudoktoreos.prediction.interpolator import SelfConsumptionPropabilityInterpolator
 
 
 @pytest.fixture
@@ -17,37 +15,61 @@ def mock_battery():
 
 @pytest.fixture
 def inverter(mock_battery):
-    sc = SelfConsumptionPropabilityInterpolator(
-        Path(__file__).parent.resolve()
-        / ".."
-        / "src"
-        / "akkudoktoreos"
-        / "data"
-        / "regular_grid_interpolator.pkl"
+    mock_self_consumption_predictor = Mock()
+    mock_self_consumption_predictor.calculate_self_consumption.return_value = 1.0
+    return Inverter(
+        mock_self_consumption_predictor,
+        InverterParameters(max_power_wh=500.0),
+        battery=mock_battery,
     )
-    return Inverter(sc, InverterParameters(max_power_wh=500.0), battery=mock_battery)
 
 
 def test_process_energy_excess_generation(inverter, mock_battery):
     # Battery charges 100 Wh with 10 Wh loss
+    mock_battery.charge_energy.return_value = (100.0, 10.0)
     generation = 600.0
     consumption = 200.0
     hour = 12
 
+    grid_export, grid_import, losses, self_consumption = inverter.process_energy(
+        generation, consumption, hour
+    )
+
+    assert grid_export == pytest.approx(290.0, rel=1e-2)  # 290 Wh feed-in after battery charges
+    assert grid_import == 0.0  # No grid draw
+    assert losses == 10.0  # Battery charging losses
+    assert self_consumption == 200.0  # All consumption is met
+    mock_battery.charge_energy.assert_called_once_with(400.0, hour)
+    mock_battery.discharge_energy.assert_not_called()
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
+        consumption, generation
+    )
+
+
+def test_process_energy_excess_generation_interpolator(inverter, mock_battery):
+    # Battery charges 100 Wh with 10 Wh loss
     mock_battery.charge_energy.return_value = (100.0, 10.0)
+    mock_battery.discharge_energy.return_value = (20.0, 2.0)
+    inverter.self_consumption_predictor.calculate_self_consumption.return_value = 0.95
+
+    generation = 600.0
+    consumption = 200.0
+    hour = 12
 
     grid_export, grid_import, losses, self_consumption = inverter.process_energy(
         generation, consumption, hour
     )
 
     assert grid_export == pytest.approx(
-        286.1737223461208, rel=1e-2
-    )  # 290 Wh feed-in after battery charges
-    assert grid_import == pytest.approx(3.826277653879151, rel=1e-2)  # Little grid draw
-    assert losses == 10.0  # Battery charging losses
-    assert self_consumption == 200.0  # All consumption is met
-    mock_battery.charge_energy.assert_called_once_with(
-        pytest.approx(396.1737223461208, rel=1e-2), hour
+        270.0, rel=1e-2
+    )  # 290 Wh feed-in - 5% of generation-consumption self consumption after battery charges
+    assert grid_import == pytest.approx(0.0, rel=1e-2)  # No grid draw
+    assert losses == 12.0  # Battery charging losses
+    assert self_consumption == 220.0  # All consumption is met
+    mock_battery.charge_energy.assert_called_once_with(pytest.approx(380.0, rel=1e-2), hour)
+    mock_battery.discharge_energy.assert_called_once_with(pytest.approx(20.0, rel=1e-2), hour)
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
+        consumption, generation
     )
 
 
@@ -67,6 +89,9 @@ def test_process_energy_generation_equals_consumption(inverter, mock_battery):
 
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_not_called()
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
+        consumption, generation
+    )
 
 
 def test_process_energy_battery_discharges(inverter, mock_battery):
@@ -86,7 +111,9 @@ def test_process_energy_battery_discharges(inverter, mock_battery):
     )  # Grid supplies remaining shortfall after battery discharge
     assert losses == 10.0  # Discharge losses
     assert self_consumption == 200.0  # Generation + battery discharge
+    mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(150.0, hour)
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
 
 
 def test_process_energy_battery_empty(inverter, mock_battery):
@@ -104,7 +131,9 @@ def test_process_energy_battery_empty(inverter, mock_battery):
     assert grid_import == pytest.approx(200.0, rel=1e-2)  # Grid has to cover the full shortfall
     assert losses == 0.0  # No losses as the battery didn't discharge
     assert self_consumption == 100.0  # Only generation is consumed
+    mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(200.0, hour)
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
 
 
 def test_process_energy_battery_full_at_start(inverter, mock_battery):
@@ -119,13 +148,15 @@ def test_process_energy_battery_full_at_start(inverter, mock_battery):
     )
 
     assert grid_export == pytest.approx(
-        296.39026480502736, rel=1e-2
+        300.0, rel=1e-2
     )  # All excess energy should be fed into the grid
-    assert grid_import == pytest.approx(3.609735194972663, rel=1e-2)  # Almost no grid draw
+    assert grid_import == 0.0  # No grid draw
     assert losses == 0.0  # No losses
     assert self_consumption == 200.0  # Only consumption is met
-    mock_battery.charge_energy.assert_called_once_with(
-        pytest.approx(296.39026480502736, rel=1e-2), hour
+    mock_battery.charge_energy.assert_called_once_with(300.0, hour)
+    mock_battery.discharge_energy.assert_not_called()
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
+        consumption, generation
     )
 
 
@@ -144,7 +175,9 @@ def test_process_energy_insufficient_generation_no_battery(inverter, mock_batter
     assert grid_import == pytest.approx(400.0, rel=1e-2)  # Grid supplies the shortfall
     assert losses == 0.0  # No losses
     assert self_consumption == 100.0  # Only generation is consumed
+    mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(400.0, hour)
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
 
 
 def test_process_energy_insufficient_generation_battery_assists(inverter, mock_battery):
@@ -167,7 +200,9 @@ def test_process_energy_insufficient_generation_battery_assists(inverter, mock_b
     )  # Grid supplies the remaining shortfall after battery discharge
     assert losses == 5.0  # Discharge losses
     assert self_consumption == 250.0  # Generation + battery discharge
+    mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(200.0, hour)
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
 
 
 def test_process_energy_zero_generation(inverter, mock_battery):
@@ -188,7 +223,9 @@ def test_process_energy_zero_generation(inverter, mock_battery):
     assert grid_import == pytest.approx(200.0, rel=1e-2)  # Grid supplies the remaining shortfall
     assert losses == 5.0  # Discharge losses
     assert self_consumption == 100.0  # Only battery discharge is consumed
+    mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(300.0, hour)
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
 
 
 def test_process_energy_zero_consumption(inverter, mock_battery):
@@ -203,13 +240,13 @@ def test_process_energy_zero_consumption(inverter, mock_battery):
     )
 
     assert grid_export == pytest.approx(390.0, rel=1e-2)  # Excess energy after battery charges
-    assert grid_import == pytest.approx(
-        0.022862368543430378, rel=1e-2
-    )  # Almost no grid draw as no consumption
+    assert grid_import == 0.0  # No grid draw as no consumption
     assert losses == 10.0  # Charging losses
     assert self_consumption == 0.0  # Zero consumption
-    mock_battery.charge_energy.assert_called_once_with(
-        pytest.approx(499.97713763145657, rel=1e-2), hour
+    mock_battery.charge_energy.assert_called_once_with(500.0, hour)
+    mock_battery.discharge_energy.assert_not_called()
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
+        consumption, generation
     )
 
 
@@ -226,6 +263,11 @@ def test_process_energy_zero_generation_zero_consumption(inverter, mock_battery)
     assert grid_import == 0.0  # No grid draw
     assert losses == 0.0  # No losses
     assert self_consumption == 0.0  # No consumption
+    mock_battery.charge_energy.assert_not_called()
+    mock_battery.discharge_energy.assert_not_called()
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
+        consumption, generation
+    )
 
 
 def test_process_energy_partial_battery_discharge(inverter, mock_battery):
@@ -244,6 +286,9 @@ def test_process_energy_partial_battery_discharge(inverter, mock_battery):
     )  # Grid supplies the shortfall after battery assist
     assert losses == 5.0  # Discharge losses
     assert self_consumption == 250.0  # Generation + battery discharge
+    mock_battery.charge_energy.assert_not_called()
+    mock_battery.discharge_energy.assert_called_once_with(200.0, 12)
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
 
 
 def test_process_energy_consumption_exceeds_max_no_battery(inverter, mock_battery):
@@ -261,7 +306,9 @@ def test_process_energy_consumption_exceeds_max_no_battery(inverter, mock_batter
     assert grid_import == pytest.approx(900.0, rel=1e-2)  # Grid covers the remaining shortfall
     assert losses == 0.0  # No losses as the battery didn’t assist
     assert self_consumption == 100.0  # Only the generation is consumed, maxing out the inverter
+    mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(400.0, hour)
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
 
 
 def test_process_energy_zero_generation_full_battery_high_consumption(inverter, mock_battery):
@@ -281,4 +328,6 @@ def test_process_energy_zero_generation_full_battery_high_consumption(inverter, 
     )  # Grid covers remaining shortfall after battery discharge
     assert losses == 10.0  # Battery discharge losses
     assert self_consumption == 500.0  # Battery fully discharges to meet consumption
+    mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(500.0, hour)
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
