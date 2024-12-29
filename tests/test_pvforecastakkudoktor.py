@@ -293,10 +293,9 @@ def test_timezone_behaviour(
     forecast_temps = provider.key_to_series(
         "pvforecastakkudoktor_temp_air", other_start_datetime, other_end_datetime
     )
-    assert len(forecast_temps) == 24
-    assert forecast_temps.iloc[0] == 7.0
-    assert forecast_temps.iloc[1] == 6.5
-    assert forecast_temps.iloc[2] == 6.0
+    assert len(forecast_temps) == 23  # 24-1, first temperature is null
+    assert forecast_temps.iloc[0] == 6.5
+    assert forecast_temps.iloc[1] == 6.0
 
     # Test fetching AC power forecast
     other_end_datetime = other_start_datetime + to_duration("48 hours")

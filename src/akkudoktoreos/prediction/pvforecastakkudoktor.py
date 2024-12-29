@@ -109,9 +109,9 @@ class AkkudoktorForecastValue(PydanticBaseModel):
     power: float
     sunTilt: float
     sunAzimuth: float
-    temperature: float
-    relativehumidity_2m: float
-    windspeed_10m: float
+    temperature: Optional[float]
+    relativehumidity_2m: Optional[float]
+    windspeed_10m: Optional[float]
 
 
 class AkkudoktorForecast(PydanticBaseModel):
