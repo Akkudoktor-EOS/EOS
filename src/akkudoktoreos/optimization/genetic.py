@@ -32,7 +32,7 @@ class OptimizationParameters(BaseModel):
     inverter: InverterParameters = InverterParameters()
     eauto: Optional[ElectricVehicleParameters]
     dishwasher: Optional[HomeApplianceParameters] = None
-    temperature_forecast: Optional[list[float]] = Field(
+    temperature_forecast: Optional[list[Optional[float]]] = Field(
         default=None,
         description="An array of floats representing the temperature forecast in degrees Celsius for different time intervals.",
     )
