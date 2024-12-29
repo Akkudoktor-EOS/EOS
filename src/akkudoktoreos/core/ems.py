@@ -282,27 +282,36 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
         last_wh_pro_stunde integral of  last hour (end state)
         """
         # Check for simulation integrity
-        if (
-            self.load_energy_array is None
-            or self.pv_prediction_wh is None
-            or self.elect_price_hourly is None
-            or self.ev_charge_hours is None
-            or self.ac_charge_hours is None
-            or self.dc_charge_hours is None
-            or self.elect_revenue_per_hour_arr is None
-        ):
-            error_msg = (
-                f"Mandatory data missing - "
-                f"Load Curve: {self.load_energy_array}, "
-                f"PV Forecast: {self.pv_prediction_wh}, "
-                f"Electricity Price: {self.elect_price_hourly}, "
-                f"EV Charge Hours: {self.ev_charge_hours}, "
-                f"AC Charge Hours: {self.ac_charge_hours}, "
-                f"DC Charge Hours: {self.dc_charge_hours}, "
-                f"Feed-in tariff: {self.elect_revenue_per_hour_arr}"
-            )
+        missing_data = []
+
+        if self.load_energy_array is None:
+            missing_data.append("Load Curve")
+        if self.pv_prediction_wh is None:
+            missing_data.append("PV Forecast")
+        if self.elect_price_hourly is None:
+            missing_data.append("Electricity Price")
+        if self.ev_charge_hours is None:
+            missing_data.append("EV Charge Hours")
+        if self.ac_charge_hours is None:
+            missing_data.append("AC Charge Hours")
+        if self.dc_charge_hours is None:
+            missing_data.append("DC Charge Hours")
+        if self.elect_revenue_per_hour_arr is None:
+            missing_data.append("Feed-in Tariff")
+
+        if missing_data:
+            error_msg = "Mandatory data missing - " + ", ".join(missing_data)
             logger.error(error_msg)
             raise ValueError(error_msg)
+        else:
+            # make mypy happy
+            assert self.load_energy_array is not None
+            assert self.pv_prediction_wh is not None
+            assert self.elect_price_hourly is not None
+            assert self.ev_charge_hours is not None
+            assert self.ac_charge_hours is not None
+            assert self.dc_charge_hours is not None
+            assert self.elect_revenue_per_hour_arr is not None
 
         load_energy_array = self.load_energy_array
 
