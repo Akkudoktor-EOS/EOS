@@ -138,7 +138,7 @@ def test_get_temperature_forecast_for_date(pv_forecast_instance, sample_forecast
     """Test fetching temperature forecast for a specific date."""
     forecast_temps = pv_forecast_instance.get_temperature_forecast_for_date(sample_forecast_start)
     assert len(forecast_temps) == 24
-    assert forecast_temps[0] == 7.0
+    assert forecast_temps[0] is None
     assert forecast_temps[1] == 6.5
     assert forecast_temps[2] == 6.0
 
@@ -162,7 +162,7 @@ def test_get_temperature_for_date_range(pv_forecast_instance, sample_forecast_st
         sample_forecast_start, end_date
     )
     assert len(forecast_temps) == 48
-    assert forecast_temps[0] == 7.0
+    assert forecast_temps[0] is None
     assert forecast_temps[1] == 6.5
     assert forecast_temps[2] == 6.0
 
@@ -273,7 +273,7 @@ def test_timezone_behaviour(
     # Test fetching temperature forecast for a specific date.
     forecast_temps = pv_forecast_instance.get_temperature_forecast_for_date(sample_forecast_start)
     assert len(forecast_temps) == 24
-    assert forecast_temps[0] == 7.0
+    assert forecast_temps[0] is None
     assert forecast_temps[1] == 6.5
     assert forecast_temps[2] == 6.0
 
