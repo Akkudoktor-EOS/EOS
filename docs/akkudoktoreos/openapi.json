@@ -666,11 +666,11 @@
         }
       }
     },
-    "/strompreis": {
+    "/electricity_price": {
       "get": {
-        "summary": "Fastapi Strompreis",
+        "summary": "Fastapi Electricity Price",
         "description": "Deprecated: Electricity Market Price Prediction per Wh (\u20ac/Wh).\n\nNote:\n    Use '/v1/prediction/list?key=elecprice_marketprice_wh' or\n        '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.",
-        "operationId": "fastapi_strompreis_strompreis_get",
+        "operationId": "fastapi_electricity_price_electricity_price_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -681,7 +681,7 @@
                     "type": "number"
                   },
                   "type": "array",
-                  "title": "Response Fastapi Strompreis Strompreis Get"
+                  "title": "Response Fastapi Electricity Price Electricity Price Get"
                 }
               }
             }
@@ -689,16 +689,16 @@
         }
       }
     },
-    "/gesamtlast": {
+    "/load_total": {
       "post": {
-        "summary": "Fastapi Gesamtlast",
+        "summary": "Fastapi Load Total",
         "description": "Deprecated: Total Load Prediction with adjustment.\n\nEndpoint to handle total load prediction adjusted by latest measured data.\n\nNote:\n    Use '/v1/prediction/list?key=load_mean_adjusted' instead.\n    Load energy meter readings to be added to EOS measurement by:\n    '/v1/measurement/load-mr/value/by-name' or\n    '/v1/measurement/value'",
-        "operationId": "fastapi_gesamtlast_gesamtlast_post",
+        "operationId": "fastapi_load_total_load_total_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GesamtlastRequest"
+                "$ref": "#/components/schemas/LoadTotalRequest"
               }
             }
           },
@@ -714,7 +714,7 @@
                     "type": "number"
                   },
                   "type": "array",
-                  "title": "Response Fastapi Gesamtlast Gesamtlast Post"
+                  "title": "Response Fastapi Load Total Load Total Post"
                 }
               }
             }
@@ -732,11 +732,11 @@
         }
       }
     },
-    "/gesamtlast_simple": {
+    "/load_total_simple": {
       "get": {
-        "summary": "Fastapi Gesamtlast Simple",
+        "summary": "Fastapi Load Total Simple",
         "description": "Deprecated: Total Load Prediction.\n\nEndpoint to handle total load prediction.\n\nNote:\n    Use '/v1/prediction/list?key=load_mean' instead.",
-        "operationId": "fastapi_gesamtlast_simple_gesamtlast_simple_get",
+        "operationId": "fastapi_load_total_simple_load_total_simple_get",
         "parameters": [
           {
             "name": "year_energy",
@@ -758,7 +758,62 @@
                   "items": {
                     "type": "number"
                   },
-                  "title": "Response Fastapi Gesamtlast Simple Gesamtlast Simple Get"
+                  "title": "Response Fastapi Load Total Simple Load Total Simple Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pv_forecast": {
+      "get": {
+        "summary": "Fastapi Pv Forecast",
+        "operationId": "fastapi_pv_forecast_pv_forecast_get",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Url"
+            }
+          },
+          {
+            "name": "ac_power_measurement",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ac Power Measurement"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastResponse"
                 }
               }
             }
@@ -778,8 +833,36 @@
     },
     "/pvforecast": {
       "get": {
-        "summary": "Fastapi Pvforecast",
-        "operationId": "fastapi_pvforecast_pvforecast_get",
+        "deprecated": true,
+        "summary": "Fastapi Pv Forecast",
+        "operationId": "fastapi_pv_forecast_pvforecast_get",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Url"
+            }
+          },
+          {
+            "name": "ac_power_measurement",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ac Power Measurement"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -3334,7 +3417,7 @@
         ],
         "title": "ForecastResponse"
       },
-      "GesamtlastRequest": {
+      "LoadTotalRequest": {
         "properties": {
           "year_energy": {
             "type": "number",
@@ -3358,7 +3441,7 @@
           "measured_data",
           "hours"
         ],
-        "title": "GesamtlastRequest"
+        "title": "LoadTotalRequest"
       },
       "HTTPValidationError": {
         "properties": {
