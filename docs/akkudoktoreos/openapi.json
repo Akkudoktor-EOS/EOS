@@ -6,10 +6,10 @@
     "version": "0.0.1"
   },
   "paths": {
-    "/strompreis": {
+    "/electricity_price": {
       "get": {
-        "summary": "Fastapi Strompreis",
-        "operationId": "fastapi_strompreis_strompreis_get",
+        "summary": "Fastapi Electricity Price",
+        "operationId": "fastapi_electricity_price_electricity_price_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -20,7 +20,7 @@
                     "type": "number"
                   },
                   "type": "array",
-                  "title": "Response Fastapi Strompreis Strompreis Get"
+                  "title": "Response Fastapi Electricity Price Electricity Price Get"
                 }
               }
             }
@@ -28,16 +28,16 @@
         }
       }
     },
-    "/gesamtlast": {
+    "/load_total": {
       "post": {
-        "summary": "Fastapi Gesamtlast",
+        "summary": "Fastapi Load Total",
         "description": "Endpoint to handle total load calculation based on the latest measured data.",
-        "operationId": "fastapi_gesamtlast_gesamtlast_post",
+        "operationId": "fastapi_load_total_load_total_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GesamtlastRequest"
+                "$ref": "#/components/schemas/LoadTotalRequest"
               }
             }
           },
@@ -53,7 +53,7 @@
                     "type": "number"
                   },
                   "type": "array",
-                  "title": "Response Fastapi Gesamtlast Gesamtlast Post"
+                  "title": "Response Fastapi Load Total Load Total Post"
                 }
               }
             }
@@ -71,10 +71,10 @@
         }
       }
     },
-    "/gesamtlast_simple": {
+    "/load_total_simple": {
       "get": {
-        "summary": "Fastapi Gesamtlast Simple",
-        "operationId": "fastapi_gesamtlast_simple_gesamtlast_simple_get",
+        "summary": "Fastapi Load Total Simple",
+        "operationId": "fastapi_load_total_simple_load_total_simple_get",
         "parameters": [
           {
             "name": "year_energy",
@@ -96,7 +96,62 @@
                   "items": {
                     "type": "number"
                   },
-                  "title": "Response Fastapi Gesamtlast Simple Gesamtlast Simple Get"
+                  "title": "Response Fastapi Load Total Simple Load Total Simple Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pv_forecast": {
+      "get": {
+        "summary": "Fastapi Pv Forecast",
+        "operationId": "fastapi_pv_forecast_pv_forecast_get",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Url"
+            }
+          },
+          {
+            "name": "ac_power_measurement",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ac Power Measurement"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastResponse"
                 }
               }
             }
@@ -116,8 +171,9 @@
     },
     "/pvforecast": {
       "get": {
-        "summary": "Fastapi Pvprognose",
-        "operationId": "fastapi_pvprognose_pvforecast_get",
+        "deprecated": true,
+        "summary": "Fastapi Pv Forecast",
+        "operationId": "fastapi_pv_forecast_pvforecast_get",
         "parameters": [
           {
             "name": "url",
@@ -456,7 +512,7 @@
         "required": ["temperature", "pvpower"],
         "title": "ForecastResponse"
       },
-      "GesamtlastRequest": {
+      "LoadTotalRequest": {
         "properties": {
           "year_energy": {
             "type": "number",
@@ -476,7 +532,7 @@
         },
         "type": "object",
         "required": ["year_energy", "measured_data", "hours"],
-        "title": "GesamtlastRequest"
+        "title": "LoadTotalRequest"
       },
       "HTTPValidationError": {
         "properties": {
