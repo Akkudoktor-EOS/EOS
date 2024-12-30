@@ -94,7 +94,6 @@ class ElectricVehicleResult(BaseModel):
         description="State of charge at the start of the simulation in percentage."
     )
 
-    @classmethod
     @field_validator("discharge_array", "charge_array", mode="before")
     def convert_numpy(cls, field: Any) -> Any:
         return NumpyEncoder.convert_numpy(field)[0]
