@@ -144,7 +144,7 @@ def test_update_data(mock_get, elecprice_provider, sample_akkudoktor_1_json, cac
 
     # Assert we get prediction_hours prioce values by resampling
     np_price_array = elecprice_provider.key_to_array(
-        key="elecprice_marketprice",
+        key="elecprice_marketprice_wh",
         start_datetime=elecprice_provider.start_datetime,
         end_datetime=elecprice_provider.end_datetime,
     )
@@ -203,7 +203,7 @@ def test_key_to_array_resampling(elecprice_provider):
     """Test resampling of forecast data to NumPy array."""
     elecprice_provider.update_data(force_update=True)
     array = elecprice_provider.key_to_array(
-        key="elecprice_marketprice",
+        key="elecprice_marketprice_wh",
         start_datetime=elecprice_provider.start_datetime,
         end_datetime=elecprice_provider.end_datetime,
     )

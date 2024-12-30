@@ -211,8 +211,8 @@ class Devices(SingletonMixin, DevicesBase):
             interval=simulation_step,
         )
         # strompreis_euro_pro_wh[stunde]
-        elecprice_marketprice = self.prediction.key_to_array(
-            "elecprice_marketprice",
+        elecprice_marketprice_wh = self.prediction.key_to_array(
+            "elecprice_marketprice_wh",
             start_datetime=self.start_datetime,
             end_datetime=self.end_datetime,
             interval=simulation_step,

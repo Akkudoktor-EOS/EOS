@@ -669,7 +669,7 @@
     "/strompreis": {
       "get": {
         "summary": "Fastapi Strompreis",
-        "description": "Deprecated: Electricity Market Price Prediction.\n\nNote:\n    Use '/v1/prediction/list?key=elecprice_marketprice' instead.",
+        "description": "Deprecated: Electricity Market Price Prediction per Wh (\u20ac/Wh).\n\nNote:\n    Use '/v1/prediction/list?key=elecprice_marketprice_wh' or\n        '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.",
         "operationId": "fastapi_strompreis_strompreis_get",
         "responses": {
           "200": {
@@ -2498,7 +2498,7 @@
             "title": "Elecprice Provider",
             "description": "Electricity price provider id of provider to be used."
           },
-          "elecprice_charges": {
+          "elecprice_charges_kwh": {
             "anyOf": [
               {
                 "type": "number",
@@ -2508,7 +2508,7 @@
                 "type": "null"
               }
             ],
-            "title": "Elecprice Charges",
+            "title": "Elecprice Charges Kwh",
             "description": "Electricity price charges (\u20ac/kWh)."
           },
           "prediction_hours": {
@@ -5169,7 +5169,7 @@
             "title": "Elecprice Provider",
             "description": "Electricity price provider id of provider to be used."
           },
-          "elecprice_charges": {
+          "elecprice_charges_kwh": {
             "anyOf": [
               {
                 "type": "number",
@@ -5179,7 +5179,7 @@
                 "type": "null"
               }
             ],
-            "title": "Elecprice Charges",
+            "title": "Elecprice Charges Kwh",
             "description": "Electricity price charges (\u20ac/kWh)."
           },
           "prediction_hours": {

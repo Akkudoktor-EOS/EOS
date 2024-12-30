@@ -92,7 +92,7 @@ def test_import(elecprice_provider, sample_import_1_json, start_datetime, from_f
     assert elecprice_provider.start_datetime is not None
     assert elecprice_provider.total_hours is not None
     assert compare_datetimes(elecprice_provider.start_datetime, ems_eos.start_datetime).equal
-    values = sample_import_1_json["elecprice_marketprice"]
+    values = sample_import_1_json["elecprice_marketprice_wh"]
     value_datetime_mapping = elecprice_provider.import_datetimes(
         ems_eos.start_datetime, len(values)
     )
@@ -101,7 +101,7 @@ def test_import(elecprice_provider, sample_import_1_json, start_datetime, from_f
         expected_datetime, expected_value_index = mapping
         expected_value = values[expected_value_index]
         result_datetime = elecprice_provider.records[i].date_time
-        result_value = elecprice_provider.records[i]["elecprice_marketprice"]
+        result_value = elecprice_provider.records[i]["elecprice_marketprice_wh"]
 
         # print(f"{i}: Expected: {expected_datetime}:{expected_value}")
         # print(f"{i}:   Result: {result_datetime}:{result_value}")
