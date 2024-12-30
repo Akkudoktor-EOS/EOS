@@ -134,7 +134,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         prices_of_hour = self.elecprice_8days[hour]
         if np.isnan(prices_of_hour).all():
             # No prediction prices available for this hour - use mean value of all prices
-            price_weighted_mean = np.nanmean(self.elecprice_marketprice_8day)
+            price_weighted_mean = np.nanmean(self.elecprice_marketprice_wh_8day)
         else:
             weights = self.elecprice_8days_weights_day_of_week[day_of_week]
             prices_of_hour_masked: NDArray[Shape["24"]] = np.ma.MaskedArray(
@@ -204,24 +204,28 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         elecprice_cache_file.seek(0)
         self.elecprice_8days = np.load(elecprice_cache_file)
 
-        # Get elecprice_charges
-        charges = self.config.elecprice_charges if self.config.elecprice_charges else 0.0
+        # Get elecprice_charges_kwh_kwh
+        charges_kwh = (
+            self.config.elecprice_charges_kwh if self.config.elecprice_charges_kwh else 0.0
+        )
 
         for i in range(values_len):
             original_datetime = akkudoktor_data.values[i].start
             dt = to_datetime(original_datetime, in_timezone=self.config.timezone)
             akkudoktor_value = akkudoktor_data.values[i]
-            price = akkudoktor_value.marketpriceEurocentPerKWh / 100 + charges
+            price_wh = (
+                akkudoktor_value.marketpriceEurocentPerKWh / (100 * 1000) + charges_kwh / 1000
+            )
 
             if compare_datetimes(dt, self.start_datetime).lt:
                 # forecast data is too old
-                self.elecprice_8days[dt.hour, dt.day_of_week] = price
+                self.elecprice_8days[dt.hour, dt.day_of_week] = price_wh
                 continue
-            self.elecprice_8days[dt.hour, 7] = price
+            self.elecprice_8days[dt.hour, 7] = price_wh
 
             record = ElecPriceDataRecord(
                 date_time=dt,
-                elecprice_marketprice=price,
+                elecprice_marketprice_wh=price_wh,
             )
             self.append(record)
 
@@ -242,7 +246,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
             record = ElecPriceDataRecord(
                 date_time=dt,
-                elecprice_marketprice=value,
+                elecprice_marketprice_wh=value,
             )
             self.insert(0, record)
         # Assure price ends at end_time
@@ -253,6 +257,6 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
             record = ElecPriceDataRecord(
                 date_time=dt,
-                elecprice_marketprice=value,
+                elecprice_marketprice_wh=value,
             )
             self.append(record)

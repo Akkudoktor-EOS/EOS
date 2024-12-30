@@ -7,7 +7,7 @@ Notes:
 from abc import abstractmethod
 from typing import List, Optional
 
-from pydantic import Field
+from pydantic import Field, computed_field
 
 from akkudoktoreos.prediction.predictionabc import PredictionProvider, PredictionRecord
 from akkudoktoreos.utils.logutil import get_logger
@@ -23,9 +23,21 @@ class ElecPriceDataRecord(PredictionRecord):
 
     """
 
-    elecprice_marketprice: Optional[float] = Field(
-        None, description="Electricity market price (€/KWh)"
+    elecprice_marketprice_wh: Optional[float] = Field(
+        None, description="Electricity market price per Wh (€/Wh)"
     )
+
+    # Computed fields
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def elecprice_marketprice_kwh(self) -> Optional[float]:
+        """Electricity market price per kWh (€/kWh).
+
+        Convenience attribute calculated from `elecprice_marketprice_wh`.
+        """
+        if self.elecprice_marketprice_wh is None:
+            return None
+        return self.elecprice_marketprice_wh * 1000.0
 
 
 class ElecPriceProvider(PredictionProvider):

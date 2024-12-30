@@ -94,12 +94,11 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     print(f"temperature_forecast: {temperature_forecast}")
 
     # Electricity Price (in Euro per Wh)
-    electricity_market_price_euros_per_kwh = prediction_eos.key_to_array(
-        key="elecprice_marketprice",
+    strompreis_euro_pro_wh = prediction_eos.key_to_array(
+        key="elecprice_marketprice_wh",
         start_datetime=prediction_eos.start_datetime,
         end_datetime=prediction_eos.end_datetime,
     )
-    strompreis_euro_pro_wh = electricity_market_price_euros_per_kwh * 0.001
     print(f"strompreis_euro_pro_wh: {strompreis_euro_pro_wh}")
 
     # Overall System Load (in W)
