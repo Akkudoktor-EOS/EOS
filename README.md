@@ -4,6 +4,9 @@ This project provides a comprehensive solution for simulating and optimizing an 
 
 ## Getting Involved
 
+> [!NOTE]
+> Development is currently done in the feature-Branch `feature/config-overhaul`. If you want to provide PRs, please use that branch as base.
+>
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Installation
