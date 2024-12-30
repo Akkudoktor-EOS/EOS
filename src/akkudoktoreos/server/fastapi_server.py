@@ -11,7 +11,7 @@ import pandas as pd
 import uvicorn
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import HTTPException
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
 from akkudoktoreos.core.ems import get_ems
@@ -36,6 +36,98 @@ config_eos = get_config()
 measurement_eos = get_measurement()
 prediction_eos = get_prediction()
 ems_eos = get_ems()
+
+ERROR_PAGE_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Optimization System (EOS) Error</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .error-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        .error-code {
+            font-size: 4rem;
+            font-weight: bold;
+            color: #e53e3e;
+            margin: 0;
+        }
+        .error-title {
+            font-size: 1.5rem;
+            color: #2d3748;
+            margin: 1rem 0;
+        }
+        .error-message {
+            color: #4a5568;
+            margin-bottom: 1.5rem;
+        }
+        .error-details {
+            background: #f7fafc;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1.5rem;
+            text-align: left;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .back-button {
+            background: #3182ce;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+            transition: background-color 0.2s;
+        }
+        .back-button:hover {
+            background: #2c5282;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <h1 class="error-code">STATUS_CODE</h1>
+        <h2 class="error-title">ERROR_TITLE</h2>
+        <p class="error-message">ERROR_MESSAGE</p>
+        <div class="error-details">ERROR_DETAILS</div>
+        <a href="/docs" class="back-button">Back to Home</a>
+    </div>
+</body>
+</html>
+"""
+
+
+def create_error_page(
+    status_code: str, error_title: str, error_message: str, error_details: str
+) -> str:
+    """Create an error page by replacing placeholders in the template."""
+    return (
+        ERROR_PAGE_TEMPLATE.replace("STATUS_CODE", status_code)
+        .replace("ERROR_TITLE", error_title)
+        .replace("ERROR_MESSAGE", error_message)
+        .replace("ERROR_DETAILS", error_details)
+    )
 
 
 def start_fasthtml_server() -> subprocess.Popen:
@@ -301,10 +393,11 @@ def fastapi_prediction_list_get(
 
 @app.get("/strompreis")
 def fastapi_strompreis() -> list[float]:
-    """Deprecated: Electricity Market Price Prediction.
+    """Deprecated: Electricity Market Price Prediction per Wh (€/Wh).
 
     Note:
-        Use '/v1/prediction/list?key=elecprice_marketprice' instead.
+        Use '/v1/prediction/list?key=elecprice_marketprice_wh' or
+            '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.
     """
     settings = SettingsEOS(
         elecprice_provider="ElecPriceAkkudoktor",
@@ -318,7 +411,7 @@ def fastapi_strompreis() -> list[float]:
     # Get the current date and the end date based on prediction hours
     # Fetch prices for the specified date range
     return prediction_eos.key_to_array(
-        key="elecprice_marketprice",
+        key="elecprice_marketprice_wh",
         start_datetime=prediction_eos.start_datetime,
         end_datetime=prediction_eos.end_datetime,
     ).tolist()
@@ -513,7 +606,7 @@ async def proxy_put(request: Request, path: str) -> Response:
     return await proxy(request, path)
 
 
-async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse]:
+async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse | HTMLResponse]:
     if config_eos.server_fasthtml_host and config_eos.server_fasthtml_port:
         # Proxy to fasthtml server
         url = f"http://{config_eos.server_fasthtml_host}:{config_eos.server_fasthtml_port}/{path}"
@@ -521,15 +614,31 @@ async def proxy(request: Request, path: str) -> Union[Response | RedirectRespons
 
         data = await request.body()
 
-        async with httpx.AsyncClient() as client:
-            if request.method == "GET":
-                response = await client.get(url, headers=headers)
-            elif request.method == "POST":
-                response = await client.post(url, headers=headers, content=data)
-            elif request.method == "PUT":
-                response = await client.put(url, headers=headers, content=data)
-            elif request.method == "DELETE":
-                response = await client.delete(url, headers=headers, content=data)
+        try:
+            async with httpx.AsyncClient() as client:
+                if request.method == "GET":
+                    response = await client.get(url, headers=headers)
+                elif request.method == "POST":
+                    response = await client.post(url, headers=headers, content=data)
+                elif request.method == "PUT":
+                    response = await client.put(url, headers=headers, content=data)
+                elif request.method == "DELETE":
+                    response = await client.delete(url, headers=headers, content=data)
+        except Exception as e:
+            error_page = create_error_page(
+                status_code="404",
+                error_title="Page Not Found",
+                error_message=f"""<pre>
+Application server not reachable: '{url}'
+Did you start the application server
+or set 'server_fastapi_startup_server_fasthtml'?
+If there is no application server intended please
+set 'server_fasthtml_host' or 'server_fasthtml_port' to None.
+</pre>
+""",
+                error_details=f"{e}",
+            )
+            return HTMLResponse(content=error_page, status_code=404)
 
         return Response(
             content=response.content,
