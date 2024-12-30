@@ -26,7 +26,7 @@ jobs:
       - name: Run Pytest
         run: |
           pip install -e .
-          python -m pytest --full-run -vs --cov src --cov-report term-missing
+          python -m pytest --full-run --check-config-side-effect -vs --cov src --cov-report term-missing
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4

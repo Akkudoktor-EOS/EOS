@@ -21,8 +21,6 @@ FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON = DIR_TESTDATA.joinpath(
     "elecpriceforecast_akkudoktor_1.json"
 )
 
-ems_eos = get_ems()
-
 
 @pytest.fixture
 def elecprice_provider(monkeypatch):
@@ -136,6 +134,7 @@ def test_update_data(mock_get, elecprice_provider, sample_akkudoktor_1_json, cac
     cache_store.clear(clear_all=True)
 
     # Call the method
+    ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime("2024-12-11 00:00:00", in_timezone="Europe/Berlin"))
     elecprice_provider.update_data(force_enable=True, force_update=True)
 

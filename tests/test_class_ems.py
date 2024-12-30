@@ -3,7 +3,6 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import (
     EnergieManagementSystem,
     EnergieManagementSystemParameters,
@@ -24,10 +23,9 @@ start_hour = 1
 
 # Example initialization of necessary components
 @pytest.fixture
-def create_ems_instance() -> EnergieManagementSystem:
+def create_ems_instance(config_eos) -> EnergieManagementSystem:
     """Fixture to create an EnergieManagementSystem instance with given test parameters."""
     # Assure configuration holds the correct values
-    config_eos = get_config()
     config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
     assert config_eos.prediction_hours is not None
 

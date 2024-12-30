@@ -113,7 +113,7 @@ class DerivedDataContainer(DataContainer):
 
 class TestDataBase:
     @pytest.fixture
-    def base(self, reset_config, monkeypatch):
+    def base(self):
         # Provide default values for configuration
         derived = DerivedBase()
         derived.config.update()
