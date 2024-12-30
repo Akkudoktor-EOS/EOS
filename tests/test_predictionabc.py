@@ -7,7 +7,6 @@ import pendulum
 import pytest
 from pydantic import Field
 
-from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings
 from akkudoktoreos.prediction.predictionabc import (
@@ -87,7 +86,7 @@ class DerivedPredictionContainer(PredictionContainer):
 
 class TestPredictionBase:
     @pytest.fixture
-    def base(self, reset_config, monkeypatch):
+    def base(self, monkeypatch):
         # Provide default values for configuration
         monkeypatch.setenv("latitude", "50.0")
         monkeypatch.setenv("longitude", "10.0")
@@ -177,10 +176,11 @@ class TestPredictionProvider:
             provider.keep_datetime == expected_keep_datetime
         ), "Keep datetime is not calculated correctly."
 
-    def test_update_method_with_defaults(self, provider, sample_start_datetime, monkeypatch):
+    def test_update_method_with_defaults(
+        self, provider, sample_start_datetime, config_eos, monkeypatch
+    ):
         """Test the `update` method with default parameters."""
         # EOS config supersedes
-        config_eos = get_config()
         ems_eos = get_ems()
         # The following values are currently not set in EOS config, we can override
         monkeypatch.setenv("prediction_historic_hours", "2")

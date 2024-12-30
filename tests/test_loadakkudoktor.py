@@ -4,7 +4,6 @@ import numpy as np
 import pendulum
 import pytest
 
-from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.measurement.measurement import MeasurementDataRecord, get_measurement
 from akkudoktoreos.prediction.loadakkudoktor import (
@@ -13,12 +12,9 @@ from akkudoktoreos.prediction.loadakkudoktor import (
 )
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
-config_eos = get_config()
-ems_eos = get_ems()
-
 
 @pytest.fixture
-def load_provider():
+def load_provider(config_eos):
     """Fixture to initialise the LoadAkkudoktor instance."""
     settings = {
         "load_provider": "LoadAkkudoktor",
@@ -112,6 +108,7 @@ def test_update_data(mock_load_data, load_provider):
     mock_load_data.return_value = np.random.rand(365, 2, 24)
 
     # Mock methods for updating values
+    ems_eos = get_ems()
     ems_eos.set_start_datetime(pendulum.datetime(2024, 1, 1))
 
     # Assure there are no prediction records

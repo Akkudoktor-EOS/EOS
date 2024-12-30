@@ -15,8 +15,6 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 FILE_TESTDATA_WEATHERBRIGHTSKY_1_JSON = DIR_TESTDATA.joinpath("weatherforecast_brightsky_1.json")
 FILE_TESTDATA_WEATHERBRIGHTSKY_2_JSON = DIR_TESTDATA.joinpath("weatherforecast_brightsky_2.json")
 
-ems_eos = get_ems()
-
 
 @pytest.fixture
 def weather_provider(monkeypatch):
@@ -64,7 +62,7 @@ def test_invalid_provider(weather_provider, monkeypatch):
     """Test requesting an unsupported weather_provider."""
     monkeypatch.setenv("weather_provider", "<invalid>")
     weather_provider.config.update()
-    assert weather_provider.enabled() == False
+    assert not weather_provider.enabled()
 
 
 def test_invalid_coordinates(weather_provider, monkeypatch):
@@ -163,6 +161,7 @@ def test_update_data(mock_get, weather_provider, sample_brightsky_1_json, cache_
     cache_store.clear(clear_all=True)
 
     # Call the method
+    ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime("2024-10-26 00:00:00", in_timezone="Europe/Berlin"))
     weather_provider.update_data(force_enable=True, force_update=True)
 
