@@ -778,26 +778,8 @@
     },
     "/pvforecast": {
       "get": {
-        "summary": "Fastapi Pvprognose",
-        "operationId": "fastapi_pvprognose_pvforecast_get",
-        "parameters": [
-          {
-            "name": "ac_power_measurement",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Ac Power Measurement"
-            }
-          }
-        ],
+        "summary": "Fastapi Pvforecast",
+        "operationId": "fastapi_pvforecast_pvforecast_get",
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -805,16 +787,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ForecastResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2987,32 +2959,6 @@
             "description": "Sub-path for the EOS cache data directory.",
             "default": "cache"
           },
-          "config_folder_path": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "path"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Config Folder Path",
-            "description": "Path to EOS configuration directory."
-          },
-          "config_file_path": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "path"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Config File Path",
-            "description": "Path to EOS configuration file."
-          },
           "pvforecast_planes": {
             "items": {
               "type": "string"
@@ -3100,6 +3046,34 @@
             "description": "Compute data_cache_path based on data_folder_path.",
             "readOnly": true
           },
+          "config_folder_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Folder Path",
+            "description": "Path to EOS configuration directory.",
+            "readOnly": true
+          },
+          "config_file_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config File Path",
+            "description": "Path to EOS configuration file.",
+            "readOnly": true
+          },
           "config_default_file_path": {
             "type": "string",
             "format": "path",
@@ -3128,11 +3102,13 @@
           "timezone",
           "data_output_path",
           "data_cache_path",
+          "config_folder_path",
+          "config_file_path",
           "config_default_file_path",
           "config_keys"
         ],
         "title": "ConfigEOS",
-        "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_DIR` environment variable.\n    2. A platform specific default directory for EOS.\n    3. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nAttributes:\n    _settings (ClassVar[SettingsEOS]): Holds application-wide settings.\n    _file_settings (ClassVar[SettingsEOS]): Stores configuration loaded from file.\n    config_folder_path (Optional[Path]): Path to the configuration directory.\n    config_file_path (Optional[Path]): Path to the configuration file.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    ```python\n    config_eos = ConfigEOS()  # Always returns the same instance\n    print(config_eos.prediction_hours)  # Access a setting from the loaded configuration\n    ```"
+        "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_CONFIG_DIR` environment variable\n    2. The directory specified by the `EOS_DIR` environment variable.\n    3. A platform specific default directory for EOS.\n    4. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nAttributes:\n    _settings (ClassVar[SettingsEOS]): Holds application-wide settings.\n    _file_settings (ClassVar[SettingsEOS]): Stores configuration loaded from file.\n    config_folder_path (Optional[Path]): Path to the configuration directory.\n    config_file_path (Optional[Path]): Path to the configuration file.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    ```python\n    config_eos = ConfigEOS()  # Always returns the same instance\n    print(config_eos.prediction_hours)  # Access a setting from the loaded configuration\n    ```"
       },
       "ElectricVehicleParameters": {
         "properties": {

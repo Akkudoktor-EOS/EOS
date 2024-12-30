@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.prediction.weatherimport import WeatherImport
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
@@ -12,12 +11,9 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
 FILE_TESTDATA_WEATHERIMPORT_1_JSON = DIR_TESTDATA.joinpath("import_input_1.json")
 
-config_eos = get_config()
-ems_eos = get_ems()
-
 
 @pytest.fixture
-def weather_provider(reset_config, sample_import_1_json):
+def weather_provider(sample_import_1_json, config_eos):
     """Fixture to create a WeatherProvider instance."""
     settings = {
         "weather_provider": "WeatherImport",
@@ -49,7 +45,7 @@ def test_singleton_instance(weather_provider):
     assert weather_provider is another_instance
 
 
-def test_invalid_provider(weather_provider, monkeypatch):
+def test_invalid_provider(weather_provider, config_eos, monkeypatch):
     """Test requesting an unsupported weather_provider."""
     settings = {
         "weather_provider": "<invalid>",
@@ -77,8 +73,9 @@ def test_invalid_provider(weather_provider, monkeypatch):
         ("2024-10-27 00:00:00", False),  # DST change in Germany (25 hours/ day)
     ],
 )
-def test_import(weather_provider, sample_import_1_json, start_datetime, from_file):
+def test_import(weather_provider, sample_import_1_json, start_datetime, from_file, config_eos):
     """Test fetching forecast from Import."""
+    ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
         config_eos.weatherimport_json = None
