@@ -14,6 +14,7 @@ welcome.md
 akkudoktoreos/about.md
 develop/getting_started.md
 develop/CONTRIBUTING.md
+akkudoktoreos/prediction.md
 akkudoktoreos/serverapi.rst
 akkudoktoreos/api.rst
 ```

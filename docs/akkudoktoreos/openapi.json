@@ -115,8 +115,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Load name.",
               "title": "Name"
-            }
+            },
+            "description": "Load name."
           }
         ],
         "responses": {
@@ -153,8 +155,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Load name.",
               "title": "Name"
-            }
+            },
+            "description": "Load name."
           }
         ],
         "requestBody": {
@@ -202,8 +206,11 @@
             "in": "query",
             "required": true,
             "schema": {
+              "type": "string",
+              "description": "Datetime.",
               "title": "Datetime"
-            }
+            },
+            "description": "Datetime."
           },
           {
             "name": "name",
@@ -211,8 +218,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Load name.",
               "title": "Name"
-            }
+            },
+            "description": "Load name."
           },
           {
             "name": "value",
@@ -267,8 +276,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Prediction key.",
               "title": "Key"
-            }
+            },
+            "description": "Prediction key."
           }
         ],
         "responses": {
@@ -305,8 +316,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Prediction key.",
               "title": "Key"
-            }
+            },
+            "description": "Prediction key."
           }
         ],
         "requestBody": {
@@ -354,8 +367,11 @@
             "in": "query",
             "required": true,
             "schema": {
+              "type": "string",
+              "description": "Datetime.",
               "title": "Datetime"
-            }
+            },
+            "description": "Datetime."
           },
           {
             "name": "key",
@@ -363,8 +379,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Prediction key.",
               "title": "Key"
-            }
+            },
+            "description": "Prediction key."
           },
           {
             "name": "value",
@@ -507,7 +525,7 @@
     "/v1/prediction/series": {
       "get": {
         "summary": "Fastapi Prediction Series Get",
-        "description": "Get prediction for given key within given date range as series.\n\nArgs:\n    start_datetime: Starting datetime (inclusive).\n        Defaults to start datetime of latest prediction.\n    end_datetime: Ending datetime (exclusive).\n        Defaults to end datetime of latest prediction.",
+        "description": "Get prediction for given key within given date range as series.\n\nArgs:\n    key (str): Prediction key\n    start_datetime (Optional[str]): Starting datetime (inclusive).\n        Defaults to start datetime of latest prediction.\n    end_datetime (Optional[str]: Ending datetime (exclusive).\n        Defaults to end datetime of latest prediction.",
         "operationId": "fastapi_prediction_series_get_v1_prediction_series_get",
         "parameters": [
           {
@@ -516,8 +534,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Prediction key.",
               "title": "Key"
-            }
+            },
+            "description": "Prediction key."
           },
           {
             "name": "start_datetime",
@@ -532,8 +552,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Starting datetime (inclusive).",
               "title": "Start Datetime"
-            }
+            },
+            "description": "Starting datetime (inclusive)."
           },
           {
             "name": "end_datetime",
@@ -548,8 +570,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Ending datetime (exclusive).",
               "title": "End Datetime"
-            }
+            },
+            "description": "Ending datetime (exclusive)."
           }
         ],
         "responses": {
@@ -579,7 +603,7 @@
     "/v1/prediction/list": {
       "get": {
         "summary": "Fastapi Prediction List Get",
-        "description": "Get prediction for given key within given date range as value list.\n\nArgs:\n    start_datetime: Starting datetime (inclusive).\n        Defaults to start datetime of latest prediction.\n    end_datetime: Ending datetime (exclusive).\n        Defaults to end datetime of latest prediction.\n    interval: Time duration for each interval\n        Defaults to 1 hour.",
+        "description": "Get prediction for given key within given date range as value list.\n\nArgs:\n    key (str): Prediction key\n    start_datetime (Optional[str]): Starting datetime (inclusive).\n        Defaults to start datetime of latest prediction.\n    end_datetime (Optional[str]: Ending datetime (exclusive).\n        Defaults to end datetime of latest prediction.\n    interval (Optional[str]): Time duration for each interval.\n        Defaults to 1 hour.",
         "operationId": "fastapi_prediction_list_get_v1_prediction_list_get",
         "parameters": [
           {
@@ -588,8 +612,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Prediction key.",
               "title": "Key"
-            }
+            },
+            "description": "Prediction key."
           },
           {
             "name": "start_datetime",
@@ -604,8 +630,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Starting datetime (inclusive).",
               "title": "Start Datetime"
-            }
+            },
+            "description": "Starting datetime (inclusive)."
           },
           {
             "name": "end_datetime",
@@ -620,8 +648,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Ending datetime (exclusive).",
               "title": "End Datetime"
-            }
+            },
+            "description": "Ending datetime (exclusive)."
           },
           {
             "name": "interval",
@@ -636,8 +666,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Time duration for each interval.",
               "title": "Interval"
-            }
+            },
+            "description": "Time duration for each interval."
           }
         ],
         "responses": {
@@ -863,148 +895,6 @@
               "application/pdf": {
                 "schema": {
                   "type": "string"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/{path}": {
-      "delete": {
-        "summary": "Proxy Delete",
-        "operationId": "proxy_delete__path__delete",
-        "parameters": [
-          {
-            "name": "path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "summary": "Proxy Get",
-        "operationId": "proxy_get__path__get",
-        "parameters": [
-          {
-            "name": "path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "summary": "Proxy Post",
-        "operationId": "proxy_post__path__post",
-        "parameters": [
-          {
-            "name": "path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "summary": "Proxy Put",
-        "operationId": "proxy_put__path__put",
-        "parameters": [
-          {
-            "name": "path",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
