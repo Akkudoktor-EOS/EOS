@@ -56,7 +56,7 @@ class WeatherDataRecord(PredictionRecord):
         default=None, description="Low Clouds (% Sky Obscured)"
     )
     weather_medium_clouds: Optional[float] = Field(
-        None, description="Medium Clouds (% Sky Obscured)"
+        default=None, description="Medium Clouds (% Sky Obscured)"
     )
     weather_high_clouds: Optional[float] = Field(
         default=None, description="High Clouds (% Sky Obscured)"

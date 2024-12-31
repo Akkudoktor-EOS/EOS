@@ -219,7 +219,9 @@ def fastapi_measurement_keys_get() -> list[str]:
 
 
 @app.get("/v1/measurement/load-mr/series/by-name")
-def fastapi_measurement_load_mr_series_by_name_get(name: str) -> PydanticDateTimeSeries:
+def fastapi_measurement_load_mr_series_by_name_get(
+    name: Annotated[str, Query(description="Load name.")],
+) -> PydanticDateTimeSeries:
     """Get the meter reading of given load name as series."""
     key = measurement_eos.name_to_key(name=name, topic="measurement_load")
     if key is None:
@@ -234,7 +236,9 @@ def fastapi_measurement_load_mr_series_by_name_get(name: str) -> PydanticDateTim
 
 @app.put("/v1/measurement/load-mr/value/by-name")
 def fastapi_measurement_load_mr_value_by_name_put(
-    datetime: Any, name: str, value: Union[float | str]
+    datetime: Annotated[str, Query(description="Datetime.")],
+    name: Annotated[str, Query(description="Load name.")],
+    value: Union[float | str],
 ) -> PydanticDateTimeSeries:
     """Merge the meter reading of given load name and value into EOS measurements at given datetime."""
     key = measurement_eos.name_to_key(name=name, topic="measurement_load")
@@ -251,7 +255,7 @@ def fastapi_measurement_load_mr_value_by_name_put(
 
 @app.put("/v1/measurement/load-mr/series/by-name")
 def fastapi_measurement_load_mr_series_by_name_put(
-    name: str, series: PydanticDateTimeSeries
+    name: Annotated[str, Query(description="Load name.")], series: PydanticDateTimeSeries
 ) -> PydanticDateTimeSeries:
     """Merge the meter readings series of given load name into EOS measurements at given datetime."""
     key = measurement_eos.name_to_key(name=name, topic="measurement_load")
@@ -268,7 +272,9 @@ def fastapi_measurement_load_mr_series_by_name_put(
 
 
 @app.get("/v1/measurement/series")
-def fastapi_measurement_series_get(key: str) -> PydanticDateTimeSeries:
+def fastapi_measurement_series_get(
+    key: Annotated[str, Query(description="Prediction key.")],
+) -> PydanticDateTimeSeries:
     """Get the measurements of given key as series."""
     if key not in measurement_eos.record_keys:
         raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
@@ -278,7 +284,9 @@ def fastapi_measurement_series_get(key: str) -> PydanticDateTimeSeries:
 
 @app.put("/v1/measurement/value")
 def fastapi_measurement_value_put(
-    datetime: Any, key: str, value: Union[float | str]
+    datetime: Annotated[str, Query(description="Datetime.")],
+    key: Annotated[str, Query(description="Prediction key.")],
+    value: Union[float | str],
 ) -> PydanticDateTimeSeries:
     """Merge the measurement of given key and value into EOS measurements at given datetime."""
     if key not in measurement_eos.record_keys:
@@ -290,7 +298,7 @@ def fastapi_measurement_value_put(
 
 @app.put("/v1/measurement/series")
 def fastapi_measurement_series_put(
-    key: str, series: PydanticDateTimeSeries
+    key: Annotated[str, Query(description="Prediction key.")], series: PydanticDateTimeSeries
 ) -> PydanticDateTimeSeries:
     """Merge measurement given as series into given key."""
     if key not in measurement_eos.record_keys:
@@ -323,16 +331,23 @@ def fastapi_prediction_keys_get() -> list[str]:
 
 @app.get("/v1/prediction/series")
 def fastapi_prediction_series_get(
-    key: str,
-    start_datetime: Optional[str] = None,
-    end_datetime: Optional[str] = None,
+    key: Annotated[str, Query(description="Prediction key.")],
+    start_datetime: Annotated[
+        Optional[str],
+        Query(description="Starting datetime (inclusive)."),
+    ] = None,
+    end_datetime: Annotated[
+        Optional[str],
+        Query(description="Ending datetime (exclusive)."),
+    ] = None,
 ) -> PydanticDateTimeSeries:
     """Get prediction for given key within given date range as series.
 
     Args:
-        start_datetime: Starting datetime (inclusive).
+        key (str): Prediction key
+        start_datetime (Optional[str]): Starting datetime (inclusive).
             Defaults to start datetime of latest prediction.
-        end_datetime: Ending datetime (exclusive).
+        end_datetime (Optional[str]: Ending datetime (exclusive).
             Defaults to end datetime of latest prediction.
     """
     if key not in prediction_eos.record_keys:
@@ -353,19 +368,29 @@ def fastapi_prediction_series_get(
 
 @app.get("/v1/prediction/list")
 def fastapi_prediction_list_get(
-    key: str,
-    start_datetime: Optional[str] = None,
-    end_datetime: Optional[str] = None,
-    interval: Optional[str] = None,
+    key: Annotated[str, Query(description="Prediction key.")],
+    start_datetime: Annotated[
+        Optional[str],
+        Query(description="Starting datetime (inclusive)."),
+    ] = None,
+    end_datetime: Annotated[
+        Optional[str],
+        Query(description="Ending datetime (exclusive)."),
+    ] = None,
+    interval: Annotated[
+        Optional[str],
+        Query(description="Time duration for each interval."),
+    ] = None,
 ) -> List[Any]:
     """Get prediction for given key within given date range as value list.
 
     Args:
-        start_datetime: Starting datetime (inclusive).
+        key (str): Prediction key
+        start_datetime (Optional[str]): Starting datetime (inclusive).
             Defaults to start datetime of latest prediction.
-        end_datetime: Ending datetime (exclusive).
+        end_datetime (Optional[str]: Ending datetime (exclusive).
             Defaults to end datetime of latest prediction.
-        interval: Time duration for each interval
+        interval (Optional[str]): Time duration for each interval.
             Defaults to 1 hour.
     """
     if key not in prediction_eos.record_keys:
@@ -640,26 +665,24 @@ def site_map() -> RedirectResponse:
 
 
 # Keep the proxy last to handle all requests that are not taken by the Rest API.
-# Also keep the single endpoints for delete, get, post, put to assure openapi.json is always build
-# the same way for testing.
 
 
-@app.delete("/{path:path}")
+@app.delete("/{path:path}", include_in_schema=False)
 async def proxy_delete(request: Request, path: str) -> Response:
     return await proxy(request, path)
 
 
-@app.get("/{path:path}")
+@app.get("/{path:path}", include_in_schema=False)
 async def proxy_get(request: Request, path: str) -> Response:
     return await proxy(request, path)
 
 
-@app.post("/{path:path}")
+@app.post("/{path:path}", include_in_schema=False)
 async def proxy_post(request: Request, path: str) -> Response:
     return await proxy(request, path)
 
 
-@app.put("/{path:path}")
+@app.put("/{path:path}", include_in_schema=False)
 async def proxy_put(request: Request, path: str) -> Response:
     return await proxy(request, path)
 

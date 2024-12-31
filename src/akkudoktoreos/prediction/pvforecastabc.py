@@ -18,8 +18,8 @@ logger = get_logger(__name__)
 class PVForecastDataRecord(PredictionRecord):
     """Represents a pvforecast data record containing various pvforecast attributes at a specific datetime."""
 
-    pvforecast_dc_power: Optional[float] = Field(default=None, description="Total DC power (W)")
-    pvforecast_ac_power: Optional[float] = Field(default=None, description="Total AC power (W)")
+    pvforecast_dc_power: Optional[float] = Field(default=None, description="Total DC power (W).")
+    pvforecast_ac_power: Optional[float] = Field(default=None, description="Total AC power (W).")
 
 
 class PVForecastProvider(PredictionProvider):
