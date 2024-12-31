@@ -18,7 +18,7 @@ def test_fixture_setup(server, tmp_path: Path) -> None:
 
 def test_server(server, tmp_path: Path):
     """Test the server."""
-    pytest.skip() #temp skip test until 01.01.24
+    pytest.skip()  # temp skip test until 01.01.24
     result = requests.get(f"{server}/gesamtlast_simple?year_energy=2000&")
     assert result.status_code == HTTPStatus.OK
 
