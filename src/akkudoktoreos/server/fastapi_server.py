@@ -391,13 +391,57 @@ def fastapi_prediction_list_get(
     return prediction_list
 
 
+@app.post("/v1/prediction/update")
+def fastapi_prediction_update(force_update: bool = False, force_enable: bool = False) -> Response:
+    """Update predictions for all providers.
+
+    Args:
+        force_update: Update data even if it is already cached.
+            Defaults to False.
+        force_enable: Update data even if provider is disabled.
+            Defaults to False.
+    """
+    try:
+        prediction_eos.update_data(force_update=force_update, force_enable=force_enable)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error while trying to update provider: {e}")
+    return Response()
+
+
+@app.post("/v1/prediction/update/{provider_id}")
+def fastapi_prediction_update_provider(
+    provider_id: str, force_update: Optional[bool] = False, force_enable: Optional[bool] = False
+) -> Response:
+    """Update predictions for given provider ID.
+
+    Args:
+        provider_id: ID of provider to update.
+        force_update: Update data even if it is already cached.
+            Defaults to False.
+        force_enable: Update data even if provider is disabled.
+            Defaults to False.
+    """
+    try:
+        provider = prediction_eos.provider_by_id(provider_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not found.")
+    try:
+        provider.update_data(force_update=force_update, force_enable=force_enable)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error while trying to update provider: {e}")
+    return Response()
+
+
 @app.get("/strompreis")
 def fastapi_strompreis() -> list[float]:
     """Deprecated: Electricity Market Price Prediction per Wh (€/Wh).
 
     Note:
-        Use '/v1/prediction/list?key=elecprice_marketprice_wh' or
-            '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.
+        Set ElecPriceAkkudoktor as elecprice_provider, then update data with
+        '/v1/prediction/update'
+        and then request data with
+        '/v1/prediction/list?key=elecprice_marketprice_wh' or
+        '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.
     """
     settings = SettingsEOS(
         elecprice_provider="ElecPriceAkkudoktor",
@@ -480,7 +524,10 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     Endpoint to handle total load prediction.
 
     Note:
-        Use '/v1/prediction/list?key=load_mean' instead.
+        Set LoadAkkudoktor as load_provider, then update data with
+        '/v1/prediction/update'
+        and then request data with
+        '/v1/prediction/list?key=load_mean' instead.
     """
     settings = SettingsEOS(
         load_provider="LoadAkkudoktor",
@@ -507,6 +554,17 @@ class ForecastResponse(PydanticBaseModel):
 
 @app.get("/pvforecast")
 def fastapi_pvforecast() -> ForecastResponse:
+    """Deprecated: PV Forecast Prediction.
+
+    Endpoint to handle PV forecast prediction.
+
+    Note:
+        Set PVForecastAkkudoktor as pvforecast_provider, then update data with
+        '/v1/prediction/update'
+        and then request data with
+        '/v1/prediction/list?key=pvforecast_ac_power' and
+        '/v1/prediction/list?key=pvforecastakkudoktor_temp_air' instead.
+    """
     ###############
     # PV Forecast
     ###############
