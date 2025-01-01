@@ -11,7 +11,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Installation
 
-The project requires Python 3.9 or newer. Currently there are no official packages or images published.
+The project requires Python 3.10 or newer. Currently there are no official packages or images published.
 
 Following sections describe how to locally start the EOS server on `http://localhost:8503`.
 
@@ -20,12 +20,14 @@ Following sections describe how to locally start the EOS server on `http://local
 Install dependencies in virtual environment:
 
 Linux:
+
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
 Windows:
+
 ```bash
 python -m venv .venv
  .venv\Scripts\pip install -r requirements.txt
@@ -34,13 +36,17 @@ python -m venv .venv
 Finally, start EOS fastapi server:
 
 Linux:
+
 ```bash
 .venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
 ```
+
 Windows:
+
 ```
  .venv\Scripts\fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
 ```
+
 ### Docker
 
 ```bash
@@ -92,7 +98,6 @@ Each class is designed to be easily customized and extended to integrate additio
 
 See the Swagger API documentation for detailed information: [EOS OpenAPI Spec](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/docs/akkudoktoreos/openapi.json)
 
-
 ## Further resources
 
- - [Installation guide (de)](https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/)
+- [Installation guide (de)](https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/)
