@@ -666,10 +666,131 @@
         }
       }
     },
+    "/v1/prediction/update": {
+      "post": {
+        "summary": "Fastapi Prediction Update",
+        "description": "Update predictions for all providers.\n\nArgs:\n    force_update: Update data even if it is already cached.\n        Defaults to False.\n    force_enable: Update data even if provider is disabled.\n        Defaults to False.",
+        "operationId": "fastapi_prediction_update_v1_prediction_update_post",
+        "parameters": [
+          {
+            "name": "force_update",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force Update"
+            }
+          },
+          {
+            "name": "force_enable",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Force Enable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/prediction/update/{provider_id}": {
+      "post": {
+        "summary": "Fastapi Prediction Update Provider",
+        "description": "Update predictions for given provider ID.\n\nArgs:\n    provider_id: ID of provider to update.\n    force_update: Update data even if it is already cached.\n        Defaults to False.\n    force_enable: Update data even if provider is disabled.\n        Defaults to False.",
+        "operationId": "fastapi_prediction_update_provider_v1_prediction_update__provider_id__post",
+        "parameters": [
+          {
+            "name": "provider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Provider Id"
+            }
+          },
+          {
+            "name": "force_update",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": false,
+              "title": "Force Update"
+            }
+          },
+          {
+            "name": "force_enable",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": false,
+              "title": "Force Enable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/strompreis": {
       "get": {
         "summary": "Fastapi Strompreis",
-        "description": "Deprecated: Electricity Market Price Prediction per Wh (\u20ac/Wh).\n\nNote:\n    Use '/v1/prediction/list?key=elecprice_marketprice_wh' or\n        '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.",
+        "description": "Deprecated: Electricity Market Price Prediction per Wh (\u20ac/Wh).\n\nNote:\n    Set ElecPriceAkkudoktor as elecprice_provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=elecprice_marketprice_wh' or\n    '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.",
         "operationId": "fastapi_strompreis_strompreis_get",
         "responses": {
           "200": {
@@ -735,7 +856,7 @@
     "/gesamtlast_simple": {
       "get": {
         "summary": "Fastapi Gesamtlast Simple",
-        "description": "Deprecated: Total Load Prediction.\n\nEndpoint to handle total load prediction.\n\nNote:\n    Use '/v1/prediction/list?key=load_mean' instead.",
+        "description": "Deprecated: Total Load Prediction.\n\nEndpoint to handle total load prediction.\n\nNote:\n    Set LoadAkkudoktor as load_provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=load_mean' instead.",
         "operationId": "fastapi_gesamtlast_simple_gesamtlast_simple_get",
         "parameters": [
           {
@@ -779,6 +900,7 @@
     "/pvforecast": {
       "get": {
         "summary": "Fastapi Pvforecast",
+        "description": "Deprecated: PV Forecast Prediction.\n\nEndpoint to handle PV forecast prediction.\n\nNote:\n    Set PVForecastAkkudoktor as pvforecast_provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=pvforecast_ac_power' and\n    '/v1/prediction/list?key=pvforecastakkudoktor_temp_air' instead.",
         "operationId": "fastapi_pvforecast_pvforecast_get",
         "responses": {
           "200": {
