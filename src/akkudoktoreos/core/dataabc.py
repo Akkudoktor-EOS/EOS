@@ -1645,7 +1645,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
             force_enable (bool, optional): If True, forces the update even if a provider is disabled.
             force_update (bool, optional): If True, forces the providers to update the data even if still cached.
         """
-        for provider in self.enabled_providers:
+        for provider in self.providers:
             provider.update_data(force_enable=force_enable, force_update=force_update)
 
     def key_to_series(
