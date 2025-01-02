@@ -112,13 +112,13 @@ def test_request_forecast(mock_get, elecprice_provider, sample_akkudoktor_1_json
 
     assert isinstance(akkudoktor_data, AkkudoktorElecPrice)
     assert akkudoktor_data.values[0] == AkkudoktorElecPriceValue(
-        start_timestamp=1733871600000,
-        end_timestamp=1733875200000,
-        start="2024-12-10T23:00:00.000Z",
-        end="2024-12-11T00:00:00.000Z",
-        marketprice=115.94,
+        start_timestamp=1733785200000,
+        end_timestamp=1733788800000,
+        start="2024-12-09T23:00:00.000Z",
+        end="2024-12-10T00:00:00.000Z",
+        marketprice=92.85,
         unit="Eur/MWh",
-        marketpriceEurocentPerKWh=11.59,
+        marketpriceEurocentPerKWh=9.29,
     )
 
 
