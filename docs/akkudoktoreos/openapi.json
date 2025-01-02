@@ -1309,8 +1309,7 @@
               }
             ],
             "title": "Pvforecast0 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast0_surface_azimuth": {
             "anyOf": [
@@ -1322,8 +1321,7 @@
               }
             ],
             "title": "Pvforecast0 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast0_userhorizon": {
             "anyOf": [
@@ -1400,8 +1398,7 @@
               }
             ],
             "title": "Pvforecast0 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast0_optimal_surface_tilt": {
             "anyOf": [
@@ -1492,7 +1489,7 @@
           "pvforecast0_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -1511,8 +1508,7 @@
               }
             ],
             "title": "Pvforecast1 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast1_surface_azimuth": {
             "anyOf": [
@@ -1524,8 +1520,7 @@
               }
             ],
             "title": "Pvforecast1 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast1_userhorizon": {
             "anyOf": [
@@ -1603,8 +1598,7 @@
               }
             ],
             "title": "Pvforecast1 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast1_optimal_surface_tilt": {
             "anyOf": [
@@ -1695,7 +1689,7 @@
           "pvforecast1_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -1714,8 +1708,7 @@
               }
             ],
             "title": "Pvforecast2 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast2_surface_azimuth": {
             "anyOf": [
@@ -1727,8 +1720,7 @@
               }
             ],
             "title": "Pvforecast2 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast2_userhorizon": {
             "anyOf": [
@@ -1806,8 +1798,7 @@
               }
             ],
             "title": "Pvforecast2 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast2_optimal_surface_tilt": {
             "anyOf": [
@@ -1898,7 +1889,7 @@
           "pvforecast2_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -1917,8 +1908,7 @@
               }
             ],
             "title": "Pvforecast3 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast3_surface_azimuth": {
             "anyOf": [
@@ -1930,8 +1920,7 @@
               }
             ],
             "title": "Pvforecast3 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast3_userhorizon": {
             "anyOf": [
@@ -2009,8 +1998,7 @@
               }
             ],
             "title": "Pvforecast3 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast3_optimal_surface_tilt": {
             "anyOf": [
@@ -2101,7 +2089,7 @@
           "pvforecast3_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -2120,8 +2108,7 @@
               }
             ],
             "title": "Pvforecast4 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast4_surface_azimuth": {
             "anyOf": [
@@ -2133,8 +2120,7 @@
               }
             ],
             "title": "Pvforecast4 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast4_userhorizon": {
             "anyOf": [
@@ -2212,8 +2198,7 @@
               }
             ],
             "title": "Pvforecast4 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast4_optimal_surface_tilt": {
             "anyOf": [
@@ -2304,7 +2289,7 @@
           "pvforecast4_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -2323,8 +2308,7 @@
               }
             ],
             "title": "Pvforecast5 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast5_surface_azimuth": {
             "anyOf": [
@@ -2336,8 +2320,7 @@
               }
             ],
             "title": "Pvforecast5 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast5_userhorizon": {
             "anyOf": [
@@ -2415,8 +2398,7 @@
               }
             ],
             "title": "Pvforecast5 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast5_optimal_surface_tilt": {
             "anyOf": [
@@ -2507,7 +2489,7 @@
           "pvforecast5_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -3980,8 +3962,7 @@
               }
             ],
             "title": "Pvforecast0 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast0_surface_azimuth": {
             "anyOf": [
@@ -3993,8 +3974,7 @@
               }
             ],
             "title": "Pvforecast0 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast0_userhorizon": {
             "anyOf": [
@@ -4071,8 +4051,7 @@
               }
             ],
             "title": "Pvforecast0 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast0_optimal_surface_tilt": {
             "anyOf": [
@@ -4163,7 +4142,7 @@
           "pvforecast0_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -4182,8 +4161,7 @@
               }
             ],
             "title": "Pvforecast1 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast1_surface_azimuth": {
             "anyOf": [
@@ -4195,8 +4173,7 @@
               }
             ],
             "title": "Pvforecast1 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast1_userhorizon": {
             "anyOf": [
@@ -4274,8 +4251,7 @@
               }
             ],
             "title": "Pvforecast1 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast1_optimal_surface_tilt": {
             "anyOf": [
@@ -4366,7 +4342,7 @@
           "pvforecast1_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -4385,8 +4361,7 @@
               }
             ],
             "title": "Pvforecast2 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast2_surface_azimuth": {
             "anyOf": [
@@ -4398,8 +4373,7 @@
               }
             ],
             "title": "Pvforecast2 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast2_userhorizon": {
             "anyOf": [
@@ -4477,8 +4451,7 @@
               }
             ],
             "title": "Pvforecast2 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast2_optimal_surface_tilt": {
             "anyOf": [
@@ -4569,7 +4542,7 @@
           "pvforecast2_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -4588,8 +4561,7 @@
               }
             ],
             "title": "Pvforecast3 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast3_surface_azimuth": {
             "anyOf": [
@@ -4601,8 +4573,7 @@
               }
             ],
             "title": "Pvforecast3 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast3_userhorizon": {
             "anyOf": [
@@ -4680,8 +4651,7 @@
               }
             ],
             "title": "Pvforecast3 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast3_optimal_surface_tilt": {
             "anyOf": [
@@ -4772,7 +4742,7 @@
           "pvforecast3_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -4791,8 +4761,7 @@
               }
             ],
             "title": "Pvforecast4 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast4_surface_azimuth": {
             "anyOf": [
@@ -4804,8 +4773,7 @@
               }
             ],
             "title": "Pvforecast4 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast4_userhorizon": {
             "anyOf": [
@@ -4883,8 +4851,7 @@
               }
             ],
             "title": "Pvforecast4 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast4_optimal_surface_tilt": {
             "anyOf": [
@@ -4975,7 +4942,7 @@
           "pvforecast4_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -4994,8 +4961,7 @@
               }
             ],
             "title": "Pvforecast5 Surface Tilt",
-            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-            "default": 0
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking."
           },
           "pvforecast5_surface_azimuth": {
             "anyOf": [
@@ -5007,8 +4973,7 @@
               }
             ],
             "title": "Pvforecast5 Surface Azimuth",
-            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-            "default": 180
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270)."
           },
           "pvforecast5_userhorizon": {
             "anyOf": [
@@ -5086,8 +5051,7 @@
               }
             ],
             "title": "Pvforecast5 Trackingtype",
-            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-            "default": 0
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south."
           },
           "pvforecast5_optimal_surface_tilt": {
             "anyOf": [
@@ -5178,7 +5142,7 @@
           "pvforecast5_strings_per_inverter": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
                 "type": "null"
