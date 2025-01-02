@@ -18,13 +18,12 @@ logger = get_logger(__name__)
 class LoadDataRecord(PredictionRecord):
     """Represents a load data record containing various load attributes at a specific datetime."""
 
-    load_mean: Optional[float] = Field(default=None, description="Predicted load mean value (W)")
+    load_mean: Optional[float] = Field(default=None, description="Predicted load mean value (W).")
     load_std: Optional[float] = Field(
-        default=None, description="Predicted load standard deviation (W)"
+        default=None, description="Predicted load standard deviation (W)."
     )
-
     load_mean_adjusted: Optional[float] = Field(
-        default=None, description="Predicted load mean value adjusted by load measurement (W)"
+        default=None, description="Predicted load mean value adjusted by load measurement (W)."
     )
 
 

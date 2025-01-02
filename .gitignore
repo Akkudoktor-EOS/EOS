@@ -1,8 +1,6 @@
 cache/
 output/
 EOS.config.json
-docs/develop/CONTRIBUTING.md
-docs/develop/getting_started.md
 
 # Default ignore folders and files for VS Code, Python
 
@@ -258,5 +256,6 @@ visualize_output_*.pdf
 *_pdf.png
 
 # Test files
-openapi-new.json
 tests/testdata/new_optimize_result*
+tests/testdata/openapi-new.json
+tests/testdata/openapi-new.md
