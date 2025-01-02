@@ -7,12 +7,12 @@ from pydantic import ConfigDict, Field, computed_field, field_validator, model_v
 from typing_extensions import Self
 
 from akkudoktoreos.core.coreabc import ConfigMixin, PredictionMixin, SingletonMixin
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.generic import HomeAppliance
 from akkudoktoreos.devices.inverter import Inverter
 from akkudoktoreos.utils.datetimeutil import to_datetime
-from akkudoktoreos.utils.logutil import get_logger
 from akkudoktoreos.utils.utils import NumpyEncoder
 
 logger = get_logger(__name__)

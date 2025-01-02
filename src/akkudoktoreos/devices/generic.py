@@ -3,8 +3,8 @@ from typing import Optional
 import numpy as np
 from pydantic import BaseModel, Field
 
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.devices.devicesabc import DeviceBase
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 

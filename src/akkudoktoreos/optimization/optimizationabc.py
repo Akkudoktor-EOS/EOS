@@ -3,8 +3,8 @@
 from pydantic import ConfigDict
 
 from akkudoktoreos.core.coreabc import ConfigMixin, PredictionMixin
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 

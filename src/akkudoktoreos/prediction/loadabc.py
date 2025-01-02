@@ -9,8 +9,8 @@ from typing import List, Optional
 
 from pydantic import Field
 
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.predictionabc import PredictionProvider, PredictionRecord
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 

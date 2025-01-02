@@ -31,13 +31,13 @@ from pydantic import (
 )
 
 from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin, StartMixin
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeData,
     PydanticDateTimeDataFrame,
 )
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 
@@ -583,20 +583,48 @@ class DataSequence(DataBase, MutableSequence):
             # Sort the list by datetime after adding/updating
             self.sort_by_datetime()
 
-    def update_value(self, date: DateTime, key: str, value: Any) -> None:
-        """Updates a specific value in the data record for a given date.
+    @overload
+    def update_value(self, date: DateTime, key: str, value: Any) -> None: ...
 
-        If a record for the date exists, updates the specified attribute with the new value.
-        Otherwise, appends a new record with the given value and maintains chronological order.
+    @overload
+    def update_value(self, date: DateTime, values: Dict[str, Any]) -> None: ...
+
+    def update_value(self, date: DateTime, *args: Any, **kwargs: Any) -> None:
+        """Updates specific values in the data record for a given date.
+
+        If a record for the date exists, updates the specified attributes with the new values.
+        Otherwise, appends a new record with the given values and maintains chronological order.
 
         Args:
-            date (datetime): The date for which the weather value is to be added or updated.
-            key (str): The attribute name to be updated.
-            value: The new value to set for the specified attribute.
+            date (datetime): The date for which the values are to be added or updated.
+            key (str), value (Any): Single key-value pair to update
+                OR
+            values (Dict[str, Any]): Dictionary of key-value pairs to update
+                OR
+            **kwargs: Key-value pairs as keyword arguments
+
+        Examples:
+            >>> update_value(date, 'temperature', 25.5)
+            >>> update_value(date, {'temperature': 25.5, 'humidity': 80})
+            >>> update_value(date, temperature=25.5, humidity=80)
         """
-        self._validate_key_writable(key)
+        # Process input arguments into a dictionary
+        values: Dict[str, Any] = {}
+        if len(args) == 2:  # Single key-value pair
+            values[args[0]] = args[1]
+        elif len(args) == 1 and isinstance(args[0], dict):  # Dictionary input
+            values.update(args[0])
+        elif len(args) > 0:  # Invalid number of arguments
+            raise ValueError("Expected either 2 arguments (key, value) or 1 dictionary argument")
+        values.update(kwargs)  # Add any keyword arguments
+
+        # Validate all keys are writable
+        for key in values:
+            self._validate_key_writable(key)
+
         # Ensure datetime objects are normalized
         date = to_datetime(date, to_maxtime=False)
+
         # Check if a record with the given date already exists
         for record in self.records:
             if not isinstance(record.date_time, DateTime):
@@ -604,12 +632,13 @@ class DataSequence(DataBase, MutableSequence):
                     f"Record date '{record.date_time}' is not a datetime, but a `{type(record.date_time).__name__}`."
                 )
             if compare_datetimes(record.date_time, date).equal:
-                # Update the DataRecord with the new value for the specified key
-                setattr(record, key, value)
+                # Update the DataRecord with all new values
+                for key, value in values.items():
+                    setattr(record, key, value)
                 break
         else:
             # Create a new record and append to the list
-            record = self.record_class()(date_time=date, **{key: value})
+            record = self.record_class()(date_time=date, **values)
             self.records.append(record)
             # Sort the list by datetime after adding/updating
             self.sort_by_datetime()
@@ -841,7 +870,7 @@ class DataSequence(DataBase, MutableSequence):
             if start_index == 0:
                 # No value before start
                 # Add dummy value
-                dates.insert(0, dates[0] - interval)
+                dates.insert(0, start_datetime - interval)
                 values.insert(0, values[0])
             elif start_index > 1:
                 # Truncate all values before latest value before start_datetime

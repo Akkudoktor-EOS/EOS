@@ -1,15 +1,14 @@
 """Retrieves load forecast data from Akkudoktor load profiles."""
 
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.loadabc import LoadProvider
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 
@@ -84,7 +83,7 @@ class LoadAkkudoktor(LoadProvider):
 
     def load_data(self) -> np.ndarray:
         """Loads data from the Akkudoktor load file."""
-        load_file = Path(__file__).parent.parent.joinpath("data/load_profiles.npz")
+        load_file = self.config.package_root_path.joinpath("data/load_profiles.npz")
         data_year_energy = None
         try:
             file_data = np.load(load_file)
@@ -107,23 +106,25 @@ class LoadAkkudoktor(LoadProvider):
         """Adds the load means and standard deviations."""
         data_year_energy = self.load_data()
         weekday_adjust, weekend_adjust = self._calculate_adjustment(data_year_energy)
-        date = self.start_datetime
-        for i in range(self.config.prediction_hours):
+        # We provide prediction starting at start of day, to be compatible to old system.
+        # End date for prediction is prediction hours from now.
+        date = self.start_datetime.start_of("day")
+        end_date = self.start_datetime.add(hours=self.config.prediction_hours)
+        while compare_datetimes(date, end_date).lt:
             # Extract mean (index 0) and standard deviation (index 1) for the given day and hour
             # Day indexing starts at 0, -1 because of that
             hourly_stats = data_year_energy[date.day_of_year - 1, :, date.hour]
-            self.update_value(date, "load_mean", hourly_stats[0])
-            self.update_value(date, "load_std", hourly_stats[1])
+            values = {
+                "load_mean": hourly_stats[0],
+                "load_std": hourly_stats[1],
+            }
             if date.day_of_week < 5:
                 # Monday to Friday (0..4)
-                self.update_value(
-                    date, "load_mean_adjusted", hourly_stats[0] + weekday_adjust[date.hour]
-                )
+                values["load_mean_adjusted"] = hourly_stats[0] + weekday_adjust[date.hour]
             else:
                 # Saturday, Sunday (5, 6)
-                self.update_value(
-                    date, "load_mean_adjusted", hourly_stats[0] + weekend_adjust[date.hour]
-                )
+                values["load_mean_adjusted"] = hourly_stats[0] + weekend_adjust[date.hour]
+            self.update_value(date, values)
             date += to_duration("1 hour")
         # We are working on fresh data (no cache), report update time
         self.update_datetime = to_datetime(in_timezone=self.config.timezone)

@@ -21,7 +21,7 @@ data is lost on re-start of the EOS REST server.
 Most predictions can be sourced from various providers. The specific provider to use is configured
 in the EOS configuration. For example:
 
-```plaintext
+```python
 weather_provider = "ClearOutside"
 ```
 
@@ -43,7 +43,7 @@ The prediction data must be provided in one of the following formats:
 
 A dictionary with the following structure:
 
-```JSON
+```python
     {
         "start_datetime": "2024-01-01 00:00:00",
         "interval": "1 Hour",
@@ -213,6 +213,67 @@ Configuration options:
 - `pvforecast<0..5>_strings_per_inverter`: Number of the strings of the inverter of this plane.
 - `pvforecastimport_file_path`: Path to the file to import PV forecast data from.
 - `pvforecastimport_json`: JSON string, dictionary of PV forecast value lists.
+
+------
+
+Some of the configuration options directly follow the [PVGIS](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/getting-started-pvgis/pvgis-user-manual_en) nomenclature.
+
+Detailed definitions taken from **PVGIS**:
+
+- `pvforecast<0..5>_pvtechchoice`
+
+The performance of PV modules depends on the temperature and on the solar irradiance, but the exact dependence varies between different types of PV modules. At the moment we can estimate the losses due to temperature and irradiance effects for the following types of modules: crystalline silicon cells; thin film modules made from CIS or CIGS and thin film modules made from Cadmium Telluride (CdTe).
+
+For other technologies (especially various amorphous technologies), this correction cannot be calculated here. If you choose one of the first three options here the calculation of performance will take into account the temperature dependence of the performance of the chosen technology. If you choose the other option (other/unknown), the calculation will assume a loss of 8% of power due to temperature effects (a generic value which has found to be reasonable for temperate climates).
+
+PV power output also depends on the spectrum of the solar radiation. PVGIS can calculate how the variations of the spectrum of sunlight affects the overall energy production from a PV system. At the moment this calculation can be done for crystalline silicon and CdTe modules. Note that this calculation is not yet available when using the NSRDB solar radiation database.
+
+- `pvforecast<0..5>_peakpower`
+
+This is the power that the manufacturer declares that the PV array can produce under standard test conditions (STC), which are a constant 1000W of solar irradiation per square meter in the plane of the array, at an array temperature of 25°C. The peak power should be entered in kilowatt-peak (kWp). If you do not know the declared peak power of your modules but instead know the area of the modules and the declared conversion efficiency (in percent), you can calculate the peak power as power = area * efficiency / 100.
+
+Bifacial modules: PVGIS doesn't make specific calculations for bifacial modules at present. Users who wish to explore the possible benefits of this technology can input the power value for Bifacial Nameplate Irradiance. This can also be can also be estimated from the front side peak power P_STC value and the bifaciality factor, φ (if reported in the module data sheet) as: P_BNPI  = P_STC * (1 + φ * 0.135). NB this bifacial approach  is not appropriate for BAPV or BIPV installations or for modules mounting on a N-S axis i.e. facing E-W.
+
+- `pvforecast<0..5>_loss`
+
+The estimated system losses are all the losses in the system, which cause the power actually delivered to the electricity grid to be lower than the power produced by the PV modules. There are several causes for this loss, such as losses in cables, power inverters, dirt (sometimes snow) on the modules and so on. Over the years the modules also tend to lose a bit of their power, so the average yearly output over the lifetime of the system will be a few percent lower than the output in the first years.
+
+We have given a default value of 14% for the overall losses. If you have a good idea that your value will be different (maybe due to a really high-efficiency inverter) you may reduce this value a little.
+
+- `pvforecast<0..5>_mountingplace`
+
+For fixed (non-tracking) systems, the way the modules are mounted will have an influence on the temperature of the module, which in turn affects the efficiency. Experiments have shown that if the movement of air behind the modules is restricted, the modules can get considerably hotter (up to 15°C at 1000W/m2 of sunlight).
+
+In PVGIS there are two possibilities: free-standing, meaning that the modules are mounted on a rack with air flowing freely behind the modules; and building- integrated, which means that the modules are completely built into the structure of the wall or roof of a building, with no air movement behind the modules.
+
+Some types of mounting are in between these two extremes, for instance if the modules are mounted on a roof with curved roof tiles, allowing air to move behind the modules. In such cases, the performance will be somewhere between the results of the two calculations that are possible here.
+
+- `pvforecast<0..5>_userhorizon`
+
+Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. In the user horizon
+data each number represents the horizon height in degrees in a certain compass direction around the
+point of interest. The horizon heights should be given in a clockwise direction starting at North;
+that is, from North, going to East, South, West, and back to North. The values are assumed to
+represent equal angular distance around the horizon. For instance, if you have 36 values, the first
+point is due north, the next is 10 degrees east of north, and so on, until the last point, 10
+degrees west of north.
+
+------
+
+Most of the configuration options are in line with the [PVLib](https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html) definition for PVGIS data.
+
+Detailed definitions from **PVLib** for PVGIS data.
+
+- `pvforecast<0..5>_surface_tilt`:
+
+Tilt angle from horizontal plane.
+
+- `pvforecast<0..5>_surface_azimuth`
+
+Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180,
+west=270). This is offset 180 degrees from the convention used by PVGIS.
+
+------
 
 ### PVForecastAkkudoktor Provider
 

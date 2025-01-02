@@ -3,9 +3,9 @@ from typing import Optional
 from pydantic import BaseModel, Field
 from scipy.interpolate import RegularGridInterpolator
 
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.devicesabc import DeviceBase
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 

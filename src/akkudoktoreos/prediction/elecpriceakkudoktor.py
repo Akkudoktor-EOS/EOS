@@ -13,11 +13,11 @@ import requests
 from numpydantic import NDArray, Shape
 from pydantic import Field, ValidationError
 
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceDataRecord, ElecPriceProvider
 from akkudoktoreos.utils.cacheutil import CacheFileStore, cache_in_file
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 
@@ -218,17 +218,14 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
                 akkudoktor_value.marketpriceEurocentPerKWh / (100 * 1000) + charges_kwh / 1000
             )
 
-            if compare_datetimes(dt, self.start_datetime).lt:
-                # forecast data is too old
+            # We provide prediction starting at start of day, to be compatible to old system.
+            if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
+                # forecast data is too old - older than start_datetime with time set to 00:00:00
                 self.elecprice_8days[dt.hour, dt.day_of_week] = price_wh
                 continue
             self.elecprice_8days[dt.hour, 7] = price_wh
 
-            record = ElecPriceDataRecord(
-                date_time=dt,
-                elecprice_marketprice_wh=price_wh,
-            )
-            self.append(record)
+            self.update_value(dt, "elecprice_marketprice_wh", price_wh)
 
         # Update 8day cache
         elecprice_cache_file.seek(0)

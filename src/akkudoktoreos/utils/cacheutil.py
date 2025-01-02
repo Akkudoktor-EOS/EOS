@@ -48,8 +48,8 @@ from pendulum import DateTime, Duration
 from pydantic import BaseModel, ConfigDict, Field
 
 from akkudoktoreos.core.coreabc import ConfigMixin
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 

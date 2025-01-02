@@ -5,7 +5,7 @@ from typing import Any, ClassVar, List, Optional
 from pydantic import Field, computed_field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.utils.logutil import get_logger
+from akkudoktoreos.core.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -43,7 +43,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
         description="Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
     )
     pvforecast0_loss: Optional[float] = Field(
-        default=None, description="Sum of PV system losses in percent"
+        default=14.0, description="Sum of PV system losses in percent"
     )
     pvforecast0_trackingtype: Optional[int] = Field(
         default=None,
@@ -98,7 +98,9 @@ class PVForecastCommonSettings(SettingsBaseModel):
         default="free",
         description="Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
     )
-    pvforecast1_loss: Optional[float] = Field(0, description="Sum of PV system losses in percent")
+    pvforecast1_loss: Optional[float] = Field(
+        default=14.0, description="Sum of PV system losses in percent"
+    )
     pvforecast1_trackingtype: Optional[int] = Field(
         default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
@@ -152,7 +154,9 @@ class PVForecastCommonSettings(SettingsBaseModel):
         default="free",
         description="Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
     )
-    pvforecast2_loss: Optional[float] = Field(0, description="Sum of PV system losses in percent")
+    pvforecast2_loss: Optional[float] = Field(
+        default=14.0, description="Sum of PV system losses in percent"
+    )
     pvforecast2_trackingtype: Optional[int] = Field(
         default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
@@ -206,7 +210,9 @@ class PVForecastCommonSettings(SettingsBaseModel):
         default="free",
         description="Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
     )
-    pvforecast3_loss: Optional[float] = Field(0, description="Sum of PV system losses in percent")
+    pvforecast3_loss: Optional[float] = Field(
+        default=14.0, description="Sum of PV system losses in percent"
+    )
     pvforecast3_trackingtype: Optional[int] = Field(
         default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
@@ -260,7 +266,9 @@ class PVForecastCommonSettings(SettingsBaseModel):
         default="free",
         description="Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
     )
-    pvforecast4_loss: Optional[float] = Field(0, description="Sum of PV system losses in percent")
+    pvforecast4_loss: Optional[float] = Field(
+        default=14.0, description="Sum of PV system losses in percent"
+    )
     pvforecast4_trackingtype: Optional[int] = Field(
         default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
@@ -314,7 +322,9 @@ class PVForecastCommonSettings(SettingsBaseModel):
         default="free",
         description="Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
     )
-    pvforecast5_loss: Optional[float] = Field(0, description="Sum of PV system losses in percent")
+    pvforecast5_loss: Optional[float] = Field(
+        default=14.0, description="Sum of PV system losses in percent"
+    )
     pvforecast5_trackingtype: Optional[int] = Field(
         default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",

@@ -189,8 +189,10 @@ def openapi_to_markdown(openapi_json: dict) -> str:
 
     markdown += "**Endpoints**:\n\n"
     paths = openapi_json.get("paths", {})
-    for path, methods in paths.items():
-        for method, details in methods.items():
+    for path in sorted(paths):
+        methods = paths[path]
+        for method in sorted(methods):
+            details = methods[method]
             markdown += format_endpoint(path, method, details)
 
     # Assure the is no double \n at end of file

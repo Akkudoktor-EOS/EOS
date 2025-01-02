@@ -20,6 +20,8 @@ from pydantic import Field, ValidationError, computed_field
 # settings
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
+from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.core.logsettings import LoggingCommonSettings
 from akkudoktoreos.devices.devices import DevicesCommonSettings
 from akkudoktoreos.measurement.measurement import MeasurementCommonSettings
 from akkudoktoreos.optimization.optimization import OptimizationCommonSettings
@@ -34,7 +36,6 @@ from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSett
 from akkudoktoreos.prediction.weather import WeatherCommonSettings
 from akkudoktoreos.prediction.weatherimport import WeatherImportCommonSettings
 from akkudoktoreos.server.server import ServerCommonSettings
-from akkudoktoreos.utils.logutil import get_logger
 from akkudoktoreos.utils.utils import UtilsCommonSettings
 
 logger = get_logger(__name__)
@@ -90,6 +91,7 @@ class ConfigCommonSettings(SettingsBaseModel):
 
 class SettingsEOS(
     ConfigCommonSettings,
+    LoggingCommonSettings,
     DevicesCommonSettings,
     MeasurementCommonSettings,
     OptimizationCommonSettings,
@@ -188,7 +190,13 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
     @property
     def config_default_file_path(self) -> Path:
         """Compute the default config file path."""
-        return Path(__file__).parent.parent.joinpath("data/default.config.json")
+        return self.package_root_path.joinpath("data/default.config.json")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def package_root_path(self) -> Path:
+        """Compute the package root path."""
+        return Path(__file__).parent.parent.resolve()
 
     # Computed fields
     @computed_field  # type: ignore[prop-decorator]
@@ -197,6 +205,15 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         """Returns the keys of all fields in the configuration."""
         key_list = []
         key_list.extend(list(self.model_fields.keys()))
+        key_list.extend(list(self.__pydantic_decorators__.computed_fields.keys()))
+        return key_list
+
+    # Computed fields
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def config_keys_read_only(self) -> List[str]:
+        """Returns the keys of all read only fields in the configuration."""
+        key_list = []
         key_list.extend(list(self.__pydantic_decorators__.computed_fields.keys()))
         return key_list
 
@@ -239,7 +256,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
             settings (SettingsEOS): The settings to apply globally.
             force (Optional[bool]): If True, overwrites the existing settings completely.
                 If False, the new settings are merged to the existing ones with priority for
-                the new ones.
+                the new ones. Defaults to False.
 
         Raises:
             ValueError: If settings are already set and `force` is not True or
@@ -349,14 +366,23 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
                 return cfile, True
         return config_dirs[0].joinpath(self.CONFIG_FILE_NAME), False
 
-    def from_config_file(self) -> None:
-        """Loads the configuration file settings for EOS.
+    def settings_from_config_file(self) -> tuple[SettingsEOS, Path]:
+        """Load settings from the configuration file.
+
+        If the config file does not exist, it will be created.
+
+        Returns:
+            tuple of settings and path
+            settings (SettingsEOS): The settings defined by the EOS configuration file.
+            path (pathlib.Path): The path of the configuration file.
 
         Raises:
             ValueError: If the configuration file is invalid or incomplete.
         """
         config_file, exists = self._get_config_file_path()
         config_dir = config_file.parent
+
+        # Create config directory and copy default config if file does not exist
         if not exists:
             config_dir.mkdir(parents=True, exist_ok=True)
             try:
@@ -366,17 +392,38 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
                 config_file = self.config_default_file_path
                 config_dir = config_file.parent
 
+        # Load and validate the configuration file
         with config_file.open("r", encoding=self.ENCODING) as f_in:
             try:
                 json_str = f_in.read()
-                ConfigEOS._file_settings = SettingsEOS.model_validate_json(json_str)
+                settings = SettingsEOS.model_validate_json(json_str)
             except ValidationError as exc:
                 raise ValueError(f"Configuration '{config_file}' is incomplete or not valid: {exc}")
 
+        return settings, config_file
+
+    def from_config_file(self) -> tuple[SettingsEOS, Path]:
+        """Load the configuration file settings for EOS.
+
+        Returns:
+            tuple of settings and path
+            settings (SettingsEOS): The settings defined by the EOS configuration file.
+            path (pathlib.Path): The path of the configuration file.
+
+        Raises:
+            ValueError: If the configuration file is invalid or incomplete.
+        """
+        # Load settings from config file
+        ConfigEOS._file_settings, config_file = self.settings_from_config_file()
+
+        # Update configuration in memory
         self.update()
-        # Everthing worked, remember the values
-        self._config_folder_path = config_dir
+
+        # Everything worked, remember the values
+        self._config_folder_path = config_file.parent
         self._config_file_path = config_file
+
+        return ConfigEOS._file_settings, config_file
 
     def to_config_file(self) -> None:
         """Saves the current configuration to the configuration file.

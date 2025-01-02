@@ -275,6 +275,7 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
     )
 
     @field_validator("tz")
+    @classmethod
     def validate_timezone(cls, v: Optional[str]) -> Optional[str]:
         """Validate that the timezone is valid."""
         if v is not None:

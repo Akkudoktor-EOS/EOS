@@ -10,9 +10,9 @@ from akkudoktoreos.core.coreabc import (
     EnergyManagementSystemMixin,
     PredictionMixin,
 )
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.utils.datetimeutil import to_duration
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 
