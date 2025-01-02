@@ -144,7 +144,7 @@ sample_config_data = {
     "prediction_hours": 48,
     "prediction_historic_hours": 24,
     "latitude": 52.52,
-    "longitude":13.405,
+    "longitude": 13.405,
     "pvforecast_provider": "PVForecastAkkudoktor",
     "pvforecast0_peakpower": 5.0,
     "pvforecast0_surface_azimuth": 180,
@@ -165,7 +165,7 @@ def test_akkudoktor_forecast_horizon():
 def test_akkudoktor_forecast_meta():
     meta = sample_meta
     assert meta.lat == 52.52
-    assert meta.lon ==13.405
+    assert meta.lon == 13.405
     assert meta.power == [5000]
     assert meta.tilt == [30]
     assert meta.timezone == "Europe/Berlin"
