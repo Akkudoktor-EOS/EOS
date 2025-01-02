@@ -22,10 +22,10 @@ class PVForecastCommonSettings(SettingsBaseModel):
     # pvforecast0_latitude: Optional[float] = Field(default=None, description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)")
     # Plane 0
     pvforecast0_surface_tilt: Optional[float] = Field(
-        default=0, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
     )
     pvforecast0_surface_azimuth: Optional[float] = Field(
-        default=180,
+        default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
     )
     pvforecast0_userhorizon: Optional[List[float]] = Field(
@@ -46,7 +46,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
         default=None, description="Sum of PV system losses in percent"
     )
     pvforecast0_trackingtype: Optional[int] = Field(
-        default=0,
+        default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
     )
     pvforecast0_optimal_surface_tilt: Optional[bool] = Field(
@@ -73,15 +73,15 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast0_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
-    pvforecast0_strings_per_inverter: Optional[str] = Field(
+    pvforecast0_strings_per_inverter: Optional[int] = Field(
         default=None, description="Number of the strings of the inverter of this plane."
     )
     # Plane 1
     pvforecast1_surface_tilt: Optional[float] = Field(
-        default=0, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
     )
     pvforecast1_surface_azimuth: Optional[float] = Field(
-        default=180,
+        default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
     )
     pvforecast1_userhorizon: Optional[List[float]] = Field(
@@ -100,7 +100,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     )
     pvforecast1_loss: Optional[float] = Field(0, description="Sum of PV system losses in percent")
     pvforecast1_trackingtype: Optional[int] = Field(
-        default=0,
+        default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
     )
     pvforecast1_optimal_surface_tilt: Optional[bool] = Field(
@@ -127,15 +127,15 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast1_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
-    pvforecast1_strings_per_inverter: Optional[str] = Field(
+    pvforecast1_strings_per_inverter: Optional[int] = Field(
         default=None, description="Number of the strings of the inverter of this plane."
     )
     # Plane 2
     pvforecast2_surface_tilt: Optional[float] = Field(
-        default=0, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
     )
     pvforecast2_surface_azimuth: Optional[float] = Field(
-        default=180,
+        default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
     )
     pvforecast2_userhorizon: Optional[List[float]] = Field(
@@ -154,7 +154,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     )
     pvforecast2_loss: Optional[float] = Field(0, description="Sum of PV system losses in percent")
     pvforecast2_trackingtype: Optional[int] = Field(
-        default=0,
+        default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
     )
     pvforecast2_optimal_surface_tilt: Optional[bool] = Field(
@@ -181,15 +181,15 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast2_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
-    pvforecast2_strings_per_inverter: Optional[str] = Field(
+    pvforecast2_strings_per_inverter: Optional[int] = Field(
         default=None, description="Number of the strings of the inverter of this plane."
     )
     # Plane 3
     pvforecast3_surface_tilt: Optional[float] = Field(
-        default=0, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
     )
     pvforecast3_surface_azimuth: Optional[float] = Field(
-        default=180,
+        default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
     )
     pvforecast3_userhorizon: Optional[List[float]] = Field(
@@ -208,7 +208,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     )
     pvforecast3_loss: Optional[float] = Field(0, description="Sum of PV system losses in percent")
     pvforecast3_trackingtype: Optional[int] = Field(
-        default=0,
+        default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
     )
     pvforecast3_optimal_surface_tilt: Optional[bool] = Field(
@@ -235,15 +235,15 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast3_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
-    pvforecast3_strings_per_inverter: Optional[str] = Field(
+    pvforecast3_strings_per_inverter: Optional[int] = Field(
         default=None, description="Number of the strings of the inverter of this plane."
     )
     # Plane 4
     pvforecast4_surface_tilt: Optional[float] = Field(
-        default=0, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
     )
     pvforecast4_surface_azimuth: Optional[float] = Field(
-        default=180,
+        default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
     )
     pvforecast4_userhorizon: Optional[List[float]] = Field(
@@ -262,7 +262,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     )
     pvforecast4_loss: Optional[float] = Field(0, description="Sum of PV system losses in percent")
     pvforecast4_trackingtype: Optional[int] = Field(
-        default=0,
+        default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
     )
     pvforecast4_optimal_surface_tilt: Optional[bool] = Field(
@@ -289,15 +289,15 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast4_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
-    pvforecast4_strings_per_inverter: Optional[str] = Field(
+    pvforecast4_strings_per_inverter: Optional[int] = Field(
         default=None, description="Number of the strings of the inverter of this plane."
     )
     # Plane 5
     pvforecast5_surface_tilt: Optional[float] = Field(
-        default=0, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
     )
     pvforecast5_surface_azimuth: Optional[float] = Field(
-        default=180,
+        default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
     )
     pvforecast5_userhorizon: Optional[List[float]] = Field(
@@ -316,7 +316,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     )
     pvforecast5_loss: Optional[float] = Field(0, description="Sum of PV system losses in percent")
     pvforecast5_trackingtype: Optional[int] = Field(
-        default=0,
+        default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
     )
     pvforecast5_optimal_surface_tilt: Optional[bool] = Field(
@@ -343,7 +343,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast5_modules_per_string: Optional[int] = Field(
         default=None, description="Number of the PV modules of the strings of this plane."
     )
-    pvforecast5_strings_per_inverter: Optional[str] = Field(
+    pvforecast5_strings_per_inverter: Optional[int] = Field(
         default=None, description="Number of the strings of the inverter of this plane."
     )
 
@@ -358,11 +358,17 @@ class PVForecastCommonSettings(SettingsBaseModel):
 
         # Loop through pvforecast0 to pvforecast4
         for i in range(self.pvforecast_max_planes):
-            peakpower_attr = f"pvforecast{i}_peakpower"
-            modules_attr = f"pvforecast{i}_modules_per_string"
+            plane = f"pvforecast{i}"
+            tackingtype_attr = f"{plane}_trackingtype"
+            tilt_attr = f"{plane}_surface_tilt"
+            azimuth_attr = f"{plane}_surface_azimuth"
 
             # Check if either attribute is set and add to active planes
-            if getattr(self, peakpower_attr, None) or getattr(self, modules_attr, None):
+            if getattr(self, tackingtype_attr, None) == 2:
+                # Tilt angle from horizontal plane is gnored for two-axis tracking.
+                if getattr(self, azimuth_attr, None) is not None:
+                    active_planes.append(f"pvforecast{i}")
+            elif getattr(self, tilt_attr, None) and getattr(self, azimuth_attr, None):
                 active_planes.append(f"pvforecast{i}")
 
         return active_planes
@@ -376,11 +382,11 @@ class PVForecastCommonSettings(SettingsBaseModel):
         for plane in self.pvforecast_planes:
             peakpower_attr = f"{plane}_peakpower"
             peakpower = getattr(self, peakpower_attr, None)
-            if peakpower:
+            if peakpower is None:
+                # TODO calculate peak power from modules/strings
+                planes_peakpower.append(float(5000))
+            else:
                 planes_peakpower.append(float(peakpower))
-                continue
-            # TODO calculate peak power from modules/strings
-            planes_peakpower.append(float(5000))
 
         return planes_peakpower
 
@@ -391,13 +397,13 @@ class PVForecastCommonSettings(SettingsBaseModel):
         planes_azimuth = []
 
         for plane in self.pvforecast_planes:
-            azimuth_attr = f"{plane}_azimuth"
+            azimuth_attr = f"{plane}_surface_azimuth"
             azimuth = getattr(self, azimuth_attr, None)
-            if azimuth:
+            if azimuth is None:
+                # TODO Use default
+                planes_azimuth.append(float(180))
+            else:
                 planes_azimuth.append(float(azimuth))
-                continue
-            # TODO Use default
-            planes_azimuth.append(float(180))
 
         return planes_azimuth
 
@@ -408,13 +414,13 @@ class PVForecastCommonSettings(SettingsBaseModel):
         planes_tilt = []
 
         for plane in self.pvforecast_planes:
-            tilt_attr = f"{plane}_tilt"
+            tilt_attr = f"{plane}_surface_tilt"
             tilt = getattr(self, tilt_attr, None)
-            if tilt:
+            if tilt is None:
+                # TODO Use default
+                planes_tilt.append(float(30))
+            else:
                 planes_tilt.append(float(tilt))
-                continue
-            # TODO Use default
-            planes_tilt.append(float(0))
 
         return planes_tilt
 
@@ -427,11 +433,11 @@ class PVForecastCommonSettings(SettingsBaseModel):
         for plane in self.pvforecast_planes:
             userhorizon_attr = f"{plane}_userhorizon"
             userhorizon = getattr(self, userhorizon_attr, None)
-            if userhorizon:
+            if userhorizon is None:
+                # TODO Use default
+                planes_userhorizon.append([float(0), float(0)])
+            else:
                 planes_userhorizon.append(userhorizon)
-                continue
-            # TODO Use default
-            planes_userhorizon.append([float(0), float(0)])
 
         return planes_userhorizon
 
@@ -444,10 +450,10 @@ class PVForecastCommonSettings(SettingsBaseModel):
         for plane in self.pvforecast_planes:
             inverter_paco_attr = f"{plane}_inverter_paco"
             inverter_paco = getattr(self, inverter_paco_attr, None)
-            if inverter_paco:
-                planes_inverter_paco.append(inverter_paco)
-                continue
-            # TODO Use default - no clipping
-            planes_inverter_paco.append(25000)
+            if inverter_paco is None:
+                # TODO Use default - no clipping
+                planes_inverter_paco.append(25000.0)
+            else:
+                planes_inverter_paco.append(float(inverter_paco))
 
         return planes_inverter_paco
