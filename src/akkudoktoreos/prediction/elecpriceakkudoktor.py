@@ -23,8 +23,8 @@ logger = get_logger(__name__)
 
 
 class AkkudoktorElecPriceMeta(PydanticBaseModel):
-    start_timestamp: int
-    end_timestamp: int
+    start_timestamp: str
+    end_timestamp: str
     start: str
     end: str
 
@@ -159,9 +159,9 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         """
         source = "https://api.akkudoktor.net"
         # Try to take data from 7 days back for prediction - usually only some hours back are available
-        date = to_datetime(self.start_datetime - to_duration("7 days"), as_string="Y-M-D")
-        last_date = to_datetime(self.end_datetime, as_string="Y-M-D")
-        url = f"{source}/prices?date={date}&last_date={last_date}&tz={self.config.timezone}"
+        date = to_datetime(self.start_datetime - to_duration("7 days"), as_string="YYYY-MM-DD")
+        last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
+        url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.timezone}"
         response = requests.get(url)
         logger.debug(f"Response from {url}: {response}")
         response.raise_for_status()  # Raise an error for bad responses
@@ -212,6 +212,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         for i in range(values_len):
             original_datetime = akkudoktor_data.values[i].start
             dt = to_datetime(original_datetime, in_timezone=self.config.timezone)
+
             akkudoktor_value = akkudoktor_data.values[i]
             price_wh = (
                 akkudoktor_value.marketpriceEurocentPerKWh / (100 * 1000) + charges_kwh / 1000
@@ -254,7 +255,6 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             # Repeat the mean on the 8 day array to cover the missing hours
             dt = self[-1].date_time.add(hours=1)  # type: ignore
             value = self._calculate_weighted_mean(dt.day_of_week, dt.hour)
-
             record = ElecPriceDataRecord(
                 date_time=dt,
                 elecprice_marketprice_wh=value,
