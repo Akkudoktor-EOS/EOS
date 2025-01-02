@@ -1,6 +1,5 @@
 """Retrieves load forecast data from Akkudoktor load profiles."""
 
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -84,7 +83,7 @@ class LoadAkkudoktor(LoadProvider):
 
     def load_data(self) -> np.ndarray:
         """Loads data from the Akkudoktor load file."""
-        load_file = Path(__file__).parent.parent.joinpath("data/load_profiles.npz")
+        load_file = self.config.package_root_path.joinpath("data/load_profiles.npz")
         data_year_energy = None
         try:
             file_data = np.load(load_file)

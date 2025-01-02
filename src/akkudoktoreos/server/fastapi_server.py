@@ -184,31 +184,76 @@ class PdfResponse(FileResponse):
 
 @app.get("/v1/config")
 def fastapi_config_get() -> ConfigEOS:
-    """Get the current configuration."""
+    """Get the current configuration.
+
+    Returns:
+        configuration (ConfigEOS): The current configuration.
+    """
     return config_eos
 
 
 @app.put("/v1/config")
 def fastapi_config_put(
-    settings: SettingsEOS,
-    save: Optional[bool] = None,
+    settings: Annotated[SettingsEOS, Query(description="settings")],
+    force: Annotated[Optional[bool], Query(description="force")] = None,
 ) -> ConfigEOS:
-    """Merge settings into current configuration.
+    """Merge the provided settings into the current settings.
+
+    If `force` is True, the existing settings are completely overwritten. Note that for any setting
+    value that is None, the configuration will fall back to values from other sources such as
+    environment variables, the EOS configuration file, or default values.
+
+    If `force` is False, only the non-None values from the provided settings will be merged into
+    the existing settings, giving priority to the new values.
 
     Args:
-        settings (SettingsEOS): The settings to merge into the current configuration.
-        save (Optional[bool]): Save the resulting configuration to the configuration file.
-            Defaults to False.
+        settings (SettingsEOS): The settings to merge into the current settings.
+        force (Optional[bool]): If True, overwrites the existing settings completely.
+                                If False, merges the new settings with the existing ones, giving
+                                priority to the new values. Defaults to False.
+
+    Returns:
+        configuration (ConfigEOS): The current configuration after the merge.
     """
-    config_eos.merge_settings(settings)
-    if save:
-        try:
-            config_eos.to_config_file()
-        except:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Cannot save configuration to file '{config_eos.config_file_path}'.",
-            )
+    config_eos.merge_settings(settings, force=force)
+    return config_eos
+
+
+@app.get("/v1/config/file")
+def fastapi_config_file_get(
+    update: Annotated[Optional[bool], Query(description="update")] = None,
+) -> SettingsEOS:
+    """Get the settings as defined by the EOS configuration file.
+
+    Args:
+        update (Optional[bool]): If True, additionally update the configuration by the settings of
+            the EOS configuration file. If False, only read the settings and provide it. Defaults to
+            False.
+
+    Returns:
+        settings (SettingsEOS): The settings defined by the EOS configuration file.
+    """
+    if update:
+        settings, _ = config_eos.from_config_file()
+    else:
+        settings, _ = config_eos.settings_from_config_file()
+    return settings
+
+
+@app.put("/v1/config/file")
+def fastapi_config_file_put() -> ConfigEOS:
+    """Save the current configuration to the EOS configuration file.
+
+    Returns:
+        configuration (ConfigEOS): The current configuration that was saved.
+    """
+    try:
+        config_eos.to_config_file()
+    except:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Cannot save configuration to file '{config_eos.config_file_path}'.",
+        )
     return config_eos
 
 

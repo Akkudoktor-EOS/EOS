@@ -160,7 +160,7 @@ def server(xprocess, config_eos, config_default_dirs):
                 stderr=subprocess.PIPE,
             )
         except subprocess.CalledProcessError:
-            project_dir = Path(__file__).parent.parent.parent
+            project_dir = config_eos.package_root_path
             subprocess.run(
                 [sys.executable, "-m", "pip", "install", "-e", project_dir],
                 check=True,
