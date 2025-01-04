@@ -1,27 +1,53 @@
 name: docker-build
 
 on:
-  release:
-    types: [published]
+  # pipeline runs per trigger condition, so release trigger not required as tag is sufficient
+  #release:
+  #  types: [published]
+  push:
+    branches:
+      - 'main'
+      - 'feature/config-overhaul'
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - 'main'
+      - 'feature/config-overhaul'
 
 env:
-  REGISTRY: ghcr.io
+  DOCKERHUB_REPO: akkudoktor/eos
+  GHCR_REPO: ghcr.io/akkudoktor-eos/eos
+  EOS_LICENSE: Apache-2.0
 
+# From https://docs.docker.com/build/ci/github-actions/multi-platform/
+# Changes:
+#  - adjusted rw permissions
+#  - manually set undetected license (label+annotation)
+#  - set description for index manifest
+#  - add attestation
+#  - conditionally don't push on pr
+#  - on pr just use amd64 platform
 jobs:
-  variables:
+  # Build platform matrix excludes. if-conditional with matrix on job level is not
+  # supported, see https://github.com/actions/runner/issues/1985
+  platform-excludes:
+    runs-on: ubuntu-latest
     outputs:
-      repository: ${{ steps.var.outputs.repository}}
-    runs-on: "ubuntu-latest"
+      excludes: ${{ steps.excludes.outputs.matrix }}
     steps:
-      - name: Setting global variables
-        uses: actions/github-script@v6
-        id: var
-        with:
-          script: |
-            core.setOutput('repository', '${{ github.repository }}'.toLowerCase());
+      - id: excludes
+        run: |
+          if ${{ github.event_name == 'pull_request' }}; then
+            echo 'matrix=[
+              {"platform": "linux/arm64"}
+            ]' | tr -d '[:space:]' >> $GITHUB_OUTPUT
+          else
+            echo 'matrix=[]' >> $GITHUB_OUTPUT
+          fi
+
   build:
-    needs:
-      - variables
+    needs: platform-excludes
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,6 +60,7 @@ jobs:
         platform:
           - linux/amd64
           - linux/arm64
+        exclude: ${{ fromJSON(needs.platform-excludes.outputs.excludes) }}
     steps:
       - name: Prepare
         run: |
@@ -44,7 +71,34 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: "${{ env.REGISTRY }}/${{ needs.variables.outputs.repository }}"
+          images: |
+            ${{ env.DOCKERHUB_REPO }}
+            ${{ env.GHCR_REPO }}
+          labels: |
+            org.opencontainers.image.licenses=${{ env.EOS_LICENSE }}
+          annotations: |
+            org.opencontainers.image.licenses=${{ env.EOS_LICENSE }}
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+
+      # Prepare to extract description so it can be manually set for index manifest (group of platform manifests)
+      - name: Prepare description
+        id: get_description
+        run: |
+          echo "EOS_REPO_DESCRIPTION=$(jq -cr '.labels."org.opencontainers.image.description"' <<< "$DOCKER_METADATA_OUTPUT_JSON")" >> $GITHUB_ENV
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -52,27 +106,29 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to GitHub
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build and push by digest
         id: build
         uses: docker/build-push-action@v6
         with:
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,name=${{ env.REGISTRY }}/${{ needs.variables.outputs.repository }},push-by-digest=true,name-canonical=true,push=true
+          annotations: ${{ steps.meta.outputs.annotations }}
+          outputs: type=image,"name=${{ env.DOCKERHUB_REPO }},${{ env.GHCR_REPO }}",push-by-digest=true,name-canonical=true,"push=${{ github.event_name != 'pull_request' }}","annotation-index.org.opencontainers.image.description=${{ env.EOS_REPO_DESCRIPTION }}"
+          #push: ${{ github.event_name != 'pull_request' }}
 
-      - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v1
+      - name: Generate artifact attestation DockerHub
+        uses: actions/attest-build-provenance@v2
         with:
-          subject-name: "${{ env.REGISTRY }}/${{ needs.variables.outputs.repository }}"
+          subject-name: docker.io/${{ env.DOCKERHUB_REPO }}
           subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
+          push-to-registry: ${{ github.event_name != 'pull_request' }}
+
+      - name: Generate artifact attestation GitHub
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.GHCR_REPO }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: ${{ github.event_name != 'pull_request' }}
 
       - name: Export digest
         run: |
@@ -90,9 +146,14 @@ jobs:
 
   merge:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     needs:
       - build
-      - variables
+    # skip for pull requests
+    if: ${{ github.event_name != 'pull_request' }}
     steps:
       - name: Download digests
         uses: actions/download-artifact@v4
@@ -101,6 +162,19 @@ jobs:
           pattern: digests-*
           merge-multiple: true
 
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -108,21 +182,30 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: "${{ env.REGISTRY }}/${{ needs.variables.outputs.repository }}"
-
-      - name: Login to GitHub
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          images: |
+            ${{ env.DOCKERHUB_REPO }}
+            ${{ env.GHCR_REPO }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          labels: |
+            org.opencontainers.image.licenses=${{ env.EOS_LICENSE }}
+          annotations: |
+            org.opencontainers.image.licenses=${{ env.EOS_LICENSE }}
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
         run: |
           docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY }}/${{ needs.variables.outputs.repository }}@sha256:%s ' *)
+            $(printf '${{ env.DOCKERHUB_REPO }}@sha256:%s ' *)
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.GHCR_REPO }}@sha256:%s ' *)
 
       - name: Inspect image
         run: |
-          docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ needs.variables.outputs.repository }}:${{ steps.meta.outputs.version }}
+          docker buildx imagetools inspect ${{ env.DOCKERHUB_REPO }}:${{ steps.meta.outputs.version }}
+          docker buildx imagetools inspect ${{ env.GHCR_REPO }}:${{ steps.meta.outputs.version }}
