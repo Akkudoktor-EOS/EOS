@@ -21,9 +21,8 @@ data is lost on re-start of the EOS REST server.
 Most predictions can be sourced from various providers. The specific provider to use is configured
 in the EOS configuration. For example:
 
-```plaintext
+.. code-block:: python
 weather_provider = "ClearOutside"
-```
 
 Some providers offer multiple prediction keys. For instance, a weather provider might provide data
 to prediction keys like:
@@ -43,15 +42,14 @@ The prediction data must be provided in one of the following formats:
 
 A dictionary with the following structure:
 
-```JSON
-    {
-        "start_datetime": "2024-01-01 00:00:00",
-        "interval": "1 Hour",
-        "<prediction key>": [value, value, ...],
-        "<prediction key>": [value, value, ...],
-        ...
-    }
-```
+.. code-block:: json
+{
+"start_datetime": "2024-01-01 00:00:00",
+"interval": "1 Hour",
+"<prediction key>": [value, value, ...],
+"<prediction key>": [value, value, ...],
+...
+}
 
 #### 2. DateTimeDataFrame
 

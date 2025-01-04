@@ -30,15 +30,14 @@ The measurement data must be or is provided in one of the following formats:
 
 A dictionary with the following structure:
 
-```JSON
-    {
-        "start_datetime": "2024-01-01 00:00:00",
-        "interval": "1 Hour",
-        "<measurement key>": [value, value, ...],
-        "<measurement key>": [value, value, ...],
-        ...
-    }
-```
+.. code-block:: json
+{
+"start_datetime": "2024-01-01 00:00:00",
+"interval": "1 Hour",
+"<measurement key>": [value, value, ...],
+"<measurement key>": [value, value, ...],
+...
+}
 
 ### 2. DateTimeDataFrame
 
