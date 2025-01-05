@@ -3,7 +3,7 @@ from typing import List, Optional
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.utils.logutil import get_logger
+from akkudoktoreos.core.logging import get_logger
 
 logger = get_logger(__name__)
 

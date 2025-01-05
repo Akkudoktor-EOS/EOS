@@ -5,7 +5,7 @@ from typing import Optional
 from pydantic import Field, IPvAnyAddress, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.utils.logutil import get_logger
+from akkudoktoreos.core.logging import get_logger
 
 logger = get_logger(__name__)
 

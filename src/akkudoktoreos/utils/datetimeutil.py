@@ -31,7 +31,7 @@ from pendulum import Date, DateTime, Duration
 from pendulum.tz.timezone import Timezone
 from timezonefinder import TimezoneFinder
 
-from akkudoktoreos.utils.logutil import get_logger
+from akkudoktoreos.core.logging import get_logger
 
 logger = get_logger(__name__)
 

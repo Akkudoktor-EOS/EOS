@@ -6,13 +6,13 @@ from pydantic import Field, computed_field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.devicesabc import DevicesBase
 from akkudoktoreos.devices.generic import HomeAppliance
 from akkudoktoreos.devices.inverter import Inverter
 from akkudoktoreos.prediction.interpolator import SelfConsumptionPropabilityInterpolator
 from akkudoktoreos.utils.datetimeutil import to_duration
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 

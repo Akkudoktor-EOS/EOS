@@ -9,5 +9,5 @@ def test_server(server, config_eos):
     assert config_eos.data_folder_path is not None
     assert config_eos.data_folder_path.is_dir()
 
-    result = requests.get(f"{server}/v1/config?")
+    result = requests.get(f"{server}/v1/config")
     assert result.status_code == HTTPStatus.OK

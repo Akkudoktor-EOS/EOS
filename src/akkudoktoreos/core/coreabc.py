@@ -16,7 +16,7 @@ from typing import Any, ClassVar, Dict, Optional, Type
 from pendulum import DateTime
 from pydantic import computed_field
 
-from akkudoktoreos.utils.logutil import get_logger
+from akkudoktoreos.core.logging import get_logger
 
 logger = get_logger(__name__)
 

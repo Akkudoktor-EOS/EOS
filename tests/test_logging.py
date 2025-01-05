@@ -1,4 +1,4 @@
-"""Test Module for logutil Module."""
+"""Test Module for logging Module."""
 
 import logging
 import os
@@ -6,7 +6,7 @@ from logging.handlers import RotatingFileHandler
 
 import pytest
 
-from akkudoktoreos.utils.logutil import get_logger
+from akkudoktoreos.core.logging import get_logger
 
 # -----------------------------
 # get_logger
@@ -73,10 +73,5 @@ def test_get_logger_no_file_logging(clean_up_log_file):
 
 def test_get_logger_with_invalid_level(clean_up_log_file):
     """Test logger creation with an invalid logging level."""
-    logger = get_logger("test_logger", logging_level="INVALID")
-
-    # Check logger name
-    assert logger.name == "test_logger"
-
-    # Check default logging level is DEBUG
-    assert logger.level == logging.DEBUG
+    with pytest.raises(ValueError, match="Unknown loggin level: INVALID"):
+        logger = get_logger("test_logger", logging_level="INVALID")

@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from akkudoktoreos.config.config import ConfigEOS
-from akkudoktoreos.utils.logutil import get_logger
+from akkudoktoreos.core.logging import get_logger
 
 logger = get_logger(__name__)
 

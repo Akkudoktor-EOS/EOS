@@ -77,13 +77,9 @@ def test_loadakkudoktor_provider_id(load_provider):
     assert load_provider.provider_id() == "LoadAkkudoktor"
 
 
-@patch("akkudoktoreos.prediction.loadakkudoktor.Path")
 @patch("akkudoktoreos.prediction.loadakkudoktor.np.load")
-def test_load_data_from_mock(mock_np_load, mock_path, mock_load_profiles_file, load_provider):
+def test_load_data_from_mock(mock_np_load, mock_load_profiles_file, load_provider):
     """Test the `load_data` method."""
-    # Mock path behavior to return the test file
-    mock_path.return_value.parent.parent.joinpath.return_value = mock_load_profiles_file
-
     # Mock numpy load to return data similar to what would be in the file
     mock_np_load.return_value = {
         "yearly_profiles": np.ones((365, 24)),

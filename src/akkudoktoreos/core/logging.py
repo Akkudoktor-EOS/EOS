@@ -15,19 +15,21 @@ Notes:
 - The logger supports rotating log files to prevent excessive log file size.
 """
 
-import logging
+import logging as pylogging
 import os
 from logging.handlers import RotatingFileHandler
 from typing import Optional
+
+from akkudoktoreos.core.logabc import logging_str_to_level
 
 
 def get_logger(
     name: str,
     log_file: Optional[str] = None,
-    logging_level: Optional[str] = "INFO",
+    logging_level: Optional[str] = None,
     max_bytes: int = 5000000,
     backup_count: int = 5,
-) -> logging.Logger:
+) -> pylogging.Logger:
     """Creates and configures a logger with a given name.
 
     The logger supports logging to both the console and an optional log file. File logging is
@@ -48,31 +50,22 @@ def get_logger(
         logger.info("Application started")
     """
     # Create a logger with the specified name
-    logger = logging.getLogger(name)
+    logger = pylogging.getLogger(name)
     logger.propagate = True
-    if (env_level := os.getenv("EOS_LOGGING_LEVEL")) is not None:
-        logging_level = env_level
-    if logging_level == "DEBUG":
-        level = logging.DEBUG
-    elif logging_level == "INFO":
-        level = logging.INFO
-    elif logging_level == "WARNING":
-        level = logging.WARNING
-    elif logging_level == "ERROR":
-        level = logging.ERROR
-    else:
-        level = logging.DEBUG
-    logger.setLevel(level)
+    if logging_level is not None:
+        level = logging_str_to_level(logging_level)
+        logger.setLevel(level)
 
     # The log message format
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    formatter = pylogging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
     # Prevent loggers from being added multiple times
     # There may already be a logger from pytest
     if not logger.handlers:
         # Create a console handler with a standard output stream
-        console_handler = logging.StreamHandler()
-        console_handler.setLevel(level)
+        console_handler = pylogging.StreamHandler()
+        if logging_level is not None:
+            console_handler.setLevel(level)
         console_handler.setFormatter(formatter)
 
         # Add the console handler to the logger
@@ -88,7 +81,8 @@ def get_logger(
 
         # Create a rotating file handler
         file_handler = RotatingFileHandler(log_file, maxBytes=max_bytes, backupCount=backup_count)
-        file_handler.setLevel(level)
+        if logging_level is not None:
+            file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
 
         # Add the file handler to the logger

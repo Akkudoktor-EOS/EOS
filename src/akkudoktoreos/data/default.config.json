@@ -14,6 +14,7 @@
   "load_name": null,
   "load_provider": null,
   "loadakkudoktor_year_energy": null,
+  "logging_level": "INFO",
   "longitude": 13.4,
   "optimization_ev_available_charge_rates_percent": null,
   "optimization_hours": 48,

@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
 
 import httpx
-import pandas as pd
 import uvicorn
 from fastapi import FastAPI, Query, Request
 from fastapi.exceptions import HTTPException
@@ -15,6 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
 from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeData,
@@ -29,7 +29,6 @@ from akkudoktoreos.optimization.genetic import (
 )
 from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 config_eos = get_config()
@@ -182,33 +181,112 @@ class PdfResponse(FileResponse):
     media_type = "application/pdf"
 
 
+@app.put("/v1/config/value")
+def fastapi_config_value_put(
+    key: Annotated[str, Query(description="configuration key")],
+    value: Annotated[Any, Query(description="configuration value")],
+) -> ConfigEOS:
+    """Set the configuration option in the settings.
+
+    Args:
+        key (str): configuration key
+        value (Any): configuration value
+
+    Returns:
+        configuration (ConfigEOS): The current configuration after the write.
+    """
+    if key not in config_eos.config_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
+    if key in config_eos.config_keys_read_only:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is read only.")
+    try:
+        setattr(config_eos, key, value)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
+    return config_eos
+
+
+@app.post("/v1/config/update")
+def fastapi_config_update_post() -> ConfigEOS:
+    """Update the configuration from the EOS configuration file.
+
+    Returns:
+        configuration (ConfigEOS): The current configuration after update.
+    """
+    try:
+        _, config_file_path = config_eos.from_config_file()
+    except:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Cannot update configuration from file '{config_file_path}'.",
+        )
+    return config_eos
+
+
+@app.get("/v1/config/file")
+def fastapi_config_file_get() -> SettingsEOS:
+    """Get the settings as defined by the EOS configuration file.
+
+    Returns:
+        settings (SettingsEOS): The settings defined by the EOS configuration file.
+    """
+    try:
+        settings, config_file_path = config_eos.settings_from_config_file()
+    except:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Cannot read configuration from file '{config_file_path}'.",
+        )
+    return settings
+
+
+@app.put("/v1/config/file")
+def fastapi_config_file_put() -> ConfigEOS:
+    """Save the current configuration to the EOS configuration file.
+
+    Returns:
+        configuration (ConfigEOS): The current configuration that was saved.
+    """
+    try:
+        config_eos.to_config_file()
+    except:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Cannot save configuration to file '{config_eos.config_file_path}'.",
+        )
+    return config_eos
+
+
 @app.get("/v1/config")
 def fastapi_config_get() -> ConfigEOS:
-    """Get the current configuration."""
+    """Get the current configuration.
+
+    Returns:
+        configuration (ConfigEOS): The current configuration.
+    """
     return config_eos
 
 
 @app.put("/v1/config")
 def fastapi_config_put(
-    settings: SettingsEOS,
-    save: Optional[bool] = None,
+    settings: Annotated[SettingsEOS, Query(description="settings")],
 ) -> ConfigEOS:
-    """Merge settings into current configuration.
+    """Write the provided settings into the current settings.
+
+    The existing settings are completely overwritten. Note that for any setting
+    value that is None, the configuration will fall back to values from other sources such as
+    environment variables, the EOS configuration file, or default values.
 
     Args:
-        settings (SettingsEOS): The settings to merge into the current configuration.
-        save (Optional[bool]): Save the resulting configuration to the configuration file.
-            Defaults to False.
+        settings (SettingsEOS): The settings to write into the current settings.
+
+    Returns:
+        configuration (ConfigEOS): The current configuration after the write.
     """
-    config_eos.merge_settings(settings)
-    if save:
-        try:
-            config_eos.to_config_file()
-        except:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Cannot save configuration to file '{config_eos.config_file_path}'.",
-            )
+    try:
+        config_eos.merge_settings(settings, force=True)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
     return config_eos
 
 
@@ -226,10 +304,10 @@ def fastapi_measurement_load_mr_series_by_name_get(
     key = measurement_eos.name_to_key(name=name, topic="measurement_load")
     if key is None:
         raise HTTPException(
-            status_code=404, detail=f"Measurement load with name '{name}' not available."
+            status_code=404, detail=f"Measurement load with name '{name}' is not available."
         )
     if key not in measurement_eos.record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     pdseries = measurement_eos.key_to_series(key=key)
     return PydanticDateTimeSeries.from_series(pdseries)
 
@@ -244,10 +322,10 @@ def fastapi_measurement_load_mr_value_by_name_put(
     key = measurement_eos.name_to_key(name=name, topic="measurement_load")
     if key is None:
         raise HTTPException(
-            status_code=404, detail=f"Measurement load with name '{name}' not available."
+            status_code=404, detail=f"Measurement load with name '{name}' is not available."
         )
     if key not in measurement_eos.record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     measurement_eos.update_value(datetime, key, value)
     pdseries = measurement_eos.key_to_series(key=key)
     return PydanticDateTimeSeries.from_series(pdseries)
@@ -261,10 +339,10 @@ def fastapi_measurement_load_mr_series_by_name_put(
     key = measurement_eos.name_to_key(name=name, topic="measurement_load")
     if key is None:
         raise HTTPException(
-            status_code=404, detail=f"Measurement load with name '{name}' not available."
+            status_code=404, detail=f"Measurement load with name '{name}' is not available."
         )
     if key not in measurement_eos.record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     pdseries = series.to_series()  # make pandas series from PydanticDateTimeSeries
     measurement_eos.key_from_series(key=key, series=pdseries)
     pdseries = measurement_eos.key_to_series(key=key)
@@ -277,7 +355,7 @@ def fastapi_measurement_series_get(
 ) -> PydanticDateTimeSeries:
     """Get the measurements of given key as series."""
     if key not in measurement_eos.record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     pdseries = measurement_eos.key_to_series(key=key)
     return PydanticDateTimeSeries.from_series(pdseries)
 
@@ -290,7 +368,7 @@ def fastapi_measurement_value_put(
 ) -> PydanticDateTimeSeries:
     """Merge the measurement of given key and value into EOS measurements at given datetime."""
     if key not in measurement_eos.record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     measurement_eos.update_value(datetime, key, value)
     pdseries = measurement_eos.key_to_series(key=key)
     return PydanticDateTimeSeries.from_series(pdseries)
@@ -302,7 +380,7 @@ def fastapi_measurement_series_put(
 ) -> PydanticDateTimeSeries:
     """Merge measurement given as series into given key."""
     if key not in measurement_eos.record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     pdseries = series.to_series()  # make pandas series from PydanticDateTimeSeries
     measurement_eos.key_from_series(key=key, series=pdseries)
     pdseries = measurement_eos.key_to_series(key=key)
@@ -351,7 +429,7 @@ def fastapi_prediction_series_get(
             Defaults to end datetime of latest prediction.
     """
     if key not in prediction_eos.record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     if start_datetime is None:
         start_datetime = prediction_eos.start_datetime
     else:
@@ -394,7 +472,7 @@ def fastapi_prediction_list_get(
             Defaults to 1 hour.
     """
     if key not in prediction_eos.record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' not available.")
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     if start_datetime is None:
         start_datetime = prediction_eos.start_datetime
     else:
@@ -429,7 +507,7 @@ def fastapi_prediction_update(force_update: bool = False, force_enable: bool = F
     try:
         prediction_eos.update_data(force_update=force_update, force_enable=force_enable)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error while trying to update provider: {e}")
+        raise HTTPException(status_code=400, detail=f"Error on update of provider: {e}")
     return Response()
 
 
@@ -453,13 +531,20 @@ def fastapi_prediction_update_provider(
     try:
         provider.update_data(force_update=force_update, force_enable=force_enable)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error while trying to update provider: {e}")
+        raise HTTPException(status_code=400, detail=f"Error on update of provider: {e}")
     return Response()
 
 
 @app.get("/strompreis")
 def fastapi_strompreis() -> list[float]:
     """Deprecated: Electricity Market Price Prediction per Wh (€/Wh).
+
+    Electricity prices start at 00.00.00 today and are provided for 48 hours.
+    If no prices are available the missing ones at the start of the series are
+    filled with the first available price.
+
+    Note:
+        Electricity price charges are added.
 
     Note:
         Set ElecPriceAkkudoktor as elecprice_provider, then update data with
@@ -479,11 +564,21 @@ def fastapi_strompreis() -> list[float]:
 
     # Get the current date and the end date based on prediction hours
     # Fetch prices for the specified date range
-    return prediction_eos.key_to_array(
-        key="elecprice_marketprice_wh",
-        start_datetime=prediction_eos.start_datetime,
-        end_datetime=prediction_eos.end_datetime,
-    ).tolist()
+    start_datetime = to_datetime().start_of("day")
+    end_datetime = start_datetime.add(days=2)
+    try:
+        elecprice = prediction_eos.key_to_array(
+            key="elecprice_marketprice_wh",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+        ).tolist()
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not get the electricity price forecast: {e}. Did you configure the electricity price forecast provider?",
+        )
+
+    return elecprice
 
 
 class GesamtlastRequest(PydanticBaseModel):
@@ -497,6 +592,10 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     """Deprecated: Total Load Prediction with adjustment.
 
     Endpoint to handle total load prediction adjusted by latest measured data.
+
+    Total load prediction starts at 00.00.00 today and is provided for 48 hours.
+    If no prediction values are available the missing ones at the start of the series are
+    filled with the first available prediction value.
 
     Note:
         Use '/v1/prediction/list?key=load_mean_adjusted' instead.
@@ -534,11 +633,21 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     # Create load forecast
     prediction_eos.update_data(force_update=True)
 
-    prediction_list = prediction_eos.key_to_array(
-        key="load_mean_adjusted",
-        start_datetime=prediction_eos.start_datetime,
-        end_datetime=prediction_eos.end_datetime,
-    ).tolist()
+    # Get the forcast starting at start of day
+    start_datetime = to_datetime().start_of("day")
+    end_datetime = start_datetime.add(days=2)
+    try:
+        prediction_list = prediction_eos.key_to_array(
+            key="load_mean_adjusted",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+        ).tolist()
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not get the total load forecast: {e}. Did you configure the load forecast provider?",
+        )
+
     return prediction_list
 
 
@@ -547,6 +656,10 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     """Deprecated: Total Load Prediction.
 
     Endpoint to handle total load prediction.
+
+    Total load prediction starts at 00.00.00 today and is provided for 48 hours.
+    If no prediction values are available the missing ones at the start of the series are
+    filled with the first available prediction value.
 
     Note:
         Set LoadAkkudoktor as load_provider, then update data with
@@ -564,11 +677,21 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     # Create load forecast
     prediction_eos.update_data(force_update=True)
 
-    prediction_list = prediction_eos.key_to_array(
-        key="load_mean",
-        start_datetime=prediction_eos.start_datetime,
-        end_datetime=prediction_eos.end_datetime,
-    ).tolist()
+    # Get the forcast starting at start of day
+    start_datetime = to_datetime().start_of("day")
+    end_datetime = start_datetime.add(days=2)
+    try:
+        prediction_list = prediction_eos.key_to_array(
+            key="load_mean",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+        ).tolist()
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not get the total load forecast: {e}. Did you configure the load forecast provider?",
+        )
+
     return prediction_list
 
 
@@ -583,6 +706,10 @@ def fastapi_pvforecast() -> ForecastResponse:
 
     Endpoint to handle PV forecast prediction.
 
+    PVForecast starts at 00.00.00 today and is provided for 48 hours.
+    If no forecast values are available the missing ones at the start of the series are
+    filled with the first available forecast value.
+
     Note:
         Set PVForecastAkkudoktor as pvforecast_provider, then update data with
         '/v1/prediction/update'
@@ -590,41 +717,38 @@ def fastapi_pvforecast() -> ForecastResponse:
         '/v1/prediction/list?key=pvforecast_ac_power' and
         '/v1/prediction/list?key=pvforecastakkudoktor_temp_air' instead.
     """
-    ###############
-    # PV Forecast
-    ###############
-    prediction_key = "pvforecast_ac_power"
-    pvforecast_ac_power = prediction_eos.get(prediction_key)
-    if pvforecast_ac_power is None:
-        raise HTTPException(status_code=404, detail=f"Prediction not available: {prediction_key}")
+    settings = SettingsEOS(
+        elecprice_provider="PVForecastAkkudoktor",
+    )
+    config_eos.merge_settings(settings=settings)
 
-    # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
-    if len(pvforecast_ac_power) == 0:
-        pvforecast_ac_power = pd.Series()
-    else:
-        # Fetch prices for the specified date range
-        pvforecast_ac_power = pvforecast_ac_power.loc[
-            prediction_eos.start_datetime : prediction_eos.end_datetime
-        ]
+    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
 
-    prediction_key = "pvforecastakkudoktor_temp_air"
-    pvforecastakkudoktor_temp_air = prediction_eos.get(prediction_key)
-    if pvforecastakkudoktor_temp_air is None:
-        raise HTTPException(status_code=404, detail=f"Prediction not available: {prediction_key}")
+    # Create PV forecast
+    prediction_eos.update_data(force_update=True)
 
-    # On empty Series.loc TypeError: Cannot compare tz-naive and tz-aware datetime-like objects
-    if len(pvforecastakkudoktor_temp_air) == 0:
-        pvforecastakkudoktor_temp_air = pd.Series()
-    else:
-        # Fetch prices for the specified date range
-        pvforecastakkudoktor_temp_air = pvforecastakkudoktor_temp_air.loc[
-            prediction_eos.start_datetime : prediction_eos.end_datetime
-        ]
+    # Get the forcast starting at start of day
+    start_datetime = to_datetime().start_of("day")
+    end_datetime = start_datetime.add(days=2)
+    try:
+        ac_power = prediction_eos.key_to_array(
+            key="pvforecast_ac_power",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+        ).tolist()
+        temp_air = prediction_eos.key_to_array(
+            key="pvforecastakkudoktor_temp_air",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+        ).tolist()
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not get the PV forecast: {e}. Did you configure the PV forecast provider?",
+        )
 
     # Return both forecasts as a JSON response
-    return ForecastResponse(
-        temperature=pvforecastakkudoktor_temp_air.tolist(), pvpower=pvforecast_ac_power.tolist()
-    )
+    return ForecastResponse(temperature=temp_air, pvpower=ac_power)
 
 
 @app.post("/optimize")

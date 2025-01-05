@@ -16,8 +16,8 @@ from pydantic import Field, computed_field
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.dataabc import DataImportMixin, DataRecord, DataSequence
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.utils.datetimeutil import to_duration
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 

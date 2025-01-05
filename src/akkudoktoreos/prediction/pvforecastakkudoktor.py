@@ -68,6 +68,7 @@ from typing import Any, List, Optional, Union
 import requests
 from pydantic import Field, ValidationError, computed_field
 
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.pvforecastabc import (
     PVForecastDataRecord,
@@ -75,7 +76,6 @@ from akkudoktoreos.prediction.pvforecastabc import (
 )
 from akkudoktoreos.utils.cacheutil import cache_in_file
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 
@@ -283,27 +283,21 @@ class PVForecastAkkudoktor(PVForecastProvider):
             original_datetime = akkudoktor_data.values[0][i].datetime
             dt = to_datetime(original_datetime, in_timezone=self.config.timezone)
 
-            # iso_datetime = parser.parse(original_datetime).isoformat()  # Konvertiere zu ISO-Format
-            # print()
-            # Optional: 2 Stunden abziehen, um die Zeitanpassung zu testen
-            # adjusted_datetime = parser.parse(original_datetime) - timedelta(hours=2)
-            # print(f"Angepasste Zeitstempel: {adjusted_datetime.isoformat()}")
-
-            if compare_datetimes(dt, self.start_datetime).lt:
+            # We provide prediction starting at start of day, to be compatible to old system.
+            if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
                 # forecast data is too old
                 continue
 
             sum_dc_power = sum(values[i].dcPower for values in akkudoktor_data.values)
             sum_ac_power = sum(values[i].power for values in akkudoktor_data.values)
 
-            record = PVForecastAkkudoktorDataRecord(
-                date_time=dt,  # Verwende angepassten Zeitstempel
-                pvforecast_dc_power=sum_dc_power,
-                pvforecast_ac_power=sum_ac_power,
-                pvforecastakkudoktor_wind_speed_10m=akkudoktor_data.values[0][i].windspeed_10m,
-                pvforecastakkudoktor_temp_air=akkudoktor_data.values[0][i].temperature,
-            )
-            self.append(record)
+            data = {
+                "pvforecast_dc_power": sum_dc_power,
+                "pvforecast_ac_power": sum_ac_power,
+                "pvforecastakkudoktor_wind_speed_10m": akkudoktor_data.values[0][i].windspeed_10m,
+                "pvforecastakkudoktor_temp_air": akkudoktor_data.values[0][i].temperature,
+            }
+            self.update_value(dt, data)
 
         if len(self) < self.config.prediction_hours:
             raise ValueError(

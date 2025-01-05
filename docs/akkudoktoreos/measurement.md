@@ -30,7 +30,7 @@ The measurement data must be or is provided in one of the following formats:
 
 A dictionary with the following structure:
 
-```JSON
+```python
     {
         "start_datetime": "2024-01-01 00:00:00",
         "interval": "1 Hour",

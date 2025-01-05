@@ -12,9 +12,9 @@ from typing import Optional, Union
 from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.predictionabc import PredictionImportProvider
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
-from akkudoktoreos.utils.logutil import get_logger
 
 logger = get_logger(__name__)
 
