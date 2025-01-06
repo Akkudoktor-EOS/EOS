@@ -158,6 +158,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             ValueError: If the API response does not include expected `electricity price` data.
         """
         source = "https://api.akkudoktor.net"
+        assert self.start_datetime  # mypy fix
         # Try to take data from 5 weeks back for prediction
         date = to_datetime(self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
@@ -183,12 +184,12 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
-        values_len = len(akkudoktor_data.values)
-        if values_len < 1:
+        akkudoktor_data_len = len(akkudoktor_data.values)
+        if akkudoktor_data_len < 1:
             # Expect one value set per prediction hour
             raise ValueError(
                 f"The forecast must have at least one dataset, "
-                f"but only {values_len} data sets are given in forecast data."
+                f"but only {akkudoktor_data_len} data sets are given in forecast data."
             )
 
         # Get cached values
@@ -208,8 +209,9 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         charges_kwh = (
             self.config.elecprice_charges_kwh if self.config.elecprice_charges_kwh else 0.0
         )
+        assert self.start_datetime  # mypy fix
 
-        for i in range(values_len):
+        for i in range(akkudoktor_data_len):
             original_datetime = akkudoktor_data.values[i].start
             dt = to_datetime(original_datetime, in_timezone=self.config.timezone)
 
@@ -217,7 +219,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             price_wh = (
                 akkudoktor_value.marketpriceEurocentPerKWh / (100 * 1000) + charges_kwh / 1000
             )
-            assert self.start_datetime  # mypy fix
+
             # We provide prediction starting at start of day, to be compatible to old system.
             if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
                 # forecast data is too old - older than start_datetime with time set to 00:00:00
@@ -227,7 +229,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
             self.update_value(dt, "elecprice_marketprice_wh", price_wh)
 
-        # Update 8day cache
+        # Update 35day cache
         elecprice_cache_file.seek(0)
         np.save(elecprice_cache_file, self.elecprice_35days)
 
@@ -235,22 +237,26 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         if len(self) == 0:
             # Got no valid forecast data
             return
+        assert self[0].date_time  # mypy fix, elecprice_marketprice_wh from elecpriceabc.py
 
-        # Assure price starts at start_time
+        # Check how many non-None or non-NaN values are in self.elecprice_35days
+        # non_nan_count = np.count_nonzero(~np.isnan(self.elecprice_35days))
         while compare_datetimes(self[0].date_time, self.start_datetime).gt:
             # Repeat the mean on the 8 day array to cover the missing hours
-            dt = self[0].date_time.subtract(hours=1)  # type: ignore
+            dt = self[0].date_time.subtract(hours=1)
             value = self._calculate_weighted_mean(dt.day_of_week, dt.hour)
-
             record = ElecPriceDataRecord(
                 date_time=dt,
                 elecprice_marketprice_wh=value,
             )
             self.insert(0, record)
+
         # Assure price ends at end_time
+        assert self[-1].date_time  # mypy fix,
+        assert self.end_datetime  # mypy fix,
         while compare_datetimes(self[-1].date_time, self.end_datetime).lt:
             # Repeat the mean on the 8 day array to cover the missing hours
-            dt = self[-1].date_time.add(hours=1)  # type: ignore
+            dt = self[-1].date_time.add(hours=1)
             value = self._calculate_weighted_mean(dt.day_of_week, dt.hour)
             record = ElecPriceDataRecord(
                 date_time=dt,
