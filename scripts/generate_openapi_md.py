@@ -5,12 +5,55 @@ import argparse
 import json
 import sys
 
+import git
+
 if __package__ is None or __package__ == "":
     # uses current directory visibility
     import generate_openapi
 else:
     # uses current package visibility
     from . import generate_openapi
+
+
+def akkudoktoreos_base_branch():
+    """Find the remote branch from the Akkudoktor-EOS repository that the current branch is based on.
+
+    This function searches through all branches in the Akkudoktor-EOS remote
+    to find the first commit of the remote branch taht is in the current branch and returns the name
+    of the remote branch (without the remote name).
+
+    Returns:
+        str: The name of the remote branch (without the remote name)
+             that the first commit of the current branch is based on.
+             Returns None if no matching remote branch is found.
+    """
+    repo = git.Repo(__file__, search_parent_directories=True)
+
+    # Get the current branch
+    try:
+        current_branch = repo.active_branch.name
+    except:
+        # Maybe detached branch that has no name
+        return None
+
+    first_commit = next(repo.iter_commits(current_branch, max_count=1)).hexsha
+
+    # Iterate over all remote branches to find the first commit
+    for remote in repo.remotes:
+        if "https://github.com/Akkudoktor-EOS" in remote.url:
+            # Only search for Akkudoktor-EOS
+            for ref in remote.refs:
+                try:
+                    # Check if the first commit of the current branch is in the remote branch history
+                    commits = list(repo.iter_commits(ref.name))
+                    if any(commit.hexsha == first_commit for commit in commits):
+                        # Remove remote name from the branch name
+                        branch_name = "/".join(ref.name.split("/")[1:])
+                        return branch_name
+                except git.exc.GitCommandError:
+                    continue
+
+    return None
 
 
 def extract_info(openapi_json: dict) -> dict:
@@ -113,13 +156,14 @@ def format_responses(responses: dict) -> str:
     return markdown
 
 
-def format_endpoint(path: str, method: str, details: dict) -> str:
+def format_endpoint(path: str, method: str, details: dict, devel: bool = False) -> str:
     """Format a single endpoint's details for the Markdown.
 
     Args:
         path (str): The endpoint path.
         method (str): The HTTP method.
         details (dict): The details of the endpoint.
+        devel (bool): Include development output.
 
     Returns:
         str: The formatted endpoint section in Markdown.
@@ -140,8 +184,8 @@ def format_endpoint(path: str, method: str, details: dict) -> str:
         "[local](http://localhost:8503/docs#/default/" + link_summary + link_path + link_method
     )
     # [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_strompreis_strompreis_get)
-    swagger_path = (
-        "[swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/"
+    akkudoktoreos_main_path = (
+        "[eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/"
         + link_summary
         + link_path
         + link_method
@@ -149,7 +193,19 @@ def format_endpoint(path: str, method: str, details: dict) -> str:
 
     markdown = f"## {method.upper()} {path}\n\n"
 
-    markdown += f"**Links**: {local_path}, {swagger_path}\n\n"
+    markdown += f"**Links**: {local_path}, {akkudoktoreos_main_path}"
+    if devel:
+        # Add link to akkudoktor branch the development has used
+        akkudoktor_branch = akkudoktoreos_base_branch()
+        if akkudoktor_branch is not None:
+            akkudoktoreos_base_path = (
+                f"[devel](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/{akkudoktor_branch}/openapi.json#/default/"
+                + link_summary
+                + link_path
+                + link_method
+            )
+            markdown += f", {akkudoktoreos_base_path}"
+    markdown += "\n\n"
 
     summary = details.get("summary", None)
     if summary:
@@ -169,11 +225,12 @@ def format_endpoint(path: str, method: str, details: dict) -> str:
     return markdown
 
 
-def openapi_to_markdown(openapi_json: dict) -> str:
+def openapi_to_markdown(openapi_json: dict, devel: bool = False) -> str:
     """Convert OpenAPI JSON specification to a Markdown representation.
 
     Args:
         openapi_json (dict): The OpenAPI specification as a Python dictionary.
+        devel (bool): Include development output.
 
     Returns:
         str: The Markdown representation of the OpenAPI spec.
@@ -216,6 +273,9 @@ def generate_openapi_md() -> str:
 def main():
     """Main function to run the generation of the OpenAPI specification as Markdown."""
     parser = argparse.ArgumentParser(description="Generate OpenAPI Specification as Markdown")
+    parser.add_argument(
+        "--devel", action="store_true", help="Create swagger link to development branch"
+    )
     parser.add_argument(
         "--output-file", type=str, default=None, help="File to write the OpenAPI Specification to"
     )

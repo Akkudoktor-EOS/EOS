@@ -2,6 +2,8 @@
 
 # Server API
 
-```{eval-sh}
-./scripts/generate_openapi_md.py | ./scripts/extract_markdown.py --input-stdin --start-line "**Version**:"
+```{include} /_generated/openapi.md
+:start-line: 2
+:relative-docs: ..
+:relative-images:
 ```

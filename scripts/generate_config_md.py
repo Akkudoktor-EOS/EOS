@@ -127,6 +127,10 @@ def generate_config_md() -> str:
     if non_prefixed_configs:
         markdown += generate_config_table_md(non_prefixed_configs, "Other Configuration Values")
 
+    # Assure the is no double \n at end of file
+    markdown = markdown.rstrip("\n")
+    markdown += "\n"
+
     return markdown
 
 
