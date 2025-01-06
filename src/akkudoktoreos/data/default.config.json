@@ -19,7 +19,7 @@
   "optimization_ev_available_charge_rates_percent": null,
   "optimization_hours": 48,
   "optimization_penalty": null,
-  "prediction_historic_hours": 48,
+  "prediction_historic_hours": 840,
   "prediction_hours": 48,
   "pvforecast0_albedo": null,
   "pvforecast0_inverter_model": null,

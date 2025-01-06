@@ -210,7 +210,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             self.config.elecprice_charges_kwh / 1000 if self.config.elecprice_charges_kwh else 0.0
         )
         assert self.start_datetime  # mypy fix
-        print(akkudoktor_data)
+
         for akkudoktor_value in akkudoktor_data.values:
             orig_datetime = to_datetime(akkudoktor_value.start, in_timezone=self.config.timezone)
 
