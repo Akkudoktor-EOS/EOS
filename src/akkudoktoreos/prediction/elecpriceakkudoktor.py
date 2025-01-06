@@ -154,6 +154,8 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
                 0, record
             )  # idk what happens if the date is already there. try except update?
 
+        # now we check if we have data newer than the last from the api. if so thats old prediction. we delete them all.
+
         # now we count how many data points we have.
         # if its > 800 (5 weeks) we will use EST
         # elif > idk maybe 168 (1 week) we use EST without season
