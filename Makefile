@@ -54,6 +54,7 @@ dist: pip
 
 # Target to generate documentation
 gen-docs: pip-dev
+	.venv/bin/pip install -e .
 	.venv/bin/python ./scripts/generate_config_md.py --output-file docs/_generated/config.md
 	.venv/bin/python ./scripts/generate_openapi_md.py --output-file docs/_generated/openapi.md
 	.venv/bin/python ./scripts/generate_openapi.py --output-file openapi.json

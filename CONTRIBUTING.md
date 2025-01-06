@@ -4,6 +4,10 @@ Thanks for taking the time to read this!
 
 The `EOS` project is in early development, therefore we encourage contribution in the following ways:
 
+## Documentation
+
+Latest development documentation can be found at [Akkudoktor-EOS](https://akkudoktor-eos.readthedocs.io/en/main/).
+
 ## Bug Reports
 
 Please report flaws or vulnerabilities in the [GitHub Issue Tracker](https://github.com/Akkudoktor-EOS/EOS/issues) using the corresponding issue template.
