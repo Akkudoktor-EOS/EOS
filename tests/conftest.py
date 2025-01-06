@@ -74,6 +74,16 @@ def cfg_non_existent(request):
 
         user_dir = user_config_dir(ConfigEOS.APP_NAME)
         assert not Path(user_dir).joinpath(ConfigEOS.CONFIG_FILE_NAME).exists()
+        assert not Path.cwd().joinpath(ConfigEOS.CONFIG_FILE_NAME).exists()
+
+
+@pytest.fixture(autouse=True)
+def user_cwd(config_default_dirs):
+    with patch(
+        "pathlib.Path.cwd",
+        return_value=config_default_dirs[1],
+    ) as user_cwd_patch:
+        yield user_cwd_patch
 
 
 @pytest.fixture(autouse=True)
@@ -99,6 +109,7 @@ def config_eos(
     disable_debug_logging,
     user_config_dir,
     user_data_dir,
+    user_cwd,
     config_default_dirs,
     monkeypatch,
 ) -> ConfigEOS:
@@ -106,11 +117,14 @@ def config_eos(
     monkeypatch.setenv("data_cache_subpath", str(config_default_dirs[-1] / "data/cache"))
     monkeypatch.setenv("data_output_subpath", str(config_default_dirs[-1] / "data/output"))
     config_file = config_default_dirs[0] / ConfigEOS.CONFIG_FILE_NAME
+    config_file_cwd = config_default_dirs[1] / ConfigEOS.CONFIG_FILE_NAME
     assert not config_file.exists()
+    assert not config_file_cwd.exists()
     config_eos = get_config()
     config_eos.reset_settings()
     assert config_file == config_eos.config_file_path
     assert config_file.exists()
+    assert not config_file_cwd.exists()
     assert config_default_dirs[-1] / "data" == config_eos.data_folder_path
     assert config_default_dirs[-1] / "data/cache" == config_eos.data_cache_path
     assert config_default_dirs[-1] / "data/output" == config_eos.data_output_path
@@ -123,8 +137,11 @@ def config_default_dirs():
     with tempfile.TemporaryDirectory() as tmp_user_home_dir:
         # Default config directory from platform user config directory
         config_default_dir_user = Path(tmp_user_home_dir) / "config"
+
         # Default config directory from current working directory
-        config_default_dir_cwd = Path.cwd()
+        config_default_dir_cwd = Path(tmp_user_home_dir) / "cwd"
+        config_default_dir_cwd.mkdir()
+
         # Default config directory from default config file
         config_default_dir_default = Path(__file__).parent.parent.joinpath("src/akkudoktoreos/data")
 

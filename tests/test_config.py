@@ -73,6 +73,24 @@ def test_default_config_path(config_eos, config_default_dirs):
     assert config_eos.config_default_file_path.is_file()
 
 
+def test_config_file_priority(config_default_dirs):
+    """Test config file priority."""
+    from akkudoktoreos.config.config import get_config
+
+    config_default_dir_user, config_default_dir_cwd, _, _ = config_default_dirs
+
+    config_file = Path(config_default_dir_cwd) / ConfigEOS.CONFIG_FILE_NAME
+    config_file.write_text("{}")
+    config_eos = get_config()
+    assert config_eos.config_file_path == config_file
+
+    config_file = Path(config_default_dir_user) / ConfigEOS.CONFIG_FILE_NAME
+    config_file.parent.mkdir()
+    config_file.write_text("{}")
+    config_eos = get_config()
+    assert config_eos.config_file_path == config_file
+
+
 @patch("akkudoktoreos.config.config.user_config_dir")
 def test_get_config_file_path(user_config_dir_patch, config_eos, config_default_dirs, monkeypatch):
     """Test that _get_config_file_path identifies the correct config file."""
