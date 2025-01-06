@@ -139,6 +139,10 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         ).fit()
         return model.forecast(prediction_hours)
 
+    def _predict_median(self, history: np.ndarray, prediction_hours: int) -> np.ndarray:
+        clean_history = self._cap_outliers(history)
+        return np.full(prediction_hours, np.median(clean_history))
+
     def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update forecast data in the ElecPriceDataRecord format.
 
