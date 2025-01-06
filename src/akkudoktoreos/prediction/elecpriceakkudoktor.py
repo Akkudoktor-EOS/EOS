@@ -16,8 +16,8 @@ from pydantic import Field, ValidationError
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceDataRecord, ElecPriceProvider
-from akkudoktoreos.utils.cacheutil import CacheFileStore, cache_in_file
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
+from akkudoktoreos.utils.cacheutil import cache_in_file
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 logger = get_logger(__name__)
 
@@ -65,12 +65,6 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         _update_data(): Processes and updates forecast data from Akkudoktor in ElecPriceDataRecord format.
     """
 
-    elecprice_35days: NDArray[Shape["24, 35"], float] = Field(
-        default=np.full((24, 35), np.nan),
-        description="Hourly electricity prices for the last 35 days and today (€/KWh). "
-        "A NumPy array of 24 elements, each representing the hourly prices "
-        "of the last 35 days. Today is represented by the last column (index 34).",
-    )
     elecprice_8days_weights_day_of_week: NDArray[Shape["7, 8"], float] = Field(
         default=np.full((7, 8), np.nan),
         description="Daily electricity price weights for the last 7 days and today. "
@@ -99,50 +93,6 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             logger.error(f"Akkudoktor schema change: {error_msg}")
             raise ValueError(error_msg)
         return akkudoktor_data
-
-    def _calculate_weighted_mean(self, day_of_week: int, hour: int) -> float:
-        """Calculate the weighted mean price for given day_of_week and hour.
-
-        Args:
-            day_of_week (int). The day of week to calculate the mean for (0=Monday..6).
-            hour (int): The hour  week to calculate the mean for (0..23).
-
-        Returns:
-            price_weihgted_mead (float): Weighted mean price for given day_of:week and hour.
-        """
-        if np.isnan(self.elecprice_8days_weights_day_of_week[0][0]):
-            # Weights not initialized - do now
-
-            # Priority of day: 1=most .. 7=least
-            priority_of_day = np.array(
-                #    Available Prediction days /
-                #    M,Tu,We,Th,Fr,Sa,Su,Today/ Forecast day_of_week
-                [
-                    [1, 2, 3, 4, 5, 6, 7, 1],  # Monday
-                    [3, 1, 2, 4, 5, 6, 7, 1],  # Tuesday
-                    [4, 2, 1, 3, 5, 6, 7, 1],  # Wednesday
-                    [5, 4, 2, 1, 3, 6, 7, 1],  # Thursday
-                    [5, 4, 3, 2, 1, 6, 7, 1],  # Friday
-                    [7, 6, 5, 4, 2, 1, 3, 1],  # Saturday
-                    [7, 6, 5, 4, 3, 2, 1, 1],  # Sunday
-                ]
-            )
-            # Take priorities above to decrease relevance in 2s exponential
-            self.elecprice_8days_weights_day_of_week = 2 / (2**priority_of_day)
-        last_8_days = self.elecprice_35days[:, -8:]
-        # Compute the weighted mean for day_of_week and hour
-        prices_of_hour = last_8_days[hour]
-        if np.isnan(prices_of_hour).all():
-            # No prediction prices available for this hour - use mean value of all prices
-            price_weighted_mean = np.nanmean(last_8_days)
-        else:
-            weights = self.elecprice_8days_weights_day_of_week[day_of_week]
-            prices_of_hour_masked: NDArray[Shape["24"]] = np.ma.MaskedArray(
-                prices_of_hour, mask=np.isnan(prices_of_hour)
-            )
-            price_weighted_mean = np.ma.average(prices_of_hour_masked, weights=weights)
-
-        return float(price_weighted_mean)
 
     @cache_in_file(with_ttl="1 hour")
     def _request_forecast(self) -> AkkudoktorElecPrice:
@@ -184,26 +134,6 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
-        akkudoktor_data_len = len(akkudoktor_data.values)
-        if akkudoktor_data_len < 1:
-            # Expect one value set per prediction hour
-            raise ValueError(
-                f"The forecast must have at least one dataset, "
-                f"but only {akkudoktor_data_len} data sets are given in forecast data."
-            )
-
-        # Get cached values
-        elecprice_cache_file = CacheFileStore().get(key="ElecPriceAkkudoktor35dayCache")
-        if elecprice_cache_file is None:
-            # Cache does not exist - create it
-            elecprice_cache_file = CacheFileStore().create(
-                key="ElecPriceAkkudoktordayCache",
-                until_datetime=to_datetime("infinity"),
-                suffix=".npy",
-            )
-            np.save(elecprice_cache_file, self.elecprice_35days)
-        elecprice_cache_file.seek(0)
-        self.elecprice_35days = np.load(elecprice_cache_file)
 
         # Get elecprice_charges_kwh_kwh
         charges_wh = (
@@ -216,47 +146,20 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
             price_wh = akkudoktor_value.marketpriceEurocentPerKWh / (100 * 1000) + charges_wh
 
-            # We provide prediction starting at start of day, to be compatible to old system.
-            if orig_datetime < self.start_datetime.start_of("day"):
-                # forecast data is too old - older than start_datetime with time set to 00:00:00
-                self.elecprice_35days[orig_datetime.hour, orig_datetime.day_of_week] = price_wh
-            else:
-                self.elecprice_35days[orig_datetime.hour, 34] = price_wh
-                self.update_value(orig_datetime, "elecprice_marketprice_wh", price_wh)
-
-        # Update 35day cache
-        elecprice_cache_file.seek(0)
-
-        np.save(elecprice_cache_file, self.elecprice_35days)
-
-        # Check for new/ valid forecast data
-        if len(self) == 0:
-            # Got no valid forecast data
-            return
-        assert self[0].date_time  # mypy fix, elecprice_marketprice_wh from elecpriceabc.py
-
-        # Check how many non-None or non-NaN values are in self.elecprice_35days
-        # print(self.elecprice_35days)
-        # non_nan_count = np.count_nonzero(~np.isnan(self.elecprice_35days))
-        while compare_datetimes(self[0].date_time, self.start_datetime).gt:
-            # Repeat the mean on the 8 day array to cover the missing hours
-            orig_datetime = self[0].date_time.subtract(hours=1)
-            value = self._calculate_weighted_mean(orig_datetime.day_of_week, orig_datetime.hour)
             record = ElecPriceDataRecord(
                 date_time=orig_datetime,
-                elecprice_marketprice_wh=value,
+                elecprice_marketprice_wh=price_wh,
             )
-            self.insert(0, record)
+            self.insert(
+                0, record
+            )  # idk what happens if the date is already there. try except update?
 
-        # Assure price ends at end_time
-        assert self[-1].date_time  # mypy fix,
-        assert self.end_datetime  # mypy fix,
-        while compare_datetimes(self[-1].date_time, self.end_datetime).lt:
-            # Repeat the mean on the 8 day array to cover the missing hours
-            orig_datetime = self[-1].date_time.add(hours=1)
-            value = self._calculate_weighted_mean(orig_datetime.day_of_week, orig_datetime.hour)
-            record = ElecPriceDataRecord(
-                date_time=orig_datetime,
-                elecprice_marketprice_wh=value,
-            )
-            self.append(record)
+        # now we count how many data points we have.
+        # if its > 800 (5 weeks) we will use EST
+        # elif > idk maybe 168 (1 week) we use EST without season
+        # elif < 168 we use a simple median
+        # #elif == 0 we need some static value from the config
+
+        # depending on the result we check prediction_hours and predict that many hours.
+
+        # we get the result and iterate over it to put it into ElecPriceDataRecord
