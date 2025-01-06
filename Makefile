@@ -17,6 +17,7 @@ help:
 	@echo "  docker-build - Rebuild docker image"
 	@echo "  docs         - Generate HTML documentation (in build/docs/html/)."
 	@echo "  read-docs    - Read HTML documentation in your browser."
+	@echo "  gen-docs     - Generate openapi.json and docs/_generated/*.""
 	@echo "  clean-docs   - Remove generated documentation.""
 	@echo "  run          - Run FastAPI production server in the virtual environment."
 	@echo "  run-dev      - Run FastAPI development server in the virtual environment (automatically reloads)."
@@ -51,10 +52,17 @@ dist: pip
 	.venv/bin/python -m build --wheel
 	@echo "Distribution created (see dist/)."
 
-# Target to generate HTML documentation
+# Target to generate documentation
+gen-docs: pip-dev
+	.venv/bin/python ./scripts/generate_config_md.py --output-file docs/_generated/config.md
+	.venv/bin/python ./scripts/generate_openapi_md.py --output-file docs/_generated/openapi.md
+	.venv/bin/python ./scripts/generate_openapi.py --output-file openapi.json
+	@echo "Documentation generated to openapi.json and docs/_generated."
+
+# Target to build HTML documentation
 docs: pip-dev
 	.venv/bin/sphinx-build -M html docs build/docs
-	@echo "Documentation generated to build/docs/html/."
+	@echo "Documentation build to build/docs/html/."
 
 # Target to read the HTML documentation
 read-docs: docs

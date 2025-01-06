@@ -259,3 +259,4 @@ visualize_output_*.pdf
 tests/testdata/new_optimize_result*
 tests/testdata/openapi-new.json
 tests/testdata/openapi-new.md
+tests/testdata/config-new.md

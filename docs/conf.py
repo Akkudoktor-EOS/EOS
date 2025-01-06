@@ -24,7 +24,7 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx_rtd_theme",
     "myst_parser",
-    "sphinxcontrib.eval",
+    "sphinx_tabs.tabs",
 ]
 
 templates_path = ["_templates"]

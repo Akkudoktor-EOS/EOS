@@ -10,7 +10,7 @@
 
 ## POST /gesamtlast
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_gesamtlast_gesamtlast_post), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_gesamtlast_gesamtlast_post)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_gesamtlast_gesamtlast_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_gesamtlast_gesamtlast_post)
 
 Fastapi Gesamtlast
 
@@ -46,7 +46,7 @@ Note:
 
 ## GET /gesamtlast_simple
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_gesamtlast_simple_gesamtlast_simple_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_gesamtlast_simple_gesamtlast_simple_get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_gesamtlast_simple_gesamtlast_simple_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_gesamtlast_simple_gesamtlast_simple_get)
 
 Fastapi Gesamtlast Simple
 
@@ -80,7 +80,7 @@ Note:
 
 ## POST /optimize
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_optimize_optimize_post), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_optimize_optimize_post)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_optimize_optimize_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_optimize_optimize_post)
 
 Fastapi Optimize
 
@@ -104,7 +104,7 @@ Fastapi Optimize
 
 ## GET /pvforecast
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_pvforecast_pvforecast_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_pvforecast_pvforecast_get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_pvforecast_pvforecast_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_pvforecast_pvforecast_get)
 
 Fastapi Pvforecast
 
@@ -133,7 +133,7 @@ Note:
 
 ## GET /strompreis
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_strompreis_strompreis_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_strompreis_strompreis_get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_strompreis_strompreis_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_strompreis_strompreis_get)
 
 Fastapi Strompreis
 
@@ -163,7 +163,7 @@ Note:
 
 ## GET /v1/config
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_get_v1_config_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_get_v1_config_get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_get_v1_config_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_get_v1_config_get)
 
 Fastapi Config Get
 
@@ -182,7 +182,7 @@ Returns:
 
 ## PUT /v1/config
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_put_v1_config_put), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_put_v1_config_put)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_put_v1_config_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_put_v1_config_put)
 
 Fastapi Config Put
 
@@ -516,7 +516,7 @@ Returns:
 
 ## GET /v1/config/file
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_file_get_v1_config_file_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_file_get_v1_config_file_get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_file_get_v1_config_file_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_file_get_v1_config_file_get)
 
 Fastapi Config File Get
 
@@ -535,7 +535,7 @@ Returns:
 
 ## PUT /v1/config/file
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_file_put_v1_config_file_put), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_file_put_v1_config_file_put)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_file_put_v1_config_file_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_file_put_v1_config_file_put)
 
 Fastapi Config File Put
 
@@ -554,7 +554,7 @@ Returns:
 
 ## POST /v1/config/update
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_update_post_v1_config_update_post), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_update_post_v1_config_update_post)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_update_post_v1_config_update_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_update_post_v1_config_update_post)
 
 Fastapi Config Update Post
 
@@ -573,7 +573,7 @@ Returns:
 
 ## PUT /v1/config/value
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_value_put_v1_config_value_put), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_value_put_v1_config_value_put)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_value_put_v1_config_value_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_value_put_v1_config_value_put)
 
 Fastapi Config Value Put
 
@@ -604,7 +604,7 @@ Returns:
 
 ## PUT /v1/measurement/data
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_data_put_v1_measurement_data_put), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_data_put_v1_measurement_data_put)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_data_put_v1_measurement_data_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_data_put_v1_measurement_data_put)
 
 Fastapi Measurement Data Put
 
@@ -628,7 +628,7 @@ Merge the measurement data given as datetime data into EOS measurements.
 
 ## PUT /v1/measurement/dataframe
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_dataframe_put_v1_measurement_dataframe_put), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_dataframe_put_v1_measurement_dataframe_put)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_dataframe_put_v1_measurement_dataframe_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_dataframe_put_v1_measurement_dataframe_put)
 
 Fastapi Measurement Dataframe Put
 
@@ -652,7 +652,7 @@ Merge the measurement data given as dataframe into EOS measurements.
 
 ## GET /v1/measurement/keys
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_keys_get_v1_measurement_keys_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_keys_get_v1_measurement_keys_get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_keys_get_v1_measurement_keys_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_keys_get_v1_measurement_keys_get)
 
 Fastapi Measurement Keys Get
 
@@ -668,7 +668,7 @@ Get a list of available measurement keys.
 
 ## GET /v1/measurement/load-mr/series/by-name
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_load_mr_series_by_name_get_v1_measurement_load-mr_series_by-name_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_load_mr_series_by_name_get_v1_measurement_load-mr_series_by-name_get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_load_mr_series_by_name_get_v1_measurement_load-mr_series_by-name_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_load_mr_series_by_name_get_v1_measurement_load-mr_series_by-name_get)
 
 Fastapi Measurement Load Mr Series By Name Get
 
@@ -690,7 +690,7 @@ Get the meter reading of given load name as series.
 
 ## PUT /v1/measurement/load-mr/series/by-name
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_load_mr_series_by_name_put_v1_measurement_load-mr_series_by-name_put), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_load_mr_series_by_name_put_v1_measurement_load-mr_series_by-name_put)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_load_mr_series_by_name_put_v1_measurement_load-mr_series_by-name_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_load_mr_series_by_name_put_v1_measurement_load-mr_series_by-name_put)
 
 Fastapi Measurement Load Mr Series By Name Put
 
@@ -718,7 +718,7 @@ Merge the meter readings series of given load name into EOS measurements at give
 
 ## PUT /v1/measurement/load-mr/value/by-name
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_load_mr_value_by_name_put_v1_measurement_load-mr_value_by-name_put), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_load_mr_value_by_name_put_v1_measurement_load-mr_value_by-name_put)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_load_mr_value_by_name_put_v1_measurement_load-mr_value_by-name_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_load_mr_value_by_name_put_v1_measurement_load-mr_value_by-name_put)
 
 Fastapi Measurement Load Mr Value By Name Put
 
@@ -744,7 +744,7 @@ Merge the meter reading of given load name and value into EOS measurements at gi
 
 ## GET /v1/measurement/series
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_series_get_v1_measurement_series_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_series_get_v1_measurement_series_get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_series_get_v1_measurement_series_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_series_get_v1_measurement_series_get)
 
 Fastapi Measurement Series Get
 
@@ -766,7 +766,7 @@ Get the measurements of given key as series.
 
 ## PUT /v1/measurement/series
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_series_put_v1_measurement_series_put), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_series_put_v1_measurement_series_put)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_series_put_v1_measurement_series_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_series_put_v1_measurement_series_put)
 
 Fastapi Measurement Series Put
 
@@ -794,7 +794,7 @@ Merge measurement given as series into given key.
 
 ## PUT /v1/measurement/value
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_value_put_v1_measurement_value_put), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_value_put_v1_measurement_value_put)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_value_put_v1_measurement_value_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_value_put_v1_measurement_value_put)
 
 Fastapi Measurement Value Put
 
@@ -820,7 +820,7 @@ Merge the measurement of given key and value into EOS measurements at given date
 
 ## GET /v1/prediction/keys
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_keys_get_v1_prediction_keys_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_keys_get_v1_prediction_keys_get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_keys_get_v1_prediction_keys_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_keys_get_v1_prediction_keys_get)
 
 Fastapi Prediction Keys Get
 
@@ -836,7 +836,7 @@ Get a list of available prediction keys.
 
 ## GET /v1/prediction/list
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_list_get_v1_prediction_list_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_list_get_v1_prediction_list_get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_list_get_v1_prediction_list_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_list_get_v1_prediction_list_get)
 
 Fastapi Prediction List Get
 
@@ -873,7 +873,7 @@ Args:
 
 ## GET /v1/prediction/series
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_series_get_v1_prediction_series_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_series_get_v1_prediction_series_get)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_series_get_v1_prediction_series_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_series_get_v1_prediction_series_get)
 
 Fastapi Prediction Series Get
 
@@ -906,7 +906,7 @@ Args:
 
 ## POST /v1/prediction/update
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_update_v1_prediction_update_post), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_update_v1_prediction_update_post)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_update_v1_prediction_update_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_update_v1_prediction_update_post)
 
 Fastapi Prediction Update
 
@@ -936,7 +936,7 @@ Args:
 
 ## POST /v1/prediction/update/{provider_id}
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_update_provider_v1_prediction_update__provider_id__post), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_update_provider_v1_prediction_update__provider_id__post)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_update_provider_v1_prediction_update__provider_id__post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_update_provider_v1_prediction_update__provider_id__post)
 
 Fastapi Prediction Update Provider
 
@@ -969,7 +969,7 @@ Args:
 
 ## GET /visualization_results.pdf
 
-**Links**: [local](http://localhost:8503/docs#/default/get_pdf_visualization_results_pdf_get), [swagger](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_pdf_visualization_results_pdf_get)
+**Links**: [local](http://localhost:8503/docs#/default/get_pdf_visualization_results_pdf_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/get_pdf_visualization_results_pdf_get)
 
 Get Pdf
 

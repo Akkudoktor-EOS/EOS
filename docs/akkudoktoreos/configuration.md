@@ -84,6 +84,8 @@ and default settings are loaded into it.
 Some of the `configuration keys` have default values by definition. For most of the
 `configuration keys` the default value is just `None`, which means no default value.
 
-```{eval-sh}
-./scripts/generate_config_md.py | ./scripts/extract_markdown.py --input-stdin --heading-level 1
+```{include} /_generated/config.md
+:heading-offset: 1
+:relative-docs: ..
+:relative-images:
 ```
