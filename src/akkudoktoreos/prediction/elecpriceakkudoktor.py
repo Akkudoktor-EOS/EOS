@@ -122,7 +122,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         self.update_datetime = to_datetime(in_timezone=self.config.timezone)
         return akkudoktor_data
 
-        def cap_outliers(data, sigma=2):  # remove outliers
+        def cap_outliers(data: np.ndarray, sigma: int = 2) -> np.ndarray:
             mean = data.mean()
             std = data.std()
             lower_bound = mean - sigma * std
@@ -131,13 +131,13 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             return capped_data
 
         def predict_ets(
-            history,
-            seasonal_periods,
-        ):
+            history: np.ndarray, seasonal_periods: int, prediction_hours: int
+        ) -> np.ndarray:
+            clean_history = cap_outliers(history)
             model = ExponentialSmoothing(
-                history, seasonal="add", seasonal_periods=seasonal_periods
+                clean_history, seasonal="add", seasonal_periods=seasonal_periods
             ).fit()
-            return model.forecast(7 * 24)
+            return model.forecast(prediction_hours)
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update forecast data in the ElecPriceDataRecord format.
