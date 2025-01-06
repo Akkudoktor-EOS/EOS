@@ -100,6 +100,10 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             raise ValueError(error_msg)
         return akkudoktor_data
 
+    def historic_hours_min(self) -> int:
+        """Return the minimum historic prediction hours for Akkudoktor electricity price data."""
+        return 5 * 7 * 24  # 5 weeks a 7 days a 24 hours
+
     def _calculate_weighted_mean(self, day_of_week: int, hour: int) -> float:
         """Calculate the weighted mean price for given day_of_week and hour.
 
