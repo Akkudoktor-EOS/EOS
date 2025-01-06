@@ -122,7 +122,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         self.update_datetime = to_datetime(in_timezone=self.config.timezone)
         return akkudoktor_data
 
-        def cap_outliers(data, sigma=2):
+        def cap_outliers(data, sigma=2):  # remove outliers
             mean = data.mean()
             std = data.std()
             lower_bound = mean - sigma * std
