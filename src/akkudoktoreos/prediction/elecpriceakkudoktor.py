@@ -65,11 +65,11 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         _update_data(): Processes and updates forecast data from Akkudoktor in ElecPriceDataRecord format.
     """
 
-    elecprice_8days: NDArray[Shape["24, 8"], float] = Field(
-        default=np.full((24, 8), np.nan),
-        description="Hourly electricity prices for the last 7 days and today (€/KWh). "
+    elecprice_35days: NDArray[Shape["24, 35"], float] = Field(
+        default=np.full((24, 35), np.nan),
+        description="Hourly electricity prices for the last 35 days and today (€/KWh). "
         "A NumPy array of 24 elements, each representing the hourly prices "
-        "of the last 7 days (index 0..6, Monday..Sunday) and today (index 7).",
+        "of the last 35 days.",
     )
     elecprice_8days_weights_day_of_week: NDArray[Shape["7, 8"], float] = Field(
         default=np.full((7, 8), np.nan),
@@ -129,12 +129,12 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             )
             # Take priorities above to decrease relevance in 2s exponential
             self.elecprice_8days_weights_day_of_week = 2 / (2**priority_of_day)
-
+        last_8_days = self.elecprice_35days[:, -8:]
         # Compute the weighted mean for day_of_week and hour
-        prices_of_hour = self.elecprice_8days[hour]
+        prices_of_hour = last_8_days[hour]
         if np.isnan(prices_of_hour).all():
             # No prediction prices available for this hour - use mean value of all prices
-            price_weighted_mean = np.nanmean(self.elecprice_marketprice_wh_8day)
+            price_weighted_mean = np.nanmean(last_8_days)
         else:
             weights = self.elecprice_8days_weights_day_of_week[day_of_week]
             prices_of_hour_masked: NDArray[Shape["24"]] = np.ma.MaskedArray(
@@ -158,8 +158,8 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             ValueError: If the API response does not include expected `electricity price` data.
         """
         source = "https://api.akkudoktor.net"
-        # Try to take data from 7 days back for prediction - usually only some hours back are available
-        date = to_datetime(self.start_datetime - to_duration("7 days"), as_string="YYYY-MM-DD")
+        # Try to take data from 5 weeks back for prediction
+        date = to_datetime(self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
         url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.timezone}"
         response = requests.get(url)
@@ -192,17 +192,17 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             )
 
         # Get cached 8day values
-        elecprice_cache_file = CacheFileStore().get(key="ElecPriceAkkudoktor8dayCache")
+        elecprice_cache_file = CacheFileStore().get(key="ElecPriceAkkudoktor35dayCache")
         if elecprice_cache_file is None:
             # Cache does not exist - create it
             elecprice_cache_file = CacheFileStore().create(
-                key="ElecPriceAkkudoktor8dayCache",
+                key="ElecPriceAkkudoktordayCache",
                 until_datetime=to_datetime("infinity"),
                 suffix=".npy",
             )
-            np.save(elecprice_cache_file, self.elecprice_8days)
+            np.save(elecprice_cache_file, self.elecprice_35days)
         elecprice_cache_file.seek(0)
-        self.elecprice_8days = np.load(elecprice_cache_file)
+        self.elecprice_35days = np.load(elecprice_cache_file)
 
         # Get elecprice_charges_kwh_kwh
         charges_kwh = (
@@ -221,15 +221,15 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             # We provide prediction starting at start of day, to be compatible to old system.
             if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
                 # forecast data is too old - older than start_datetime with time set to 00:00:00
-                self.elecprice_8days[dt.hour, dt.day_of_week] = price_wh
+                self.elecprice_35days[dt.hour, dt.day_of_week] = price_wh
                 continue
-            self.elecprice_8days[dt.hour, 7] = price_wh
+            self.elecprice_35days[dt.hour, 7] = price_wh
 
             self.update_value(dt, "elecprice_marketprice_wh", price_wh)
 
         # Update 8day cache
         elecprice_cache_file.seek(0)
-        np.save(elecprice_cache_file, self.elecprice_8days)
+        np.save(elecprice_cache_file, self.elecprice_35days)
 
         # Check for new/ valid forecast data
         if len(self) == 0:

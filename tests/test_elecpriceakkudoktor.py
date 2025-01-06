@@ -77,7 +77,7 @@ def test_validate_data_invalid_format(mock_logger, elecprice_provider):
 
 def test_calculate_weighted_mean(elecprice_provider):
     """Test calculation of weighted mean for electricity prices."""
-    elecprice_provider.elecprice_8days = np.random.rand(24, 8) * 100
+    elecprice_provider.elecprice_35days = np.random.rand(24, 35) * 100
     price_mean = elecprice_provider._calculate_weighted_mean(day_of_week=2, hour=10)
     assert isinstance(price_mean, float)
     assert not np.isnan(price_mean)
