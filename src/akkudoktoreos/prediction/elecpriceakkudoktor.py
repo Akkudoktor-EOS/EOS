@@ -206,31 +206,27 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         self.elecprice_35days = np.load(elecprice_cache_file)
 
         # Get elecprice_charges_kwh_kwh
-        charges_kwh = (
-            self.config.elecprice_charges_kwh if self.config.elecprice_charges_kwh else 0.0
+        charges_wh = (
+            self.config.elecprice_charges_kwh / 1000 if self.config.elecprice_charges_kwh else 0.0
         )
         assert self.start_datetime  # mypy fix
+        print(akkudoktor_data)
+        for akkudoktor_value in akkudoktor_data.values:
+            orig_datetime = to_datetime(akkudoktor_value.start, in_timezone=self.config.timezone)
 
-        for i in range(akkudoktor_data_len):
-            original_datetime = akkudoktor_data.values[i].start
-            dt = to_datetime(original_datetime, in_timezone=self.config.timezone)
-
-            akkudoktor_value = akkudoktor_data.values[i]
-            price_wh = (
-                akkudoktor_value.marketpriceEurocentPerKWh / (100 * 1000) + charges_kwh / 1000
-            )
+            price_wh = akkudoktor_value.marketpriceEurocentPerKWh / (100 * 1000) + charges_wh
 
             # We provide prediction starting at start of day, to be compatible to old system.
-            if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
+            if orig_datetime < self.start_datetime.start_of("day"):
                 # forecast data is too old - older than start_datetime with time set to 00:00:00
-                self.elecprice_35days[dt.hour, dt.day_of_week] = price_wh
-                continue
-            self.elecprice_35days[dt.hour, 34] = price_wh  # Update today's price
-
-            self.update_value(dt, "elecprice_marketprice_wh", price_wh)
+                self.elecprice_35days[orig_datetime.hour, orig_datetime.day_of_week] = price_wh
+            else:
+                self.elecprice_35days[orig_datetime.hour, 34] = price_wh
+                self.update_value(orig_datetime, "elecprice_marketprice_wh", price_wh)
 
         # Update 35day cache
         elecprice_cache_file.seek(0)
+
         np.save(elecprice_cache_file, self.elecprice_35days)
 
         # Check for new/ valid forecast data
@@ -240,13 +236,14 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         assert self[0].date_time  # mypy fix, elecprice_marketprice_wh from elecpriceabc.py
 
         # Check how many non-None or non-NaN values are in self.elecprice_35days
+        # print(self.elecprice_35days)
         # non_nan_count = np.count_nonzero(~np.isnan(self.elecprice_35days))
         while compare_datetimes(self[0].date_time, self.start_datetime).gt:
             # Repeat the mean on the 8 day array to cover the missing hours
-            dt = self[0].date_time.subtract(hours=1)
-            value = self._calculate_weighted_mean(dt.day_of_week, dt.hour)
+            orig_datetime = self[0].date_time.subtract(hours=1)
+            value = self._calculate_weighted_mean(orig_datetime.day_of_week, orig_datetime.hour)
             record = ElecPriceDataRecord(
-                date_time=dt,
+                date_time=orig_datetime,
                 elecprice_marketprice_wh=value,
             )
             self.insert(0, record)
@@ -256,10 +253,10 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         assert self.end_datetime  # mypy fix,
         while compare_datetimes(self[-1].date_time, self.end_datetime).lt:
             # Repeat the mean on the 8 day array to cover the missing hours
-            dt = self[-1].date_time.add(hours=1)
-            value = self._calculate_weighted_mean(dt.day_of_week, dt.hour)
+            orig_datetime = self[-1].date_time.add(hours=1)
+            value = self._calculate_weighted_mean(orig_datetime.day_of_week, orig_datetime.hour)
             record = ElecPriceDataRecord(
-                date_time=dt,
+                date_time=orig_datetime,
                 elecprice_marketprice_wh=value,
             )
             self.append(record)
