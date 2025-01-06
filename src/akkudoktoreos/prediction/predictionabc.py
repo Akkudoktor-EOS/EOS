@@ -103,6 +103,13 @@ class PredictionStartEndKeepMixin(PredictionBase):
     system. Predictions cannot be computed if this value is `None`.
     """
 
+    def historic_hours_min(self) -> int:
+        """Return the minimum historic prediction hours for specific data.
+
+        To be implemented by derived classes if default 0 is not appropriate.
+        """
+        return 0
+
     # Computed field for end_datetime and keep_datetime
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -136,11 +143,15 @@ class PredictionStartEndKeepMixin(PredictionBase):
         Returns:
             Optional[DateTime]: The calculated retention cutoff datetime, or `None` if inputs are missing.
         """
-        if self.start_datetime and self.config.prediction_historic_hours:
-            return self.start_datetime - to_duration(
-                f"{int(self.config.prediction_historic_hours)} hours"
-            )
-        return None
+        if self.start_datetime is None:
+            return None
+        historic_hours = self.historic_hours_min()
+        if (
+            self.config.prediction_historic_hours
+            and self.config.prediction_historic_hours > historic_hours
+        ):
+            historic_hours = int(self.config.prediction_historic_hours)
+        return self.start_datetime - to_duration(f"{historic_hours} hours")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
