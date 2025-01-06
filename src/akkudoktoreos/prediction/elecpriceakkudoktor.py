@@ -69,7 +69,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         default=np.full((24, 35), np.nan),
         description="Hourly electricity prices for the last 35 days and today (€/KWh). "
         "A NumPy array of 24 elements, each representing the hourly prices "
-        "of the last 35 days.",
+        "of the last 35 days. Today is represented by the last column (index 34).",
     )
     elecprice_8days_weights_day_of_week: NDArray[Shape["7, 8"], float] = Field(
         default=np.full((7, 8), np.nan),
@@ -191,7 +191,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
                 f"but only {values_len} data sets are given in forecast data."
             )
 
-        # Get cached 8day values
+        # Get cached values
         elecprice_cache_file = CacheFileStore().get(key="ElecPriceAkkudoktor35dayCache")
         if elecprice_cache_file is None:
             # Cache does not exist - create it
@@ -217,13 +217,13 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             price_wh = (
                 akkudoktor_value.marketpriceEurocentPerKWh / (100 * 1000) + charges_kwh / 1000
             )
-
+            assert self.start_datetime  # mypy fix
             # We provide prediction starting at start of day, to be compatible to old system.
             if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
                 # forecast data is too old - older than start_datetime with time set to 00:00:00
                 self.elecprice_35days[dt.hour, dt.day_of_week] = price_wh
                 continue
-            self.elecprice_35days[dt.hour, 7] = price_wh
+            self.elecprice_35days[dt.hour, 34] = price_wh  # Update today's price
 
             self.update_value(dt, "elecprice_marketprice_wh", price_wh)
 
