@@ -47,7 +47,7 @@ def test_openapi_md_current(config_eos):
     expected_spec_md_path = DIR_PROJECT_ROOT / "docs" / "_generated" / "openapi.md"
     new_spec_md_path = DIR_TESTDATA / "openapi-new.md"
 
-    with open(expected_spec_md_path) as f_expected:
+    with open(expected_spec_md_path, encoding="utf8") as f_expected:
         expected_spec_md = f_expected.read()
 
     # Patch get_config and import within guard to patch global variables within the fastapi_server module.
@@ -59,7 +59,7 @@ def test_openapi_md_current(config_eos):
 
         spec_md = generate_openapi_md.generate_openapi_md()
 
-    with open(new_spec_md_path, "w") as f_new:
+    with open(new_spec_md_path, "w", encoding="utf8") as f_new:
         f_new.write(spec_md)
 
     try:
@@ -76,7 +76,7 @@ def test_config_md_current(config_eos):
     expected_config_md_path = DIR_PROJECT_ROOT / "docs" / "_generated" / "config.md"
     new_config_md_path = DIR_TESTDATA / "config-new.md"
 
-    with open(expected_config_md_path) as f_expected:
+    with open(expected_config_md_path, encoding="utf8") as f_expected:
         expected_config_md = f_expected.read()
 
     # Patch get_config and import within guard to patch global variables within the fastapi_server module.
@@ -88,7 +88,7 @@ def test_config_md_current(config_eos):
 
         config_md = generate_config_md.generate_config_md()
 
-    with open(new_config_md_path, "w") as f_new:
+    with open(new_config_md_path, "w", encoding="utf8") as f_new:
         f_new.write(config_md)
 
     try:
