@@ -144,47 +144,79 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         """
         # Get Akkudoktor electricity price data
         akkudoktor_data = self._request_forecast(force_update=force_update)  # type: ignore
-
+        assert self.start_datetime  # mypy fix
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
 
-        # Get elecprice_charges_kwh_kwh
-        charges_wh = (
-            self.config.elecprice_charges_kwh / 1000 if self.config.elecprice_charges_kwh else 0.0
+        # Get elecprice_charges_kwh in wh
+        charges_wh = (self.config.elecprice_charges_kwh or 0) / 1000
+
+        highest_orig_datetime = None  # newest datetime from the api after that we want to update.
+
+        for value in akkudoktor_data.values:
+            orig_datetime = to_datetime(value.start, in_timezone=self.config.timezone)
+            if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
+                highest_orig_datetime = orig_datetime
+
+            price_wh = value.marketpriceEurocentPerKWh / (100 * 1000) + charges_wh
+
+            existing_record = next((r for r in self.records if r.date_time == orig_datetime), None)
+            if existing_record:
+                # Update existing record
+                existing_record.elecprice_marketprice_wh = price_wh
+            else:
+                self.insert(
+                    0,
+                    ElecPriceDataRecord(date_time=orig_datetime, elecprice_marketprice_wh=price_wh),
+                )
+
+        # Generate history array for prediction
+        history = np.array(
+            [
+                record.elecprice_marketprice_wh
+                for record in self.records
+                if record.elecprice_marketprice_wh is not None
+            ]
         )
-        assert self.start_datetime  # mypy fix
 
-        for akkudoktor_value in akkudoktor_data.values:
-            orig_datetime = to_datetime(akkudoktor_value.start, in_timezone=self.config.timezone)
-
-            price_wh = akkudoktor_value.marketpriceEurocentPerKWh / (100 * 1000) + charges_wh
-
-            record = ElecPriceDataRecord(
-                date_time=orig_datetime,
-                elecprice_marketprice_wh=price_wh,
-            )
-            try:
-                self.insert(0, record)
-            except:
-                pass
-                # self.update_value(record)
-
-        # now we check if we have data newer than the last from the api. if so thats old prediction. we delete them all.
         amount_datasets = len(self.records)
+
+        # Insert prediction into ElecPriceDataRecord
         if amount_datasets > 800:
-            pass
-        elif amount_datasets >= 168:
-            pass
-        elif amount_datasets < 168 and amount_datasets > 0:
-            pass
-        else:
-            pass
-        # now we count how many data points we have.
-        # if its > 800 (5 weeks) we will use EST
-        # elif > idk maybe 168 (1 week) we use EST without season
-        # elif < 168 we use a simple median
-        # #elif == 0 we need some static value from the config
+            assert highest_orig_datetime  # mypy fix
+            prediction = self._predict_ets(
+                history, seasonal_periods=24 * 7, prediction_hours=24 * 7
+            )
+            for i, price in enumerate(prediction):
+                pred_datetime = highest_orig_datetime + to_duration(f"{i + 1} hours")
+                existing_record = next(
+                    (r for r in self.records if r.date_time == pred_datetime), None
+                )
+                if existing_record:
+                    # Update existing record
+                    existing_record.elecprice_marketprice_wh = price
+                else:
+                    assert pred_datetime  # mypy fix
+                    self.insert(
+                        0,
+                        ElecPriceDataRecord(
+                            date_time=pred_datetime, elecprice_marketprice_wh=price
+                        ),
+                    )
+        history2 = np.array(
+            [
+                [record.elecprice_marketprice_wh, record.date_time]
+                for record in self.records
+                if record.elecprice_marketprice_wh is not None
+            ]
+        )
+        print(len(history2), len(history))
 
-        # depending on the result we check prediction_hours and predict that many hours.
 
-        # we get the result and iterate over it to put it into ElecPriceDataRecord
+def main() -> None:
+    elec_price_akkudoktor = ElecPriceAkkudoktor()
+    elec_price_akkudoktor._update_data()
+
+
+if __name__ == "__main__":
+    main()
