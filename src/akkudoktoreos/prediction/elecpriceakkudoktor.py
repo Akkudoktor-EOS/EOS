@@ -183,12 +183,14 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
                 record.elecprice_marketprice_wh
                 for record in sorted(self.records, key=lambda r: r.date_time)
                 if record.elecprice_marketprice_wh is not None
+                and record.date_time
+                < highest_orig_datetime  # make sure we only real data for the prediction, so cant be newer then data from the api.
             ]
         )
 
         amount_datasets = len(self.records)
         assert highest_orig_datetime  # mypy fix
-        # Insert prediction into ElecPriceDataRecord
+
         if amount_datasets > 800:
             prediction = self._predict_ets(
                 history, seasonal_periods=168, prediction_hours=7 * 24
@@ -197,10 +199,14 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             prediction = self._predict_ets(
                 history, seasonal_periods=24, prediction_hours=7 * 24
             )  # todo: add config values for prediction_hours
-        elif amount_datasets > 0:
+        elif (
+            amount_datasets > 0
+        ):  # TODO might be a problem if amount_datasets is really low and we do the _cap_outliers.
             prediction = self._predict_median(history, prediction_hours=7 * 24)
         else:
             assert False, "No data available"
+
+        # write predictions into the records, update if exist.
         for i, price in enumerate(prediction):
             pred_datetime = highest_orig_datetime + to_duration(f"{i + 1} hours")
             existing_record = next((r for r in self.records if r.date_time == pred_datetime), None)
