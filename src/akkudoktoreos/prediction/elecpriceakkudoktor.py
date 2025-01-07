@@ -6,7 +6,7 @@ humidity, cloud cover, and solar irradiance. The data is mapped to the `ElecPric
 format, enabling consistent access to forecasted and historical electricity price attributes.
 """
 
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Union, Tuple
 
 import numpy as np
 import requests
@@ -105,6 +105,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         date = to_datetime(self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
         url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.timezone}"
+        print(url)
         response = requests.get(url)
         logger.debug(f"Response from {url}: {response}")
         response.raise_for_status()  # Raise an error for bad responses
@@ -134,7 +135,9 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         clean_history = self._cap_outliers(history)
         return np.full(prediction_hours, np.median(clean_history))
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    def _update_data(
+        self, force_update: Optional[bool] = False
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Update forecast data in the ElecPriceDataRecord format.
 
         Retrieves data from Akkudoktor, maps each Akkudoktor field to the corresponding
@@ -209,6 +212,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
                 if record.elecprice_marketprice_wh is not None
             ]
         )
+        return history, prediction
         # print(len(history2), len(history))
 
         # now we count how many data points we have.
@@ -224,7 +228,32 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
 def main() -> None:
     elec_price_akkudoktor = ElecPriceAkkudoktor()
-    elec_price_akkudoktor._update_data()
+    history, predictions = elec_price_akkudoktor._update_data()
+
+    visualize_predictions(history, predictions)
+    print(history, predictions)
+
+
+def visualize_predictions(
+    history: List[float],
+    predictions: List[float],
+) -> None:
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(28, 14))
+    plt.plot(range(len(history)), history, label="History", color="green")
+    plt.plot(
+        range(len(history), len(history) + len(predictions)),
+        predictions,
+        label="Predictions",
+        color="red",
+    )
+    plt.title("Predictions vs True Values for ets")
+    plt.xlabel("Time")
+    plt.ylabel("Price")
+    plt.legend()
+    plt.savefig("predictions_vs_true.png")
+    plt.close()
 
 
 if __name__ == "__main__":
