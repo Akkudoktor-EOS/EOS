@@ -26,8 +26,8 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     # Make a config
     settings = {
         # -- General --
-        "prediction_hours": 48,
-        "prediction_historic_hours": 24,
+        "prediction_hours": 24 * 7,
+        "prediction_historic_hours": 24 * 7 * 5,
         "latitude": 52.52,
         "longitude": 13.405,
         # -- Predictions --
@@ -314,7 +314,7 @@ def run_optimization(real_world: bool = False, start_hour: int = 0, verbose: boo
 
     # Initialize the optimization problem using the default configuration
     config_eos = get_config()
-    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 48})
+    config_eos.merge_settings_from_dict({"prediction_hours": 24 * 7, "optimization_hours": 24 * 7})
     opt_class = optimization_problem(verbose=verbose, fixed_seed=42)
 
     # Perform the optimisation based on the provided parameters and start hour
