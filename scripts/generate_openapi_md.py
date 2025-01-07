@@ -286,7 +286,7 @@ def main():
         openapi_md = generate_openapi_md()
         if args.output_file:
             # Write to file
-            with open(args.output_file, "w") as f:
+            with open(args.output_file, "w", encoding="utf8") as f:
                 f.write(openapi_md)
         else:
             # Write to std output

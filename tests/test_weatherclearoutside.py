@@ -43,7 +43,7 @@ def sample_clearout_1_html():
 @pytest.fixture
 def sample_clearout_1_data():
     """Fixture that returns sample forecast data."""
-    with open(FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA, "r") as f_in:
+    with open(FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA, "r", encoding="utf8") as f_in:
         json_str = f_in.read()
         data = WeatherClearOutside.from_json(json_str)
     return data
@@ -212,7 +212,7 @@ def test_development_forecast_data(mock_get, weather_provider, sample_clearout_1
     # Fill the instance
     weather_provider.update_data(force_enable=True)
 
-    with open(FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA, "w") as f_out:
+    with open(FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA, "w", encoding="utf8") as f_out:
         f_out.write(weather_provider.to_json())
 
 

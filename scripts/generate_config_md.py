@@ -150,7 +150,7 @@ def main():
         config_md = generate_config_md()
         if args.output_file:
             # Write to file
-            with open(args.output_file, "w") as f:
+            with open(args.output_file, "w", encoding="utf8") as f:
                 f.write(config_md)
         else:
             # Write to std output

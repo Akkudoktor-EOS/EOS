@@ -54,7 +54,7 @@ def main():
         openapi_spec_str = json.dumps(openapi_spec, indent=2)
         if args.output_file:
             # Write to file
-            with open(args.output_file, "w") as f:
+            with open(args.output_file, "w", encoding="utf8") as f:
                 f.write(openapi_spec_str)
         else:
             # Write to std output
