@@ -180,29 +180,28 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         )
 
         amount_datasets = len(self.records)
-
+        assert highest_orig_datetime  # mypy fix
         # Insert prediction into ElecPriceDataRecord
         if amount_datasets > 800:
-            assert highest_orig_datetime  # mypy fix
-            prediction = self._predict_ets(
-                history, seasonal_periods=24 * 7, prediction_hours=24 * 7
-            )
-            for i, price in enumerate(prediction):
-                pred_datetime = highest_orig_datetime + to_duration(f"{i + 1} hours")
-                existing_record = next(
-                    (r for r in self.records if r.date_time == pred_datetime), None
+            prediction = self._predict_ets(history, seasonal_periods=168, prediction_hours=7 * 24)
+        elif amount_datasets > 168:
+            prediction = self._predict_ets(history, seasonal_periods=24, prediction_hours=7 * 24)
+        elif amount_datasets > 0:
+            prediction = self._predict_median(history, prediction_hours=7 * 24)
+        else:
+            assert False, "No data available"
+        for i, price in enumerate(prediction):
+            pred_datetime = highest_orig_datetime + to_duration(f"{i + 1} hours")
+            existing_record = next((r for r in self.records if r.date_time == pred_datetime), None)
+            if existing_record:
+                # Update existing record
+                existing_record.elecprice_marketprice_wh = price
+            else:
+                assert pred_datetime  # mypy fix
+                self.insert(
+                    0,
+                    ElecPriceDataRecord(date_time=pred_datetime, elecprice_marketprice_wh=price),
                 )
-                if existing_record:
-                    # Update existing record
-                    existing_record.elecprice_marketprice_wh = price
-                else:
-                    assert pred_datetime  # mypy fix
-                    self.insert(
-                        0,
-                        ElecPriceDataRecord(
-                            date_time=pred_datetime, elecprice_marketprice_wh=price
-                        ),
-                    )
         history2 = np.array(
             [
                 [record.elecprice_marketprice_wh, record.date_time]
@@ -210,7 +209,17 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
                 if record.elecprice_marketprice_wh is not None
             ]
         )
-        print(len(history2), len(history))
+        # print(len(history2), len(history))
+
+        # now we count how many data points we have.
+        # if its > 800 (5 weeks) we will use EST
+        # elif > idk maybe 168 (1 week) we use EST without season
+        # elif < 168 we use a simple median
+        # #elif == 0 we need some static value from the config
+
+        # depending on the result we check prediction_hours and predict that many hours.
+
+        # we get the result and iterate over it to put it into ElecPriceDataRecord
 
 
 def main() -> None:
