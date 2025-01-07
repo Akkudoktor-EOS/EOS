@@ -10,8 +10,7 @@ from typing import Any, List, Optional, Union
 
 import numpy as np
 import requests
-from numpydantic import NDArray, Shape
-from pydantic import Field, ValidationError
+from pydantic import ValidationError
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from akkudoktoreos.core.logging import get_logger
@@ -65,14 +64,6 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         _request_forecast(): Fetches the forecast from the Akkudoktor API.
         _update_data(): Processes and updates forecast data from Akkudoktor in ElecPriceDataRecord format.
     """
-
-    elecprice_8days_weights_day_of_week: NDArray[Shape["7, 8"], float] = Field(
-        default=np.full((7, 8), np.nan),
-        description="Daily electricity price weights for the last 7 days and today. "
-        "A NumPy array of 7 elements (Monday..Sunday), each representing "
-        "the daily price weights of the last 7 days (index 0..6, Monday..Sunday) "
-        "and today (index 7).",
-    )
 
     @classmethod
     def provider_id(cls) -> str:
@@ -172,12 +163,22 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
                 date_time=orig_datetime,
                 elecprice_marketprice_wh=price_wh,
             )
-            self.insert(
-                0, record
-            )  # idk what happens if the date is already there. try except update?
+            try:
+                self.insert(0, record)
+            except:
+                pass
+                # self.update_value(record)
 
         # now we check if we have data newer than the last from the api. if so thats old prediction. we delete them all.
-
+        amount_datasets = len(self.records)
+        if amount_datasets > 800:
+            pass
+        elif amount_datasets >= 168:
+            pass
+        elif amount_datasets < 168 and amount_datasets > 0:
+            pass
+        else:
+            pass
         # now we count how many data points we have.
         # if its > 800 (5 weeks) we will use EST
         # elif > idk maybe 168 (1 week) we use EST without season
