@@ -6,7 +6,7 @@ humidity, cloud cover, and solar irradiance. The data is mapped to the `ElecPric
 format, enabling consistent access to forecasted and historical electricity price attributes.
 """
 
-from typing import Any, List, Optional, Union, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 import numpy as np
 import requests
@@ -98,6 +98,10 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
         Raises:
             ValueError: If the API response does not include expected `electricity price` data.
+
+        Todo:
+            - maybe some data cleanup/checking. we might have a problem if a single day has none values or is missing at all in the api or the data.
+            - add the file cache again.
         """
         source = "https://api.akkudoktor.net"
         assert self.start_datetime  # mypy fix
@@ -137,7 +141,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
     def _update_data(
         self, force_update: Optional[bool] = False
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:  # TODO: remove return, only for debug
         """Update forecast data in the ElecPriceDataRecord format.
 
         Retrieves data from Akkudoktor, maps each Akkudoktor field to the corresponding
@@ -177,7 +181,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         history = np.array(
             [
                 record.elecprice_marketprice_wh
-                for record in self.records
+                for record in sorted(self.records, key=lambda r: r.date_time)
                 if record.elecprice_marketprice_wh is not None
             ]
         )
@@ -186,9 +190,13 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         assert highest_orig_datetime  # mypy fix
         # Insert prediction into ElecPriceDataRecord
         if amount_datasets > 800:
-            prediction = self._predict_ets(history, seasonal_periods=168, prediction_hours=7 * 24)
+            prediction = self._predict_ets(
+                history, seasonal_periods=168, prediction_hours=7 * 24
+            )  # todo: add config values for prediction_hours
         elif amount_datasets > 168:
-            prediction = self._predict_ets(history, seasonal_periods=24, prediction_hours=7 * 24)
+            prediction = self._predict_ets(
+                history, seasonal_periods=24, prediction_hours=7 * 24
+            )  # todo: add config values for prediction_hours
         elif amount_datasets > 0:
             prediction = self._predict_median(history, prediction_hours=7 * 24)
         else:
@@ -200,48 +208,40 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
                 # Update existing record
                 existing_record.elecprice_marketprice_wh = price
             else:
-                assert pred_datetime  # mypy fix
+                assert pred_datetime  # mypy fix, why do we need that we already made sure highest_orig_datetime is not None
                 self.insert(
                     0,
                     ElecPriceDataRecord(date_time=pred_datetime, elecprice_marketprice_wh=price),
                 )
-        history2 = np.array(
+        history2 = np.array(  # TODO: remove return, only for debug, offset to see the difference
             [
-                [record.elecprice_marketprice_wh, record.date_time]
-                for record in self.records
+                record.elecprice_marketprice_wh + 0.0002
+                for record in sorted(self.records, key=lambda r: r.date_time)
                 if record.elecprice_marketprice_wh is not None
             ]
         )
-        return history, prediction
-        # print(len(history2), len(history))
 
-        # now we count how many data points we have.
-        # if its > 800 (5 weeks) we will use EST
-        # elif > idk maybe 168 (1 week) we use EST without season
-        # elif < 168 we use a simple median
-        # #elif == 0 we need some static value from the config
-
-        # depending on the result we check prediction_hours and predict that many hours.
-
-        # we get the result and iterate over it to put it into ElecPriceDataRecord
+        return history, history2, prediction  # TODO: remove return, only for debug
 
 
 def main() -> None:
     elec_price_akkudoktor = ElecPriceAkkudoktor()
-    history, predictions = elec_price_akkudoktor._update_data()
+    history, history2, predictions = elec_price_akkudoktor._update_data()
 
-    visualize_predictions(history, predictions)
-    print(history, predictions)
+    visualize_predictions(history, history2, predictions)
+    # print(history, history2, predictions)
 
 
 def visualize_predictions(
-    history: List[float],
-    predictions: List[float],
+    history: np.ndarray[Any, Any],
+    history2: np.ndarray[Any, Any],
+    predictions: np.ndarray[Any, Any],
 ) -> None:
     import matplotlib.pyplot as plt
 
     plt.figure(figsize=(28, 14))
     plt.plot(range(len(history)), history, label="History", color="green")
+    plt.plot(range(len(history2)), history2, label="History_new", color="blue")
     plt.plot(
         range(len(history), len(history) + len(predictions)),
         predictions,
