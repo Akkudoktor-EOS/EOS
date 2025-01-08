@@ -302,11 +302,9 @@ class PVForecastAkkudoktor(PVForecastProvider):
             if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
                 continue
 
-            # Calculate sums for DC and AC power
             sum_dc_power = sum(values.dcPower for values in forecast_values)
             sum_ac_power = sum(values.power for values in forecast_values)
 
-            # Create a data dictionary for forecast metrics
             data = {
                 "pvforecast_dc_power": sum_dc_power,
                 "pvforecast_ac_power": sum_ac_power,
@@ -314,7 +312,6 @@ class PVForecastAkkudoktor(PVForecastProvider):
                 "pvforecastakkudoktor_temp_air": forecast_values[0].temperature,
             }
 
-            # Update the forecast values
             self.update_value(dt, data)
 
         if len(self) < self.config.prediction_hours:
