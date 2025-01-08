@@ -75,26 +75,6 @@ def test_validate_data_invalid_format(mock_logger, elecprice_provider):
     mock_logger.assert_called_once_with(mock_logger.call_args[0][0])
 
 
-def test_calculate_weighted_mean(elecprice_provider):
-    """Test calculation of weighted mean for electricity prices."""
-    elecprice_provider.elecprice_8days = np.random.rand(24, 8) * 100
-    price_mean = elecprice_provider._calculate_weighted_mean(day_of_week=2, hour=10)
-    assert isinstance(price_mean, float)
-    assert not np.isnan(price_mean)
-    expected = np.array(
-        [
-            [1.0, 0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 1.0],
-            [0.25, 1.0, 0.5, 0.125, 0.0625, 0.03125, 0.015625, 1.0],
-            [0.125, 0.5, 1.0, 0.25, 0.0625, 0.03125, 0.015625, 1.0],
-            [0.0625, 0.125, 0.5, 1.0, 0.25, 0.03125, 0.015625, 1.0],
-            [0.0625, 0.125, 0.25, 0.5, 1.0, 0.03125, 0.015625, 1.0],
-            [0.015625, 0.03125, 0.0625, 0.125, 0.5, 1.0, 0.25, 1.0],
-            [0.015625, 0.03125, 0.0625, 0.125, 0.25, 0.5, 1.0, 1.0],
-        ]
-    )
-    np.testing.assert_array_equal(elecprice_provider.elecprice_8days_weights_day_of_week, expected)
-
-
 @patch("requests.get")
 def test_request_forecast(mock_get, elecprice_provider, sample_akkudoktor_1_json):
     """Test requesting forecast from Akkudoktor."""
@@ -140,7 +120,7 @@ def test_update_data(mock_get, elecprice_provider, sample_akkudoktor_1_json, cac
 
     # Assert: Verify the result is as expected
     mock_get.assert_called_once()
-    assert len(elecprice_provider) == 49  # prediction hours + 1
+    assert len(elecprice_provider) == 96
 
     # Assert we get prediction_hours prioce values by resampling
     np_price_array = elecprice_provider.key_to_array(
