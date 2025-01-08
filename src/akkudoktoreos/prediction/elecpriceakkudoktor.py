@@ -6,16 +6,17 @@ humidity, cloud cover, and solar irradiance. The data is mapped to the `ElecPric
 format, enabling consistent access to forecasted and historical electricity price attributes.
 """
 
-from typing import Any, List, Optional, Tuple, Union
+from typing import Any, List, Optional, Union
 
 import numpy as np
+import pandas as pd
 import requests
 from pydantic import ValidationError
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.prediction.elecpriceabc import ElecPriceDataRecord, ElecPriceProvider
+from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
 from akkudoktoreos.utils.cacheutil import cache_in_file
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
@@ -100,7 +101,6 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             ValueError: If the API response does not include expected `electricity price` data.
 
         Todo:
-            - maybe some data cleanup/checking. we might have a problem if a single day has none values or is missing at all in the api or the data.
             - add the file cache again.
         """
         source = "https://api.akkudoktor.net"
@@ -141,7 +141,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
     def _update_data(
         self, force_update: Optional[bool] = False
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:  # TODO: remove return, only for debug
+    ) -> None:  # Tuple[np.ndarray, np.ndarray, np.ndarray]:  # for debug main
         """Update forecast data in the ElecPriceDataRecord format.
 
         Retrieves data from Akkudoktor, maps each Akkudoktor field to the corresponding
@@ -152,6 +152,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         # Get Akkudoktor electricity price data
         akkudoktor_data = self._request_forecast(force_update=force_update)  # type: ignore
         assert self.start_datetime  # mypy fix
+
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
 
@@ -159,6 +160,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         charges_wh = (self.config.elecprice_charges_kwh or 0) / 1000
 
         highest_orig_datetime = None  # newest datetime from the api after that we want to update.
+        series_data = pd.Series(dtype=float)  # Initialize an empty series
 
         for value in akkudoktor_data.values:
             orig_datetime = to_datetime(value.start, in_timezone=self.config.timezone)
@@ -167,77 +169,51 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
             price_wh = value.marketpriceEurocentPerKWh / (100 * 1000) + charges_wh
 
-            existing_record = next((r for r in self.records if r.date_time == orig_datetime), None)
-            if existing_record:
-                # Update existing record
-                existing_record.elecprice_marketprice_wh = price_wh
-            else:
-                self.insert(
-                    0,
-                    ElecPriceDataRecord(date_time=orig_datetime, elecprice_marketprice_wh=price_wh),
-                )
+            # Collect all values into the Pandas Series
+            series_data.at[orig_datetime] = price_wh
+
+        # Update values using key_from_series
+        self.key_from_series("elecprice_marketprice_wh", series_data)
 
         # Generate history array for prediction
-        history = np.array(
-            [
-                record.elecprice_marketprice_wh
-                for record in sorted(self.records, key=lambda r: r.date_time)
-                if record.elecprice_marketprice_wh is not None
-                and record.date_time
-                < highest_orig_datetime  # make sure we only real data for the prediction, so cant be newer then data from the api.
-            ]
+        history = self.key_to_array(
+            key="elecprice_marketprice_wh", end_datetime=highest_orig_datetime, fill_method="linear"
         )
 
         amount_datasets = len(self.records)
         assert highest_orig_datetime  # mypy fix
 
-        if amount_datasets > 800:
+        if amount_datasets > 800:  # we do the full ets with seasons of 1 week
             prediction = self._predict_ets(
-                history, seasonal_periods=168, prediction_hours=7 * 24
-            )  # todo: add config values for prediction_hours
-        elif amount_datasets > 168:
+                history, seasonal_periods=168, prediction_hours=self.config.prediction_hours
+            )
+        elif amount_datasets > 168:  # not enough data to do seasons of 1 week, but enough for 1 day
             prediction = self._predict_ets(
-                history, seasonal_periods=24, prediction_hours=7 * 24
-            )  # todo: add config values for prediction_hours
-        elif (
-            amount_datasets > 0
-        ):  # TODO might be a problem if amount_datasets is really low and we do the _cap_outliers.
-            prediction = self._predict_median(history, prediction_hours=7 * 24)
+                history, seasonal_periods=24, prediction_hours=self.config.prediction_hours
+            )
+        elif amount_datasets > 0:  # not enough data for ets, do median
+            prediction = self._predict_median(
+                history, prediction_hours=self.config.prediction_hours
+            )
         else:
-            assert False, "No data available"
+            logger.error("No data available for prediction")
+            raise ValueError("No data available")
 
         # write predictions into the records, update if exist.
-        for i, price in enumerate(prediction):
-            pred_datetime = highest_orig_datetime + to_duration(f"{i + 1} hours")
-            existing_record = next((r for r in self.records if r.date_time == pred_datetime), None)
-            if existing_record:
-                # Update existing record
-                existing_record.elecprice_marketprice_wh = price
-            else:
-                assert pred_datetime  # mypy fix, why do we need that we already made sure highest_orig_datetime is not None
-                self.insert(
-                    0,
-                    ElecPriceDataRecord(date_time=pred_datetime, elecprice_marketprice_wh=price),
-                )
-        history2 = np.array(  # TODO: remove return, only for debug, offset to see the difference
-            [
-                record.elecprice_marketprice_wh + 0.0002
-                for record in sorted(self.records, key=lambda r: r.date_time)
-                if record.elecprice_marketprice_wh is not None
-            ]
+        prediction_series = pd.Series(
+            data=prediction,
+            index=[
+                highest_orig_datetime + to_duration(f"{i + 1} hours")
+                for i in range(len(prediction))
+            ],
         )
+        self.key_from_series("elecprice_marketprice_wh", prediction_series)
 
-        return history, history2, prediction  # TODO: remove return, only for debug
-
-
-def main() -> None:
-    elec_price_akkudoktor = ElecPriceAkkudoktor()
-    history, history2, predictions = elec_price_akkudoktor._update_data()
-
-    visualize_predictions(history, history2, predictions)
-    # print(history, history2, predictions)
+        # history2 = self.key_to_array(key="elecprice_marketprice_wh", fill_method="linear") + 0.0002
+        # return history, history2, prediction  # for debug main
 
 
+"""
 def visualize_predictions(
     history: np.ndarray[Any, Any],
     history2: np.ndarray[Any, Any],
@@ -262,5 +238,14 @@ def visualize_predictions(
     plt.close()
 
 
+def main() -> None:
+    elec_price_akkudoktor = ElecPriceAkkudoktor()
+    history, history2, predictions = elec_price_akkudoktor._update_data()
+
+    visualize_predictions(history, history2, predictions)
+    # print(history, history2, predictions)
+
+
 if __name__ == "__main__":
     main()
+"""
