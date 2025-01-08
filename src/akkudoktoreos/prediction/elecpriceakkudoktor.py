@@ -109,7 +109,6 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         date = to_datetime(self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
         url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.timezone}"
-        print(url)
         response = requests.get(url)
         logger.debug(f"Response from {url}: {response}")
         response.raise_for_status()  # Raise an error for bad responses
