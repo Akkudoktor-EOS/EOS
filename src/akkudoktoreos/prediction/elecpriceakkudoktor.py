@@ -140,7 +140,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
     def _update_data(
         self, force_update: Optional[bool] = False
-    ) -> None:  # Tuple[np.ndarray, np.ndarray, np.ndarray]:  # for debug main
+    ) -> None:  # tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Update forecast data in the ElecPriceDataRecord format.
 
         Retrieves data from Akkudoktor, maps each Akkudoktor field to the corresponding
@@ -182,18 +182,21 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         amount_datasets = len(self.records)
         assert highest_orig_datetime  # mypy fix
 
+        # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
+        needed_prediction_hours = int(
+            self.config.prediction_hours
+            - ((highest_orig_datetime - self.start_datetime).total_seconds() // 3600)
+        )
         if amount_datasets > 800:  # we do the full ets with seasons of 1 week
             prediction = self._predict_ets(
-                history, seasonal_periods=168, prediction_hours=self.config.prediction_hours
+                history, seasonal_periods=168, prediction_hours=needed_prediction_hours
             )
         elif amount_datasets > 168:  # not enough data to do seasons of 1 week, but enough for 1 day
             prediction = self._predict_ets(
-                history, seasonal_periods=24, prediction_hours=self.config.prediction_hours
+                history, seasonal_periods=24, prediction_hours=needed_prediction_hours
             )
         elif amount_datasets > 0:  # not enough data for ets, do median
-            prediction = self._predict_median(
-                history, prediction_hours=self.config.prediction_hours
-            )
+            prediction = self._predict_median(history, prediction_hours=needed_prediction_hours)
         else:
             logger.error("No data available for prediction")
             raise ValueError("No data available")
@@ -229,7 +232,7 @@ def visualize_predictions(
         label="Predictions",
         color="red",
     )
-    plt.title("Predictions vs True Values for ets")
+    plt.title("Predictions ets")
     plt.xlabel("Time")
     plt.ylabel("Price")
     plt.legend()
@@ -238,6 +241,7 @@ def visualize_predictions(
 
 
 def main() -> None:
+    # Initialize ElecPriceAkkudoktor with required parameters
     elec_price_akkudoktor = ElecPriceAkkudoktor()
     history, history2, predictions = elec_price_akkudoktor._update_data()
 
