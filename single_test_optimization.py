@@ -27,7 +27,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     settings = {
         # -- General --
         "prediction_hours": 48,
-        "prediction_historic_hours": 48,
+        "prediction_historic_hours": 24,
         "latitude": 52.52,
         "longitude": 13.405,
         # -- Predictions --
