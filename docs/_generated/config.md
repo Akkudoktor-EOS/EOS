@@ -287,12 +287,12 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| `server_fastapi_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | FastAPI server IP address. |
-| `server_fastapi_port` | `Optional[int]` | `rw` | `8503` | FastAPI server IP port number. |
-| `server_fastapi_startup_server_fasthtml` | `Optional[bool]` | `rw` | `True` | FastAPI server to startup application FastHTML server. |
-| `server_fastapi_verbose` | `Optional[bool]` | `rw` | `False` | Enable debug output |
-| `server_fasthtml_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | FastHTML server IP address. |
-| `server_fasthtml_port` | `Optional[int]` | `rw` | `8504` | FastHTML server IP port number. |
+| `server_eos_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOS server IP address. |
+| `server_eos_port` | `Optional[int]` | `rw` | `8503` | EOS server IP port number. |
+| `server_eos_startup_eosdash` | `Optional[bool]` | `rw` | `True` | EOS server to start EOSdash server. |
+| `server_eos_verbose` | `Optional[bool]` | `rw` | `False` | Enable debug output |
+| `server_eosdash_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOSdash server IP address. |
+| `server_eosdash_port` | `Optional[int]` | `rw` | `8504` | EOSdash server IP port number. |
 :::
 
 ## Weather Forecast Configuration

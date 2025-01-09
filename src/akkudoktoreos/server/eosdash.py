@@ -41,20 +41,18 @@ def config_table() -> Table:
 
 @rt("/")
 def get():  # type: ignore
-    return Titled("EOS Config App", H1("Configuration"), config_table())
+    return Titled("EOS Dashboard", H1("Configuration"), config_table())
 
 
 if __name__ == "__main__":
     try:
-        logger.info(
-            f"Starting {config_eos.server_fasthtml_host}:{config_eos.server_fasthtml_port}."
-        )
+        logger.info(f"Starting {config_eos.server_eosdash_host}:{config_eos.server_eosdash_port}.")
         uvicorn.run(
-            app, host=str(config_eos.server_fasthtml_host), port=config_eos.server_fasthtml_port
+            app, host=str(config_eos.server_eosdash_host), port=config_eos.server_eosdash_port
         )
     except Exception as e:
         # Error handling for binding issues
         logger.error(
-            f"Could not bind to host {config_eos.server_fasthtml_host}:{config_eos.server_fasthtml_port}. Error: {e}"
+            f"Could not bind to host {config_eos.server_eosdash_host}:{config_eos.server_eosdash_port}. Error: {e}"
         )
         exit(1)

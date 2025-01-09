@@ -17,24 +17,22 @@ class ServerCommonSettings(SettingsBaseModel):
         To be added
     """
 
-    server_fastapi_host: Optional[IPvAnyAddress] = Field(
-        default="0.0.0.0", description="FastAPI server IP address."
+    server_eos_host: Optional[IPvAnyAddress] = Field(
+        default="0.0.0.0", description="EOS server IP address."
     )
-    server_fastapi_port: Optional[int] = Field(
-        default=8503, description="FastAPI server IP port number."
+    server_eos_port: Optional[int] = Field(default=8503, description="EOS server IP port number.")
+    server_eos_verbose: Optional[bool] = Field(default=False, description="Enable debug output")
+    server_eos_startup_eosdash: Optional[bool] = Field(
+        default=True, description="EOS server to start EOSdash server."
     )
-    server_fastapi_verbose: Optional[bool] = Field(default=False, description="Enable debug output")
-    server_fastapi_startup_server_fasthtml: Optional[bool] = Field(
-        default=True, description="FastAPI server to startup application FastHTML server."
+    server_eosdash_host: Optional[IPvAnyAddress] = Field(
+        default="0.0.0.0", description="EOSdash server IP address."
     )
-    server_fasthtml_host: Optional[IPvAnyAddress] = Field(
-        default="0.0.0.0", description="FastHTML server IP address."
-    )
-    server_fasthtml_port: Optional[int] = Field(
-        default=8504, description="FastHTML server IP port number."
+    server_eosdash_port: Optional[int] = Field(
+        default=8504, description="EOSdash server IP port number."
     )
 
-    @field_validator("server_fastapi_port", "server_fasthtml_port")
+    @field_validator("server_eos_port", "server_eosdash_port")
     def validate_server_port(cls, value: Optional[int]) -> Optional[int]:
         if value is not None and not (1024 <= value <= 49151):
             raise ValueError("Server port number must be between 1024 and 49151.")

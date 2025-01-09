@@ -289,7 +289,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
 
         Example:
             >>> config = get_config()
-            >>> new_data = {"prediction_hours": 24, "server_fastapi_port": 8000}
+            >>> new_data = {"prediction_hours": 24, "server_eos_port": 8000}
             >>> config.merge_settings_from_dict(new_data)
         """
         # Create new settings instance with reset optional fields and merged data

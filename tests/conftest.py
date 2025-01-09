@@ -170,7 +170,7 @@ def server(xprocess, config_eos, config_default_dirs):
         # assure server to be installed
         try:
             subprocess.run(
-                [sys.executable, "-c", "import akkudoktoreos.server.fastapi_server"],
+                [sys.executable, "-c", "import akkudoktoreos.server.eos"],
                 check=True,
                 env=env,
                 stdout=subprocess.PIPE,
@@ -186,7 +186,7 @@ def server(xprocess, config_eos, config_default_dirs):
             )
 
         # command to start server process
-        args = [sys.executable, "-m", "akkudoktoreos.server.fastapi_server"]
+        args = [sys.executable, "-m", "akkudoktoreos.server.eos"]
 
         # startup pattern
         pattern = "Application startup complete."

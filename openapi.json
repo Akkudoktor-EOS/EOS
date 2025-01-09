@@ -137,7 +137,7 @@
         "operationId": "fastapi_config_put_v1_config_put",
         "parameters": [
           {
-            "name": "server_fastapi_host",
+            "name": "server_eos_host",
             "in": "query",
             "required": false,
             "schema": {
@@ -150,14 +150,14 @@
                   "type": "null"
                 }
               ],
-              "description": "FastAPI server IP address.",
+              "description": "EOS server IP address.",
               "default": "0.0.0.0",
-              "title": "Server Fastapi Host"
+              "title": "Server Eos Host"
             },
-            "description": "FastAPI server IP address."
+            "description": "EOS server IP address."
           },
           {
-            "name": "server_fastapi_port",
+            "name": "server_eos_port",
             "in": "query",
             "required": false,
             "schema": {
@@ -169,14 +169,14 @@
                   "type": "null"
                 }
               ],
-              "description": "FastAPI server IP port number.",
+              "description": "EOS server IP port number.",
               "default": 8503,
-              "title": "Server Fastapi Port"
+              "title": "Server Eos Port"
             },
-            "description": "FastAPI server IP port number."
+            "description": "EOS server IP port number."
           },
           {
-            "name": "server_fastapi_verbose",
+            "name": "server_eos_verbose",
             "in": "query",
             "required": false,
             "schema": {
@@ -190,12 +190,12 @@
               ],
               "description": "Enable debug output",
               "default": false,
-              "title": "Server Fastapi Verbose"
+              "title": "Server Eos Verbose"
             },
             "description": "Enable debug output"
           },
           {
-            "name": "server_fastapi_startup_server_fasthtml",
+            "name": "server_eos_startup_eosdash",
             "in": "query",
             "required": false,
             "schema": {
@@ -207,14 +207,14 @@
                   "type": "null"
                 }
               ],
-              "description": "FastAPI server to startup application FastHTML server.",
+              "description": "EOS server to start EOSdash server.",
               "default": true,
-              "title": "Server Fastapi Startup Server Fasthtml"
+              "title": "Server Eos Startup Eosdash"
             },
-            "description": "FastAPI server to startup application FastHTML server."
+            "description": "EOS server to start EOSdash server."
           },
           {
-            "name": "server_fasthtml_host",
+            "name": "server_eosdash_host",
             "in": "query",
             "required": false,
             "schema": {
@@ -227,14 +227,14 @@
                   "type": "null"
                 }
               ],
-              "description": "FastHTML server IP address.",
+              "description": "EOSdash server IP address.",
               "default": "0.0.0.0",
-              "title": "Server Fasthtml Host"
+              "title": "Server Eosdash Host"
             },
-            "description": "FastHTML server IP address."
+            "description": "EOSdash server IP address."
           },
           {
-            "name": "server_fasthtml_port",
+            "name": "server_eosdash_port",
             "in": "query",
             "required": false,
             "schema": {
@@ -246,11 +246,11 @@
                   "type": "null"
                 }
               ],
-              "description": "FastHTML server IP port number.",
+              "description": "EOSdash server IP port number.",
               "default": 8504,
-              "title": "Server Fasthtml Port"
+              "title": "Server Eosdash Port"
             },
-            "description": "FastHTML server IP port number."
+            "description": "EOSdash server IP port number."
           },
           {
             "name": "weatherimport_file_path",
@@ -3947,7 +3947,7 @@
     "schemas": {
       "ConfigEOS": {
         "properties": {
-          "server_fastapi_host": {
+          "server_eos_host": {
             "anyOf": [
               {
                 "type": "string",
@@ -3957,11 +3957,11 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fastapi Host",
-            "description": "FastAPI server IP address.",
+            "title": "Server Eos Host",
+            "description": "EOS server IP address.",
             "default": "0.0.0.0"
           },
-          "server_fastapi_port": {
+          "server_eos_port": {
             "anyOf": [
               {
                 "type": "integer"
@@ -3970,11 +3970,11 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fastapi Port",
-            "description": "FastAPI server IP port number.",
+            "title": "Server Eos Port",
+            "description": "EOS server IP port number.",
             "default": 8503
           },
-          "server_fastapi_verbose": {
+          "server_eos_verbose": {
             "anyOf": [
               {
                 "type": "boolean"
@@ -3983,11 +3983,11 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fastapi Verbose",
+            "title": "Server Eos Verbose",
             "description": "Enable debug output",
             "default": false
           },
-          "server_fastapi_startup_server_fasthtml": {
+          "server_eos_startup_eosdash": {
             "anyOf": [
               {
                 "type": "boolean"
@@ -3996,11 +3996,11 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fastapi Startup Server Fasthtml",
-            "description": "FastAPI server to startup application FastHTML server.",
+            "title": "Server Eos Startup Eosdash",
+            "description": "EOS server to start EOSdash server.",
             "default": true
           },
-          "server_fasthtml_host": {
+          "server_eosdash_host": {
             "anyOf": [
               {
                 "type": "string",
@@ -4010,11 +4010,11 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fasthtml Host",
-            "description": "FastHTML server IP address.",
+            "title": "Server Eosdash Host",
+            "description": "EOSdash server IP address.",
             "default": "0.0.0.0"
           },
-          "server_fasthtml_port": {
+          "server_eosdash_port": {
             "anyOf": [
               {
                 "type": "integer"
@@ -4023,8 +4023,8 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fasthtml Port",
-            "description": "FastHTML server IP port number.",
+            "title": "Server Eosdash Port",
+            "description": "EOSdash server IP port number.",
             "default": 8504
           },
           "weatherimport_file_path": {
@@ -6626,7 +6626,7 @@
       },
       "SettingsEOS": {
         "properties": {
-          "server_fastapi_host": {
+          "server_eos_host": {
             "anyOf": [
               {
                 "type": "string",
@@ -6636,11 +6636,11 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fastapi Host",
-            "description": "FastAPI server IP address.",
+            "title": "Server Eos Host",
+            "description": "EOS server IP address.",
             "default": "0.0.0.0"
           },
-          "server_fastapi_port": {
+          "server_eos_port": {
             "anyOf": [
               {
                 "type": "integer"
@@ -6649,11 +6649,11 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fastapi Port",
-            "description": "FastAPI server IP port number.",
+            "title": "Server Eos Port",
+            "description": "EOS server IP port number.",
             "default": 8503
           },
-          "server_fastapi_verbose": {
+          "server_eos_verbose": {
             "anyOf": [
               {
                 "type": "boolean"
@@ -6662,11 +6662,11 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fastapi Verbose",
+            "title": "Server Eos Verbose",
             "description": "Enable debug output",
             "default": false
           },
-          "server_fastapi_startup_server_fasthtml": {
+          "server_eos_startup_eosdash": {
             "anyOf": [
               {
                 "type": "boolean"
@@ -6675,11 +6675,11 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fastapi Startup Server Fasthtml",
-            "description": "FastAPI server to startup application FastHTML server.",
+            "title": "Server Eos Startup Eosdash",
+            "description": "EOS server to start EOSdash server.",
             "default": true
           },
-          "server_fasthtml_host": {
+          "server_eosdash_host": {
             "anyOf": [
               {
                 "type": "string",
@@ -6689,11 +6689,11 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fasthtml Host",
-            "description": "FastHTML server IP address.",
+            "title": "Server Eosdash Host",
+            "description": "EOSdash server IP address.",
             "default": "0.0.0.0"
           },
-          "server_fasthtml_port": {
+          "server_eosdash_port": {
             "anyOf": [
               {
                 "type": "integer"
@@ -6702,8 +6702,8 @@
                 "type": "null"
               }
             ],
-            "title": "Server Fasthtml Port",
-            "description": "FastHTML server IP port number.",
+            "title": "Server Eosdash Port",
+            "description": "EOSdash server IP port number.",
             "default": 8504
           },
           "weatherimport_file_path": {
