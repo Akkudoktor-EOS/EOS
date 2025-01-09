@@ -31,8 +31,8 @@
         "initial_soc_percentage": 80,
         "min_soc_percentage": 15
     },
-    "wechselrichter": {
-        "max_leistung_wh": 10000
+    "inverter": {
+        "max_power_wh": 10000
     },
     "eauto": {
         "capacity_wh": 60000,

@@ -478,3 +478,7 @@ class PydanticDateTimeSeries(PydanticBaseModel):
             dtype=str(series.dtype),
             tz=tz,
         )
+
+
+class ParametersBaseModel(PydanticBaseModel):
+    model_config = ConfigDict(extra="forbid")

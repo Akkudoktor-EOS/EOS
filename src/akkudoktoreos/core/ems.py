@@ -8,7 +8,7 @@ from typing_extensions import Self
 
 from akkudoktoreos.core.coreabc import ConfigMixin, PredictionMixin, SingletonMixin
 from akkudoktoreos.core.logging import get_logger
-from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.core.pydantic import ParametersBaseModel, PydanticBaseModel
 from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.generic import HomeAppliance
 from akkudoktoreos.devices.inverter import Inverter
@@ -18,7 +18,7 @@ from akkudoktoreos.utils.utils import NumpyEncoder
 logger = get_logger(__name__)
 
 
-class EnergieManagementSystemParameters(PydanticBaseModel):
+class EnergieManagementSystemParameters(ParametersBaseModel):
     pv_prognose_wh: list[float] = Field(
         description="An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
     )
@@ -50,7 +50,7 @@ class EnergieManagementSystemParameters(PydanticBaseModel):
         return self
 
 
-class SimulationResult(PydanticBaseModel):
+class SimulationResult(ParametersBaseModel):
     """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
 
     Last_Wh_pro_Stunde: list[Optional[float]] = Field(description="TBD")

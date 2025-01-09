@@ -158,6 +158,9 @@
         "initial_soc_percentage": 80,
         "min_soc_percentage": 0
     },
+    "inverter": {
+        "max_power_wh": 10000
+    },
     "eauto": {
         "capacity_wh": 60000,
         "charging_efficiency": 0.95,
