@@ -128,6 +128,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
     def _predict_ets(
         self, history: np.ndarray, seasonal_periods: int, prediction_hours: int
     ) -> np.ndarray:
+        print(f"!!!!!!!!!!!history: {history}", seasonal_periods, prediction_hours)
         clean_history = self._cap_outliers(history)
         model = ExponentialSmoothing(
             clean_history, seasonal="add", seasonal_periods=seasonal_periods
@@ -187,6 +188,13 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             self.config.prediction_hours
             - ((highest_orig_datetime - self.start_datetime).total_seconds() // 3600)
         )
+
+        if needed_prediction_hours <= 0:
+            logger.error(
+                f"No prediction needed. needed_prediction_hours={needed_prediction_hours}, prediction_hours={self.config.prediction_hours},highest_orig_datetime {highest_orig_datetime}, start_datetime {self.start_datetime}"
+            )  # this might keep data longer than self.start_datetime + self.config.prediction_hours in the records
+            return
+
         if amount_datasets > 800:  # we do the full ets with seasons of 1 week
             prediction = self._predict_ets(
                 history, seasonal_periods=168, prediction_hours=needed_prediction_hours
