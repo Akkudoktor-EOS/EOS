@@ -88,8 +88,8 @@ optimization. Key considerations for updates include:
 
 Prediction data can be accessed using the EOS **REST API** via the `/v1/prediction/<...>` endpoints.
 
-In a standard configuration, the [**REST API**](http://0.0.0.0:8503/docs) of a running EOS instance
-is available at [http://0.0.0.0:8503/docs](http://0.0.0.0:8503/docs). This link provides access to
+In a standard configuration, the [**REST API**](http://localhost:8503/docs) of a running EOS instance
+is available at [http://localhost:8503/docs](http://localhost:8503/docs). This link provides access to
 the API documentation and allows you to explore available endpoints interactively.
 
 To view all available prediction keys, use the **GET** `/v1/prediction/keys` endpoint.
