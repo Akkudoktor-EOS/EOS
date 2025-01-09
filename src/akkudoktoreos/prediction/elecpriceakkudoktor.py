@@ -128,7 +128,6 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
     def _predict_ets(
         self, history: np.ndarray, seasonal_periods: int, prediction_hours: int
     ) -> np.ndarray:
-        print(f"!!!!!!!!!!!history: {history}", seasonal_periods, prediction_hours)
         clean_history = self._cap_outliers(history)
         model = ExponentialSmoothing(
             clean_history, seasonal="add", seasonal_periods=seasonal_periods
