@@ -19,8 +19,8 @@ help:
 	@echo "  read-docs    - Read HTML documentation in your browser."
 	@echo "  gen-docs     - Generate openapi.json and docs/_generated/*.""
 	@echo "  clean-docs   - Remove generated documentation.""
-	@echo "  run          - Run FastAPI production server in the virtual environment."
-	@echo "  run-dev      - Run FastAPI development server in the virtual environment (automatically reloads)."
+	@echo "  run          - Run EOS production server in the virtual environment."
+	@echo "  run-dev      - Run EOS development server in the virtual environment (automatically reloads)."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
 
@@ -84,12 +84,12 @@ clean: clean-docs
 	@echo "Deletion complete."
 
 run:
-	@echo "Starting FastAPI server, please wait..."
-	.venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
+	@echo "Starting EOS server, please wait..."
+	.venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/eos.py
 
 run-dev:
-	@echo "Starting FastAPI development server, please wait..."
-	.venv/bin/fastapi dev --port 8503 src/akkudoktoreos/server/fastapi_server.py
+	@echo "Starting EOS development server, please wait..."
+	.venv/bin/fastapi dev --port 8503 src/akkudoktoreos/server/eos.py
 
 # Target to setup tests.
 test-setup: pip-dev

@@ -37,13 +37,13 @@ Finally, start EOS fastapi server:
 Linux:
 
 ```bash
-.venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
+.venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/eos.py
 ```
 
 Windows:
 
 ```
- .venv\Scripts\fastapi run --port 8503 src/akkudoktoreos/server/fastapi_server.py
+ .venv\Scripts\fastapi run --port 8503 src/akkudoktoreos/server/eos.py
 ```
 
 ### Docker

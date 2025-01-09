@@ -129,10 +129,10 @@ def create_error_page(
     )
 
 
-def start_fasthtml_server() -> subprocess.Popen:
+def start_eosdash() -> subprocess.Popen:
     """Start the fasthtml server as a subprocess."""
     server_process = subprocess.Popen(
-        [sys.executable, str(server_dir.joinpath("fasthtml_server.py"))],
+        [sys.executable, str(server_dir.joinpath("eosdash.py"))],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -144,14 +144,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
     if (
-        config_eos.server_fastapi_startup_server_fasthtml
-        and config_eos.server_fasthtml_host
-        and config_eos.server_fasthtml_port
+        config_eos.server_eos_startup_eosdash
+        and config_eos.server_eosdash_host
+        and config_eos.server_eosdash_port
     ):
         try:
-            fasthtml_process = start_fasthtml_server()
+            fasthtml_process = start_eosdash()
         except Exception as e:
-            logger.error(f"Failed to start FastHTML server. Error: {e}")
+            logger.error(f"Failed to start EOSdash server. Error: {e}")
             sys.exit(1)
     # Handover to application
     yield
@@ -172,7 +172,7 @@ app = FastAPI(
 )
 
 # That's the problem
-opt_class = optimization_problem(verbose=bool(config_eos.server_fastapi_verbose))
+opt_class = optimization_problem(verbose=bool(config_eos.server_eos_verbose))
 
 server_dir = Path(__file__).parent.resolve()
 
@@ -812,9 +812,9 @@ async def proxy_put(request: Request, path: str) -> Response:
 
 
 async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse | HTMLResponse]:
-    if config_eos.server_fasthtml_host and config_eos.server_fasthtml_port:
+    if config_eos.server_eosdash_host and config_eos.server_eosdash_port:
         # Proxy to fasthtml server
-        url = f"http://{config_eos.server_fasthtml_host}:{config_eos.server_fasthtml_port}/{path}"
+        url = f"http://{config_eos.server_eosdash_host}:{config_eos.server_eosdash_port}/{path}"
         headers = dict(request.headers)
 
         data = await request.body()
@@ -834,11 +834,11 @@ async def proxy(request: Request, path: str) -> Union[Response | RedirectRespons
                 status_code="404",
                 error_title="Page Not Found",
                 error_message=f"""<pre>
-Application server not reachable: '{url}'
-Did you start the application server
-or set 'server_fastapi_startup_server_fasthtml'?
+EOSdash server not reachable: '{url}'
+Did you start the EOSdash server
+or set 'server_eos_startup_eosdash'?
 If there is no application server intended please
-set 'server_fasthtml_host' or 'server_fasthtml_port' to None.
+set 'server_eosdash_host' or 'server_eosdash_port' to None.
 </pre>
 """,
                 error_details=f"{e}",
@@ -855,22 +855,22 @@ set 'server_fasthtml_host' or 'server_fasthtml_port' to None.
         return RedirectResponse(url="/docs")
 
 
-def start_fastapi_server() -> None:
-    """Start FastAPI server."""
+def start_eos() -> None:
+    """Start EOS server."""
     try:
         uvicorn.run(
             app,
-            host=str(config_eos.server_fastapi_host),
-            port=config_eos.server_fastapi_port,
+            host=str(config_eos.server_eos_host),
+            port=config_eos.server_eos_port,
             log_level="debug",
             access_log=True,
         )
     except Exception as e:
         logger.error(
-            f"Could not bind to host {config_eos.server_fastapi_host}:{config_eos.server_fastapi_port}. Error: {e}"
+            f"Could not bind to host {config_eos.server_eos_host}:{config_eos.server_eos_port}. Error: {e}"
         )
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    start_fastapi_server()
+    start_eos()

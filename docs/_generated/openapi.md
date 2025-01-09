@@ -202,17 +202,17 @@ Returns:
 
 **Parameters**:
 
-- `server_fastapi_host` (query, optional): FastAPI server IP address.
+- `server_eos_host` (query, optional): EOS server IP address.
 
-- `server_fastapi_port` (query, optional): FastAPI server IP port number.
+- `server_eos_port` (query, optional): EOS server IP port number.
 
-- `server_fastapi_verbose` (query, optional): Enable debug output
+- `server_eos_verbose` (query, optional): Enable debug output
 
-- `server_fastapi_startup_server_fasthtml` (query, optional): FastAPI server to startup application FastHTML server.
+- `server_eos_startup_eosdash` (query, optional): EOS server to start EOSdash server.
 
-- `server_fasthtml_host` (query, optional): FastHTML server IP address.
+- `server_eosdash_host` (query, optional): EOSdash server IP address.
 
-- `server_fasthtml_port` (query, optional): FastHTML server IP port number.
+- `server_eosdash_port` (query, optional): EOSdash server IP port number.
 
 - `weatherimport_file_path` (query, optional): Path to the file to import weather data from.
 

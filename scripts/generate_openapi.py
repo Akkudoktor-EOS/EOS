@@ -1,5 +1,5 @@
 #!.venv/bin/python
-"""This module generates the OpenAPI specification for the FastAPI application  defined in `akkudoktoreos.server.fastapi_server`.
+"""This module generates the OpenAPI specification for the EOS application  defined in `akkudoktoreos.server.eos`.
 
 The script can be executed directly to generate the OpenAPI specification
 either to the standard output or to a specified file.
@@ -20,7 +20,7 @@ import sys
 
 from fastapi.openapi.utils import get_openapi
 
-from akkudoktoreos.server.fastapi_server import app
+from akkudoktoreos.server.eos import app
 
 
 def generate_openapi() -> dict:
