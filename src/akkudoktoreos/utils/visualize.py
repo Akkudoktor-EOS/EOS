@@ -366,7 +366,6 @@ def prepare_visualize(
         c=extra_data["nebenbedingung"],
     )
 
-    # Example usage
     values_list = [
         [
             results["result"]["Gesamtkosten_Euro"],
@@ -423,6 +422,24 @@ def prepare_visualize(
     if filtered_balance.size > 0 or filtered_losses.size > 0:
         report.finalize_group()
 
+    report.create_line_chart(
+        0,
+        [
+            results["fitness_history"]["avg"],
+            results["fitness_history"]["max"],
+            results["fitness_history"]["min"],
+        ],
+        title="DEBUG: Generation Fitness",
+        xlabel="Generation",
+        ylabel="Fitness",
+        labels=[
+            "avg",
+            "max",
+            "min",
+        ],
+        markers=["o", "x"],
+    )
+    report.finalize_group()
     # Generate the PDF report
     report.generate_pdf()
 

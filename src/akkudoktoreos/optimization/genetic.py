@@ -113,6 +113,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         self.fix_seed = fixed_seed
         self.optimize_ev = True
         self.optimize_dc_charge = False
+        self.fitness_history: dict[str, Any] = {}
 
         # Set a fixed seed for random operations if provided
         if fixed_seed is not None:
@@ -493,6 +494,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         hof = tools.HallOfFame(1)
         stats = tools.Statistics(lambda ind: ind.fitness.values)
         stats.register("min", np.min)
+        stats.register("avg", np.mean)  # Register average fitness
+        stats.register("max", np.max)  # Register average fitness
 
         if self.verbose:
             print("Start optimize:", start_solution)
@@ -502,8 +505,10 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             for _ in range(10):
                 population.insert(0, creator.Individual(start_solution))
 
+        # logbook = tools.Logbook()
+
         # Run the evolutionary algorithm
-        algorithms.eaMuPlusLambda(
+        pop, log = algorithms.eaMuPlusLambda(
             population,
             self.toolbox,
             mu=100,
@@ -515,6 +520,14 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             halloffame=hof,
             verbose=self.verbose,
         )
+
+        # Store fitness history
+        self.fitness_history = {
+            "gen": log.select("gen"),  # Generation numbers (X-axis)
+            "avg": log.select("avg"),  # Average fitness for each generation (Y-axis)
+            "max": log.select("max"),  # Maximum fitness for each generation (Y-axis)
+            "min": log.select("min"),  # Minimum fitness for each generation (Y-axis)
+        }
 
         member: dict[str, list[float]] = {"bilanz": [], "verluste": [], "nebenbedingung": []}
         for ind in population:
@@ -627,6 +640,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             "start_solution": start_solution,
             "spuelstart": washingstart_int,
             "extra_data": extra_data,
+            "fitness_history": self.fitness_history,
         }
         from akkudoktoreos.utils.visualize import prepare_visualize
 
