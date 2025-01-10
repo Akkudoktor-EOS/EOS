@@ -494,8 +494,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         hof = tools.HallOfFame(1)
         stats = tools.Statistics(lambda ind: ind.fitness.values)
         stats.register("min", np.min)
-        stats.register("avg", np.mean)  # Register average fitness
-        stats.register("max", np.max)  # Register average fitness
+        stats.register("avg", np.mean)
+        stats.register("max", np.max)
 
         if self.verbose:
             print("Start optimize:", start_solution)
