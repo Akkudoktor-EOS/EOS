@@ -189,7 +189,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         )
 
         if needed_prediction_hours <= 0:
-            logger.error(
+            logger.warning(
                 f"No prediction needed. needed_prediction_hours={needed_prediction_hours}, prediction_hours={self.config.prediction_hours},highest_orig_datetime {highest_orig_datetime}, start_datetime {self.start_datetime}"
             )  # this might keep data longer than self.start_datetime + self.config.prediction_hours in the records
             return
