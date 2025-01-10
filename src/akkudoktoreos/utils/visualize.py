@@ -437,7 +437,7 @@ def prepare_visualize(
             "max",
             "min",
         ],
-        markers=["o", "x"],
+        markers=[".", ".", "."],
     )
     report.finalize_group()
     # Generate the PDF report
