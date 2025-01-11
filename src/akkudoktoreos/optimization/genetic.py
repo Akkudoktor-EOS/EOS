@@ -512,8 +512,6 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             for _ in range(10):
                 population.insert(0, creator.Individual(start_solution))
 
-        # logbook = tools.Logbook()
-
         # Run the evolutionary algorithm
         pop, log = algorithms.eaMuPlusLambda(
             population,
