@@ -13,7 +13,7 @@ from akkudoktoreos.core.coreabc import ConfigMixin
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.optimization.genetic import OptimizationParameters
 
-logger = get_logger(__name__, logging_level="DEBUG")
+logger = get_logger(__name__)
 
 
 class VisualizationReport(ConfigMixin):
@@ -588,6 +588,8 @@ def generate_example_report(filename: str = "example_report.pdf") -> None:
     )
 
     report.finalize_group()  # Finalize the third group of charts
+
+    logger.setLevel(logging.DEBUG)  # set level for example report
 
     if logger.level == logging.DEBUG:
         report.create_line_chart(
