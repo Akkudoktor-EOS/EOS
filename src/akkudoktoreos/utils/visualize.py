@@ -1,4 +1,7 @@
+import json
+import logging
 import os
+import textwrap
 from collections.abc import Sequence
 from typing import Callable, Optional, Union
 
@@ -7,7 +10,10 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.core.coreabc import ConfigMixin
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.optimization.genetic import OptimizationParameters
+
+logger = get_logger(__name__, logging_level="DEBUG")
 
 
 class VisualizationReport(ConfigMixin):
@@ -19,6 +25,7 @@ class VisualizationReport(ConfigMixin):
             Callable[[], None]
         ] = []  # Store current group of charts being created
         self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
+        self.is_text_page = False  # Flag to indicate if the current group is a text/JSON page
 
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
         """Add a chart function to the current group."""
@@ -49,6 +56,12 @@ class VisualizationReport(ConfigMixin):
 
     def _save_group_to_pdf(self, group: list[Callable[[], None]]) -> None:
         """Save a group of charts to the PDF."""
+        if self.is_text_page:
+            for chart_func in group:
+                chart_func()  # Call the chart function to draw the text/JSON page
+            self.is_text_page = False  # Reset the flag after saving the text/JSON pages
+            return
+
         fig_count = len(group)  # Number of charts in the group
         if fig_count == 0:
             print("Attempted to save an empty group to PDF!")  # Warn if group is empty
@@ -231,6 +244,65 @@ class VisualizationReport(ConfigMixin):
             plt.grid(True)  # Show grid
 
         self.add_chart_to_group(chart)  # Add chart function to current group
+
+    def add_text_page(self, text: str, title: Optional[str] = None, fontsize: int = 12) -> None:
+        """Add a page with text content to the PDF."""
+
+        def chart() -> None:
+            fig = plt.figure(figsize=(8.5, 11))  # Create a standard page size
+            plt.axis("off")  # Turn off axes for a clean page
+            wrapped_text = textwrap.fill(text, width=80)  # Wrap text to fit the page width
+            y = 0.95  # Start at the top of the page
+
+            if title:
+                plt.text(0.5, y, title, ha="center", va="top", fontsize=fontsize + 4, weight="bold")
+                y -= 0.05  # Add space after the title
+
+            plt.text(0.5, y, wrapped_text, ha="center", va="top", fontsize=fontsize, wrap=True)
+            self.pdf_pages.savefig(fig)  # Save the figure as a page in the PDF
+            plt.close(fig)  # Close the figure to free up memory
+
+        self.is_text_page = True  # Set the flag to indicate a text page
+        self.add_chart_to_group(chart)  # Treat the text page as a "chart" in the group
+
+    def add_json_page(
+        self, json_obj: dict, title: Optional[str] = None, fontsize: int = 12
+    ) -> None:
+        """Add a page with a formatted JSON object to the PDF.
+
+        Args:
+            json_obj (dict): The JSON object to display.
+            title (Optional[str]): An optional title for the page.
+            fontsize (int): The font size for the JSON text.
+        """
+
+        def chart() -> None:
+            # Convert JSON object to a formatted string
+            json_str = json.dumps(json_obj, indent=4)
+
+            fig = plt.figure(figsize=(8.5, 11))  # Standard page size
+            plt.axis("off")  # Turn off axes for a clean page
+
+            y = 0.95  # Start at the top of the page
+            if title:
+                plt.text(0.5, y, title, ha="center", va="top", fontsize=fontsize + 4, weight="bold")
+                y -= 0.05  # Add space after the title
+
+            # Split the JSON string into lines and render them
+            lines = json_str.splitlines()
+            for line in lines:
+                plt.text(0.05, y, line, ha="left", va="top", fontsize=fontsize, family="monospace")
+                y -= 0.02  # Move down for the next line
+
+                # Stop if the text exceeds the page
+                if y < 0.05:
+                    break
+
+            self.pdf_pages.savefig(fig)  # Save the figure as a page in the PDF
+            plt.close(fig)  # Close the figure to free up memory
+
+        self.is_text_page = True  # Set the flag to indicate a JSON page
+        self.add_chart_to_group(chart)  # Treat the JSON page as a "chart" in the group
 
     def generate_pdf(self) -> None:
         """Generate the PDF report with all the added chart groups."""
@@ -421,25 +493,25 @@ def prepare_visualize(
 
     if filtered_balance.size > 0 or filtered_losses.size > 0:
         report.finalize_group()
-
-    report.create_line_chart(
-        0,
-        [
-            results["fitness_history"]["avg"],
-            results["fitness_history"]["max"],
-            results["fitness_history"]["min"],
-        ],
-        title="DEBUG: Generation Fitness",
-        xlabel="Generation",
-        ylabel="Fitness",
-        labels=[
-            "avg",
-            "max",
-            "min",
-        ],
-        markers=[".", ".", "."],
-    )
-    report.finalize_group()
+    if logger.level == logging.DEBUG:
+        report.create_line_chart(
+            0,
+            [
+                results["fitness_history"]["avg"],
+                results["fitness_history"]["max"],
+                results["fitness_history"]["min"],
+            ],
+            title="DEBUG: Generation Fitness",
+            xlabel="Generation",
+            ylabel="Fitness",
+            labels=[
+                "avg",
+                "max",
+                "min",
+            ],
+            markers=[".", ".", "."],
+        )
+        report.finalize_group()
     # Generate the PDF report
     report.generate_pdf()
 
@@ -516,6 +588,39 @@ def generate_example_report(filename: str = "example_report.pdf") -> None:
     )
 
     report.finalize_group()  # Finalize the third group of charts
+
+    if logger.level == logging.DEBUG:
+        report.create_line_chart(
+            x_hours,
+            [np.array([0.2, 0.25, 0.3, 0.35])],
+            title="DEBUG",
+            xlabel="DEBUG",
+            ylabel="DEBUG",
+        )
+        report.finalize_group()  # Finalize the third group of charts
+
+    report.add_text_page(
+        text=" Bisher passierte folgendes:"
+        "Am Anfang wurde das Universum erschaffen."
+        "Das machte viele Leute sehr wütend und wurde allent-"
+        "halben als Schritt in die falsche Richtung angesehen...",
+        title="Don't Panic!",
+        fontsize=14,
+    )
+    report.finalize_group()
+
+    sample_json = {
+        "name": "Visualization Report",
+        "version": 1.0,
+        "charts": [
+            {"type": "line", "data_points": 50},
+            {"type": "bar", "categories": 10},
+        ],
+        "metadata": {"author": "AI Assistant", "date": "2025-01-11"},
+    }
+
+    report.add_json_page(json_obj=sample_json, title="Formatted JSON Data", fontsize=10)
+    report.finalize_group()
 
     # Generate the PDF report
     report.generate_pdf()
