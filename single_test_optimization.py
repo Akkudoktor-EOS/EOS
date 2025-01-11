@@ -2,6 +2,7 @@
 
 import argparse
 import cProfile
+import logging
 import pstats
 import sys
 import time
@@ -10,11 +11,15 @@ import numpy as np
 
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     optimization_problem,
 )
 from akkudoktoreos.prediction.prediction import get_prediction
+
+logger = get_logger(__name__)
+logger.setLevel(logging.DEBUG)  # set level for example report
 
 
 def prepare_optimization_real_parameters() -> OptimizationParameters:

@@ -493,7 +493,7 @@ def prepare_visualize(
 
     if filtered_balance.size > 0 or filtered_losses.size > 0:
         report.finalize_group()
-    if logger.level == logging.DEBUG:
+    if logger.level == logging.DEBUG or results["fixed_seed"]:
         report.create_line_chart(
             0,
             [
@@ -501,7 +501,7 @@ def prepare_visualize(
                 results["fitness_history"]["max"],
                 results["fitness_history"]["min"],
             ],
-            title="DEBUG: Generation Fitness",
+            title=f"DEBUG: Generation Fitness for seed {results['fixed_seed']}",
             xlabel="Generation",
             ylabel="Fitness",
             labels=[

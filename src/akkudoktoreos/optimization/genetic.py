@@ -1,3 +1,4 @@
+import logging
 import random
 import time
 from pathlib import Path
@@ -14,6 +15,7 @@ from akkudoktoreos.core.coreabc import (
     EnergyManagementSystemMixin,
 )
 from akkudoktoreos.core.ems import EnergieManagementSystemParameters, SimulationResult
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.devices.battery import (
     Battery,
     ElectricVehicleParameters,
@@ -24,6 +26,8 @@ from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
 from akkudoktoreos.prediction.interpolator import SelfConsumptionPropabilityInterpolator
 from akkudoktoreos.utils.utils import NumpyEncoder
+
+logger = get_logger(__name__)
 
 
 class OptimizationParameters(BaseModel):
@@ -115,9 +119,12 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         self.optimize_dc_charge = False
         self.fitness_history: dict[str, Any] = {}
 
-        # Set a fixed seed for random operations if provided
-        if fixed_seed is not None:
-            random.seed(fixed_seed)
+        # Set a fixed seed for random operations if provided or in debug mode
+        if self.fix_seed is not None:
+            random.seed(self.fix_seed)
+        elif logger.level == logging.DEBUG:
+            self.fix_seed = random.randint(1, 100000000000)
+            random.seed(self.fix_seed)
 
     def decode_charge_discharge(
         self, discharge_hours_bin: np.ndarray
@@ -641,6 +648,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             "spuelstart": washingstart_int,
             "extra_data": extra_data,
             "fitness_history": self.fitness_history,
+            "fixed_seed": self.fix_seed,
         }
         from akkudoktoreos.utils.visualize import prepare_visualize
 
