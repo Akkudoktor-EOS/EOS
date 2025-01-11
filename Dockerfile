@@ -35,6 +35,6 @@ ENTRYPOINT []
 
 EXPOSE 8503
 
-CMD ["python", "-m", "akkudoktoreos.server.fastapi_server"]
+CMD ["python", "-m", "akkudoktoreos.server.eos"]
 
 VOLUME ["${MPLCONFIGDIR}", "${EOS_CACHE_DIR}", "${EOS_OUTPUT_DIR}", "${EOS_CONFIG_DIR}"]
