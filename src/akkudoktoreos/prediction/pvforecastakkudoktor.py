@@ -201,25 +201,38 @@ class PVForecastAkkudoktor(PVForecastProvider):
 
     def _url(self) -> str:
         """Build akkudoktor.net API request URL."""
-        url = f"https://api.akkudoktor.net/forecast?lat={self.config.latitude}&lon={self.config.longitude}&"
-        planes_peakpower = self.config.pvforecast_planes_peakpower
-        planes_azimuth = self.config.pvforecast_planes_azimuth
-        planes_tilt = self.config.pvforecast_planes_tilt
-        planes_inverter_paco = self.config.pvforecast_planes_inverter_paco
-        planes_userhorizon = self.config.pvforecast_planes_userhorizon
-        for i, plane in enumerate(self.config.pvforecast_planes):
-            url += f"power={int(planes_peakpower[i]*1000)}&"
-            url += f"azimuth={int(planes_azimuth[i])}&"
-            url += f"tilt={int(planes_tilt[i])}&"
-            url += f"powerInverter={int(planes_inverter_paco[i])}&"
-            url += "horizont="
-            for horizon in planes_userhorizon[i]:
-                url += f"{int(horizon)},"
-            url = url[:-1]  # remove trailing comma
-            url += "&"
-        url += "past_days=5&cellCoEff=-0.36&inverterEfficiency=0.8&albedo=0.25&"
-        url += f"timezone={self.config.timezone}&"
-        url += "hourly=relativehumidity_2m%2Cwindspeed_10m"
+        base_url = "https://api.akkudoktor.net/forecast"
+        query_params = [
+            f"lat={self.config.latitude}",
+            f"lon={self.config.longitude}",
+        ]
+
+        for i in range(len(self.config.pvforecast_planes)):
+            query_params.append(f"power={int(self.config.pvforecast_planes_peakpower[i] * 1000)}")
+            query_params.append(f"azimuth={int(self.config.pvforecast_planes_azimuth[i])}")
+            query_params.append(f"tilt={int(self.config.pvforecast_planes_tilt[i])}")
+            query_params.append(
+                f"powerInverter={int(self.config.pvforecast_planes_inverter_paco[i])}"
+            )
+            horizon_values = ",".join(
+                str(int(h)) for h in self.config.pvforecast_planes_userhorizon[i]
+            )
+            query_params.append(f"horizont={horizon_values}")
+
+        # Append fixed query parameters
+        query_params.extend(
+            [
+                "past_days=5",
+                "cellCoEff=-0.36",
+                "inverterEfficiency=0.8",
+                "albedo=0.25",
+                f"timezone={self.config.timezone}",
+                "hourly=relativehumidity_2m%2Cwindspeed_10m",
+            ]
+        )
+
+        # Join all query parameters with `&`
+        url = f"{base_url}?{'&'.join(query_params)}"
         logger.debug(f"Akkudoktor URL: {url}")
         return url
 
@@ -252,7 +265,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
         `PVForecastAkkudoktorDataRecord`.
         """
         # Assure we have something to request PV power for.
-        if len(self.config.pvforecast_planes) == 0:
+        if not self.config.pvforecast_planes:
             # No planes for PV
             error_msg = "Requested PV forecast, but no planes configured."
             logger.error(f"Configuration error: {error_msg}")
@@ -269,34 +282,36 @@ class PVForecastAkkudoktor(PVForecastProvider):
 
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
-        values_len = len(akkudoktor_data.values[0])
-        if values_len < self.config.prediction_hours:
+        if len(akkudoktor_data.values[0]) < self.config.prediction_hours:
             # Expect one value set per prediction hour
             error_msg = (
                 f"The forecast must cover at least {self.config.prediction_hours} hours, "
-                f"but only {values_len} data sets are given in forecast data."
+                f"but only {len(akkudoktor_data.values[0])} data sets are given in forecast data."
             )
             logger.error(f"Akkudoktor schema change: {error_msg}")
             raise ValueError(error_msg)
 
-        for i in range(values_len):
-            original_datetime = akkudoktor_data.values[0][i].datetime
+        assert self.start_datetime  # mypy fix
+
+        # Iterate over forecast data points
+        for forecast_values in zip(*akkudoktor_data.values):
+            original_datetime = forecast_values[0].datetime
             dt = to_datetime(original_datetime, in_timezone=self.config.timezone)
 
-            # We provide prediction starting at start of day, to be compatible to old system.
+            # Skip outdated forecast data
             if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
-                # forecast data is too old
                 continue
 
-            sum_dc_power = sum(values[i].dcPower for values in akkudoktor_data.values)
-            sum_ac_power = sum(values[i].power for values in akkudoktor_data.values)
+            sum_dc_power = sum(values.dcPower for values in forecast_values)
+            sum_ac_power = sum(values.power for values in forecast_values)
 
             data = {
                 "pvforecast_dc_power": sum_dc_power,
                 "pvforecast_ac_power": sum_ac_power,
-                "pvforecastakkudoktor_wind_speed_10m": akkudoktor_data.values[0][i].windspeed_10m,
-                "pvforecastakkudoktor_temp_air": akkudoktor_data.values[0][i].temperature,
+                "pvforecastakkudoktor_wind_speed_10m": forecast_values[0].windspeed_10m,
+                "pvforecastakkudoktor_temp_air": forecast_values[0].temperature,
             }
+
             self.update_value(dt, data)
 
         if len(self) < self.config.prediction_hours:
@@ -307,35 +322,37 @@ class PVForecastAkkudoktor(PVForecastProvider):
             )
 
     def report_ac_power_and_measurement(self) -> str:
-        """Report DC/ AC power, and AC power measurement for each forecast hour.
+        """Generate a report of DC power, forecasted AC power, measured AC power, and other AC power values.
 
-        For each forecast entry, the time, DC power, forecasted AC power, measured AC power
-        (if available), and the value returned by the `get_ac_power` method is provided.
+        For each forecast entry, the following details are included:
+            - Time of the forecast
+            - DC power
+            - Forecasted AC power
+            - Measured AC power (if available)
+            - Value returned by `get_ac_power` (if available)
 
         Returns:
-            str: The report.
+            str: A formatted report containing details for each forecast entry.
         """
-        rep = ""
+
+        def format_value(value: float | None) -> str:
+            """Helper to format values as rounded strings or 'N/A' if None."""
+            return f"{round(value, 2)}" if value is not None else "N/A"
+
+        report_lines = []
         for record in self.records:
             date_time = record.date_time
-            dc_pow = round(record.pvforecast_dc_power, 2) if record.pvforecast_dc_power else None
-            ac_pow = round(record.pvforecast_ac_power, 2) if record.pvforecast_ac_power else None
-            ac_pow_measurement = (
-                round(record.pvforecastakkudoktor_ac_power_measured, 2)
-                if record.pvforecastakkudoktor_ac_power_measured
-                else None
+            dc_power = format_value(record.pvforecast_dc_power)
+            ac_power = format_value(record.pvforecast_ac_power)
+            ac_power_measured = format_value(record.pvforecastakkudoktor_ac_power_measured)
+            ac_power_any = format_value(record.pvforecastakkudoktor_ac_power_any)
+
+            report_lines.append(
+                f"Date&Time: {date_time}, DC: {dc_power}, AC: {ac_power}, "
+                f"AC sampled: {ac_power_measured}, AC any: {ac_power_any}"
             )
-            ac_pow_any = (
-                round(record.pvforecastakkudoktor_ac_power_any, 2)
-                if record.pvforecastakkudoktor_ac_power_any
-                else None
-            )
-            rep += (
-                f"Date&Time: {date_time}, DC: {dc_pow}, AC: {ac_pow}, "
-                f"AC sampled: {ac_pow_measurement}, AC any: {ac_pow_any}"
-                "\n"
-            )
-        return rep
+
+        return "\n".join(report_lines)
 
 
 # Example of how to use the PVForecastAkkudoktor class
