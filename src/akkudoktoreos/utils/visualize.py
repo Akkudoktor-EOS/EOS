@@ -1,3 +1,4 @@
+import configparser
 import datetime
 import json
 import logging
@@ -8,7 +9,6 @@ from typing import Callable, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
-import toml  # Add this import
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.core.coreabc import ConfigMixin
@@ -84,9 +84,9 @@ class VisualizationReport(ConfigMixin):
             axs = list(np.array(axs).reshape(-1))
 
         # Read version from pyproject.toml
-        with open("pyproject.toml", "r") as f:
-            pyproject_data = toml.load(f)
-        version_str = pyproject_data["project"]["version"]
+        config = configparser.ConfigParser()
+        config.read("pyproject.toml")
+        version_str = config["tool.poetry"]["version"]
 
         # Add footer text with current time to each page
         current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
