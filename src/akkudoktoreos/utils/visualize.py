@@ -3,12 +3,12 @@ import json
 import logging
 import os
 import textwrap
-import toml  # Add this import
 from collections.abc import Sequence
 from typing import Callable, Optional, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import toml  # Add this import
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.core.coreabc import ConfigMixin
