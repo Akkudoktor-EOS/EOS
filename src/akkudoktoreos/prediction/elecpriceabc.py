@@ -71,4 +71,4 @@ class ElecPriceProvider(PredictionProvider):
         return "ElecPriceProvider"
 
     def enabled(self) -> bool:
-        return self.provider_id() == self.config.elecprice_provider
+        return self.provider_id() == self.config.elecprice.elecprice_provider

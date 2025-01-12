@@ -79,9 +79,11 @@ def generate_config_md() -> str:
     Returns:
         str: The Markdown representation of the configuration spec.
     """
+    # FIXME: Support for nested
     configs = {}
-    config_keys = config_eos.config_keys
-    config_keys_read_only = config_eos.config_keys_read_only
+    config_keys = config_eos.model_fields_set
+    # config_keys_read_only = config_eos.config_keys_read_only
+    config_keys_read_only: list[str] = []
     for config_key in config_keys:
         config = {}
         config["name"] = config_key

@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
+from akkudoktoreos.core.coreabc import SingletonMixin
+
 
 class SelfConsumptionProbabilityInterpolator:
     def __init__(self, filepath: str | Path):
@@ -67,5 +69,17 @@ class SelfConsumptionProbabilityInterpolator:
     #     return self_consumption_rate
 
 
-# Test the function
-# print(calculate_self_consumption(1000, 1200))
+class EOSLoadInterpolator(SelfConsumptionProbabilityInterpolator, SingletonMixin):
+    def __init__(self) -> None:
+        if hasattr(self, "_initialized"):
+            return
+        filename = Path(__file__).parent.resolve() / ".." / "data" / "regular_grid_interpolator.pkl"
+        super().__init__(filename)
+
+
+# Initialize the Energy Management System, it is a singleton.
+eos_load_interpolator = EOSLoadInterpolator()
+
+
+def get_eos_load_interpolator() -> EOSLoadInterpolator:
+    return eos_load_interpolator

@@ -16,9 +16,13 @@ FILE_TESTDATA_PVFORECASTIMPORT_1_JSON = DIR_TESTDATA.joinpath("import_input_1.js
 def pvforecast_provider(sample_import_1_json, config_eos):
     """Fixture to create a PVForecastProvider instance."""
     settings = {
-        "pvforecast_provider": "PVForecastImport",
-        "pvforecastimport_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
-        "pvforecastimport_json": json.dumps(sample_import_1_json),
+        "pvforecast": {
+            "pvforecast_provider": "PVForecastImport",
+            "provider_settings": {
+                "pvforecastimport_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
+                "pvforecastimport_json": json.dumps(sample_import_1_json),
+            },
+        }
     }
     config_eos.merge_settings_from_dict(settings)
     provider = PVForecastImport()
@@ -48,8 +52,12 @@ def test_singleton_instance(pvforecast_provider):
 def test_invalid_provider(pvforecast_provider, config_eos):
     """Test requesting an unsupported pvforecast_provider."""
     settings = {
-        "pvforecast_provider": "<invalid>",
-        "pvforecastimport_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
+        "pvforecast": {
+            "pvforecast_provider": "<invalid>",
+            "provider_settings": {
+                "pvforecastimport_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
+            },
+        }
     }
     config_eos.merge_settings_from_dict(settings)
     assert not pvforecast_provider.enabled()
@@ -78,11 +86,11 @@ def test_import(pvforecast_provider, sample_import_1_json, start_datetime, from_
     ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
-        config_eos.pvforecastimport_json = None
-        assert config_eos.pvforecastimport_json is None
+        config_eos.pvforecast.provider_settings.pvforecastimport_json = None
+        assert config_eos.pvforecast.provider_settings.pvforecastimport_json is None
     else:
-        config_eos.pvforecastimport_file_path = None
-        assert config_eos.pvforecastimport_file_path is None
+        config_eos.pvforecast.provider_settings.pvforecastimport_file_path = None
+        assert config_eos.pvforecast.provider_settings.pvforecastimport_file_path is None
     pvforecast_provider.clear()
 
     # Call the method

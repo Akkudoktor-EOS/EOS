@@ -88,31 +88,31 @@ class TestPredictionBase:
     @pytest.fixture
     def base(self, monkeypatch):
         # Provide default values for configuration
-        monkeypatch.setenv("latitude", "50.0")
-        monkeypatch.setenv("longitude", "10.0")
+        monkeypatch.setenv("EOS_PREDICTION__LATITUDE", "50.0")
+        monkeypatch.setenv("EOS_PREDICTION__LONGITUDE", "10.0")
         derived = DerivedBase()
-        derived.config.update()
+        derived.config.reset_settings()
         return derived
 
     def test_config_value_from_env_variable(self, base, monkeypatch):
         # From Prediction Config
-        monkeypatch.setenv("latitude", "2.5")
-        base.config.update()
-        assert base.config.latitude == 2.5
+        monkeypatch.setenv("EOS_PREDICTION__LATITUDE", "2.5")
+        base.config.reset_settings()
+        assert base.config.prediction.latitude == 2.5
 
     def test_config_value_from_field_default(self, base, monkeypatch):
-        assert base.config.model_fields["prediction_hours"].default == 48
-        assert base.config.prediction_hours == 48
-        monkeypatch.setenv("prediction_hours", "128")
-        base.config.update()
-        assert base.config.prediction_hours == 128
-        monkeypatch.delenv("prediction_hours")
-        base.config.update()
-        assert base.config.prediction_hours == 48
+        assert base.config.prediction.model_fields["prediction_hours"].default == 48
+        assert base.config.prediction.prediction_hours == 48
+        monkeypatch.setenv("EOS_PREDICTION__PREDICTION_HOURS", "128")
+        base.config.reset_settings()
+        assert base.config.prediction.prediction_hours == 128
+        monkeypatch.delenv("EOS_PREDICTION__PREDICTION_HOURS")
+        base.config.reset_settings()
+        assert base.config.prediction.prediction_hours == 48
 
     def test_get_config_value_key_error(self, base):
         with pytest.raises(AttributeError):
-            base.config.non_existent_key
+            base.config.prediction.non_existent_key
 
 
 # TestPredictionRecord fully covered by TestDataRecord
@@ -159,14 +159,14 @@ class TestPredictionProvider:
         """Test that computed fields `end_datetime` and `keep_datetime` are correctly calculated."""
         ems_eos = get_ems()
         ems_eos.set_start_datetime(sample_start_datetime)
-        provider.config.prediction_hours = 24  # 24 hours into the future
-        provider.config.prediction_historic_hours = 48  # 48 hours into the past
+        provider.config.prediction.prediction_hours = 24  # 24 hours into the future
+        provider.config.prediction.prediction_historic_hours = 48  # 48 hours into the past
 
         expected_end_datetime = sample_start_datetime + to_duration(
-            provider.config.prediction_hours * 3600
+            provider.config.prediction.prediction_hours * 3600
         )
         expected_keep_datetime = sample_start_datetime - to_duration(
-            provider.config.prediction_historic_hours * 3600
+            provider.config.prediction.prediction_historic_hours * 3600
         )
 
         assert (
@@ -183,31 +183,32 @@ class TestPredictionProvider:
         # EOS config supersedes
         ems_eos = get_ems()
         # The following values are currently not set in EOS config, we can override
-        monkeypatch.setenv("prediction_historic_hours", "2")
-        assert os.getenv("prediction_historic_hours") == "2"
-        monkeypatch.setenv("latitude", "37.7749")
-        assert os.getenv("latitude") == "37.7749"
-        monkeypatch.setenv("longitude", "-122.4194")
-        assert os.getenv("longitude") == "-122.4194"
+        monkeypatch.setenv("EOS_PREDICTION__PREDICTION_HISTORIC_HOURS", "2")
+        assert os.getenv("EOS_PREDICTION__PREDICTION_HISTORIC_HOURS") == "2"
+        monkeypatch.setenv("EOS_PREDICTION__LATITUDE", "37.7749")
+        assert os.getenv("EOS_PREDICTION__LATITUDE") == "37.7749"
+        monkeypatch.setenv("EOS_PREDICTION__LONGITUDE", "-122.4194")
+        assert os.getenv("EOS_PREDICTION__LONGITUDE") == "-122.4194"
+        provider.config.reset_settings()
 
         ems_eos.set_start_datetime(sample_start_datetime)
         provider.update_data()
 
-        assert provider.config.prediction_hours == config_eos.prediction_hours
-        assert provider.config.prediction_historic_hours == 2
-        assert provider.config.latitude == 37.7749
-        assert provider.config.longitude == -122.4194
+        assert provider.config.prediction.prediction_hours == config_eos.prediction.prediction_hours
+        assert provider.config.prediction.prediction_historic_hours == 2
+        assert provider.config.prediction.latitude == 37.7749
+        assert provider.config.prediction.longitude == -122.4194
         assert provider.start_datetime == sample_start_datetime
         assert provider.end_datetime == sample_start_datetime + to_duration(
-            f"{provider.config.prediction_hours} hours"
+            f"{provider.config.prediction.prediction_hours} hours"
         )
         assert provider.keep_datetime == sample_start_datetime - to_duration("2 hours")
 
     def test_update_method_force_enable(self, provider, monkeypatch):
         """Test that `update` executes when `force_enable` is True, even if `enabled` is False."""
         # Preset values that are needed by update
-        monkeypatch.setenv("latitude", "37.7749")
-        monkeypatch.setenv("longitude", "-122.4194")
+        monkeypatch.setenv("EOS_PREDICTION__LATITUDE", "37.7749")
+        monkeypatch.setenv("EOS_PREDICTION__LONGITUDE", "-122.4194")
 
         # Override enabled to return False for this test
         DerivedPredictionProvider.provider_enabled = False
@@ -288,7 +289,9 @@ class TestPredictionContainer:
         ems_eos = get_ems()
         ems_eos.set_start_datetime(to_datetime(start, in_timezone="Europe/Berlin"))
         settings = {
-            "prediction_hours": hours,
+            "prediction": {
+                "prediction_hours": hours,
+            }
         }
         container.config.merge_settings_from_dict(settings)
         expected = to_datetime(end, in_timezone="Europe/Berlin")
@@ -316,7 +319,9 @@ class TestPredictionContainer:
         ems_eos = get_ems()
         ems_eos.set_start_datetime(to_datetime(start, in_timezone="Europe/Berlin"))
         settings = {
-            "prediction_historic_hours": historic_hours,
+            "prediction": {
+                "prediction_historic_hours": historic_hours,
+            }
         }
         container.config.merge_settings_from_dict(settings)
         expected = to_datetime(expected_keep, in_timezone="Europe/Berlin")
@@ -336,7 +341,9 @@ class TestPredictionContainer:
         ems_eos = get_ems()
         ems_eos.set_start_datetime(to_datetime(start, in_timezone="Europe/Berlin"))
         settings = {
-            "prediction_hours": prediction_hours,
+            "prediction": {
+                "prediction_hours": prediction_hours,
+            }
         }
         container.config.merge_settings_from_dict(settings)
         assert container.total_hours == expected_hours
@@ -355,7 +362,9 @@ class TestPredictionContainer:
         ems_eos = get_ems()
         ems_eos.set_start_datetime(to_datetime(start, in_timezone="Europe/Berlin"))
         settings = {
-            "prediction_historic_hours": historic_hours,
+            "prediction": {
+                "prediction_historic_hours": historic_hours,
+            }
         }
         container.config.merge_settings_from_dict(settings)
         assert container.keep_hours == expected_hours

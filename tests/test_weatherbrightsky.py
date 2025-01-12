@@ -19,9 +19,9 @@ FILE_TESTDATA_WEATHERBRIGHTSKY_2_JSON = DIR_TESTDATA.joinpath("weatherforecast_b
 @pytest.fixture
 def weather_provider(monkeypatch):
     """Fixture to create a WeatherProvider instance."""
-    monkeypatch.setenv("weather_provider", "BrightSky")
-    monkeypatch.setenv("latitude", "50.0")
-    monkeypatch.setenv("longitude", "10.0")
+    monkeypatch.setenv("EOS_WEATHER__WEATHER_PROVIDER", "BrightSky")
+    monkeypatch.setenv("EOS_PREDICTION__LATITUDE", "50.0")
+    monkeypatch.setenv("EOS_PREDICTION__LONGITUDE", "10.0")
     return WeatherBrightSky()
 
 
@@ -60,19 +60,19 @@ def test_singleton_instance(weather_provider):
 
 def test_invalid_provider(weather_provider, monkeypatch):
     """Test requesting an unsupported weather_provider."""
-    monkeypatch.setenv("weather_provider", "<invalid>")
-    weather_provider.config.update()
+    monkeypatch.setenv("EOS_WEATHER__WEATHER_PROVIDER", "<invalid>")
+    weather_provider.config.reset_settings()
     assert not weather_provider.enabled()
 
 
 def test_invalid_coordinates(weather_provider, monkeypatch):
     """Test invalid coordinates raise ValueError."""
-    monkeypatch.setenv("latitude", "1000")
-    monkeypatch.setenv("longitude", "1000")
+    monkeypatch.setenv("EOS_PREDICTION__LATITUDE", "1000")
+    monkeypatch.setenv("EOS_PREDICTION__LONGITUDE", "1000")
     with pytest.raises(
         ValueError,  # match="Latitude '1000' and/ or longitude `1000` out of valid range."
     ):
-        weather_provider.config.update()
+        weather_provider.config.reset_settings()
 
 
 # ------------------------------------------------

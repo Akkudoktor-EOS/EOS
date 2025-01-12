@@ -110,13 +110,13 @@ def main() -> None:
     parser.add_argument(
         "--host",
         type=str,
-        default=str(config_eos.server_eosdash_host),
+        default=str(config_eos.server.server_eosdash_host),
         help="Host for the EOSdash server (default: value from config_eos)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=config_eos.server_eosdash_port,
+        default=config_eos.server.server_eosdash_port,
         help="Port for the EOSdash server (default: value from config_eos)",
     )
 
@@ -124,13 +124,13 @@ def main() -> None:
     parser.add_argument(
         "--eos-host",
         type=str,
-        default=str(config_eos.server_eos_host),
+        default=str(config_eos.server.server_eos_host),
         help="Host for the EOS server (default: value from config_eos)",
     )
     parser.add_argument(
         "--eos-port",
         type=int,
-        default=config_eos.server_eos_port,
+        default=config_eos.server.server_eos_port,
         help="Port for the EOS server (default: value from config_eos)",
     )
 

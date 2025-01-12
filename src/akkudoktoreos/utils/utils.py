@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -7,6 +7,14 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class classproperty(property):
+    def __get__(self, _: Any, owner_cls: Optional[type[Any]] = None) -> Any:
+        if owner_cls is None:
+            return self
+        assert self.fget is not None
+        return self.fget(owner_cls)
 
 
 class UtilsCommonSettings(SettingsBaseModel):

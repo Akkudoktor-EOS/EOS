@@ -29,7 +29,10 @@ from akkudoktoreos.optimization.genetic import (
     OptimizeResponse,
     optimization_problem,
 )
-from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
+from akkudoktoreos.prediction.load import LoadCommonSettings
+from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
+from akkudoktoreos.prediction.prediction import PredictionCommonSettings, get_prediction
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 logger = get_logger(__name__)
@@ -149,16 +152,16 @@ def start_eosdash() -> subprocess.Popen:
 
     if args is None:
         # No command line arguments
-        host = config_eos.server_eosdash_host
-        port = config_eos.server_eosdash_port
-        eos_host = config_eos.server_eos_host
-        eos_port = config_eos.server_eos_port
+        host = config_eos.server.server_eosdash_host
+        port = config_eos.server.server_eosdash_port
+        eos_host = config_eos.server.server_eos_host
+        eos_port = config_eos.server.server_eos_port
         log_level = "info"
         access_log = False
         reload = False
     else:
         host = args.host
-        port = config_eos.server_eosdash_port if config_eos.server_eosdash_port else (args.port + 1)
+        port = config_eos.server.server_eosdash_port if config_eos.server.server_eosdash_port else (args.port + 1)
         eos_host = args.host
         eos_port = args.port
         log_level = args.log_level
@@ -201,7 +204,7 @@ def start_eosdash() -> subprocess.Popen:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
-    if config_eos.server_eos_startup_eosdash:
+    if config_eos.server.server_eos_startup_eosdash:
         try:
             eosdash_process = start_eosdash()
         except Exception as e:
@@ -227,7 +230,7 @@ app = FastAPI(
 
 
 # That's the problem
-opt_class = optimization_problem(verbose=bool(config_eos.server_eos_verbose))
+opt_class = optimization_problem(verbose=bool(config_eos.server.server_eos_verbose))
 
 server_dir = Path(__file__).parent.resolve()
 
@@ -339,7 +342,7 @@ def fastapi_config_put(
         configuration (ConfigEOS): The current configuration after the write.
     """
     try:
-        config_eos.merge_settings(settings, force=True)
+        config_eos.merge_settings(settings)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
     return config_eos
@@ -609,7 +612,9 @@ def fastapi_strompreis() -> list[float]:
         '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.
     """
     settings = SettingsEOS(
-        elecprice_provider="ElecPriceAkkudoktor",
+        elecprice=ElecPriceCommonSettings(
+            elecprice_provider="ElecPriceAkkudoktor",
+        )
     )
     config_eos.merge_settings(settings=settings)
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
@@ -659,9 +664,15 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
         '/v1/measurement/value'
     """
     settings = SettingsEOS(
-        prediction_hours=request.hours,
-        load_provider="LoadAkkudoktor",
-        loadakkudoktor_year_energy=request.year_energy,
+        prediction=PredictionCommonSettings(
+            prediction_hours=request.hours,
+        ),
+        load=LoadCommonSettings(
+            load_provider="LoadAkkudoktor",
+            provider_settings=LoadAkkudoktorCommonSettings(
+                loadakkudoktor_year_energy=request.year_energy,
+            ),
+        ),
     )
     config_eos.merge_settings(settings=settings)
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
@@ -737,8 +748,12 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
         '/v1/prediction/list?key=load_mean' instead.
     """
     settings = SettingsEOS(
-        load_provider="LoadAkkudoktor",
-        loadakkudoktor_year_energy=year_energy / 1000,  # Convert to kWh
+        load=LoadCommonSettings(
+            load_provider="LoadAkkudoktor",
+            provider_settings=LoadAkkudoktorCommonSettings(
+                loadakkudoktor_year_energy=year_energy / 1000,  # Convert to kWh
+            ),
+        )
     )
     config_eos.merge_settings(settings=settings)
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
@@ -843,7 +858,7 @@ def fastapi_optimize(
 @app.get("/visualization_results.pdf", response_class=PdfResponse)
 def get_pdf() -> PdfResponse:
     # Endpoint to serve the generated PDF with visualization results
-    output_path = config_eos.data_output_path
+    output_path = config_eos.config.data_output_path
     if output_path is None or not output_path.is_dir():
         raise HTTPException(status_code=404, detail=f"Output path does not exist: {output_path}.")
     file_path = output_path / "visualization_results.pdf"
@@ -987,14 +1002,14 @@ def main() -> None:
     parser.add_argument(
         "--host",
         type=str,
-        default=str(config_eos.server_eos_host),
-        help="Host for the EOS server (default: value from config_eos)",
+        default=str(config_eos.server.server_eos_host),
+        help="Host for the EOS server (default: value from config)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=config_eos.server_eos_port,
-        help="Port for the EOS server (default: value from config_eos)",
+        default=config_eos.server.server_eos_port,
+        help="Port for the EOS server (default: value from config)",
     )
 
     # Optional arguments for log_level, access_log, and reload

@@ -108,13 +108,13 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         # Try to take data from 5 weeks back for prediction
         date = to_datetime(self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
-        url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.timezone}"
+        url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.prediction.timezone}"
         response = requests.get(url)
         logger.debug(f"Response from {url}: {response}")
         response.raise_for_status()  # Raise an error for bad responses
         akkudoktor_data = self._validate_data(response.content)
         # We are working on fresh data (no cache), report update time
-        self.update_datetime = to_datetime(in_timezone=self.config.timezone)
+        self.update_datetime = to_datetime(in_timezone=self.config.prediction.timezone)
         return akkudoktor_data
 
     def _cap_outliers(self, data: np.ndarray, sigma: int = 2) -> np.ndarray:
@@ -156,13 +156,13 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         # in ascending order and have the same timestamps.
 
         # Get elecprice_charges_kwh in wh
-        charges_wh = (self.config.elecprice_charges_kwh or 0) / 1000
+        charges_wh = (self.config.elecprice.elecprice_charges_kwh or 0) / 1000
 
         highest_orig_datetime = None  # newest datetime from the api after that we want to update.
         series_data = pd.Series(dtype=float)  # Initialize an empty series
 
         for value in akkudoktor_data.values:
-            orig_datetime = to_datetime(value.start, in_timezone=self.config.timezone)
+            orig_datetime = to_datetime(value.start, in_timezone=self.config.prediction.timezone)
             if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
                 highest_orig_datetime = orig_datetime
 
@@ -184,14 +184,14 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
 
         # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
         needed_prediction_hours = int(
-            self.config.prediction_hours
+            self.config.prediction.prediction_hours
             - ((highest_orig_datetime - self.start_datetime).total_seconds() // 3600)
         )
 
         if needed_prediction_hours <= 0:
             logger.warning(
-                f"No prediction needed. needed_prediction_hours={needed_prediction_hours}, prediction_hours={self.config.prediction_hours},highest_orig_datetime {highest_orig_datetime}, start_datetime {self.start_datetime}"
-            )  # this might keep data longer than self.start_datetime + self.config.prediction_hours in the records
+                f"No prediction needed. needed_prediction_hours={needed_prediction_hours}, prediction_hours={self.config.prediction.prediction_hours},highest_orig_datetime {highest_orig_datetime}, start_datetime {self.start_datetime}"
+            )  # this might keep data longer than self.start_datetime + self.config.prediction.prediction_hours in the records
             return
 
         if amount_datasets > 800:  # we do the full ets with seasons of 1 week

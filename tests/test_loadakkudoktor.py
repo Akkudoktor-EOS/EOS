@@ -17,9 +17,13 @@ from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_
 def load_provider(config_eos):
     """Fixture to initialise the LoadAkkudoktor instance."""
     settings = {
-        "load_provider": "LoadAkkudoktor",
-        "load_name": "Akkudoktor Profile",
-        "loadakkudoktor_year_energy": "1000",
+        "load": {
+            "load_provider": "LoadAkkudoktor",
+            "provider_settings": {
+                "load_name": "Akkudoktor Profile",
+                "loadakkudoktor_year_energy": "1000",
+            },
+        }
     }
     config_eos.merge_settings_from_dict(settings)
     return LoadAkkudoktor()

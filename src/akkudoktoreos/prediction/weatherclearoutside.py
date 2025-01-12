@@ -91,13 +91,13 @@ class WeatherClearOutside(WeatherProvider):
             response: Weather forecast request reponse from ClearOutside.
         """
         source = "https://clearoutside.com/forecast"
-        latitude = round(self.config.latitude, 2)
-        longitude = round(self.config.longitude, 2)
+        latitude = round(self.config.prediction.latitude, 2)
+        longitude = round(self.config.prediction.longitude, 2)
         response = requests.get(f"{source}/{latitude}/{longitude}?desktop=true")
         response.raise_for_status()  # Raise an error for bad responses
         logger.debug(f"Response from {source}: {response}")
         # We are working on fresh data (no cache), report update time
-        self.update_datetime = to_datetime(in_timezone=self.config.timezone)
+        self.update_datetime = to_datetime(in_timezone=self.config.prediction.timezone)
         return response
 
     def _update_data(self, force_update: Optional[bool] = None) -> None:
@@ -307,7 +307,7 @@ class WeatherClearOutside(WeatherProvider):
                 data=clearout_data["Total Clouds (% Sky Obscured)"], index=clearout_data["DateTime"]
             )
             ghi, dni, dhi = self.estimate_irradiance_from_cloud_cover(
-                self.config.latitude, self.config.longitude, cloud_cover
+                self.config.prediction.latitude, self.config.prediction.longitude, cloud_cover
             )
 
             # Add GHI, DNI, DHI to clearout data

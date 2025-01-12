@@ -35,6 +35,21 @@ from pydantic import (
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 
+def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, Any]:
+    def deep_update(source_dict: dict[str, Any], update_dict: dict[str, Any]) -> dict[str, Any]:
+        for key, value in source_dict.items():
+            if isinstance(value, dict) and isinstance(update_dict.get(key), dict):
+                update_dict[key] = deep_update(update_dict[key], value)
+            else:
+                update_dict[key] = value
+        return update_dict
+
+    source_dict = source.model_dump(exclude_unset=True)
+    merged_dict = deep_update(source_dict, update_dict)
+
+    return merged_dict
+
+
 class PydanticTypeAdapterDateTime(TypeAdapter[pendulum.DateTime]):
     """Custom type adapter for Pendulum DateTime fields."""
 

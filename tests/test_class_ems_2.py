@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
 
@@ -16,64 +14,61 @@ from akkudoktoreos.devices.battery import (
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
-from akkudoktoreos.prediction.interpolator import SelfConsumptionProbabilityInterpolator
 
 start_hour = 0
 
 
 # Example initialization of necessary components
 @pytest.fixture
-def create_ems_instance(config_eos) -> EnergieManagementSystem:
+def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
     """Fixture to create an EnergieManagementSystem instance with given test parameters."""
     # Assure configuration holds the correct values
-    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
-    assert config_eos.prediction_hours is not None
+    config_eos.merge_settings_from_dict(
+        {"prediction": {"prediction_hours": 48}, "optimization": {"optimization_hours": 24}}
+    )
+    assert config_eos.prediction.prediction_hours == 48
 
     # Initialize the battery and the inverter
     akku = Battery(
         SolarPanelBatteryParameters(
-            capacity_wh=5000, initial_soc_percentage=80, min_soc_percentage=10
-        ),
-        hours=config_eos.prediction_hours,
+            device_id="pv1", capacity_wh=5000, initial_soc_percentage=80, min_soc_percentage=10
+        )
     )
-
-    # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
-    sc = SelfConsumptionProbabilityInterpolator(
-        Path(__file__).parent.resolve()
-        / ".."
-        / "src"
-        / "akkudoktoreos"
-        / "data"
-        / "regular_grid_interpolator.pkl"
-    )
-
     akku.reset()
-    inverter = Inverter(sc, InverterParameters(max_power_wh=10000), akku)
+    devices_eos.add_device(akku)
+
+    inverter = Inverter(
+        InverterParameters(device_id="iv1", max_power_wh=10000, battery=akku.device_id)
+    )
+    devices_eos.add_device(inverter)
 
     # Household device (currently not used, set to None)
     home_appliance = HomeAppliance(
         HomeApplianceParameters(
+            device_id="dishwasher1",
             consumption_wh=2000,
             duration_h=2,
-        ),
-        hours=config_eos.prediction_hours,
+        )
     )
     home_appliance.set_starting_time(2)
+    devices_eos.add_device(home_appliance)
 
     # Example initialization of electric car battery
     eauto = Battery(
         ElectricVehicleParameters(
-            capacity_wh=26400, initial_soc_percentage=100, min_soc_percentage=100
+            device_id="ev1", capacity_wh=26400, initial_soc_percentage=100, min_soc_percentage=100
         ),
-        hours=config_eos.prediction_hours,
     )
+    devices_eos.add_device(eauto)
+
+    devices_eos.post_setup()
 
     # Parameters based on previous example data
-    pv_prognose_wh = [0.0] * config_eos.prediction_hours
+    pv_prognose_wh = [0.0] * config_eos.prediction.prediction_hours
     pv_prognose_wh[10] = 5000.0
     pv_prognose_wh[11] = 5000.0
 
-    strompreis_euro_pro_wh = [0.001] * config_eos.prediction_hours
+    strompreis_euro_pro_wh = [0.001] * config_eos.prediction.prediction_hours
     strompreis_euro_pro_wh[0:10] = [0.00001] * 10
     strompreis_euro_pro_wh[11:15] = [0.00005] * 4
     strompreis_euro_pro_wh[20] = 0.00001
@@ -147,10 +142,10 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
         home_appliance=home_appliance,
     )
 
-    ac = np.full(config_eos.prediction_hours, 0.0)
+    ac = np.full(config_eos.prediction.prediction_hours, 0.0)
     ac[20] = 1
     ems.set_akku_ac_charge_hours(ac)
-    dc = np.full(config_eos.prediction_hours, 0.0)
+    dc = np.full(config_eos.prediction.prediction_hours, 0.0)
     dc[11] = 1
     ems.set_akku_dc_charge_hours(dc)
 

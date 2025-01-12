@@ -35,7 +35,7 @@ class VisualizationReport(ConfigMixin):
         self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
         self.version = version  # overwrite version as test for constant output of pdf for test
         self.current_time = to_datetime(
-            as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.timezone
+            as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.prediction.timezone
         )
 
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
@@ -52,7 +52,7 @@ class VisualizationReport(ConfigMixin):
 
     def _initialize_pdf(self) -> None:
         """Create the output directory if it doesn't exist and initialize the PDF."""
-        output_dir = self.config.data_output_path
+        output_dir = self.config.general.data_output_path
 
         # If self.filename is already a valid path, use it; otherwise, combine it with output_dir
         if os.path.isabs(self.filename):
@@ -176,8 +176,7 @@ class VisualizationReport(ConfigMixin):
             plt.grid(True)
 
             # Add vertical line for the current date if within the axis range
-            current_time = pendulum.now(self.config.timezone)
-            # current_time = pendulum.now().add(hours=1)
+            current_time = pendulum.now(self.config.prediction.timezone)
             if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
                 plt.axvline(current_time, color="r", linestyle="--", label="Now")
                 plt.text(current_time, plt.ylim()[1], "Now", color="r", ha="center", va="bottom")
@@ -425,9 +424,13 @@ def prepare_visualize(
     start_hour: int = 0,
 ) -> None:
     report = VisualizationReport(filename)
+<<<<<<< HEAD
     # next_full_hour_date = pendulum.now(report.config.timezone).start_of("day").add(hours=start_hour)
     # next_full_hour_date = to_datetime().set(minute=0, second=0, microsecond=0)
     next_full_hour_date = EnergieManagementSystem.set_start_datetime()
+=======
+    next_full_hour_date = pendulum.now(report.config.prediction.timezone).start_of("hour").add(hours=1)
+>>>>>>> be26457 (Nested config, devices registry)
     # Group 1:
     report.create_line_chart_date(
         next_full_hour_date,

@@ -1,64 +1,44 @@
 from typing import Optional
 
 from pydantic import Field
-from scipy.interpolate import RegularGridInterpolator
 
 from akkudoktoreos.core.logging import get_logger
-from akkudoktoreos.core.pydantic import ParametersBaseModel
-from akkudoktoreos.devices.battery import Battery
-from akkudoktoreos.devices.devicesabc import DeviceBase
+from akkudoktoreos.devices.devicesabc import DeviceBase, DeviceParameters
+from akkudoktoreos.prediction.interpolator import get_eos_load_interpolator
 
 logger = get_logger(__name__)
 
 
-class InverterParameters(ParametersBaseModel):
+class InverterParameters(DeviceParameters):
+    device_id: str = Field(description="ID of inverter")
     max_power_wh: float = Field(gt=0)
+    battery: Optional[str] = Field(default=None, description="ID of battery")
 
 
 class Inverter(DeviceBase):
     def __init__(
         self,
-        self_consumption_predictor: RegularGridInterpolator,
         parameters: Optional[InverterParameters] = None,
-        battery: Optional[Battery] = None,
-        provider_id: Optional[str] = None,
     ):
-        # Configuration initialisation
-        self.provider_id = provider_id
-        self.prefix = "<invalid>"
-        if self.provider_id == "GenericInverter":
-            self.prefix = "inverter"
-        # Parameter initialisiation
-        self.parameters = parameters
-        if battery is None:
+        self.parameters: Optional[InverterParameters] = None
+        super().__init__(parameters)
+
+    def _setup(self) -> None:
+        assert self.parameters is not None
+        if self.parameters.battery is None:
             # For the moment raise exception
             # TODO: Make battery configurable by config
             error_msg = "Battery for PV inverter is mandatory."
             logger.error(error_msg)
             raise NotImplementedError(error_msg)
-        self.battery = battery  # Connection to a battery object
-        self.self_consumption_predictor = self_consumption_predictor
+        self.self_consumption_predictor = get_eos_load_interpolator()
+        self.max_power_wh = (
+            self.parameters.max_power_wh
+        )  # Maximum power that the inverter can handle
 
-        self.initialised = False
-        # Run setup if parameters are given, otherwise setup() has to be called later when the config is initialised.
-        if self.parameters is not None:
-            self.setup()
-
-    def setup(self) -> None:
-        if self.initialised:
-            return
-        if self.provider_id is not None:
-            # Setup by configuration
-            self.max_power_wh = getattr(self.config, f"{self.prefix}_power_max")
-        elif self.parameters is not None:
-            # Setup by parameters
-            self.max_power_wh = (
-                self.parameters.max_power_wh  # Maximum power that the inverter can handle
-            )
-        else:
-            error_msg = "Parameters and provider ID missing. Can't instantiate."
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+    def _post_setup(self) -> None:
+        assert self.parameters is not None
+        self.battery = self.devices.get_device_by_id(self.parameters.battery)
 
     def process_energy(
         self, generation: float, consumption: float, hour: int
