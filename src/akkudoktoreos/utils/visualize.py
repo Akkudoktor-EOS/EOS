@@ -25,7 +25,6 @@ class VisualizationReport(ConfigMixin):
             Callable[[], None]
         ] = []  # Store current group of charts being created
         self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
-        self.is_text_page = False  # Flag to indicate if the current group is a text/JSON page
 
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
         """Add a chart function to the current group."""
@@ -56,47 +55,43 @@ class VisualizationReport(ConfigMixin):
 
     def _save_group_to_pdf(self, group: list[Callable[[], None]]) -> None:
         """Save a group of charts to the PDF."""
-        if self.is_text_page:
-            for chart_func in group:
-                chart_func()  # Call the chart function to draw the text/JSON page
-            self.is_text_page = False  # Reset the flag after saving the text/JSON pages
+        fig_count = len(group)  # Number of charts in the group
+
+        if fig_count == 0:
+            print("Attempted to save an empty group to PDF!")
             return
 
-        fig_count = len(group)  # Number of charts in the group
-        if fig_count == 0:
-            print("Attempted to save an empty group to PDF!")  # Warn if group is empty
-            return  # Prevent saving an empty group
+        # Check for special charts before creating layout
+        special_keywords = {"add_text_page", "add_json_page"}
+        for chart_func in group:
+            if any(keyword in chart_func.__qualname__ for keyword in special_keywords):
+                chart_func()  # Special chart functions handle their own rendering
+                return
 
-        # Create a figure layout based on the number of charts
+        # Create layout only if no special charts are detected
         if fig_count == 3:
-            # Layout for three charts: 1 full-width on top, 2 below
-            fig = plt.figure(figsize=(14, 10))  # Set a larger figure size
-            ax1 = fig.add_subplot(2, 1, 1)  # Full-width subplot
-            ax2 = fig.add_subplot(2, 2, 3)  # Bottom left subplot
-            ax3 = fig.add_subplot(2, 2, 4)  # Bottom right subplot
-
-            # Store axes in a list for easy access
+            fig = plt.figure(figsize=(14, 10))
+            ax1 = fig.add_subplot(2, 1, 1)
+            ax2 = fig.add_subplot(2, 2, 3)
+            ax3 = fig.add_subplot(2, 2, 4)
             axs = [ax1, ax2, ax3]
         else:
-            # Dynamic layout for any other number of charts
-            cols = 2 if fig_count > 1 else 1  # Determine number of columns
-            rows = (fig_count // 2) + (fig_count % 2)  # Calculate required rows
-            fig, axs = plt.subplots(rows, cols, figsize=(14, 7 * rows))  # Create subplots
-            # If axs is a 2D array of axes, flatten it into a 1D list
-            # if isinstance(axs, np.ndarray):
+            cols = 2 if fig_count > 1 else 1
+            rows = (fig_count + 1) // 2
+            fig, axs = plt.subplots(rows, cols, figsize=(14, 7 * rows))
             axs = list(np.array(axs).reshape(-1))
 
-        # Draw each chart in the corresponding axes
+        # Render each chart in its corresponding axis
         for idx, chart_func in enumerate(group):
-            plt.sca(axs[idx])  # Set current axes
-            chart_func()  # Call the chart function to draw
+            plt.sca(axs[idx])  # Set current axis
+            chart_func()  # Render the chart
 
-        # Hide any unused axes
+        # Save the figure to the PDF and clean up
         for idx in range(fig_count, len(axs)):
-            axs[idx].set_visible(False)  # Hide unused axes
-        self.pdf_pages.savefig(fig)  # Save the figure to the PDF
+            axs[idx].set_visible(False)
 
-        plt.close(fig)  # Close the figure to free up memory
+        self.pdf_pages.savefig(fig)  # Save the figure to the PDF
+        plt.close(fig)
 
     def create_line_chart(
         self,
@@ -262,7 +257,6 @@ class VisualizationReport(ConfigMixin):
             self.pdf_pages.savefig(fig)  # Save the figure as a page in the PDF
             plt.close(fig)  # Close the figure to free up memory
 
-        self.is_text_page = True  # Set the flag to indicate a text page
         self.add_chart_to_group(chart)  # Treat the text page as a "chart" in the group
 
     def add_json_page(
@@ -301,7 +295,6 @@ class VisualizationReport(ConfigMixin):
             self.pdf_pages.savefig(fig)  # Save the figure as a page in the PDF
             plt.close(fig)  # Close the figure to free up memory
 
-        self.is_text_page = True  # Set the flag to indicate a JSON page
         self.add_chart_to_group(chart)  # Treat the JSON page as a "chart" in the group
 
     def generate_pdf(self) -> None:
