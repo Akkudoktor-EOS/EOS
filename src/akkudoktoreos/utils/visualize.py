@@ -3,13 +3,14 @@ import logging
 import os
 import textwrap
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Callable, Optional, Union
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
+import pendulum
 
 from akkudoktoreos.core.coreabc import ConfigMixin
 from akkudoktoreos.core.logging import get_logger
@@ -110,7 +111,7 @@ class VisualizationReport(ConfigMixin):
 
     def create_line_chart_date(
         self,
-        start_date: datetime,
+        start_date: pendulum.DateTime,
         y_list: list[list[Optional[float]]],
         title: str,
         xlabel: str,
@@ -123,7 +124,7 @@ class VisualizationReport(ConfigMixin):
 
         def chart() -> None:
             timestamps = [
-                start_date + timedelta(hours=i) for i in range(840)
+                start_date.add(hours=i) for i in range(len(y_list[0]))
             ]  # 840 timestamps at 1-hour intervals
 
             for idx, y_data in enumerate(y_list):
@@ -155,7 +156,7 @@ class VisualizationReport(ConfigMixin):
             plt.grid(True)
 
             # Add vertical line for the current date if within the axis range
-            current_time = datetime.now()
+            current_time = pendulum.now()
             if timestamps[0] <= current_time <= timestamps[-1]:
                 plt.axvline(current_time, color="r", linestyle="--", label="Now")
                 plt.text(current_time, plt.ylim()[1], "Now", color="r", ha="center", va="bottom")
@@ -689,7 +690,7 @@ def generate_example_report(filename: str = "example_report.pdf") -> None:
     report.finalize_group()
 
     report.create_line_chart_date(
-        datetime.now() - timedelta(hours=48),
+        pendulum.now().subtract(hours=48),
         [list(np.random.random(840))],
         title="test",
         xlabel="test",
