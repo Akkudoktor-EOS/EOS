@@ -6,6 +6,7 @@ from pydantic import Field, computed_field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
 
 logger = get_logger(__name__)
 
@@ -260,7 +261,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
         default=None, description="Nominal power of PV system in kW."
     )
     pvforecast4_pvtechchoice: Optional[str] = Field(
-        "crystSi", description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
+        default="crystSi", description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
     )
     pvforecast4_mountingplace: Optional[str] = Field(
         default="free",
@@ -316,7 +317,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
         default=None, description="Nominal power of PV system in kW."
     )
     pvforecast5_pvtechchoice: Optional[str] = Field(
-        "crystSi", description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
+        default="crystSi", description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
     )
     pvforecast5_mountingplace: Optional[str] = Field(
         default="free",
@@ -358,6 +359,8 @@ class PVForecastCommonSettings(SettingsBaseModel):
     )
 
     pvforecast_max_planes: ClassVar[int] = 6  # Maximum number of planes that can be set
+
+    provider_settings: Optional[PVForecastImportCommonSettings] = None
 
     # Computed fields
     @computed_field  # type: ignore[prop-decorator]

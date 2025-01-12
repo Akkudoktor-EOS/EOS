@@ -126,9 +126,9 @@ def test_prediction_common_settings_with_location():
 
 def test_prediction_common_settings_timezone_none_when_coordinates_missing():
     """Test that timezone is None when latitude or longitude is missing."""
-    config_no_latitude = PredictionCommonSettings(longitude=-74.0060)
-    config_no_longitude = PredictionCommonSettings(latitude=40.7128)
-    config_no_coords = PredictionCommonSettings()
+    config_no_latitude = PredictionCommonSettings(latitude=None, longitude=-74.0060)
+    config_no_longitude = PredictionCommonSettings(latitude=40.7128, longitude=None)
+    config_no_coords = PredictionCommonSettings(latitude=None, longitude=None)
 
     assert config_no_latitude.timezone is None
     assert config_no_longitude.timezone is None

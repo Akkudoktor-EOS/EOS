@@ -7,13 +7,15 @@ from akkudoktoreos.devices.battery import Battery, SolarPanelBatteryParameters
 @pytest.fixture
 def setup_pv_battery():
     params = SolarPanelBatteryParameters(
+        device_id="battery1",
         capacity_wh=10000,
         initial_soc_percentage=50,
         min_soc_percentage=20,
         max_soc_percentage=80,
         max_charge_power_w=8000,
+        hours=24,
     )
-    battery = Battery(params, hours=24)
+    battery = Battery(params)
     battery.reset()
     return battery
 
@@ -113,7 +115,6 @@ def test_soc_limits(setup_pv_battery):
 
 def test_max_charge_power_w(setup_pv_battery):
     battery = setup_pv_battery
-    battery.setup()
     assert (
         battery.parameters.max_charge_power_w == 8000
     ), "Default max charge power should be 5000W, We ask for 8000W here"
@@ -121,7 +122,6 @@ def test_max_charge_power_w(setup_pv_battery):
 
 def test_charge_energy_within_limits(setup_pv_battery):
     battery = setup_pv_battery
-    battery.setup()
     initial_soc_wh = battery.soc_wh
 
     charged_wh, losses_wh = battery.charge_energy(wh=4000, hour=1)
@@ -134,7 +134,6 @@ def test_charge_energy_within_limits(setup_pv_battery):
 
 def test_charge_energy_exceeds_capacity(setup_pv_battery):
     battery = setup_pv_battery
-    battery.setup()
     initial_soc_wh = battery.soc_wh
 
     # Try to overcharge beyond max capacity
@@ -149,7 +148,6 @@ def test_charge_energy_exceeds_capacity(setup_pv_battery):
 
 def test_charge_energy_not_allowed_hour(setup_pv_battery):
     battery = setup_pv_battery
-    battery.setup()
 
     # Disable charging for all hours
     battery.set_charge_per_hour(np.zeros(battery.hours))
@@ -165,7 +163,6 @@ def test_charge_energy_not_allowed_hour(setup_pv_battery):
 
 def test_charge_energy_relative_power(setup_pv_battery):
     battery = setup_pv_battery
-    battery.setup()
 
     relative_power = 0.5  # 50% of max charge power
     charged_wh, losses_wh = battery.charge_energy(wh=None, hour=4, relative_power=relative_power)
@@ -183,13 +180,15 @@ def setup_car_battery():
     from akkudoktoreos.devices.battery import ElectricVehicleParameters
 
     params = ElectricVehicleParameters(
+        device_id="ev1",
         capacity_wh=40000,
         initial_soc_percentage=60,
         min_soc_percentage=10,
         max_soc_percentage=90,
         max_charge_power_w=7000,
+        hours=24,
     )
-    battery = Battery(params, hours=24)
+    battery = Battery(params)
     battery.reset()
     return battery
 

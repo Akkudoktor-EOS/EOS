@@ -80,13 +80,13 @@ class PredictionCommonSettings(SettingsBaseModel):
         description="Number of hours into the past for historical predictions data",
     )
     latitude: Optional[float] = Field(
-        default=None,
+        default=52.52,
         ge=-90.0,
         le=90.0,
         description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)",
     )
     longitude: Optional[float] = Field(
-        default=None,
+        default=13.405,
         ge=-180.0,
         le=180.0,
         description="Longitude in decimal degrees, within -180 to 180 (°)",

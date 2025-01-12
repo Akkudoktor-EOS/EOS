@@ -106,6 +106,11 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
         "measurement_load",
     ]
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if hasattr(self, "_initialized"):
+            return
+        super().__init__(*args, **kwargs)
+
     def _interval_count(
         self, start_datetime: DateTime, end_datetime: DateTime, interval: Duration
     ) -> int:
@@ -143,11 +148,16 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
         if topic not in self.topics:
             return None
 
-        topic_keys = [key for key in self.config.config_keys if key.startswith(topic)]
+        topic_keys = [
+            key for key in self.config.measurement.model_fields.keys() if key.startswith(topic)
+        ]
         key = None
         if topic == "measurement_load":
             for config_key in topic_keys:
-                if config_key.endswith("_name") and getattr(self.config, config_key) == name:
+                if (
+                    config_key.endswith("_name")
+                    and getattr(self.config.measurement, config_key) == name
+                ):
                     key = topic + config_key[len(topic) : len(topic) + 1] + "_mr"
                     break
 

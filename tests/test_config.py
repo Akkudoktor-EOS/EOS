@@ -38,15 +38,19 @@ def test_config_constants(config_eos):
 
 def test_computed_paths(config_eos):
     """Test computed paths for output and cache."""
-    config_eos.merge_settings_from_dict(
-        {
-            "data_folder_path": "/base/data",
-            "data_output_subpath": "output",
-            "data_cache_subpath": "cache",
-        }
-    )
-    assert config_eos.data_output_path == Path("/base/data/output")
-    assert config_eos.data_cache_path == Path("/base/data/cache")
+    # Don't actually try to create the data folder
+    with patch("pathlib.Path.mkdir"):
+        config_eos.merge_settings_from_dict(
+            {
+                "general": {
+                    "data_folder_path": "/base/data",
+                    "data_output_subpath": "extra/output",
+                    "data_cache_subpath": "somewhere/cache",
+                }
+            }
+        )
+    assert config_eos.general.data_output_path == Path("/base/data/extra/output")
+    assert config_eos.general.data_cache_path == Path("/base/data/somewhere/cache")
     # reset settings so the config_eos fixture can verify the default paths
     config_eos.reset_settings()
 
@@ -87,7 +91,7 @@ def test_config_file_priority(config_default_dirs):
     config_file = Path(config_default_dir_user) / ConfigEOS.CONFIG_FILE_NAME
     config_file.parent.mkdir()
     config_file.write_text("{}")
-    config_eos = get_config()
+    config_eos.update()
     assert config_eos.config_file_path == config_file
 
 
@@ -141,5 +145,5 @@ def test_config_copy(config_eos, monkeypatch):
         assert not temp_config_file_path.exists()
         with patch("akkudoktoreos.config.config.user_config_dir", return_value=temp_dir):
             assert config_eos._get_config_file_path() == (temp_config_file_path, False)
-            config_eos.from_config_file()
+            config_eos.update()
         assert temp_config_file_path.exists()

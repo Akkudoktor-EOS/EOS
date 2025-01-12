@@ -16,7 +16,7 @@ class OptimizationCommonSettings(SettingsBaseModel):
     """
 
     optimization_hours: Optional[int] = Field(
-        default=24, ge=0, description="Number of hours into the future for optimizations."
+        default=48, ge=0, description="Number of hours into the future for optimizations."
     )
 
     optimization_penalty: Optional[int] = Field(

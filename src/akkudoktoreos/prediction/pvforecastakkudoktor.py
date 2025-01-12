@@ -203,19 +203,23 @@ class PVForecastAkkudoktor(PVForecastProvider):
         """Build akkudoktor.net API request URL."""
         base_url = "https://api.akkudoktor.net/forecast"
         query_params = [
-            f"lat={self.config.latitude}",
-            f"lon={self.config.longitude}",
+            f"lat={self.config.prediction.latitude}",
+            f"lon={self.config.prediction.longitude}",
         ]
 
-        for i in range(len(self.config.pvforecast_planes)):
-            query_params.append(f"power={int(self.config.pvforecast_planes_peakpower[i] * 1000)}")
-            query_params.append(f"azimuth={int(self.config.pvforecast_planes_azimuth[i])}")
-            query_params.append(f"tilt={int(self.config.pvforecast_planes_tilt[i])}")
+        for i in range(len(self.config.pvforecast.pvforecast_planes)):
             query_params.append(
-                f"powerInverter={int(self.config.pvforecast_planes_inverter_paco[i])}"
+                f"power={int(self.config.pvforecast.pvforecast_planes_peakpower[i] * 1000)}"
+            )
+            query_params.append(
+                f"azimuth={int(self.config.pvforecast.pvforecast_planes_azimuth[i])}"
+            )
+            query_params.append(f"tilt={int(self.config.pvforecast.pvforecast_planes_tilt[i])}")
+            query_params.append(
+                f"powerInverter={int(self.config.pvforecast.pvforecast_planes_inverter_paco[i])}"
             )
             horizon_values = ",".join(
-                str(int(h)) for h in self.config.pvforecast_planes_userhorizon[i]
+                str(int(h)) for h in self.config.pvforecast.pvforecast_planes_userhorizon[i]
             )
             query_params.append(f"horizont={horizon_values}")
 
@@ -226,7 +230,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
                 "cellCoEff=-0.36",
                 "inverterEfficiency=0.8",
                 "albedo=0.25",
-                f"timezone={self.config.timezone}",
+                f"timezone={self.config.prediction.timezone}",
                 "hourly=relativehumidity_2m%2Cwindspeed_10m",
             ]
         )
@@ -255,7 +259,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
         logger.debug(f"Response from {self._url()}: {response}")
         akkudoktor_data = self._validate_data(response.content)
         # We are working on fresh data (no cache), report update time
-        self.update_datetime = to_datetime(in_timezone=self.config.timezone)
+        self.update_datetime = to_datetime(in_timezone=self.config.prediction.timezone)
         return akkudoktor_data
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
@@ -265,7 +269,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
         `PVForecastAkkudoktorDataRecord`.
         """
         # Assure we have something to request PV power for.
-        if not self.config.pvforecast_planes:
+        if not self.config.pvforecast.pvforecast_planes:
             # No planes for PV
             error_msg = "Requested PV forecast, but no planes configured."
             logger.error(f"Configuration error: {error_msg}")
@@ -275,17 +279,17 @@ class PVForecastAkkudoktor(PVForecastProvider):
         akkudoktor_data = self._request_forecast(force_update=force_update)  # type: ignore
 
         # Timezone of the PV system
-        if self.config.timezone != akkudoktor_data.meta.timezone:
-            error_msg = f"Configured timezone '{self.config.timezone}' does not match Akkudoktor timezone '{akkudoktor_data.meta.timezone}'."
+        if self.config.prediction.timezone != akkudoktor_data.meta.timezone:
+            error_msg = f"Configured timezone '{self.config.prediction.timezone}' does not match Akkudoktor timezone '{akkudoktor_data.meta.timezone}'."
             logger.error(f"Akkudoktor schema change: {error_msg}")
             raise ValueError(error_msg)
 
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
-        if len(akkudoktor_data.values[0]) < self.config.prediction_hours:
+        if len(akkudoktor_data.values[0]) < self.config.prediction.prediction_hours:
             # Expect one value set per prediction hour
             error_msg = (
-                f"The forecast must cover at least {self.config.prediction_hours} hours, "
+                f"The forecast must cover at least {self.config.prediction.prediction_hours} hours, "
                 f"but only {len(akkudoktor_data.values[0])} data sets are given in forecast data."
             )
             logger.error(f"Akkudoktor schema change: {error_msg}")
@@ -296,7 +300,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
         # Iterate over forecast data points
         for forecast_values in zip(*akkudoktor_data.values):
             original_datetime = forecast_values[0].datetime
-            dt = to_datetime(original_datetime, in_timezone=self.config.timezone)
+            dt = to_datetime(original_datetime, in_timezone=self.config.prediction.timezone)
 
             # Skip outdated forecast data
             if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
@@ -314,9 +318,9 @@ class PVForecastAkkudoktor(PVForecastProvider):
 
             self.update_value(dt, data)
 
-        if len(self) < self.config.prediction_hours:
+        if len(self) < self.config.prediction.prediction_hours:
             raise ValueError(
-                f"The forecast must cover at least {self.config.prediction_hours} hours, "
+                f"The forecast must cover at least {self.config.prediction.prediction_hours} hours, "
                 f"but only {len(self)} hours starting from {self.start_datetime} "
                 f"were predicted."
             )
@@ -365,31 +369,35 @@ if __name__ == "__main__":
     """
     # Set up the configuration with necessary fields for URL generation
     settings_data = {
-        "prediction_hours": 48,
-        "prediction_historic_hours": 24,
-        "latitude": 52.52,
-        "longitude": 13.405,
-        "pvforecast_provider": "PVForecastAkkudoktor",
-        "pvforecast0_peakpower": 5.0,
-        "pvforecast0_surface_azimuth": -10,
-        "pvforecast0_surface_tilt": 7,
-        "pvforecast0_userhorizon": [20, 27, 22, 20],
-        "pvforecast0_inverter_paco": 10000,
-        "pvforecast1_peakpower": 4.8,
-        "pvforecast1_surface_azimuth": -90,
-        "pvforecast1_surface_tilt": 7,
-        "pvforecast1_userhorizon": [30, 30, 30, 50],
-        "pvforecast1_inverter_paco": 10000,
-        "pvforecast2_peakpower": 1.4,
-        "pvforecast2_surface_azimuth": -40,
-        "pvforecast2_surface_tilt": 60,
-        "pvforecast2_userhorizon": [60, 30, 0, 30],
-        "pvforecast2_inverter_paco": 2000,
-        "pvforecast3_peakpower": 1.6,
-        "pvforecast3_surface_azimuth": 5,
-        "pvforecast3_surface_tilt": 45,
-        "pvforecast3_userhorizon": [45, 25, 30, 60],
-        "pvforecast3_inverter_paco": 1400,
+        "prediction": {
+            "prediction_hours": 48,
+            "prediction_historic_hours": 24,
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
+        "pvforecast": {
+            "pvforecast_provider": "PVForecastAkkudoktor",
+            "pvforecast0_peakpower": 5.0,
+            "pvforecast0_surface_azimuth": -10,
+            "pvforecast0_surface_tilt": 7,
+            "pvforecast0_userhorizon": [20, 27, 22, 20],
+            "pvforecast0_inverter_paco": 10000,
+            "pvforecast1_peakpower": 4.8,
+            "pvforecast1_surface_azimuth": -90,
+            "pvforecast1_surface_tilt": 7,
+            "pvforecast1_userhorizon": [30, 30, 30, 50],
+            "pvforecast1_inverter_paco": 10000,
+            "pvforecast2_peakpower": 1.4,
+            "pvforecast2_surface_azimuth": -40,
+            "pvforecast2_surface_tilt": 60,
+            "pvforecast2_userhorizon": [60, 30, 0, 30],
+            "pvforecast2_inverter_paco": 2000,
+            "pvforecast3_peakpower": 1.6,
+            "pvforecast3_surface_azimuth": 5,
+            "pvforecast3_surface_tilt": 45,
+            "pvforecast3_userhorizon": [45, 25, 30, 60],
+            "pvforecast3_inverter_paco": 1400,
+        },
     }
 
     # Initialize the forecast object with the generated configuration

@@ -59,7 +59,11 @@ class WeatherImport(WeatherProvider, PredictionImportProvider):
         return "WeatherImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.weatherimport_file_path is not None:
-            self.import_from_file(self.config.weatherimport_file_path, key_prefix="weather")
-        if self.config.weatherimport_json is not None:
-            self.import_from_json(self.config.weatherimport_json, key_prefix="weather")
+        if self.config.weather.provider_settings.weatherimport_file_path is not None:
+            self.import_from_file(
+                self.config.weather.provider_settings.weatherimport_file_path, key_prefix="weather"
+            )
+        if self.config.weather.provider_settings.weatherimport_json is not None:
+            self.import_from_json(
+                self.config.weather.provider_settings.weatherimport_json, key_prefix="weather"
+            )

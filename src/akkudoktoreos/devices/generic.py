@@ -4,13 +4,13 @@ import numpy as np
 from pydantic import Field
 
 from akkudoktoreos.core.logging import get_logger
-from akkudoktoreos.core.pydantic import ParametersBaseModel
-from akkudoktoreos.devices.devicesabc import DeviceBase
+from akkudoktoreos.devices.devicesabc import DeviceBase, DeviceParameters
 
 logger = get_logger(__name__)
 
 
-class HomeApplianceParameters(ParametersBaseModel):
+class HomeApplianceParameters(DeviceParameters):
+    device_id: str = Field(description="ID of home appliance")
     consumption_wh: int = Field(
         gt=0,
         description="An integer representing the energy consumption of a household device in watt-hours.",
@@ -25,46 +25,15 @@ class HomeAppliance(DeviceBase):
     def __init__(
         self,
         parameters: Optional[HomeApplianceParameters] = None,
-        hours: Optional[int] = 24,
-        provider_id: Optional[str] = None,
     ):
-        # Configuration initialisation
-        self.provider_id = provider_id
-        self.prefix = "<invalid>"
-        if self.provider_id == "GenericDishWasher":
-            self.prefix = "dishwasher"
-        # Parameter initialisiation
-        self.parameters = parameters
-        if hours is None:
-            self.hours = self.total_hours
-        else:
-            self.hours = hours
+        self.parameters: Optional[HomeApplianceParameters] = None
+        super().__init__(parameters)
 
-        self.initialised = False
-        # Run setup if parameters are given, otherwise setup() has to be called later when the config is initialised.
-        if self.parameters is not None:
-            self.setup()
-
-    def setup(self) -> None:
-        if self.initialised:
-            return
-        if self.provider_id is not None:
-            # Setup by configuration
-            self.hours = self.total_hours
-            self.consumption_wh = getattr(self.config, f"{self.prefix}_consumption")
-            self.duration_h = getattr(self.config, f"{self.prefix}_duration")
-        elif self.parameters is not None:
-            # Setup by parameters
-            self.consumption_wh = (
-                self.parameters.consumption_wh
-            )  # Total energy consumption of the device in kWh
-            self.duration_h = self.parameters.duration_h  # Duration of use in hours
-        else:
-            error_msg = "Parameters and provider ID missing. Can't instantiate."
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+    def _setup(self) -> None:
+        assert self.parameters is not None
         self.load_curve = np.zeros(self.hours)  # Initialize the load curve with zeros
-        self.initialised = True
+        self.duration_h = self.parameters.duration_h
+        self.consumption_wh = self.parameters.consumption_wh
 
     def set_starting_time(self, start_hour: int, global_start_hour: int = 0) -> None:
         """Sets the start time of the device and generates the corresponding load curve.
