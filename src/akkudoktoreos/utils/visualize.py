@@ -3,8 +3,10 @@ import logging
 import os
 import textwrap
 from collections.abc import Sequence
+from datetime import datetime, timedelta
 from typing import Callable, Optional, Union
 
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
@@ -106,6 +108,60 @@ class VisualizationReport(ConfigMixin):
         self.pdf_pages.savefig(fig)  # Save the figure to the PDF
         plt.close(fig)
 
+    def create_line_chart_date(
+        self,
+        start_date: datetime,
+        y_list: list[list[Optional[float]]],
+        title: str,
+        xlabel: str,
+        ylabel: str,
+        labels: Optional[list[str]] = None,
+        markers: Optional[list[str]] = None,
+        line_styles: Optional[list[str]] = None,
+    ) -> None:
+        """Create a line chart and add it to the current group."""
+
+        def chart() -> None:
+            timestamps = [
+                start_date + timedelta(hours=i) for i in range(840)
+            ]  # 840 timestamps at 1-hour intervals
+
+            for idx, y_data in enumerate(y_list):
+                label = labels[idx] if labels else None  # Chart label
+                marker = markers[idx] if markers and idx < len(markers) else "o"  # Marker style
+                line_style = line_styles[idx] if line_styles and idx < len(line_styles) else "-"
+                plt.plot(
+                    timestamps, y_data, label=label, marker=marker, linestyle=line_style
+                )  # Plot line
+
+            # Format the time axis
+            plt.gca().xaxis.set_major_formatter(
+                mdates.DateFormatter("%Y-%m-%d %H:%M")
+            )  # Show date and time
+            plt.gca().xaxis.set_major_locator(
+                mdates.DayLocator(interval=2, tz=None)
+            )  # Major ticks every day
+            plt.gca().xaxis.set_minor_locator(
+                mdates.DayLocator(interval=1, tz=None)
+            )  # Minor ticks every 6 hours
+            plt.gcf().autofmt_xdate()  # Auto-format the x-axis for readability
+
+            # Add labels, title, and legend
+            plt.xlabel(xlabel)
+            plt.ylabel(ylabel)
+            plt.title(title)
+            if labels:
+                plt.legend()
+            plt.grid(True)
+
+            # Add vertical line for the current date if within the axis range
+            current_time = datetime.now()
+            if timestamps[0] <= current_time <= timestamps[-1]:
+                plt.axvline(current_time, color="r", linestyle="--", label="Now")
+                plt.text(current_time, plt.ylim()[1], "Now", color="r", ha="center", va="bottom")
+
+        self.add_chart_to_group(chart)  # Add chart function to current group
+
     def create_line_chart(
         self,
         start_hour: Optional[int],
@@ -156,6 +212,7 @@ class VisualizationReport(ConfigMixin):
                     line_styles[idx] if line_styles and idx < len(line_styles) else "-"
                 )  # Line style
                 plt.plot(x, y_data, label=label, marker=marker, linestyle=line_style)  # Plot line
+
             plt.title(title)  # Set title
             plt.xlabel(xlabel)  # Set x-axis label
             plt.ylabel(ylabel)  # Set y-axis label
@@ -328,6 +385,7 @@ def prepare_visualize(
 ) -> None:
     report = VisualizationReport(filename)
     # Group 1:
+    print(parameters.ems.gesamtlast)
     report.create_line_chart(
         None,
         [parameters.ems.gesamtlast],
@@ -630,6 +688,14 @@ def generate_example_report(filename: str = "example_report.pdf") -> None:
     report.add_json_page(json_obj=sample_json, title="Formatted JSON Data", fontsize=10)
     report.finalize_group()
 
+    report.create_line_chart_date(
+        datetime.now() - timedelta(hours=48),
+        [list(np.random.random(840))],
+        title="test",
+        xlabel="test",
+        ylabel="test",
+    )
+    report.finalize_group()
     # Generate the PDF report
     report.generate_pdf()
 
