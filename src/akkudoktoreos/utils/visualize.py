@@ -28,6 +28,11 @@ class VisualizationReport(ConfigMixin):
         ] = []  # Store current group of charts being created
         self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
 
+        with open("pyproject.toml", "r") as f:
+            pyproject_content = f.read()
+            version_match = re.search(r'version\s*=\s*"([^"]+)"', pyproject_content)
+            self.version = version_match.group(1) if version_match else "unknown"
+
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
         """Add a chart function to the current group."""
         self.current_group.append(chart_func)
@@ -83,18 +88,12 @@ class VisualizationReport(ConfigMixin):
             fig, axs = plt.subplots(rows, cols, figsize=(14, 7 * rows))
             axs = list(np.array(axs).reshape(-1))
 
-        # Read version from pyproject.toml using regular expressions
-        with open("pyproject.toml", "r") as f:
-            pyproject_content = f.read()
-        version_match = re.search(r'version\s*=\s*"([^"]+)"', pyproject_content)
-        version_str = version_match.group(1) if version_match else "unknown"
-
         # Add footer text with current time to each page
         current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         fig.text(
             0.5,
             0.02,
-            f"Generated on: {current_time} with version: {version_str}",
+            f"Generated on: {current_time} with version: {self.version}",
             ha="center",
             va="center",
             fontsize=10,
