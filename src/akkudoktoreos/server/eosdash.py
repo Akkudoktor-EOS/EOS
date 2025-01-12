@@ -46,13 +46,17 @@ def get():  # type: ignore
 
 if __name__ == "__main__":
     try:
-        logger.info(f"Starting {config_eos.server_eosdash_host}:{config_eos.server_eosdash_port}.")
+        logger.info(
+            f"Starting {config_eos.server.server_eosdash_host}:{config_eos.server.server_eosdash_port}."
+        )
         uvicorn.run(
-            app, host=str(config_eos.server_eosdash_host), port=config_eos.server_eosdash_port
+            app,
+            host=str(config_eos.server.server_eosdash_host),
+            port=config_eos.server.server_eosdash_port,
         )
     except Exception as e:
         # Error handling for binding issues
         logger.error(
-            f"Could not bind to host {config_eos.server_eosdash_host}:{config_eos.server_eosdash_port}. Error: {e}"
+            f"Could not bind to host {config_eos.server.server_eosdash_host}:{config_eos.server.server_eosdash_port}. Error: {e}"
         )
         exit(1)

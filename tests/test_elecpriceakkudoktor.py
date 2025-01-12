@@ -23,9 +23,10 @@ FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON = DIR_TESTDATA.joinpath(
 
 
 @pytest.fixture
-def elecprice_provider(monkeypatch):
+def elecprice_provider(monkeypatch, config_eos):
     """Fixture to create a ElecPriceProvider instance."""
-    monkeypatch.setenv("elecprice_provider", "ElecPriceAkkudoktor")
+    monkeypatch.setenv("EOS_ELECPRICE__ELECPRICE_PROVIDER", "ElecPriceAkkudoktor")
+    config_eos.reset_settings()
     return ElecPriceAkkudoktor()
 
 
@@ -56,9 +57,9 @@ def test_singleton_instance(elecprice_provider):
 
 def test_invalid_provider(elecprice_provider, monkeypatch):
     """Test requesting an unsupported elecprice_provider."""
-    monkeypatch.setenv("elecprice_provider", "<invalid>")
-    elecprice_provider.config.update()
-    assert elecprice_provider.enabled() == False
+    monkeypatch.setenv("EOS_ELECPRICE__ELECPRICE_PROVIDER", "<invalid>")
+    elecprice_provider.config.reset_settings()
+    assert not elecprice_provider.enabled()
 
 
 # ------------------------------------------------

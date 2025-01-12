@@ -62,7 +62,13 @@ class PVForecastImport(PVForecastProvider, PredictionImportProvider):
         return "PVForecastImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.pvforecastimport_file_path is not None:
-            self.import_from_file(self.config.pvforecastimport_file_path, key_prefix="pvforecast")
-        if self.config.pvforecastimport_json is not None:
-            self.import_from_json(self.config.pvforecastimport_json, key_prefix="pvforecast")
+        if self.config.pvforecast.provider_settings.pvforecastimport_file_path is not None:
+            self.import_from_file(
+                self.config.pvforecast.provider_settings.pvforecastimport_file_path,
+                key_prefix="pvforecast",
+            )
+        if self.config.pvforecast.provider_settings.pvforecastimport_json is not None:
+            self.import_from_json(
+                self.config.pvforecast.provider_settings.pvforecastimport_json,
+                key_prefix="pvforecast",
+            )

@@ -54,6 +54,6 @@ class PVForecastProvider(PredictionProvider):
 
     def enabled(self) -> bool:
         logger.debug(
-            f"PVForecastProvider ID {self.provider_id()} vs. config {self.config.pvforecast_provider}"
+            f"PVForecastProvider ID {self.provider_id()} vs. config {self.config.pvforecast.pvforecast_provider}"
         )
-        return self.provider_id() == self.config.pvforecast_provider
+        return self.provider_id() == self.config.pvforecast.pvforecast_provider

@@ -58,7 +58,11 @@ class LoadImport(LoadProvider, PredictionImportProvider):
         return "LoadImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.load_import_file_path is not None:
-            self.import_from_file(self.config.load_import_file_path, key_prefix="load")
-        if self.config.load_import_json is not None:
-            self.import_from_json(self.config.load_import_json, key_prefix="load")
+        if self.config.load.provider_settings.load_import_file_path is not None:
+            self.import_from_file(
+                self.config.provider_settings.load_import_file_path, key_prefix="load"
+            )
+        if self.config.load.provider_settings.load_import_json is not None:
+            self.import_from_json(
+                self.config.load.provider_settings.load_import_json, key_prefix="load"
+            )

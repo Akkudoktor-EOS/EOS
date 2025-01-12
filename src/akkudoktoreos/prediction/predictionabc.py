@@ -121,9 +121,9 @@ class PredictionStartEndKeepMixin(PredictionBase):
         Returns:
             Optional[DateTime]: The calculated end datetime, or `None` if inputs are missing.
         """
-        if self.start_datetime and self.config.prediction_hours:
+        if self.start_datetime and self.config.prediction.prediction_hours:
             end_datetime = self.start_datetime + to_duration(
-                f"{self.config.prediction_hours} hours"
+                f"{self.config.prediction.prediction_hours} hours"
             )
             dst_change = end_datetime.offset_hours - self.start_datetime.offset_hours
             logger.debug(f"Pre: {self.start_datetime}..{end_datetime}: DST change: {dst_change}")
@@ -147,10 +147,10 @@ class PredictionStartEndKeepMixin(PredictionBase):
             return None
         historic_hours = self.historic_hours_min()
         if (
-            self.config.prediction_historic_hours
-            and self.config.prediction_historic_hours > historic_hours
+            self.config.prediction.prediction_historic_hours
+            and self.config.prediction.prediction_historic_hours > historic_hours
         ):
-            historic_hours = int(self.config.prediction_historic_hours)
+            historic_hours = int(self.config.prediction.prediction_historic_hours)
         return self.start_datetime - to_duration(f"{historic_hours} hours")
 
     @computed_field  # type: ignore[prop-decorator]

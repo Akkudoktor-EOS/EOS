@@ -16,9 +16,13 @@ FILE_TESTDATA_WEATHERIMPORT_1_JSON = DIR_TESTDATA.joinpath("import_input_1.json"
 def weather_provider(sample_import_1_json, config_eos):
     """Fixture to create a WeatherProvider instance."""
     settings = {
-        "weather_provider": "WeatherImport",
-        "weatherimport_file_path": str(FILE_TESTDATA_WEATHERIMPORT_1_JSON),
-        "weatherimport_json": json.dumps(sample_import_1_json),
+        "weather": {
+            "weather_provider": "WeatherImport",
+            "provider_settings": {
+                "weatherimport_file_path": str(FILE_TESTDATA_WEATHERIMPORT_1_JSON),
+                "weatherimport_json": json.dumps(sample_import_1_json),
+            },
+        }
     }
     config_eos.merge_settings_from_dict(settings)
     provider = WeatherImport()
@@ -48,8 +52,12 @@ def test_singleton_instance(weather_provider):
 def test_invalid_provider(weather_provider, config_eos, monkeypatch):
     """Test requesting an unsupported weather_provider."""
     settings = {
-        "weather_provider": "<invalid>",
-        "weatherimport_file_path": str(FILE_TESTDATA_WEATHERIMPORT_1_JSON),
+        "weather": {
+            "weather_provider": "<invalid>",
+            "provider_settings": {
+                "weatherimport_file_path": str(FILE_TESTDATA_WEATHERIMPORT_1_JSON),
+            },
+        }
     }
     config_eos.merge_settings_from_dict(settings)
     assert weather_provider.enabled() == False
@@ -78,11 +86,11 @@ def test_import(weather_provider, sample_import_1_json, start_datetime, from_fil
     ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
-        config_eos.weatherimport_json = None
-        assert config_eos.weatherimport_json is None
+        config_eos.weather.provider_settings.weatherimport_json = None
+        assert config_eos.weather.provider_settings.weatherimport_json is None
     else:
-        config_eos.weatherimport_file_path = None
-        assert config_eos.weatherimport_file_path is None
+        config_eos.weather.provider_settings.weatherimport_file_path = None
+        assert config_eos.weather.provider_settings.weatherimport_file_path is None
     weather_provider.clear()
 
     # Call the method

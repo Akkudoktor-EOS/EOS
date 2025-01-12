@@ -1,4 +1,4 @@
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -6,22 +6,29 @@ from akkudoktoreos.devices.inverter import Inverter, InverterParameters
 
 
 @pytest.fixture
-def mock_battery():
+def mock_battery() -> Mock:
     mock_battery = Mock()
     mock_battery.charge_energy = Mock(return_value=(0.0, 0.0))
     mock_battery.discharge_energy = Mock(return_value=(0.0, 0.0))
+    mock_battery.device_id = "battery1"
     return mock_battery
 
 
 @pytest.fixture
-def inverter(mock_battery):
+def inverter(mock_battery, devices_eos) -> Inverter:
+    devices_eos.add_device(mock_battery)
     mock_self_consumption_predictor = Mock()
     mock_self_consumption_predictor.calculate_self_consumption.return_value = 1.0
-    return Inverter(
-        mock_self_consumption_predictor,
-        InverterParameters(max_power_wh=500.0),
-        battery=mock_battery,
-    )
+    with patch(
+        "akkudoktoreos.devices.inverter.get_eos_load_interpolator",
+        return_value=mock_self_consumption_predictor,
+    ):
+        iv = Inverter(
+            InverterParameters(device_id="iv1", max_power_wh=500.0, battery=mock_battery.device_id),
+        )
+        devices_eos.add_device(iv)
+        devices_eos.post_setup()
+        return iv
 
 
 def test_process_energy_excess_generation(inverter, mock_battery):

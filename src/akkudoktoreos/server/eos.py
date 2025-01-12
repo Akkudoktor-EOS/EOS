@@ -27,7 +27,10 @@ from akkudoktoreos.optimization.genetic import (
     OptimizeResponse,
     optimization_problem,
 )
-from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
+from akkudoktoreos.prediction.load import LoadCommonSettings
+from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
+from akkudoktoreos.prediction.prediction import PredictionCommonSettings, get_prediction
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 logger = get_logger(__name__)
@@ -144,9 +147,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
     if (
-        config_eos.server_eos_startup_eosdash
-        and config_eos.server_eosdash_host
-        and config_eos.server_eosdash_port
+        config_eos.server.server_eos_startup_eosdash
+        and config_eos.server.server_eosdash_host
+        and config_eos.server.server_eosdash_port
     ):
         try:
             fasthtml_process = start_eosdash()
@@ -172,7 +175,7 @@ app = FastAPI(
 )
 
 # That's the problem
-opt_class = optimization_problem(verbose=bool(config_eos.server_eos_verbose))
+opt_class = optimization_problem(verbose=bool(config_eos.server.server_eos_verbose))
 
 server_dir = Path(__file__).parent.resolve()
 
@@ -284,7 +287,7 @@ def fastapi_config_put(
         configuration (ConfigEOS): The current configuration after the write.
     """
     try:
-        config_eos.merge_settings(settings, force=True)
+        config_eos.merge_settings(settings)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
     return config_eos
@@ -554,7 +557,9 @@ def fastapi_strompreis() -> list[float]:
         '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.
     """
     settings = SettingsEOS(
-        elecprice_provider="ElecPriceAkkudoktor",
+        elecprice=ElecPriceCommonSettings(
+            elecprice_provider="ElecPriceAkkudoktor",
+        )
     )
     config_eos.merge_settings(settings=settings)
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
@@ -604,9 +609,15 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
         '/v1/measurement/value'
     """
     settings = SettingsEOS(
-        prediction_hours=request.hours,
-        load_provider="LoadAkkudoktor",
-        loadakkudoktor_year_energy=request.year_energy,
+        prediction=PredictionCommonSettings(
+            prediction_hours=request.hours,
+        ),
+        load=LoadCommonSettings(
+            load_provider="LoadAkkudoktor",
+            provider_settings=LoadAkkudoktorCommonSettings(
+                loadakkudoktor_year_energy=request.year_energy,
+            ),
+        ),
     )
     config_eos.merge_settings(settings=settings)
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
@@ -668,8 +679,12 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
         '/v1/prediction/list?key=load_mean' instead.
     """
     settings = SettingsEOS(
-        load_provider="LoadAkkudoktor",
-        loadakkudoktor_year_energy=year_energy,
+        load=LoadCommonSettings(
+            load_provider="LoadAkkudoktor",
+            provider_settings=LoadAkkudoktorCommonSettings(
+                loadakkudoktor_year_energy=year_energy,
+            ),
+        )
     )
     config_eos.merge_settings(settings=settings)
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
@@ -774,7 +789,7 @@ def fastapi_optimize(
 @app.get("/visualization_results.pdf", response_class=PdfResponse)
 def get_pdf() -> PdfResponse:
     # Endpoint to serve the generated PDF with visualization results
-    output_path = config_eos.data_output_path
+    output_path = config_eos.config.data_output_path
     if output_path is None or not output_path.is_dir():
         raise HTTPException(status_code=404, detail=f"Output path does not exist: {output_path}.")
     file_path = output_path / "visualization_results.pdf"
@@ -812,9 +827,9 @@ async def proxy_put(request: Request, path: str) -> Response:
 
 
 async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse | HTMLResponse]:
-    if config_eos.server_eosdash_host and config_eos.server_eosdash_port:
+    if config_eos.server.server_eosdash_host and config_eos.server.server_eosdash_port:
         # Proxy to fasthtml server
-        url = f"http://{config_eos.server_eosdash_host}:{config_eos.server_eosdash_port}/{path}"
+        url = f"http://{config_eos.server.server_eosdash_host}:{config_eos.server.server_eosdash_port}/{path}"
         headers = dict(request.headers)
 
         data = await request.body()
@@ -860,14 +875,14 @@ def start_eos() -> None:
     try:
         uvicorn.run(
             app,
-            host=str(config_eos.server_eos_host),
-            port=config_eos.server_eos_port,
+            host=str(config_eos.server.server_eos_host),
+            port=config_eos.server.server_eos_port,
             log_level="debug",
             access_log=True,
         )
     except Exception as e:
         logger.error(
-            f"Could not bind to host {config_eos.server_eos_host}:{config_eos.server_eos_port}. Error: {e}"
+            f"Could not bind to host {config_eos.server.server_eos_host}:{config_eos.server.server_eos_port}. Error: {e}"
         )
         sys.exit(1)
 

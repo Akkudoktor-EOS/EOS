@@ -58,4 +58,4 @@ class LoadProvider(PredictionProvider):
         return "LoadProvider"
 
     def enabled(self) -> bool:
-        return self.provider_id() == self.config.load_provider
+        return self.provider_id() == self.config.load.load_provider

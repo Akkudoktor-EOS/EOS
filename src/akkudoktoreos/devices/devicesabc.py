@@ -1,20 +1,44 @@
 """Abstract and base classes for devices."""
 
-from typing import Optional
+from enum import Enum
+from typing import Optional, Type
 
 from pendulum import DateTime
-from pydantic import ConfigDict, computed_field
+from pydantic import Field, computed_field
 
 from akkudoktoreos.core.coreabc import (
     ConfigMixin,
+    DevicesMixin,
     EnergyManagementSystemMixin,
     PredictionMixin,
 )
 from akkudoktoreos.core.logging import get_logger
-from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.core.pydantic import ParametersBaseModel
 from akkudoktoreos.utils.datetimeutil import to_duration
 
 logger = get_logger(__name__)
+
+
+# class DeviceParameters(PydanticBaseModel):
+class DeviceParameters(ParametersBaseModel):
+    device_id: str = Field(description="ID of device")
+    hours: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Number of prediction hours. Defaults to global config prediction hours.",
+    )
+
+
+# class DeviceOptimizeResult(PydanticBaseModel):
+class DeviceOptimizeResult(ParametersBaseModel):
+    device_id: str = Field(description="ID of device")
+    hours: int = Field(gt=0, description="Number of hours in the simulation.")
+
+
+class DeviceState(Enum):
+    UNINITIALIZED = 0
+    PREPARED = 1
+    INITIALIZED = 2
 
 
 class DevicesStartEndMixin(ConfigMixin, EnergyManagementSystemMixin):
@@ -35,9 +59,9 @@ class DevicesStartEndMixin(ConfigMixin, EnergyManagementSystemMixin):
         Returns:
             Optional[DateTime]: The calculated end datetime, or `None` if inputs are missing.
         """
-        if self.ems.start_datetime and self.config.prediction_hours:
+        if self.ems.start_datetime and self.config.prediction.prediction_hours:
             end_datetime = self.ems.start_datetime + to_duration(
-                f"{self.config.prediction_hours} hours"
+                f"{self.config.prediction.prediction_hours} hours"
             )
             dst_change = end_datetime.offset_hours - self.ems.start_datetime.offset_hours
             logger.debug(
@@ -68,33 +92,92 @@ class DevicesStartEndMixin(ConfigMixin, EnergyManagementSystemMixin):
         return int(duration.total_hours())
 
 
-class DeviceBase(DevicesStartEndMixin, PredictionMixin):
+class DeviceBase(DevicesStartEndMixin, PredictionMixin, DevicesMixin):
     """Base class for device simulations.
 
-    Enables access to EOS configuration data (attribute `config`) and EOS prediction data (attribute
-    `prediction`).
+    Enables access to EOS configuration data (attribute `config`), EOS prediction data (attribute
+    `prediction`) and EOS device registry (attribute `devices`).
 
-    Note:
-        Validation on assignment of the Pydantic model is disabled to speed up simulation runs.
+    Behavior:
+        - Several initialization phases (setup, post_setup):
+            - setup: Initialize class attributes from DeviceParameters (pydantic input validation)
+            - post_setup: Set connections between devices
+        - NotImplemented:
+            - hooks during optimization
+
+    Notes:
+        - This class is base to concrete devices like battery, inverter, etc. that are used in optimization.
+        - Not a pydantic model for a low footprint during optimization.
     """
 
-    # Disable validation on assignment to speed up simulation runs.
-    model_config = ConfigDict(
-        validate_assignment=False,
-    )
+    def __init__(self, parameters: Optional[DeviceParameters] = None):
+        self.device_id: str = "<invalid>"
+        self.parameters: Optional[DeviceParameters] = None
+        self.hours = -1
+        if self.total_hours is not None:
+            self.hours = self.total_hours
+
+        self.initialized = DeviceState.UNINITIALIZED
+
+        if parameters is not None:
+            self.setup(parameters)
+
+    def setup(self, parameters: DeviceParameters) -> None:
+        if self.initialized != DeviceState.UNINITIALIZED:
+            return
+
+        self.parameters = parameters
+        self.device_id = self.parameters.device_id
+
+        if self.parameters.hours is not None:
+            self.hours = self.parameters.hours
+        if self.hours < 0:
+            raise ValueError("hours is unset")
+
+        self._setup()
+
+        self.initialized = DeviceState.PREPARED
+
+    def post_setup(self) -> None:
+        if self.initialized.value >= DeviceState.INITIALIZED.value:
+            return
+
+        self._post_setup()
+        self.initialized = DeviceState.INITIALIZED
+
+    def _setup(self) -> None:
+        """Implement custom setup in derived device classes."""
+        pass
+
+    def _post_setup(self) -> None:
+        """Implement custom setup in derived device classes that is run when all devices are initialized."""
+        pass
 
 
-class DevicesBase(DevicesStartEndMixin, PredictionMixin, PydanticBaseModel):
+class DevicesBase(DevicesStartEndMixin, PredictionMixin):
     """Base class for handling device data.
 
     Enables access to EOS configuration data (attribute `config`) and EOS prediction data (attribute
     `prediction`).
-
-    Note:
-        Validation on assignment of the Pydantic model is disabled to speed up simulation runs.
     """
 
-    # Disable validation on assignment to speed up simulation runs.
-    model_config = ConfigDict(
-        validate_assignment=False,
-    )
+    def __init__(self) -> None:
+        super().__init__()
+        self.devices: dict[str, "DeviceBase"] = dict()
+
+    def get_device_by_id(self, device_id: str) -> Optional["DeviceBase"]:
+        return self.devices.get(device_id)
+
+    def add_device(self, device: Optional["DeviceBase"]) -> None:
+        if device is None:
+            return
+        assert device.device_id not in self.devices, f"{device.device_id} already registered"
+        self.devices[device.device_id] = device
+
+    def remove_device(self, device: Type["DeviceBase"] | str) -> bool:
+        if isinstance(device, DeviceBase):
+            device = device.device_id
+        return self.devices.pop(device, None) is not None  # type: ignore[arg-type]
+
+    def reset(self) -> None:
+        self.devices = dict()

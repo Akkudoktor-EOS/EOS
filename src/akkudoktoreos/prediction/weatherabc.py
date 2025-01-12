@@ -126,7 +126,7 @@ class WeatherProvider(PredictionProvider):
         return "WeatherProvider"
 
     def enabled(self) -> bool:
-        return self.provider_id() == self.config.weather_provider
+        return self.provider_id() == self.config.weather.weather_provider
 
     @classmethod
     def estimate_irradiance_from_cloud_cover(

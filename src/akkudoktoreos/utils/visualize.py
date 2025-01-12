@@ -45,7 +45,7 @@ class VisualizationReport(ConfigMixin):
 
     def _initialize_pdf(self) -> None:
         """Create the output directory if it doesn't exist and initialize the PDF."""
-        output_dir = self.config.data_output_path
+        output_dir = self.config.general.data_output_path
 
         # If self.filename is already a valid path, use it; otherwise, combine it with output_dir
         if os.path.isabs(self.filename):

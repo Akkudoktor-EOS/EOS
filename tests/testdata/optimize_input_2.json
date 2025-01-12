@@ -154,6 +154,7 @@
         ]
     },
     "pv_akku": {
+        "device_id": "battery1",
         "capacity_wh": 26400,
         "initial_soc_percentage": 80,
         "min_soc_percentage": 0
@@ -162,13 +163,20 @@
         "max_power_wh": 10000
     },
     "eauto": {
+        "device_id": "ev1",
         "capacity_wh": 60000,
         "charging_efficiency": 0.95,
         "max_charge_power_w": 11040,
         "initial_soc_percentage": 5,
         "min_soc_percentage": 80
     },
+    "inverter": {
+        "device_id": "inverter1",
+        "max_power_wh": 10000,
+        "battery": "battery1"
+    },
     "dishwasher": {
+        "device_id": "dishwasher1",
         "consumption_wh": 5000,
         "duration_h": 2
     },

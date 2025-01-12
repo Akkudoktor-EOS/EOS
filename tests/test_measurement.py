@@ -3,7 +3,11 @@ import pytest
 from pendulum import datetime, duration
 
 from akkudoktoreos.config.config import SettingsEOS
-from akkudoktoreos.measurement.measurement import MeasurementDataRecord, get_measurement
+from akkudoktoreos.measurement.measurement import (
+    MeasurementCommonSettings,
+    MeasurementDataRecord,
+    get_measurement,
+)
 
 
 @pytest.fixture
@@ -186,8 +190,10 @@ def test_load_total_no_data(measurement_eos):
 def test_name_to_key(measurement_eos):
     """Test name_to_key functionality."""
     settings = SettingsEOS(
-        measurement_load0_name="Household",
-        measurement_load1_name="Heat Pump",
+        measurement=MeasurementCommonSettings(
+            measurement_load0_name="Household",
+            measurement_load1_name="Heat Pump",
+        )
     )
     measurement_eos.config.merge_settings(settings)
 
@@ -199,8 +205,10 @@ def test_name_to_key(measurement_eos):
 def test_name_to_key_invalid_topic(measurement_eos):
     """Test name_to_key with an invalid topic."""
     settings = SettingsEOS(
-        measurement_load0_name="Household",
-        measurement_load1_name="Heat Pump",
+        MeasurementCommonSettings(
+            measurement_load0_name="Household",
+            measurement_load1_name="Heat Pump",
+        )
     )
     measurement_eos.config.merge_settings(settings)
 

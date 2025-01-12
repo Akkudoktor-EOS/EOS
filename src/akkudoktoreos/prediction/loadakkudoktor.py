@@ -91,7 +91,9 @@ class LoadAkkudoktor(LoadProvider):
                 list(zip(file_data["yearly_profiles"], file_data["yearly_profiles_std"]))
             )
             # Calculate values in W by relative profile data and yearly consumption given in kWh
-            data_year_energy = profile_data * self.config.loadakkudoktor_year_energy * 1000
+            data_year_energy = (
+                profile_data * self.config.load.provider_settings.loadakkudoktor_year_energy * 1000
+            )
         except FileNotFoundError:
             error_msg = f"Error: File {load_file} not found."
             logger.error(error_msg)
@@ -109,7 +111,7 @@ class LoadAkkudoktor(LoadProvider):
         # We provide prediction starting at start of day, to be compatible to old system.
         # End date for prediction is prediction hours from now.
         date = self.start_datetime.start_of("day")
-        end_date = self.start_datetime.add(hours=self.config.prediction_hours)
+        end_date = self.start_datetime.add(hours=self.config.prediction.prediction_hours)
         while compare_datetimes(date, end_date).lt:
             # Extract mean (index 0) and standard deviation (index 1) for the given day and hour
             # Day indexing starts at 0, -1 because of that
@@ -127,4 +129,4 @@ class LoadAkkudoktor(LoadProvider):
             self.update_value(date, values)
             date += to_duration("1 hour")
         # We are working on fresh data (no cache), report update time
-        self.update_datetime = to_datetime(in_timezone=self.config.timezone)
+        self.update_datetime = to_datetime(in_timezone=self.config.prediction.timezone)

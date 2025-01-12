@@ -24,9 +24,13 @@ FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA = DIR_TESTDATA.joinpath("weatherforecas
 def weather_provider(config_eos):
     """Fixture to create a WeatherProvider instance."""
     settings = {
-        "weather_provider": "ClearOutside",
-        "latitude": 50.0,
-        "longitude": 10.0,
+        "weather": {
+            "weather_provider": "ClearOutside",
+        },
+        "prediction": {
+            "latitude": 50.0,
+            "longitude": 10.0,
+        },
     }
     config_eos.merge_settings_from_dict(settings)
     return WeatherClearOutside()
@@ -69,7 +73,9 @@ def test_singleton_instance(weather_provider):
 def test_invalid_provider(weather_provider, config_eos):
     """Test requesting an unsupported weather_provider."""
     settings = {
-        "weather_provider": "<invalid>",
+        "weather": {
+            "weather_provider": "<invalid>",
+        }
     }
     config_eos.merge_settings_from_dict(settings)
     assert not weather_provider.enabled()
@@ -78,9 +84,13 @@ def test_invalid_provider(weather_provider, config_eos):
 def test_invalid_coordinates(weather_provider, config_eos):
     """Test invalid coordinates raise ValueError."""
     settings = {
-        "weather_provider": "ClearOutside",
-        "latitude": 1000.0,
-        "longitude": 1000.0,
+        "weather": {
+            "weather_provider": "ClearOutside",
+        },
+        "prediction": {
+            "latitude": 1000.0,
+            "longitude": 1000.0,
+        },
     }
     with pytest.raises(
         ValueError,  # match="Latitude '1000' and/ or longitude `1000` out of valid range."
@@ -150,8 +160,8 @@ def test_update_data(mock_get, weather_provider, sample_clearout_1_html, sample_
     weather_provider.update_data()
 
     # Check for correct prediction time window
-    assert weather_provider.config.prediction_hours == 48
-    assert weather_provider.config.prediction_historic_hours == 48
+    assert weather_provider.config.prediction.prediction_hours == 48
+    assert weather_provider.config.prediction.prediction_historic_hours == 48
     assert compare_datetimes(weather_provider.start_datetime, expected_start).equal
     assert compare_datetimes(weather_provider.end_datetime, expected_end).equal
     assert compare_datetimes(weather_provider.keep_datetime, expected_keep).equal
