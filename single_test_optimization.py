@@ -2,7 +2,6 @@
 
 import argparse
 import cProfile
-import logging
 import pstats
 import sys
 import time
@@ -18,8 +17,7 @@ from akkudoktoreos.optimization.genetic import (
 )
 from akkudoktoreos.prediction.prediction import get_prediction
 
-logger = get_logger(__name__)
-logger.setLevel(logging.DEBUG)  # set level for example report
+get_logger(__name__, logging_level="DEBUG")
 
 
 def prepare_optimization_real_parameters() -> OptimizationParameters:
