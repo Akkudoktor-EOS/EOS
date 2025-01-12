@@ -1,7 +1,9 @@
+import datetime
 import json
 import logging
 import os
 import textwrap
+import toml  # Add this import
 from collections.abc import Sequence
 from typing import Callable, Optional, Union
 
@@ -80,6 +82,22 @@ class VisualizationReport(ConfigMixin):
             rows = (fig_count + 1) // 2
             fig, axs = plt.subplots(rows, cols, figsize=(14, 7 * rows))
             axs = list(np.array(axs).reshape(-1))
+
+        # Read version from pyproject.toml
+        with open("pyproject.toml", "r") as f:
+            pyproject_data = toml.load(f)
+        version_str = pyproject_data["project"]["version"]
+
+        # Add footer text with current time to each page
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        fig.text(
+            0.5,
+            0.02,
+            f"Generated on: {current_time} with version: {version_str}",
+            ha="center",
+            va="center",
+            fontsize=10,
+        )
 
         # Render each chart in its corresponding axis
         for idx, chart_func in enumerate(group):
