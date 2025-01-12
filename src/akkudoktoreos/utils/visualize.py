@@ -1,8 +1,6 @@
-import datetime
 import json
 import logging
 import os
-import re
 import textwrap
 from collections.abc import Sequence
 from typing import Callable, Optional, Union
@@ -14,6 +12,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from akkudoktoreos.core.coreabc import ConfigMixin
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.optimization.genetic import OptimizationParameters
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 logger = get_logger(__name__)
 
@@ -27,11 +26,7 @@ class VisualizationReport(ConfigMixin):
             Callable[[], None]
         ] = []  # Store current group of charts being created
         self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
-
-        with open("pyproject.toml", "r") as f:
-            pyproject_content = f.read()
-            version_match = re.search(r'version\s*=\s*"([^"]+)"', pyproject_content)
-            self.version = version_match.group(1) if version_match else "unknown"
+        self.version = "0.0.1"
 
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
         """Add a chart function to the current group."""
@@ -89,7 +84,7 @@ class VisualizationReport(ConfigMixin):
             axs = list(np.array(axs).reshape(-1))
 
         # Add footer text with current time to each page
-        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_time = to_datetime(as_string="YYYY-MM-DD HH:mm:ss")
         fig.text(
             0.5,
             0.02,
