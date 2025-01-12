@@ -1,3 +1,4 @@
+import logging
 import random
 import time
 from pathlib import Path
@@ -14,6 +15,7 @@ from akkudoktoreos.core.coreabc import (
     EnergyManagementSystemMixin,
 )
 from akkudoktoreos.core.ems import EnergieManagementSystemParameters, SimulationResult
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.devices.battery import (
     Battery,
     ElectricVehicleParameters,
@@ -24,6 +26,8 @@ from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
 from akkudoktoreos.prediction.interpolator import SelfConsumptionPropabilityInterpolator
 from akkudoktoreos.utils.utils import NumpyEncoder
+
+logger = get_logger(__name__)
 
 
 class OptimizationParameters(BaseModel):
@@ -113,10 +117,14 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         self.fix_seed = fixed_seed
         self.optimize_ev = True
         self.optimize_dc_charge = False
+        self.fitness_history: dict[str, Any] = {}
 
-        # Set a fixed seed for random operations if provided
-        if fixed_seed is not None:
-            random.seed(fixed_seed)
+        # Set a fixed seed for random operations if provided or in debug mode
+        if self.fix_seed is not None:
+            random.seed(self.fix_seed)
+        elif logger.level == logging.DEBUG:
+            self.fix_seed = random.randint(1, 100000000000)
+            random.seed(self.fix_seed)
 
     def decode_charge_discharge(
         self, discharge_hours_bin: np.ndarray
@@ -493,6 +501,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         hof = tools.HallOfFame(1)
         stats = tools.Statistics(lambda ind: ind.fitness.values)
         stats.register("min", np.min)
+        stats.register("avg", np.mean)
+        stats.register("max", np.max)
 
         if self.verbose:
             print("Start optimize:", start_solution)
@@ -503,7 +513,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
                 population.insert(0, creator.Individual(start_solution))
 
         # Run the evolutionary algorithm
-        algorithms.eaMuPlusLambda(
+        pop, log = algorithms.eaMuPlusLambda(
             population,
             self.toolbox,
             mu=100,
@@ -515,6 +525,14 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             halloffame=hof,
             verbose=self.verbose,
         )
+
+        # Store fitness history
+        self.fitness_history = {
+            "gen": log.select("gen"),  # Generation numbers (X-axis)
+            "avg": log.select("avg"),  # Average fitness for each generation (Y-axis)
+            "max": log.select("max"),  # Maximum fitness for each generation (Y-axis)
+            "min": log.select("min"),  # Minimum fitness for each generation (Y-axis)
+        }
 
         member: dict[str, list[float]] = {"bilanz": [], "verluste": [], "nebenbedingung": []}
         for ind in population:
@@ -627,6 +645,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             "start_solution": start_solution,
             "spuelstart": washingstart_int,
             "extra_data": extra_data,
+            "fitness_history": self.fitness_history,
+            "fixed_seed": self.fix_seed,
         }
         from akkudoktoreos.utils.visualize import prepare_visualize
 
