@@ -4,6 +4,7 @@ import numpy as np
 from pydantic import BaseModel, Field, field_validator
 
 from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.core.pydantic import ParametersBaseModel
 from akkudoktoreos.devices.devicesabc import DeviceBase
 from akkudoktoreos.utils.utils import NumpyEncoder
 
@@ -24,7 +25,7 @@ def initial_soc_percentage_field(description: str) -> int:
     return Field(default=0, ge=0, le=100, description=description)
 
 
-class BaseBatteryParameters(BaseModel):
+class BaseBatteryParameters(ParametersBaseModel):
     """Base class for battery parameters with fields for capacity, efficiency, and state of charge."""
 
     capacity_wh: int = Field(

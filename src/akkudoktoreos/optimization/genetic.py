@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import numpy as np
 from deap import algorithms, base, creator, tools
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from typing_extensions import Self
 
 from akkudoktoreos.core.coreabc import (
@@ -16,6 +16,7 @@ from akkudoktoreos.core.coreabc import (
 )
 from akkudoktoreos.core.ems import EnergieManagementSystemParameters, SimulationResult
 from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.core.pydantic import ParametersBaseModel
 from akkudoktoreos.devices.battery import (
     Battery,
     ElectricVehicleParameters,
@@ -30,10 +31,10 @@ from akkudoktoreos.utils.utils import NumpyEncoder
 logger = get_logger(__name__)
 
 
-class OptimizationParameters(BaseModel):
+class OptimizationParameters(ParametersBaseModel):
     ems: EnergieManagementSystemParameters
-    pv_akku: SolarPanelBatteryParameters
-    inverter: InverterParameters = InverterParameters()
+    pv_akku: Optional[SolarPanelBatteryParameters]
+    inverter: Optional[InverterParameters]
     eauto: Optional[ElectricVehicleParameters]
     dishwasher: Optional[HomeApplianceParameters] = None
     temperature_forecast: Optional[list[Optional[float]]] = Field(
@@ -60,7 +61,7 @@ class OptimizationParameters(BaseModel):
         return start_solution
 
 
-class OptimizeResponse(BaseModel):
+class OptimizeResponse(ParametersBaseModel):
     """**Note**: The first value of "Last_Wh_per_hour", "Netzeinspeisung_Wh_per_hour", and "Netzbezug_Wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
 
     ac_charge: list[float] = Field(
@@ -565,11 +566,13 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         )
 
         # Initialize PV and EV batteries
-        akku = Battery(
-            parameters.pv_akku,
-            hours=self.config.prediction_hours,
-        )
-        akku.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
+        akku: Optional[Battery] = None
+        if parameters.pv_akku:
+            akku = Battery(
+                parameters.pv_akku,
+                hours=self.config.prediction_hours,
+            )
+            akku.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
 
         eauto: Optional[Battery] = None
         if parameters.eauto:
@@ -595,11 +598,13 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         )
 
         # Initialize the inverter and energy management system
-        inverter = Inverter(
-            sc,
-            parameters.inverter,
-            akku,
-        )
+        inverter: Optional[Inverter] = None
+        if parameters.inverter:
+            inverter = Inverter(
+                sc,
+                parameters.inverter,
+                akku,
+            )
         self.ems.set_parameters(
             parameters.ems,
             inverter=inverter,

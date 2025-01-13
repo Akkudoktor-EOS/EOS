@@ -2,9 +2,11 @@
 
 import argparse
 import cProfile
+import json
 import pstats
 import sys
 import time
+from typing import Any
 
 import numpy as np
 
@@ -295,7 +297,9 @@ def prepare_optimization_parameters() -> OptimizationParameters:
     )
 
 
-def run_optimization(real_world: bool = False, start_hour: int = 0, verbose: bool = False) -> dict:
+def run_optimization(
+    real_world: bool, start_hour: int, verbose: bool, seed: int, parameters_file: str, ngen: int
+) -> Any:
     """Run the optimization problem.
 
     Args:
@@ -306,7 +310,10 @@ def run_optimization(real_world: bool = False, start_hour: int = 0, verbose: boo
         dict: Optimization result as a dictionary
     """
     # Prepare parameters
-    if real_world:
+    if parameters_file:
+        with open(parameters_file, "r") as f:
+            parameters = OptimizationParameters(**json.load(f))
+    elif real_world:
         parameters = prepare_optimization_real_parameters()
     else:
         parameters = prepare_optimization_parameters()
@@ -318,12 +325,12 @@ def run_optimization(real_world: bool = False, start_hour: int = 0, verbose: boo
     # Initialize the optimization problem using the default configuration
     config_eos = get_config()
     config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 48})
-    opt_class = optimization_problem(verbose=verbose, fixed_seed=42)
+    opt_class = optimization_problem(verbose=verbose, fixed_seed=seed)
 
     # Perform the optimisation based on the provided parameters and start hour
-    result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
+    result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour, ngen=ngen)
 
-    return result.model_dump()
+    return result.model_dump_json()
 
 
 def main():
@@ -339,6 +346,19 @@ def main():
     parser.add_argument(
         "--start-hour", type=int, default=0, help="Starting hour for optimization (default: 0)"
     )
+    parser.add_argument(
+        "--parameters-file",
+        type=str,
+        default="",
+        help="Load optimization parameters from json file (default: unset)",
+    )
+    parser.add_argument("--seed", type=int, default=42, help="Use fixed random seed (default: 42)")
+    parser.add_argument(
+        "--ngen",
+        type=int,
+        default=400,
+        help="Number of generations during optimization process (default: 400)",
+    )
 
     args = parser.parse_args()
 
@@ -351,12 +371,16 @@ def main():
                 real_world=args.real_world,
                 start_hour=args.start_hour,
                 verbose=args.verbose,
+                seed=args.seed,
+                parameters_file=args.parameters_file,
+                ngen=args.ngen,
             )
             # Print profiling statistics
             stats = pstats.Stats(profiler)
             stats.strip_dirs().sort_stats("cumulative").print_stats(200)
             # Print result
-            print("\nOptimization Result:")
+            if args.verbose:
+                print("\nOptimization Result:")
             print(result)
 
         except Exception as e:
@@ -367,12 +391,18 @@ def main():
         try:
             start_time = time.time()
             result = run_optimization(
-                real_world=args.real_world, start_hour=args.start_hour, verbose=args.verbose
+                real_world=args.real_world,
+                start_hour=args.start_hour,
+                verbose=args.verbose,
+                seed=args.seed,
+                parameters_file=args.parameters_file,
+                ngen=args.ngen,
             )
             end_time = time.time()
             elapsed_time = end_time - start_time
-            print(f"\nElapsed time: {elapsed_time:.4f} seconds.")
-            print("\nOptimization Result:")
+            if args.verbose:
+                print(f"\nElapsed time: {elapsed_time:.4f} seconds.")
+                print("\nOptimization Result:")
             print(result)
 
         except Exception as e:

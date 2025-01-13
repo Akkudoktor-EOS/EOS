@@ -1,15 +1,16 @@
 from typing import Optional
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.core.pydantic import ParametersBaseModel
 from akkudoktoreos.devices.devicesabc import DeviceBase
 
 logger = get_logger(__name__)
 
 
-class HomeApplianceParameters(BaseModel):
+class HomeApplianceParameters(ParametersBaseModel):
     consumption_wh: int = Field(
         gt=0,
         description="An integer representing the energy consumption of a household device in watt-hours.",

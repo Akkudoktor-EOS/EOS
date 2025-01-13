@@ -6108,6 +6108,7 @@
             "default": 100
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "capacity_wh"
@@ -6231,6 +6232,7 @@
             "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "pv_prognose_wh",
@@ -6326,6 +6328,7 @@
             "description": "An integer representing the usage duration of a household device in hours."
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "consumption_wh",
@@ -6338,11 +6341,14 @@
           "max_power_wh": {
             "type": "number",
             "exclusiveMinimum": 0.0,
-            "title": "Max Power Wh",
-            "default": 10000
+            "title": "Max Power Wh"
           }
         },
+        "additionalProperties": false,
         "type": "object",
+        "required": [
+          "max_power_wh"
+        ],
         "title": "InverterParameters"
       },
       "OptimizationParameters": {
@@ -6351,13 +6357,24 @@
             "$ref": "#/components/schemas/EnergieManagementSystemParameters"
           },
           "pv_akku": {
-            "$ref": "#/components/schemas/SolarPanelBatteryParameters"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SolarPanelBatteryParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "inverter": {
-            "$ref": "#/components/schemas/InverterParameters",
-            "default": {
-              "max_power_wh": 10000.0
-            }
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InverterParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "eauto": {
             "anyOf": [
@@ -6417,10 +6434,12 @@
             "description": "Can be `null` or contain a previous solution (if available)."
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "ems",
           "pv_akku",
+          "inverter",
           "eauto"
         ],
         "title": "OptimizationParameters"
@@ -6507,6 +6526,7 @@
             "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "ac_charge",
@@ -8834,6 +8854,7 @@
             "description": "Used Electricity Price, including predictions"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "Last_Wh_pro_Stunde",
@@ -8917,6 +8938,7 @@
             "default": 100
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "capacity_wh"

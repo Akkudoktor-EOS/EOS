@@ -1,17 +1,18 @@
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 from scipy.interpolate import RegularGridInterpolator
 
 from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.core.pydantic import ParametersBaseModel
 from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.devicesabc import DeviceBase
 
 logger = get_logger(__name__)
 
 
-class InverterParameters(BaseModel):
-    max_power_wh: float = Field(default=10000, gt=0)
+class InverterParameters(ParametersBaseModel):
+    max_power_wh: float = Field(gt=0)
 
 
 class Inverter(DeviceBase):
