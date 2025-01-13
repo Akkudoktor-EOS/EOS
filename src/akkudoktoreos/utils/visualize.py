@@ -402,8 +402,8 @@ def prepare_visualize(
     report = VisualizationReport(filename)
     # Group 1:
     print(parameters.ems.gesamtlast)
-    report.create_line_chart(
-        None,
+    report.create_line_chart_date(
+        pendulum.now(),  # start_date
         [parameters.ems.gesamtlast],
         title="Load Profile",
         xlabel="Hours",
@@ -412,24 +412,24 @@ def prepare_visualize(
         markers=["s"],
         line_styles=["-"],
     )
-    report.create_line_chart(
-        None,
+    report.create_line_chart_date(
+        pendulum.now(),  # start_date
         [parameters.ems.pv_prognose_wh],
         title="PV Forecast",
         xlabel="Hours",
         ylabel="PV Generation (Wh)",
     )
 
-    report.create_line_chart(
-        None,
+    report.create_line_chart_date(
+        pendulum.now(),  # start_date
         [np.full(len(parameters.ems.gesamtlast), parameters.ems.einspeiseverguetung_euro_pro_wh)],
         title="Remuneration",
         xlabel="Hours",
         ylabel="€/Wh",
     )
     if parameters.temperature_forecast:
-        report.create_line_chart(
-            None,
+        report.create_line_chart_date(
+            pendulum.now(),  # start_date
             [parameters.temperature_forecast],
             title="Temperature Forecast",
             xlabel="Hours",
@@ -438,8 +438,8 @@ def prepare_visualize(
     report.finalize_group()
 
     # Group 2:
-    report.create_line_chart(
-        start_hour,
+    report.create_line_chart_date(
+        pendulum.now(),  # start_date
         [
             results["result"]["Last_Wh_pro_Stunde"],
             results["result"]["Home_appliance_wh_per_hour"],
@@ -448,7 +448,7 @@ def prepare_visualize(
             results["result"]["Verluste_Pro_Stunde"],
         ],
         title="Energy Flow per Hour",
-        xlabel="Hours",
+        xlabel="Date",
         ylabel="Energy (Wh)",
         labels=[
             "Load (Wh)",
@@ -463,8 +463,8 @@ def prepare_visualize(
     report.finalize_group()
 
     # Group 3:
-    report.create_line_chart(
-        start_hour,
+    report.create_line_chart_date(
+        pendulum.now(),  # start_date
         [results["result"]["akku_soc_pro_stunde"], results["result"]["EAuto_SoC_pro_Stunde"]],
         title="Battery SOC",
         xlabel="Hours",
@@ -475,8 +475,8 @@ def prepare_visualize(
         ],
         markers=["o", "x"],
     )
-    report.create_line_chart(
-        None,
+    report.create_line_chart_date(
+        pendulum.now(),  # start_date
         [parameters.ems.strompreis_euro_pro_wh],
         title="Electricity Price",
         xlabel="Hours",
@@ -496,8 +496,8 @@ def prepare_visualize(
 
     # Group 4:
 
-    report.create_line_chart(
-        start_hour,
+    report.create_line_chart_date(
+        pendulum.now(),  # start_date
         [
             results["result"]["Kosten_Euro_pro_Stunde"],
             results["result"]["Einnahmen_Euro_pro_Stunde"],
