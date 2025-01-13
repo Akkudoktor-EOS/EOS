@@ -111,7 +111,7 @@ class VisualizationReport(ConfigMixin):
     def create_line_chart_date(
         self,
         start_date: pendulum.DateTime,
-        y_list: list[list[Optional[float]]],
+        y_list: list[Union[np.ndarray, list[Optional[float]], list[float]]],
         ylabel: str,
         xlabel: Optional[str] = None,
         title: Optional[str] = None,
@@ -149,8 +149,8 @@ class VisualizationReport(ConfigMixin):
             # Auto-format the x-axis for readability
 
             # Move major tick labels further down to avoid collision with minor tick labels
-            for label in plt.gca().get_xticklabels(which="major"):
-                label.set_y(-0.04)
+            for plt_label in plt.gca().get_xticklabels(which="major"):
+                plt_label.set_y(-0.04)
 
             # Add labels, title, and legend
             if xlabel:
@@ -414,7 +414,9 @@ def prepare_visualize(
     print(parameters.ems.gesamtlast)
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
-        [parameters.ems.gesamtlast],
+        [
+            parameters.ems.gesamtlast,
+        ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
         ylabel="Load (Wh)",
@@ -422,7 +424,9 @@ def prepare_visualize(
     )
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
-        [parameters.ems.pv_prognose_wh],
+        [
+            parameters.ems.pv_prognose_wh,
+        ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
         ylabel="PV Generation (Wh)",
@@ -439,7 +443,9 @@ def prepare_visualize(
     if parameters.temperature_forecast:
         report.create_line_chart_date(
             next_full_hour_date,  # start_date
-            [parameters.temperature_forecast],
+            [
+                parameters.temperature_forecast,
+            ],
             title="Temperature Forecast",
             # xlabel="Hours", # not enough space
             ylabel="°C",
