@@ -112,12 +112,13 @@ class VisualizationReport(ConfigMixin):
         self,
         start_date: pendulum.DateTime,
         y_list: list[list[Optional[float]]],
-        title: str,
-        xlabel: str,
         ylabel: str,
+        xlabel: Optional[str] = None,
+        title: Optional[str] = None,
         labels: Optional[list[str]] = None,
         markers: Optional[list[str]] = None,
         line_styles: Optional[list[str]] = None,
+        x2label: Optional[Union[str, None]] = "Hours Since Start",
     ) -> None:
         """Create a line chart and add it to the current group."""
 
@@ -136,27 +137,34 @@ class VisualizationReport(ConfigMixin):
 
             # Format the time axis
             plt.gca().xaxis.set_major_formatter(
-                mdates.DateFormatter("%Y-%m-%d %H:%M")
+                mdates.DateFormatter("%Y-%m-%d")
             )  # Show date and time
             plt.gca().xaxis.set_major_locator(
                 mdates.DayLocator(interval=1, tz=None)
             )  # Major ticks every day
-            # plt.gca().xaxis.set_minor_locator(
-            #    mdates.HourLocator(interval=6, tz=None)
-            # )  # Minor ticks every 6 hours
-            plt.gcf().autofmt_xdate()  # Auto-format the x-axis for readability
+            plt.gca().xaxis.set_minor_locator(mdates.HourLocator(interval=3, tz=None))
+            # Minor ticks every 6 hours
+            plt.gca().xaxis.set_minor_formatter(mdates.DateFormatter("%H"))
+            # plt.gcf().autofmt_xdate(rotation=45, which="major")
+            # Auto-format the x-axis for readability
+
+            # Move major tick labels further down to avoid collision with minor tick labels
+            for label in plt.gca().get_xticklabels(which="major"):
+                label.set_y(-0.04)
 
             # Add labels, title, and legend
-            plt.xlabel(xlabel)
+            if xlabel:
+                plt.xlabel(xlabel)
             plt.ylabel(ylabel)
-            plt.title(title)
+            if title:
+                plt.title(title)
             if labels:
                 plt.legend()
             plt.grid(True)
 
             # Add vertical line for the current date if within the axis range
             current_time = pendulum.now()
-            if timestamps[0] <= current_time <= timestamps[-1]:
+            if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
                 plt.axvline(current_time, color="r", linestyle="--", label="Now")
                 plt.text(current_time, plt.ylim()[1], "Now", color="r", ha="center", va="bottom")
 
@@ -171,7 +179,8 @@ class VisualizationReport(ConfigMixin):
             # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[::48]])
             ax2.set_xticks(timestamps[:: len(timestamps) // 24])  # Select 10 evenly spaced ticks
             ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 24]])
-            ax2.set_xlabel("Hours Since Start")
+            if x2label:
+                ax2.set_xlabel(x2label)
 
             # Ensure ax1 and ax2 are aligned
             # assert ax1.get_xlim() == ax2.get_xlim(), "ax1 and ax2 are not aligned"
@@ -400,46 +409,47 @@ def prepare_visualize(
     start_hour: Optional[int] = 0,
 ) -> None:
     report = VisualizationReport(filename)
+    next_full_hour_date = pendulum.now().start_of("hour").add(hours=1)
     # Group 1:
     print(parameters.ems.gesamtlast)
     report.create_line_chart_date(
-        pendulum.now(),  # start_date
+        next_full_hour_date,  # start_date
         [parameters.ems.gesamtlast],
         title="Load Profile",
-        xlabel="Hours",
+        # xlabel="Hours", # not enough space
         ylabel="Load (Wh)",
         labels=["Total Load (Wh)"],
-        markers=["s"],
-        line_styles=["-"],
     )
     report.create_line_chart_date(
-        pendulum.now(),  # start_date
+        next_full_hour_date,  # start_date
         [parameters.ems.pv_prognose_wh],
         title="PV Forecast",
-        xlabel="Hours",
+        # xlabel="Hours", # not enough space
         ylabel="PV Generation (Wh)",
     )
 
     report.create_line_chart_date(
-        pendulum.now(),  # start_date
+        next_full_hour_date,  # start_date
         [np.full(len(parameters.ems.gesamtlast), parameters.ems.einspeiseverguetung_euro_pro_wh)],
         title="Remuneration",
-        xlabel="Hours",
+        # xlabel="Hours", # not enough space
         ylabel="€/Wh",
+        x2label=None,  # not enough space
     )
     if parameters.temperature_forecast:
         report.create_line_chart_date(
-            pendulum.now(),  # start_date
+            next_full_hour_date,  # start_date
             [parameters.temperature_forecast],
             title="Temperature Forecast",
-            xlabel="Hours",
+            # xlabel="Hours", # not enough space
             ylabel="°C",
+            x2label=None,  # not enough space
         )
     report.finalize_group()
 
     # Group 2:
     report.create_line_chart_date(
-        pendulum.now(),  # start_date
+        next_full_hour_date,  # start_date
         [
             results["result"]["Last_Wh_pro_Stunde"],
             results["result"]["Home_appliance_wh_per_hour"],
@@ -448,7 +458,7 @@ def prepare_visualize(
             results["result"]["Verluste_Pro_Stunde"],
         ],
         title="Energy Flow per Hour",
-        xlabel="Date",
+        # xlabel="Date", # not enough space
         ylabel="Energy (Wh)",
         labels=[
             "Load (Wh)",
@@ -464,10 +474,10 @@ def prepare_visualize(
 
     # Group 3:
     report.create_line_chart_date(
-        pendulum.now(),  # start_date
+        next_full_hour_date,  # start_date
         [results["result"]["akku_soc_pro_stunde"], results["result"]["EAuto_SoC_pro_Stunde"]],
         title="Battery SOC",
-        xlabel="Hours",
+        # xlabel="Date", # not enough space
         ylabel="%",
         labels=[
             "Battery SOC (%)",
@@ -476,11 +486,12 @@ def prepare_visualize(
         markers=["o", "x"],
     )
     report.create_line_chart_date(
-        pendulum.now(),  # start_date
+        next_full_hour_date,  # start_date
         [parameters.ems.strompreis_euro_pro_wh],
-        title="Electricity Price",
-        xlabel="Hours",
-        ylabel="Price (€/Wh)",
+        # title="Electricity Price", # not enough space
+        # xlabel="Date", # not enough space
+        ylabel="Electricity Price (€/Wh)",
+        x2label=None,  # not enough space
     )
 
     report.create_bar_chart(
@@ -497,13 +508,13 @@ def prepare_visualize(
     # Group 4:
 
     report.create_line_chart_date(
-        pendulum.now(),  # start_date
+        next_full_hour_date,  # start_date
         [
             results["result"]["Kosten_Euro_pro_Stunde"],
             results["result"]["Einnahmen_Euro_pro_Stunde"],
         ],
         title="Financial Balance per Hour",
-        xlabel="Hours",
+        # xlabel="Date", # not enough space
         ylabel="Euro",
         labels=["Costs", "Revenue"],
     )
