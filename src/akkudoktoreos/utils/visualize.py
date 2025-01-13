@@ -3,14 +3,13 @@ import logging
 import os
 import textwrap
 from collections.abc import Sequence
-from datetime import timedelta
 from typing import Callable, Optional, Union
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.backends.backend_pdf import PdfPages
 import pendulum
+from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.core.coreabc import ConfigMixin
 from akkudoktoreos.core.logging import get_logger
@@ -160,6 +159,20 @@ class VisualizationReport(ConfigMixin):
             if timestamps[0] <= current_time <= timestamps[-1]:
                 plt.axvline(current_time, color="r", linestyle="--", label="Now")
                 plt.text(current_time, plt.ylim()[1], "Now", color="r", ha="center", va="bottom")
+
+            # Add a second x-axis on top
+            ax1 = plt.gca()
+            ax2 = ax1.twiny()
+            ax2.set_xlim(ax1.get_xlim())  # Align the second axis with the first
+
+            # Generate integer hour labels
+            hours_since_start = [(t - timestamps[0]).total_seconds() / 3600 for t in timestamps]
+            ax2.set_xticks(timestamps[::48])  # Set ticks every 12 hours
+            ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[::48]])
+            ax2.set_xlabel("Hours Since Start")
+
+            # Ensure ax1 and ax2 are aligned
+            # assert ax1.get_xlim() == ax2.get_xlim(), "ax1 and ax2 are not aligned"
 
         self.add_chart_to_group(chart)  # Add chart function to current group
 
@@ -690,8 +703,8 @@ def generate_example_report(filename: str = "example_report.pdf") -> None:
     report.finalize_group()
 
     report.create_line_chart_date(
-        pendulum.now().subtract(hours=48),
-        [list(np.random.random(840))],
+        pendulum.now().subtract(hours=0),
+        [list(np.random.random(48))],
         title="test",
         xlabel="test",
         ylabel="test",
