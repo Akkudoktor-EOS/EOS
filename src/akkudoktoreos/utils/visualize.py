@@ -29,6 +29,7 @@ class VisualizationReport(ConfigMixin):
         ] = []  # Store current group of charts being created
         self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
         self.version = version  # overwrite version as test for constant output of pdf for test
+        self.current_time = to_datetime(as_string="YYYY-MM-DD HH:mm:ss")
 
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
         """Add a chart function to the current group."""
@@ -89,7 +90,7 @@ class VisualizationReport(ConfigMixin):
         if self.version == "test":
             current_time = "test"
         else:
-            current_time = to_datetime(as_string="YYYY-MM-DD HH:mm:ss")
+            current_time = self.current_time
         fig.text(
             0.5,
             0.02,
