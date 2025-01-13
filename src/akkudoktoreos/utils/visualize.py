@@ -139,11 +139,11 @@ class VisualizationReport(ConfigMixin):
                 mdates.DateFormatter("%Y-%m-%d %H:%M")
             )  # Show date and time
             plt.gca().xaxis.set_major_locator(
-                mdates.DayLocator(interval=2, tz=None)
-            )  # Major ticks every day
-            plt.gca().xaxis.set_minor_locator(
                 mdates.DayLocator(interval=1, tz=None)
-            )  # Minor ticks every 6 hours
+            )  # Major ticks every day
+            # plt.gca().xaxis.set_minor_locator(
+            #    mdates.HourLocator(interval=6, tz=None)
+            # )  # Minor ticks every 6 hours
             plt.gcf().autofmt_xdate()  # Auto-format the x-axis for readability
 
             # Add labels, title, and legend
@@ -167,8 +167,10 @@ class VisualizationReport(ConfigMixin):
 
             # Generate integer hour labels
             hours_since_start = [(t - timestamps[0]).total_seconds() / 3600 for t in timestamps]
-            ax2.set_xticks(timestamps[::48])  # Set ticks every 12 hours
-            ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[::48]])
+            # ax2.set_xticks(timestamps[::48])  # Set ticks every 12 hours
+            # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[::48]])
+            ax2.set_xticks(timestamps[:: len(timestamps) // 24])  # Select 10 evenly spaced ticks
+            ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 24]])
             ax2.set_xlabel("Hours Since Start")
 
             # Ensure ax1 and ax2 are aligned
@@ -704,7 +706,7 @@ def generate_example_report(filename: str = "example_report.pdf") -> None:
 
     report.create_line_chart_date(
         pendulum.now().subtract(hours=0),
-        [list(np.random.random(48))],
+        [list(np.random.random(840))],
         title="test",
         xlabel="test",
         ylabel="test",
