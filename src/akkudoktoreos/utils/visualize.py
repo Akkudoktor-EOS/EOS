@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 class VisualizationReport(ConfigMixin):
-    def __init__(self, filename: str = "visualization_results.pdf") -> None:
+    def __init__(self, filename: str = "visualization_results.pdf", version: str = "0.0.1") -> None:
         # Initialize the report with a given filename and empty groups
         self.filename = filename
         self.groups: list[list[Callable[[], None]]] = []  # Store groups of charts
@@ -28,7 +28,7 @@ class VisualizationReport(ConfigMixin):
             Callable[[], None]
         ] = []  # Store current group of charts being created
         self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
-        self.version = "0.0.1"
+        self.version = version  # overwrite version as test for constant output of pdf for test
 
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
         """Add a chart function to the current group."""
@@ -86,7 +86,10 @@ class VisualizationReport(ConfigMixin):
             axs = list(np.array(axs).reshape(-1))
 
         # Add footer text with current time to each page
-        current_time = to_datetime(as_string="YYYY-MM-DD HH:mm:ss")
+        if self.version == "test":
+            current_time = "test"
+        else:
+            current_time = to_datetime(as_string="YYYY-MM-DD HH:mm:ss")
         fig.text(
             0.5,
             0.02,
@@ -615,7 +618,7 @@ def prepare_visualize(
 
 def generate_example_report(filename: str = "example_report.pdf") -> None:
     """Generate example visualization report."""
-    report = VisualizationReport(filename)
+    report = VisualizationReport(filename, "test")
     x_hours = 0  # Define x-axis start values (e.g., hours)
 
     # Group 1: Adding charts to be displayed on the same page
