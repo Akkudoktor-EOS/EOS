@@ -18,7 +18,9 @@ from akkudoktoreos.optimization.genetic import OptimizationParameters
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 logger = get_logger(__name__)
-matplotlib.use("Agg")
+matplotlib.use(
+    "Agg"
+)  # non-interactive backend that can only write to files, backend needed to stay in main thread.
 
 
 class VisualizationReport(ConfigMixin):
