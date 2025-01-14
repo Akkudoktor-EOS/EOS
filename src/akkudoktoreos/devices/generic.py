@@ -10,14 +10,18 @@ logger = get_logger(__name__)
 
 
 class HomeApplianceParameters(DeviceParameters):
-    device_id: str = Field(description="ID of home appliance")
+    """Home Appliance Device Simulation Configuration."""
+
+    device_id: str = Field(description="ID of home appliance", examples=["dishwasher"])
     consumption_wh: int = Field(
         gt=0,
         description="An integer representing the energy consumption of a household device in watt-hours.",
+        examples=[2000],
     )
     duration_h: int = Field(
         gt=0,
         description="An integer representing the usage duration of a household device in hours.",
+        examples=[3],
     )
 
 

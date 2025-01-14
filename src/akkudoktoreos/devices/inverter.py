@@ -10,9 +10,13 @@ logger = get_logger(__name__)
 
 
 class InverterParameters(DeviceParameters):
-    device_id: str = Field(description="ID of inverter")
-    max_power_wh: float = Field(gt=0)
-    battery: Optional[str] = Field(default=None, description="ID of battery")
+    """Inverter Device Simulation Configuration."""
+
+    device_id: str = Field(description="ID of inverter", examples=["inverter1"])
+    max_power_wh: float = Field(gt=0, examples=[10000])
+    battery: Optional[str] = Field(
+        default=None, description="ID of battery", examples=[None, "battery1"]
+    )
 
 
 class Inverter(DeviceBase):

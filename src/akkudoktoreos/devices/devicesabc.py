@@ -19,20 +19,19 @@ from akkudoktoreos.utils.datetimeutil import to_duration
 logger = get_logger(__name__)
 
 
-# class DeviceParameters(PydanticBaseModel):
 class DeviceParameters(ParametersBaseModel):
-    device_id: str = Field(description="ID of device")
+    device_id: str = Field(description="ID of device", examples="device1")
     hours: Optional[int] = Field(
         default=None,
         gt=0,
         description="Number of prediction hours. Defaults to global config prediction hours.",
+        examples=[None],
     )
 
 
-# class DeviceOptimizeResult(PydanticBaseModel):
 class DeviceOptimizeResult(ParametersBaseModel):
-    device_id: str = Field(description="ID of device")
-    hours: int = Field(gt=0, description="Number of hours in the simulation.")
+    device_id: str = Field(description="ID of device", examples=["device1"])
+    hours: int = Field(gt=0, description="Number of hours in the simulation.", examples=[24])
 
 
 class DeviceState(Enum):

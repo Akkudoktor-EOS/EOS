@@ -23,11 +23,15 @@ class WeatherImportCommonSettings(SettingsBaseModel):
     """Common settings for weather data import from file or JSON string."""
 
     weatherimport_file_path: Optional[Union[str, Path]] = Field(
-        default=None, description="Path to the file to import weather data from."
+        default=None,
+        description="Path to the file to import weather data from.",
+        examples=[None, "/path/to/weather_data.json"],
     )
 
     weatherimport_json: Optional[str] = Field(
-        default=None, description="JSON string, dictionary of weather forecast value lists."
+        default=None,
+        description="JSON string, dictionary of weather forecast value lists.",
+        examples=['{"weather_temp_air": [18.3, 17.8, 16.9]}'],
     )
 
     # Validators

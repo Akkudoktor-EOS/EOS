@@ -23,12 +23,15 @@ class PVForecastImportCommonSettings(SettingsBaseModel):
     """Common settings for pvforecast data import from file or JSON string."""
 
     pvforecastimport_file_path: Optional[Union[str, Path]] = Field(
-        default=None, description="Path to the file to import PV forecast data from."
+        default=None,
+        description="Path to the file to import PV forecast data from.",
+        examples=[None, "/path/to/pvforecast.json"],
     )
 
     pvforecastimport_json: Optional[str] = Field(
         default=None,
         description="JSON string, dictionary of PV forecast value lists.",
+        examples=['{"pvforecast_ac_power": [0, 8.05, 352.91]}'],
     )
 
     # Validators

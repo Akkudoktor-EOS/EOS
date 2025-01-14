@@ -23,12 +23,15 @@ class ElecPriceImportCommonSettings(SettingsBaseModel):
     """Common settings for elecprice data import from file or JSON String."""
 
     elecpriceimport_file_path: Optional[Union[str, Path]] = Field(
-        default=None, description="Path to the file to import elecprice data from."
+        default=None,
+        description="Path to the file to import elecprice data from.",
+        examples=[None, "/path/to/prices.json"],
     )
 
     elecpriceimport_json: Optional[str] = Field(
         default=None,
         description="JSON string, dictionary of electricity price forecast value lists.",
+        examples=['{"elecprice_marketprice_wh": [0.0003384, 0.0003318, 0.0003284]}'],
     )
 
     # Validators

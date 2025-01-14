@@ -25,15 +25,26 @@ def max_charging_power_field(description: Optional[str] = None) -> float:
 
 
 def initial_soc_percentage_field(description: str) -> int:
-    return Field(default=0, ge=0, le=100, description=description)
+    return Field(default=0, ge=0, le=100, description=description, examples=[42])
+
+
+def discharging_efficiency_field(default_value: float) -> float:
+    return Field(
+        default=default_value,
+        gt=0,
+        le=1,
+        description="A float representing the discharge efficiency of the battery.",
+    )
 
 
 class BaseBatteryParameters(DeviceParameters):
-    """Base class for battery parameters with fields for capacity, efficiency, and state of charge."""
+    """Battery Device Simulation Configuration."""
 
-    device_id: str = Field(description="ID of battery")
+    device_id: str = Field(description="ID of battery", examples=["battery1"])
     capacity_wh: int = Field(
-        gt=0, description="An integer representing the capacity of the battery in watt-hours."
+        gt=0,
+        description="An integer representing the capacity of the battery in watt-hours.",
+        examples=[8000],
     )
     charging_efficiency: float = Field(
         default=0.88,
@@ -41,12 +52,7 @@ class BaseBatteryParameters(DeviceParameters):
         le=1,
         description="A float representing the charging efficiency of the battery.",
     )
-    discharging_efficiency: float = Field(
-        default=0.88,
-        gt=0,
-        le=1,
-        description="A float representing the discharge efficiency of the battery.",
-    )
+    discharging_efficiency: float = discharging_efficiency_field(0.88)
     max_charge_power_w: Optional[float] = max_charging_power_field()
     initial_soc_percentage: int = initial_soc_percentage_field(
         "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
@@ -56,6 +62,7 @@ class BaseBatteryParameters(DeviceParameters):
         ge=0,
         le=100,
         description="An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+        examples=[10],
     )
     max_soc_percentage: int = Field(
         default=100,
@@ -70,10 +77,10 @@ class SolarPanelBatteryParameters(BaseBatteryParameters):
 
 
 class ElectricVehicleParameters(BaseBatteryParameters):
-    """Parameters specific to an electric vehicle (EV)."""
+    """Battery Electric Vehicle Device Simulation Configuration."""
 
-    device_id: str = Field(description="ID of electric vehicle")
-    discharging_efficiency: float = 1.0
+    device_id: str = Field(description="ID of electric vehicle", examples=["ev1"])
+    discharging_efficiency: float = discharging_efficiency_field(1.0)
     initial_soc_percentage: int = initial_soc_percentage_field(
         "An integer representing the current state of charge (SOC) of the battery in percentage."
     )
@@ -82,7 +89,7 @@ class ElectricVehicleParameters(BaseBatteryParameters):
 class ElectricVehicleResult(DeviceOptimizeResult):
     """Result class containing information related to the electric vehicle's charging and discharging behavior."""
 
-    device_id: str = Field(description="ID of electric vehicle")
+    device_id: str = Field(description="ID of electric vehicle", examples=["ev1"])
     charge_array: list[float] = Field(
         description="Hourly charging status (0 for no charging, 1 for charging)."
     )

@@ -12,29 +12,37 @@ logger = get_logger(__name__)
 
 
 class PVForecastCommonSettings(SettingsBaseModel):
+    """PV Forecast Configuration."""
+
     # General plane parameters
     #     https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html
     # Inverter Parameters
     #     https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/inverter.html
 
     pvforecast_provider: Optional[str] = Field(
-        default=None, description="PVForecast provider id of provider to be used."
+        default=None,
+        description="PVForecast provider id of provider to be used.",
+        examples=["PVForecastAkkudoktor"],
     )
     # pvforecast0_latitude: Optional[float] = Field(default=None, description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)")
     # Plane 0
     pvforecast0_surface_tilt: Optional[float] = Field(
-        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None,
+        description="Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+        examples=[10.0],
     )
     pvforecast0_surface_azimuth: Optional[float] = Field(
         default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+        examples=[10.0],
     )
     pvforecast0_userhorizon: Optional[List[float]] = Field(
         default=None,
         description="Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
+        examples=[[10.0, 20.0, 30.0]],
     )
     pvforecast0_peakpower: Optional[float] = Field(
-        default=None, description="Nominal power of PV system in kW."
+        default=None, description="Nominal power of PV system in kW.", examples=[5.0]
     )
     pvforecast0_pvtechchoice: Optional[str] = Field(
         default="crystSi", description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
@@ -49,48 +57,60 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast0_trackingtype: Optional[int] = Field(
         default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+        examples=[0, 1, 2, 3, 4, 5],
     )
     pvforecast0_optimal_surface_tilt: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+        examples=[False],
     )
     pvforecast0_optimalangles: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+        examples=[False],
     )
     pvforecast0_albedo: Optional[float] = Field(
         default=None,
         description="Proportion of the light hitting the ground that it reflects back.",
+        examples=[None],
     )
     pvforecast0_module_model: Optional[str] = Field(
-        default=None, description="Model of the PV modules of this plane."
+        default=None, description="Model of the PV modules of this plane.", examples=[None]
     )
     pvforecast0_inverter_model: Optional[str] = Field(
-        default=None, description="Model of the inverter of this plane."
+        default=None, description="Model of the inverter of this plane.", examples=[None]
     )
     pvforecast0_inverter_paco: Optional[int] = Field(
-        default=None, description="AC power rating of the inverter. [W]"
+        default=None, description="AC power rating of the inverter. [W]", examples=[6000]
     )
     pvforecast0_modules_per_string: Optional[int] = Field(
-        default=None, description="Number of the PV modules of the strings of this plane."
+        default=None,
+        description="Number of the PV modules of the strings of this plane.",
+        examples=[20],
     )
     pvforecast0_strings_per_inverter: Optional[int] = Field(
-        default=None, description="Number of the strings of the inverter of this plane."
+        default=None,
+        description="Number of the strings of the inverter of this plane.",
+        examples=[2],
     )
     # Plane 1
     pvforecast1_surface_tilt: Optional[float] = Field(
-        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None,
+        description="Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+        examples=[20.0],
     )
     pvforecast1_surface_azimuth: Optional[float] = Field(
         default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+        examples=[20.0],
     )
     pvforecast1_userhorizon: Optional[List[float]] = Field(
         default=None,
         description="Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
+        examples=[[5.0, 15.0, 25.0]],
     )
     pvforecast1_peakpower: Optional[float] = Field(
-        default=None, description="Nominal power of PV system in kW."
+        default=None, description="Nominal power of PV system in kW.", examples=[3.5]
     )
     pvforecast1_pvtechchoice: Optional[str] = Field(
         default="crystSi", description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
@@ -105,262 +125,332 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast1_trackingtype: Optional[int] = Field(
         default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+        examples=[None],
     )
     pvforecast1_optimal_surface_tilt: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+        examples=[False],
     )
     pvforecast1_optimalangles: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+        examples=[False],
     )
     pvforecast1_albedo: Optional[float] = Field(
         default=None,
         description="Proportion of the light hitting the ground that it reflects back.",
+        examples=[None],
     )
     pvforecast1_module_model: Optional[str] = Field(
-        default=None, description="Model of the PV modules of this plane."
+        default=None, description="Model of the PV modules of this plane.", examples=[None]
     )
     pvforecast1_inverter_model: Optional[str] = Field(
-        default=None, description="Model of the inverter of this plane."
+        default=None, description="Model of the inverter of this plane.", examples=[None]
     )
     pvforecast1_inverter_paco: Optional[int] = Field(
-        default=None, description="AC power rating of the inverter. [W]"
+        default=None, description="AC power rating of the inverter. [W]", examples=[4000]
     )
     pvforecast1_modules_per_string: Optional[int] = Field(
-        default=None, description="Number of the PV modules of the strings of this plane."
+        default=None,
+        description="Number of the PV modules of the strings of this plane.",
+        examples=[20],
     )
     pvforecast1_strings_per_inverter: Optional[int] = Field(
-        default=None, description="Number of the strings of the inverter of this plane."
+        default=None,
+        description="Number of the strings of the inverter of this plane.",
+        examples=[2],
     )
     # Plane 2
     pvforecast2_surface_tilt: Optional[float] = Field(
-        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None,
+        description="Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast2_surface_azimuth: Optional[float] = Field(
         default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+        examples=[None],
     )
     pvforecast2_userhorizon: Optional[List[float]] = Field(
         default=None,
         description="Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
+        examples=[None],
     )
     pvforecast2_peakpower: Optional[float] = Field(
-        default=None, description="Nominal power of PV system in kW."
+        default=None, description="Nominal power of PV system in kW.", examples=[None]
     )
     pvforecast2_pvtechchoice: Optional[str] = Field(
-        default="crystSi", description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
+        default="crystSi",
+        description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+        examples=[None],
     )
     pvforecast2_mountingplace: Optional[str] = Field(
         default="free",
         description="Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+        examples=[None],
     )
     pvforecast2_loss: Optional[float] = Field(
-        default=14.0, description="Sum of PV system losses in percent"
+        default=14.0, description="Sum of PV system losses in percent", examples=[None]
     )
     pvforecast2_trackingtype: Optional[int] = Field(
         default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+        examples=[None],
     )
     pvforecast2_optimal_surface_tilt: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast2_optimalangles: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast2_albedo: Optional[float] = Field(
         default=None,
         description="Proportion of the light hitting the ground that it reflects back.",
+        examples=[None],
     )
     pvforecast2_module_model: Optional[str] = Field(
-        default=None, description="Model of the PV modules of this plane."
+        default=None, description="Model of the PV modules of this plane.", examples=[None]
     )
     pvforecast2_inverter_model: Optional[str] = Field(
-        default=None, description="Model of the inverter of this plane."
+        default=None, description="Model of the inverter of this plane.", examples=[None]
     )
     pvforecast2_inverter_paco: Optional[int] = Field(
-        default=None, description="AC power rating of the inverter. [W]"
+        default=None, description="AC power rating of the inverter. [W]", examples=[None]
     )
     pvforecast2_modules_per_string: Optional[int] = Field(
-        default=None, description="Number of the PV modules of the strings of this plane."
+        default=None,
+        description="Number of the PV modules of the strings of this plane.",
+        examples=[None],
     )
     pvforecast2_strings_per_inverter: Optional[int] = Field(
-        default=None, description="Number of the strings of the inverter of this plane."
+        default=None,
+        description="Number of the strings of the inverter of this plane.",
+        examples=[None],
     )
     # Plane 3
     pvforecast3_surface_tilt: Optional[float] = Field(
-        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None,
+        description="Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast3_surface_azimuth: Optional[float] = Field(
         default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+        examples=[None],
     )
     pvforecast3_userhorizon: Optional[List[float]] = Field(
         default=None,
         description="Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
+        examples=[None],
     )
     pvforecast3_peakpower: Optional[float] = Field(
-        default=None, description="Nominal power of PV system in kW."
+        default=None, description="Nominal power of PV system in kW.", examples=[None]
     )
     pvforecast3_pvtechchoice: Optional[str] = Field(
-        default="crystSi", description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
+        default="crystSi",
+        description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+        examples=[None],
     )
     pvforecast3_mountingplace: Optional[str] = Field(
         default="free",
         description="Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+        examples=[None],
     )
     pvforecast3_loss: Optional[float] = Field(
-        default=14.0, description="Sum of PV system losses in percent"
+        default=14.0, description="Sum of PV system losses in percent", examples=[None]
     )
     pvforecast3_trackingtype: Optional[int] = Field(
         default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+        examples=[None],
     )
     pvforecast3_optimal_surface_tilt: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast3_optimalangles: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast3_albedo: Optional[float] = Field(
         default=None,
         description="Proportion of the light hitting the ground that it reflects back.",
+        examples=[None],
     )
     pvforecast3_module_model: Optional[str] = Field(
-        default=None, description="Model of the PV modules of this plane."
+        default=None, description="Model of the PV modules of this plane.", examples=[None]
     )
     pvforecast3_inverter_model: Optional[str] = Field(
-        default=None, description="Model of the inverter of this plane."
+        default=None, description="Model of the inverter of this plane.", examples=[None]
     )
     pvforecast3_inverter_paco: Optional[int] = Field(
-        default=None, description="AC power rating of the inverter. [W]"
+        default=None, description="AC power rating of the inverter. [W]", examples=[None]
     )
     pvforecast3_modules_per_string: Optional[int] = Field(
-        default=None, description="Number of the PV modules of the strings of this plane."
+        default=None,
+        description="Number of the PV modules of the strings of this plane.",
+        examples=[None],
     )
     pvforecast3_strings_per_inverter: Optional[int] = Field(
-        default=None, description="Number of the strings of the inverter of this plane."
+        default=None,
+        description="Number of the strings of the inverter of this plane.",
+        examples=[None],
     )
     # Plane 4
     pvforecast4_surface_tilt: Optional[float] = Field(
-        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None,
+        description="Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast4_surface_azimuth: Optional[float] = Field(
         default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+        examples=[None],
     )
     pvforecast4_userhorizon: Optional[List[float]] = Field(
         default=None,
         description="Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
+        examples=[None],
     )
     pvforecast4_peakpower: Optional[float] = Field(
-        default=None, description="Nominal power of PV system in kW."
+        default=None, description="Nominal power of PV system in kW.", examples=[None]
     )
     pvforecast4_pvtechchoice: Optional[str] = Field(
-        default="crystSi", description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
+        default="crystSi",
+        description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+        examples=[None],
     )
     pvforecast4_mountingplace: Optional[str] = Field(
         default="free",
         description="Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+        examples=[None],
     )
     pvforecast4_loss: Optional[float] = Field(
-        default=14.0, description="Sum of PV system losses in percent"
+        default=14.0, description="Sum of PV system losses in percent", examples=[None]
     )
     pvforecast4_trackingtype: Optional[int] = Field(
         default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+        examples=[None],
     )
     pvforecast4_optimal_surface_tilt: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast4_optimalangles: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast4_albedo: Optional[float] = Field(
         default=None,
         description="Proportion of the light hitting the ground that it reflects back.",
+        examples=[None],
     )
     pvforecast4_module_model: Optional[str] = Field(
-        default=None, description="Model of the PV modules of this plane."
+        default=None, description="Model of the PV modules of this plane.", examples=[None]
     )
     pvforecast4_inverter_model: Optional[str] = Field(
-        default=None, description="Model of the inverter of this plane."
+        default=None, description="Model of the inverter of this plane.", examples=[None]
     )
     pvforecast4_inverter_paco: Optional[int] = Field(
-        default=None, description="AC power rating of the inverter. [W]"
+        default=None, description="AC power rating of the inverter. [W]", examples=[None]
     )
     pvforecast4_modules_per_string: Optional[int] = Field(
-        default=None, description="Number of the PV modules of the strings of this plane."
+        default=None,
+        description="Number of the PV modules of the strings of this plane.",
+        examples=[None],
     )
     pvforecast4_strings_per_inverter: Optional[int] = Field(
-        default=None, description="Number of the strings of the inverter of this plane."
+        default=None,
+        description="Number of the strings of the inverter of this plane.",
+        examples=[None],
     )
     # Plane 5
     pvforecast5_surface_tilt: Optional[float] = Field(
-        default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."
+        default=None,
+        description="Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast5_surface_azimuth: Optional[float] = Field(
         default=None,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+        examples=[None],
     )
     pvforecast5_userhorizon: Optional[List[float]] = Field(
         default=None,
         description="Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
+        examples=[None],
     )
     pvforecast5_peakpower: Optional[float] = Field(
-        default=None, description="Nominal power of PV system in kW."
+        default=None, description="Nominal power of PV system in kW.", examples=[None]
     )
     pvforecast5_pvtechchoice: Optional[str] = Field(
-        default="crystSi", description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
+        default="crystSi",
+        description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+        examples=[None],
     )
     pvforecast5_mountingplace: Optional[str] = Field(
         default="free",
         description="Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+        examples=[None],
     )
     pvforecast5_loss: Optional[float] = Field(
-        default=14.0, description="Sum of PV system losses in percent"
+        default=14.0, description="Sum of PV system losses in percent", examples=[None]
     )
     pvforecast5_trackingtype: Optional[int] = Field(
         default=None,
         description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+        examples=[None],
     )
     pvforecast5_optimal_surface_tilt: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast5_optimalangles: Optional[bool] = Field(
         default=False,
         description="Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+        examples=[None],
     )
     pvforecast5_albedo: Optional[float] = Field(
         default=None,
         description="Proportion of the light hitting the ground that it reflects back.",
+        examples=[None],
     )
     pvforecast5_module_model: Optional[str] = Field(
-        default=None, description="Model of the PV modules of this plane."
+        default=None, description="Model of the PV modules of this plane.", examples=[None]
     )
     pvforecast5_inverter_model: Optional[str] = Field(
-        default=None, description="Model of the inverter of this plane."
+        default=None, description="Model of the inverter of this plane.", examples=[None]
     )
     pvforecast5_inverter_paco: Optional[int] = Field(
-        default=None, description="AC power rating of the inverter. [W]"
+        default=None, description="AC power rating of the inverter. [W]", examples=[None]
     )
     pvforecast5_modules_per_string: Optional[int] = Field(
-        default=None, description="Number of the PV modules of the strings of this plane."
+        default=None,
+        description="Number of the PV modules of the strings of this plane.",
+        examples=[None],
     )
     pvforecast5_strings_per_inverter: Optional[int] = Field(
-        default=None, description="Number of the strings of the inverter of this plane."
+        default=None,
+        description="Number of the strings of the inverter of this plane.",
+        examples=[None],
     )
 
     pvforecast_max_planes: ClassVar[int] = 6  # Maximum number of planes that can be set
 
-    provider_settings: Optional[PVForecastImportCommonSettings] = None
+    provider_settings: Optional[PVForecastImportCommonSettings] = Field(
+        default=None, description="Provider settings", examples=[None]
+    )
 
     # Computed fields
     @computed_field  # type: ignore[prop-decorator]

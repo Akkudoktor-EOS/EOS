@@ -419,7 +419,9 @@ def prepare_visualize(
     start_hour: Optional[int] = 0,
 ) -> None:
     report = VisualizationReport(filename)
-    next_full_hour_date = pendulum.now(report.config.prediction.timezone).start_of("hour").add(hours=1)
+    next_full_hour_date = (
+        pendulum.now(report.config.prediction.timezone).start_of("hour").add(hours=1)
+    )
     # Group 1:
     report.create_line_chart_date(
         next_full_hour_date,  # start_date

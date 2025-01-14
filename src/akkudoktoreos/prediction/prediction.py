@@ -45,7 +45,7 @@ from akkudoktoreos.utils.datetimeutil import to_timezone
 
 
 class PredictionCommonSettings(SettingsBaseModel):
-    """Base configuration for prediction settings, including forecast duration, geographic location, and time zone.
+    """General Prediction Configuration.
 
     This class provides configuration for prediction settings, allowing users to specify
     parameters such as the forecast duration (in hours) and location (latitude and longitude).
