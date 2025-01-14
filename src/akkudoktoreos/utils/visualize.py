@@ -5,6 +5,7 @@ import textwrap
 from collections.abc import Sequence
 from typing import Callable, Optional, Union
 
+import matplotlib
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,6 +18,7 @@ from akkudoktoreos.optimization.genetic import OptimizationParameters
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 logger = get_logger(__name__)
+matplotlib.use("Agg")
 
 
 class VisualizationReport(ConfigMixin):
