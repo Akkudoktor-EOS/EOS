@@ -9,8 +9,14 @@ from akkudoktoreos.prediction.weatherimport import WeatherImportCommonSettings
 
 
 class WeatherCommonSettings(SettingsBaseModel):
+    """Weather Forecast Configuration."""
+
     weather_provider: Optional[str] = Field(
-        default=None, description="Weather provider id of provider to be used."
+        default=None,
+        description="Weather provider id of provider to be used.",
+        examples=["WeatherImport"],
     )
 
-    provider_settings: Optional[WeatherImportCommonSettings] = None
+    provider_settings: Optional[WeatherImportCommonSettings] = Field(
+        default=None, description="Provider settings", examples=[None]
+    )

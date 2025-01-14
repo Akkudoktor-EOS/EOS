@@ -14,10 +14,12 @@ from akkudoktoreos.core.logabc import logging_str_to_level
 
 
 class LoggingCommonSettings(SettingsBaseModel):
-    """Common settings for logging."""
+    """Logging Configuration."""
 
     logging_level_default: Optional[str] = Field(
-        default=None, description="EOS default logging level."
+        default=None,
+        description="EOS default logging level.",
+        examples=["INFO", "DEBUG", "WARNING", "ERROR", "CRITICAL"],
     )
 
     # Validators

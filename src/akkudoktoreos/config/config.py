@@ -63,10 +63,13 @@ def get_absolute_path(
 
 
 class ConfigCommonSettings(SettingsBaseModel):
-    """Settings for common configuration."""
+    """Settings for common configuration.
+
+    General configuration to set directories of cache and output files.
+    """
 
     data_folder_path: Optional[Path] = Field(
-        default=None, description="Path to EOS data directory."
+        default=None, description="Path to EOS data directory.", examples=[None, "/home/eos/data"]
     )
 
     data_output_subpath: Optional[Path] = Field(

@@ -17,7 +17,7 @@ class LoadAkkudoktorCommonSettings(SettingsBaseModel):
     """Common settings for load data import from file."""
 
     loadakkudoktor_year_energy: Optional[float] = Field(
-        default=None, description="Yearly energy consumption (kWh)."
+        default=None, description="Yearly energy consumption (kWh).", examples=[40421]
     )
 
 

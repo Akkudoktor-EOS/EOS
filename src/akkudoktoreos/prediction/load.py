@@ -13,12 +13,14 @@ logger = get_logger(__name__)
 
 
 class LoadCommonSettings(SettingsBaseModel):
-    """Common settings for loaod forecast providers."""
+    """Load Prediction Configuration."""
 
     load_provider: Optional[str] = Field(
-        default=None, description="Load provider id of provider to be used."
+        default=None,
+        description="Load provider id of provider to be used.",
+        examples=["LoadAkkudoktor"],
     )
 
     provider_settings: Optional[Union[LoadAkkudoktorCommonSettings, LoadImportCommonSettings]] = (
-        None
+        Field(default=None, description="Provider settings", examples=[None])
     )

@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 
 
 class ServerCommonSettings(SettingsBaseModel):
-    """Common server settings.
+    """Server Configuration.
 
     Attributes:
         To be added

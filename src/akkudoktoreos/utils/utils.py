@@ -18,6 +18,8 @@ class classproperty(property):
 
 
 class UtilsCommonSettings(SettingsBaseModel):
+    """Utils Configuration."""
+
     pass
 
 

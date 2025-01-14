@@ -23,10 +23,14 @@ class LoadImportCommonSettings(SettingsBaseModel):
     """Common settings for load data import from file or JSON string."""
 
     load_import_file_path: Optional[Union[str, Path]] = Field(
-        default=None, description="Path to the file to import load data from."
+        default=None,
+        description="Path to the file to import load data from.",
+        examples=[None, "/path/to/yearly_load.json"],
     )
     load_import_json: Optional[str] = Field(
-        default=None, description="JSON string, dictionary of load forecast value lists."
+        default=None,
+        description="JSON string, dictionary of load forecast value lists.",
+        examples=['{"load0_mean": [676.71, 876.19, 527.13]}'],
     )
 
     # Validators
