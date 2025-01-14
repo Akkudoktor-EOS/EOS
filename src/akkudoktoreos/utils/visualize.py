@@ -29,7 +29,9 @@ class VisualizationReport(ConfigMixin):
         ] = []  # Store current group of charts being created
         self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
         self.version = version  # overwrite version as test for constant output of pdf for test
-        self.current_time = to_datetime(as_string="YYYY-MM-DD HH:mm:ss")
+        self.current_time = to_datetime(
+            as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.timezone
+        )
 
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
         """Add a chart function to the current group."""
@@ -167,7 +169,7 @@ class VisualizationReport(ConfigMixin):
             plt.grid(True)
 
             # Add vertical line for the current date if within the axis range
-            current_time = pendulum.now()
+            current_time = pendulum.now(self.config.timezone)
             if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
                 plt.axvline(current_time, color="r", linestyle="--", label="Now")
                 plt.text(current_time, plt.ylim()[1], "Now", color="r", ha="center", va="bottom")
@@ -413,9 +415,8 @@ def prepare_visualize(
     start_hour: Optional[int] = 0,
 ) -> None:
     report = VisualizationReport(filename)
-    next_full_hour_date = pendulum.now().start_of("hour").add(hours=1)
+    next_full_hour_date = pendulum.now(report.config.timezone).start_of("hour").add(hours=1)
     # Group 1:
-    print(parameters.ems.gesamtlast)
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
         [
