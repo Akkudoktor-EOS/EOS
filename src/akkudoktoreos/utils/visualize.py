@@ -5,6 +5,7 @@ import textwrap
 from collections.abc import Sequence
 from typing import Callable, Optional, Union
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
@@ -14,6 +15,7 @@ from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.optimization.genetic import OptimizationParameters
 
 logger = get_logger(__name__)
+matplotlib.use("Agg")
 
 
 class VisualizationReport(ConfigMixin):
