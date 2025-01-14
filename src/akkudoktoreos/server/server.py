@@ -18,7 +18,7 @@ def get_default_host() -> str:
 
 
 class ServerCommonSettings(SettingsBaseModel):
-    """Common server settings.
+    """Server Configuration.
 
     Attributes:
         To be added

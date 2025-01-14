@@ -9,7 +9,7 @@ logger = get_logger(__name__)
 
 
 class OptimizationCommonSettings(SettingsBaseModel):
-    """Base configuration for optimization settings.
+    """General Optimization Configuration.
 
     Attributes:
         optimization_hours (int): Number of hours for optimizations.

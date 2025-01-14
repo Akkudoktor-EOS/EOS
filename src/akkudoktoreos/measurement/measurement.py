@@ -23,20 +23,22 @@ logger = get_logger(__name__)
 
 
 class MeasurementCommonSettings(SettingsBaseModel):
+    """Measurement Configuration."""
+
     measurement_load0_name: Optional[str] = Field(
-        default=None, description="Name of the load0 source (e.g. 'Household', 'Heat Pump')"
+        default=None, description="Name of the load0 source", examples=["Household", "Heat Pump"]
     )
     measurement_load1_name: Optional[str] = Field(
-        default=None, description="Name of the load1 source (e.g. 'Household', 'Heat Pump')"
+        default=None, description="Name of the load1 source", examples=[None]
     )
     measurement_load2_name: Optional[str] = Field(
-        default=None, description="Name of the load2 source (e.g. 'Household', 'Heat Pump')"
+        default=None, description="Name of the load2 source", examples=[None]
     )
     measurement_load3_name: Optional[str] = Field(
-        default=None, description="Name of the load3 source (e.g. 'Household', 'Heat Pump')"
+        default=None, description="Name of the load3 source", examples=[None]
     )
     measurement_load4_name: Optional[str] = Field(
-        default=None, description="Name of the load4 source (e.g. 'Household', 'Heat Pump')"
+        default=None, description="Name of the load4 source", examples=[None]
     )
 
 
@@ -49,29 +51,29 @@ class MeasurementDataRecord(DataRecord):
 
     # Single loads, to be aggregated to total load
     measurement_load0_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load0 meter reading [kWh]"
+        default=None, ge=0, description="Load0 meter reading [kWh]", examples=[40421]
     )
     measurement_load1_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load1 meter reading [kWh]"
+        default=None, ge=0, description="Load1 meter reading [kWh]", examples=[None]
     )
     measurement_load2_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load2 meter reading [kWh]"
+        default=None, ge=0, description="Load2 meter reading [kWh]", examples=[None]
     )
     measurement_load3_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load3 meter reading [kWh]"
+        default=None, ge=0, description="Load3 meter reading [kWh]", examples=[None]
     )
     measurement_load4_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load4 meter reading [kWh]"
+        default=None, ge=0, description="Load4 meter reading [kWh]", examples=[None]
     )
 
     measurement_max_loads: ClassVar[int] = 5  # Maximum number of loads that can be set
 
     measurement_grid_export_mr: Optional[float] = Field(
-        default=None, ge=0, description="Export to grid meter reading [kWh]"
+        default=None, ge=0, description="Export to grid meter reading [kWh]", examples=[1000]
     )
 
     measurement_grid_import_mr: Optional[float] = Field(
-        default=None, ge=0, description="Import from grid meter reading [kWh]"
+        default=None, ge=0, description="Import from grid meter reading [kWh]", examples=[1000]
     )
 
     # Computed fields

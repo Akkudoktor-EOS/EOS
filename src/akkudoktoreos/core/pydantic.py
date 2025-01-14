@@ -128,9 +128,16 @@ class PydanticBaseModel(BaseModel):
         return value
 
     # Override Pydantic’s serialization for all DateTime fields
-    def model_dump(self, *args: Any, **kwargs: Any) -> dict:
+    def model_dump(
+        self, *args: Any, include_computed_fields: bool = True, **kwargs: Any
+    ) -> dict[str, Any]:
         """Custom dump method to handle serialization for DateTime fields."""
         result = super().model_dump(*args, **kwargs)
+
+        if not include_computed_fields:
+            for computed_field_name in self.model_computed_fields:
+                result.pop(computed_field_name, None)
+
         for key, value in result.items():
             if isinstance(value, pendulum.DateTime):
                 result[key] = PydanticTypeAdapterDateTime.serialize(value)
@@ -184,6 +191,10 @@ class PydanticBaseModel(BaseModel):
             Works with derived classes by ensuring the `cls` argument is used to instantiate the object.
         """
         return cls.model_validate(data)
+
+    def model_dump_json(self, *args: Any, indent: Optional[int] = None, **kwargs: Any) -> str:
+        data = self.model_dump(*args, **kwargs)
+        return json.dumps(data, indent=indent, default=str)
 
     def to_json(self) -> str:
         """Convert the PydanticBaseModel instance to a JSON string.

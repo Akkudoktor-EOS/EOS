@@ -424,13 +424,7 @@ def prepare_visualize(
     start_hour: int = 0,
 ) -> None:
     report = VisualizationReport(filename)
-<<<<<<< HEAD
-    # next_full_hour_date = pendulum.now(report.config.timezone).start_of("day").add(hours=start_hour)
-    # next_full_hour_date = to_datetime().set(minute=0, second=0, microsecond=0)
-    next_full_hour_date = EnergieManagementSystem.set_start_datetime()
-=======
-    next_full_hour_date = pendulum.now(report.config.prediction.timezone).start_of("hour").add(hours=1)
->>>>>>> be26457 (Nested config, devices registry)
+    next_full_hour_date = pendulum.now(report.config.general.timezone).start_of("hour").add(hours=1)
     # Group 1:
     report.create_line_chart_date(
         next_full_hour_date,
