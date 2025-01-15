@@ -214,43 +214,43 @@ def test_simulation(create_ems_instance):
         assert key in result, f"The key '{key}' should be present in the result."
 
     # Check the length of the main arrays
-    assert len(result["Last_Wh_pro_Stunde"]) == 48, (
-        "The length of 'Last_Wh_pro_Stunde' should be 48."
-    )
-    assert len(result["Netzeinspeisung_Wh_pro_Stunde"]) == 48, (
-        "The length of 'Netzeinspeisung_Wh_pro_Stunde' should be 48."
-    )
-    assert len(result["Netzbezug_Wh_pro_Stunde"]) == 48, (
-        "The length of 'Netzbezug_Wh_pro_Stunde' should be 48."
-    )
-    assert len(result["Kosten_Euro_pro_Stunde"]) == 48, (
-        "The length of 'Kosten_Euro_pro_Stunde' should be 48."
-    )
-    assert len(result["akku_soc_pro_stunde"]) == 48, (
-        "The length of 'akku_soc_pro_stunde' should be 48."
-    )
+    assert (
+        len(result["Last_Wh_pro_Stunde"]) == 48
+    ), "The length of 'Last_Wh_pro_Stunde' should be 48."
+    assert (
+        len(result["Netzeinspeisung_Wh_pro_Stunde"]) == 48
+    ), "The length of 'Netzeinspeisung_Wh_pro_Stunde' should be 48."
+    assert (
+        len(result["Netzbezug_Wh_pro_Stunde"]) == 48
+    ), "The length of 'Netzbezug_Wh_pro_Stunde' should be 48."
+    assert (
+        len(result["Kosten_Euro_pro_Stunde"]) == 48
+    ), "The length of 'Kosten_Euro_pro_Stunde' should be 48."
+    assert (
+        len(result["akku_soc_pro_stunde"]) == 48
+    ), "The length of 'akku_soc_pro_stunde' should be 48."
 
     # Verfify DC and AC Charge Bins
-    assert abs(result["akku_soc_pro_stunde"][2] - 44.70681818181818) < 1e-5, (
-        "'akku_soc_pro_stunde[2]' should be 44.70681818181818."
-    )
-    assert abs(result["akku_soc_pro_stunde"][10] - 10.0) < 1e-5, (
-        "'akku_soc_pro_stunde[10]' should be 10."
-    )
+    assert (
+        abs(result["akku_soc_pro_stunde"][2] - 44.70681818181818) < 1e-5
+    ), "'akku_soc_pro_stunde[2]' should be 44.70681818181818."
+    assert (
+        abs(result["akku_soc_pro_stunde"][10] - 10.0) < 1e-5
+    ), "'akku_soc_pro_stunde[10]' should be 10."
 
-    assert abs(result["Netzeinspeisung_Wh_pro_Stunde"][10] - 3946.93) < 1e-3, (
-        "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 4000."
-    )
+    assert (
+        abs(result["Netzeinspeisung_Wh_pro_Stunde"][10] - 3946.93) < 1e-3
+    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 4000."
 
-    assert abs(result["Netzeinspeisung_Wh_pro_Stunde"][11] - 0.0) < 1e-3, (
-        "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
-    )
+    assert (
+        abs(result["Netzeinspeisung_Wh_pro_Stunde"][11] - 0.0) < 1e-3
+    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
 
-    assert abs(result["akku_soc_pro_stunde"][20] - 10) < 1e-5, (
-        "'akku_soc_pro_stunde[20]' should be 10."
-    )
-    assert abs(result["Last_Wh_pro_Stunde"][20] - 6050.98) < 1e-3, (
-        "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
-    )
+    assert (
+        abs(result["akku_soc_pro_stunde"][20] - 10) < 1e-5
+    ), "'akku_soc_pro_stunde[20]' should be 10."
+    assert (
+        abs(result["Last_Wh_pro_Stunde"][20] - 6050.98) < 1e-3
+    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
 
     print("All tests passed successfully.")
