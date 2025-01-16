@@ -204,7 +204,7 @@ def test_simulation(create_ems_instance):
         "Gesamtbilanz_Euro",
         "EAuto_SoC_pro_Stunde",
         "Gesamteinnahmen_Euro",
-        "Gesamtkosten_Euro",
+        "total_costs_euro",
         "losses_per_hour",
         "Gesamt_Verluste",
         "Home_appliance_wh_per_hour",

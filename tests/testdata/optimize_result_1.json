@@ -40,7 +40,7 @@
     "Gesamt_Verluste": 2500.030611233429,
     "Gesamtbilanz_Euro": 1.4988843060949502,
     "Gesamteinnahmen_Euro": 1.1542928225199272,
-    "Gesamtkosten_Euro": 2.6531771286148773,
+    "total_costs_euro": 2.6531771286148773,
     "Home_appliance_wh_per_hour": [
       null,
       null,
