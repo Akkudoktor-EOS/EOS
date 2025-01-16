@@ -210,7 +210,7 @@ class Devices(SingletonMixin, DevicesBase):
             end_datetime=self.end_datetime,
             interval=simulation_step,
         )
-        # strompreis_euro_pro_wh[stunde]
+        # electricity_price_euro_per_wh[stunde]
         elecprice_marketprice_wh = self.prediction.key_to_array(
             "elecprice_marketprice_wh",
             start_datetime=self.start_datetime,
@@ -272,7 +272,7 @@ class Devices(SingletonMixin, DevicesBase):
 
             # Financial calculations
             self.kosten_euro_pro_stunde[stunde_since_now] = (
-                grid_import * self.strompreis_euro_pro_wh[hour]
+                grid_import * self.electricity_price_euro_per_wh[hour]
             )
             self.einnahmen_euro_pro_stunde[stunde_since_now] = (
                 grid_export * self.feed_in_tariff_euro_per_wh_arr[hour]

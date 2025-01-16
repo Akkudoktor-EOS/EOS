@@ -502,7 +502,7 @@ def prepare_visualize(
     )
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
-        [parameters.ems.strompreis_euro_pro_wh],
+        [parameters.ems.electricity_price_euro_per_wh],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (€/Wh)",

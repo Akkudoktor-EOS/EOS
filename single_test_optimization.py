@@ -99,12 +99,12 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     print(f"temperature_forecast: {temperature_forecast}")
 
     # Electricity Price (in Euro per Wh)
-    strompreis_euro_pro_wh = prediction_eos.key_to_array(
+    electricity_price_euro_per_wh = prediction_eos.key_to_array(
         key="elecprice_marketprice_wh",
         start_datetime=prediction_eos.start_datetime,
         end_datetime=prediction_eos.end_datetime,
     )
-    print(f"strompreis_euro_pro_wh: {strompreis_euro_pro_wh}")
+    print(f"electricity_price_euro_per_wh: {electricity_price_euro_per_wh}")
 
     # Overall System Load (in W)
     gesamtlast = prediction_eos.key_to_array(
@@ -126,7 +126,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
                 "feed_in_tariff_euro_per_wh": 7e-05,
                 "gesamtlast": gesamtlast,
                 "pv_prognose_wh": pv_forecast,
-                "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
+                "electricity_price_euro_per_wh": electricity_price_euro_per_wh,
             },
             "pv_akku": {
                 "capacity_wh": 26400,
@@ -209,10 +209,10 @@ def prepare_optimization_parameters() -> OptimizationParameters:
     ]
 
     # Electricity Price (in Euro per Wh)
-    strompreis_euro_pro_wh = np.full(48, 0.001)
-    strompreis_euro_pro_wh[0:10] = 0.00001
-    strompreis_euro_pro_wh[11:15] = 0.00005
-    strompreis_euro_pro_wh[20] = 0.00001
+    electricity_price_euro_per_wh = np.full(48, 0.001)
+    electricity_price_euro_per_wh[0:10] = 0.00001
+    electricity_price_euro_per_wh[11:15] = 0.00005
+    electricity_price_euro_per_wh[20] = 0.00001
 
     # Overall System Load (in W)
     gesamtlast = [
@@ -277,7 +277,7 @@ def prepare_optimization_parameters() -> OptimizationParameters:
                 "feed_in_tariff_euro_per_wh": 7e-05,
                 "gesamtlast": gesamtlast,
                 "pv_prognose_wh": pv_forecast,
-                "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
+                "electricity_price_euro_per_wh": electricity_price_euro_per_wh,
             },
             "pv_akku": {
                 "capacity_wh": 26400,

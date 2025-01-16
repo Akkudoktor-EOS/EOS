@@ -22,7 +22,7 @@ class EnergieManagementSystemParameters(ParametersBaseModel):
     pv_prognose_wh: list[float] = Field(
         description="An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
     )
-    strompreis_euro_pro_wh: list[float] = Field(
+    electricity_price_euro_per_wh: list[float] = Field(
         description="An array of floats representing the electricity price in euros per watt-hour for different time intervals."
     )
     feed_in_tariff_euro_per_wh: list[float] | float = Field(
@@ -39,7 +39,7 @@ class EnergieManagementSystemParameters(ParametersBaseModel):
     def validate_list_length(self) -> Self:
         pv_prognose_length = len(self.pv_prognose_wh)
         if (
-            pv_prognose_length != len(self.strompreis_euro_pro_wh)
+            pv_prognose_length != len(self.electricity_price_euro_per_wh)
             or pv_prognose_length != len(self.gesamtlast)
             or (
                 isinstance(self.feed_in_tariff_euro_per_wh, list)
@@ -174,7 +174,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
     ) -> None:
         self.load_energy_array = np.array(parameters.gesamtlast, float)
         self.pv_prediction_wh = np.array(parameters.pv_prognose_wh, float)
-        self.elect_price_hourly = np.array(parameters.strompreis_euro_pro_wh, float)
+        self.elect_price_hourly = np.array(parameters.electricity_price_euro_per_wh, float)
         self.elect_revenue_per_hour_arr = (
             parameters.feed_in_tariff_euro_per_wh
             if isinstance(parameters.feed_in_tariff_euro_per_wh, list)

@@ -2234,6 +2234,14 @@
       "EnergieManagementSystemParameters": {
         "additionalProperties": false,
         "properties": {
+          "electricity_price_euro_per_wh": {
+            "description": "An array of floats representing the electricity price in euros per watt-hour for different time intervals.",
+            "items": {
+              "type": "number"
+            },
+            "title": "Electricity Price Euro Per Wh",
+            "type": "array"
+          },
           "feed_in_tariff_euro_per_wh": {
             "anyOf": [
               {
@@ -2269,19 +2277,11 @@
             },
             "title": "Pv Prognose Wh",
             "type": "array"
-          },
-          "strompreis_euro_pro_wh": {
-            "description": "An array of floats representing the electricity price in euros per watt-hour for different time intervals.",
-            "items": {
-              "type": "number"
-            },
-            "title": "Strompreis Euro Pro Wh",
-            "type": "array"
           }
         },
         "required": [
           "pv_prognose_wh",
-          "strompreis_euro_pro_wh",
+          "electricity_price_euro_per_wh",
           "feed_in_tariff_euro_per_wh",
           "price_euro_per_wh_battery",
           "gesamtlast"

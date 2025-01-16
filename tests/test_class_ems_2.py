@@ -72,12 +72,12 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
     pv_prognose_wh[10] = 5000.0
     pv_prognose_wh[11] = 5000.0
 
-    strompreis_euro_pro_wh = [0.001] * config_eos.prediction_hours
-    strompreis_euro_pro_wh[0:10] = [0.00001] * 10
-    strompreis_euro_pro_wh[11:15] = [0.00005] * 4
-    strompreis_euro_pro_wh[20] = 0.00001
+    electricity_price_euro_per_wh = [0.001] * config_eos.prediction_hours
+    electricity_price_euro_per_wh[0:10] = [0.00001] * 10
+    electricity_price_euro_per_wh[11:15] = [0.00005] * 4
+    electricity_price_euro_per_wh[20] = 0.00001
 
-    feed_in_tariff_euro_per_wh = [0.00007] * len(strompreis_euro_pro_wh)
+    feed_in_tariff_euro_per_wh = [0.00007] * len(electricity_price_euro_per_wh)
     price_euro_per_wh_battery = 0.0001
 
     gesamtlast = [
@@ -136,7 +136,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
     ems.set_parameters(
         EnergieManagementSystemParameters(
             pv_prognose_wh=pv_prognose_wh,
-            strompreis_euro_pro_wh=strompreis_euro_pro_wh,
+            electricity_price_euro_per_wh=electricity_price_euro_per_wh,
             feed_in_tariff_euro_per_wh=feed_in_tariff_euro_per_wh,
             price_euro_per_wh_battery=price_euro_per_wh_battery,
             gesamtlast=gesamtlast,
@@ -167,7 +167,7 @@ def test_simulation(create_ems_instance):
     # visualisiere_ergebnisse(
     #     ems.gesamtlast,
     #     ems.pv_prognose_wh,
-    #     ems.strompreis_euro_pro_wh,
+    #     ems.electricity_price_euro_per_wh,
     #     result,
     #     ems.akku.discharge_array+ems.akku.charge_array,
     #     None,

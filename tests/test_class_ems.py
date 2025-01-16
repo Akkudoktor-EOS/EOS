@@ -121,7 +121,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
         0,
     ]
 
-    strompreis_euro_pro_wh = [
+    electricity_price_euro_per_wh = [
         0.0003384,
         0.0003318,
         0.0003284,
@@ -231,7 +231,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
     ems.set_parameters(
         EnergieManagementSystemParameters(
             pv_prognose_wh=pv_prognose_wh,
-            strompreis_euro_pro_wh=strompreis_euro_pro_wh,
+            electricity_price_euro_per_wh=electricity_price_euro_per_wh,
             feed_in_tariff_euro_per_wh=feed_in_tariff_euro_per_wh,
             price_euro_per_wh_battery=price_euro_per_wh_battery,
             gesamtlast=gesamtlast,
@@ -255,7 +255,7 @@ def test_simulation(create_ems_instance):
     # visualisiere_ergebnisse(
     #     ems.gesamtlast,
     #     ems.pv_prognose_wh,
-    #     ems.strompreis_euro_pro_wh,
+    #     ems.electricity_price_euro_per_wh,
     #     result,
     #     ems.akku.discharge_array+ems.akku.charge_array,
     #     None,
