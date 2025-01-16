@@ -331,7 +331,7 @@ def test_simulation(create_ems_instance):
 
     # Check the losses
     assert (
-        abs(result["Gesamt_Verluste"] - 2871.5330639359036) < 1e-5
+        abs(result["total_losses"] - 2871.5330639359036) < 1e-5
     ), "Total losses should be 2871.5330639359036 ."
 
     # Check the values in 'battery_soc_per_hour'

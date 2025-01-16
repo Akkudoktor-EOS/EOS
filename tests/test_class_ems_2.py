@@ -206,7 +206,7 @@ def test_simulation(create_ems_instance):
         "total_revenue_euro",
         "total_costs_euro",
         "losses_per_hour",
-        "Gesamt_Verluste",
+        "total_losses",
         "Home_appliance_wh_per_hour",
     ]
 

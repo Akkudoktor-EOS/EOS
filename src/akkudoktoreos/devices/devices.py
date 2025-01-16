@@ -298,7 +298,7 @@ class Devices(SingletonMixin, DevicesBase):
             "total_revenue_euro": self.total_revenues_euro,
             "total_costs_euro": self.total_costs_euro,
             "losses_per_hour": self.verluste_wh_pro_stunde,
-            "Gesamt_Verluste": self.total_losses_wh,
+            "total_losses": self.total_losses_wh,
             "Home_appliance_wh_per_hour": self.home_appliance_wh_per_hour,
         }
         return out

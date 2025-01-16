@@ -4747,11 +4747,6 @@
             "title": "Electricity Price",
             "type": "array"
           },
-          "Gesamt_Verluste": {
-            "description": "The total losses in watt-hours over the entire period.",
-            "title": "Gesamt Verluste",
-            "type": "number"
-          },
           "Home_appliance_wh_per_hour": {
             "description": "The energy consumption of a household appliance in watt-hours per hour.",
             "items": {
@@ -4867,6 +4862,11 @@
             "title": "Total Costs Euro",
             "type": "number"
           },
+          "total_losses": {
+            "description": "The total losses in watt-hours over the entire period.",
+            "title": "Total Losses",
+            "type": "number"
+          },
           "total_revenue_euro": {
             "description": "The total revenues in euros.",
             "title": "Total Revenue Euro",
@@ -4877,7 +4877,7 @@
           "Last_Wh_pro_Stunde",
           "EAuto_SoC_pro_Stunde",
           "Einnahmen_Euro_pro_Stunde",
-          "Gesamt_Verluste",
+          "total_losses",
           "total_balance_euro",
           "total_revenue_euro",
           "total_costs_euro",

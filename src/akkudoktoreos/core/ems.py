@@ -60,7 +60,7 @@ class SimulationResult(ParametersBaseModel):
     Einnahmen_Euro_pro_Stunde: list[Optional[float]] = Field(
         description="The revenue from grid feed-in or other sources in euros per hour."
     )
-    Gesamt_Verluste: float = Field(
+    total_losses: float = Field(
         description="The total losses in watt-hours over the entire period."
     )
     total_balance_euro: float = Field(
@@ -431,7 +431,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             "total_revenue_euro": np.nansum(revenue_per_hour),
             "total_costs_euro": np.nansum(costs_per_hour),
             "losses_per_hour": losses_wh_per_hour,
-            "Gesamt_Verluste": np.nansum(losses_wh_per_hour),
+            "total_losses": np.nansum(losses_wh_per_hour),
             "Home_appliance_wh_per_hour": home_appliance_wh_per_hour,
             "Electricity_price": electricity_price_per_hour,
         }

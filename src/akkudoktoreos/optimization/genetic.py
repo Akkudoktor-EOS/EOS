@@ -481,7 +481,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         # More metrics
         individual.extra_data = (  # type: ignore[attr-defined]
             o["total_balance_euro"],
-            o["Gesamt_Verluste"],
+            o["total_losses"],
             parameters.eauto.min_soc_percentage - self.ems.ev.current_soc_percentage()
             if parameters.eauto and self.ems.ev
             else 0,
