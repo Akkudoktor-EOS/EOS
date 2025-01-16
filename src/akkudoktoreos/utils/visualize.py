@@ -469,7 +469,7 @@ def prepare_visualize(
             results["result"]["Last_Wh_pro_Stunde"],
             results["result"]["Home_appliance_wh_per_hour"],
             results["result"]["grid_feed_in_wh_per_hour"],
-            results["result"]["Netzbezug_Wh_pro_Stunde"],
+            results["result"]["grid_demand_wh_per_hour"],
             results["result"]["losses_per_hour"],
         ],
         title="Energy Flow per Hour",

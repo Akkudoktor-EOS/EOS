@@ -290,8 +290,8 @@ def test_simulation(create_ems_instance):
         len(result["grid_feed_in_wh_per_hour"]) == 47
     ), "The length of 'grid_feed_in_wh_per_hour' should be 48."
     assert (
-        len(result["Netzbezug_Wh_pro_Stunde"]) == 47
-    ), "The length of 'Netzbezug_Wh_pro_Stunde' should be 48."
+        len(result["grid_demand_wh_per_hour"]) == 47
+    ), "The length of 'grid_demand_wh_per_hour' should be 48."
     assert (
         len(result["Kosten_Euro_pro_Stunde"]) == 47
     ), "The length of 'Kosten_Euro_pro_Stunde' should be 48."
@@ -311,10 +311,10 @@ def test_simulation(create_ems_instance):
     ), "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
 
     # Verify that the value at index 0 is 'None'
-    # Check that 'grid_feed_in_wh_per_hour' and 'Netzbezug_Wh_pro_Stunde' are consistent
+    # Check that 'grid_feed_in_wh_per_hour' and 'grid_demand_wh_per_hour' are consistent
     assert (
-        result["Netzbezug_Wh_pro_Stunde"][1] == 0
-    ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 0."
+        result["grid_demand_wh_per_hour"][1] == 0
+    ), "The value at index 1 of 'grid_demand_wh_per_hour' should be 0."
 
     # Verify the total balance
     assert (

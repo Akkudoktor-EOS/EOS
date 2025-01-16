@@ -74,7 +74,7 @@ class SimulationResult(ParametersBaseModel):
     Kosten_Euro_pro_Stunde: list[Optional[float]] = Field(
         description="The costs in euros per hour."
     )
-    Netzbezug_Wh_pro_Stunde: list[Optional[float]] = Field(
+    grid_demand_wh_per_hour: list[Optional[float]] = Field(
         description="The grid energy drawn in watt-hours per hour."
     )
     grid_feed_in_wh_per_hour: list[Optional[float]] = Field(
@@ -92,7 +92,7 @@ class SimulationResult(ParametersBaseModel):
         "Last_Wh_pro_Stunde",
         "grid_feed_in_wh_per_hour",
         "battery_soc_per_hour",
-        "Netzbezug_Wh_pro_Stunde",
+        "grid_demand_wh_per_hour",
         "Kosten_Euro_pro_Stunde",
         "Einnahmen_Euro_pro_Stunde",
         "EAuto_SoC_pro_Stunde",
@@ -424,7 +424,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
         out: Dict[str, Union[np.ndarray, float]] = {
             "Last_Wh_pro_Stunde": loads_energy_per_hour,
             "grid_feed_in_wh_per_hour": feedin_energy_per_hour,
-            "Netzbezug_Wh_pro_Stunde": consumption_energy_per_hour,
+            "grid_demand_wh_per_hour": consumption_energy_per_hour,
             "Kosten_Euro_pro_Stunde": costs_per_hour,
             "battery_soc_per_hour": soc_per_hour,
             "Einnahmen_Euro_pro_Stunde": revenue_per_hour,
