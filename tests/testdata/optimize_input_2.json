@@ -28,7 +28,7 @@
       0.0003081, 0.0002969, 0.0002921, 0.000278
     ]
   },
-  "pv_akku": {
+  "pv_battery": {
     "capacity_wh": 26400,
     "initial_soc_percentage": 80,
     "min_soc_percentage": 0

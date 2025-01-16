@@ -128,7 +128,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
                 "pv_prediction_wh": pv_forecast,
                 "electricity_price_euro_per_wh": electricity_price_euro_per_wh,
             },
-            "pv_akku": {
+            "pv_battery": {
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
                 "min_soc_percentage": 15,
@@ -279,7 +279,7 @@ def prepare_optimization_parameters() -> OptimizationParameters:
                 "pv_prediction_wh": pv_forecast,
                 "electricity_price_euro_per_wh": electricity_price_euro_per_wh,
             },
-            "pv_akku": {
+            "pv_battery": {
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
                 "min_soc_percentage": 15,

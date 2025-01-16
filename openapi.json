@@ -2421,7 +2421,7 @@
               }
             ]
           },
-          "pv_akku": {
+          "pv_battery": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/SolarPanelBatteryParameters"
@@ -2469,7 +2469,7 @@
             "title": "Temperature Forecast"
           }
         },
-        "required": ["ems", "pv_akku", "inverter", "eauto"],
+        "required": ["ems", "pv_battery", "inverter", "eauto"],
         "title": "OptimizationParameters",
         "type": "object"
       },

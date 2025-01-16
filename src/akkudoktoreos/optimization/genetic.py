@@ -33,7 +33,7 @@ logger = get_logger(__name__)
 
 class OptimizationParameters(ParametersBaseModel):
     ems: EnergieManagementSystemParameters
-    pv_akku: Optional[SolarPanelBatteryParameters]
+    pv_battery: Optional[SolarPanelBatteryParameters]
     inverter: Optional[InverterParameters]
     eauto: Optional[ElectricVehicleParameters]
     dishwasher: Optional[HomeApplianceParameters] = None
@@ -579,9 +579,9 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # Initialize PV and EV batteries
         akku: Optional[Battery] = None
-        if parameters.pv_akku:
+        if parameters.pv_battery:
             akku = Battery(
-                parameters.pv_akku,
+                parameters.pv_battery,
                 hours=self.config.prediction_hours,
             )
             akku.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
