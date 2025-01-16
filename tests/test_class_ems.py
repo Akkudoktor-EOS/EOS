@@ -296,8 +296,8 @@ def test_simulation(create_ems_instance):
         len(result["Kosten_Euro_pro_Stunde"]) == 47
     ), "The length of 'Kosten_Euro_pro_Stunde' should be 48."
     assert (
-        len(result["akku_soc_pro_stunde"]) == 47
-    ), "The length of 'akku_soc_pro_stunde' should be 48."
+        len(result["battery_soc_per_hour"]) == 47
+    ), "The length of 'battery_soc_per_hour' should be 48."
 
     # Verify specific values in the 'Last_Wh_pro_Stunde' array
     assert (
@@ -334,13 +334,13 @@ def test_simulation(create_ems_instance):
         abs(result["Gesamt_Verluste"] - 2871.5330639359036) < 1e-5
     ), "Total losses should be 2871.5330639359036 ."
 
-    # Check the values in 'akku_soc_pro_stunde'
+    # Check the values in 'battery_soc_per_hour'
     assert (
-        result["akku_soc_pro_stunde"][-1] == 42.151590909090906
-    ), "The value at index -1 of 'akku_soc_pro_stunde' should be 42.151590909090906."
+        result["battery_soc_per_hour"][-1] == 42.151590909090906
+    ), "The value at index -1 of 'battery_soc_per_hour' should be 42.151590909090906."
     assert (
-        result["akku_soc_pro_stunde"][1] == 60.08659090909091
-    ), "The value at index 1 of 'akku_soc_pro_stunde' should be 60.08659090909091."
+        result["battery_soc_per_hour"][1] == 60.08659090909091
+    ), "The value at index 1 of 'battery_soc_per_hour' should be 60.08659090909091."
 
     # Check home appliances
     assert (

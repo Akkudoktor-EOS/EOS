@@ -443,7 +443,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # New check: Activate discharge when battery SoC is 0
         # battery_soc_per_hour = np.array(
-        #     o.get("akku_soc_pro_stunde", [])
+        #     o.get("battery_soc_per_hour", [])
         # )  # Example key for battery SoC
 
         # if battery_soc_per_hour is not None:

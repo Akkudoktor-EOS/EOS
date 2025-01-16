@@ -490,7 +490,7 @@ def prepare_visualize(
     # Group 3:
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
-        [results["result"]["akku_soc_pro_stunde"], results["result"]["EAuto_SoC_pro_Stunde"]],
+        [results["result"]["battery_soc_per_hour"], results["result"]["EAuto_SoC_pro_Stunde"]],
         title="Battery SOC",
         # xlabel="Date", # not enough space
         ylabel="%",

@@ -83,7 +83,7 @@ class SimulationResult(ParametersBaseModel):
     Verluste_Pro_Stunde: list[Optional[float]] = Field(
         description="The losses in watt-hours per hour."
     )
-    akku_soc_pro_stunde: list[Optional[float]] = Field(
+    battery_soc_per_hour: list[Optional[float]] = Field(
         description="The state of charge of the battery (not the EV) in percentage per hour."
     )
     Electricity_price: list[Optional[float]] = Field(
@@ -93,7 +93,7 @@ class SimulationResult(ParametersBaseModel):
     @field_validator(
         "Last_Wh_pro_Stunde",
         "Netzeinspeisung_Wh_pro_Stunde",
-        "akku_soc_pro_stunde",
+        "battery_soc_per_hour",
         "Netzbezug_Wh_pro_Stunde",
         "Kosten_Euro_pro_Stunde",
         "Einnahmen_Euro_pro_Stunde",
@@ -278,7 +278,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
     def simulate(self, start_hour: int) -> dict[str, Any]:
         """hour.
 
-        akku_soc_pro_stunde begin of the hour, initial hour state!
+        battery_soc_per_hour begin of the hour, initial hour state!
         last_wh_pro_stunde integral of  last hour (end state)
         """
         # Check for simulation integrity
@@ -428,7 +428,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             "Netzeinspeisung_Wh_pro_Stunde": feedin_energy_per_hour,
             "Netzbezug_Wh_pro_Stunde": consumption_energy_per_hour,
             "Kosten_Euro_pro_Stunde": costs_per_hour,
-            "akku_soc_pro_stunde": soc_per_hour,
+            "battery_soc_per_hour": soc_per_hour,
             "Einnahmen_Euro_pro_Stunde": revenue_per_hour,
             "Gesamtbilanz_Euro": gesamtkosten_euro,
             "EAuto_SoC_pro_Stunde": soc_ev_per_hour,

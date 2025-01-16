@@ -199,7 +199,7 @@ def test_simulation(create_ems_instance):
         "Netzeinspeisung_Wh_pro_Stunde",
         "Netzbezug_Wh_pro_Stunde",
         "Kosten_Euro_pro_Stunde",
-        "akku_soc_pro_stunde",
+        "battery_soc_per_hour",
         "Einnahmen_Euro_pro_Stunde",
         "Gesamtbilanz_Euro",
         "EAuto_SoC_pro_Stunde",
@@ -227,16 +227,16 @@ def test_simulation(create_ems_instance):
         len(result["Kosten_Euro_pro_Stunde"]) == 48
     ), "The length of 'Kosten_Euro_pro_Stunde' should be 48."
     assert (
-        len(result["akku_soc_pro_stunde"]) == 48
-    ), "The length of 'akku_soc_pro_stunde' should be 48."
+        len(result["battery_soc_per_hour"]) == 48
+    ), "The length of 'battery_soc_per_hour' should be 48."
 
     # Verfify DC and AC Charge Bins
     assert (
-        abs(result["akku_soc_pro_stunde"][2] - 44.70681818181818) < 1e-5
-    ), "'akku_soc_pro_stunde[2]' should be 44.70681818181818."
+        abs(result["battery_soc_per_hour"][2] - 44.70681818181818) < 1e-5
+    ), "'battery_soc_per_hour[2]' should be 44.70681818181818."
     assert (
-        abs(result["akku_soc_pro_stunde"][10] - 10.0) < 1e-5
-    ), "'akku_soc_pro_stunde[10]' should be 10."
+        abs(result["battery_soc_per_hour"][10] - 10.0) < 1e-5
+    ), "'battery_soc_per_hour[10]' should be 10."
 
     assert (
         abs(result["Netzeinspeisung_Wh_pro_Stunde"][10] - 3946.93) < 1e-3
@@ -247,8 +247,8 @@ def test_simulation(create_ems_instance):
     ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
 
     assert (
-        abs(result["akku_soc_pro_stunde"][20] - 10) < 1e-5
-    ), "'akku_soc_pro_stunde[20]' should be 10."
+        abs(result["battery_soc_per_hour"][20] - 10) < 1e-5
+    ), "'battery_soc_per_hour[20]' should be 10."
     assert (
         abs(result["Last_Wh_pro_Stunde"][20] - 6050.98) < 1e-3
     ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
