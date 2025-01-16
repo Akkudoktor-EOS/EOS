@@ -4757,11 +4757,6 @@
             "title": "Gesamtbilanz Euro",
             "type": "number"
           },
-          "Gesamteinnahmen_Euro": {
-            "description": "The total revenues in euros.",
-            "title": "Gesamteinnahmen Euro",
-            "type": "number"
-          },
           "Home_appliance_wh_per_hour": {
             "description": "The energy consumption of a household appliance in watt-hours per hour.",
             "items": {
@@ -4871,6 +4866,11 @@
             "description": "The total costs in euros.",
             "title": "Total Costs Euro",
             "type": "number"
+          },
+          "total_revenue_euro": {
+            "description": "The total revenues in euros.",
+            "title": "Total Revenue Euro",
+            "type": "number"
           }
         },
         "required": [
@@ -4879,7 +4879,7 @@
           "Einnahmen_Euro_pro_Stunde",
           "Gesamt_Verluste",
           "Gesamtbilanz_Euro",
-          "Gesamteinnahmen_Euro",
+          "total_revenue_euro",
           "total_costs_euro",
           "Home_appliance_wh_per_hour",
           "cost_euro_per_hour",

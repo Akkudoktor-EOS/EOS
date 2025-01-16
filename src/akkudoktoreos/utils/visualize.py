@@ -547,7 +547,7 @@ def prepare_visualize(
     values_list = [
         [
             results["result"]["total_costs_euro"],
-            results["result"]["Gesamteinnahmen_Euro"],
+            results["result"]["total_revenue_euro"],
             results["result"]["Gesamtbilanz_Euro"],
         ]
     ]

@@ -323,7 +323,7 @@ def test_simulation(create_ems_instance):
 
     # Check total revenue and total costs
     assert (
-        abs(result["Gesamteinnahmen_Euro"] - 1.168863124510214) < 1e-5
+        abs(result["total_revenue_euro"] - 1.168863124510214) < 1e-5
     ), "Total revenue should be 1.168863124510214."
     assert (
         abs(result["total_costs_euro"] - 3.127048399077888) < 1e-5
