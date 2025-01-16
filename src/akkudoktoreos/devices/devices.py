@@ -287,7 +287,7 @@ class Devices(SingletonMixin, DevicesBase):
     def report_dict(self) -> Dict[str, Any]:
         """Provides devices simulation output as a dictionary."""
         out: Dict[str, Optional[Union[np.ndarray, float]]] = {
-            "Last_Wh_pro_Stunde": self.last_wh_pro_stunde,
+            "load_wh_per_hour": self.last_wh_pro_stunde,
             "grid_export_Wh_pro_Stunde": self.grid_export_wh_pro_stunde,
             "grid_import_Wh_pro_Stunde": self.grid_import_wh_pro_stunde,
             "cost_euro_per_hour": self.kosten_euro_pro_stunde,

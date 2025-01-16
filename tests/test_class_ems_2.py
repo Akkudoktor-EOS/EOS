@@ -182,7 +182,7 @@ def test_simulation(create_ems_instance):
     # Assertions to validate results
     assert result is not None, "Result should not be None"
     assert isinstance(result, dict), "Result should be a dictionary"
-    assert "Last_Wh_pro_Stunde" in result, "Result should contain 'Last_Wh_pro_Stunde'"
+    assert "load_wh_per_hour" in result, "Result should contain 'load_wh_per_hour'"
 
     """
     Check the result of the simulation based on expected values.
@@ -195,7 +195,7 @@ def test_simulation(create_ems_instance):
 
     # Verify that the expected keys are present in the result
     expected_keys = [
-        "Last_Wh_pro_Stunde",
+        "load_wh_per_hour",
         "grid_feed_in_wh_per_hour",
         "grid_demand_wh_per_hour",
         "cost_euro_per_hour",
@@ -214,9 +214,7 @@ def test_simulation(create_ems_instance):
         assert key in result, f"The key '{key}' should be present in the result."
 
     # Check the length of the main arrays
-    assert (
-        len(result["Last_Wh_pro_Stunde"]) == 48
-    ), "The length of 'Last_Wh_pro_Stunde' should be 48."
+    assert len(result["load_wh_per_hour"]) == 48, "The length of 'load_wh_per_hour' should be 48."
     assert (
         len(result["grid_feed_in_wh_per_hour"]) == 48
     ), "The length of 'grid_feed_in_wh_per_hour' should be 48."
@@ -250,7 +248,7 @@ def test_simulation(create_ems_instance):
         abs(result["battery_soc_per_hour"][20] - 10) < 1e-5
     ), "'battery_soc_per_hour[20]' should be 10."
     assert (
-        abs(result["Last_Wh_pro_Stunde"][20] - 6050.98) < 1e-3
+        abs(result["load_wh_per_hour"][20] - 6050.98) < 1e-3
     ), "'grid_feed_in_wh_per_hour[11]' should be 0.0."
 
     print("All tests passed successfully.")

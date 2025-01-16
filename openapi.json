@@ -4732,21 +4732,6 @@
             "title": "Home Appliance Wh Per Hour",
             "type": "array"
           },
-          "Last_Wh_pro_Stunde": {
-            "description": "TBD",
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Last Wh Pro Stunde",
-            "type": "array"
-          },
           "battery_soc_per_hour": {
             "description": "The state of charge of the battery (not the EV) in percentage per hour.",
             "items": {
@@ -4822,6 +4807,21 @@
             "title": "Grid Feed In Wh Per Hour",
             "type": "array"
           },
+          "load_wh_per_hour": {
+            "description": "TBD",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Load Wh Per Hour",
+            "type": "array"
+          },
           "losses_per_hour": {
             "description": "The losses in watt-hours per hour.",
             "items": {
@@ -4874,7 +4874,7 @@
           }
         },
         "required": [
-          "Last_Wh_pro_Stunde",
+          "load_wh_per_hour",
           "ev_soc_per_hour",
           "revenue_euro_per_hour",
           "total_losses",

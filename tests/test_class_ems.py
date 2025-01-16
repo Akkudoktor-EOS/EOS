@@ -270,7 +270,7 @@ def test_simulation(create_ems_instance):
     # Assertions to validate results
     assert result is not None, "Result should not be None"
     assert isinstance(result, dict), "Result should be a dictionary"
-    assert "Last_Wh_pro_Stunde" in result, "Result should contain 'Last_Wh_pro_Stunde'"
+    assert "load_wh_per_hour" in result, "Result should contain 'load_wh_per_hour'"
 
     """
     Check the result of the simulation based on expected values.
@@ -283,9 +283,7 @@ def test_simulation(create_ems_instance):
     assert SimulationResult(**result) is not None
 
     # Check the length of the main arrays
-    assert (
-        len(result["Last_Wh_pro_Stunde"]) == 47
-    ), "The length of 'Last_Wh_pro_Stunde' should be 48."
+    assert len(result["load_wh_per_hour"]) == 47, "The length of 'load_wh_per_hour' should be 48."
     assert (
         len(result["grid_feed_in_wh_per_hour"]) == 47
     ), "The length of 'grid_feed_in_wh_per_hour' should be 48."
@@ -299,16 +297,16 @@ def test_simulation(create_ems_instance):
         len(result["battery_soc_per_hour"]) == 47
     ), "The length of 'battery_soc_per_hour' should be 48."
 
-    # Verify specific values in the 'Last_Wh_pro_Stunde' array
+    # Verify specific values in the 'load_wh_per_hour' array
     assert (
-        result["Last_Wh_pro_Stunde"][1] == 1527.13
-    ), "The value at index 1 of 'Last_Wh_pro_Stunde' should be 1527.13."
+        result["load_wh_per_hour"][1] == 1527.13
+    ), "The value at index 1 of 'load_wh_per_hour' should be 1527.13."
     assert (
-        result["Last_Wh_pro_Stunde"][2] == 1468.88
-    ), "The value at index 2 of 'Last_Wh_pro_Stunde' should be 1468.88."
+        result["load_wh_per_hour"][2] == 1468.88
+    ), "The value at index 2 of 'load_wh_per_hour' should be 1468.88."
     assert (
-        result["Last_Wh_pro_Stunde"][12] == 1132.03
-    ), "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
+        result["load_wh_per_hour"][12] == 1132.03
+    ), "The value at index 12 of 'load_wh_per_hour' should be 1132.03."
 
     # Verify that the value at index 0 is 'None'
     # Check that 'grid_feed_in_wh_per_hour' and 'grid_demand_wh_per_hour' are consistent

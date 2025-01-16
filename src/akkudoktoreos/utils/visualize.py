@@ -466,7 +466,7 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
         [
-            results["result"]["Last_Wh_pro_Stunde"],
+            results["result"]["load_wh_per_hour"],
             results["result"]["Home_appliance_wh_per_hour"],
             results["result"]["grid_feed_in_wh_per_hour"],
             results["result"]["grid_demand_wh_per_hour"],

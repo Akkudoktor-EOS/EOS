@@ -53,7 +53,7 @@ class EnergieManagementSystemParameters(ParametersBaseModel):
 class SimulationResult(ParametersBaseModel):
     """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
 
-    Last_Wh_pro_Stunde: list[Optional[float]] = Field(description="TBD")
+    load_wh_per_hour: list[Optional[float]] = Field(description="TBD")
     ev_soc_per_hour: list[Optional[float]] = Field(
         description="The state of charge of the EV for each hour."
     )
@@ -87,7 +87,7 @@ class SimulationResult(ParametersBaseModel):
     )
 
     @field_validator(
-        "Last_Wh_pro_Stunde",
+        "load_wh_per_hour",
         "grid_feed_in_wh_per_hour",
         "battery_soc_per_hour",
         "grid_demand_wh_per_hour",
@@ -420,7 +420,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
 
         # Prepare output dictionary
         out: Dict[str, Union[np.ndarray, float]] = {
-            "Last_Wh_pro_Stunde": loads_energy_per_hour,
+            "load_wh_per_hour": loads_energy_per_hour,
             "grid_feed_in_wh_per_hour": feedin_energy_per_hour,
             "grid_demand_wh_per_hour": consumption_energy_per_hour,
             "cost_euro_per_hour": costs_per_hour,
