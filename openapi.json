@@ -4782,21 +4782,6 @@
             "title": "Home Appliance Wh Per Hour",
             "type": "array"
           },
-          "Kosten_Euro_pro_Stunde": {
-            "description": "The costs in euros per hour.",
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Kosten Euro Pro Stunde",
-            "type": "array"
-          },
           "Last_Wh_pro_Stunde": {
             "description": "TBD",
             "items": {
@@ -4825,6 +4810,21 @@
               ]
             },
             "title": "Battery Soc Per Hour",
+            "type": "array"
+          },
+          "cost_euro_per_hour": {
+            "description": "The costs in euros per hour.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Cost Euro Per Hour",
             "type": "array"
           },
           "grid_demand_wh_per_hour": {
@@ -4882,7 +4882,7 @@
           "Gesamteinnahmen_Euro",
           "Gesamtkosten_Euro",
           "Home_appliance_wh_per_hour",
-          "Kosten_Euro_pro_Stunde",
+          "cost_euro_per_hour",
           "grid_demand_wh_per_hour",
           "grid_feed_in_wh_per_hour",
           "losses_per_hour",

@@ -293,8 +293,8 @@ def test_simulation(create_ems_instance):
         len(result["grid_demand_wh_per_hour"]) == 47
     ), "The length of 'grid_demand_wh_per_hour' should be 48."
     assert (
-        len(result["Kosten_Euro_pro_Stunde"]) == 47
-    ), "The length of 'Kosten_Euro_pro_Stunde' should be 48."
+        len(result["cost_euro_per_hour"]) == 47
+    ), "The length of 'cost_euro_per_hour' should be 48."
     assert (
         len(result["battery_soc_per_hour"]) == 47
     ), "The length of 'battery_soc_per_hour' should be 48."

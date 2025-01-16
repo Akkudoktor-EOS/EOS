@@ -71,9 +71,7 @@ class SimulationResult(ParametersBaseModel):
     Home_appliance_wh_per_hour: list[Optional[float]] = Field(
         description="The energy consumption of a household appliance in watt-hours per hour."
     )
-    Kosten_Euro_pro_Stunde: list[Optional[float]] = Field(
-        description="The costs in euros per hour."
-    )
+    cost_euro_per_hour: list[Optional[float]] = Field(description="The costs in euros per hour.")
     grid_demand_wh_per_hour: list[Optional[float]] = Field(
         description="The grid energy drawn in watt-hours per hour."
     )
@@ -93,7 +91,7 @@ class SimulationResult(ParametersBaseModel):
         "grid_feed_in_wh_per_hour",
         "battery_soc_per_hour",
         "grid_demand_wh_per_hour",
-        "Kosten_Euro_pro_Stunde",
+        "cost_euro_per_hour",
         "Einnahmen_Euro_pro_Stunde",
         "EAuto_SoC_pro_Stunde",
         "losses_per_hour",
@@ -425,7 +423,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             "Last_Wh_pro_Stunde": loads_energy_per_hour,
             "grid_feed_in_wh_per_hour": feedin_energy_per_hour,
             "grid_demand_wh_per_hour": consumption_energy_per_hour,
-            "Kosten_Euro_pro_Stunde": costs_per_hour,
+            "cost_euro_per_hour": costs_per_hour,
             "battery_soc_per_hour": soc_per_hour,
             "Einnahmen_Euro_pro_Stunde": revenue_per_hour,
             "Gesamtbilanz_Euro": gesamtkosten_euro,

@@ -290,7 +290,7 @@ class Devices(SingletonMixin, DevicesBase):
             "Last_Wh_pro_Stunde": self.last_wh_pro_stunde,
             "grid_export_Wh_pro_Stunde": self.grid_export_wh_pro_stunde,
             "grid_import_Wh_pro_Stunde": self.grid_import_wh_pro_stunde,
-            "Kosten_Euro_pro_Stunde": self.kosten_euro_pro_stunde,
+            "cost_euro_per_hour": self.kosten_euro_pro_stunde,
             "battery_soc_per_hour": self.battery_soc_per_hour,
             "Einnahmen_Euro_pro_Stunde": self.einnahmen_euro_pro_stunde,
             "Gesamtbilanz_Euro": self.total_balance_euro,

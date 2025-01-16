@@ -525,7 +525,7 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
         [
-            results["result"]["Kosten_Euro_pro_Stunde"],
+            results["result"]["cost_euro_per_hour"],
             results["result"]["Einnahmen_Euro_pro_Stunde"],
         ],
         title="Financial Balance per Hour",
