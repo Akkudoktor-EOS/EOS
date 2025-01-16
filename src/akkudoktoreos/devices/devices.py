@@ -234,7 +234,7 @@ class Devices(SingletonMixin, DevicesBase):
                 consumption += ha_load
                 self.home_appliance_wh_per_hour[stunde_since_now] = ha_load
 
-            # E-Auto handling
+            # EV handling
             if self.ev:
                 if self.ev_charge_hours[hour] > 0:
                     ev_charged_amount, ev_losses = self.ev.charge_energy(
