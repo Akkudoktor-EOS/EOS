@@ -196,7 +196,7 @@ def test_simulation(create_ems_instance):
     # Verify that the expected keys are present in the result
     expected_keys = [
         "Last_Wh_pro_Stunde",
-        "Netzeinspeisung_Wh_pro_Stunde",
+        "grid_feed_in_wh_per_hour",
         "Netzbezug_Wh_pro_Stunde",
         "Kosten_Euro_pro_Stunde",
         "battery_soc_per_hour",
@@ -218,8 +218,8 @@ def test_simulation(create_ems_instance):
         len(result["Last_Wh_pro_Stunde"]) == 48
     ), "The length of 'Last_Wh_pro_Stunde' should be 48."
     assert (
-        len(result["Netzeinspeisung_Wh_pro_Stunde"]) == 48
-    ), "The length of 'Netzeinspeisung_Wh_pro_Stunde' should be 48."
+        len(result["grid_feed_in_wh_per_hour"]) == 48
+    ), "The length of 'grid_feed_in_wh_per_hour' should be 48."
     assert (
         len(result["Netzbezug_Wh_pro_Stunde"]) == 48
     ), "The length of 'Netzbezug_Wh_pro_Stunde' should be 48."
@@ -239,18 +239,18 @@ def test_simulation(create_ems_instance):
     ), "'battery_soc_per_hour[10]' should be 10."
 
     assert (
-        abs(result["Netzeinspeisung_Wh_pro_Stunde"][10] - 3946.93) < 1e-3
-    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 4000."
+        abs(result["grid_feed_in_wh_per_hour"][10] - 3946.93) < 1e-3
+    ), "'grid_feed_in_wh_per_hour[11]' should be 4000."
 
     assert (
-        abs(result["Netzeinspeisung_Wh_pro_Stunde"][11] - 0.0) < 1e-3
-    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
+        abs(result["grid_feed_in_wh_per_hour"][11] - 0.0) < 1e-3
+    ), "'grid_feed_in_wh_per_hour[11]' should be 0.0."
 
     assert (
         abs(result["battery_soc_per_hour"][20] - 10) < 1e-5
     ), "'battery_soc_per_hour[20]' should be 10."
     assert (
         abs(result["Last_Wh_pro_Stunde"][20] - 6050.98) < 1e-3
-    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
+    ), "'grid_feed_in_wh_per_hour[11]' should be 0.0."
 
     print("All tests passed successfully.")

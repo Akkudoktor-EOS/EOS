@@ -4827,21 +4827,6 @@
             "title": "Netzbezug Wh Pro Stunde",
             "type": "array"
           },
-          "Netzeinspeisung_Wh_pro_Stunde": {
-            "description": "The energy fed into the grid in watt-hours per hour.",
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Netzeinspeisung Wh Pro Stunde",
-            "type": "array"
-          },
           "battery_soc_per_hour": {
             "description": "The state of charge of the battery (not the EV) in percentage per hour.",
             "items": {
@@ -4855,6 +4840,21 @@
               ]
             },
             "title": "Battery Soc Per Hour",
+            "type": "array"
+          },
+          "grid_feed_in_wh_per_hour": {
+            "description": "The energy fed into the grid in watt-hours per hour.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Grid Feed In Wh Per Hour",
             "type": "array"
           },
           "losses_per_hour": {
@@ -4884,7 +4884,7 @@
           "Home_appliance_wh_per_hour",
           "Kosten_Euro_pro_Stunde",
           "Netzbezug_Wh_pro_Stunde",
-          "Netzeinspeisung_Wh_pro_Stunde",
+          "grid_feed_in_wh_per_hour",
           "losses_per_hour",
           "battery_soc_per_hour",
           "Electricity_price"
