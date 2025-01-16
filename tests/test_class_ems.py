@@ -318,7 +318,7 @@ def test_simulation(create_ems_instance):
 
     # Verify the total balance
     assert (
-        abs(result["Gesamtbilanz_Euro"] - 1.958185274567674) < 1e-5
+        abs(result["total_balance_euro"] - 1.958185274567674) < 1e-5
     ), "Total balance should be 1.958185274567674."
 
     # Check total revenue and total costs

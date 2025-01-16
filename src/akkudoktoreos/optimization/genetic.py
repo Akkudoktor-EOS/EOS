@@ -407,7 +407,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         except Exception as e:
             return (100000.0,)  # Return a high penalty in case of an exception
 
-        gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
+        gesamtbilanz = o["total_balance_euro"] * (-1.0 if worst_case else 1.0)
 
         discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
             individual
@@ -480,7 +480,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # More metrics
         individual.extra_data = (  # type: ignore[attr-defined]
-            o["Gesamtbilanz_Euro"],
+            o["total_balance_euro"],
             o["Gesamt_Verluste"],
             parameters.eauto.min_soc_percentage - self.ems.ev.current_soc_percentage()
             if parameters.eauto and self.ems.ev

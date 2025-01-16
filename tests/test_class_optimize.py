@@ -87,8 +87,8 @@ def test_optimize(
         with open(DIR_TESTDATA / f"new_{fn_out}", "w") as f_out:
             f_out.write(ergebnis.model_dump_json(indent=4, exclude_unset=True))
 
-        assert ergebnis.result.Gesamtbilanz_Euro == pytest.approx(
-            expected_result.result.Gesamtbilanz_Euro
+        assert ergebnis.result.total_balance_euro == pytest.approx(
+            expected_result.result.total_balance_euro
         )
 
         # Assert that the output contains all expected entries.

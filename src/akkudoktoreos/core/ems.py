@@ -63,7 +63,7 @@ class SimulationResult(ParametersBaseModel):
     Gesamt_Verluste: float = Field(
         description="The total losses in watt-hours over the entire period."
     )
-    Gesamtbilanz_Euro: float = Field(
+    total_balance_euro: float = Field(
         description="The total balance of revenues minus costs in euros."
     )
     total_revenue_euro: float = Field(description="The total revenues in euros.")
@@ -426,7 +426,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             "cost_euro_per_hour": costs_per_hour,
             "battery_soc_per_hour": soc_per_hour,
             "Einnahmen_Euro_pro_Stunde": revenue_per_hour,
-            "Gesamtbilanz_Euro": gesamtkosten_euro,
+            "total_balance_euro": gesamtkosten_euro,
             "EAuto_SoC_pro_Stunde": soc_ev_per_hour,
             "total_revenue_euro": np.nansum(revenue_per_hour),
             "total_costs_euro": np.nansum(costs_per_hour),

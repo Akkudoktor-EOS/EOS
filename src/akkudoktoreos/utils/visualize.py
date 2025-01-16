@@ -548,7 +548,7 @@ def prepare_visualize(
         [
             results["result"]["total_costs_euro"],
             results["result"]["total_revenue_euro"],
-            results["result"]["Gesamtbilanz_Euro"],
+            results["result"]["total_balance_euro"],
         ]
     ]
     labels = ["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"]

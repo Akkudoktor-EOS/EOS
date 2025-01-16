@@ -4752,11 +4752,6 @@
             "title": "Gesamt Verluste",
             "type": "number"
           },
-          "Gesamtbilanz_Euro": {
-            "description": "The total balance of revenues minus costs in euros.",
-            "title": "Gesamtbilanz Euro",
-            "type": "number"
-          },
           "Home_appliance_wh_per_hour": {
             "description": "The energy consumption of a household appliance in watt-hours per hour.",
             "items": {
@@ -4862,6 +4857,11 @@
             "title": "Losses Per Hour",
             "type": "array"
           },
+          "total_balance_euro": {
+            "description": "The total balance of revenues minus costs in euros.",
+            "title": "Total Balance Euro",
+            "type": "number"
+          },
           "total_costs_euro": {
             "description": "The total costs in euros.",
             "title": "Total Costs Euro",
@@ -4878,7 +4878,7 @@
           "EAuto_SoC_pro_Stunde",
           "Einnahmen_Euro_pro_Stunde",
           "Gesamt_Verluste",
-          "Gesamtbilanz_Euro",
+          "total_balance_euro",
           "total_revenue_euro",
           "total_costs_euro",
           "Home_appliance_wh_per_hour",

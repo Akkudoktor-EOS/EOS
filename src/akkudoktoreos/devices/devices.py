@@ -293,7 +293,7 @@ class Devices(SingletonMixin, DevicesBase):
             "cost_euro_per_hour": self.kosten_euro_pro_stunde,
             "battery_soc_per_hour": self.battery_soc_per_hour,
             "Einnahmen_Euro_pro_Stunde": self.einnahmen_euro_pro_stunde,
-            "Gesamtbilanz_Euro": self.total_balance_euro,
+            "total_balance_euro": self.total_balance_euro,
             "EAuto_SoC_pro_Stunde": self.eauto_soc_pro_stunde,
             "total_revenue_euro": self.total_revenues_euro,
             "total_costs_euro": self.total_costs_euro,
