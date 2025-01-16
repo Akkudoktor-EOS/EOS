@@ -115,7 +115,7 @@ class Battery(DeviceBase):
         if self.provider_id == "GenericBattery":
             self.prefix = "battery"
         elif self.provider_id == "GenericBEV":
-            self.prefix = "bev"
+            self.prefix = "ev"
 
         self.parameters = parameters
         if hours is None:

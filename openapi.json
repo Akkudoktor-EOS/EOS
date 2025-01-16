@@ -100,90 +100,6 @@
             "description": "Battery minimum state of charge [%].",
             "title": "Battery Soc Min"
           },
-          "bev_capacity": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle capacity [Wh].",
-            "title": "Bev Capacity"
-          },
-          "bev_charging_efficiency": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle charging efficiency [%].",
-            "title": "Bev Charging Efficiency"
-          },
-          "bev_discharging_efficiency": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle discharging efficiency [%].",
-            "title": "Bev Discharging Efficiency"
-          },
-          "bev_initial_soc": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle initial state of charge [%].",
-            "title": "Bev Initial Soc"
-          },
-          "bev_max_charging_power": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle maximum charge power [W].",
-            "title": "Bev Max Charging Power"
-          },
-          "bev_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Id of Battery Electric Vehicle simulation provider.",
-            "title": "Bev Provider"
-          },
-          "bev_soc_max": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle maximum state of charge [%].",
-            "title": "Bev Soc Max"
-          },
           "config_default_file_path": {
             "description": "Compute the default config file path.",
             "format": "path",
@@ -394,6 +310,90 @@
             ],
             "description": "JSON string, dictionary of electricity price forecast value lists.",
             "title": "Elecpriceimport Json"
+          },
+          "ev_capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle capacity [Wh].",
+            "title": "Ev Capacity"
+          },
+          "ev_charging_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle charging efficiency [%].",
+            "title": "Ev Charging Efficiency"
+          },
+          "ev_discharging_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle discharging efficiency [%].",
+            "title": "Ev Discharging Efficiency"
+          },
+          "ev_initial_soc": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle initial state of charge [%].",
+            "title": "Ev Initial Soc"
+          },
+          "ev_max_charging_power": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle maximum charge power [W].",
+            "title": "Ev Max Charging Power"
+          },
+          "ev_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Id of Battery Electric Vehicle simulation provider.",
+            "title": "Ev Provider"
+          },
+          "ev_soc_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle maximum state of charge [%].",
+            "title": "Ev Soc Max"
           },
           "inverter_power_max": {
             "anyOf": [
@@ -2768,90 +2768,6 @@
             "description": "Battery minimum state of charge [%].",
             "title": "Battery Soc Min"
           },
-          "bev_capacity": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle capacity [Wh].",
-            "title": "Bev Capacity"
-          },
-          "bev_charging_efficiency": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle charging efficiency [%].",
-            "title": "Bev Charging Efficiency"
-          },
-          "bev_discharging_efficiency": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle discharging efficiency [%].",
-            "title": "Bev Discharging Efficiency"
-          },
-          "bev_initial_soc": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle initial state of charge [%].",
-            "title": "Bev Initial Soc"
-          },
-          "bev_max_charging_power": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle maximum charge power [W].",
-            "title": "Bev Max Charging Power"
-          },
-          "bev_provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Id of Battery Electric Vehicle simulation provider.",
-            "title": "Bev Provider"
-          },
-          "bev_soc_max": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Battery Electric Vehicle maximum state of charge [%].",
-            "title": "Bev Soc Max"
-          },
           "data_cache_path": {
             "anyOf": [
               {
@@ -3009,6 +2925,90 @@
             ],
             "description": "JSON string, dictionary of electricity price forecast value lists.",
             "title": "Elecpriceimport Json"
+          },
+          "ev_capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle capacity [Wh].",
+            "title": "Ev Capacity"
+          },
+          "ev_charging_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle charging efficiency [%].",
+            "title": "Ev Charging Efficiency"
+          },
+          "ev_discharging_efficiency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle discharging efficiency [%].",
+            "title": "Ev Discharging Efficiency"
+          },
+          "ev_initial_soc": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle initial state of charge [%].",
+            "title": "Ev Initial Soc"
+          },
+          "ev_max_charging_power": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle maximum charge power [W].",
+            "title": "Ev Max Charging Power"
+          },
+          "ev_provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Id of Battery Electric Vehicle simulation provider.",
+            "title": "Ev Provider"
+          },
+          "ev_soc_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Battery Electric Vehicle maximum state of charge [%].",
+            "title": "Ev Soc Max"
           },
           "inverter_power_max": {
             "anyOf": [
@@ -7746,7 +7746,7 @@
           {
             "description": "Id of Battery Electric Vehicle simulation provider.",
             "in": "query",
-            "name": "bev_provider",
+            "name": "ev_provider",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7758,13 +7758,13 @@
                 }
               ],
               "description": "Id of Battery Electric Vehicle simulation provider.",
-              "title": "Bev Provider"
+              "title": "Ev Provider"
             }
           },
           {
             "description": "Battery Electric Vehicle capacity [Wh].",
             "in": "query",
-            "name": "bev_capacity",
+            "name": "ev_capacity",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7776,13 +7776,13 @@
                 }
               ],
               "description": "Battery Electric Vehicle capacity [Wh].",
-              "title": "Bev Capacity"
+              "title": "Ev Capacity"
             }
           },
           {
             "description": "Battery Electric Vehicle initial state of charge [%].",
             "in": "query",
-            "name": "bev_initial_soc",
+            "name": "ev_initial_soc",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7794,13 +7794,13 @@
                 }
               ],
               "description": "Battery Electric Vehicle initial state of charge [%].",
-              "title": "Bev Initial Soc"
+              "title": "Ev Initial Soc"
             }
           },
           {
             "description": "Battery Electric Vehicle maximum state of charge [%].",
             "in": "query",
-            "name": "bev_soc_max",
+            "name": "ev_soc_max",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7812,13 +7812,13 @@
                 }
               ],
               "description": "Battery Electric Vehicle maximum state of charge [%].",
-              "title": "Bev Soc Max"
+              "title": "Ev Soc Max"
             }
           },
           {
             "description": "Battery Electric Vehicle charging efficiency [%].",
             "in": "query",
-            "name": "bev_charging_efficiency",
+            "name": "ev_charging_efficiency",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7830,13 +7830,13 @@
                 }
               ],
               "description": "Battery Electric Vehicle charging efficiency [%].",
-              "title": "Bev Charging Efficiency"
+              "title": "Ev Charging Efficiency"
             }
           },
           {
             "description": "Battery Electric Vehicle discharging efficiency [%].",
             "in": "query",
-            "name": "bev_discharging_efficiency",
+            "name": "ev_discharging_efficiency",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7848,13 +7848,13 @@
                 }
               ],
               "description": "Battery Electric Vehicle discharging efficiency [%].",
-              "title": "Bev Discharging Efficiency"
+              "title": "Ev Discharging Efficiency"
             }
           },
           {
             "description": "Battery Electric Vehicle maximum charge power [W].",
             "in": "query",
-            "name": "bev_max_charging_power",
+            "name": "ev_max_charging_power",
             "required": false,
             "schema": {
               "anyOf": [
@@ -7866,7 +7866,7 @@
                 }
               ],
               "description": "Battery Electric Vehicle maximum charge power [W].",
-              "title": "Bev Max Charging Power"
+              "title": "Ev Max Charging Power"
             }
           },
           {

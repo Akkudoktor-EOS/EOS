@@ -47,25 +47,25 @@ class DevicesCommonSettings(SettingsBaseModel):
 
     # Battery Electric Vehicle
     # ------------------------
-    bev_provider: Optional[str] = Field(
+    ev_provider: Optional[str] = Field(
         default=None, description="Id of Battery Electric Vehicle simulation provider."
     )
-    bev_capacity: Optional[int] = Field(
+    ev_capacity: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle capacity [Wh]."
     )
-    bev_initial_soc: Optional[int] = Field(
+    ev_initial_soc: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle initial state of charge [%]."
     )
-    bev_soc_max: Optional[int] = Field(
+    ev_soc_max: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle maximum state of charge [%]."
     )
-    bev_charging_efficiency: Optional[float] = Field(
+    ev_charging_efficiency: Optional[float] = Field(
         default=None, description="Battery Electric Vehicle charging efficiency [%]."
     )
-    bev_discharging_efficiency: Optional[float] = Field(
+    ev_discharging_efficiency: Optional[float] = Field(
         default=None, description="Battery Electric Vehicle discharging efficiency [%]."
     )
-    bev_max_charging_power: Optional[int] = Field(
+    ev_max_charging_power: Optional[int] = Field(
         default=None, description="Battery Electric Vehicle maximum charge power [W]."
     )
 

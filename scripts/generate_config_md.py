@@ -14,7 +14,7 @@ config_eos = get_config()
 # Fixed set of prefixes to filter configuration values and their respective titles
 CONFIG_PREFIXES = {
     "battery": "Battery Device Simulation Configuration",
-    "bev": "Battery Electric Vehicle Device Simulation Configuration",
+    "ev": "Battery Electric Vehicle Device Simulation Configuration",
     "dishwasher": "Dishwasher Device Simulation Configuration",
     "inverter": "Inverter Device Simulation Configuration",
     "measurement": "Measurement Configuration",

@@ -34,7 +34,7 @@ Note:
 
 - `application/json`: {
   "$ref": "#/components/schemas/GesamtlastRequest"
-}
+  }
 
 **Responses**:
 
@@ -92,7 +92,7 @@ Fastapi Optimize
 
 - `application/json`: {
   "$ref": "#/components/schemas/OptimizationParameters"
-}
+  }
 
 **Responses**:
 
@@ -474,19 +474,19 @@ Returns:
 
 - `battery_max_charging_power` (query, optional): Battery maximum charge power [W].
 
-- `bev_provider` (query, optional): Id of Battery Electric Vehicle simulation provider.
+- `ev_provider` (query, optional): Id of Battery Electric Vehicle simulation provider.
 
-- `bev_capacity` (query, optional): Battery Electric Vehicle capacity [Wh].
+- `ev_capacity` (query, optional): Battery Electric Vehicle capacity [Wh].
 
-- `bev_initial_soc` (query, optional): Battery Electric Vehicle initial state of charge [%].
+- `ev_initial_soc` (query, optional): Battery Electric Vehicle initial state of charge [%].
 
-- `bev_soc_max` (query, optional): Battery Electric Vehicle maximum state of charge [%].
+- `ev_soc_max` (query, optional): Battery Electric Vehicle maximum state of charge [%].
 
-- `bev_charging_efficiency` (query, optional): Battery Electric Vehicle charging efficiency [%].
+- `ev_charging_efficiency` (query, optional): Battery Electric Vehicle charging efficiency [%].
 
-- `bev_discharging_efficiency` (query, optional): Battery Electric Vehicle discharging efficiency [%].
+- `ev_discharging_efficiency` (query, optional): Battery Electric Vehicle discharging efficiency [%].
 
-- `bev_max_charging_power` (query, optional): Battery Electric Vehicle maximum charge power [W].
+- `ev_max_charging_power` (query, optional): Battery Electric Vehicle maximum charge power [W].
 
 - `dishwasher_provider` (query, optional): Id of Dish Washer simulation provider.
 
@@ -616,7 +616,7 @@ Merge the measurement data given as datetime data into EOS measurements.
 
 - `application/json`: {
   "$ref": "#/components/schemas/PydanticDateTimeData"
-}
+  }
 
 **Responses**:
 
@@ -640,7 +640,7 @@ Merge the measurement data given as dataframe into EOS measurements.
 
 - `application/json`: {
   "$ref": "#/components/schemas/PydanticDateTimeDataFrame"
-}
+  }
 
 **Responses**:
 
@@ -706,7 +706,7 @@ Merge the meter readings series of given load name into EOS measurements at give
 
 - `application/json`: {
   "$ref": "#/components/schemas/PydanticDateTimeSeries"
-}
+  }
 
 **Responses**:
 
@@ -782,7 +782,7 @@ Merge measurement given as series into given key.
 
 - `application/json`: {
   "$ref": "#/components/schemas/PydanticDateTimeSeries"
-}
+  }
 
 **Responses**:
 
