@@ -6,7 +6,7 @@ python-fasthtml==0.10.3
 uvicorn==0.34.0
 scikit-learn==1.6.1
 timezonefinder==6.5.7
-deap==1.4.1
+deap==1.4.2
 requests==2.32.3
 pandas==2.2.3
 pendulum==3.0.0
