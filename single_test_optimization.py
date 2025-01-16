@@ -125,7 +125,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
                 "price_euro_per_wh_battery": 0e-05,
                 "feed_in_tariff_euro_per_wh": 7e-05,
                 "gesamtlast": gesamtlast,
-                "pv_prognose_wh": pv_forecast,
+                "pv_prediction_wh": pv_forecast,
                 "electricity_price_euro_per_wh": electricity_price_euro_per_wh,
             },
             "pv_akku": {
@@ -276,7 +276,7 @@ def prepare_optimization_parameters() -> OptimizationParameters:
                 "price_euro_per_wh_battery": 0e-05,
                 "feed_in_tariff_euro_per_wh": 7e-05,
                 "gesamtlast": gesamtlast,
-                "pv_prognose_wh": pv_forecast,
+                "pv_prediction_wh": pv_forecast,
                 "electricity_price_euro_per_wh": electricity_price_euro_per_wh,
             },
             "pv_akku": {

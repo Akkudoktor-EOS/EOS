@@ -68,9 +68,9 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
     )
 
     # Parameters based on previous example data
-    pv_prognose_wh = [0.0] * config_eos.prediction_hours
-    pv_prognose_wh[10] = 5000.0
-    pv_prognose_wh[11] = 5000.0
+    pv_prediction_wh = [0.0] * config_eos.prediction_hours
+    pv_prediction_wh[10] = 5000.0
+    pv_prediction_wh[11] = 5000.0
 
     electricity_price_euro_per_wh = [0.001] * config_eos.prediction_hours
     electricity_price_euro_per_wh[0:10] = [0.00001] * 10
@@ -135,7 +135,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
     ems = get_ems()
     ems.set_parameters(
         EnergieManagementSystemParameters(
-            pv_prognose_wh=pv_prognose_wh,
+            pv_prediction_wh=pv_prediction_wh,
             electricity_price_euro_per_wh=electricity_price_euro_per_wh,
             feed_in_tariff_euro_per_wh=feed_in_tariff_euro_per_wh,
             price_euro_per_wh_battery=price_euro_per_wh_battery,
@@ -166,12 +166,12 @@ def test_simulation(create_ems_instance):
     # --- Pls do not remove! ---
     # visualisiere_ergebnisse(
     #     ems.gesamtlast,
-    #     ems.pv_prognose_wh,
+    #     ems.pv_prediction_wh,
     #     ems.electricity_price_euro_per_wh,
     #     result,
     #     ems.akku.discharge_array+ems.akku.charge_array,
     #     None,
-    #     ems.pv_prognose_wh,
+    #     ems.pv_prediction_wh,
     #     start_hour,
     #     48,
     #     np.full(48, 0.0),

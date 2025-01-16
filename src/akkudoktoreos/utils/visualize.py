@@ -434,7 +434,7 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
         [
-            parameters.ems.pv_prognose_wh,
+            parameters.ems.pv_prediction_wh,
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space

@@ -47,7 +47,7 @@ class OptimizationParameters(ParametersBaseModel):
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
-        arr_length = len(self.ems.pv_prognose_wh)
+        arr_length = len(self.ems.pv_prediction_wh)
         if self.temperature_forecast is not None and arr_length != len(self.temperature_forecast):
             raise ValueError("Input lists have different lengths")
         return self

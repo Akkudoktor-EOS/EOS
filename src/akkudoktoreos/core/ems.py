@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 
 class EnergieManagementSystemParameters(ParametersBaseModel):
-    pv_prognose_wh: list[float] = Field(
+    pv_prediction_wh: list[float] = Field(
         description="An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
     )
     electricity_price_euro_per_wh: list[float] = Field(
@@ -37,7 +37,7 @@ class EnergieManagementSystemParameters(ParametersBaseModel):
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
-        pv_prognose_length = len(self.pv_prognose_wh)
+        pv_prognose_length = len(self.pv_prediction_wh)
         if (
             pv_prognose_length != len(self.electricity_price_euro_per_wh)
             or pv_prognose_length != len(self.gesamtlast)
@@ -173,7 +173,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
         inverter: Optional[Inverter] = None,
     ) -> None:
         self.load_energy_array = np.array(parameters.gesamtlast, float)
-        self.pv_prediction_wh = np.array(parameters.pv_prognose_wh, float)
+        self.pv_prediction_wh = np.array(parameters.pv_prediction_wh, float)
         self.elect_price_hourly = np.array(parameters.electricity_price_euro_per_wh, float)
         self.elect_revenue_per_hour_arr = (
             parameters.feed_in_tariff_euro_per_wh

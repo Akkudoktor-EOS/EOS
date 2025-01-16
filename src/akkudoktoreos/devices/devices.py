@@ -203,7 +203,7 @@ class Devices(SingletonMixin, DevicesBase):
             end_datetime=self.end_datetime,
             interval=simulation_step,
         )
-        # pv_prognose_wh[stunde]
+        # pv_prediction_wh[stunde]
         pvforecast_ac_power = self.prediction.key_to_array(
             "pvforecast_ac_power",
             start_datetime=self.start_datetime,
