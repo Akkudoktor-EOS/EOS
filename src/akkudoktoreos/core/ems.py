@@ -369,7 +369,12 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
                     losses_wh_per_hour[hour_since_now] += ev_losses
 
             # Process inverter logic
-            energy_feedin_grid_actual, energy_consumption_grid_actual, losses, eigenverbrauch = (
+            (
+                energy_feedin_grid_actual,
+                energy_consumption_grid_actual,
+                losses,
+                internal_consumption,
+            ) = (
                 0.0,
                 0.0,
                 0.0,
@@ -383,7 +388,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
                     energy_feedin_grid_actual,
                     energy_consumption_grid_actual,
                     losses,
-                    eigenverbrauch,
+                    internal_consumption,
                 ) = self.inverter.process_energy(energy_produced, consumption, hour)
 
             # AC PV Battery Charge
