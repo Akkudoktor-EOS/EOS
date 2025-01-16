@@ -148,10 +148,10 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
 
     ac = np.full(config_eos.prediction_hours, 0.0)
     ac[20] = 1
-    ems.set_akku_ac_charge_hours(ac)
+    ems.set_battery_ac_charge_hours(ac)
     dc = np.full(config_eos.prediction_hours, 0.0)
     dc[11] = 1
-    ems.set_akku_dc_charge_hours(dc)
+    ems.set_battery_dc_charge_hours(dc)
 
     return ems
 

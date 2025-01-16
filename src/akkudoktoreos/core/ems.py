@@ -191,14 +191,14 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
         self.dc_charge_hours = np.full(self.config.prediction_hours, 1.0)
         self.ev_charge_hours = np.full(self.config.prediction_hours, 0.0)
 
-    def set_akku_discharge_hours(self, ds: np.ndarray) -> None:
+    def set_battery_discharge_hours(self, ds: np.ndarray) -> None:
         if self.battery is not None:
             self.battery.set_discharge_per_hour(ds)
 
-    def set_akku_ac_charge_hours(self, ds: np.ndarray) -> None:
+    def set_battery_ac_charge_hours(self, ds: np.ndarray) -> None:
         self.ac_charge_hours = ds
 
-    def set_akku_dc_charge_hours(self, ds: np.ndarray) -> None:
+    def set_battery_dc_charge_hours(self, ds: np.ndarray) -> None:
         self.dc_charge_hours = ds
 
     def set_ev_charge_hours(self, ds: np.ndarray) -> None:
@@ -419,7 +419,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             )
 
         # Total cost and return
-        gesamtkosten_euro = np.nansum(costs_per_hour) - np.nansum(revenue_per_hour)
+        total_balance_euro = np.nansum(costs_per_hour) - np.nansum(revenue_per_hour)
 
         # Prepare output dictionary
         out: Dict[str, Union[np.ndarray, float]] = {
@@ -429,7 +429,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             "cost_euro_per_hour": costs_per_hour,
             "battery_soc_per_hour": soc_per_hour,
             "revenue_euro_per_hour": revenue_per_hour,
-            "total_balance_euro": gesamtkosten_euro,
+            "total_balance_euro": total_balance_euro,
             "ev_soc_per_hour": soc_ev_per_hour,
             "total_revenue_euro": np.nansum(revenue_per_hour),
             "total_costs_euro": np.nansum(costs_per_hour),

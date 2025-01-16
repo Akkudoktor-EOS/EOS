@@ -377,11 +377,11 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         ac, dc, discharge = self.decode_charge_discharge(discharge_hours_bin)
 
-        self.ems.set_akku_discharge_hours(discharge)
+        self.ems.set_battery_discharge_hours(discharge)
         # Set DC charge hours only if DC optimization is enabled
         if self.optimize_dc_charge:
-            self.ems.set_akku_dc_charge_hours(dc)
-        self.ems.set_akku_ac_charge_hours(ac)
+            self.ems.set_battery_dc_charge_hours(dc)
+        self.ems.set_battery_ac_charge_hours(ac)
 
         if ev_charge_hours_index is not None:
             ev_charge_hours_float = np.array(
