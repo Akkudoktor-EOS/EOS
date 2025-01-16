@@ -37,7 +37,7 @@
   "inverter": {
     "max_power_wh": 10000
   },
-  "eauto": {
+  "ev": {
     "capacity_wh": 60000,
     "charging_efficiency": 0.95,
     "discharging_efficiency": 1.0,

@@ -61,13 +61,13 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
     home_appliance.set_starting_time(2)
 
     # Example initialization of electric car battery
-    eauto = Battery(
+    ev = Battery(
         ElectricVehicleParameters(
             capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
         ),
         hours=config_eos.prediction_hours,
     )
-    eauto.set_charge_per_hour(np.full(config_eos.prediction_hours, 1))
+    ev.set_charge_per_hour(np.full(config_eos.prediction_hours, 1))
 
     # Parameters based on previous example data
     pv_prediction_wh = [
@@ -237,7 +237,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
             gesamtlast=gesamtlast,
         ),
         inverter=inverter,
-        ev=eauto,
+        ev=ev,
         home_appliance=home_appliance,
     )
 

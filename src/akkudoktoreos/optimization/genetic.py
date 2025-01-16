@@ -35,7 +35,7 @@ class OptimizationParameters(ParametersBaseModel):
     ems: EnergieManagementSystemParameters
     pv_battery: Optional[SolarPanelBatteryParameters]
     inverter: Optional[InverterParameters]
-    eauto: Optional[ElectricVehicleParameters]
+    ev: Optional[ElectricVehicleParameters]
     dishwasher: Optional[HomeApplianceParameters] = None
     temperature_forecast: Optional[list[Optional[float]]] = Field(
         default=None,
@@ -482,8 +482,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         individual.extra_data = (  # type: ignore[attr-defined]
             o["total_balance_euro"],
             o["total_losses"],
-            parameters.eauto.min_soc_percentage - self.ems.ev.current_soc_percentage()
-            if parameters.eauto and self.ems.ev
+            parameters.ev.min_soc_percentage - self.ems.ev.current_soc_percentage()
+            if parameters.ev and self.ems.ev
             else 0,
         )
 
@@ -497,8 +497,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             gesamtbilanz += max(
                 0,
                 (
-                    parameters.eauto.min_soc_percentage - self.ems.ev.current_soc_percentage()
-                    if parameters.eauto and self.ems.ev
+                    parameters.ev.min_soc_percentage - self.ems.ev.current_soc_percentage()
+                    if parameters.ev and self.ems.ev
                     else 0
                 )
                 * self.config.optimization_penalty,
@@ -586,15 +586,15 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             )
             akku.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
 
-        eauto: Optional[Battery] = None
-        if parameters.eauto:
-            eauto = Battery(
-                parameters.eauto,
+        ev: Optional[Battery] = None
+        if parameters.ev:
+            ev = Battery(
+                parameters.ev,
                 hours=self.config.prediction_hours,
             )
-            eauto.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
+            ev.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
             self.optimize_ev = (
-                parameters.eauto.min_soc_percentage - parameters.eauto.initial_soc_percentage >= 0
+                parameters.ev.min_soc_percentage - parameters.ev.initial_soc_percentage >= 0
             )
         else:
             self.optimize_ev = False
@@ -620,7 +620,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         self.ems.set_parameters(
             parameters.ems,
             inverter=inverter,
-            ev=eauto,
+            ev=ev,
             home_appliance=dishwasher,
         )
         self.ems.set_start_hour(start_hour)

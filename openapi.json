@@ -2398,7 +2398,7 @@
               }
             ]
           },
-          "eauto": {
+          "ev": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ElectricVehicleParameters"
@@ -2469,7 +2469,7 @@
             "title": "Temperature Forecast"
           }
         },
-        "required": ["ems", "pv_battery", "inverter", "eauto"],
+        "required": ["ems", "pv_battery", "inverter", "ev"],
         "title": "OptimizationParameters",
         "type": "object"
       },
