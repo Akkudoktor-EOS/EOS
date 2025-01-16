@@ -2398,6 +2398,9 @@
               }
             ]
           },
+          "ems": {
+            "$ref": "#/components/schemas/EnergieManagementSystemParameters"
+          },
           "ev": {
             "anyOf": [
               {
@@ -2407,9 +2410,6 @@
                 "type": "null"
               }
             ]
-          },
-          "ems": {
-            "$ref": "#/components/schemas/EnergieManagementSystemParameters"
           },
           "inverter": {
             "anyOf": [
@@ -2501,17 +2501,7 @@
             "title": "Discharge Allowed",
             "type": "array"
           },
-          "ev_obj": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ElectricVehicleResult"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "eautocharge_hours_float": {
+          "ev_charge_hours_float": {
             "anyOf": [
               {
                 "items": {
@@ -2524,7 +2514,17 @@
               }
             ],
             "description": "TBD",
-            "title": "Eautocharge Hours Float"
+            "title": "Ev Charge Hours Float"
+          },
+          "ev_obj": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ElectricVehicleResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "result": {
             "$ref": "#/components/schemas/SimulationResult"
@@ -2561,7 +2561,7 @@
           "ac_charge",
           "dc_charge",
           "discharge_allowed",
-          "eautocharge_hours_float",
+          "ev_charge_hours_float",
           "result",
           "ev_obj"
         ],

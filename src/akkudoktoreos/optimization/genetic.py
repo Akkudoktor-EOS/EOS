@@ -73,7 +73,7 @@ class OptimizeResponse(ParametersBaseModel):
     discharge_allowed: list[int] = Field(
         description="Array with discharge values (1 for discharge, 0 otherwise)."
     )
-    eautocharge_hours_float: Optional[list[float]] = Field(description="TBD")
+    ev_charge_hours_float: Optional[list[float]] = Field(description="TBD")
     result: SimulationResult
     ev_obj: Optional[ElectricVehicleResult]
     start_solution: Optional[list[float]] = Field(
@@ -98,7 +98,7 @@ class OptimizeResponse(ParametersBaseModel):
         "ev_obj",
         mode="before",
     )
-    def convert_eauto(cls, field: Any) -> Any:
+    def convert_ev_(cls, field: Any) -> Any:
         if isinstance(field, Battery):
             return ElectricVehicleResult(**field.to_dict())
         return field
@@ -230,14 +230,14 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
     def merge_individual(
         self,
         discharge_hours_bin: np.ndarray,
-        eautocharge_hours_index: Optional[np.ndarray],
+        ev_charge_hours_index: Optional[np.ndarray],
         washingstart_int: Optional[int],
     ) -> list[int]:
         """Merge the individual components back into a single solution list.
 
         Parameters:
             discharge_hours_bin (np.ndarray): Binary discharge hours.
-            eautocharge_hours_index (Optional[np.ndarray]): EV charge hours as integers, or None.
+            ev_charge_hours_index (Optional[np.ndarray]): EV charge hours as integers, or None.
             washingstart_int (Optional[int]): Dishwasher start time as integer, or None.
 
         Returns:
@@ -247,8 +247,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         individual = discharge_hours_bin.tolist()
 
         # Add EV charge hours if applicable
-        if self.optimize_ev and eautocharge_hours_index is not None:
-            individual.extend(eautocharge_hours_index.tolist())
+        if self.optimize_ev and ev_charge_hours_index is not None:
+            individual.extend(ev_charge_hours_index.tolist())
         elif self.optimize_ev:
             # Falls optimize_ev aktiv ist, aber keine EV-Daten vorhanden sind, fügen wir Nullen hinzu
             individual.extend([0] * self.config.prediction_hours)
@@ -276,7 +276,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         discharge_hours_bin = np.array(individual[: self.config.prediction_hours], dtype=int)
 
         # EV charge hours as a NumPy array of ints (if optimize_ev is True)
-        eautocharge_hours_index = (
+        ev_charge_hours_index = (
             np.array(
                 individual[self.config.prediction_hours : self.config.prediction_hours * 2],
                 dtype=int,
@@ -292,7 +292,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             else None
         )
 
-        return discharge_hours_bin, eautocharge_hours_index, washingstart_int
+        return discharge_hours_bin, ev_charge_hours_index, washingstart_int
 
     def setup_deap_environment(self, opti_param: dict[str, Any], start_hour: int) -> None:
         """Set up the DEAP environment with fitness and individual creation rules."""
@@ -367,7 +367,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         This is an internal function.
         """
         self.ems.reset()
-        discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
+        discharge_hours_bin, ev_charge_hours_index, washingstart_int = self.split_individual(
             individual
         )
         if self.opti_param.get("home_appliance", 0) > 0:
@@ -383,12 +383,12 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             self.ems.set_akku_dc_charge_hours(dc)
         self.ems.set_akku_ac_charge_hours(ac)
 
-        if eautocharge_hours_index is not None:
-            eautocharge_hours_float = np.array(
-                [self.possible_charge_values[i] for i in eautocharge_hours_index],
+        if ev_charge_hours_index is not None:
+            ev_charge_hours_float = np.array(
+                [self.possible_charge_values[i] for i in ev_charge_hours_index],
                 float,
             )
-            self.ems.set_ev_charge_hours(eautocharge_hours_float)
+            self.ems.set_ev_charge_hours(ev_charge_hours_float)
         else:
             self.ems.set_ev_charge_hours(np.full(self.config.prediction_hours, 0))
 
@@ -409,7 +409,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         gesamtbilanz = o["total_balance_euro"] * (-1.0 if worst_case else 1.0)
 
-        discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
+        discharge_hours_bin, ev_charge_hours_index, washingstart_int = self.split_individual(
             individual
         )
 
@@ -417,24 +417,24 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         if self.optimize_ev:
             ev_soc_per_hour = np.array(o.get("ev_soc_per_hour", []))  # Beispielkey
 
-            if ev_soc_per_hour is None or eautocharge_hours_index is None:
-                raise ValueError("ev_soc_per_hour or eautocharge_hours_index is None")
-            min_length = min(ev_soc_per_hour.size, eautocharge_hours_index.size)
+            if ev_soc_per_hour is None or ev_charge_hours_index is None:
+                raise ValueError("ev_soc_per_hour or ev_charge_hours_index is None")
+            min_length = min(ev_soc_per_hour.size, ev_charge_hours_index.size)
             ev_soc_per_hour_tail = ev_soc_per_hour[-min_length:]
-            eautocharge_hours_index_tail = eautocharge_hours_index[-min_length:]
+            ev_charge_hours_index_tail = ev_charge_hours_index[-min_length:]
 
             # Mask
-            invalid_charge_mask = (ev_soc_per_hour_tail == 100) & (eautocharge_hours_index_tail > 0)
+            invalid_charge_mask = (ev_soc_per_hour_tail == 100) & (ev_charge_hours_index_tail > 0)
 
             if np.any(invalid_charge_mask):
                 invalid_indices = np.where(invalid_charge_mask)[0]
                 if len(invalid_indices) > 1:
-                    eautocharge_hours_index_tail[invalid_indices[1:]] = 0
+                    ev_charge_hours_index_tail[invalid_indices[1:]] = 0
 
-                eautocharge_hours_index[-min_length:] = eautocharge_hours_index_tail.tolist()
+                ev_charge_hours_index[-min_length:] = ev_charge_hours_index_tail.tolist()
 
                 adjusted_individual = self.merge_individual(
-                    discharge_hours_bin, eautocharge_hours_index, washingstart_int
+                    discharge_hours_bin, ev_charge_hours_index, washingstart_int
                 )
 
                 individual[:] = adjusted_individual
@@ -472,7 +472,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         #     # Merge the updated discharge_hours_bin back into the individual
         #     adjusted_individual = self.merge_individual(
-        #         discharge_hours_bin, eautocharge_hours_index, washingstart_int
+        #         discharge_hours_bin, ev_charge_hours_index, washingstart_int
         #     )
         #     individual[:] = adjusted_individual
 
@@ -639,12 +639,12 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             print(f"Time evaluate inner: {elapsed_time:.4f} sec.")
         # Perform final evaluation on the best solution
         o = self.evaluate_inner(start_solution)
-        discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
+        discharge_hours_bin, ev_charge_hours_index, washingstart_int = self.split_individual(
             start_solution
         )
-        eautocharge_hours_float = (
-            [self.possible_charge_values[i] for i in eautocharge_hours_index]
-            if eautocharge_hours_index is not None
+        ev_charge_hours_float = (
+            [self.possible_charge_values[i] for i in ev_charge_hours_index]
+            if ev_charge_hours_index is not None
             else None
         )
 
@@ -654,7 +654,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             "ac_charge": ac_charge.tolist(),
             "dc_charge": dc_charge.tolist(),
             "discharge_allowed": discharge.tolist(),
-            "eautocharge_hours_float": eautocharge_hours_float,
+            "ev_charge_hours_float": ev_charge_hours_float,
             "result": o,
             "ev_obj": self.ems.ev.to_dict(),
             "start_solution": start_solution,
@@ -672,7 +672,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
                 "ac_charge": ac_charge,
                 "dc_charge": dc_charge,
                 "discharge_allowed": discharge,
-                "eautocharge_hours_float": eautocharge_hours_float,
+                "ev_charge_hours_float": ev_charge_hours_float,
                 "result": SimulationResult(**o),
                 "ev_obj": self.ems.ev,
                 "start_solution": start_solution,
