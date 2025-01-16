@@ -80,9 +80,7 @@ class SimulationResult(ParametersBaseModel):
     Netzeinspeisung_Wh_pro_Stunde: list[Optional[float]] = Field(
         description="The energy fed into the grid in watt-hours per hour."
     )
-    Verluste_Pro_Stunde: list[Optional[float]] = Field(
-        description="The losses in watt-hours per hour."
-    )
+    losses_per_hour: list[Optional[float]] = Field(description="The losses in watt-hours per hour.")
     battery_soc_per_hour: list[Optional[float]] = Field(
         description="The state of charge of the battery (not the EV) in percentage per hour."
     )
@@ -98,7 +96,7 @@ class SimulationResult(ParametersBaseModel):
         "Kosten_Euro_pro_Stunde",
         "Einnahmen_Euro_pro_Stunde",
         "EAuto_SoC_pro_Stunde",
-        "Verluste_Pro_Stunde",
+        "losses_per_hour",
         "Home_appliance_wh_per_hour",
         "Electricity_price",
         mode="before",
@@ -434,7 +432,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             "EAuto_SoC_pro_Stunde": soc_ev_per_hour,
             "Gesamteinnahmen_Euro": np.nansum(revenue_per_hour),
             "Gesamtkosten_Euro": np.nansum(costs_per_hour),
-            "Verluste_Pro_Stunde": losses_wh_per_hour,
+            "losses_per_hour": losses_wh_per_hour,
             "Gesamt_Verluste": np.nansum(losses_wh_per_hour),
             "Home_appliance_wh_per_hour": home_appliance_wh_per_hour,
             "Electricity_price": electricity_price_per_hour,

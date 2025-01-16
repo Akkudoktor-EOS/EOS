@@ -4842,21 +4842,6 @@
             "title": "Netzeinspeisung Wh Pro Stunde",
             "type": "array"
           },
-          "Verluste_Pro_Stunde": {
-            "description": "The losses in watt-hours per hour.",
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Verluste Pro Stunde",
-            "type": "array"
-          },
           "battery_soc_per_hour": {
             "description": "The state of charge of the battery (not the EV) in percentage per hour.",
             "items": {
@@ -4870,6 +4855,21 @@
               ]
             },
             "title": "Battery Soc Per Hour",
+            "type": "array"
+          },
+          "losses_per_hour": {
+            "description": "The losses in watt-hours per hour.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Losses Per Hour",
             "type": "array"
           }
         },
@@ -4885,7 +4885,7 @@
           "Kosten_Euro_pro_Stunde",
           "Netzbezug_Wh_pro_Stunde",
           "Netzeinspeisung_Wh_pro_Stunde",
-          "Verluste_Pro_Stunde",
+          "losses_per_hour",
           "battery_soc_per_hour",
           "Electricity_price"
         ],

@@ -297,7 +297,7 @@ class Devices(SingletonMixin, DevicesBase):
             "EAuto_SoC_pro_Stunde": self.eauto_soc_pro_stunde,
             "Gesamteinnahmen_Euro": self.total_revenues_euro,
             "Gesamtkosten_Euro": self.total_costs_euro,
-            "Verluste_Pro_Stunde": self.verluste_wh_pro_stunde,
+            "losses_per_hour": self.verluste_wh_pro_stunde,
             "Gesamt_Verluste": self.total_losses_wh,
             "Home_appliance_wh_per_hour": self.home_appliance_wh_per_hour,
         }

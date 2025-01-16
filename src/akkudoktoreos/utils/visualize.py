@@ -470,7 +470,7 @@ def prepare_visualize(
             results["result"]["Home_appliance_wh_per_hour"],
             results["result"]["Netzeinspeisung_Wh_pro_Stunde"],
             results["result"]["Netzbezug_Wh_pro_Stunde"],
-            results["result"]["Verluste_Pro_Stunde"],
+            results["result"]["losses_per_hour"],
         ],
         title="Energy Flow per Hour",
         # xlabel="Date", # not enough space
