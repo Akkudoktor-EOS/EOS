@@ -25,7 +25,7 @@ from akkudoktoreos.devices.battery import (
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
-from akkudoktoreos.prediction.interpolator import SelfConsumptionPropabilityInterpolator
+from akkudoktoreos.prediction.interpolator import SelfConsumptionProbabilityInterpolator
 from akkudoktoreos.utils.utils import NumpyEncoder
 
 logger = get_logger(__name__)
@@ -573,7 +573,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         )
 
         # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
-        sc = SelfConsumptionPropabilityInterpolator(
+        sc = SelfConsumptionProbabilityInterpolator(
             Path(__file__).parent.resolve() / ".." / "data" / "regular_grid_interpolator.pkl"
         )
 

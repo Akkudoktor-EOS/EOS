@@ -11,7 +11,7 @@ from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.devicesabc import DevicesBase
 from akkudoktoreos.devices.generic import HomeAppliance
 from akkudoktoreos.devices.inverter import Inverter
-from akkudoktoreos.prediction.interpolator import SelfConsumptionPropabilityInterpolator
+from akkudoktoreos.prediction.interpolator import SelfConsumptionProbabilityInterpolator
 from akkudoktoreos.utils.datetimeutil import to_duration
 
 logger = get_logger(__name__)
@@ -164,7 +164,7 @@ class Devices(SingletonMixin, DevicesBase):
     ev: ClassVar[Battery] = Battery(provider_id="GenericBEV")
     home_appliance: ClassVar[HomeAppliance] = HomeAppliance(provider_id="GenericDishWasher")
     inverter: ClassVar[Inverter] = Inverter(
-        self_consumption_predictor=SelfConsumptionPropabilityInterpolator,
+        self_consumption_predictor=SelfConsumptionProbabilityInterpolator,
         battery=battery,
         provider_id="GenericInverter",
     )
