@@ -4717,21 +4717,6 @@
             "title": "Eauto Soc Pro Stunde",
             "type": "array"
           },
-          "Einnahmen_Euro_pro_Stunde": {
-            "description": "The revenue from grid feed-in or other sources in euros per hour.",
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Einnahmen Euro Pro Stunde",
-            "type": "array"
-          },
           "Electricity_price": {
             "description": "Used Electricity Price, including predictions",
             "items": {
@@ -4852,6 +4837,21 @@
             "title": "Losses Per Hour",
             "type": "array"
           },
+          "revenue_euro_per_hour": {
+            "description": "The revenue from grid feed-in or other sources in euros per hour.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Revenue Euro Per Hour",
+            "type": "array"
+          },
           "total_balance_euro": {
             "description": "The total balance of revenues minus costs in euros.",
             "title": "Total Balance Euro",
@@ -4876,7 +4876,7 @@
         "required": [
           "Last_Wh_pro_Stunde",
           "EAuto_SoC_pro_Stunde",
-          "Einnahmen_Euro_pro_Stunde",
+          "revenue_euro_per_hour",
           "total_losses",
           "total_balance_euro",
           "total_revenue_euro",

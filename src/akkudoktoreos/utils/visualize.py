@@ -526,7 +526,7 @@ def prepare_visualize(
         next_full_hour_date,  # start_date
         [
             results["result"]["cost_euro_per_hour"],
-            results["result"]["Einnahmen_Euro_pro_Stunde"],
+            results["result"]["revenue_euro_per_hour"],
         ],
         title="Financial Balance per Hour",
         # xlabel="Date", # not enough space
