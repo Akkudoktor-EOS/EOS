@@ -4702,21 +4702,6 @@
         "additionalProperties": false,
         "description": "This object contains the results of the simulation and provides insights into various parameters over the entire forecast period.",
         "properties": {
-          "EAuto_SoC_pro_Stunde": {
-            "description": "The state of charge of the EV for each hour.",
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "title": "Eauto Soc Pro Stunde",
-            "type": "array"
-          },
           "Electricity_price": {
             "description": "Used Electricity Price, including predictions",
             "items": {
@@ -4790,6 +4775,21 @@
               ]
             },
             "title": "Cost Euro Per Hour",
+            "type": "array"
+          },
+          "ev_soc_per_hour": {
+            "description": "The state of charge of the EV for each hour.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Ev Soc Per Hour",
             "type": "array"
           },
           "grid_demand_wh_per_hour": {
@@ -4875,7 +4875,7 @@
         },
         "required": [
           "Last_Wh_pro_Stunde",
-          "EAuto_SoC_pro_Stunde",
+          "ev_soc_per_hour",
           "revenue_euro_per_hour",
           "total_losses",
           "total_balance_euro",

@@ -415,7 +415,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # EV 100% & charge not allowed
         if self.optimize_ev:
-            eauto_soc_per_hour = np.array(o.get("EAuto_SoC_pro_Stunde", []))  # Beispielkey
+            eauto_soc_per_hour = np.array(o.get("ev_soc_per_hour", []))  # Beispielkey
 
             if eauto_soc_per_hour is None or eautocharge_hours_index is None:
                 raise ValueError("eauto_soc_per_hour or eautocharge_hours_index is None")

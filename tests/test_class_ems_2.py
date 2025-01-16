@@ -202,7 +202,7 @@ def test_simulation(create_ems_instance):
         "battery_soc_per_hour",
         "revenue_euro_per_hour",
         "total_balance_euro",
-        "EAuto_SoC_pro_Stunde",
+        "ev_soc_per_hour",
         "total_revenue_euro",
         "total_costs_euro",
         "losses_per_hour",

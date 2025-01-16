@@ -54,7 +54,7 @@ class SimulationResult(ParametersBaseModel):
     """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
 
     Last_Wh_pro_Stunde: list[Optional[float]] = Field(description="TBD")
-    EAuto_SoC_pro_Stunde: list[Optional[float]] = Field(
+    ev_soc_per_hour: list[Optional[float]] = Field(
         description="The state of charge of the EV for each hour."
     )
     revenue_euro_per_hour: list[Optional[float]] = Field(
@@ -93,7 +93,7 @@ class SimulationResult(ParametersBaseModel):
         "grid_demand_wh_per_hour",
         "cost_euro_per_hour",
         "revenue_euro_per_hour",
-        "EAuto_SoC_pro_Stunde",
+        "ev_soc_per_hour",
         "losses_per_hour",
         "Home_appliance_wh_per_hour",
         "Electricity_price",
@@ -427,7 +427,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             "battery_soc_per_hour": soc_per_hour,
             "revenue_euro_per_hour": revenue_per_hour,
             "total_balance_euro": gesamtkosten_euro,
-            "EAuto_SoC_pro_Stunde": soc_ev_per_hour,
+            "ev_soc_per_hour": soc_ev_per_hour,
             "total_revenue_euro": np.nansum(revenue_per_hour),
             "total_costs_euro": np.nansum(costs_per_hour),
             "losses_per_hour": losses_wh_per_hour,
