@@ -34,7 +34,7 @@ Note:
 
 - `application/json`: {
   "$ref": "#/components/schemas/GesamtlastRequest"
-  }
+}
 
 **Responses**:
 
@@ -92,7 +92,7 @@ Fastapi Optimize
 
 - `application/json`: {
   "$ref": "#/components/schemas/OptimizationParameters"
-  }
+}
 
 **Responses**:
 
@@ -616,7 +616,7 @@ Merge the measurement data given as datetime data into EOS measurements.
 
 - `application/json`: {
   "$ref": "#/components/schemas/PydanticDateTimeData"
-  }
+}
 
 **Responses**:
 
@@ -640,7 +640,7 @@ Merge the measurement data given as dataframe into EOS measurements.
 
 - `application/json`: {
   "$ref": "#/components/schemas/PydanticDateTimeDataFrame"
-  }
+}
 
 **Responses**:
 
@@ -706,7 +706,7 @@ Merge the meter readings series of given load name into EOS measurements at give
 
 - `application/json`: {
   "$ref": "#/components/schemas/PydanticDateTimeSeries"
-  }
+}
 
 **Responses**:
 
@@ -782,7 +782,7 @@ Merge measurement given as series into given key.
 
 - `application/json`: {
   "$ref": "#/components/schemas/PydanticDateTimeSeries"
-  }
+}
 
 **Responses**:
 
