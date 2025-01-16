@@ -362,11 +362,11 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             # E-Auto handling
             if self.ev:
                 if self.ev_charge_hours[hour] > 0:
-                    loaded_energy_ev, verluste_eauto = self.ev.charge_energy(
+                    loaded_energy_ev, ev_losses = self.ev.charge_energy(
                         None, hour, relative_power=self.ev_charge_hours[hour]
                     )
                     consumption += loaded_energy_ev
-                    losses_wh_per_hour[hour_since_now] += verluste_eauto
+                    losses_wh_per_hour[hour_since_now] += ev_losses
 
             # Process inverter logic
             energy_feedin_grid_actual, energy_consumption_grid_actual, losses, eigenverbrauch = (

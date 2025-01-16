@@ -237,11 +237,11 @@ class Devices(SingletonMixin, DevicesBase):
             # E-Auto handling
             if self.ev:
                 if self.ev_charge_hours[hour] > 0:
-                    geladene_menge_eauto, verluste_eauto = self.ev.charge_energy(
+                    ev_charged_amount, ev_losses = self.ev.charge_energy(
                         None, hour, relative_power=self.ev_charge_hours[hour]
                     )
-                    consumption += geladene_menge_eauto
-                    self.verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
+                    consumption += ev_charged_amount
+                    self.verluste_wh_pro_stunde[stunde_since_now] += ev_losses
                 self.ev_soc_pro_stunde[stunde_since_now] = self.ev.current_soc_percentage()
 
             # Process inverter logic
