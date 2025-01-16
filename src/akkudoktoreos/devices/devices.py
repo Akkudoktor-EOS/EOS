@@ -98,7 +98,7 @@ class Devices(SingletonMixin, DevicesBase):
     last_wh_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, description="The load in watt-hours per hour."
     )
-    eauto_soc_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
+    ev_soc_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, description="The state of charge of the EV for each hour."
     )
     einnahmen_euro_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
@@ -184,7 +184,7 @@ class Devices(SingletonMixin, DevicesBase):
         self.kosten_euro_pro_stunde = np.full((self.total_hours), np.nan)
         self.einnahmen_euro_pro_stunde = np.full((self.total_hours), np.nan)
         self.battery_soc_per_hour = np.full((self.total_hours), np.nan)
-        self.eauto_soc_pro_stunde = np.full((self.total_hours), np.nan)
+        self.ev_soc_pro_stunde = np.full((self.total_hours), np.nan)
         self.verluste_wh_pro_stunde = np.full((self.total_hours), np.nan)
         self.home_appliance_wh_per_hour = np.full((self.total_hours), np.nan)
 
@@ -193,7 +193,7 @@ class Devices(SingletonMixin, DevicesBase):
         if self.battery:
             self.battery_soc_per_hour[0] = self.battery.current_soc_percentage()
         if self.ev:
-            self.eauto_soc_pro_stunde[0] = self.ev.current_soc_percentage()
+            self.ev_soc_pro_stunde[0] = self.ev.current_soc_percentage()
 
         # Get predictions for full device simulation time range
         # gesamtlast[stunde]
@@ -242,7 +242,7 @@ class Devices(SingletonMixin, DevicesBase):
                     )
                     consumption += geladene_menge_eauto
                     self.verluste_wh_pro_stunde[stunde_since_now] += verluste_eauto
-                self.eauto_soc_pro_stunde[stunde_since_now] = self.ev.current_soc_percentage()
+                self.ev_soc_pro_stunde[stunde_since_now] = self.ev.current_soc_percentage()
 
             # Process inverter logic
             grid_export, grid_import, losses, self_consumption = (0.0, 0.0, 0.0, 0.0)
@@ -294,7 +294,7 @@ class Devices(SingletonMixin, DevicesBase):
             "battery_soc_per_hour": self.battery_soc_per_hour,
             "revenue_euro_per_hour": self.einnahmen_euro_pro_stunde,
             "total_balance_euro": self.total_balance_euro,
-            "ev_soc_per_hour": self.eauto_soc_pro_stunde,
+            "ev_soc_per_hour": self.ev_soc_pro_stunde,
             "total_revenue_euro": self.total_revenues_euro,
             "total_costs_euro": self.total_costs_euro,
             "losses_per_hour": self.verluste_wh_pro_stunde,

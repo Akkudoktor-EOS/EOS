@@ -75,7 +75,7 @@ class OptimizeResponse(ParametersBaseModel):
     )
     eautocharge_hours_float: Optional[list[float]] = Field(description="TBD")
     result: SimulationResult
-    eauto_obj: Optional[ElectricVehicleResult]
+    ev_obj: Optional[ElectricVehicleResult]
     start_solution: Optional[list[float]] = Field(
         default=None,
         description="An array of binary values (0 or 1) representing a possible starting solution for the simulation.",
@@ -95,7 +95,7 @@ class OptimizeResponse(ParametersBaseModel):
         return NumpyEncoder.convert_numpy(field)[0]
 
     @field_validator(
-        "eauto_obj",
+        "ev_obj",
         mode="before",
     )
     def convert_eauto(cls, field: Any) -> Any:
@@ -112,7 +112,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
     ):
         """Initialize the optimization problem with the required parameters."""
         self.opti_param: dict[str, Any] = {}
-        self.fixed_eauto_hours = self.config.prediction_hours - self.config.optimization_hours
+        self.fixed_ev_hours = self.config.prediction_hours - self.config.optimization_hours
         self.possible_charge_values = self.config.optimization_ev_available_charge_rates_percent
         self.verbose = verbose
         self.fix_seed = fixed_seed
@@ -193,9 +193,9 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
                 self.config.prediction_hours : self.config.prediction_hours * 2
             ]
             (ev_charge_part_mutated,) = self.toolbox.mutate_ev_charge_index(ev_charge_part)
-            ev_charge_part_mutated[self.config.prediction_hours - self.fixed_eauto_hours :] = [
+            ev_charge_part_mutated[self.config.prediction_hours - self.fixed_ev_hours :] = [
                 0
-            ] * self.fixed_eauto_hours
+            ] * self.fixed_ev_hours
             individual[self.config.prediction_hours : self.config.prediction_hours * 2] = (
                 ev_charge_part_mutated
             )
@@ -415,18 +415,16 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # EV 100% & charge not allowed
         if self.optimize_ev:
-            eauto_soc_per_hour = np.array(o.get("ev_soc_per_hour", []))  # Beispielkey
+            ev_soc_per_hour = np.array(o.get("ev_soc_per_hour", []))  # Beispielkey
 
-            if eauto_soc_per_hour is None or eautocharge_hours_index is None:
-                raise ValueError("eauto_soc_per_hour or eautocharge_hours_index is None")
-            min_length = min(eauto_soc_per_hour.size, eautocharge_hours_index.size)
-            eauto_soc_per_hour_tail = eauto_soc_per_hour[-min_length:]
+            if ev_soc_per_hour is None or eautocharge_hours_index is None:
+                raise ValueError("ev_soc_per_hour or eautocharge_hours_index is None")
+            min_length = min(ev_soc_per_hour.size, eautocharge_hours_index.size)
+            ev_soc_per_hour_tail = ev_soc_per_hour[-min_length:]
             eautocharge_hours_index_tail = eautocharge_hours_index[-min_length:]
 
             # Mask
-            invalid_charge_mask = (eauto_soc_per_hour_tail == 100) & (
-                eautocharge_hours_index_tail > 0
-            )
+            invalid_charge_mask = (ev_soc_per_hour_tail == 100) & (eautocharge_hours_index_tail > 0)
 
             if np.any(invalid_charge_mask):
                 invalid_indices = np.where(invalid_charge_mask)[0]
@@ -658,7 +656,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             "discharge_allowed": discharge.tolist(),
             "eautocharge_hours_float": eautocharge_hours_float,
             "result": o,
-            "eauto_obj": self.ems.ev.to_dict(),
+            "ev_obj": self.ems.ev.to_dict(),
             "start_solution": start_solution,
             "spuelstart": washingstart_int,
             "extra_data": extra_data,
@@ -676,7 +674,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
                 "discharge_allowed": discharge,
                 "eautocharge_hours_float": eautocharge_hours_float,
                 "result": SimulationResult(**o),
-                "eauto_obj": self.ems.ev,
+                "ev_obj": self.ems.ev,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,
             }

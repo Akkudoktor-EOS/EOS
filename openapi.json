@@ -2501,7 +2501,7 @@
             "title": "Discharge Allowed",
             "type": "array"
           },
-          "eauto_obj": {
+          "ev_obj": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ElectricVehicleResult"
@@ -2563,7 +2563,7 @@
           "discharge_allowed",
           "eautocharge_hours_float",
           "result",
-          "eauto_obj"
+          "ev_obj"
         ],
         "title": "OptimizeResponse",
         "type": "object"
