@@ -443,7 +443,7 @@ def prepare_visualize(
 
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
-        [np.full(len(parameters.ems.gesamtlast), parameters.ems.einspeiseverguetung_euro_pro_wh)],
+        [np.full(len(parameters.ems.gesamtlast), parameters.ems.feed_in_tariff_euro_per_wh)],
         title="Remuneration",
         # xlabel="Hours", # not enough space
         ylabel="€/Wh",

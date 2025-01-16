@@ -172,7 +172,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
         0.0002780,
     ]
 
-    einspeiseverguetung_euro_pro_wh = 0.00007
+    feed_in_tariff_euro_per_wh = 0.00007
     price_euro_per_wh_battery = 0.0001
 
     gesamtlast = [
@@ -232,7 +232,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
         EnergieManagementSystemParameters(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
-            einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
+            feed_in_tariff_euro_per_wh=feed_in_tariff_euro_per_wh,
             price_euro_per_wh_battery=price_euro_per_wh_battery,
             gesamtlast=gesamtlast,
         ),

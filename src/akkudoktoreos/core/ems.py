@@ -25,7 +25,7 @@ class EnergieManagementSystemParameters(ParametersBaseModel):
     strompreis_euro_pro_wh: list[float] = Field(
         description="An array of floats representing the electricity price in euros per watt-hour for different time intervals."
     )
-    einspeiseverguetung_euro_pro_wh: list[float] | float = Field(
+    feed_in_tariff_euro_per_wh: list[float] | float = Field(
         description="A float or array of floats representing the feed-in compensation in euros per watt-hour."
     )
     price_euro_per_wh_battery: float = Field(
@@ -42,8 +42,8 @@ class EnergieManagementSystemParameters(ParametersBaseModel):
             pv_prognose_length != len(self.strompreis_euro_pro_wh)
             or pv_prognose_length != len(self.gesamtlast)
             or (
-                isinstance(self.einspeiseverguetung_euro_pro_wh, list)
-                and pv_prognose_length != len(self.einspeiseverguetung_euro_pro_wh)
+                isinstance(self.feed_in_tariff_euro_per_wh, list)
+                and pv_prognose_length != len(self.feed_in_tariff_euro_per_wh)
             )
         ):
             raise ValueError("Input lists have different lengths")
@@ -176,11 +176,9 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
         self.pv_prediction_wh = np.array(parameters.pv_prognose_wh, float)
         self.elect_price_hourly = np.array(parameters.strompreis_euro_pro_wh, float)
         self.elect_revenue_per_hour_arr = (
-            parameters.einspeiseverguetung_euro_pro_wh
-            if isinstance(parameters.einspeiseverguetung_euro_pro_wh, list)
-            else np.full(
-                len(self.load_energy_array), parameters.einspeiseverguetung_euro_pro_wh, float
-            )
+            parameters.feed_in_tariff_euro_per_wh
+            if isinstance(parameters.feed_in_tariff_euro_per_wh, list)
+            else np.full(len(self.load_energy_array), parameters.feed_in_tariff_euro_per_wh, float)
         )
         if inverter is not None:
             self.battery = inverter.battery

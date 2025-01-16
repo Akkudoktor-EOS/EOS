@@ -123,7 +123,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
         **{
             "ems": {
                 "price_euro_per_wh_battery": 0e-05,
-                "einspeiseverguetung_euro_pro_wh": 7e-05,
+                "feed_in_tariff_euro_per_wh": 7e-05,
                 "gesamtlast": gesamtlast,
                 "pv_prognose_wh": pv_forecast,
                 "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
@@ -274,7 +274,7 @@ def prepare_optimization_parameters() -> OptimizationParameters:
         **{
             "ems": {
                 "price_euro_per_wh_battery": 0e-05,
-                "einspeiseverguetung_euro_pro_wh": 7e-05,
+                "feed_in_tariff_euro_per_wh": 7e-05,
                 "gesamtlast": gesamtlast,
                 "pv_prognose_wh": pv_forecast,
                 "strompreis_euro_pro_wh": strompreis_euro_pro_wh,

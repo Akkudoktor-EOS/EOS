@@ -217,9 +217,9 @@ class Devices(SingletonMixin, DevicesBase):
             end_datetime=self.end_datetime,
             interval=simulation_step,
         )
-        # einspeiseverguetung_euro_pro_wh_arr[stunde]
-        # TODO: Create prediction for einspeiseverguetung_euro_pro_wh_arr
-        einspeiseverguetung_euro_pro_wh_arr = np.full((self.total_hours), 0.078)
+        # feed_in_tariff_euro_per_wh_arr[stunde]
+        # TODO: Create prediction for feed_in_tariff_euro_per_wh_arr
+        feed_in_tariff_euro_per_wh_arr = np.full((self.total_hours), 0.078)
 
         for stunde_since_now in range(0, self.total_hours):
             hour = self.start_datetime.hour + stunde_since_now
@@ -275,7 +275,7 @@ class Devices(SingletonMixin, DevicesBase):
                 grid_import * self.strompreis_euro_pro_wh[hour]
             )
             self.einnahmen_euro_pro_stunde[stunde_since_now] = (
-                grid_export * self.einspeiseverguetung_euro_pro_wh_arr[hour]
+                grid_export * self.feed_in_tariff_euro_per_wh_arr[hour]
             )
 
             # battery SOC tracking

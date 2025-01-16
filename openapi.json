@@ -2234,7 +2234,7 @@
       "EnergieManagementSystemParameters": {
         "additionalProperties": false,
         "properties": {
-          "einspeiseverguetung_euro_pro_wh": {
+          "feed_in_tariff_euro_per_wh": {
             "anyOf": [
               {
                 "items": {
@@ -2247,7 +2247,7 @@
               }
             ],
             "description": "A float or array of floats representing the feed-in compensation in euros per watt-hour.",
-            "title": "Einspeiseverguetung Euro Pro Wh"
+            "title": "Feed In Tariff Euro Per Wh"
           },
           "gesamtlast": {
             "description": "An array of floats representing the total load (consumption) in watts for different time intervals.",
@@ -2282,7 +2282,7 @@
         "required": [
           "pv_prognose_wh",
           "strompreis_euro_pro_wh",
-          "einspeiseverguetung_euro_pro_wh",
+          "feed_in_tariff_euro_per_wh",
           "price_euro_per_wh_battery",
           "gesamtlast"
         ],

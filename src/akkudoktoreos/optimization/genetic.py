@@ -568,8 +568,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         if start_hour is None:
             start_hour = self.ems.start_datetime.hour
 
-        einspeiseverguetung_euro_pro_wh = np.full(
-            self.config.prediction_hours, parameters.ems.einspeiseverguetung_euro_pro_wh
+        feed_in_tariff_euro_per_wh = np.full(
+            self.config.prediction_hours, parameters.ems.feed_in_tariff_euro_per_wh
         )
 
         # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
