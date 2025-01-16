@@ -489,7 +489,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # Adjust total balance with battery value and penalties for unmet SOC
         restwert_akku = (
-            self.ems.battery.current_energy_content() * parameters.ems.preis_euro_pro_wh_akku
+            self.ems.battery.current_energy_content() * parameters.ems.price_euro_per_wh_battery
         )
         gesamtbilanz += -restwert_akku
 

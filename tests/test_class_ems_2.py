@@ -78,7 +78,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
     strompreis_euro_pro_wh[20] = 0.00001
 
     einspeiseverguetung_euro_pro_wh = [0.00007] * len(strompreis_euro_pro_wh)
-    preis_euro_pro_wh_akku = 0.0001
+    price_euro_per_wh_battery = 0.0001
 
     gesamtlast = [
         676.71,
@@ -138,7 +138,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
-            preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
+            price_euro_per_wh_battery=price_euro_per_wh_battery,
             gesamtlast=gesamtlast,
         ),
         inverter=inverter,

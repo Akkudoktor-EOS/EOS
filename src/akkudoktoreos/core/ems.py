@@ -28,7 +28,7 @@ class EnergieManagementSystemParameters(ParametersBaseModel):
     einspeiseverguetung_euro_pro_wh: list[float] | float = Field(
         description="A float or array of floats representing the feed-in compensation in euros per watt-hour."
     )
-    preis_euro_pro_wh_akku: float = Field(
+    price_euro_per_wh_battery: float = Field(
         description="A float representing the cost of battery energy per watt-hour."
     )
     gesamtlast: list[float] = Field(

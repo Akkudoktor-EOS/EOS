@@ -122,7 +122,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     return OptimizationParameters(
         **{
             "ems": {
-                "preis_euro_pro_wh_akku": 0e-05,
+                "price_euro_per_wh_battery": 0e-05,
                 "einspeiseverguetung_euro_pro_wh": 7e-05,
                 "gesamtlast": gesamtlast,
                 "pv_prognose_wh": pv_forecast,
@@ -273,7 +273,7 @@ def prepare_optimization_parameters() -> OptimizationParameters:
     return OptimizationParameters(
         **{
             "ems": {
-                "preis_euro_pro_wh_akku": 0e-05,
+                "price_euro_per_wh_battery": 0e-05,
                 "einspeiseverguetung_euro_pro_wh": 7e-05,
                 "gesamtlast": gesamtlast,
                 "pv_prognose_wh": pv_forecast,

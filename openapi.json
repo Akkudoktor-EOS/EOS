@@ -2257,9 +2257,9 @@
             "title": "Gesamtlast",
             "type": "array"
           },
-          "preis_euro_pro_wh_akku": {
+          "price_euro_per_wh_battery": {
             "description": "A float representing the cost of battery energy per watt-hour.",
-            "title": "Preis Euro Pro Wh Akku",
+            "title": "Price Euro Per Wh Battery",
             "type": "number"
           },
           "pv_prognose_wh": {
@@ -2283,7 +2283,7 @@
           "pv_prognose_wh",
           "strompreis_euro_pro_wh",
           "einspeiseverguetung_euro_pro_wh",
-          "preis_euro_pro_wh_akku",
+          "price_euro_per_wh_battery",
           "gesamtlast"
         ],
         "title": "EnergieManagementSystemParameters",
