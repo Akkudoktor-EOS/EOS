@@ -27,7 +27,7 @@ python -m venv .venv
 
 Windows:
 
-For python 3.13 you have to install pendulum manually from source.
+For python 3.13 you have to install pendulum manually from source. This is a issue pendulum is working on. For the time beeing we suggest to stay with Python 3.12.8 for Windows.
 
 ```bash
 python -m venv .venv
