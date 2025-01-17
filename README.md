@@ -27,6 +27,8 @@ python -m venv .venv
 
 Windows:
 
+For python 3.13 you have to install pendulum manually from source.
+
 ```bash
 python -m venv .venv
  .venv\Scripts\pip install -r requirements.txt
