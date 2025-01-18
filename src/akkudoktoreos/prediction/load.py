@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 class LoadCommonSettings(SettingsBaseModel):
     """Load Prediction Configuration."""
 
-    load_provider: Optional[str] = Field(
+    provider: Optional[str] = Field(
         default=None,
         description="Load provider id of provider to be used.",
         examples=["LoadAkkudoktor"],

@@ -22,7 +22,7 @@ Most predictions can be sourced from various providers. The specific provider to
 in the EOS configuration. For example:
 
 ```python
-weather_provider = "ClearOutside"
+provider = "ClearOutside"
 ```
 
 Some providers offer multiple prediction keys. For instance, a weather provider might provide data
@@ -71,7 +71,7 @@ predictions are adjusted by real data from your system's measurements if given t
 
 For example, the load prediction provider `LoadAkkudoktor` takes generic load data assembled by
 Akkudoktor.net, maps that to the yearly energy consumption given in the configuration option
-`loadakkudoktor_year_energy`, and finally adjusts the predicted load by the `measurement_loads`
+`loadakkudoktor_year_energy`, and finally adjusts the predicted load by the `loads`
 of your system.
 
 ## Prediction Updates
@@ -107,26 +107,26 @@ Prediction keys:
 
 Configuration options:
 
-- `elecprice_provider`: Electricity price provider id of provider to be used.
+- `provider`: Electricity price provider id of provider to be used.
 
-  - `ElecPriceAkkudoktor`: Retrieves from Akkudoktor.net.
-  - `ElecPriceImport`: Imports from a file or JSON string.
+  - `Akkudoktor`: Retrieves from Akkudoktor.net.
+  - `Import`: Imports from a file or JSON string.
 
-- `elecprice_charges_kwh`: Electricity price charges (€/kWh).
-- `elecpriceimport_file_path`: Path to the file to import electricity price forecast data from.
-- `elecpriceimport_json`: JSON string, dictionary of electricity price forecast value lists.
+- `charges_kwh`: Electricity price charges (€/kWh).
+- `import_file_path`: Path to the file to import electricity price forecast data from.
+- `import_json`: JSON string, dictionary of electricity price forecast value lists.
 
-### ElecPriceAkkudoktor Provider
+### Akkudoktor Provider
 
-The `ElecPriceAkkudoktor` provider retrieves electricity prices directly from **Akkudoktor.net**,
+The `Akkudoktor` provider retrieves electricity prices directly from **Akkudoktor.net**,
 which supplies price data for the next 24 hours. For periods beyond 24 hours, the provider generates
 prices by extrapolating historical price data combined with the most recent actual prices obtained
-from Akkudoktor.net. Electricity price charges given in the `elecprice_charges_kwh` configuration
+from Akkudoktor.net. Electricity price charges given in the `charges_kwh` configuration
 option are added.
 
-### ElecPriceImport Provider
+### Import Provider
 
-The `ElecPriceImport` provider is designed to import electricity prices from a file or a JSON
+The `Import` provider is designed to import electricity prices from a file or a JSON
 string. An external entity should update the file or JSON string whenever new prediction data
 becomes available.
 
@@ -136,7 +136,7 @@ The prediction key for the electricity price forecast data is:
 
 The electricity proce forecast data must be provided in one of the formats described in
 <project:#prediction-import-providers>. The data source must be given in the
-`elecpriceimport_file_path` or `elecpriceimport_json` configuration option.
+`import_file_path` or `import_json` configuration option.
 
 ## Load Prediction
 
@@ -148,7 +148,7 @@ Prediction keys:
 
 Configuration options:
 
-- `load_provider`: Load provider id of provider to be used.
+- `provider`: Load provider id of provider to be used.
 
   - `LoadAkkudoktor`: Retrieves from local database.
   - `LoadImport`: Imports from a file or JSON string.
@@ -183,12 +183,12 @@ or `loadimport_json` configuration option.
 
 Prediction keys:
 
-- `pvforecast_ac_power`: Total DC power (W).
-- `pvforecast_dc_power`: Total AC power (W).
+- `ac_power`: Total DC power (W).
+- `dc_power`: Total AC power (W).
 
 Configuration options:
 
-- `pvforecast_provider`: PVForecast provider id of provider to be used.
+- `provider`: PVForecast provider id of provider to be used.
 
   - `PVForecastAkkudoktor`: Retrieves from Akkudoktor.net.
   - `PVForecastImport`: Imports from a file or JSON string.
@@ -299,7 +299,7 @@ Example:
 {
   "latitude": 50.1234,
   "longitude": 9.7654,
-  "pvforecast_provider": "PVForecastAkkudoktor",
+  "provider": "PVForecastAkkudoktor",
   "pvforecast0_peakpower": 5.0,
   "pvforecast0_surface_azimuth": -10,
   "pvforecast0_surface_tilt": 7,
@@ -332,8 +332,8 @@ becomes available.
 
 The prediction keys for the PV forecast data are:
 
-- `pvforecast_ac_power`: Total DC power (W).
-- `pvforecast_dc_power`: Total AC power (W).
+- `ac_power`: Total DC power (W).
+- `dc_power`: Total AC power (W).
 
 The PV forecast data must be provided in one of the formats described in
 <project:#prediction-import-providers>. The data source must be given in the
@@ -368,14 +368,14 @@ Prediction keys:
 
 Configuration options:
 
-- `weather_provider`: Load provider id of provider to be used.
+- `provider`: Load provider id of provider to be used.
 
   - `BrightSky`: Retrieves from https://api.brightsky.dev.
   - `ClearOutside`: Retrieves from https://clearoutside.com/forecast.
   - `LoadImport`: Imports from a file or JSON string.
 
-- `weatherimport_file_path`: Path to the file to import weatherforecast data from.
-- `weatherimport_json`: JSON string, dictionary of weather forecast value lists.
+- `import_file_path`: Path to the file to import weatherforecast data from.
+- `import_json`: JSON string, dictionary of weather forecast value lists.
 
 ### BrightSky Provider
 
@@ -459,4 +459,4 @@ The prediction keys for the PV forecast data are:
 
 The PV forecast data must be provided in one of the formats described in
 <project:#prediction-import-providers>. The data source must be given in the
-`weatherimport_file_path` or `pvforecastimport_json` configuration option.
+`import_file_path` or `pvforecastimport_json` configuration option.

@@ -24,9 +24,9 @@ def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
     """Fixture to create an EnergieManagementSystem instance with given test parameters."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
-        {"prediction": {"prediction_hours": 48}, "optimization": {"optimization_hours": 24}}
+        {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
     )
-    assert config_eos.prediction.prediction_hours == 48
+    assert config_eos.prediction.hours == 48
 
     # Initialize the battery and the inverter
     akku = Battery(
@@ -41,7 +41,7 @@ def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
     devices_eos.add_device(akku)
 
     inverter = Inverter(
-        InverterParameters(device_id="inverter1", max_power_wh=10000, battery=akku.device_id)
+        InverterParameters(device_id="inverter1", max_power_wh=10000, battery_id=akku.device_id)
     )
     devices_eos.add_device(inverter)
 
@@ -62,7 +62,7 @@ def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
             device_id="ev1", capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
         ),
     )
-    eauto.set_charge_per_hour(np.full(config_eos.prediction.prediction_hours, 1))
+    eauto.set_charge_per_hour(np.full(config_eos.prediction.hours, 1))
     devices_eos.add_device(eauto)
 
     devices_eos.post_setup()

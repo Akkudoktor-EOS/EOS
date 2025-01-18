@@ -31,14 +31,14 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     # Make a config
     settings = {
         "prediction": {
-            "prediction_hours": 48,
-            "prediction_historic_hours": 24,
+            "hours": 48,
+            "historic_hours": 24,
             "latitude": 52.52,
             "longitude": 13.405,
         },
         # PV Forecast
         "pvforecast": {
-            "pvforecast_provider": "PVForecastAkkudoktor",
+            "provider": "PVForecastAkkudoktor",
             "pvforecast0_peakpower": 5.0,
             "pvforecast0_surface_azimuth": -10,
             "pvforecast0_surface_tilt": 7,
@@ -63,15 +63,15 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
         },
         # Weather Forecast
         "weather": {
-            "weather_provider": "ClearOutside",
+            "provider": "ClearOutside",
         },
         # Electricity Price Forecast
         "elecprice": {
-            "elecprice_provider": "ElecPriceAkkudoktor",
+            "provider": "Akkudoktor",
         },
         # Load Forecast
         "load": {
-            "load_provider": "LoadAkkudoktor",
+            "provider": "LoadAkkudoktor",
             "provider_settings": {
                 "loadakkudoktor_year_energy": 5000,  # Energy consumption per year in kWh
             },
@@ -144,7 +144,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
                 "initial_soc_percentage": 15,
                 "min_soc_percentage": 15,
             },
-            "inverter": {"device_id": "iv1", "max_power_wh": 10000, "battery": "battery1"},
+            "inverter": {"device_id": "iv1", "max_power_wh": 10000, "battery_id": "battery1"},
             "eauto": {
                 "device_id": "ev1",
                 "min_soc_percentage": 50,
@@ -341,7 +341,7 @@ def run_optimization(
     # Initialize the optimization problem using the default configuration
     config_eos = get_config()
     config_eos.merge_settings_from_dict(
-        {"prediction": {"prediction_hours": 48}, "optimization": {"optimization_hours": 48}}
+        {"prediction": {"hours": 48}, "optimization": {"hours": 48}}
     )
     opt_class = optimization_problem(verbose=verbose, fixed_seed=seed)
 

@@ -9,12 +9,12 @@ from akkudoktoreos.prediction.elecpriceimport import ElecPriceImportCommonSettin
 class ElecPriceCommonSettings(SettingsBaseModel):
     """Electricity Price Prediction Configuration."""
 
-    elecprice_provider: Optional[str] = Field(
+    provider: Optional[str] = Field(
         default=None,
         description="Electricity price provider id of provider to be used.",
         examples=["ElecPriceAkkudoktor"],
     )
-    elecprice_charges_kwh: Optional[float] = Field(
+    charges_kwh: Optional[float] = Field(
         default=None, ge=0, description="Electricity price charges (€/kWh).", examples=[0.21]
     )
 

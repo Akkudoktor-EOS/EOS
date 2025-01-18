@@ -19,7 +19,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
     # Inverter Parameters
     #     https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/inverter.html
 
-    pvforecast_provider: Optional[str] = Field(
+    provider: Optional[str] = Field(
         default=None,
         description="PVForecast provider id of provider to be used.",
         examples=["PVForecastAkkudoktor"],

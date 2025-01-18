@@ -14,21 +14,25 @@ Classes:
 Example:
     # Set up the configuration with necessary fields for URL generation
     settings_data = {
-        "prediction_hours": 48,
-        "prediction_historic_hours": 24,
-        "latitude": 52.52,
-        "longitude": 13.405,
-        "pvforecast_provider": "Akkudoktor",
-        "pvforecast0_peakpower": 5.0,
-        "pvforecast0_surface_azimuth": -10,
-        "pvforecast0_surface_tilt": 7,
-        "pvforecast0_userhorizon": [20, 27, 22, 20],
-        "pvforecast0_inverter_paco": 10000,
-        "pvforecast1_peakpower": 4.8,
-        "pvforecast1_surface_azimuth": -90,
-        "pvforecast1_surface_tilt": 7,
-        "pvforecast1_userhorizon": [30, 30, 30, 50],
-        "pvforecast1_inverter_paco": 10000,
+        "prediction": {
+            "hours": 48,
+            "historic_hours": 24,
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
+        "pvforecast": {
+            "provider": "PVForecastAkkudoktor",
+            "pvforecast0_peakpower": 5.0,
+            "pvforecast0_surface_azimuth": -10,
+            "pvforecast0_surface_tilt": 7,
+            "pvforecast0_userhorizon": [20, 27, 22, 20],
+            "pvforecast0_inverter_paco": 10000,
+            "pvforecast1_peakpower": 4.8,
+            "pvforecast1_surface_azimuth": -90,
+            "pvforecast1_surface_tilt": 7,
+            "pvforecast1_userhorizon": [30, 30, 30, 50],
+            "pvforecast1_inverter_paco": 10000,
+        }
     }
 
     # Create the config instance from the provided data
@@ -47,12 +51,12 @@ Example:
     print(forecast.report_ac_power_and_measurement())
 
 Attributes:
-    prediction_hours (int): Number of hours into the future to forecast. Default is 48.
-    prediction_historic_hours (int): Number of past hours to retain for analysis. Default is 24.
+    hours (int): Number of hours into the future to forecast. Default is 48.
+    historic_hours (int): Number of past hours to retain for analysis. Default is 24.
     latitude (float): Latitude for the forecast location.
     longitude (float): Longitude for the forecast location.
     start_datetime (datetime): Start time for the forecast, defaulting to current datetime.
-    end_datetime (datetime): Computed end datetime based on `start_datetime` and `prediction_hours`.
+    end_datetime (datetime): Computed end datetime based on `start_datetime` and `hours`.
     keep_datetime (datetime): Computed threshold datetime for retaining historical data.
 
 Methods:
@@ -159,13 +163,13 @@ class PVForecastAkkudoktor(PVForecastProvider):
     of hours into the future and retains historical data.
 
     Attributes:
-        prediction_hours (int, optional): Number of hours in the future for the forecast.
-        prediction_historic_hours (int, optional): Number of past hours for retaining data.
+        hours (int, optional): Number of hours in the future for the forecast.
+        historic_hours (int, optional): Number of past hours for retaining data.
         latitude (float, optional): The latitude in degrees, validated to be between -90 and 90.
         longitude (float, optional): The longitude in degrees, validated to be between -180 and 180.
         start_datetime (datetime, optional): Start datetime for forecasts, defaults to the current datetime.
-        end_datetime (datetime, computed): The forecast's end datetime, computed based on `start_datetime` and `prediction_hours`.
-        keep_datetime (datetime, computed): The datetime to retain historical data, computed from `start_datetime` and `prediction_historic_hours`.
+        end_datetime (datetime, computed): The forecast's end datetime, computed based on `start_datetime` and `hours`.
+        keep_datetime (datetime, computed): The datetime to retain historical data, computed from `start_datetime` and `historic_hours`.
 
     Methods:
         provider_id(): Returns a unique identifier for the provider.
@@ -286,10 +290,10 @@ class PVForecastAkkudoktor(PVForecastProvider):
 
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
-        if len(akkudoktor_data.values[0]) < self.config.prediction.prediction_hours:
+        if len(akkudoktor_data.values[0]) < self.config.prediction.hours:
             # Expect one value set per prediction hour
             error_msg = (
-                f"The forecast must cover at least {self.config.prediction.prediction_hours} hours, "
+                f"The forecast must cover at least {self.config.prediction.hours} hours, "
                 f"but only {len(akkudoktor_data.values[0])} data sets are given in forecast data."
             )
             logger.error(f"Akkudoktor schema change: {error_msg}")
@@ -318,9 +322,9 @@ class PVForecastAkkudoktor(PVForecastProvider):
 
             self.update_value(dt, data)
 
-        if len(self) < self.config.prediction.prediction_hours:
+        if len(self) < self.config.prediction.hours:
             raise ValueError(
-                f"The forecast must cover at least {self.config.prediction.prediction_hours} hours, "
+                f"The forecast must cover at least {self.config.prediction.hours} hours, "
                 f"but only {len(self)} hours starting from {self.start_datetime} "
                 f"were predicted."
             )
@@ -370,13 +374,13 @@ if __name__ == "__main__":
     # Set up the configuration with necessary fields for URL generation
     settings_data = {
         "prediction": {
-            "prediction_hours": 48,
-            "prediction_historic_hours": 24,
+            "hours": 48,
+            "historic_hours": 24,
             "latitude": 52.52,
             "longitude": 13.405,
         },
         "pvforecast": {
-            "pvforecast_provider": "PVForecastAkkudoktor",
+            "provider": "PVForecastAkkudoktor",
             "pvforecast0_peakpower": 5.0,
             "pvforecast0_surface_azimuth": -10,
             "pvforecast0_surface_tilt": 7,

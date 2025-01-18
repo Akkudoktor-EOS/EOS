@@ -24,7 +24,9 @@ def inverter(mock_battery, devices_eos) -> Inverter:
         return_value=mock_self_consumption_predictor,
     ):
         iv = Inverter(
-            InverterParameters(device_id="iv1", max_power_wh=500.0, battery=mock_battery.device_id),
+            InverterParameters(
+                device_id="iv1", max_power_wh=500.0, battery_id=mock_battery.device_id
+            ),
         )
         devices_eos.add_device(iv)
         devices_eos.post_setup()

@@ -244,7 +244,7 @@
             },
             "ConfigEOS": {
                 "additionalProperties": false,
-                "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_CONFIG_DIR` environment variable\n    2. The directory specified by the `EOS_DIR` environment variable.\n    3. A platform specific default directory for EOS.\n    4. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nAttributes:\n    config_folder_path (Optional[Path]): Path to the configuration directory.\n    config_file_path (Optional[Path]): Path to the configuration file.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    ```python\n    config_eos = ConfigEOS()  # Always returns the same instance\n    print(config_eos.prediction.prediction_hours)  # Access a setting from the loaded configuration\n    ```",
+                "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_CONFIG_DIR` environment variable\n    2. The directory specified by the `EOS_DIR` environment variable.\n    3. A platform specific default directory for EOS.\n    4. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nAttributes:\n    config_folder_path (Optional[Path]): Path to the configuration directory.\n    config_file_path (Optional[Path]): Path to the configuration file.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    ```python\n    config_eos = ConfigEOS()  # Always returns the same instance\n    print(config_eos.prediction.hours)  # Access a setting from the loaded configuration\n    ```",
                 "properties": {
                     "devices": {
                         "$ref": "#/components/schemas/DevicesCommonSettings",
@@ -268,7 +268,7 @@
                     "logging": {
                         "$ref": "#/components/schemas/LoggingCommonSettings-Output",
                         "default": {
-                            "logging_level_root": "INFO"
+                            "root_level": "INFO"
                         }
                     },
                     "measurement": {
@@ -278,7 +278,7 @@
                     "optimization": {
                         "$ref": "#/components/schemas/OptimizationCommonSettings",
                         "default": {
-                            "optimization_ev_available_charge_rates_percent": [
+                            "ev_available_charge_rates_percent": [
                                 0.0,
                                 0.375,
                                 0.5,
@@ -287,17 +287,17 @@
                                 0.875,
                                 1.0
                             ],
-                            "optimization_hours": 48,
-                            "optimization_penalty": 10
+                            "hours": 48,
+                            "penalty": 10
                         }
                     },
                     "prediction": {
                         "$ref": "#/components/schemas/PredictionCommonSettings-Output",
                         "default": {
+                            "historic_hours": 48,
+                            "hours": 48,
                             "latitude": 52.52,
                             "longitude": 13.405,
-                            "prediction_historic_hours": 48,
-                            "prediction_hours": 48,
                             "timezone": "Europe/Berlin"
                         }
                     },
@@ -345,12 +345,12 @@
                     "server": {
                         "$ref": "#/components/schemas/ServerCommonSettings",
                         "default": {
-                            "server_eos_host": "0.0.0.0",
-                            "server_eos_port": 8503,
-                            "server_eos_startup_eosdash": true,
-                            "server_eos_verbose": false,
-                            "server_eosdash_host": "0.0.0.0",
-                            "server_eosdash_port": 8504
+                            "eosdash_host": "0.0.0.0",
+                            "eosdash_port": 8504,
+                            "host": "0.0.0.0",
+                            "port": 8503,
+                            "startup_eosdash": true,
+                            "verbose": false
                         }
                     },
                     "utils": {
@@ -434,7 +434,7 @@
             "ElecPriceCommonSettings": {
                 "description": "Electricity Price Prediction Configuration.",
                 "properties": {
-                    "elecprice_charges_kwh": {
+                    "charges_kwh": {
                         "anyOf": [
                             {
                                 "minimum": 0.0,
@@ -448,9 +448,9 @@
                         "examples": [
                             0.21
                         ],
-                        "title": "Elecprice Charges Kwh"
+                        "title": "Charges Kwh"
                     },
-                    "elecprice_provider": {
+                    "provider": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -463,7 +463,7 @@
                         "examples": [
                             "ElecPriceAkkudoktor"
                         ],
-                        "title": "Elecprice Provider"
+                        "title": "Provider"
                     },
                     "provider_settings": {
                         "anyOf": [
@@ -486,7 +486,7 @@
             "ElecPriceImportCommonSettings": {
                 "description": "Common settings for elecprice data import from file or JSON String.",
                 "properties": {
-                    "elecpriceimport_file_path": {
+                    "import_file_path": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -504,9 +504,9 @@
                             null,
                             "/path/to/prices.json"
                         ],
-                        "title": "Elecpriceimport File Path"
+                        "title": "Import File Path"
                     },
-                    "elecpriceimport_json": {
+                    "import_json": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -519,7 +519,7 @@
                         "examples": [
                             "{\"elecprice_marketprice_wh\": [0.0003384, 0.0003318, 0.0003284]}"
                         ],
-                        "title": "Elecpriceimport Json"
+                        "title": "Import Json"
                     }
                 },
                 "title": "ElecPriceImportCommonSettings",
@@ -900,7 +900,7 @@
                 "additionalProperties": false,
                 "description": "Inverter Device Simulation Configuration.",
                 "properties": {
-                    "battery": {
+                    "battery_id": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -914,7 +914,7 @@
                             null,
                             "battery1"
                         ],
-                        "title": "Battery"
+                        "title": "Battery Id"
                     },
                     "device_id": {
                         "description": "ID of inverter",
@@ -981,7 +981,7 @@
             "LoadCommonSettings": {
                 "description": "Load Prediction Configuration.",
                 "properties": {
-                    "load_provider": {
+                    "provider": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -994,7 +994,7 @@
                         "examples": [
                             "LoadAkkudoktor"
                         ],
-                        "title": "Load Provider"
+                        "title": "Provider"
                     },
                     "provider_settings": {
                         "anyOf": [
@@ -1021,7 +1021,7 @@
             "LoadImportCommonSettings": {
                 "description": "Common settings for load data import from file or JSON string.",
                 "properties": {
-                    "load_import_file_path": {
+                    "import_file_path": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -1039,9 +1039,9 @@
                             null,
                             "/path/to/yearly_load.json"
                         ],
-                        "title": "Load Import File Path"
+                        "title": "Import File Path"
                     },
-                    "load_import_json": {
+                    "import_json": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -1054,7 +1054,7 @@
                         "examples": [
                             "{\"load0_mean\": [676.71, 876.19, 527.13]}"
                         ],
-                        "title": "Load Import Json"
+                        "title": "Import Json"
                     }
                 },
                 "title": "LoadImportCommonSettings",
@@ -1063,7 +1063,7 @@
             "LoggingCommonSettings-Input": {
                 "description": "Logging Configuration.",
                 "properties": {
-                    "logging_level_default": {
+                    "level": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -1080,7 +1080,7 @@
                             "ERROR",
                             "CRITICAL"
                         ],
-                        "title": "Logging Level Default"
+                        "title": "Level"
                     }
                 },
                 "title": "LoggingCommonSettings",
@@ -1089,7 +1089,7 @@
             "LoggingCommonSettings-Output": {
                 "description": "Logging Configuration.",
                 "properties": {
-                    "logging_level_default": {
+                    "level": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -1106,17 +1106,17 @@
                             "ERROR",
                             "CRITICAL"
                         ],
-                        "title": "Logging Level Default"
+                        "title": "Level"
                     },
-                    "logging_level_root": {
+                    "root_level": {
                         "description": "Root logger logging level.",
                         "readOnly": true,
-                        "title": "Logging Level Root",
+                        "title": "Root Level",
                         "type": "string"
                     }
                 },
                 "required": [
-                    "logging_level_root"
+                    "root_level"
                 ],
                 "title": "LoggingCommonSettings",
                 "type": "object"
@@ -1124,7 +1124,7 @@
             "MeasurementCommonSettings": {
                 "description": "Measurement Configuration.",
                 "properties": {
-                    "measurement_load0_name": {
+                    "load0_name": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -1138,9 +1138,9 @@
                             "Household",
                             "Heat Pump"
                         ],
-                        "title": "Measurement Load0 Name"
+                        "title": "Load0 Name"
                     },
-                    "measurement_load1_name": {
+                    "load1_name": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -1153,9 +1153,9 @@
                         "examples": [
                             null
                         ],
-                        "title": "Measurement Load1 Name"
+                        "title": "Load1 Name"
                     },
-                    "measurement_load2_name": {
+                    "load2_name": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -1168,9 +1168,9 @@
                         "examples": [
                             null
                         ],
-                        "title": "Measurement Load2 Name"
+                        "title": "Load2 Name"
                     },
-                    "measurement_load3_name": {
+                    "load3_name": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -1183,9 +1183,9 @@
                         "examples": [
                             null
                         ],
-                        "title": "Measurement Load3 Name"
+                        "title": "Load3 Name"
                     },
-                    "measurement_load4_name": {
+                    "load4_name": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -1198,16 +1198,16 @@
                         "examples": [
                             null
                         ],
-                        "title": "Measurement Load4 Name"
+                        "title": "Load4 Name"
                     }
                 },
                 "title": "MeasurementCommonSettings",
                 "type": "object"
             },
             "OptimizationCommonSettings": {
-                "description": "General Optimization Configuration.\n\nAttributes:\n    optimization_hours (int): Number of hours for optimizations.",
+                "description": "General Optimization Configuration.\n\nAttributes:\n    hours (int): Number of hours for optimizations.",
                 "properties": {
-                    "optimization_ev_available_charge_rates_percent": {
+                    "ev_available_charge_rates_percent": {
                         "anyOf": [
                             {
                                 "items": {
@@ -1229,9 +1229,9 @@
                             1.0
                         ],
                         "description": "Charge rates available for the EV in percent of maximum charge.",
-                        "title": "Optimization Ev Available Charge Rates Percent"
+                        "title": "Ev Available Charge Rates Percent"
                     },
-                    "optimization_hours": {
+                    "hours": {
                         "anyOf": [
                             {
                                 "minimum": 0.0,
@@ -1243,9 +1243,9 @@
                         ],
                         "default": 48,
                         "description": "Number of hours into the future for optimizations.",
-                        "title": "Optimization Hours"
+                        "title": "Hours"
                     },
-                    "optimization_penalty": {
+                    "penalty": {
                         "anyOf": [
                             {
                                 "type": "integer"
@@ -1256,7 +1256,7 @@
                         ],
                         "default": 10,
                         "description": "Penalty factor used in optimization.",
-                        "title": "Optimization Penalty"
+                        "title": "Penalty"
                     }
                 },
                 "title": "OptimizationCommonSettings",
@@ -1453,6 +1453,21 @@
             "PVForecastCommonSettings-Input": {
                 "description": "PV Forecast Configuration.",
                 "properties": {
+                    "provider": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "PVForecast provider id of provider to be used.",
+                        "examples": [
+                            "PVForecastAkkudoktor"
+                        ],
+                        "title": "Provider"
+                    },
                     "provider_settings": {
                         "anyOf": [
                             {
@@ -2949,8 +2964,15 @@
                             null
                         ],
                         "title": "Pvforecast5 Userhorizon"
-                    },
-                    "pvforecast_provider": {
+                    }
+                },
+                "title": "PVForecastCommonSettings",
+                "type": "object"
+            },
+            "PVForecastCommonSettings-Output": {
+                "description": "PV Forecast Configuration.",
+                "properties": {
+                    "provider": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -2963,15 +2985,8 @@
                         "examples": [
                             "PVForecastAkkudoktor"
                         ],
-                        "title": "Pvforecast Provider"
-                    }
-                },
-                "title": "PVForecastCommonSettings",
-                "type": "object"
-            },
-            "PVForecastCommonSettings-Output": {
-                "description": "PV Forecast Configuration.",
-                "properties": {
+                        "title": "Provider"
+                    },
                     "provider_settings": {
                         "anyOf": [
                             {
@@ -4514,21 +4529,6 @@
                         "description": "Compute a list of the user horizon per active planes.",
                         "readOnly": true,
                         "title": "Pvforecast Planes Userhorizon"
-                    },
-                    "pvforecast_provider": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "PVForecast provider id of provider to be used.",
-                        "examples": [
-                            "PVForecastAkkudoktor"
-                        ],
-                        "title": "Pvforecast Provider"
                     }
                 },
                 "required": [
@@ -4585,8 +4585,36 @@
                 "type": "object"
             },
             "PredictionCommonSettings-Input": {
-                "description": "General Prediction Configuration.\n\nThis class provides configuration for prediction settings, allowing users to specify\nparameters such as the forecast duration (in hours) and location (latitude and longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    prediction_hours (Optional[int]): Number of hours into the future for predictions.\n        Must be non-negative.\n    prediction_historic_hours (Optional[int]): Number of hours into the past for historical data.\n        Must be non-negative.\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_prediction_hours (int): Ensures `prediction_hours` is a non-negative integer.\n    validate_prediction_historic_hours (int): Ensures `prediction_historic_hours` is a non-negative integer.\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
+                "description": "General Prediction Configuration.\n\nThis class provides configuration for prediction settings, allowing users to specify\nparameters such as the forecast duration (in hours) and location (latitude and longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    hours (Optional[int]): Number of hours into the future for predictions.\n        Must be non-negative.\n    historic_hours (Optional[int]): Number of hours into the past for historical data.\n        Must be non-negative.\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_hours (int): Ensures `hours` is a non-negative integer.\n    validate_historic_hours (int): Ensures `historic_hours` is a non-negative integer.\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
                 "properties": {
+                    "historic_hours": {
+                        "anyOf": [
+                            {
+                                "minimum": 0.0,
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 48,
+                        "description": "Number of hours into the past for historical predictions data",
+                        "title": "Historic Hours"
+                    },
+                    "hours": {
+                        "anyOf": [
+                            {
+                                "minimum": 0.0,
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 48,
+                        "description": "Number of hours into the future for predictions",
+                        "title": "Hours"
+                    },
                     "latitude": {
                         "anyOf": [
                             {
@@ -4616,42 +4644,42 @@
                         "default": 13.405,
                         "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
                         "title": "Longitude"
-                    },
-                    "prediction_historic_hours": {
-                        "anyOf": [
-                            {
-                                "minimum": 0.0,
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 48,
-                        "description": "Number of hours into the past for historical predictions data",
-                        "title": "Prediction Historic Hours"
-                    },
-                    "prediction_hours": {
-                        "anyOf": [
-                            {
-                                "minimum": 0.0,
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 48,
-                        "description": "Number of hours into the future for predictions",
-                        "title": "Prediction Hours"
                     }
                 },
                 "title": "PredictionCommonSettings",
                 "type": "object"
             },
             "PredictionCommonSettings-Output": {
-                "description": "General Prediction Configuration.\n\nThis class provides configuration for prediction settings, allowing users to specify\nparameters such as the forecast duration (in hours) and location (latitude and longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    prediction_hours (Optional[int]): Number of hours into the future for predictions.\n        Must be non-negative.\n    prediction_historic_hours (Optional[int]): Number of hours into the past for historical data.\n        Must be non-negative.\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_prediction_hours (int): Ensures `prediction_hours` is a non-negative integer.\n    validate_prediction_historic_hours (int): Ensures `prediction_historic_hours` is a non-negative integer.\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
+                "description": "General Prediction Configuration.\n\nThis class provides configuration for prediction settings, allowing users to specify\nparameters such as the forecast duration (in hours) and location (latitude and longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    hours (Optional[int]): Number of hours into the future for predictions.\n        Must be non-negative.\n    historic_hours (Optional[int]): Number of hours into the past for historical data.\n        Must be non-negative.\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_hours (int): Ensures `hours` is a non-negative integer.\n    validate_historic_hours (int): Ensures `historic_hours` is a non-negative integer.\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
                 "properties": {
+                    "historic_hours": {
+                        "anyOf": [
+                            {
+                                "minimum": 0.0,
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 48,
+                        "description": "Number of hours into the past for historical predictions data",
+                        "title": "Historic Hours"
+                    },
+                    "hours": {
+                        "anyOf": [
+                            {
+                                "minimum": 0.0,
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 48,
+                        "description": "Number of hours into the future for predictions",
+                        "title": "Hours"
+                    },
                     "latitude": {
                         "anyOf": [
                             {
@@ -4681,34 +4709,6 @@
                         "default": 13.405,
                         "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
                         "title": "Longitude"
-                    },
-                    "prediction_historic_hours": {
-                        "anyOf": [
-                            {
-                                "minimum": 0.0,
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 48,
-                        "description": "Number of hours into the past for historical predictions data",
-                        "title": "Prediction Historic Hours"
-                    },
-                    "prediction_hours": {
-                        "anyOf": [
-                            {
-                                "minimum": 0.0,
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 48,
-                        "description": "Number of hours into the future for predictions",
-                        "title": "Prediction Hours"
                     },
                     "timezone": {
                         "anyOf": [
@@ -4838,60 +4838,7 @@
             "ServerCommonSettings": {
                 "description": "Server Configuration.\n\nAttributes:\n    To be added",
                 "properties": {
-                    "server_eos_host": {
-                        "anyOf": [
-                            {
-                                "format": "ipvanyaddress",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "0.0.0.0",
-                        "description": "EOS server IP address.",
-                        "title": "Server Eos Host"
-                    },
-                    "server_eos_port": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 8503,
-                        "description": "EOS server IP port number.",
-                        "title": "Server Eos Port"
-                    },
-                    "server_eos_startup_eosdash": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": true,
-                        "description": "EOS server to start EOSdash server.",
-                        "title": "Server Eos Startup Eosdash"
-                    },
-                    "server_eos_verbose": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Enable debug output",
-                        "title": "Server Eos Verbose"
-                    },
-                    "server_eosdash_host": {
+                    "eosdash_host": {
                         "anyOf": [
                             {
                                 "format": "ipvanyaddress",
@@ -4903,9 +4850,9 @@
                         ],
                         "default": "0.0.0.0",
                         "description": "EOSdash server IP address.",
-                        "title": "Server Eosdash Host"
+                        "title": "Eosdash Host"
                     },
-                    "server_eosdash_port": {
+                    "eosdash_port": {
                         "anyOf": [
                             {
                                 "type": "integer"
@@ -4916,7 +4863,60 @@
                         ],
                         "default": 8504,
                         "description": "EOSdash server IP port number.",
-                        "title": "Server Eosdash Port"
+                        "title": "Eosdash Port"
+                    },
+                    "host": {
+                        "anyOf": [
+                            {
+                                "format": "ipvanyaddress",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": "0.0.0.0",
+                        "description": "EOS server IP address.",
+                        "title": "Host"
+                    },
+                    "port": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 8503,
+                        "description": "EOS server IP port number.",
+                        "title": "Port"
+                    },
+                    "startup_eosdash": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": true,
+                        "description": "EOS server to start EOSdash server.",
+                        "title": "Startup Eosdash"
+                    },
+                    "verbose": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": false,
+                        "description": "Enable debug output",
+                        "title": "Verbose"
                     }
                 },
                 "title": "ServerCommonSettings",
@@ -5390,6 +5390,21 @@
             "WeatherCommonSettings": {
                 "description": "Weather Forecast Configuration.",
                 "properties": {
+                    "provider": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Weather provider id of provider to be used.",
+                        "examples": [
+                            "WeatherImport"
+                        ],
+                        "title": "Provider"
+                    },
                     "provider_settings": {
                         "anyOf": [
                             {
@@ -5403,21 +5418,6 @@
                         "examples": [
                             null
                         ]
-                    },
-                    "weather_provider": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Weather provider id of provider to be used.",
-                        "examples": [
-                            "WeatherImport"
-                        ],
-                        "title": "Weather Provider"
                     }
                 },
                 "title": "WeatherCommonSettings",
@@ -5426,7 +5426,7 @@
             "WeatherImportCommonSettings": {
                 "description": "Common settings for weather data import from file or JSON string.",
                 "properties": {
-                    "weatherimport_file_path": {
+                    "import_file_path": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -5444,9 +5444,9 @@
                             null,
                             "/path/to/weather_data.json"
                         ],
-                        "title": "Weatherimport File Path"
+                        "title": "Import File Path"
                     },
-                    "weatherimport_json": {
+                    "import_json": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -5459,7 +5459,7 @@
                         "examples": [
                             "{\"weather_temp_air\": [18.3, 17.8, 16.9]}"
                         ],
-                        "title": "Weatherimport Json"
+                        "title": "Import Json"
                     }
                 },
                 "title": "WeatherImportCommonSettings",
@@ -5519,7 +5519,7 @@
         },
         "/gesamtlast_simple": {
             "get": {
-                "description": "Deprecated: Total Load Prediction.\n\nEndpoint to handle total load prediction.\n\nTotal load prediction starts at 00.00.00 today and is provided for 48 hours.\nIf no prediction values are available the missing ones at the start of the series are\nfilled with the first available prediction value.\n\nArgs:\n    year_energy (float): Yearly energy consumption in Wh.\n\nNote:\n    Set LoadAkkudoktor as load_provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=load_mean' instead.",
+                "description": "Deprecated: Total Load Prediction.\n\nEndpoint to handle total load prediction.\n\nTotal load prediction starts at 00.00.00 today and is provided for 48 hours.\nIf no prediction values are available the missing ones at the start of the series are\nfilled with the first available prediction value.\n\nArgs:\n    year_energy (float): Yearly energy consumption in Wh.\n\nNote:\n    Set LoadAkkudoktor as provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=load_mean' instead.",
                 "operationId": "fastapi_gesamtlast_simple_gesamtlast_simple_get",
                 "parameters": [
                     {
@@ -5621,7 +5621,7 @@
         },
         "/pvforecast": {
             "get": {
-                "description": "Deprecated: PV Forecast Prediction.\n\nEndpoint to handle PV forecast prediction.\n\nPVForecast starts at 00.00.00 today and is provided for 48 hours.\nIf no forecast values are available the missing ones at the start of the series are\nfilled with the first available forecast value.\n\nNote:\n    Set PVForecastAkkudoktor as pvforecast_provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=pvforecast_ac_power' and\n    '/v1/prediction/list?key=pvforecastakkudoktor_temp_air' instead.",
+                "description": "Deprecated: PV Forecast Prediction.\n\nEndpoint to handle PV forecast prediction.\n\nPVForecast starts at 00.00.00 today and is provided for 48 hours.\nIf no forecast values are available the missing ones at the start of the series are\nfilled with the first available forecast value.\n\nNote:\n    Set PVForecastAkkudoktor as provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=pvforecast_ac_power' and\n    '/v1/prediction/list?key=pvforecastakkudoktor_temp_air' instead.",
                 "operationId": "fastapi_pvforecast_pvforecast_get",
                 "responses": {
                     "200": {
@@ -5640,7 +5640,7 @@
         },
         "/strompreis": {
             "get": {
-                "description": "Deprecated: Electricity Market Price Prediction per Wh (\u20ac/Wh).\n\nElectricity prices start at 00.00.00 today and are provided for 48 hours.\nIf no prices are available the missing ones at the start of the series are\nfilled with the first available price.\n\nNote:\n    Electricity price charges are added.\n\nNote:\n    Set ElecPriceAkkudoktor as elecprice_provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=elecprice_marketprice_wh' or\n    '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.",
+                "description": "Deprecated: Electricity Market Price Prediction per Wh (\u20ac/Wh).\n\nElectricity prices start at 00.00.00 today and are provided for 48 hours.\nIf no prices are available the missing ones at the start of the series are\nfilled with the first available price.\n\nNote:\n    Electricity price charges are added.\n\nNote:\n    Set ElecPriceAkkudoktor as provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=elecprice_marketprice_wh' or\n    '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.",
                 "operationId": "fastapi_strompreis_strompreis_get",
                 "responses": {
                     "200": {

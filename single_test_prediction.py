@@ -17,13 +17,13 @@ def config_pvforecast() -> dict:
     """Configure settings for PV forecast."""
     settings = {
         "prediction": {
-            "prediction_hours": 48,
-            "prediction_historic_hours": 24,
+            "hours": 48,
+            "historic_hours": 24,
             "latitude": 52.52,
             "longitude": 13.405,
         },
         "pvforecast": {
-            "pvforecast_provider": "PVForecastAkkudoktor",
+            "provider": "PVForecastAkkudoktor",
             "pvforecast0_peakpower": 5.0,
             "pvforecast0_surface_azimuth": -10,
             "pvforecast0_surface_tilt": 7,
@@ -54,8 +54,8 @@ def config_weather() -> dict:
     """Configure settings for weather forecast."""
     settings = {
         "prediction": {
-            "prediction_hours": 48,
-            "prediction_historic_hours": 24,
+            "hours": 48,
+            "historic_hours": 24,
             "latitude": 52.52,
             "longitude": 13.405,
         },
@@ -68,8 +68,8 @@ def config_elecprice() -> dict:
     """Configure settings for electricity price forecast."""
     settings = {
         "prediction": {
-            "prediction_hours": 48,
-            "prediction_historic_hours": 24,
+            "hours": 48,
+            "historic_hours": 24,
             "latitude": 52.52,
             "longitude": 13.405,
         },
@@ -82,8 +82,8 @@ def config_load() -> dict:
     """Configure settings for load forecast."""
     settings = {
         "prediction": {
-            "prediction_hours": 48,
-            "prediction_historic_hours": 24,
+            "hours": 48,
+            "historic_hours": 24,
             "latitude": 52.52,
             "longitude": 13.405,
         }
@@ -108,17 +108,17 @@ def run_prediction(provider_id: str, verbose: bool = False) -> str:
         print(f"\nProvider ID: {provider_id}")
     if provider_id in ("PVForecastAkkudoktor",):
         settings = config_pvforecast()
-        settings["pvforecast"]["pvforecast_provider"] = provider_id
+        settings["pvforecast"]["provider"] = provider_id
     elif provider_id in ("BrightSky", "ClearOutside"):
         settings = config_weather()
-        settings["weather"]["weather_provider"] = provider_id
-    elif provider_id in ("ElecPriceAkkudoktor",):
+        settings["weather"]["provider"] = provider_id
+    elif provider_id in ("Akkudoktor",):
         settings = config_elecprice()
-        settings["elecprice"]["elecprice_provider"] = provider_id
+        settings["elecprice"]["provider"] = provider_id
     elif provider_id in ("LoadAkkudoktor",):
         settings = config_elecprice()
         settings["load"]["loadakkudoktor_year_energy"] = 1000
-        settings["load"]["load_provider"] = provider_id
+        settings["load"]["provider"] = provider_id
     else:
         raise ValueError(f"Unknown provider '{provider_id}'.")
     config_eos.merge_settings_from_dict(settings)

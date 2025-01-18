@@ -53,9 +53,9 @@ class PredictionCommonSettings(SettingsBaseModel):
     determines the time zone based on latitude and longitude.
 
     Attributes:
-        prediction_hours (Optional[int]): Number of hours into the future for predictions.
+        hours (Optional[int]): Number of hours into the future for predictions.
             Must be non-negative.
-        prediction_historic_hours (Optional[int]): Number of hours into the past for historical data.
+        historic_hours (Optional[int]): Number of hours into the past for historical data.
             Must be non-negative.
         latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.
         longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.
@@ -65,16 +65,16 @@ class PredictionCommonSettings(SettingsBaseModel):
             and longitude.
 
     Validators:
-        validate_prediction_hours (int): Ensures `prediction_hours` is a non-negative integer.
-        validate_prediction_historic_hours (int): Ensures `prediction_historic_hours` is a non-negative integer.
+        validate_hours (int): Ensures `hours` is a non-negative integer.
+        validate_historic_hours (int): Ensures `historic_hours` is a non-negative integer.
         validate_latitude (float): Ensures `latitude` is within the range -90 to 90.
         validate_longitude (float): Ensures `longitude` is within the range -180 to 180.
     """
 
-    prediction_hours: Optional[int] = Field(
+    hours: Optional[int] = Field(
         default=48, ge=0, description="Number of hours into the future for predictions"
     )
-    prediction_historic_hours: Optional[int] = Field(
+    historic_hours: Optional[int] = Field(
         default=48,
         ge=0,
         description="Number of hours into the past for historical predictions data",

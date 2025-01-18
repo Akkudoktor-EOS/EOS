@@ -33,6 +33,7 @@ from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings, get_prediction
+from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 logger = get_logger(__name__)
@@ -152,20 +153,16 @@ def start_eosdash() -> subprocess.Popen:
 
     if args is None:
         # No command line arguments
-        host = config_eos.server.server_eosdash_host
-        port = config_eos.server.server_eosdash_port
-        eos_host = config_eos.server.server_eos_host
-        eos_port = config_eos.server.server_eos_port
+        host = config_eos.server.eosdash_host
+        port = config_eos.server.eosdash_port
+        eos_host = config_eos.server.host
+        eos_port = config_eos.server.port
         log_level = "info"
         access_log = False
         reload = False
     else:
         host = args.host
-        port = (
-            config_eos.server.server_eosdash_port
-            if config_eos.server.server_eosdash_port
-            else (args.port + 1)
-        )
+        port = config_eos.server.eosdash_port if config_eos.server.eosdash_port else (args.port + 1)
         eos_host = args.host
         eos_port = args.port
         log_level = args.log_level
@@ -208,7 +205,7 @@ def start_eosdash() -> subprocess.Popen:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
-    if config_eos.server.server_eos_startup_eosdash:
+    if config_eos.server.startup_eosdash:
         try:
             eosdash_process = start_eosdash()
         except Exception as e:
@@ -235,7 +232,7 @@ app = FastAPI(
 
 
 # That's the problem
-opt_class = optimization_problem(verbose=bool(config_eos.server.server_eos_verbose))
+opt_class = optimization_problem(verbose=bool(config_eos.server.verbose))
 
 server_dir = Path(__file__).parent.resolve()
 
@@ -610,7 +607,7 @@ def fastapi_strompreis() -> list[float]:
         Electricity price charges are added.
 
     Note:
-        Set ElecPriceAkkudoktor as elecprice_provider, then update data with
+        Set ElecPriceAkkudoktor as provider, then update data with
         '/v1/prediction/update'
         and then request data with
         '/v1/prediction/list?key=elecprice_marketprice_wh' or
@@ -618,7 +615,7 @@ def fastapi_strompreis() -> list[float]:
     """
     settings = SettingsEOS(
         elecprice=ElecPriceCommonSettings(
-            elecprice_provider="ElecPriceAkkudoktor",
+            provider="ElecPriceAkkudoktor",
         )
     )
     config_eos.merge_settings(settings=settings)
@@ -670,10 +667,10 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     """
     settings = SettingsEOS(
         prediction=PredictionCommonSettings(
-            prediction_hours=request.hours,
+            hours=request.hours,
         ),
         load=LoadCommonSettings(
-            load_provider="LoadAkkudoktor",
+            provider="LoadAkkudoktor",
             provider_settings=LoadAkkudoktorCommonSettings(
                 loadakkudoktor_year_energy=request.year_energy,
             ),
@@ -684,7 +681,7 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
 
     # Insert measured data into EOS measurement
     # Convert from energy per interval to dummy energy meter readings
-    measurement_key = "measurement_load0_mr"
+    measurement_key = "load0_mr"
     measurement_eos.key_delete_by_datetime(key=measurement_key)  # delete all load0_mr measurements
     energy = {}
     try:
@@ -747,14 +744,14 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
         year_energy (float): Yearly energy consumption in Wh.
 
     Note:
-        Set LoadAkkudoktor as load_provider, then update data with
+        Set LoadAkkudoktor as provider, then update data with
         '/v1/prediction/update'
         and then request data with
         '/v1/prediction/list?key=load_mean' instead.
     """
     settings = SettingsEOS(
         load=LoadCommonSettings(
-            load_provider="LoadAkkudoktor",
+            provider="LoadAkkudoktor",
             provider_settings=LoadAkkudoktorCommonSettings(
                 loadakkudoktor_year_energy=year_energy / 1000,  # Convert to kWh
             ),
@@ -800,21 +797,25 @@ def fastapi_pvforecast() -> ForecastResponse:
     filled with the first available forecast value.
 
     Note:
-        Set PVForecastAkkudoktor as pvforecast_provider, then update data with
+        Set PVForecastAkkudoktor as provider, then update data with
         '/v1/prediction/update'
         and then request data with
         '/v1/prediction/list?key=pvforecast_ac_power' and
         '/v1/prediction/list?key=pvforecastakkudoktor_temp_air' instead.
     """
-    settings = SettingsEOS(
-        elecprice_provider="PVForecastAkkudoktor",
-    )
+    settings = SettingsEOS(pvforecast=PVForecastCommonSettings(provider="PVForecastAkkudoktor"))
     config_eos.merge_settings(settings=settings)
 
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
 
     # Create PV forecast
-    prediction_eos.update_data(force_update=True)
+    try:
+        prediction_eos.update_data(force_update=True)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not get the PV forecast: {e}",
+        )
 
     # Get the forcast starting at start of day
     start_datetime = to_datetime().start_of("day")
@@ -901,9 +902,9 @@ async def proxy_put(request: Request, path: str) -> Response:
 
 
 async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse | HTMLResponse]:
-    if config_eos.server.server_eosdash_host and config_eos.server.server_eosdash_port:
+    if config_eos.server.eosdash_host and config_eos.server.eosdash_port:
         # Proxy to EOSdash server
-        url = f"http://{config_eos.server.server_eosdash_host}:{config_eos.server.server_eosdash_port}/{path}"
+        url = f"http://{config_eos.server.eosdash_host}:{config_eos.server.eosdash_port}/{path}"
         headers = dict(request.headers)
 
         data = await request.body()
@@ -925,9 +926,9 @@ async def proxy(request: Request, path: str) -> Union[Response | RedirectRespons
                 error_message=f"""<pre>
 EOSdash server not reachable: '{url}'
 Did you start the EOSdash server
-or set 'server_eos_startup_eosdash'?
+or set 'startup_eosdash'?
 If there is no application server intended please
-set 'server_eosdash_host' or 'server_eosdash_port' to None.
+set 'eosdash_host' or 'eosdash_port' to None.
 </pre>
 """,
                 error_details=f"{e}",
@@ -991,8 +992,8 @@ def main() -> None:
     it starts the EOS server with the specified configurations.
 
     Command-line Arguments:
-    --host (str): Host for the EOS server (default: value from config_eos).
-    --port (int): Port for the EOS server (default: value from config_eos).
+    --host (str): Host for the EOS server (default: value from config).
+    --port (int): Port for the EOS server (default: value from config).
     --log_level (str): Log level for the server. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "info").
     --access_log (bool): Enable or disable access log. Options: True or False (default: False).
     --reload (bool): Enable or disable auto-reload. Useful for development. Options: True or False (default: False).
@@ -1003,13 +1004,13 @@ def main() -> None:
     parser.add_argument(
         "--host",
         type=str,
-        default=str(config_eos.server.server_eos_host),
+        default=str(config_eos.server.host),
         help="Host for the EOS server (default: value from config)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=config_eos.server.server_eos_port,
+        default=config_eos.server.port,
         help="Port for the EOS server (default: value from config)",
     )
 
@@ -1038,7 +1039,7 @@ def main() -> None:
     try:
         run_eos(args.host, args.port, args.log_level, args.access_log, args.reload)
     except:
-        exit(1)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

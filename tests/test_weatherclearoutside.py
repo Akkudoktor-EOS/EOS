@@ -21,11 +21,11 @@ FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA = DIR_TESTDATA.joinpath("weatherforecas
 
 
 @pytest.fixture
-def weather_provider(config_eos):
+def provider(config_eos):
     """Fixture to create a WeatherProvider instance."""
     settings = {
         "weather": {
-            "weather_provider": "ClearOutside",
+            "provider": "ClearOutside",
         },
         "prediction": {
             "latitude": 50.0,
@@ -64,28 +64,28 @@ def cache_store():
 # ------------------------------------------------
 
 
-def test_singleton_instance(weather_provider):
+def test_singleton_instance(provider):
     """Test that WeatherForecast behaves as a singleton."""
     another_instance = WeatherClearOutside()
-    assert weather_provider is another_instance
+    assert provider is another_instance
 
 
-def test_invalid_provider(weather_provider, config_eos):
-    """Test requesting an unsupported weather_provider."""
+def test_invalid_provider(provider, config_eos):
+    """Test requesting an unsupported provider."""
     settings = {
         "weather": {
-            "weather_provider": "<invalid>",
+            "provider": "<invalid>",
         }
     }
     config_eos.merge_settings_from_dict(settings)
-    assert not weather_provider.enabled()
+    assert not provider.enabled()
 
 
-def test_invalid_coordinates(weather_provider, config_eos):
+def test_invalid_coordinates(provider, config_eos):
     """Test invalid coordinates raise ValueError."""
     settings = {
         "weather": {
-            "weather_provider": "ClearOutside",
+            "provider": "ClearOutside",
         },
         "prediction": {
             "latitude": 1000.0,
@@ -103,15 +103,13 @@ def test_invalid_coordinates(weather_provider, config_eos):
 # ------------------------------------------------
 
 
-def test_irridiance_estimate_from_cloud_cover(weather_provider):
+def test_irridiance_estimate_from_cloud_cover(provider):
     """Test cloud cover to irradiance estimation."""
     cloud_cover_data = pd.Series(
         data=[20, 50, 80], index=pd.date_range("2023-10-22", periods=3, freq="h")
     )
 
-    ghi, dni, dhi = weather_provider.estimate_irradiance_from_cloud_cover(
-        50.0, 10.0, cloud_cover_data
-    )
+    ghi, dni, dhi = provider.estimate_irradiance_from_cloud_cover(50.0, 10.0, cloud_cover_data)
 
     assert ghi == [0, 0, 0]
     assert dhi == [0, 0, 0]
@@ -124,7 +122,7 @@ def test_irridiance_estimate_from_cloud_cover(weather_provider):
 
 
 @patch("requests.get")
-def test_request_forecast(mock_get, weather_provider, sample_clearout_1_html, config_eos):
+def test_request_forecast(mock_get, provider, sample_clearout_1_html, config_eos):
     """Test fetching forecast from ClearOutside."""
     # Mock response object
     mock_response = Mock()
@@ -136,14 +134,14 @@ def test_request_forecast(mock_get, weather_provider, sample_clearout_1_html, co
     config_eos.update()
 
     # Test function
-    response = weather_provider._request_forecast()
+    response = provider._request_forecast()
 
     assert response.status_code == 200
     assert response.content == sample_clearout_1_html
 
 
 @patch("requests.get")
-def test_update_data(mock_get, weather_provider, sample_clearout_1_html, sample_clearout_1_data):
+def test_update_data(mock_get, provider, sample_clearout_1_html, sample_clearout_1_data):
     # Mock response object
     mock_response = Mock()
     mock_response.status_code = 200
@@ -157,17 +155,17 @@ def test_update_data(mock_get, weather_provider, sample_clearout_1_html, sample_
     # Call the method
     ems_eos = get_ems()
     ems_eos.set_start_datetime(expected_start)
-    weather_provider.update_data()
+    provider.update_data()
 
     # Check for correct prediction time window
-    assert weather_provider.config.prediction.prediction_hours == 48
-    assert weather_provider.config.prediction.prediction_historic_hours == 48
-    assert compare_datetimes(weather_provider.start_datetime, expected_start).equal
-    assert compare_datetimes(weather_provider.end_datetime, expected_end).equal
-    assert compare_datetimes(weather_provider.keep_datetime, expected_keep).equal
+    assert provider.config.prediction.hours == 48
+    assert provider.config.prediction.historic_hours == 48
+    assert compare_datetimes(provider.start_datetime, expected_start).equal
+    assert compare_datetimes(provider.end_datetime, expected_end).equal
+    assert compare_datetimes(provider.keep_datetime, expected_keep).equal
 
     # Verify the data
-    assert len(weather_provider) == 165  # 6 days, 24 hours per day - 7th day 21 hours
+    assert len(provider) == 165  # 6 days, 24 hours per day - 7th day 21 hours
 
     # Check that specific values match the expected output
     # for i, record in enumerate(weather_data.records):
@@ -179,7 +177,7 @@ def test_update_data(mock_get, weather_provider, sample_clearout_1_html, sample_
 
 @pytest.mark.skip(reason="Test fixture to be improved")
 @patch("requests.get")
-def test_cache_forecast(mock_get, weather_provider, sample_clearout_1_html, cache_store):
+def test_cache_forecast(mock_get, provider, sample_clearout_1_html, cache_store):
     """Test that ClearOutside forecast data is cached with TTL.
 
     This can not be tested with mock_get. Mock objects are not pickable and therefor can not be
@@ -193,12 +191,12 @@ def test_cache_forecast(mock_get, weather_provider, sample_clearout_1_html, cach
 
     cache_store.clear(clear_all=True)
 
-    weather_provider.update_data()
+    provider.update_data()
     mock_get.assert_called_once()
-    forecast_data_first = weather_provider.to_json()
+    forecast_data_first = provider.to_json()
 
-    weather_provider.update_data()
-    forecast_data_second = weather_provider.to_json()
+    provider.update_data()
+    forecast_data_second = provider.to_json()
     # Verify that cache returns the same object without calling the method again
     assert forecast_data_first == forecast_data_second
     # A mock object is not pickable and therefor can not be chached to file
@@ -212,7 +210,7 @@ def test_cache_forecast(mock_get, weather_provider, sample_clearout_1_html, cach
 
 @pytest.mark.skip(reason="For development only")
 @patch("requests.get")
-def test_development_forecast_data(mock_get, weather_provider, sample_clearout_1_html):
+def test_development_forecast_data(mock_get, provider, sample_clearout_1_html):
     # Mock response object
     mock_response = Mock()
     mock_response.status_code = 200
@@ -220,14 +218,14 @@ def test_development_forecast_data(mock_get, weather_provider, sample_clearout_1
     mock_get.return_value = mock_response
 
     # Fill the instance
-    weather_provider.update_data(force_enable=True)
+    provider.update_data(force_enable=True)
 
     with open(FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA, "w", encoding="utf8") as f_out:
-        f_out.write(weather_provider.to_json())
+        f_out.write(provider.to_json())
 
 
 @pytest.mark.skip(reason="For development only")
-def test_clearoutsides_development_scraper(weather_provider, sample_clearout_1_html):
+def test_clearoutsides_development_scraper(provider, sample_clearout_1_html):
     """Test scraping from ClearOutside."""
     soup = BeautifulSoup(sample_clearout_1_html, "html.parser")
 

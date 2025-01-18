@@ -22,22 +22,22 @@ logger = get_logger(__name__)
 class WeatherImportCommonSettings(SettingsBaseModel):
     """Common settings for weather data import from file or JSON string."""
 
-    weatherimport_file_path: Optional[Union[str, Path]] = Field(
+    import_file_path: Optional[Union[str, Path]] = Field(
         default=None,
         description="Path to the file to import weather data from.",
         examples=[None, "/path/to/weather_data.json"],
     )
 
-    weatherimport_json: Optional[str] = Field(
+    import_json: Optional[str] = Field(
         default=None,
         description="JSON string, dictionary of weather forecast value lists.",
         examples=['{"weather_temp_air": [18.3, 17.8, 16.9]}'],
     )
 
     # Validators
-    @field_validator("weatherimport_file_path", mode="after")
+    @field_validator("import_file_path", mode="after")
     @classmethod
-    def validate_weatherimport_file_path(cls, value: Optional[Union[str, Path]]) -> Optional[Path]:
+    def validate_import_file_path(cls, value: Optional[Union[str, Path]]) -> Optional[Path]:
         if value is None:
             return None
         if isinstance(value, str):
@@ -63,11 +63,11 @@ class WeatherImport(WeatherProvider, PredictionImportProvider):
         return "WeatherImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.weather.provider_settings.weatherimport_file_path is not None:
+        if self.config.weather.provider_settings.import_file_path is not None:
             self.import_from_file(
-                self.config.weather.provider_settings.weatherimport_file_path, key_prefix="weather"
+                self.config.weather.provider_settings.import_file_path, key_prefix="weather"
             )
-        if self.config.weather.provider_settings.weatherimport_json is not None:
+        if self.config.weather.provider_settings.import_json is not None:
             self.import_from_json(
-                self.config.weather.provider_settings.weatherimport_json, key_prefix="weather"
+                self.config.weather.provider_settings.import_json, key_prefix="weather"
             )

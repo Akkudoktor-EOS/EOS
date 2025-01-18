@@ -63,7 +63,7 @@ Args:
     year_energy (float): Yearly energy consumption in Wh.
 
 Note:
-    Set LoadAkkudoktor as load_provider, then update data with
+    Set LoadAkkudoktor as provider, then update data with
     '/v1/prediction/update'
     and then request data with
     '/v1/prediction/list?key=load_mean' instead.
@@ -121,7 +121,7 @@ If no forecast values are available the missing ones at the start of the series 
 filled with the first available forecast value.
 
 Note:
-    Set PVForecastAkkudoktor as pvforecast_provider, then update data with
+    Set PVForecastAkkudoktor as provider, then update data with
     '/v1/prediction/update'
     and then request data with
     '/v1/prediction/list?key=pvforecast_ac_power' and
@@ -151,7 +151,7 @@ Note:
     Electricity price charges are added.
 
 Note:
-    Set ElecPriceAkkudoktor as elecprice_provider, then update data with
+    Set ElecPriceAkkudoktor as provider, then update data with
     '/v1/prediction/update'
     and then request data with
     '/v1/prediction/list?key=elecprice_marketprice_wh' or

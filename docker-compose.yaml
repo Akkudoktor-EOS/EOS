@@ -11,12 +11,14 @@ services:
       dockerfile: "Dockerfile"
       args:
         PYTHON_VERSION: "${PYTHON_VERSION}"
+    env_file:
+      - .env
     environment:
       - EOS_CONFIG_DIR=config
-      - latitude=52.2
-      - longitude=13.4
-      - elecprice_provider=ElecPriceAkkudoktor
-      - elecprice_charges_kwh=0.21
-      - server_fasthtml_host=none
+      - EOS_PREDICTION__LATITUDE=52.2
+      - EOS_PREDICTION__LONGITUDE=13.4
+      - EOS_ELECPRICE__PROVIDER=ElecPriceAkkudoktor
+      - EOS_ELECPRICE__CHARGES_KWH=0.21
     ports:
-      - "${EOS_PORT}:${EOS_PORT}"
+      - "${EOS_SERVER__PORT}:${EOS_SERVER__PORT}"
+      - "${EOS_SERVER__EOSDASH_PORT}:${EOS_SERVER__EOSDASH_PORT}"

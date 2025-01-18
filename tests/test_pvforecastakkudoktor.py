@@ -26,13 +26,13 @@ def sample_settings(config_eos):
     """Fixture that adds settings data to the global config."""
     settings = {
         "prediction": {
-            "prediction_hours": 48,
-            "prediction_historic_hours": 24,
+            "hours": 48,
+            "historic_hours": 24,
             "latitude": 52.52,
             "longitude": 13.405,
         },
         "pvforecast": {
-            "pvforecast_provider": "PVForecastAkkudoktor",
+            "provider": "PVForecastAkkudoktor",
             "pvforecast0_peakpower": 5.0,
             "pvforecast0_surface_azimuth": -10,
             "pvforecast0_surface_tilt": 7,
@@ -59,7 +59,7 @@ def sample_settings(config_eos):
 
     # Merge settings to config
     config_eos.merge_settings_from_dict(settings)
-    assert config_eos.pvforecast.pvforecast_provider == "PVForecastAkkudoktor"
+    assert config_eos.pvforecast.provider == "PVForecastAkkudoktor"
     return config_eos
 
 
@@ -147,13 +147,13 @@ sample_value = AkkudoktorForecastValue(
 )
 sample_config_data = {
     "prediction": {
-        "prediction_hours": 48,
-        "prediction_historic_hours": 24,
+        "hours": 48,
+        "historic_hours": 24,
         "latitude": 52.52,
         "longitude": 13.405,
     },
     "pvforecast": {
-        "pvforecast_provider": "PVForecastAkkudoktor",
+        "provider": "PVForecastAkkudoktor",
         "pvforecast0_peakpower": 5.0,
         "pvforecast0_surface_azimuth": 180,
         "pvforecast0_surface_tilt": 30,

@@ -14,11 +14,11 @@ from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_
 
 
 @pytest.fixture
-def load_provider(config_eos):
+def provider(config_eos):
     """Fixture to initialise the LoadAkkudoktor instance."""
     settings = {
         "load": {
-            "load_provider": "LoadAkkudoktor",
+            "provider": "LoadAkkudoktor",
             "provider_settings": {
                 "load_name": "Akkudoktor Profile",
                 "loadakkudoktor_year_energy": "1000",
@@ -41,8 +41,8 @@ def measurement_eos():
         measurement.records.append(
             MeasurementDataRecord(
                 date_time=dt,
-                measurement_load0_mr=load0_mr,
-                measurement_load1_mr=load1_mr,
+                load0_mr=load0_mr,
+                load1_mr=load1_mr,
             )
         )
         dt += interval
@@ -76,13 +76,13 @@ def test_loadakkudoktor_settings_validator():
     assert settings.loadakkudoktor_year_energy == 1234.56
 
 
-def test_loadakkudoktor_provider_id(load_provider):
+def test_loadakkudoktor_provider_id(provider):
     """Test the `provider_id` class method."""
-    assert load_provider.provider_id() == "LoadAkkudoktor"
+    assert provider.provider_id() == "LoadAkkudoktor"
 
 
 @patch("akkudoktoreos.prediction.loadakkudoktor.np.load")
-def test_load_data_from_mock(mock_np_load, mock_load_profiles_file, load_provider):
+def test_load_data_from_mock(mock_np_load, mock_load_profiles_file, provider):
     """Test the `load_data` method."""
     # Mock numpy load to return data similar to what would be in the file
     mock_np_load.return_value = {
@@ -91,19 +91,19 @@ def test_load_data_from_mock(mock_np_load, mock_load_profiles_file, load_provide
     }
 
     # Test data loading
-    data_year_energy = load_provider.load_data()
+    data_year_energy = provider.load_data()
     assert data_year_energy is not None
     assert data_year_energy.shape == (365, 2, 24)
 
 
-def test_load_data_from_file(load_provider):
+def test_load_data_from_file(provider):
     """Test `load_data` loads data from the profiles file."""
-    data_year_energy = load_provider.load_data()
+    data_year_energy = provider.load_data()
     assert data_year_energy is not None
 
 
 @patch("akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktor.load_data")
-def test_update_data(mock_load_data, load_provider):
+def test_update_data(mock_load_data, provider):
     """Test the `_update` method."""
     mock_load_data.return_value = np.random.rand(365, 2, 24)
 
@@ -112,27 +112,27 @@ def test_update_data(mock_load_data, load_provider):
     ems_eos.set_start_datetime(pendulum.datetime(2024, 1, 1))
 
     # Assure there are no prediction records
-    load_provider.clear()
-    assert len(load_provider) == 0
+    provider.clear()
+    assert len(provider) == 0
 
     # Execute the method
-    load_provider._update_data()
+    provider._update_data()
 
     # Validate that update_value is called
-    assert len(load_provider) > 0
+    assert len(provider) > 0
 
 
-def test_calculate_adjustment(load_provider, measurement_eos):
+def test_calculate_adjustment(provider, measurement_eos):
     """Test `_calculate_adjustment` for various scenarios."""
     data_year_energy = np.random.rand(365, 2, 24)
 
     # Call the method and validate results
-    weekday_adjust, weekend_adjust = load_provider._calculate_adjustment(data_year_energy)
+    weekday_adjust, weekend_adjust = provider._calculate_adjustment(data_year_energy)
     assert weekday_adjust.shape == (24,)
     assert weekend_adjust.shape == (24,)
 
     data_year_energy = np.zeros((365, 2, 24))
-    weekday_adjust, weekend_adjust = load_provider._calculate_adjustment(data_year_energy)
+    weekday_adjust, weekend_adjust = provider._calculate_adjustment(data_year_energy)
 
     assert weekday_adjust.shape == (24,)
     expected = np.array(
@@ -197,7 +197,7 @@ def test_calculate_adjustment(load_provider, measurement_eos):
     np.testing.assert_array_equal(weekend_adjust, expected)
 
 
-def test_load_provider_adjustments_with_mock_data(load_provider):
+def test_provider_adjustments_with_mock_data(provider):
     """Test full integration of adjustments with mock data."""
     with patch(
         "akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktor._calculate_adjustment"
@@ -205,5 +205,5 @@ def test_load_provider_adjustments_with_mock_data(load_provider):
         mock_adjust.return_value = (np.zeros(24), np.zeros(24))
 
         # Test execution
-        load_provider._update_data()
+        provider._update_data()
         assert mock_adjust.called

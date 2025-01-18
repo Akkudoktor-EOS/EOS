@@ -173,7 +173,7 @@
     "inverter": {
         "device_id": "inverter1",
         "max_power_wh": 10000,
-        "battery": "battery1"
+        "battery_id": "battery1"
     },
     "dishwasher": {
         "device_id": "dishwasher1",

@@ -179,7 +179,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         To initialize and access configuration attributes (only one instance is created):
         ```python
         config_eos = ConfigEOS()  # Always returns the same instance
-        print(config_eos.prediction.prediction_hours)  # Access a setting from the loaded configuration
+        print(config_eos.prediction.hours)  # Access a setting from the loaded configuration
         ```
 
     """
@@ -328,7 +328,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
         Example:
             >>> config = get_config()
-            >>> new_data = {"prediction": {"prediction_hours": 24}, "server": {"server_eos_port": 8000}}
+            >>> new_data = {"prediction": {"hours": 24}, "server": {"port": 8000}}
             >>> config.merge_settings_from_dict(new_data)
         """
         self._setup(**merge_models(self, data))

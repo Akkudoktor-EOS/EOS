@@ -55,8 +55,8 @@ General configuration to set directories of cache and output files.
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| logging_level_default | `EOS_LOGGING__LOGGING_LEVEL_DEFAULT` | `Optional[str]` | `rw` | `None` | EOS default logging level. |
-| logging_level_root | | `str` | `ro` | `N/A` | Root logger logging level. |
+| level | `EOS_LOGGING__LEVEL` | `Optional[str]` | `rw` | `None` | EOS default logging level. |
+| root_level | | `str` | `ro` | `N/A` | Root logger logging level. |
 :::
 
 ### Example Input
@@ -66,7 +66,7 @@ General configuration to set directories of cache and output files.
 
    {
        "logging": {
-           "logging_level_default": "INFO"
+           "level": "INFO"
        }
    }
 ```
@@ -78,8 +78,8 @@ General configuration to set directories of cache and output files.
 
    {
        "logging": {
-           "logging_level_default": "INFO",
-           "logging_level_root": "INFO"
+           "level": "INFO",
+           "root_level": "INFO"
        }
    }
 ```
@@ -167,7 +167,7 @@ General configuration to set directories of cache and output files.
 | device_id | `str` | `rw` | `required` | ID of inverter |
 | hours | `Optional[int]` | `rw` | `None` | Number of prediction hours. Defaults to global config prediction hours. |
 | max_power_wh | `float` | `rw` | `required` | - |
-| battery | `Optional[str]` | `rw` | `None` | ID of battery |
+| battery_id | `Optional[str]` | `rw` | `None` | ID of battery |
 :::
 
 #### Example Input/Output
@@ -182,7 +182,7 @@ General configuration to set directories of cache and output files.
                    "device_id": "inverter1",
                    "hours": null,
                    "max_power_wh": 10000.0,
-                   "battery": null
+                   "battery_id": null
                }
            ]
        }
@@ -240,11 +240,11 @@ General configuration to set directories of cache and output files.
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| measurement_load0_name | `EOS_MEASUREMENT__MEASUREMENT_LOAD0_NAME` | `Optional[str]` | `rw` | `None` | Name of the load0 source |
-| measurement_load1_name | `EOS_MEASUREMENT__MEASUREMENT_LOAD1_NAME` | `Optional[str]` | `rw` | `None` | Name of the load1 source |
-| measurement_load2_name | `EOS_MEASUREMENT__MEASUREMENT_LOAD2_NAME` | `Optional[str]` | `rw` | `None` | Name of the load2 source |
-| measurement_load3_name | `EOS_MEASUREMENT__MEASUREMENT_LOAD3_NAME` | `Optional[str]` | `rw` | `None` | Name of the load3 source |
-| measurement_load4_name | `EOS_MEASUREMENT__MEASUREMENT_LOAD4_NAME` | `Optional[str]` | `rw` | `None` | Name of the load4 source |
+| load0_name | `EOS_MEASUREMENT__LOAD0_NAME` | `Optional[str]` | `rw` | `None` | Name of the load0 source |
+| load1_name | `EOS_MEASUREMENT__LOAD1_NAME` | `Optional[str]` | `rw` | `None` | Name of the load1 source |
+| load2_name | `EOS_MEASUREMENT__LOAD2_NAME` | `Optional[str]` | `rw` | `None` | Name of the load2 source |
+| load3_name | `EOS_MEASUREMENT__LOAD3_NAME` | `Optional[str]` | `rw` | `None` | Name of the load3 source |
+| load4_name | `EOS_MEASUREMENT__LOAD4_NAME` | `Optional[str]` | `rw` | `None` | Name of the load4 source |
 :::
 
 ### Example Input/Output
@@ -254,11 +254,11 @@ General configuration to set directories of cache and output files.
 
    {
        "measurement": {
-           "measurement_load0_name": "Household",
-           "measurement_load1_name": null,
-           "measurement_load2_name": null,
-           "measurement_load3_name": null,
-           "measurement_load4_name": null
+           "load0_name": "Household",
+           "load1_name": null,
+           "load2_name": null,
+           "load3_name": null,
+           "load4_name": null
        }
    }
 ```
@@ -266,7 +266,7 @@ General configuration to set directories of cache and output files.
 ## General Optimization Configuration
 
 Attributes:
-    optimization_hours (int): Number of hours for optimizations.
+    hours (int): Number of hours for optimizations.
 
 :::{table} optimization
 :widths: 10 20 10 5 5 30
@@ -274,9 +274,9 @@ Attributes:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| optimization_hours | `EOS_OPTIMIZATION__OPTIMIZATION_HOURS` | `Optional[int]` | `rw` | `48` | Number of hours into the future for optimizations. |
-| optimization_penalty | `EOS_OPTIMIZATION__OPTIMIZATION_PENALTY` | `Optional[int]` | `rw` | `10` | Penalty factor used in optimization. |
-| optimization_ev_available_charge_rates_percent | `EOS_OPTIMIZATION__OPTIMIZATION_EV_AVAILABLE_CHARGE_RATES_PERCENT` | `Optional[List[float]]` | `rw` | `[0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]` | Charge rates available for the EV in percent of maximum charge. |
+| hours | `EOS_OPTIMIZATION__HOURS` | `Optional[int]` | `rw` | `48` | Number of hours into the future for optimizations. |
+| penalty | `EOS_OPTIMIZATION__PENALTY` | `Optional[int]` | `rw` | `10` | Penalty factor used in optimization. |
+| ev_available_charge_rates_percent | `EOS_OPTIMIZATION__EV_AVAILABLE_CHARGE_RATES_PERCENT` | `Optional[List[float]]` | `rw` | `[0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]` | Charge rates available for the EV in percent of maximum charge. |
 :::
 
 ### Example Input/Output
@@ -286,9 +286,9 @@ Attributes:
 
    {
        "optimization": {
-           "optimization_hours": 48,
-           "optimization_penalty": 10,
-           "optimization_ev_available_charge_rates_percent": [
+           "hours": 48,
+           "penalty": 10,
+           "ev_available_charge_rates_percent": [
                0.0,
                0.375,
                0.5,
@@ -309,9 +309,9 @@ Validators ensure each parameter is within a specified range. A computed propert
 determines the time zone based on latitude and longitude.
 
 Attributes:
-    prediction_hours (Optional[int]): Number of hours into the future for predictions.
+    hours (Optional[int]): Number of hours into the future for predictions.
         Must be non-negative.
-    prediction_historic_hours (Optional[int]): Number of hours into the past for historical data.
+    historic_hours (Optional[int]): Number of hours into the past for historical data.
         Must be non-negative.
     latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.
     longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.
@@ -321,8 +321,8 @@ Properties:
         and longitude.
 
 Validators:
-    validate_prediction_hours (int): Ensures `prediction_hours` is a non-negative integer.
-    validate_prediction_historic_hours (int): Ensures `prediction_historic_hours` is a non-negative integer.
+    validate_hours (int): Ensures `hours` is a non-negative integer.
+    validate_historic_hours (int): Ensures `historic_hours` is a non-negative integer.
     validate_latitude (float): Ensures `latitude` is within the range -90 to 90.
     validate_longitude (float): Ensures `longitude` is within the range -180 to 180.
 
@@ -332,8 +332,8 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| prediction_hours | `EOS_PREDICTION__PREDICTION_HOURS` | `Optional[int]` | `rw` | `48` | Number of hours into the future for predictions |
-| prediction_historic_hours | `EOS_PREDICTION__PREDICTION_HISTORIC_HOURS` | `Optional[int]` | `rw` | `48` | Number of hours into the past for historical predictions data |
+| hours | `EOS_PREDICTION__HOURS` | `Optional[int]` | `rw` | `48` | Number of hours into the future for predictions |
+| historic_hours | `EOS_PREDICTION__HISTORIC_HOURS` | `Optional[int]` | `rw` | `48` | Number of hours into the past for historical predictions data |
 | latitude | `EOS_PREDICTION__LATITUDE` | `Optional[float]` | `rw` | `52.52` | Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°) |
 | longitude | `EOS_PREDICTION__LONGITUDE` | `Optional[float]` | `rw` | `13.405` | Longitude in decimal degrees, within -180 to 180 (°) |
 | timezone | | `Optional[str]` | `ro` | `N/A` | Compute timezone based on latitude and longitude. |
@@ -346,8 +346,8 @@ Validators:
 
    {
        "prediction": {
-           "prediction_hours": 48,
-           "prediction_historic_hours": 48,
+           "hours": 48,
+           "historic_hours": 48,
            "latitude": 52.52,
            "longitude": 13.405
        }
@@ -361,8 +361,8 @@ Validators:
 
    {
        "prediction": {
-           "prediction_hours": 48,
-           "prediction_historic_hours": 48,
+           "hours": 48,
+           "historic_hours": 48,
            "latitude": 52.52,
            "longitude": 13.405,
            "timezone": "Europe/Berlin"
@@ -378,8 +378,8 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| elecprice_provider | `EOS_ELECPRICE__ELECPRICE_PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
-| elecprice_charges_kwh | `EOS_ELECPRICE__ELECPRICE_CHARGES_KWH` | `Optional[float]` | `rw` | `None` | Electricity price charges (€/kWh). |
+| provider | `EOS_ELECPRICE__PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
+| charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `Optional[float]` | `rw` | `None` | Electricity price charges (€/kWh). |
 | provider_settings | `EOS_ELECPRICE__PROVIDER_SETTINGS` | `Optional[akkudoktoreos.prediction.elecpriceimport.ElecPriceImportCommonSettings]` | `rw` | `None` | Provider settings |
 :::
 
@@ -390,8 +390,8 @@ Validators:
 
    {
        "elecprice": {
-           "elecprice_provider": "ElecPriceAkkudoktor",
-           "elecprice_charges_kwh": 0.21,
+           "provider": "ElecPriceAkkudoktor",
+           "charges_kwh": 0.21,
            "provider_settings": null
        }
    }
@@ -405,8 +405,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| elecpriceimport_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import elecprice data from. |
-| elecpriceimport_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of electricity price forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import elecprice data from. |
+| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of electricity price forecast value lists. |
 :::
 
 #### Example Input/Output
@@ -417,8 +417,8 @@ Validators:
    {
        "elecprice": {
            "provider_settings": {
-               "elecpriceimport_file_path": null,
-               "elecpriceimport_json": "{\"elecprice_marketprice_wh\": [0.0003384, 0.0003318, 0.0003284]}"
+               "import_file_path": null,
+               "import_json": "{\"elecprice_marketprice_wh\": [0.0003384, 0.0003318, 0.0003284]}"
            }
        }
    }
@@ -432,7 +432,7 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| load_provider | `EOS_LOAD__LOAD_PROVIDER` | `Optional[str]` | `rw` | `None` | Load provider id of provider to be used. |
+| provider | `EOS_LOAD__PROVIDER` | `Optional[str]` | `rw` | `None` | Load provider id of provider to be used. |
 | provider_settings | `EOS_LOAD__PROVIDER_SETTINGS` | `Union[akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktorCommonSettings, akkudoktoreos.prediction.loadimport.LoadImportCommonSettings, NoneType]` | `rw` | `None` | Provider settings |
 :::
 
@@ -443,7 +443,7 @@ Validators:
 
    {
        "load": {
-           "load_provider": "LoadAkkudoktor",
+           "provider": "LoadAkkudoktor",
            "provider_settings": null
        }
    }
@@ -457,8 +457,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| load_import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import load data from. |
-| load_import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import load data from. |
+| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
 :::
 
 #### Example Input/Output
@@ -469,8 +469,8 @@ Validators:
    {
        "load": {
            "provider_settings": {
-               "load_import_file_path": null,
-               "load_import_json": "{\"load0_mean\": [676.71, 876.19, 527.13]}"
+               "import_file_path": null,
+               "import_json": "{\"load0_mean\": [676.71, 876.19, 527.13]}"
            }
        }
    }
@@ -509,7 +509,7 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| pvforecast_provider | `EOS_PVFORECAST__PVFORECAST_PROVIDER` | `Optional[str]` | `rw` | `None` | PVForecast provider id of provider to be used. |
+| provider | `EOS_PVFORECAST__PROVIDER` | `Optional[str]` | `rw` | `None` | PVForecast provider id of provider to be used. |
 | pvforecast0_surface_tilt | `EOS_PVFORECAST__PVFORECAST0_SURFACE_TILT` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
 | pvforecast0_surface_azimuth | `EOS_PVFORECAST__PVFORECAST0_SURFACE_AZIMUTH` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
 | pvforecast0_userhorizon | `EOS_PVFORECAST__PVFORECAST0_USERHORIZON` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
@@ -622,7 +622,7 @@ Validators:
 
    {
        "pvforecast": {
-           "pvforecast_provider": "PVForecastAkkudoktor",
+           "provider": "PVForecastAkkudoktor",
            "pvforecast0_surface_tilt": 10.0,
            "pvforecast0_surface_azimuth": 10.0,
            "pvforecast0_userhorizon": [
@@ -739,7 +739,7 @@ Validators:
 
    {
        "pvforecast": {
-           "pvforecast_provider": "PVForecastAkkudoktor",
+           "provider": "PVForecastAkkudoktor",
            "pvforecast0_surface_tilt": 10.0,
            "pvforecast0_surface_azimuth": 10.0,
            "pvforecast0_userhorizon": [
@@ -916,7 +916,7 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| weather_provider | `EOS_WEATHER__WEATHER_PROVIDER` | `Optional[str]` | `rw` | `None` | Weather provider id of provider to be used. |
+| provider | `EOS_WEATHER__PROVIDER` | `Optional[str]` | `rw` | `None` | Weather provider id of provider to be used. |
 | provider_settings | `EOS_WEATHER__PROVIDER_SETTINGS` | `Optional[akkudoktoreos.prediction.weatherimport.WeatherImportCommonSettings]` | `rw` | `None` | Provider settings |
 :::
 
@@ -927,7 +927,7 @@ Validators:
 
    {
        "weather": {
-           "weather_provider": "WeatherImport",
+           "provider": "WeatherImport",
            "provider_settings": null
        }
    }
@@ -941,8 +941,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| weatherimport_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import weather data from. |
-| weatherimport_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of weather forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import weather data from. |
+| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of weather forecast value lists. |
 :::
 
 #### Example Input/Output
@@ -953,8 +953,8 @@ Validators:
    {
        "weather": {
            "provider_settings": {
-               "weatherimport_file_path": null,
-               "weatherimport_json": "{\"weather_temp_air\": [18.3, 17.8, 16.9]}"
+               "import_file_path": null,
+               "import_json": "{\"weather_temp_air\": [18.3, 17.8, 16.9]}"
            }
        }
    }
@@ -971,12 +971,12 @@ Attributes:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| server_eos_host | `EOS_SERVER__SERVER_EOS_HOST` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOS server IP address. |
-| server_eos_port | `EOS_SERVER__SERVER_EOS_PORT` | `Optional[int]` | `rw` | `8503` | EOS server IP port number. |
-| server_eos_verbose | `EOS_SERVER__SERVER_EOS_VERBOSE` | `Optional[bool]` | `rw` | `False` | Enable debug output |
-| server_eos_startup_eosdash | `EOS_SERVER__SERVER_EOS_STARTUP_EOSDASH` | `Optional[bool]` | `rw` | `True` | EOS server to start EOSdash server. |
-| server_eosdash_host | `EOS_SERVER__SERVER_EOSDASH_HOST` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOSdash server IP address. |
-| server_eosdash_port | `EOS_SERVER__SERVER_EOSDASH_PORT` | `Optional[int]` | `rw` | `8504` | EOSdash server IP port number. |
+| host | `EOS_SERVER__HOST` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOS server IP address. |
+| port | `EOS_SERVER__PORT` | `Optional[int]` | `rw` | `8503` | EOS server IP port number. |
+| verbose | `EOS_SERVER__VERBOSE` | `Optional[bool]` | `rw` | `False` | Enable debug output |
+| startup_eosdash | `EOS_SERVER__STARTUP_EOSDASH` | `Optional[bool]` | `rw` | `True` | EOS server to start EOSdash server. |
+| eosdash_host | `EOS_SERVER__EOSDASH_HOST` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOSdash server IP address. |
+| eosdash_port | `EOS_SERVER__EOSDASH_PORT` | `Optional[int]` | `rw` | `8504` | EOSdash server IP port number. |
 :::
 
 ### Example Input/Output
@@ -986,12 +986,12 @@ Attributes:
 
    {
        "server": {
-           "server_eos_host": "0.0.0.0",
-           "server_eos_port": 8503,
-           "server_eos_verbose": false,
-           "server_eos_startup_eosdash": true,
-           "server_eosdash_host": "0.0.0.0",
-           "server_eosdash_port": 8504
+           "host": "0.0.0.0",
+           "port": 8503,
+           "verbose": false,
+           "startup_eosdash": true,
+           "eosdash_host": "0.0.0.0",
+           "eosdash_port": 8504
        }
    }
 ```

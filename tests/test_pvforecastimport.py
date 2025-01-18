@@ -13,11 +13,11 @@ FILE_TESTDATA_PVFORECASTIMPORT_1_JSON = DIR_TESTDATA.joinpath("import_input_1.js
 
 
 @pytest.fixture
-def pvforecast_provider(sample_import_1_json, config_eos):
+def provider(sample_import_1_json, config_eos):
     """Fixture to create a PVForecastProvider instance."""
     settings = {
         "pvforecast": {
-            "pvforecast_provider": "PVForecastImport",
+            "provider": "PVForecastImport",
             "provider_settings": {
                 "pvforecastimport_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
                 "pvforecastimport_json": json.dumps(sample_import_1_json),
@@ -43,24 +43,24 @@ def sample_import_1_json():
 # ------------------------------------------------
 
 
-def test_singleton_instance(pvforecast_provider):
+def test_singleton_instance(provider):
     """Test that PVForecastForecast behaves as a singleton."""
     another_instance = PVForecastImport()
-    assert pvforecast_provider is another_instance
+    assert provider is another_instance
 
 
-def test_invalid_provider(pvforecast_provider, config_eos):
-    """Test requesting an unsupported pvforecast_provider."""
+def test_invalid_provider(provider, config_eos):
+    """Test requesting an unsupported provider."""
     settings = {
         "pvforecast": {
-            "pvforecast_provider": "<invalid>",
+            "provider": "<invalid>",
             "provider_settings": {
                 "pvforecastimport_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
             },
         }
     }
     config_eos.merge_settings_from_dict(settings)
-    assert not pvforecast_provider.enabled()
+    assert not provider.enabled()
 
 
 # ------------------------------------------------
@@ -81,7 +81,7 @@ def test_invalid_provider(pvforecast_provider, config_eos):
         ("2024-10-27 00:00:00", False),  # DST change in Germany (25 hours/ day)
     ],
 )
-def test_import(pvforecast_provider, sample_import_1_json, start_datetime, from_file, config_eos):
+def test_import(provider, sample_import_1_json, start_datetime, from_file, config_eos):
     """Test fetching forecast from import."""
     ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
@@ -91,25 +91,23 @@ def test_import(pvforecast_provider, sample_import_1_json, start_datetime, from_
     else:
         config_eos.pvforecast.provider_settings.pvforecastimport_file_path = None
         assert config_eos.pvforecast.provider_settings.pvforecastimport_file_path is None
-    pvforecast_provider.clear()
+    provider.clear()
 
     # Call the method
-    pvforecast_provider.update_data()
+    provider.update_data()
 
     # Assert: Verify the result is as expected
-    assert pvforecast_provider.start_datetime is not None
-    assert pvforecast_provider.total_hours is not None
-    assert compare_datetimes(pvforecast_provider.start_datetime, ems_eos.start_datetime).equal
+    assert provider.start_datetime is not None
+    assert provider.total_hours is not None
+    assert compare_datetimes(provider.start_datetime, ems_eos.start_datetime).equal
     values = sample_import_1_json["pvforecast_ac_power"]
-    value_datetime_mapping = pvforecast_provider.import_datetimes(
-        ems_eos.start_datetime, len(values)
-    )
+    value_datetime_mapping = provider.import_datetimes(ems_eos.start_datetime, len(values))
     for i, mapping in enumerate(value_datetime_mapping):
-        assert i < len(pvforecast_provider.records)
+        assert i < len(provider.records)
         expected_datetime, expected_value_index = mapping
         expected_value = values[expected_value_index]
-        result_datetime = pvforecast_provider.records[i].date_time
-        result_value = pvforecast_provider.records[i]["pvforecast_ac_power"]
+        result_datetime = provider.records[i].date_time
+        result_value = provider.records[i]["pvforecast_ac_power"]
 
         # print(f"{i}: Expected: {expected_datetime}:{expected_value}")
         # print(f"{i}:   Result: {result_datetime}:{result_value}")

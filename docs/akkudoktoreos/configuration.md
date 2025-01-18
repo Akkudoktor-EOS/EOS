@@ -55,7 +55,6 @@ following special environment variables:
 - `EOS_CONFIG_DIR`: The directory to search for an EOS configuration file.
 - `EOS_DIR`: The directory used by EOS for data, which will also be searched for an EOS
              configuration file.
-- `EOS_LOGGING_LEVEL`: The logging level to use in EOS.
 
 ### EOS Configuration File
 
