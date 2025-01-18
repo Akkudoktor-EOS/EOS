@@ -310,7 +310,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         if not isinstance(settings, SettingsEOS):
             raise ValueError(f"Settings must be an instance of SettingsEOS: '{settings}'.")
 
-        self.merge_settings_from_dict(settings.model_dump())
+        self.merge_settings_from_dict(settings.model_dump(exclude_none=True, exclude_unset=True))
 
     def merge_settings_from_dict(self, data: dict) -> None:
         """Merges the provided dictionary data into the current instance.

@@ -230,10 +230,6 @@ app = FastAPI(
     root_path=str(Path(__file__).parent),
 )
 
-
-# That's the problem
-opt_class = optimization_problem(verbose=bool(config_eos.server.verbose))
-
 server_dir = Path(__file__).parent.resolve()
 
 
@@ -241,66 +237,24 @@ class PdfResponse(FileResponse):
     media_type = "application/pdf"
 
 
-@app.put("/v1/config/value")
-def fastapi_config_value_put(
-    key: Annotated[str, Query(description="configuration key")],
-    value: Annotated[Any, Query(description="configuration value")],
-) -> ConfigEOS:
-    """Set the configuration option in the settings.
-
-    Args:
-        key (str): configuration key
-        value (Any): configuration value
-
-    Returns:
-        configuration (ConfigEOS): The current configuration after the write.
-    """
-    if key not in config_eos.config_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-    if key in config_eos.config_keys_read_only:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is read only.")
-    try:
-        setattr(config_eos, key, value)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
-    return config_eos
-
-
-@app.post("/v1/config/update")
+@app.put("/v1/config/reset", tags=["config"])
 def fastapi_config_update_post() -> ConfigEOS:
-    """Update the configuration from the EOS configuration file.
+    """Reset the configuration to the EOS configuration file.
 
     Returns:
         configuration (ConfigEOS): The current configuration after update.
     """
     try:
-        _, config_file_path = config_eos.from_config_file()
-    except:
+        config_eos.reset_settings()
+    except Exception as e:
         raise HTTPException(
             status_code=404,
-            detail=f"Cannot update configuration from file '{config_file_path}'.",
+            detail=f"Cannot update configuration from file '{config_eos.config_file_path}': {e}",
         )
     return config_eos
 
 
-@app.get("/v1/config/file")
-def fastapi_config_file_get() -> SettingsEOS:
-    """Get the settings as defined by the EOS configuration file.
-
-    Returns:
-        settings (SettingsEOS): The settings defined by the EOS configuration file.
-    """
-    try:
-        settings, config_file_path = config_eos.settings_from_config_file()
-    except:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Cannot read configuration from file '{config_file_path}'.",
-        )
-    return settings
-
-
-@app.put("/v1/config/file")
+@app.put("/v1/config/file", tags=["config"])
 def fastapi_config_file_put() -> ConfigEOS:
     """Save the current configuration to the EOS configuration file.
 
@@ -317,7 +271,7 @@ def fastapi_config_file_put() -> ConfigEOS:
     return config_eos
 
 
-@app.get("/v1/config")
+@app.get("/v1/config", tags=["config"])
 def fastapi_config_get() -> ConfigEOS:
     """Get the current configuration.
 
@@ -327,10 +281,8 @@ def fastapi_config_get() -> ConfigEOS:
     return config_eos
 
 
-@app.put("/v1/config")
-def fastapi_config_put(
-    settings: Annotated[SettingsEOS, Query(description="settings")],
-) -> ConfigEOS:
+@app.put("/v1/config", tags=["config"])
+def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
     """Write the provided settings into the current settings.
 
     The existing settings are completely overwritten. Note that for any setting
@@ -350,13 +302,13 @@ def fastapi_config_put(
     return config_eos
 
 
-@app.get("/v1/measurement/keys")
+@app.get("/v1/measurement/keys", tags=["measurement"])
 def fastapi_measurement_keys_get() -> list[str]:
     """Get a list of available measurement keys."""
     return sorted(measurement_eos.record_keys)
 
 
-@app.get("/v1/measurement/load-mr/series/by-name")
+@app.get("/v1/measurement/load-mr/series/by-name", tags=["measurement"])
 def fastapi_measurement_load_mr_series_by_name_get(
     name: Annotated[str, Query(description="Load name.")],
 ) -> PydanticDateTimeSeries:
@@ -372,7 +324,7 @@ def fastapi_measurement_load_mr_series_by_name_get(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.put("/v1/measurement/load-mr/value/by-name")
+@app.put("/v1/measurement/load-mr/value/by-name", tags=["measurement"])
 def fastapi_measurement_load_mr_value_by_name_put(
     datetime: Annotated[str, Query(description="Datetime.")],
     name: Annotated[str, Query(description="Load name.")],
@@ -391,7 +343,7 @@ def fastapi_measurement_load_mr_value_by_name_put(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.put("/v1/measurement/load-mr/series/by-name")
+@app.put("/v1/measurement/load-mr/series/by-name", tags=["measurement"])
 def fastapi_measurement_load_mr_series_by_name_put(
     name: Annotated[str, Query(description="Load name.")], series: PydanticDateTimeSeries
 ) -> PydanticDateTimeSeries:
@@ -409,7 +361,7 @@ def fastapi_measurement_load_mr_series_by_name_put(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.get("/v1/measurement/series")
+@app.get("/v1/measurement/series", tags=["measurement"])
 def fastapi_measurement_series_get(
     key: Annotated[str, Query(description="Prediction key.")],
 ) -> PydanticDateTimeSeries:
@@ -420,7 +372,7 @@ def fastapi_measurement_series_get(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.put("/v1/measurement/value")
+@app.put("/v1/measurement/value", tags=["measurement"])
 def fastapi_measurement_value_put(
     datetime: Annotated[str, Query(description="Datetime.")],
     key: Annotated[str, Query(description="Prediction key.")],
@@ -434,7 +386,7 @@ def fastapi_measurement_value_put(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.put("/v1/measurement/series")
+@app.put("/v1/measurement/series", tags=["measurement"])
 def fastapi_measurement_series_put(
     key: Annotated[str, Query(description="Prediction key.")], series: PydanticDateTimeSeries
 ) -> PydanticDateTimeSeries:
@@ -447,27 +399,47 @@ def fastapi_measurement_series_put(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.put("/v1/measurement/dataframe")
+@app.put("/v1/measurement/dataframe", tags=["measurement"])
 def fastapi_measurement_dataframe_put(data: PydanticDateTimeDataFrame) -> None:
     """Merge the measurement data given as dataframe into EOS measurements."""
     dataframe = data.to_dataframe()
     measurement_eos.import_from_dataframe(dataframe)
 
 
-@app.put("/v1/measurement/data")
+@app.put("/v1/measurement/data", tags=["measurement"])
 def fastapi_measurement_data_put(data: PydanticDateTimeData) -> None:
     """Merge the measurement data given as datetime data into EOS measurements."""
     datetimedata = data.to_dict()
     measurement_eos.import_from_dict(datetimedata)
 
 
-@app.get("/v1/prediction/keys")
+@app.get("/v1/prediction/providers", tags=["prediction"])
+def fastapi_prediction_providers_get(enabled: Optional[bool] = None) -> list[str]:
+    """Get a list of available prediction providers.
+
+    Args:
+        enabled (bool): Return enabled/disabled providers. If unset, return all providers.
+    """
+    if enabled is not None:
+        enabled_status = [enabled]
+    else:
+        enabled_status = [True, False]
+    return sorted(
+        [
+            provider.provider_id()
+            for provider in prediction_eos.providers
+            if provider.enabled() in enabled_status
+        ]
+    )
+
+
+@app.get("/v1/prediction/keys", tags=["prediction"])
 def fastapi_prediction_keys_get() -> list[str]:
     """Get a list of available prediction keys."""
     return sorted(prediction_eos.record_keys)
 
 
-@app.get("/v1/prediction/series")
+@app.get("/v1/prediction/series", tags=["prediction"])
 def fastapi_prediction_series_get(
     key: Annotated[str, Query(description="Prediction key.")],
     start_datetime: Annotated[
@@ -504,7 +476,7 @@ def fastapi_prediction_series_get(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.get("/v1/prediction/list")
+@app.get("/v1/prediction/list", tags=["prediction"])
 def fastapi_prediction_list_get(
     key: Annotated[str, Query(description="Prediction key.")],
     start_datetime: Annotated[
@@ -554,7 +526,7 @@ def fastapi_prediction_list_get(
     return prediction_list
 
 
-@app.post("/v1/prediction/update")
+@app.post("/v1/prediction/update", tags=["prediction"])
 def fastapi_prediction_update(force_update: bool = False, force_enable: bool = False) -> Response:
     """Update predictions for all providers.
 
@@ -567,11 +539,12 @@ def fastapi_prediction_update(force_update: bool = False, force_enable: bool = F
     try:
         prediction_eos.update_data(force_update=force_update, force_enable=force_enable)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on update of provider: {e}")
+        raise e
+        # raise HTTPException(status_code=400, detail=f"Error on update of provider: {e}")
     return Response()
 
 
-@app.post("/v1/prediction/update/{provider_id}")
+@app.post("/v1/prediction/update/{provider_id}", tags=["prediction"])
 def fastapi_prediction_update_provider(
     provider_id: str, force_update: Optional[bool] = False, force_enable: Optional[bool] = False
 ) -> Response:
@@ -595,7 +568,7 @@ def fastapi_prediction_update_provider(
     return Response()
 
 
-@app.get("/strompreis")
+@app.get("/strompreis", tags=["prediction"])
 def fastapi_strompreis() -> list[float]:
     """Deprecated: Electricity Market Price Prediction per Wh (€/Wh).
 
@@ -649,7 +622,7 @@ class GesamtlastRequest(PydanticBaseModel):
     hours: int
 
 
-@app.post("/gesamtlast")
+@app.post("/gesamtlast", tags=["prediction"])
 def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     """Deprecated: Total Load Prediction with adjustment.
 
@@ -730,7 +703,7 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     return prediction_list
 
 
-@app.get("/gesamtlast_simple")
+@app.get("/gesamtlast_simple", tags=["prediction"])
 def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     """Deprecated: Total Load Prediction.
 
@@ -786,7 +759,7 @@ class ForecastResponse(PydanticBaseModel):
     pvpower: list[float]
 
 
-@app.get("/pvforecast")
+@app.get("/pvforecast", tags=["prediction"])
 def fastapi_pvforecast() -> ForecastResponse:
     """Deprecated: PV Forecast Prediction.
 
@@ -841,30 +814,35 @@ def fastapi_pvforecast() -> ForecastResponse:
     return ForecastResponse(temperature=temp_air, pvpower=ac_power)
 
 
-@app.post("/optimize")
+@app.post("/optimize", tags=["optimize"])
 def fastapi_optimize(
     parameters: OptimizationParameters,
     start_hour: Annotated[
         Optional[int], Query(description="Defaults to current hour of the day.")
     ] = None,
+    ngen: Optional[int] = None,
 ) -> OptimizeResponse:
     if start_hour is None:
         start_hour = to_datetime().hour
+    extra_args: dict[str, Any] = dict()
+    if ngen is not None:
+        extra_args["ngen"] = ngen
 
     # TODO: Remove when config and prediction update is done by EMS.
     config_eos.update()
     prediction_eos.update_data()
 
     # Perform optimization simulation
-    result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
+    opt_class = optimization_problem(verbose=bool(config_eos.server.verbose))
+    result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour, **extra_args)
     # print(result)
     return result
 
 
-@app.get("/visualization_results.pdf", response_class=PdfResponse)
+@app.get("/visualization_results.pdf", response_class=PdfResponse, tags=["optimize"])
 def get_pdf() -> PdfResponse:
     # Endpoint to serve the generated PDF with visualization results
-    output_path = config_eos.config.data_output_path
+    output_path = config_eos.general.data_output_path
     if output_path is None or not output_path.is_dir():
         raise HTTPException(status_code=404, detail=f"Output path does not exist: {output_path}.")
     file_path = output_path / "visualization_results.pdf"
@@ -880,25 +858,28 @@ def site_map() -> RedirectResponse:
 
 # Keep the proxy last to handle all requests that are not taken by the Rest API.
 
+if config_eos.server.startup_eosdash:
 
-@app.delete("/{path:path}", include_in_schema=False)
-async def proxy_delete(request: Request, path: str) -> Response:
-    return await proxy(request, path)
+    @app.delete("/{path:path}", include_in_schema=False)
+    async def proxy_delete(request: Request, path: str) -> Response:
+        return await proxy(request, path)
 
+    @app.get("/{path:path}", include_in_schema=False)
+    async def proxy_get(request: Request, path: str) -> Response:
+        return await proxy(request, path)
 
-@app.get("/{path:path}", include_in_schema=False)
-async def proxy_get(request: Request, path: str) -> Response:
-    return await proxy(request, path)
+    @app.post("/{path:path}", include_in_schema=False)
+    async def proxy_post(request: Request, path: str) -> Response:
+        return await proxy(request, path)
 
+    @app.put("/{path:path}", include_in_schema=False)
+    async def proxy_put(request: Request, path: str) -> Response:
+        return await proxy(request, path)
+else:
 
-@app.post("/{path:path}", include_in_schema=False)
-async def proxy_post(request: Request, path: str) -> Response:
-    return await proxy(request, path)
-
-
-@app.put("/{path:path}", include_in_schema=False)
-async def proxy_put(request: Request, path: str) -> Response:
-    return await proxy(request, path)
+    @app.get("/", include_in_schema=False)
+    def root() -> RedirectResponse:
+        return RedirectResponse(url="/docs")
 
 
 async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse | HTMLResponse]:
