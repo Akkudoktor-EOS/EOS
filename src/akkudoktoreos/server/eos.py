@@ -161,7 +161,11 @@ def start_eosdash() -> subprocess.Popen:
         reload = False
     else:
         host = args.host
-        port = config_eos.server.server_eosdash_port if config_eos.server.server_eosdash_port else (args.port + 1)
+        port = (
+            config_eos.server.server_eosdash_port
+            if config_eos.server.server_eosdash_port
+            else (args.port + 1)
+        )
         eos_host = args.host
         eos_port = args.port
         log_level = args.log_level
