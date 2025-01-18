@@ -91,6 +91,8 @@ Fastapi Optimize
 
 - `start_hour` (query, optional): Defaults to current hour of the day.
 
+- `ngen` (query, optional): No description provided.
+
 **Request Body**:
 
 - `application/json`: {
@@ -203,56 +205,17 @@ Returns:
     configuration (ConfigEOS): The current configuration after the write.
 ```
 
-**Parameters**:
+**Request Body**:
 
-- `general` (query, optional): No description provided.
-
-- `logging` (query, optional): No description provided.
-
-- `devices` (query, optional): No description provided.
-
-- `measurement` (query, optional): No description provided.
-
-- `optimization` (query, optional): No description provided.
-
-- `prediction` (query, optional): No description provided.
-
-- `elecprice` (query, optional): No description provided.
-
-- `load` (query, optional): No description provided.
-
-- `pvforecast` (query, optional): No description provided.
-
-- `weather` (query, optional): No description provided.
-
-- `server` (query, optional): No description provided.
-
-- `utils` (query, optional): No description provided.
+- `application/json`: {
+  "$ref": "#/components/schemas/SettingsEOS"
+}
 
 **Responses**:
 
 - **200**: Successful Response
 
 - **422**: Validation Error
-
----
-
-## GET /v1/config/file
-
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_file_get_v1_config_file_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_file_get_v1_config_file_get)
-
-Fastapi Config File Get
-
-```
-Get the settings as defined by the EOS configuration file.
-
-Returns:
-    settings (SettingsEOS): The settings defined by the EOS configuration file.
-```
-
-**Responses**:
-
-- **200**: Successful Response
 
 ---
 
@@ -275,14 +238,14 @@ Returns:
 
 ---
 
-## POST /v1/config/update
+## PUT /v1/config/reset
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_update_post_v1_config_update_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_update_post_v1_config_update_post)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_update_post_v1_config_reset_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_update_post_v1_config_reset_put)
 
 Fastapi Config Update Post
 
 ```
-Update the configuration from the EOS configuration file.
+Reset the configuration to the EOS configuration file.
 
 Returns:
     configuration (ConfigEOS): The current configuration after update.
@@ -291,37 +254,6 @@ Returns:
 **Responses**:
 
 - **200**: Successful Response
-
----
-
-## PUT /v1/config/value
-
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_value_put_v1_config_value_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_value_put_v1_config_value_put)
-
-Fastapi Config Value Put
-
-```
-Set the configuration option in the settings.
-
-Args:
-    key (str): configuration key
-    value (Any): configuration value
-
-Returns:
-    configuration (ConfigEOS): The current configuration after the write.
-```
-
-**Parameters**:
-
-- `key` (query, required): configuration key
-
-- `value` (query, required): configuration value
-
-**Responses**:
-
-- **200**: Successful Response
-
-- **422**: Validation Error
 
 ---
 
@@ -585,6 +517,31 @@ Args:
 - `end_datetime` (query, optional): Ending datetime (exclusive).
 
 - `interval` (query, optional): Time duration for each interval.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/prediction/providers
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_providers_get_v1_prediction_providers_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_providers_get_v1_prediction_providers_get)
+
+Fastapi Prediction Providers Get
+
+```
+Get a list of available prediction providers.
+
+Args:
+    enabled (bool): Return enabled/disabled providers. If unset, return all providers.
+```
+
+**Parameters**:
+
+- `enabled` (query, optional): No description provided.
 
 **Responses**:
 

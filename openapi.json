@@ -4949,7 +4949,7 @@
                     "general": {
                         "anyOf": [
                             {
-                                "$ref": "#/components/schemas/ConfigCommonSettings-Output"
+                                "$ref": "#/components/schemas/ConfigCommonSettings-Input"
                             },
                             {
                                 "type": "null"
@@ -4969,7 +4969,7 @@
                     "logging": {
                         "anyOf": [
                             {
-                                "$ref": "#/components/schemas/LoggingCommonSettings-Output"
+                                "$ref": "#/components/schemas/LoggingCommonSettings-Input"
                             },
                             {
                                 "type": "null"
@@ -4999,7 +4999,7 @@
                     "prediction": {
                         "anyOf": [
                             {
-                                "$ref": "#/components/schemas/PredictionCommonSettings-Output"
+                                "$ref": "#/components/schemas/PredictionCommonSettings-Input"
                             },
                             {
                                 "type": "null"
@@ -5009,7 +5009,7 @@
                     "pvforecast": {
                         "anyOf": [
                             {
-                                "$ref": "#/components/schemas/PVForecastCommonSettings-Output"
+                                "$ref": "#/components/schemas/PVForecastCommonSettings-Input"
                             },
                             {
                                 "type": "null"
@@ -5514,7 +5514,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Gesamtlast"
+                "summary": "Fastapi Gesamtlast",
+                "tags": [
+                    "prediction"
+                ]
             }
         },
         "/gesamtlast_simple": {
@@ -5558,7 +5561,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Gesamtlast Simple"
+                "summary": "Fastapi Gesamtlast Simple",
+                "tags": [
+                    "prediction"
+                ]
             }
         },
         "/optimize": {
@@ -5581,6 +5587,22 @@
                             ],
                             "description": "Defaults to current hour of the day.",
                             "title": "Start Hour"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "ngen",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "integer"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Ngen"
                         }
                     }
                 ],
@@ -5616,7 +5638,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Optimize"
+                "summary": "Fastapi Optimize",
+                "tags": [
+                    "optimize"
+                ]
             }
         },
         "/pvforecast": {
@@ -5635,7 +5660,10 @@
                         "description": "Successful Response"
                     }
                 },
-                "summary": "Fastapi Pvforecast"
+                "summary": "Fastapi Pvforecast",
+                "tags": [
+                    "prediction"
+                ]
             }
         },
         "/strompreis": {
@@ -5658,7 +5686,10 @@
                         "description": "Successful Response"
                     }
                 },
-                "summary": "Fastapi Strompreis"
+                "summary": "Fastapi Strompreis",
+                "tags": [
+                    "prediction"
+                ]
             }
         },
         "/v1/config": {
@@ -5677,205 +5708,24 @@
                         "description": "Successful Response"
                     }
                 },
-                "summary": "Fastapi Config Get"
+                "summary": "Fastapi Config Get",
+                "tags": [
+                    "config"
+                ]
             },
             "put": {
                 "description": "Write the provided settings into the current settings.\n\nThe existing settings are completely overwritten. Note that for any setting\nvalue that is None, the configuration will fall back to values from other sources such as\nenvironment variables, the EOS configuration file, or default values.\n\nArgs:\n    settings (SettingsEOS): The settings to write into the current settings.\n\nReturns:\n    configuration (ConfigEOS): The current configuration after the write.",
                 "operationId": "fastapi_config_put_v1_config_put",
-                "parameters": [
-                    {
-                        "in": "query",
-                        "name": "general",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/ConfigCommonSettings-Input"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "General"
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SettingsEOS"
+                            }
                         }
                     },
-                    {
-                        "in": "query",
-                        "name": "logging",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/LoggingCommonSettings-Input"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Logging"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "devices",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/DevicesCommonSettings"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Devices"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "measurement",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/MeasurementCommonSettings"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Measurement"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "optimization",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/OptimizationCommonSettings"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Optimization"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "prediction",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/PredictionCommonSettings-Input"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Prediction"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "elecprice",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/ElecPriceCommonSettings"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Elecprice"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "load",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/LoadCommonSettings"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Load"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "pvforecast",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/PVForecastCommonSettings-Input"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Pvforecast"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "weather",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/WeatherCommonSettings"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Weather"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "server",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/ServerCommonSettings"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Server"
-                        }
-                    },
-                    {
-                        "in": "query",
-                        "name": "utils",
-                        "required": false,
-                        "schema": {
-                            "anyOf": [
-                                {
-                                    "$ref": "#/components/schemas/UtilsCommonSettings"
-                                },
-                                {
-                                    "type": "null"
-                                }
-                            ],
-                            "title": "Utils"
-                        }
-                    }
-                ],
+                    "required": true
+                },
                 "responses": {
                     "200": {
                         "content": {
@@ -5898,27 +5748,13 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Config Put"
+                "summary": "Fastapi Config Put",
+                "tags": [
+                    "config"
+                ]
             }
         },
         "/v1/config/file": {
-            "get": {
-                "description": "Get the settings as defined by the EOS configuration file.\n\nReturns:\n    settings (SettingsEOS): The settings defined by the EOS configuration file.",
-                "operationId": "fastapi_config_file_get_v1_config_file_get",
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/SettingsEOS"
-                                }
-                            }
-                        },
-                        "description": "Successful Response"
-                    }
-                },
-                "summary": "Fastapi Config File Get"
-            },
             "put": {
                 "description": "Save the current configuration to the EOS configuration file.\n\nReturns:\n    configuration (ConfigEOS): The current configuration that was saved.",
                 "operationId": "fastapi_config_file_put_v1_config_file_put",
@@ -5934,55 +5770,16 @@
                         "description": "Successful Response"
                     }
                 },
-                "summary": "Fastapi Config File Put"
+                "summary": "Fastapi Config File Put",
+                "tags": [
+                    "config"
+                ]
             }
         },
-        "/v1/config/update": {
-            "post": {
-                "description": "Update the configuration from the EOS configuration file.\n\nReturns:\n    configuration (ConfigEOS): The current configuration after update.",
-                "operationId": "fastapi_config_update_post_v1_config_update_post",
-                "responses": {
-                    "200": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/ConfigEOS"
-                                }
-                            }
-                        },
-                        "description": "Successful Response"
-                    }
-                },
-                "summary": "Fastapi Config Update Post"
-            }
-        },
-        "/v1/config/value": {
+        "/v1/config/reset": {
             "put": {
-                "description": "Set the configuration option in the settings.\n\nArgs:\n    key (str): configuration key\n    value (Any): configuration value\n\nReturns:\n    configuration (ConfigEOS): The current configuration after the write.",
-                "operationId": "fastapi_config_value_put_v1_config_value_put",
-                "parameters": [
-                    {
-                        "description": "configuration key",
-                        "in": "query",
-                        "name": "key",
-                        "required": true,
-                        "schema": {
-                            "description": "configuration key",
-                            "title": "Key",
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "configuration value",
-                        "in": "query",
-                        "name": "value",
-                        "required": true,
-                        "schema": {
-                            "description": "configuration value",
-                            "title": "Value"
-                        }
-                    }
-                ],
+                "description": "Reset the configuration to the EOS configuration file.\n\nReturns:\n    configuration (ConfigEOS): The current configuration after update.",
+                "operationId": "fastapi_config_update_post_v1_config_reset_put",
                 "responses": {
                     "200": {
                         "content": {
@@ -5993,19 +5790,12 @@
                             }
                         },
                         "description": "Successful Response"
-                    },
-                    "422": {
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/HTTPValidationError"
-                                }
-                            }
-                        },
-                        "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Config Value Put"
+                "summary": "Fastapi Config Update Post",
+                "tags": [
+                    "config"
+                ]
             }
         },
         "/v1/measurement/data": {
@@ -6042,7 +5832,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Measurement Data Put"
+                "summary": "Fastapi Measurement Data Put",
+                "tags": [
+                    "measurement"
+                ]
             }
         },
         "/v1/measurement/dataframe": {
@@ -6079,7 +5872,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Measurement Dataframe Put"
+                "summary": "Fastapi Measurement Dataframe Put",
+                "tags": [
+                    "measurement"
+                ]
             }
         },
         "/v1/measurement/keys": {
@@ -6102,7 +5898,10 @@
                         "description": "Successful Response"
                     }
                 },
-                "summary": "Fastapi Measurement Keys Get"
+                "summary": "Fastapi Measurement Keys Get",
+                "tags": [
+                    "measurement"
+                ]
             }
         },
         "/v1/measurement/load-mr/series/by-name": {
@@ -6144,7 +5943,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Measurement Load Mr Series By Name Get"
+                "summary": "Fastapi Measurement Load Mr Series By Name Get",
+                "tags": [
+                    "measurement"
+                ]
             },
             "put": {
                 "description": "Merge the meter readings series of given load name into EOS measurements at given datetime.",
@@ -6194,7 +5996,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Measurement Load Mr Series By Name Put"
+                "summary": "Fastapi Measurement Load Mr Series By Name Put",
+                "tags": [
+                    "measurement"
+                ]
             }
         },
         "/v1/measurement/load-mr/value/by-name": {
@@ -6263,7 +6068,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Measurement Load Mr Value By Name Put"
+                "summary": "Fastapi Measurement Load Mr Value By Name Put",
+                "tags": [
+                    "measurement"
+                ]
             }
         },
         "/v1/measurement/series": {
@@ -6305,7 +6113,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Measurement Series Get"
+                "summary": "Fastapi Measurement Series Get",
+                "tags": [
+                    "measurement"
+                ]
             },
             "put": {
                 "description": "Merge measurement given as series into given key.",
@@ -6355,7 +6166,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Measurement Series Put"
+                "summary": "Fastapi Measurement Series Put",
+                "tags": [
+                    "measurement"
+                ]
             }
         },
         "/v1/measurement/value": {
@@ -6424,7 +6238,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Measurement Value Put"
+                "summary": "Fastapi Measurement Value Put",
+                "tags": [
+                    "measurement"
+                ]
             }
         },
         "/v1/prediction/keys": {
@@ -6447,7 +6264,10 @@
                         "description": "Successful Response"
                     }
                 },
-                "summary": "Fastapi Prediction Keys Get"
+                "summary": "Fastapi Prediction Keys Get",
+                "tags": [
+                    "prediction"
+                ]
             }
         },
         "/v1/prediction/list": {
@@ -6545,7 +6365,64 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Prediction List Get"
+                "summary": "Fastapi Prediction List Get",
+                "tags": [
+                    "prediction"
+                ]
+            }
+        },
+        "/v1/prediction/providers": {
+            "get": {
+                "description": "Get a list of available prediction providers.\n\nArgs:\n    enabled (bool): Return enabled/disabled providers. If unset, return all providers.",
+                "operationId": "fastapi_prediction_providers_get_v1_prediction_providers_get",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "enabled",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "boolean"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Enabled"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "title": "Response Fastapi Prediction Providers Get V1 Prediction Providers Get",
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Fastapi Prediction Providers Get",
+                "tags": [
+                    "prediction"
+                ]
             }
         },
         "/v1/prediction/series": {
@@ -6623,7 +6500,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Prediction Series Get"
+                "summary": "Fastapi Prediction Series Get",
+                "tags": [
+                    "prediction"
+                ]
             }
         },
         "/v1/prediction/update": {
@@ -6672,7 +6552,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Prediction Update"
+                "summary": "Fastapi Prediction Update",
+                "tags": [
+                    "prediction"
+                ]
             }
         },
         "/v1/prediction/update/{provider_id}": {
@@ -6744,7 +6627,10 @@
                         "description": "Validation Error"
                     }
                 },
-                "summary": "Fastapi Prediction Update Provider"
+                "summary": "Fastapi Prediction Update Provider",
+                "tags": [
+                    "prediction"
+                ]
             }
         },
         "/visualization_results.pdf": {
@@ -6762,7 +6648,10 @@
                         "description": "Successful Response"
                     }
                 },
-                "summary": "Get Pdf"
+                "summary": "Get Pdf",
+                "tags": [
+                    "optimize"
+                ]
             }
         }
     }
