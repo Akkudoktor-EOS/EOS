@@ -57,6 +57,6 @@ class NumpyEncoder(json.JSONEncoder):
 # # Example usage
 # start_date = datetime.datetime(2024, 3, 31)  # Date of the DST change
 # if ist_dst_wechsel(start_date):
-#     prediction_hours = 23  # Adjust to 23 hours for DST change days
+#     hours = 23  # Adjust to 23 hours for DST change days
 # else:
-#     prediction_hours = 24  # Default value for days without DST change
+#     hours = 24  # Default value for days without DST change

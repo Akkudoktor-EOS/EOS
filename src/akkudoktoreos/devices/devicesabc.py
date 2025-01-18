@@ -51,16 +51,16 @@ class DevicesStartEndMixin(ConfigMixin, EnergyManagementSystemMixin):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def end_datetime(self) -> Optional[DateTime]:
-        """Compute the end datetime based on the `start_datetime` and `prediction_hours`.
+        """Compute the end datetime based on the `start_datetime` and `hours`.
 
         Ajusts the calculated end time if DST transitions occur within the prediction window.
 
         Returns:
             Optional[DateTime]: The calculated end datetime, or `None` if inputs are missing.
         """
-        if self.ems.start_datetime and self.config.prediction.prediction_hours:
+        if self.ems.start_datetime and self.config.prediction.hours:
             end_datetime = self.ems.start_datetime + to_duration(
-                f"{self.config.prediction.prediction_hours} hours"
+                f"{self.config.prediction.hours} hours"
             )
             dst_change = end_datetime.offset_hours - self.ems.start_datetime.offset_hours
             logger.debug(

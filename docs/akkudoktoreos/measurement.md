@@ -56,21 +56,21 @@ A JSON string created from a [pandas](https://pandas.pydata.org/docs/index.html)
 The EOS measurement store provides for storing meter readings of loads. There are currently five loads
 foreseen. The associated `measurement key`s are:
 
-- `measurement_load0_mr`: Load0 meter reading [kWh]
-- `measurement_load1_mr`: Load1 meter reading [kWh]
-- `measurement_load2_mr`: Load2 meter reading [kWh]
-- `measurement_load3_mr`: Load3 meter reading [kWh]
-- `measurement_load4_mr`: Load4 meter reading [kWh]
+- `load0_mr`: Load0 meter reading [kWh]
+- `load1_mr`: Load1 meter reading [kWh]
+- `load2_mr`: Load2 meter reading [kWh]
+- `load3_mr`: Load3 meter reading [kWh]
+- `load4_mr`: Load4 meter reading [kWh]
 
 For ease of use, you can assign descriptive names to the `measurement key`s to represent your
 system's load sources. Use the following `configuration options` to set these names
 (e.g., 'Dish Washer', 'Heat Pump'):
 
-- `measurement_load0_name`: Name of the load0 source
-- `measurement_load1_name`: Name of the load1 source
-- `measurement_load2_name`: Name of the load2 source
-- `measurement_load3_name`: Name of the load3 source
-- `measurement_load4_name`: Name of the load4 source
+- `load0_name`: Name of the load0 source
+- `load1_name`: Name of the load1 source
+- `load2_name`: Name of the load2 source
+- `load3_name`: Name of the load3 source
+- `load4_name`: Name of the load4 source
 
 Load measurements can be stored for any datetime. The values between different meter readings are
 linearly approximated. Since optimization occurs on the hour, storing values between hours is
@@ -84,8 +84,8 @@ for specified intervals, usually one hour. This aggregated data can be used for 
 The EOS measurement store also allows for the storage of meter readings for grid import and export.
 The associated `measurement key`s are:
 
-- `measurement_grid_export_mr`: Export to grid meter reading [kWh]
-- `measurement_grid_import_mr`: Import from grid meter reading [kWh]
+- `grid_export_mr`: Export to grid meter reading [kWh]
+- `grid_import_mr`: Import from grid meter reading [kWh]
 
 :::{admonition} Todo
 :class: note

@@ -111,7 +111,7 @@ class LoadAkkudoktor(LoadProvider):
         # We provide prediction starting at start of day, to be compatible to old system.
         # End date for prediction is prediction hours from now.
         date = self.start_datetime.start_of("day")
-        end_date = self.start_datetime.add(hours=self.config.prediction.prediction_hours)
+        end_date = self.start_datetime.add(hours=self.config.prediction.hours)
         while compare_datetimes(date, end_date).lt:
             # Extract mean (index 0) and standard deviation (index 1) for the given day and hour
             # Day indexing starts at 0, -1 because of that

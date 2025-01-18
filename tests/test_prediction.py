@@ -18,25 +18,6 @@ from akkudoktoreos.prediction.weatherimport import WeatherImport
 
 
 @pytest.fixture
-def sample_settings(config_eos):
-    """Fixture that adds settings data to the global config."""
-    settings = {
-        "prediction_hours": 48,
-        "prediction_historic_hours": 24,
-        "latitude": 52.52,
-        "longitude": 13.405,
-        "weather_provider": None,
-        "pvforecast_provider": None,
-        "load_provider": None,
-        "elecprice_provider": None,
-    }
-
-    # Merge settings to config
-    config_eos.merge_settings_from_dict(settings)
-    return config_eos
-
-
-@pytest.fixture
 def prediction():
     """All EOS predictions."""
     return get_prediction()
@@ -59,7 +40,7 @@ def forecast_providers():
 
 
 @pytest.mark.parametrize(
-    "prediction_hours, prediction_historic_hours, latitude, longitude, expected_timezone",
+    "hours, historic_hours, latitude, longitude, expected_timezone",
     [
         (48, 24, 40.7128, -74.0060, "America/New_York"),  # Valid latitude/longitude
         (0, 0, None, None, None),  # No location
@@ -67,17 +48,17 @@ def forecast_providers():
     ],
 )
 def test_prediction_common_settings_valid(
-    prediction_hours, prediction_historic_hours, latitude, longitude, expected_timezone
+    hours, historic_hours, latitude, longitude, expected_timezone
 ):
     """Test valid settings for PredictionCommonSettings."""
     settings = PredictionCommonSettings(
-        prediction_hours=prediction_hours,
-        prediction_historic_hours=prediction_historic_hours,
+        hours=hours,
+        historic_hours=historic_hours,
         latitude=latitude,
         longitude=longitude,
     )
-    assert settings.prediction_hours == prediction_hours
-    assert settings.prediction_historic_hours == prediction_historic_hours
+    assert settings.hours == hours
+    assert settings.historic_hours == historic_hours
     assert settings.latitude == latitude
     assert settings.longitude == longitude
     assert settings.timezone == expected_timezone
@@ -86,8 +67,8 @@ def test_prediction_common_settings_valid(
 @pytest.mark.parametrize(
     "field_name, invalid_value, expected_error",
     [
-        ("prediction_hours", -1, "Input should be greater than or equal to 0"),
-        ("prediction_historic_hours", -5, "Input should be greater than or equal to 0"),
+        ("hours", -1, "Input should be greater than or equal to 0"),
+        ("historic_hours", -5, "Input should be greater than or equal to 0"),
         ("latitude", -91.0, "Input should be greater than or equal to -90"),
         ("latitude", 91.0, "Input should be less than or equal to 90"),
         ("longitude", -181.0, "Input should be greater than or equal to -180"),
@@ -97,11 +78,12 @@ def test_prediction_common_settings_valid(
 def test_prediction_common_settings_invalid(field_name, invalid_value, expected_error):
     """Test invalid settings for PredictionCommonSettings."""
     valid_data = {
-        "prediction_hours": 48,
-        "prediction_historic_hours": 24,
+        "hours": 48,
+        "historic_hours": 24,
         "latitude": 40.7128,
         "longitude": -74.0060,
     }
+    assert PredictionCommonSettings(**valid_data) is not None
     valid_data[field_name] = invalid_value
 
     with pytest.raises(ValidationError, match=expected_error):
@@ -110,16 +92,14 @@ def test_prediction_common_settings_invalid(field_name, invalid_value, expected_
 
 def test_prediction_common_settings_no_location():
     """Test that timezone is None when latitude and longitude are not provided."""
-    settings = PredictionCommonSettings(
-        prediction_hours=48, prediction_historic_hours=24, latitude=None, longitude=None
-    )
+    settings = PredictionCommonSettings(hours=48, historic_hours=24, latitude=None, longitude=None)
     assert settings.timezone is None
 
 
 def test_prediction_common_settings_with_location():
     """Test that timezone is correctly computed when latitude and longitude are provided."""
     settings = PredictionCommonSettings(
-        prediction_hours=48, prediction_historic_hours=24, latitude=34.0522, longitude=-118.2437
+        hours=48, historic_hours=24, latitude=34.0522, longitude=-118.2437
     )
     assert settings.timezone == "America/Los_Angeles"
 

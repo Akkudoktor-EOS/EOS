@@ -18,9 +18,9 @@ class Heatpump:
     COP_COEFFICIENT = 0.1
     """COP increase per degree"""
 
-    def __init__(self, max_heat_output: int, prediction_hours: int):
+    def __init__(self, max_heat_output: int, hours: int):
         self.max_heat_output = max_heat_output
-        self.prediction_hours = prediction_hours
+        self.hours = hours
         self.log = logging.getLogger(__name__)
 
     def __check_outside_temperature_range__(self, temp_celsius: float) -> bool:
@@ -117,9 +117,9 @@ class Heatpump:
         """Simulate power data for 24 hours based on provided temperatures."""
         power_data: List[float] = []
 
-        if len(temperatures) != self.prediction_hours:
+        if len(temperatures) != self.hours:
             raise ValueError(
-                f"The temperature array must contain exactly {self.prediction_hours} entries, "
+                f"The temperature array must contain exactly {self.hours} entries, "
                 "one for each hour of the day."
             )
 

@@ -198,9 +198,9 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
         self.ev = ev
         self.home_appliance = home_appliance
         self.inverter = inverter
-        self.ac_charge_hours = np.full(self.config.prediction.prediction_hours, 0.0)
-        self.dc_charge_hours = np.full(self.config.prediction.prediction_hours, 1.0)
-        self.ev_charge_hours = np.full(self.config.prediction.prediction_hours, 0.0)
+        self.ac_charge_hours = np.full(self.config.prediction.hours, 0.0)
+        self.dc_charge_hours = np.full(self.config.prediction.hours, 1.0)
+        self.ev_charge_hours = np.full(self.config.prediction.hours, 0.0)
 
     def set_akku_discharge_hours(self, ds: np.ndarray) -> None:
         if self.battery:
@@ -251,7 +251,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             error_msg = "Start datetime unknown."
             logger.error(error_msg)
             raise ValueError(error_msg)
-        if self.config.prediction.prediction_hours is None:
+        if self.config.prediction.hours is None:
             error_msg = "Prediction hours unknown."
             logger.error(error_msg)
             raise ValueError(error_msg)

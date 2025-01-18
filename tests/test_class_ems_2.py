@@ -24,9 +24,9 @@ def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
     """Fixture to create an EnergieManagementSystem instance with given test parameters."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
-        {"prediction": {"prediction_hours": 48}, "optimization": {"optimization_hours": 24}}
+        {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
     )
-    assert config_eos.prediction.prediction_hours == 48
+    assert config_eos.prediction.hours == 48
 
     # Initialize the battery and the inverter
     akku = Battery(
@@ -38,7 +38,7 @@ def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
     devices_eos.add_device(akku)
 
     inverter = Inverter(
-        InverterParameters(device_id="iv1", max_power_wh=10000, battery=akku.device_id)
+        InverterParameters(device_id="iv1", max_power_wh=10000, battery_id=akku.device_id)
     )
     devices_eos.add_device(inverter)
 
@@ -64,11 +64,11 @@ def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
     devices_eos.post_setup()
 
     # Parameters based on previous example data
-    pv_prognose_wh = [0.0] * config_eos.prediction.prediction_hours
+    pv_prognose_wh = [0.0] * config_eos.prediction.hours
     pv_prognose_wh[10] = 5000.0
     pv_prognose_wh[11] = 5000.0
 
-    strompreis_euro_pro_wh = [0.001] * config_eos.prediction.prediction_hours
+    strompreis_euro_pro_wh = [0.001] * config_eos.prediction.hours
     strompreis_euro_pro_wh[0:10] = [0.00001] * 10
     strompreis_euro_pro_wh[11:15] = [0.00005] * 4
     strompreis_euro_pro_wh[20] = 0.00001
@@ -142,10 +142,10 @@ def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
         home_appliance=home_appliance,
     )
 
-    ac = np.full(config_eos.prediction.prediction_hours, 0.0)
+    ac = np.full(config_eos.prediction.hours, 0.0)
     ac[20] = 1
     ems.set_akku_ac_charge_hours(ac)
-    dc = np.full(config_eos.prediction.prediction_hours, 0.0)
+    dc = np.full(config_eos.prediction.hours, 0.0)
     dc[11] = 1
     ems.set_akku_dc_charge_hours(dc)
 

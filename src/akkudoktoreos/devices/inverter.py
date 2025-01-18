@@ -14,7 +14,7 @@ class InverterParameters(DeviceParameters):
 
     device_id: str = Field(description="ID of inverter", examples=["inverter1"])
     max_power_wh: float = Field(gt=0, examples=[10000])
-    battery: Optional[str] = Field(
+    battery_id: Optional[str] = Field(
         default=None, description="ID of battery", examples=[None, "battery1"]
     )
 
@@ -29,7 +29,7 @@ class Inverter(DeviceBase):
 
     def _setup(self) -> None:
         assert self.parameters is not None
-        if self.parameters.battery is None:
+        if self.parameters.battery_id is None:
             # For the moment raise exception
             # TODO: Make battery configurable by config
             error_msg = "Battery for PV inverter is mandatory."
@@ -42,7 +42,7 @@ class Inverter(DeviceBase):
 
     def _post_setup(self) -> None:
         assert self.parameters is not None
-        self.battery = self.devices.get_device_by_id(self.parameters.battery)
+        self.battery = self.devices.get_device_by_id(self.parameters.battery_id)
 
     def process_energy(
         self, generation: float, consumption: float, hour: int

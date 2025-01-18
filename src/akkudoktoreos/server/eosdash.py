@@ -1,5 +1,6 @@
 import argparse
 import os
+import sys
 from functools import reduce
 from typing import Any, Union
 
@@ -165,10 +166,10 @@ def main() -> None:
     it starts the EOSdash server with the specified configurations.
 
     Command-line Arguments:
-    --host (str): Host for the EOSdash server (default: value from config_eos).
-    --port (int): Port for the EOSdash server (default: value from config_eos).
-    --eos-host (str): Host for the EOS server (default: value from config_eos).
-    --eos-port (int): Port for the EOS server (default: value from config_eos).
+    --host (str): Host for the EOSdash server (default: value from config).
+    --port (int): Port for the EOSdash server (default: value from config).
+    --eos-host (str): Host for the EOS server (default: value from config).
+    --eos-port (int): Port for the EOS server (default: value from config).
     --log_level (str): Log level for the server. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "info").
     --access_log (bool): Enable or disable access log. Options: True or False (default: False).
     --reload (bool): Enable or disable auto-reload. Useful for development. Options: True or False (default: False).
@@ -179,28 +180,28 @@ def main() -> None:
     parser.add_argument(
         "--host",
         type=str,
-        default=str(config_eos.server.server_eosdash_host),
-        help="Host for the EOSdash server (default: value from config_eos)",
+        default=str(config_eos.server.eosdash_host),
+        help="Host for the EOSdash server (default: value from config)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=config_eos.server.server_eosdash_port,
-        help="Port for the EOSdash server (default: value from config_eos)",
+        default=config_eos.server.eosdash_port,
+        help="Port for the EOSdash server (default: value from config)",
     )
 
     # EOS Host and port arguments with defaults from config_eos
     parser.add_argument(
         "--eos-host",
         type=str,
-        default=str(config_eos.server.server_eos_host),
-        help="Host for the EOS server (default: value from config_eos)",
+        default=str(config_eos.server.host),
+        help="Host for the EOS server (default: value from config)",
     )
     parser.add_argument(
         "--eos-port",
         type=int,
-        default=config_eos.server.server_eos_port,
-        help="Port for the EOS server (default: value from config_eos)",
+        default=config_eos.server.port,
+        help="Port for the EOS server (default: value from config)",
     )
 
     # Optional arguments for log_level, access_log, and reload
@@ -228,7 +229,7 @@ def main() -> None:
     try:
         run_eosdash(args.host, args.port, args.log_level, args.access_log, args.reload)
     except:
-        exit(1)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
