@@ -19,10 +19,14 @@ data is lost on re-start of the EOS REST server.
 ## Prediction Providers
 
 Most predictions can be sourced from various providers. The specific provider to use is configured
-in the EOS configuration. For example:
+in the EOS configuration and can be set by prediction type. For example:
 
 ```python
-provider = "ClearOutside"
+{
+  "weather": {
+    "provider": "ClearOutside"
+  }
+}
 ```
 
 Some providers offer multiple prediction keys. For instance, a weather provider might provide data
@@ -109,26 +113,28 @@ Prediction keys:
 
 Configuration options:
 
-- `provider`: Electricity price provider id of provider to be used.
+- `elecprice`: Electricity price configuration.
 
-  - `Akkudoktor`: Retrieves from Akkudoktor.net.
-  - `Import`: Imports from a file or JSON string.
+  - `provider`: Electricity price provider id of provider to be used.
 
-- `charges_kwh`: Electricity price charges (€/kWh).
-- `import_file_path`: Path to the file to import electricity price forecast data from.
-- `import_json`: JSON string, dictionary of electricity price forecast value lists.
+    - `ElecPriceAkkudoktor`: Retrieves from Akkudoktor.net.
+    - `ElecPriceImport`: Imports from a file or JSON string.
 
-### Akkudoktor Provider
+  - `charges_kwh`: Electricity price charges (€/kWh).
+  - `provider_settings.import_file_path`: Path to the file to import electricity price forecast data from.
+  - `provider_settings.import_json`: JSON string, dictionary of electricity price forecast value lists.
 
-The `Akkudoktor` provider retrieves electricity prices directly from **Akkudoktor.net**,
+### ElecPriceAkkudoktor Provider
+
+The `ElecPriceAkkudoktor` provider retrieves electricity prices directly from **Akkudoktor.net**,
 which supplies price data for the next 24 hours. For periods beyond 24 hours, the provider generates
 prices by extrapolating historical price data combined with the most recent actual prices obtained
 from Akkudoktor.net. Electricity price charges given in the `charges_kwh` configuration
 option are added.
 
-### Import Provider
+### ElecPriceImport Provider
 
-The `Import` provider is designed to import electricity prices from a file or a JSON
+The `ElecPriceImport` provider is designed to import electricity prices from a file or a JSON
 string. An external entity should update the file or JSON string whenever new prediction data
 becomes available.
 
@@ -150,14 +156,16 @@ Prediction keys:
 
 Configuration options:
 
-- `provider`: Load provider id of provider to be used.
+- `load`: Load configuration.
 
-  - `LoadAkkudoktor`: Retrieves from local database.
-  - `LoadImport`: Imports from a file or JSON string.
+  - `provider`: Load provider id of provider to be used.
 
-- `loadakkudoktor_year_energy`: Yearly energy consumption (kWh).
-- `loadimport_file_path`: Path to the file to import load forecast data from.
-- `loadimport_json`: JSON string, dictionary of load forecast value lists.
+    - `LoadAkkudoktor`: Retrieves from local database.
+    - `LoadImport`: Imports from a file or JSON string.
+
+  - `provider_settings.loadakkudoktor_year_energy`: Yearly energy consumption (kWh).
+  - `provider_settings.loadimport_file_path`: Path to the file to import load forecast data from.
+  - `provider_settings.loadimport_json`: JSON string, dictionary of load forecast value lists.
 
 ### LoadAkkudoktor Provider
 
@@ -185,53 +193,51 @@ or `loadimport_json` configuration option.
 
 Prediction keys:
 
-- `ac_power`: Total DC power (W).
-- `dc_power`: Total AC power (W).
+- `pvforecast_ac_power`: Total DC power (W).
+- `pvforecast_dc_power`: Total AC power (W).
 
 Configuration options:
 
-- `provider`: PVForecast provider id of provider to be used.
+- `general`: General configuration.
 
-  - `PVForecastAkkudoktor`: Retrieves from Akkudoktor.net.
-  - `PVForecastImport`: Imports from a file or JSON string.
+  - `latitude`: Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)"
+  - `longitude`: Longitude in decimal degrees, within -180 to 180 (°)
 
-- `latitude`: Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)"
-- `longitude`: Longitude in decimal degrees, within -180 to 180 (°)
-- `pvforecast<0..5>_surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
-- `pvforecast<0..5>_surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane.
-                                      Clockwise from north (north=0, east=90, south=180, west=270).
-- `pvforecast<0..5>_userhorizon`: Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.
-- `pvforecast<0..5>_peakpower`: Nominal power of PV system in kW.
-- `pvforecast<0..5>_pvtechchoice`: PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.
-- `pvforecast<0..5>_mountingplace`: Type of mounting for PV system. Options are 'free' for free-standing
-                                    and 'building' for building-integrated.
-- `pvforecast<0..5>_loss`: Sum of PV system losses in percent
-- `pvforecast<0..5>_trackingtype`: Type of suntracking. 0=fixed,
-                                   1=single horizontal axis aligned north-south,
-                                   2=two-axis tracking,
-                                   3=vertical axis tracking,
-                                   4=single horizontal axis aligned east-west,
-                                   5=single inclined axis aligned north-south.
-- `pvforecast<0..5>_optimal_surface_tilt`: Calculate the optimum tilt angle. Ignored for two-axis tracking.
-- `pvforecast<0..5>_optimalangles`: Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.
-- `pvforecast<0..5>_albedo`: Proportion of the light hitting the ground that it reflects back.
-- `pvforecast<0..5>_module_model`: Model of the PV modules of this plane.
-- `pvforecast<0..5>_inverter_model`: Model of the inverter of this plane.
-- `pvforecast<0..5>_inverter_paco`: AC power rating of the inverter. [W]
-- `pvforecast<0..5>_modules_per_string`: Number of the PV modules of the strings of this plane.
-- `pvforecast<0..5>_strings_per_inverter`: Number of the strings of the inverter of this plane.
-- `import_file_path`: Path to the file to import PV forecast data from.
-- `import_json`: JSON string, dictionary of PV forecast value lists.
+- `pvforecast`: PV forecast configuration.
+
+  - `provider`: PVForecast provider id of provider to be used.
+
+    - `PVForecastAkkudoktor`: Retrieves from Akkudoktor.net.
+    - `PVForecastImport`: Imports from a file or JSON string.
+
+  - `planes[].surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
+  - `planes[].surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).
+  - `planes[].userhorizon`: Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.
+  - `planes[].peakpower`: Nominal power of PV system in kW.
+  - `planes[].pvtechchoice`: PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.
+  - `planes[].mountingplace`: Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.
+  - `planes[].loss`: Sum of PV system losses in percent
+  - `planes[].trackingtype`: Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.
+  - `planes[].optimal_surface_tilt`: Calculate the optimum tilt angle. Ignored for two-axis tracking.
+  - `planes[].optimalangles`: Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.
+  - `planes[].albedo`: Proportion of the light hitting the ground that it reflects back.
+  - `planes[].module_model`: Model of the PV modules of this plane.
+  - `planes[].inverter_model`: Model of the inverter of this plane.
+  - `planes[].inverter_paco`: AC power rating of the inverter. [W]
+  - `planes[].modules_per_string`: Number of the PV modules of the strings of this plane.
+  - `planes[].strings_per_inverter`: Number of the strings of the inverter of this plane.
+  - `provider_settings.import_file_path`: Path to the file to import PV forecast data from.
+  - `provider_settings.import_json`: JSON string, dictionary of PV forecast value lists.
 
 ------
 
-Some of the configuration options directly follow the
+Some of the planes configuration options directly follow the
 [PVGIS](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/getting-started-pvgis/pvgis-user-manual_en)
 nomenclature.
 
 Detailed definitions taken from **PVGIS**:
 
-- `pvforecast<0..5>_pvtechchoice`
+- `pvtechchoice`
 
 The performance of PV modules depends on the temperature and on the solar irradiance, but the exact
 dependence varies between different types of PV modules. At the moment we can estimate the losses
@@ -250,7 +256,7 @@ variations of the spectrum of sunlight affects the overall energy production fro
 the moment this calculation can be done for crystalline silicon and CdTe modules. Note that this
 calculation is not yet available when using the NSRDB solar radiation database.
 
-- `pvforecast<0..5>_peakpower`
+- `peakpower`
 
 This is the power that the manufacturer declares that the PV array can produce under standard test
 conditions (STC), which are a constant 1000W of solar irradiation per square meter in the plane of
@@ -266,7 +272,7 @@ value and the bifaciality factor, φ (if reported in the module data sheet) as:
 P_BNPI  = P_STC \* (1 + φ \* 0.135). NB this bifacial approach  is not appropriate for BAPV or BIPV
 installations or for modules mounting on a N-S axis i.e. facing E-W.
 
-- `pvforecast<0..5>_loss`
+- `loss`
 
 The estimated system losses are all the losses in the system, which cause the power actually
 delivered to the electricity grid to be lower than the power produced by the PV modules. There are
@@ -278,7 +284,7 @@ in the first years.
 We have given a default value of 14% for the overall losses. If you have a good idea that your value
 will be different (maybe due to a really high-efficiency inverter) you may reduce this value a little.
 
-- `pvforecast<0..5>_mountingplace`
+- `mountingplace`
 
 For fixed (non-tracking) systems, the way the modules are mounted will have an influence on the
 temperature of the module, which in turn affects the efficiency. Experiments have shown that if the
@@ -294,7 +300,7 @@ Some types of mounting are in between these two extremes, for instance if the mo
 a roof with curved roof tiles, allowing air to move behind the modules. In such cases, the
 performance will be somewhere between the results of the two calculations that are possible here.
 
-- `pvforecast<0..5>_userhorizon`
+- `userhorizon`
 
 Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. In the user horizon
 data each number represents the horizon height in degrees in a certain compass direction around the
@@ -307,15 +313,16 @@ degrees west of north.
 ------
 
 Most of the configuration options are in line with the
-[PVLib](https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html) definition for PVGIS data.
+[PVLib](https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html)
+definition for PVGIS data.
 
 Detailed definitions from **PVLib** for PVGIS data.
 
-- `pvforecast<0..5>_surface_tilt`:
+- `surface_tilt`:
 
 Tilt angle from horizontal plane.
 
-- `pvforecast<0..5>_surface_azimuth`
+- `surface_azimuth`
 
 Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180,
 west=270). This is offset 180 degrees from the convention used by PVGIS.
@@ -327,48 +334,60 @@ west=270). This is offset 180 degrees from the convention used by PVGIS.
 The `PVForecastAkkudoktor` provider retrieves the PV power forecast data directly from
 **Akkudoktor.net**.
 
-The following general configuration options of the PV system must be set:
+The following prediction configuration options of the PV system must be set:
 
-- `latitude`: Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)"
-- `longitude`: Longitude in decimal degrees, within -180 to 180 (°)
+- `prediction.latitude`: Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)"
+- `prediction.longitude`: Longitude in decimal degrees, within -180 to 180 (°)
 
-For each plane `<0..5>` of the PV system the following configuration options must be set:
+For each plane of the PV system the following configuration options must be set:
 
-- `pvforecast<0..5>_surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
-- `pvforecast<0..5>_surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane.
-                                      Clockwise from north (north=0, east=90, south=180, west=270).
-- `pvforecast<0..5>_userhorizon`: Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.
-- `pvforecast<0..5>_inverter_paco`: AC power rating of the inverter. [W]
-- `pvforecast<0..5>_peakpower`: Nominal power of PV system in kW.
+- `pvforecast.planes[].surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
+- `pvforecast.planes[].surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).
+- `pvforecast.planes[].userhorizon`: Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.
+- `pvforecast.planes[].inverter_paco`: AC power rating of the inverter. [W]
+- `pvforecast.planes[].peakpower`: Nominal power of PV system in kW.
 
 Example:
 
 ```Python
 {
-  "latitude": 50.1234,
-  "longitude": 9.7654,
-  "provider": "PVForecastAkkudoktor",
-  "pvforecast0_peakpower": 5.0,
-  "pvforecast0_surface_azimuth": -10,
-  "pvforecast0_surface_tilt": 7,
-  "pvforecast0_userhorizon": [20, 27, 22, 20],
-  "pvforecast0_inverter_paco": 10000,
-  "pvforecast1_peakpower": 4.8,
-  "pvforecast1_surface_azimuth": -90,
-  "pvforecast1_surface_tilt": 7,
-  "pvforecast1_userhorizon": [30, 30, 30, 50],
-  "pvforecast1_inverter_paco": 10000,
-  "pvforecast2_peakpower": 1.4,
-  "pvforecast2_surface_azimuth": -40,
-  "pvforecast2_surface_tilt": 60,
-  "pvforecast2_userhorizon": [60, 30, 0, 30],
-  "pvforecast2_inverter_paco": 2000,
-  "pvforecast3_peakpower": 1.6,
-  "pvforecast3_surface_azimuth": 5,
-  "pvforecast3_surface_tilt": 45,
-  "pvforecast3_userhorizon": [45, 25, 30, 60],
-  "pvforecast3_inverter_paco": 1400,
-  "pvforecast4_peakpower": None,
+  "prediction": {
+    "latitude": 50.1234,
+    "longitude": 9.7654,
+  },
+  "pvforecast": {
+    "provider": "PVForecastAkkudoktor",
+    "planes": [
+      {
+        "peakpower": 5.0,
+        "surface_azimuth": -10,
+        "surface_tilt": 7,
+        "userhorizon": [20, 27, 22, 20],
+        "inverter_paco": 10000,
+      },
+      {
+        "peakpower": 4.8,
+        "surface_azimuth": -90,
+        "surface_tilt": 7,
+        "userhorizon": [30, 30, 30, 50],
+        "inverter_paco": 10000,
+      },
+      {
+        "peakpower": 1.4,
+        "surface_azimuth": -40,
+        "surface_tilt": 60,
+        "userhorizon": [60, 30, 0, 30],
+        "inverter_paco": 2000,
+      },
+      {
+        "peakpower": 1.6,
+        "surface_azimuth": 5,
+        "surface_tilt": 45,
+        "userhorizon": [45, 25, 30, 60],
+        "inverter_paco": 1400,
+      }
+    ]
+  }
 }
 ```
 
@@ -380,8 +399,8 @@ becomes available.
 
 The prediction keys for the PV forecast data are:
 
-- `ac_power`: Total DC power (W).
-- `dc_power`: Total AC power (W).
+- `pvforecast_ac_power`: Total DC power (W).
+- `pvforecast_dc_power`: Total AC power (W).
 
 The PV forecast data must be provided in one of the formats described in
 <project:#prediction-import-providers>. The data source must be given in the
@@ -416,14 +435,16 @@ Prediction keys:
 
 Configuration options:
 
-- `provider`: Load provider id of provider to be used.
+- `weather`: General weather configuration.
 
-  - `BrightSky`: Retrieves from [BrightSky](https://api.brightsky.dev).
-  - `ClearOutside`: Retrieves from [ClearOutside](https://clearoutside.com/forecast).
-  - `LoadImport`: Imports from a file or JSON string.
+  - `provider`: Load provider id of provider to be used.
 
-- `import_file_path`: Path to the file to import weatherforecast data from.
-- `import_json`: JSON string, dictionary of weather forecast value lists.
+    - `BrightSky`: Retrieves from https://api.brightsky.dev.
+    - `ClearOutside`: Retrieves from https://clearoutside.com/forecast.
+    - `LoadImport`: Imports from a file or JSON string.
+
+  - `provider_settings.import_file_path`: Path to the file to import weatherforecast data from.
+  - `provider_settings.import_json`: JSON string, dictionary of weather forecast value lists.
 
 ### BrightSky Provider
 

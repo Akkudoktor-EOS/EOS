@@ -145,7 +145,7 @@ def config_eos(
     assert not config_file_cwd.exists()
     config_eos = get_config()
     config_eos.reset_settings()
-    assert config_file == config_eos.config_file_path
+    assert config_file == config_eos.general.config_file_path
     assert config_file.exists()
     assert not config_file_cwd.exists()
     assert config_default_dirs[-1] / "data" == config_eos.general.data_folder_path

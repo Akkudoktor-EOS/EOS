@@ -192,11 +192,11 @@ Returns:
 Fastapi Config Put
 
 ```
-Write the provided settings into the current settings.
+Update the current config with the provided settings.
 
-The existing settings are completely overwritten. Note that for any setting
-value that is None, the configuration will fall back to values from other sources such as
-environment variables, the EOS configuration file, or default values.
+Note that for any setting value that is None or unset, the configuration will fall back to
+values from other sources such as environment variables, the EOS configuration file, or default
+values.
 
 Args:
     settings (SettingsEOS): The settings to write into the current settings.

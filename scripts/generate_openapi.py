@@ -37,6 +37,11 @@ def generate_openapi() -> dict:
         routes=app.routes,
     )
 
+    # Fix file path for general settings to not show local/test file path
+    general = openapi_spec["components"]["schemas"]["ConfigEOS"]["properties"]["general"]["default"]
+    general["config_file_path"] = "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
+    general["config_folder_path"] = "/home/user/.config/net.akkudoktoreos.net"
+
     return openapi_spec
 
 

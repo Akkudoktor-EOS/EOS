@@ -5,19 +5,18 @@ import argparse
 import json
 import sys
 import textwrap
+from pathlib import Path
 from typing import Any, Union
 
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
-from akkudoktoreos.config.config import get_config
+from akkudoktoreos.config.config import ConfigCommonSettings, ConfigEOS, get_config
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.utils.docs import get_model_structure_from_examples
 
 logger = get_logger(__name__)
-
-config_eos = get_config()
 
 
 documented_types: set[PydanticBaseModel] = set()
@@ -238,12 +237,18 @@ def generate_config_table_md(
     return table
 
 
-def generate_config_md() -> str:
+def generate_config_md(config_eos: ConfigEOS) -> str:
     """Generate configuration specification in Markdown with extra tables for prefixed values.
 
     Returns:
         str: The Markdown representation of the configuration spec.
     """
+    # Fix file path for general settings to not show local/test file path
+    ConfigCommonSettings._config_file_path = Path(
+        "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
+    )
+    ConfigCommonSettings._config_folder_path = config_eos.general.config_file_path.parent
+
     markdown = "# Configuration Table\n\n"
 
     # Generate tables for each top level config
@@ -271,9 +276,10 @@ def main():
     )
 
     args = parser.parse_args()
+    config_eos = get_config()
 
     try:
-        config_md = generate_config_md()
+        config_md = generate_config_md(config_eos)
         if args.output_file:
             # Write to file
             with open(args.output_file, "w", encoding="utf8") as f:
