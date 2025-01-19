@@ -13,6 +13,7 @@ from pydantic_core import PydanticUndefined
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.utils.docs import get_model_structure_from_examples
 
 logger = get_logger(__name__)
 
@@ -51,23 +52,13 @@ def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple
     return resolved_types
 
 
-def get_example_or_default(field_name: str, field_info: FieldInfo) -> dict[str, Any]:
-    """Generate a default value for a field, considering constraints."""
-    if field_info.examples is not None:
-        return field_info.examples[0]
-
-    if field_info.default is not None:
-        return field_info.default
-
-    raise NotImplementedError(f"No default or example provided '{field_name}': {field_info}")
-
-
-def create_model_from_examples(model_class: PydanticBaseModel) -> PydanticBaseModel:
+def create_model_from_examples(
+    model_class: PydanticBaseModel, multiple: bool
+) -> list[PydanticBaseModel]:
     """Create a model instance with default or example values, respecting constraints."""
-    example_data = {}
-    for field_name, field_info in model_class.model_fields.items():
-        example_data[field_name] = get_example_or_default(field_name, field_info)
-    return model_class(**example_data)
+    return [
+        model_class(**data) for data in get_model_structure_from_examples(model_class, multiple)
+    ]
 
 
 def build_nested_structure(keys: list[str], value: Any) -> Any:
@@ -198,21 +189,29 @@ def generate_config_table_md(
     if toplevel:
         table += ":::\n\n"  # Add an empty line after the table
 
-        ins = create_model_from_examples(config)
-        if ins:
-            # Transform to JSON (and manually to dict) to use custom serializers and then merge with parent keys
-            ins_json = ins.model_dump_json(include_computed_fields=False)
-            ins_dict = json.loads(ins_json)
+        has_examples_list = toplevel_keys[-1] == "list"
+        instance_list = create_model_from_examples(config, has_examples_list)
+        if instance_list:
+            ins_dict_list = []
+            ins_out_dict_list = []
+            for ins in instance_list:
+                # Transform to JSON (and manually to dict) to use custom serializers and then merge with parent keys
+                ins_json = ins.model_dump_json(include_computed_fields=False)
+                ins_dict_list.append(json.loads(ins_json))
 
-            ins_out_json = ins.model_dump_json(include_computed_fields=True)
-            ins_out_dict = json.loads(ins_out_json)
-            same_output = ins_out_dict == ins_dict
+                ins_out_json = ins.model_dump_json(include_computed_fields=True)
+                ins_out_dict_list.append(json.loads(ins_out_json))
+
+            same_output = ins_out_dict_list == ins_dict_list
             same_output_str = "/Output" if same_output else ""
 
             table += f"#{heading_level} Example Input{same_output_str}\n\n"
             table += "```{eval-rst}\n"
             table += ".. code-block:: json\n\n"
-            input_dict = build_nested_structure(toplevel_keys, ins_dict)
+            if has_examples_list:
+                input_dict = build_nested_structure(toplevel_keys[:-1], ins_dict_list)
+            else:
+                input_dict = build_nested_structure(toplevel_keys, ins_dict_list[0])
             table += textwrap.indent(json.dumps(input_dict, indent=4), "   ")
             table += "\n"
             table += "```\n\n"
@@ -221,7 +220,10 @@ def generate_config_table_md(
                 table += f"#{heading_level} Example Output\n\n"
                 table += "```{eval-rst}\n"
                 table += ".. code-block:: json\n\n"
-                output_dict = build_nested_structure(toplevel_keys, ins_out_dict)
+                if has_examples_list:
+                    output_dict = build_nested_structure(toplevel_keys[:-1], ins_out_dict_list)
+                else:
+                    output_dict = build_nested_structure(toplevel_keys, ins_out_dict_list[0])
                 table += textwrap.indent(json.dumps(output_dict, indent=4), "   ")
                 table += "\n"
                 table += "```\n\n"

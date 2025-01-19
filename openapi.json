@@ -304,42 +304,11 @@
                     "pvforecast": {
                         "$ref": "#/components/schemas/PVForecastCommonSettings-Output",
                         "default": {
-                            "pvforecast0_loss": 14.0,
-                            "pvforecast0_mountingplace": "free",
-                            "pvforecast0_optimal_surface_tilt": false,
-                            "pvforecast0_optimalangles": false,
-                            "pvforecast0_pvtechchoice": "crystSi",
-                            "pvforecast1_loss": 14.0,
-                            "pvforecast1_mountingplace": "free",
-                            "pvforecast1_optimal_surface_tilt": false,
-                            "pvforecast1_optimalangles": false,
-                            "pvforecast1_pvtechchoice": "crystSi",
-                            "pvforecast2_loss": 14.0,
-                            "pvforecast2_mountingplace": "free",
-                            "pvforecast2_optimal_surface_tilt": false,
-                            "pvforecast2_optimalangles": false,
-                            "pvforecast2_pvtechchoice": "crystSi",
-                            "pvforecast3_loss": 14.0,
-                            "pvforecast3_mountingplace": "free",
-                            "pvforecast3_optimal_surface_tilt": false,
-                            "pvforecast3_optimalangles": false,
-                            "pvforecast3_pvtechchoice": "crystSi",
-                            "pvforecast4_loss": 14.0,
-                            "pvforecast4_mountingplace": "free",
-                            "pvforecast4_optimal_surface_tilt": false,
-                            "pvforecast4_optimalangles": false,
-                            "pvforecast4_pvtechchoice": "crystSi",
-                            "pvforecast5_loss": 14.0,
-                            "pvforecast5_mountingplace": "free",
-                            "pvforecast5_optimal_surface_tilt": false,
-                            "pvforecast5_optimalangles": false,
-                            "pvforecast5_pvtechchoice": "crystSi",
-                            "pvforecast_planes": [],
-                            "pvforecast_planes_azimuth": [],
-                            "pvforecast_planes_inverter_paco": [],
-                            "pvforecast_planes_peakpower": [],
-                            "pvforecast_planes_tilt": [],
-                            "pvforecast_planes_userhorizon": []
+                            "planes_azimuth": [],
+                            "planes_inverter_paco": [],
+                            "planes_peakpower": [],
+                            "planes_tilt": [],
+                            "planes_userhorizon": []
                         }
                     },
                     "server": {
@@ -1453,6 +1422,63 @@
             "PVForecastCommonSettings-Input": {
                 "description": "PV Forecast Configuration.",
                 "properties": {
+                    "planes": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "$ref": "#/components/schemas/PVForecastPlaneSetting"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Plane configuration.",
+                        "examples": [
+                            [
+                                {
+                                    "inverter_paco": 6000,
+                                    "loss": 14.0,
+                                    "modules_per_string": 20,
+                                    "mountingplace": "free",
+                                    "optimal_surface_tilt": false,
+                                    "optimalangles": false,
+                                    "peakpower": 5.0,
+                                    "pvtechchoice": "crystSi",
+                                    "strings_per_inverter": 2,
+                                    "surface_azimuth": 10.0,
+                                    "surface_tilt": 10.0,
+                                    "trackingtype": 0,
+                                    "userhorizon": [
+                                        10.0,
+                                        20.0,
+                                        30.0
+                                    ]
+                                },
+                                {
+                                    "inverter_paco": 4000,
+                                    "loss": 14.0,
+                                    "modules_per_string": 20,
+                                    "mountingplace": "free",
+                                    "optimal_surface_tilt": false,
+                                    "optimalangles": false,
+                                    "peakpower": 3.5,
+                                    "pvtechchoice": "crystSi",
+                                    "strings_per_inverter": 2,
+                                    "surface_azimuth": 20.0,
+                                    "surface_tilt": 20.0,
+                                    "trackingtype": 1,
+                                    "userhorizon": [
+                                        5.0,
+                                        15.0,
+                                        25.0
+                                    ]
+                                }
+                            ]
+                        ],
+                        "title": "Planes"
+                    },
                     "provider": {
                         "anyOf": [
                             {
@@ -1481,1489 +1507,6 @@
                         "examples": [
                             null
                         ]
-                    },
-                    "pvforecast0_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast0 Albedo"
-                    },
-                    "pvforecast0_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast0 Inverter Model"
-                    },
-                    "pvforecast0_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            6000
-                        ],
-                        "title": "Pvforecast0 Inverter Paco"
-                    },
-                    "pvforecast0_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "title": "Pvforecast0 Loss"
-                    },
-                    "pvforecast0_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast0 Module Model"
-                    },
-                    "pvforecast0_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            20
-                        ],
-                        "title": "Pvforecast0 Modules Per String"
-                    },
-                    "pvforecast0_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "title": "Pvforecast0 Mountingplace"
-                    },
-                    "pvforecast0_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            false
-                        ],
-                        "title": "Pvforecast0 Optimal Surface Tilt"
-                    },
-                    "pvforecast0_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            false
-                        ],
-                        "title": "Pvforecast0 Optimalangles"
-                    },
-                    "pvforecast0_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            5.0
-                        ],
-                        "title": "Pvforecast0 Peakpower"
-                    },
-                    "pvforecast0_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "title": "Pvforecast0 Pvtechchoice"
-                    },
-                    "pvforecast0_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            2
-                        ],
-                        "title": "Pvforecast0 Strings Per Inverter"
-                    },
-                    "pvforecast0_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            10.0
-                        ],
-                        "title": "Pvforecast0 Surface Azimuth"
-                    },
-                    "pvforecast0_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            10.0
-                        ],
-                        "title": "Pvforecast0 Surface Tilt"
-                    },
-                    "pvforecast0_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            0,
-                            1,
-                            2,
-                            3,
-                            4,
-                            5
-                        ],
-                        "title": "Pvforecast0 Trackingtype"
-                    },
-                    "pvforecast0_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            [
-                                10.0,
-                                20.0,
-                                30.0
-                            ]
-                        ],
-                        "title": "Pvforecast0 Userhorizon"
-                    },
-                    "pvforecast1_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast1 Albedo"
-                    },
-                    "pvforecast1_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast1 Inverter Model"
-                    },
-                    "pvforecast1_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            4000
-                        ],
-                        "title": "Pvforecast1 Inverter Paco"
-                    },
-                    "pvforecast1_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "title": "Pvforecast1 Loss"
-                    },
-                    "pvforecast1_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast1 Module Model"
-                    },
-                    "pvforecast1_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            20
-                        ],
-                        "title": "Pvforecast1 Modules Per String"
-                    },
-                    "pvforecast1_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "title": "Pvforecast1 Mountingplace"
-                    },
-                    "pvforecast1_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            false
-                        ],
-                        "title": "Pvforecast1 Optimal Surface Tilt"
-                    },
-                    "pvforecast1_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            false
-                        ],
-                        "title": "Pvforecast1 Optimalangles"
-                    },
-                    "pvforecast1_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            3.5
-                        ],
-                        "title": "Pvforecast1 Peakpower"
-                    },
-                    "pvforecast1_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "title": "Pvforecast1 Pvtechchoice"
-                    },
-                    "pvforecast1_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            2
-                        ],
-                        "title": "Pvforecast1 Strings Per Inverter"
-                    },
-                    "pvforecast1_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            20.0
-                        ],
-                        "title": "Pvforecast1 Surface Azimuth"
-                    },
-                    "pvforecast1_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            20.0
-                        ],
-                        "title": "Pvforecast1 Surface Tilt"
-                    },
-                    "pvforecast1_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast1 Trackingtype"
-                    },
-                    "pvforecast1_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            [
-                                5.0,
-                                15.0,
-                                25.0
-                            ]
-                        ],
-                        "title": "Pvforecast1 Userhorizon"
-                    },
-                    "pvforecast2_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Albedo"
-                    },
-                    "pvforecast2_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Inverter Model"
-                    },
-                    "pvforecast2_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Inverter Paco"
-                    },
-                    "pvforecast2_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Loss"
-                    },
-                    "pvforecast2_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Module Model"
-                    },
-                    "pvforecast2_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Modules Per String"
-                    },
-                    "pvforecast2_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Mountingplace"
-                    },
-                    "pvforecast2_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Optimal Surface Tilt"
-                    },
-                    "pvforecast2_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Optimalangles"
-                    },
-                    "pvforecast2_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Peakpower"
-                    },
-                    "pvforecast2_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Pvtechchoice"
-                    },
-                    "pvforecast2_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Strings Per Inverter"
-                    },
-                    "pvforecast2_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Surface Azimuth"
-                    },
-                    "pvforecast2_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Surface Tilt"
-                    },
-                    "pvforecast2_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Trackingtype"
-                    },
-                    "pvforecast2_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Userhorizon"
-                    },
-                    "pvforecast3_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Albedo"
-                    },
-                    "pvforecast3_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Inverter Model"
-                    },
-                    "pvforecast3_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Inverter Paco"
-                    },
-                    "pvforecast3_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Loss"
-                    },
-                    "pvforecast3_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Module Model"
-                    },
-                    "pvforecast3_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Modules Per String"
-                    },
-                    "pvforecast3_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Mountingplace"
-                    },
-                    "pvforecast3_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Optimal Surface Tilt"
-                    },
-                    "pvforecast3_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Optimalangles"
-                    },
-                    "pvforecast3_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Peakpower"
-                    },
-                    "pvforecast3_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Pvtechchoice"
-                    },
-                    "pvforecast3_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Strings Per Inverter"
-                    },
-                    "pvforecast3_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Surface Azimuth"
-                    },
-                    "pvforecast3_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Surface Tilt"
-                    },
-                    "pvforecast3_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Trackingtype"
-                    },
-                    "pvforecast3_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Userhorizon"
-                    },
-                    "pvforecast4_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Albedo"
-                    },
-                    "pvforecast4_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Inverter Model"
-                    },
-                    "pvforecast4_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Inverter Paco"
-                    },
-                    "pvforecast4_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Loss"
-                    },
-                    "pvforecast4_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Module Model"
-                    },
-                    "pvforecast4_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Modules Per String"
-                    },
-                    "pvforecast4_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Mountingplace"
-                    },
-                    "pvforecast4_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Optimal Surface Tilt"
-                    },
-                    "pvforecast4_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Optimalangles"
-                    },
-                    "pvforecast4_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Peakpower"
-                    },
-                    "pvforecast4_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Pvtechchoice"
-                    },
-                    "pvforecast4_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Strings Per Inverter"
-                    },
-                    "pvforecast4_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Surface Azimuth"
-                    },
-                    "pvforecast4_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Surface Tilt"
-                    },
-                    "pvforecast4_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Trackingtype"
-                    },
-                    "pvforecast4_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Userhorizon"
-                    },
-                    "pvforecast5_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Albedo"
-                    },
-                    "pvforecast5_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Inverter Model"
-                    },
-                    "pvforecast5_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Inverter Paco"
-                    },
-                    "pvforecast5_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Loss"
-                    },
-                    "pvforecast5_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Module Model"
-                    },
-                    "pvforecast5_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Modules Per String"
-                    },
-                    "pvforecast5_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Mountingplace"
-                    },
-                    "pvforecast5_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Optimal Surface Tilt"
-                    },
-                    "pvforecast5_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Optimalangles"
-                    },
-                    "pvforecast5_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Peakpower"
-                    },
-                    "pvforecast5_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Pvtechchoice"
-                    },
-                    "pvforecast5_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Strings Per Inverter"
-                    },
-                    "pvforecast5_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Surface Azimuth"
-                    },
-                    "pvforecast5_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Surface Tilt"
-                    },
-                    "pvforecast5_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Trackingtype"
-                    },
-                    "pvforecast5_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Userhorizon"
                     }
                 },
                 "title": "PVForecastCommonSettings",
@@ -2972,6 +1515,100 @@
             "PVForecastCommonSettings-Output": {
                 "description": "PV Forecast Configuration.",
                 "properties": {
+                    "planes": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "$ref": "#/components/schemas/PVForecastPlaneSetting"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Plane configuration.",
+                        "examples": [
+                            [
+                                {
+                                    "inverter_paco": 6000,
+                                    "loss": 14.0,
+                                    "modules_per_string": 20,
+                                    "mountingplace": "free",
+                                    "optimal_surface_tilt": false,
+                                    "optimalangles": false,
+                                    "peakpower": 5.0,
+                                    "pvtechchoice": "crystSi",
+                                    "strings_per_inverter": 2,
+                                    "surface_azimuth": 10.0,
+                                    "surface_tilt": 10.0,
+                                    "trackingtype": 0,
+                                    "userhorizon": [
+                                        10.0,
+                                        20.0,
+                                        30.0
+                                    ]
+                                },
+                                {
+                                    "inverter_paco": 4000,
+                                    "loss": 14.0,
+                                    "modules_per_string": 20,
+                                    "mountingplace": "free",
+                                    "optimal_surface_tilt": false,
+                                    "optimalangles": false,
+                                    "peakpower": 3.5,
+                                    "pvtechchoice": "crystSi",
+                                    "strings_per_inverter": 2,
+                                    "surface_azimuth": 20.0,
+                                    "surface_tilt": 20.0,
+                                    "trackingtype": 1,
+                                    "userhorizon": [
+                                        5.0,
+                                        15.0,
+                                        25.0
+                                    ]
+                                }
+                            ]
+                        ],
+                        "title": "Planes"
+                    },
+                    "planes_azimuth": {
+                        "description": "Compute a list of the azimuths per active planes.",
+                        "items": {
+                            "type": "number"
+                        },
+                        "readOnly": true,
+                        "title": "Planes Azimuth",
+                        "type": "array"
+                    },
+                    "planes_inverter_paco": {
+                        "description": "Compute a list of the maximum power rating of the inverter per active planes.",
+                        "readOnly": true,
+                        "title": "Planes Inverter Paco"
+                    },
+                    "planes_peakpower": {
+                        "description": "Compute a list of the peak power per active planes.",
+                        "items": {
+                            "type": "number"
+                        },
+                        "readOnly": true,
+                        "title": "Planes Peakpower",
+                        "type": "array"
+                    },
+                    "planes_tilt": {
+                        "description": "Compute a list of the tilts per active planes.",
+                        "items": {
+                            "type": "number"
+                        },
+                        "readOnly": true,
+                        "title": "Planes Tilt",
+                        "type": "array"
+                    },
+                    "planes_userhorizon": {
+                        "description": "Compute a list of the user horizon per active planes.",
+                        "readOnly": true,
+                        "title": "Planes Userhorizon"
+                    },
                     "provider": {
                         "anyOf": [
                             {
@@ -3000,1544 +1637,14 @@
                         "examples": [
                             null
                         ]
-                    },
-                    "pvforecast0_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast0 Albedo"
-                    },
-                    "pvforecast0_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast0 Inverter Model"
-                    },
-                    "pvforecast0_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            6000
-                        ],
-                        "title": "Pvforecast0 Inverter Paco"
-                    },
-                    "pvforecast0_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "title": "Pvforecast0 Loss"
-                    },
-                    "pvforecast0_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast0 Module Model"
-                    },
-                    "pvforecast0_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            20
-                        ],
-                        "title": "Pvforecast0 Modules Per String"
-                    },
-                    "pvforecast0_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "title": "Pvforecast0 Mountingplace"
-                    },
-                    "pvforecast0_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            false
-                        ],
-                        "title": "Pvforecast0 Optimal Surface Tilt"
-                    },
-                    "pvforecast0_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            false
-                        ],
-                        "title": "Pvforecast0 Optimalangles"
-                    },
-                    "pvforecast0_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            5.0
-                        ],
-                        "title": "Pvforecast0 Peakpower"
-                    },
-                    "pvforecast0_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "title": "Pvforecast0 Pvtechchoice"
-                    },
-                    "pvforecast0_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            2
-                        ],
-                        "title": "Pvforecast0 Strings Per Inverter"
-                    },
-                    "pvforecast0_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            10.0
-                        ],
-                        "title": "Pvforecast0 Surface Azimuth"
-                    },
-                    "pvforecast0_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            10.0
-                        ],
-                        "title": "Pvforecast0 Surface Tilt"
-                    },
-                    "pvforecast0_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            0,
-                            1,
-                            2,
-                            3,
-                            4,
-                            5
-                        ],
-                        "title": "Pvforecast0 Trackingtype"
-                    },
-                    "pvforecast0_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            [
-                                10.0,
-                                20.0,
-                                30.0
-                            ]
-                        ],
-                        "title": "Pvforecast0 Userhorizon"
-                    },
-                    "pvforecast1_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast1 Albedo"
-                    },
-                    "pvforecast1_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast1 Inverter Model"
-                    },
-                    "pvforecast1_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            4000
-                        ],
-                        "title": "Pvforecast1 Inverter Paco"
-                    },
-                    "pvforecast1_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "title": "Pvforecast1 Loss"
-                    },
-                    "pvforecast1_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast1 Module Model"
-                    },
-                    "pvforecast1_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            20
-                        ],
-                        "title": "Pvforecast1 Modules Per String"
-                    },
-                    "pvforecast1_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "title": "Pvforecast1 Mountingplace"
-                    },
-                    "pvforecast1_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            false
-                        ],
-                        "title": "Pvforecast1 Optimal Surface Tilt"
-                    },
-                    "pvforecast1_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            false
-                        ],
-                        "title": "Pvforecast1 Optimalangles"
-                    },
-                    "pvforecast1_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            3.5
-                        ],
-                        "title": "Pvforecast1 Peakpower"
-                    },
-                    "pvforecast1_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "title": "Pvforecast1 Pvtechchoice"
-                    },
-                    "pvforecast1_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            2
-                        ],
-                        "title": "Pvforecast1 Strings Per Inverter"
-                    },
-                    "pvforecast1_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            20.0
-                        ],
-                        "title": "Pvforecast1 Surface Azimuth"
-                    },
-                    "pvforecast1_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            20.0
-                        ],
-                        "title": "Pvforecast1 Surface Tilt"
-                    },
-                    "pvforecast1_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast1 Trackingtype"
-                    },
-                    "pvforecast1_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            [
-                                5.0,
-                                15.0,
-                                25.0
-                            ]
-                        ],
-                        "title": "Pvforecast1 Userhorizon"
-                    },
-                    "pvforecast2_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Albedo"
-                    },
-                    "pvforecast2_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Inverter Model"
-                    },
-                    "pvforecast2_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Inverter Paco"
-                    },
-                    "pvforecast2_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Loss"
-                    },
-                    "pvforecast2_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Module Model"
-                    },
-                    "pvforecast2_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Modules Per String"
-                    },
-                    "pvforecast2_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Mountingplace"
-                    },
-                    "pvforecast2_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Optimal Surface Tilt"
-                    },
-                    "pvforecast2_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Optimalangles"
-                    },
-                    "pvforecast2_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Peakpower"
-                    },
-                    "pvforecast2_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Pvtechchoice"
-                    },
-                    "pvforecast2_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Strings Per Inverter"
-                    },
-                    "pvforecast2_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Surface Azimuth"
-                    },
-                    "pvforecast2_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Surface Tilt"
-                    },
-                    "pvforecast2_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Trackingtype"
-                    },
-                    "pvforecast2_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast2 Userhorizon"
-                    },
-                    "pvforecast3_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Albedo"
-                    },
-                    "pvforecast3_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Inverter Model"
-                    },
-                    "pvforecast3_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Inverter Paco"
-                    },
-                    "pvforecast3_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Loss"
-                    },
-                    "pvforecast3_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Module Model"
-                    },
-                    "pvforecast3_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Modules Per String"
-                    },
-                    "pvforecast3_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Mountingplace"
-                    },
-                    "pvforecast3_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Optimal Surface Tilt"
-                    },
-                    "pvforecast3_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Optimalangles"
-                    },
-                    "pvforecast3_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Peakpower"
-                    },
-                    "pvforecast3_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Pvtechchoice"
-                    },
-                    "pvforecast3_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Strings Per Inverter"
-                    },
-                    "pvforecast3_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Surface Azimuth"
-                    },
-                    "pvforecast3_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Surface Tilt"
-                    },
-                    "pvforecast3_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Trackingtype"
-                    },
-                    "pvforecast3_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast3 Userhorizon"
-                    },
-                    "pvforecast4_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Albedo"
-                    },
-                    "pvforecast4_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Inverter Model"
-                    },
-                    "pvforecast4_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Inverter Paco"
-                    },
-                    "pvforecast4_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Loss"
-                    },
-                    "pvforecast4_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Module Model"
-                    },
-                    "pvforecast4_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Modules Per String"
-                    },
-                    "pvforecast4_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Mountingplace"
-                    },
-                    "pvforecast4_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Optimal Surface Tilt"
-                    },
-                    "pvforecast4_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Optimalangles"
-                    },
-                    "pvforecast4_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Peakpower"
-                    },
-                    "pvforecast4_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Pvtechchoice"
-                    },
-                    "pvforecast4_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Strings Per Inverter"
-                    },
-                    "pvforecast4_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Surface Azimuth"
-                    },
-                    "pvforecast4_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Surface Tilt"
-                    },
-                    "pvforecast4_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Trackingtype"
-                    },
-                    "pvforecast4_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast4 Userhorizon"
-                    },
-                    "pvforecast5_albedo": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Proportion of the light hitting the ground that it reflects back.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Albedo"
-                    },
-                    "pvforecast5_inverter_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Inverter Model"
-                    },
-                    "pvforecast5_inverter_paco": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "AC power rating of the inverter. [W]",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Inverter Paco"
-                    },
-                    "pvforecast5_loss": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 14.0,
-                        "description": "Sum of PV system losses in percent",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Loss"
-                    },
-                    "pvforecast5_module_model": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Model of the PV modules of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Module Model"
-                    },
-                    "pvforecast5_modules_per_string": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the PV modules of the strings of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Modules Per String"
-                    },
-                    "pvforecast5_mountingplace": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "free",
-                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Mountingplace"
-                    },
-                    "pvforecast5_optimal_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Optimal Surface Tilt"
-                    },
-                    "pvforecast5_optimalangles": {
-                        "anyOf": [
-                            {
-                                "type": "boolean"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": false,
-                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Optimalangles"
-                    },
-                    "pvforecast5_peakpower": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Nominal power of PV system in kW.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Peakpower"
-                    },
-                    "pvforecast5_pvtechchoice": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "crystSi",
-                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Pvtechchoice"
-                    },
-                    "pvforecast5_strings_per_inverter": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Number of the strings of the inverter of this plane.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Strings Per Inverter"
-                    },
-                    "pvforecast5_surface_azimuth": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Surface Azimuth"
-                    },
-                    "pvforecast5_surface_tilt": {
-                        "anyOf": [
-                            {
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Surface Tilt"
-                    },
-                    "pvforecast5_trackingtype": {
-                        "anyOf": [
-                            {
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Trackingtype"
-                    },
-                    "pvforecast5_userhorizon": {
-                        "anyOf": [
-                            {
-                                "items": {
-                                    "type": "number"
-                                },
-                                "type": "array"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-                        "examples": [
-                            null
-                        ],
-                        "title": "Pvforecast5 Userhorizon"
-                    },
-                    "pvforecast_planes": {
-                        "description": "Compute a list of active planes.",
-                        "items": {
-                            "type": "string"
-                        },
-                        "readOnly": true,
-                        "title": "Pvforecast Planes",
-                        "type": "array"
-                    },
-                    "pvforecast_planes_azimuth": {
-                        "description": "Compute a list of the azimuths per active planes.",
-                        "items": {
-                            "type": "number"
-                        },
-                        "readOnly": true,
-                        "title": "Pvforecast Planes Azimuth",
-                        "type": "array"
-                    },
-                    "pvforecast_planes_inverter_paco": {
-                        "description": "Compute a list of the maximum power rating of the inverter per active planes.",
-                        "readOnly": true,
-                        "title": "Pvforecast Planes Inverter Paco"
-                    },
-                    "pvforecast_planes_peakpower": {
-                        "description": "Compute a list of the peak power per active planes.",
-                        "items": {
-                            "type": "number"
-                        },
-                        "readOnly": true,
-                        "title": "Pvforecast Planes Peakpower",
-                        "type": "array"
-                    },
-                    "pvforecast_planes_tilt": {
-                        "description": "Compute a list of the tilts per active planes.",
-                        "items": {
-                            "type": "number"
-                        },
-                        "readOnly": true,
-                        "title": "Pvforecast Planes Tilt",
-                        "type": "array"
-                    },
-                    "pvforecast_planes_userhorizon": {
-                        "description": "Compute a list of the user horizon per active planes.",
-                        "readOnly": true,
-                        "title": "Pvforecast Planes Userhorizon"
                     }
                 },
                 "required": [
-                    "pvforecast_planes",
-                    "pvforecast_planes_peakpower",
-                    "pvforecast_planes_azimuth",
-                    "pvforecast_planes_tilt",
-                    "pvforecast_planes_userhorizon",
-                    "pvforecast_planes_inverter_paco"
+                    "planes_peakpower",
+                    "planes_azimuth",
+                    "planes_tilt",
+                    "planes_userhorizon",
+                    "planes_inverter_paco"
                 ],
                 "title": "PVForecastCommonSettings",
                 "type": "object"
@@ -4545,7 +1652,7 @@
             "PVForecastImportCommonSettings": {
                 "description": "Common settings for pvforecast data import from file or JSON string.",
                 "properties": {
-                    "pvforecastimport_file_path": {
+                    "import_file_path": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -4563,9 +1670,9 @@
                             null,
                             "/path/to/pvforecast.json"
                         ],
-                        "title": "Pvforecastimport File Path"
+                        "title": "Import File Path"
                     },
-                    "pvforecastimport_json": {
+                    "import_json": {
                         "anyOf": [
                             {
                                 "type": "string"
@@ -4578,10 +1685,276 @@
                         "examples": [
                             "{\"pvforecast_ac_power\": [0, 8.05, 352.91]}"
                         ],
-                        "title": "Pvforecastimport Json"
+                        "title": "Import Json"
                     }
                 },
                 "title": "PVForecastImportCommonSettings",
+                "type": "object"
+            },
+            "PVForecastPlaneSetting": {
+                "description": "PV Forecast Plane Configuration.",
+                "properties": {
+                    "albedo": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Proportion of the light hitting the ground that it reflects back.",
+                        "examples": [
+                            null
+                        ],
+                        "title": "Albedo"
+                    },
+                    "inverter_model": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Model of the inverter of this plane.",
+                        "examples": [
+                            null
+                        ],
+                        "title": "Inverter Model"
+                    },
+                    "inverter_paco": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "AC power rating of the inverter. [W]",
+                        "examples": [
+                            6000,
+                            4000
+                        ],
+                        "title": "Inverter Paco"
+                    },
+                    "loss": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 14.0,
+                        "description": "Sum of PV system losses in percent",
+                        "title": "Loss"
+                    },
+                    "module_model": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Model of the PV modules of this plane.",
+                        "examples": [
+                            null
+                        ],
+                        "title": "Module Model"
+                    },
+                    "modules_per_string": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Number of the PV modules of the strings of this plane.",
+                        "examples": [
+                            20
+                        ],
+                        "title": "Modules Per String"
+                    },
+                    "mountingplace": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": "free",
+                        "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+                        "title": "Mountingplace"
+                    },
+                    "optimal_surface_tilt": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": false,
+                        "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+                        "examples": [
+                            false
+                        ],
+                        "title": "Optimal Surface Tilt"
+                    },
+                    "optimalangles": {
+                        "anyOf": [
+                            {
+                                "type": "boolean"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": false,
+                        "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+                        "examples": [
+                            false
+                        ],
+                        "title": "Optimalangles"
+                    },
+                    "peakpower": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Nominal power of PV system in kW.",
+                        "examples": [
+                            5.0,
+                            3.5
+                        ],
+                        "title": "Peakpower"
+                    },
+                    "pvtechchoice": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": "crystSi",
+                        "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.",
+                        "title": "Pvtechchoice"
+                    },
+                    "strings_per_inverter": {
+                        "anyOf": [
+                            {
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Number of the strings of the inverter of this plane.",
+                        "examples": [
+                            2
+                        ],
+                        "title": "Strings Per Inverter"
+                    },
+                    "surface_azimuth": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+                        "examples": [
+                            10.0,
+                            20.0
+                        ],
+                        "title": "Surface Azimuth"
+                    },
+                    "surface_tilt": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+                        "examples": [
+                            10.0,
+                            20.0
+                        ],
+                        "title": "Surface Tilt"
+                    },
+                    "trackingtype": {
+                        "anyOf": [
+                            {
+                                "maximum": 5.0,
+                                "minimum": 0.0,
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+                        "examples": [
+                            0,
+                            1,
+                            2,
+                            3,
+                            4,
+                            5
+                        ],
+                        "title": "Trackingtype"
+                    },
+                    "userhorizon": {
+                        "anyOf": [
+                            {
+                                "items": {
+                                    "type": "number"
+                                },
+                                "type": "array"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
+                        "examples": [
+                            [
+                                10.0,
+                                20.0,
+                                30.0
+                            ],
+                            [
+                                5.0,
+                                15.0,
+                                25.0
+                            ]
+                        ],
+                        "title": "Userhorizon"
+                    }
+                },
+                "title": "PVForecastPlaneSetting",
                 "type": "object"
             },
             "PredictionCommonSettings-Input": {

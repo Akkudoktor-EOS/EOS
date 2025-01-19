@@ -220,8 +220,8 @@ Configuration options:
 - `pvforecast<0..5>_inverter_paco`: AC power rating of the inverter. [W]
 - `pvforecast<0..5>_modules_per_string`: Number of the PV modules of the strings of this plane.
 - `pvforecast<0..5>_strings_per_inverter`: Number of the strings of the inverter of this plane.
-- `pvforecastimport_file_path`: Path to the file to import PV forecast data from.
-- `pvforecastimport_json`: JSON string, dictionary of PV forecast value lists.
+- `import_file_path`: Path to the file to import PV forecast data from.
+- `import_json`: JSON string, dictionary of PV forecast value lists.
 
 ------
 
@@ -385,7 +385,7 @@ The prediction keys for the PV forecast data are:
 
 The PV forecast data must be provided in one of the formats described in
 <project:#prediction-import-providers>. The data source must be given in the
-`pvforecastimport_file_path` or `pvforecastimport_json` configuration option.
+`import_file_path` or `import_json` configuration option.
 
 ## Weather Prediction
 
@@ -507,4 +507,4 @@ The prediction keys for the PV forecast data are:
 
 The PV forecast data must be provided in one of the formats described in
 <project:#prediction-import-providers>. The data source must be given in the
-`import_file_path` or `pvforecastimport_json` configuration option.
+`import_file_path` or `import_json` configuration option.

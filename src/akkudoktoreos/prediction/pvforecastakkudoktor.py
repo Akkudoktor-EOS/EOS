@@ -22,16 +22,22 @@ Example:
         },
         "pvforecast": {
             "provider": "PVForecastAkkudoktor",
-            "pvforecast0_peakpower": 5.0,
-            "pvforecast0_surface_azimuth": -10,
-            "pvforecast0_surface_tilt": 7,
-            "pvforecast0_userhorizon": [20, 27, 22, 20],
-            "pvforecast0_inverter_paco": 10000,
-            "pvforecast1_peakpower": 4.8,
-            "pvforecast1_surface_azimuth": -90,
-            "pvforecast1_surface_tilt": 7,
-            "pvforecast1_userhorizon": [30, 30, 30, 50],
-            "pvforecast1_inverter_paco": 10000,
+            "planes": [
+                {
+                    "peakpower": 5.0,
+                    "surface_azimuth": -10,
+                    "surface_tilt": 7,
+                    "userhorizon": [20, 27, 22, 20],
+                    "inverter_paco": 10000,
+                },
+                {
+                    "peakpower": 4.8,
+                    "surface_azimuth": -90,
+                    "surface_tilt": 7,
+                    "userhorizon": [30, 30, 30, 50],
+                    "inverter_paco": 10000,
+                }
+            ]
         }
     }
 
@@ -211,19 +217,15 @@ class PVForecastAkkudoktor(PVForecastProvider):
             f"lon={self.config.prediction.longitude}",
         ]
 
-        for i in range(len(self.config.pvforecast.pvforecast_planes)):
+        for i in range(len(self.config.pvforecast.planes)):
+            query_params.append(f"power={int(self.config.pvforecast.planes_peakpower[i] * 1000)}")
+            query_params.append(f"azimuth={int(self.config.pvforecast.planes_azimuth[i])}")
+            query_params.append(f"tilt={int(self.config.pvforecast.planes_tilt[i])}")
             query_params.append(
-                f"power={int(self.config.pvforecast.pvforecast_planes_peakpower[i] * 1000)}"
-            )
-            query_params.append(
-                f"azimuth={int(self.config.pvforecast.pvforecast_planes_azimuth[i])}"
-            )
-            query_params.append(f"tilt={int(self.config.pvforecast.pvforecast_planes_tilt[i])}")
-            query_params.append(
-                f"powerInverter={int(self.config.pvforecast.pvforecast_planes_inverter_paco[i])}"
+                f"powerInverter={int(self.config.pvforecast.planes_inverter_paco[i])}"
             )
             horizon_values = ",".join(
-                str(int(h)) for h in self.config.pvforecast.pvforecast_planes_userhorizon[i]
+                str(int(h)) for h in self.config.pvforecast.planes_userhorizon[i]
             )
             query_params.append(f"horizont={horizon_values}")
 
@@ -273,7 +275,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
         `PVForecastAkkudoktorDataRecord`.
         """
         # Assure we have something to request PV power for.
-        if not self.config.pvforecast.pvforecast_planes:
+        if not self.config.pvforecast.planes:
             # No planes for PV
             error_msg = "Requested PV forecast, but no planes configured."
             logger.error(f"Configuration error: {error_msg}")
@@ -381,26 +383,36 @@ if __name__ == "__main__":
         },
         "pvforecast": {
             "provider": "PVForecastAkkudoktor",
-            "pvforecast0_peakpower": 5.0,
-            "pvforecast0_surface_azimuth": -10,
-            "pvforecast0_surface_tilt": 7,
-            "pvforecast0_userhorizon": [20, 27, 22, 20],
-            "pvforecast0_inverter_paco": 10000,
-            "pvforecast1_peakpower": 4.8,
-            "pvforecast1_surface_azimuth": -90,
-            "pvforecast1_surface_tilt": 7,
-            "pvforecast1_userhorizon": [30, 30, 30, 50],
-            "pvforecast1_inverter_paco": 10000,
-            "pvforecast2_peakpower": 1.4,
-            "pvforecast2_surface_azimuth": -40,
-            "pvforecast2_surface_tilt": 60,
-            "pvforecast2_userhorizon": [60, 30, 0, 30],
-            "pvforecast2_inverter_paco": 2000,
-            "pvforecast3_peakpower": 1.6,
-            "pvforecast3_surface_azimuth": 5,
-            "pvforecast3_surface_tilt": 45,
-            "pvforecast3_userhorizon": [45, 25, 30, 60],
-            "pvforecast3_inverter_paco": 1400,
+            "planes": [
+                {
+                    "peakpower": 5.0,
+                    "surface_azimuth": -10,
+                    "surface_tilt": 7,
+                    "userhorizon": [20, 27, 22, 20],
+                    "inverter_paco": 10000,
+                },
+                {
+                    "peakpower": 4.8,
+                    "surface_azimuth": -90,
+                    "surface_tilt": 7,
+                    "userhorizon": [30, 30, 30, 50],
+                    "inverter_paco": 10000,
+                },
+                {
+                    "peakpower": 1.4,
+                    "surface_azimuth": -40,
+                    "surface_tilt": 60,
+                    "userhorizon": [60, 30, 0, 30],
+                    "inverter_paco": 2000,
+                },
+                {
+                    "peakpower": 1.6,
+                    "surface_azimuth": 5,
+                    "surface_tilt": 45,
+                    "userhorizon": [45, 25, 30, 60],
+                    "inverter_paco": 1400,
+                },
+            ],
         },
     }
 
