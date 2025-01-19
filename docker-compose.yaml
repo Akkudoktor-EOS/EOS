@@ -15,6 +15,7 @@ services:
       - .env
     environment:
       - EOS_CONFIG_DIR=config
+      - EOS_SERVER__EOSDASH_SESSKEY=s3cr3t
       - EOS_PREDICTION__LATITUDE=52.2
       - EOS_PREDICTION__LONGITUDE=13.4
       - EOS_ELECPRICE__PROVIDER=ElecPriceAkkudoktor

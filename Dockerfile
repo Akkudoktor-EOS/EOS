@@ -3,8 +3,6 @@ FROM python:${PYTHON_VERSION}-slim
 
 LABEL source="https://github.com/Akkudoktor-EOS/EOS"
 
-ENV VIRTUAL_ENV="/opt/venv"
-ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 ENV MPLCONFIGDIR="/tmp/mplconfigdir"
 ENV EOS_DIR="/opt/eos"
 ENV EOS_CACHE_DIR="${EOS_DIR}/cache"

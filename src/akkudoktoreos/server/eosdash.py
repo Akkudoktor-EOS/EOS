@@ -5,7 +5,7 @@ from functools import reduce
 from typing import Any, Union
 
 import uvicorn
-from fasthtml.common import H1, FastHTML, Table, Td, Th, Thead, Titled, Tr
+from fasthtml.common import H1, Table, Td, Th, Thead, Titled, Tr, fast_app
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
@@ -94,8 +94,9 @@ for field_name, field_info in list(config_eos.model_fields.items()) + list(
     extract_nested_models(field_info, [field_name])
 
 
-app = FastHTML()
-rt = app.route
+app, rt = fast_app(
+    secret_key=os.getenv("EOS_SERVER__EOSDASH_SESSKEY"),
+)
 
 
 def config_table() -> Table:
