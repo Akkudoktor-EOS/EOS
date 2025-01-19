@@ -275,6 +275,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # EV charge hours as a NumPy array of ints (if optimize_ev is True)
         eautocharge_hours_index = (
+            # append ev charging states to individual
             np.array(
                 individual[self.config.prediction.hours : self.config.prediction.hours * 2],
                 dtype=int,

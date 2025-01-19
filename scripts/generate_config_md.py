@@ -199,7 +199,7 @@ def generate_config_table_md(
         table += ":::\n\n"  # Add an empty line after the table
 
         ins = create_model_from_examples(config)
-        if ins is not None:
+        if ins:
             # Transform to JSON (and manually to dict) to use custom serializers and then merge with parent keys
             ins_json = ins.model_dump_json(include_computed_fields=False)
             ins_dict = json.loads(ins_json)

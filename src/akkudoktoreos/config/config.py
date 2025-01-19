@@ -341,10 +341,13 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         self._setup()
 
     def _create_initial_config_file(self) -> None:
-        if self.config_file_path is not None and not self.config_file_path.exists():
+        if self.config_file_path and not self.config_file_path.exists():
             self.config_file_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self.config_file_path, "w") as f:
-                f.write(self.model_dump_json(indent=4))
+            try:
+                with open(self.config_file_path, "w") as f:
+                    f.write(self.model_dump_json(indent=4))
+            except Exception as e:
+                logger.error(f"Could not write configuration file '{self.config_file_path}': {e}")
 
     def _update_data_folder_path(self) -> None:
         """Updates path to the data directory."""
