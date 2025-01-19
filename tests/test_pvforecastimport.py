@@ -19,8 +19,8 @@ def provider(sample_import_1_json, config_eos):
         "pvforecast": {
             "provider": "PVForecastImport",
             "provider_settings": {
-                "pvforecastimport_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
-                "pvforecastimport_json": json.dumps(sample_import_1_json),
+                "import_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
+                "import_json": json.dumps(sample_import_1_json),
             },
         }
     }
@@ -55,7 +55,7 @@ def test_invalid_provider(provider, config_eos):
         "pvforecast": {
             "provider": "<invalid>",
             "provider_settings": {
-                "pvforecastimport_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
+                "import_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
             },
         }
     }
@@ -86,11 +86,11 @@ def test_import(provider, sample_import_1_json, start_datetime, from_file, confi
     ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
-        config_eos.pvforecast.provider_settings.pvforecastimport_json = None
-        assert config_eos.pvforecast.provider_settings.pvforecastimport_json is None
+        config_eos.pvforecast.provider_settings.import_json = None
+        assert config_eos.pvforecast.provider_settings.import_json is None
     else:
-        config_eos.pvforecast.provider_settings.pvforecastimport_file_path = None
-        assert config_eos.pvforecast.provider_settings.pvforecastimport_file_path is None
+        config_eos.pvforecast.provider_settings.import_file_path = None
+        assert config_eos.pvforecast.provider_settings.import_file_path is None
     provider.clear()
 
     # Call the method

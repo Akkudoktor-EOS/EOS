@@ -510,109 +510,13 @@ Validators:
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | provider | `EOS_PVFORECAST__PROVIDER` | `Optional[str]` | `rw` | `None` | PVForecast provider id of provider to be used. |
-| pvforecast0_surface_tilt | `EOS_PVFORECAST__PVFORECAST0_SURFACE_TILT` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
-| pvforecast0_surface_azimuth | `EOS_PVFORECAST__PVFORECAST0_SURFACE_AZIMUTH` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
-| pvforecast0_userhorizon | `EOS_PVFORECAST__PVFORECAST0_USERHORIZON` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
-| pvforecast0_peakpower | `EOS_PVFORECAST__PVFORECAST0_PEAKPOWER` | `Optional[float]` | `rw` | `None` | Nominal power of PV system in kW. |
-| pvforecast0_pvtechchoice | `EOS_PVFORECAST__PVFORECAST0_PVTECHCHOICE` | `Optional[str]` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
-| pvforecast0_mountingplace | `EOS_PVFORECAST__PVFORECAST0_MOUNTINGPLACE` | `Optional[str]` | `rw` | `free` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
-| pvforecast0_loss | `EOS_PVFORECAST__PVFORECAST0_LOSS` | `Optional[float]` | `rw` | `14.0` | Sum of PV system losses in percent |
-| pvforecast0_trackingtype | `EOS_PVFORECAST__PVFORECAST0_TRACKINGTYPE` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| pvforecast0_optimal_surface_tilt | `EOS_PVFORECAST__PVFORECAST0_OPTIMAL_SURFACE_TILT` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
-| pvforecast0_optimalangles | `EOS_PVFORECAST__PVFORECAST0_OPTIMALANGLES` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
-| pvforecast0_albedo | `EOS_PVFORECAST__PVFORECAST0_ALBEDO` | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
-| pvforecast0_module_model | `EOS_PVFORECAST__PVFORECAST0_MODULE_MODEL` | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
-| pvforecast0_inverter_model | `EOS_PVFORECAST__PVFORECAST0_INVERTER_MODEL` | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
-| pvforecast0_inverter_paco | `EOS_PVFORECAST__PVFORECAST0_INVERTER_PACO` | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
-| pvforecast0_modules_per_string | `EOS_PVFORECAST__PVFORECAST0_MODULES_PER_STRING` | `Optional[int]` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
-| pvforecast0_strings_per_inverter | `EOS_PVFORECAST__PVFORECAST0_STRINGS_PER_INVERTER` | `Optional[int]` | `rw` | `None` | Number of the strings of the inverter of this plane. |
-| pvforecast1_surface_tilt | `EOS_PVFORECAST__PVFORECAST1_SURFACE_TILT` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
-| pvforecast1_surface_azimuth | `EOS_PVFORECAST__PVFORECAST1_SURFACE_AZIMUTH` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
-| pvforecast1_userhorizon | `EOS_PVFORECAST__PVFORECAST1_USERHORIZON` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
-| pvforecast1_peakpower | `EOS_PVFORECAST__PVFORECAST1_PEAKPOWER` | `Optional[float]` | `rw` | `None` | Nominal power of PV system in kW. |
-| pvforecast1_pvtechchoice | `EOS_PVFORECAST__PVFORECAST1_PVTECHCHOICE` | `Optional[str]` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
-| pvforecast1_mountingplace | `EOS_PVFORECAST__PVFORECAST1_MOUNTINGPLACE` | `Optional[str]` | `rw` | `free` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
-| pvforecast1_loss | `EOS_PVFORECAST__PVFORECAST1_LOSS` | `Optional[float]` | `rw` | `14.0` | Sum of PV system losses in percent |
-| pvforecast1_trackingtype | `EOS_PVFORECAST__PVFORECAST1_TRACKINGTYPE` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| pvforecast1_optimal_surface_tilt | `EOS_PVFORECAST__PVFORECAST1_OPTIMAL_SURFACE_TILT` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
-| pvforecast1_optimalangles | `EOS_PVFORECAST__PVFORECAST1_OPTIMALANGLES` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
-| pvforecast1_albedo | `EOS_PVFORECAST__PVFORECAST1_ALBEDO` | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
-| pvforecast1_module_model | `EOS_PVFORECAST__PVFORECAST1_MODULE_MODEL` | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
-| pvforecast1_inverter_model | `EOS_PVFORECAST__PVFORECAST1_INVERTER_MODEL` | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
-| pvforecast1_inverter_paco | `EOS_PVFORECAST__PVFORECAST1_INVERTER_PACO` | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
-| pvforecast1_modules_per_string | `EOS_PVFORECAST__PVFORECAST1_MODULES_PER_STRING` | `Optional[int]` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
-| pvforecast1_strings_per_inverter | `EOS_PVFORECAST__PVFORECAST1_STRINGS_PER_INVERTER` | `Optional[int]` | `rw` | `None` | Number of the strings of the inverter of this plane. |
-| pvforecast2_surface_tilt | `EOS_PVFORECAST__PVFORECAST2_SURFACE_TILT` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
-| pvforecast2_surface_azimuth | `EOS_PVFORECAST__PVFORECAST2_SURFACE_AZIMUTH` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
-| pvforecast2_userhorizon | `EOS_PVFORECAST__PVFORECAST2_USERHORIZON` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
-| pvforecast2_peakpower | `EOS_PVFORECAST__PVFORECAST2_PEAKPOWER` | `Optional[float]` | `rw` | `None` | Nominal power of PV system in kW. |
-| pvforecast2_pvtechchoice | `EOS_PVFORECAST__PVFORECAST2_PVTECHCHOICE` | `Optional[str]` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
-| pvforecast2_mountingplace | `EOS_PVFORECAST__PVFORECAST2_MOUNTINGPLACE` | `Optional[str]` | `rw` | `free` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
-| pvforecast2_loss | `EOS_PVFORECAST__PVFORECAST2_LOSS` | `Optional[float]` | `rw` | `14.0` | Sum of PV system losses in percent |
-| pvforecast2_trackingtype | `EOS_PVFORECAST__PVFORECAST2_TRACKINGTYPE` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| pvforecast2_optimal_surface_tilt | `EOS_PVFORECAST__PVFORECAST2_OPTIMAL_SURFACE_TILT` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
-| pvforecast2_optimalangles | `EOS_PVFORECAST__PVFORECAST2_OPTIMALANGLES` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
-| pvforecast2_albedo | `EOS_PVFORECAST__PVFORECAST2_ALBEDO` | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
-| pvforecast2_module_model | `EOS_PVFORECAST__PVFORECAST2_MODULE_MODEL` | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
-| pvforecast2_inverter_model | `EOS_PVFORECAST__PVFORECAST2_INVERTER_MODEL` | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
-| pvforecast2_inverter_paco | `EOS_PVFORECAST__PVFORECAST2_INVERTER_PACO` | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
-| pvforecast2_modules_per_string | `EOS_PVFORECAST__PVFORECAST2_MODULES_PER_STRING` | `Optional[int]` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
-| pvforecast2_strings_per_inverter | `EOS_PVFORECAST__PVFORECAST2_STRINGS_PER_INVERTER` | `Optional[int]` | `rw` | `None` | Number of the strings of the inverter of this plane. |
-| pvforecast3_surface_tilt | `EOS_PVFORECAST__PVFORECAST3_SURFACE_TILT` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
-| pvforecast3_surface_azimuth | `EOS_PVFORECAST__PVFORECAST3_SURFACE_AZIMUTH` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
-| pvforecast3_userhorizon | `EOS_PVFORECAST__PVFORECAST3_USERHORIZON` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
-| pvforecast3_peakpower | `EOS_PVFORECAST__PVFORECAST3_PEAKPOWER` | `Optional[float]` | `rw` | `None` | Nominal power of PV system in kW. |
-| pvforecast3_pvtechchoice | `EOS_PVFORECAST__PVFORECAST3_PVTECHCHOICE` | `Optional[str]` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
-| pvforecast3_mountingplace | `EOS_PVFORECAST__PVFORECAST3_MOUNTINGPLACE` | `Optional[str]` | `rw` | `free` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
-| pvforecast3_loss | `EOS_PVFORECAST__PVFORECAST3_LOSS` | `Optional[float]` | `rw` | `14.0` | Sum of PV system losses in percent |
-| pvforecast3_trackingtype | `EOS_PVFORECAST__PVFORECAST3_TRACKINGTYPE` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| pvforecast3_optimal_surface_tilt | `EOS_PVFORECAST__PVFORECAST3_OPTIMAL_SURFACE_TILT` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
-| pvforecast3_optimalangles | `EOS_PVFORECAST__PVFORECAST3_OPTIMALANGLES` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
-| pvforecast3_albedo | `EOS_PVFORECAST__PVFORECAST3_ALBEDO` | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
-| pvforecast3_module_model | `EOS_PVFORECAST__PVFORECAST3_MODULE_MODEL` | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
-| pvforecast3_inverter_model | `EOS_PVFORECAST__PVFORECAST3_INVERTER_MODEL` | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
-| pvforecast3_inverter_paco | `EOS_PVFORECAST__PVFORECAST3_INVERTER_PACO` | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
-| pvforecast3_modules_per_string | `EOS_PVFORECAST__PVFORECAST3_MODULES_PER_STRING` | `Optional[int]` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
-| pvforecast3_strings_per_inverter | `EOS_PVFORECAST__PVFORECAST3_STRINGS_PER_INVERTER` | `Optional[int]` | `rw` | `None` | Number of the strings of the inverter of this plane. |
-| pvforecast4_surface_tilt | `EOS_PVFORECAST__PVFORECAST4_SURFACE_TILT` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
-| pvforecast4_surface_azimuth | `EOS_PVFORECAST__PVFORECAST4_SURFACE_AZIMUTH` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
-| pvforecast4_userhorizon | `EOS_PVFORECAST__PVFORECAST4_USERHORIZON` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
-| pvforecast4_peakpower | `EOS_PVFORECAST__PVFORECAST4_PEAKPOWER` | `Optional[float]` | `rw` | `None` | Nominal power of PV system in kW. |
-| pvforecast4_pvtechchoice | `EOS_PVFORECAST__PVFORECAST4_PVTECHCHOICE` | `Optional[str]` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
-| pvforecast4_mountingplace | `EOS_PVFORECAST__PVFORECAST4_MOUNTINGPLACE` | `Optional[str]` | `rw` | `free` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
-| pvforecast4_loss | `EOS_PVFORECAST__PVFORECAST4_LOSS` | `Optional[float]` | `rw` | `14.0` | Sum of PV system losses in percent |
-| pvforecast4_trackingtype | `EOS_PVFORECAST__PVFORECAST4_TRACKINGTYPE` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| pvforecast4_optimal_surface_tilt | `EOS_PVFORECAST__PVFORECAST4_OPTIMAL_SURFACE_TILT` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
-| pvforecast4_optimalangles | `EOS_PVFORECAST__PVFORECAST4_OPTIMALANGLES` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
-| pvforecast4_albedo | `EOS_PVFORECAST__PVFORECAST4_ALBEDO` | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
-| pvforecast4_module_model | `EOS_PVFORECAST__PVFORECAST4_MODULE_MODEL` | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
-| pvforecast4_inverter_model | `EOS_PVFORECAST__PVFORECAST4_INVERTER_MODEL` | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
-| pvforecast4_inverter_paco | `EOS_PVFORECAST__PVFORECAST4_INVERTER_PACO` | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
-| pvforecast4_modules_per_string | `EOS_PVFORECAST__PVFORECAST4_MODULES_PER_STRING` | `Optional[int]` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
-| pvforecast4_strings_per_inverter | `EOS_PVFORECAST__PVFORECAST4_STRINGS_PER_INVERTER` | `Optional[int]` | `rw` | `None` | Number of the strings of the inverter of this plane. |
-| pvforecast5_surface_tilt | `EOS_PVFORECAST__PVFORECAST5_SURFACE_TILT` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
-| pvforecast5_surface_azimuth | `EOS_PVFORECAST__PVFORECAST5_SURFACE_AZIMUTH` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
-| pvforecast5_userhorizon | `EOS_PVFORECAST__PVFORECAST5_USERHORIZON` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
-| pvforecast5_peakpower | `EOS_PVFORECAST__PVFORECAST5_PEAKPOWER` | `Optional[float]` | `rw` | `None` | Nominal power of PV system in kW. |
-| pvforecast5_pvtechchoice | `EOS_PVFORECAST__PVFORECAST5_PVTECHCHOICE` | `Optional[str]` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
-| pvforecast5_mountingplace | `EOS_PVFORECAST__PVFORECAST5_MOUNTINGPLACE` | `Optional[str]` | `rw` | `free` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
-| pvforecast5_loss | `EOS_PVFORECAST__PVFORECAST5_LOSS` | `Optional[float]` | `rw` | `14.0` | Sum of PV system losses in percent |
-| pvforecast5_trackingtype | `EOS_PVFORECAST__PVFORECAST5_TRACKINGTYPE` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| pvforecast5_optimal_surface_tilt | `EOS_PVFORECAST__PVFORECAST5_OPTIMAL_SURFACE_TILT` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
-| pvforecast5_optimalangles | `EOS_PVFORECAST__PVFORECAST5_OPTIMALANGLES` | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
-| pvforecast5_albedo | `EOS_PVFORECAST__PVFORECAST5_ALBEDO` | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
-| pvforecast5_module_model | `EOS_PVFORECAST__PVFORECAST5_MODULE_MODEL` | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
-| pvforecast5_inverter_model | `EOS_PVFORECAST__PVFORECAST5_INVERTER_MODEL` | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
-| pvforecast5_inverter_paco | `EOS_PVFORECAST__PVFORECAST5_INVERTER_PACO` | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
-| pvforecast5_modules_per_string | `EOS_PVFORECAST__PVFORECAST5_MODULES_PER_STRING` | `Optional[int]` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
-| pvforecast5_strings_per_inverter | `EOS_PVFORECAST__PVFORECAST5_STRINGS_PER_INVERTER` | `Optional[int]` | `rw` | `None` | Number of the strings of the inverter of this plane. |
+| planes | `EOS_PVFORECAST__PLANES` | `Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]` | `rw` | `None` | Plane configuration. |
 | provider_settings | `EOS_PVFORECAST__PROVIDER_SETTINGS` | `Optional[akkudoktoreos.prediction.pvforecastimport.PVForecastImportCommonSettings]` | `rw` | `None` | Provider settings |
-| pvforecast_planes | | `List[str]` | `ro` | `N/A` | Compute a list of active planes. |
-| pvforecast_planes_peakpower | | `List[float]` | `ro` | `N/A` | Compute a list of the peak power per active planes. |
-| pvforecast_planes_azimuth | | `List[float]` | `ro` | `N/A` | Compute a list of the azimuths per active planes. |
-| pvforecast_planes_tilt | | `List[float]` | `ro` | `N/A` | Compute a list of the tilts per active planes. |
-| pvforecast_planes_userhorizon | | `Any` | `ro` | `N/A` | Compute a list of the user horizon per active planes. |
-| pvforecast_planes_inverter_paco | | `Any` | `ro` | `N/A` | Compute a list of the maximum power rating of the inverter per active planes. |
+| planes_peakpower | | `List[float]` | `ro` | `N/A` | Compute a list of the peak power per active planes. |
+| planes_azimuth | | `List[float]` | `ro` | `N/A` | Compute a list of the azimuths per active planes. |
+| planes_tilt | | `List[float]` | `ro` | `N/A` | Compute a list of the tilts per active planes. |
+| planes_userhorizon | | `Any` | `ro` | `N/A` | Compute a list of the user horizon per active planes. |
+| planes_inverter_paco | | `Any` | `ro` | `N/A` | Compute a list of the maximum power rating of the inverter per active planes. |
 :::
 
 ### Example Input
@@ -623,110 +527,52 @@ Validators:
    {
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
-           "pvforecast0_surface_tilt": 10.0,
-           "pvforecast0_surface_azimuth": 10.0,
-           "pvforecast0_userhorizon": [
-               10.0,
-               20.0,
-               30.0
+           "planes": [
+               {
+                   "surface_tilt": 10.0,
+                   "surface_azimuth": 10.0,
+                   "userhorizon": [
+                       10.0,
+                       20.0,
+                       30.0
+                   ],
+                   "peakpower": 5.0,
+                   "pvtechchoice": "crystSi",
+                   "mountingplace": "free",
+                   "loss": 14.0,
+                   "trackingtype": 0,
+                   "optimal_surface_tilt": false,
+                   "optimalangles": false,
+                   "albedo": null,
+                   "module_model": null,
+                   "inverter_model": null,
+                   "inverter_paco": 6000,
+                   "modules_per_string": 20,
+                   "strings_per_inverter": 2
+               },
+               {
+                   "surface_tilt": 20.0,
+                   "surface_azimuth": 20.0,
+                   "userhorizon": [
+                       5.0,
+                       15.0,
+                       25.0
+                   ],
+                   "peakpower": 3.5,
+                   "pvtechchoice": "crystSi",
+                   "mountingplace": "free",
+                   "loss": 14.0,
+                   "trackingtype": 1,
+                   "optimal_surface_tilt": false,
+                   "optimalangles": false,
+                   "albedo": null,
+                   "module_model": null,
+                   "inverter_model": null,
+                   "inverter_paco": 4000,
+                   "modules_per_string": 20,
+                   "strings_per_inverter": 2
+               }
            ],
-           "pvforecast0_peakpower": 5.0,
-           "pvforecast0_pvtechchoice": "crystSi",
-           "pvforecast0_mountingplace": "free",
-           "pvforecast0_loss": 14.0,
-           "pvforecast0_trackingtype": 0,
-           "pvforecast0_optimal_surface_tilt": false,
-           "pvforecast0_optimalangles": false,
-           "pvforecast0_albedo": null,
-           "pvforecast0_module_model": null,
-           "pvforecast0_inverter_model": null,
-           "pvforecast0_inverter_paco": 6000,
-           "pvforecast0_modules_per_string": 20,
-           "pvforecast0_strings_per_inverter": 2,
-           "pvforecast1_surface_tilt": 20.0,
-           "pvforecast1_surface_azimuth": 20.0,
-           "pvforecast1_userhorizon": [
-               5.0,
-               15.0,
-               25.0
-           ],
-           "pvforecast1_peakpower": 3.5,
-           "pvforecast1_pvtechchoice": "crystSi",
-           "pvforecast1_mountingplace": "free",
-           "pvforecast1_loss": 14.0,
-           "pvforecast1_trackingtype": null,
-           "pvforecast1_optimal_surface_tilt": false,
-           "pvforecast1_optimalangles": false,
-           "pvforecast1_albedo": null,
-           "pvforecast1_module_model": null,
-           "pvforecast1_inverter_model": null,
-           "pvforecast1_inverter_paco": 4000,
-           "pvforecast1_modules_per_string": 20,
-           "pvforecast1_strings_per_inverter": 2,
-           "pvforecast2_surface_tilt": null,
-           "pvforecast2_surface_azimuth": null,
-           "pvforecast2_userhorizon": null,
-           "pvforecast2_peakpower": null,
-           "pvforecast2_pvtechchoice": null,
-           "pvforecast2_mountingplace": null,
-           "pvforecast2_loss": null,
-           "pvforecast2_trackingtype": null,
-           "pvforecast2_optimal_surface_tilt": null,
-           "pvforecast2_optimalangles": null,
-           "pvforecast2_albedo": null,
-           "pvforecast2_module_model": null,
-           "pvforecast2_inverter_model": null,
-           "pvforecast2_inverter_paco": null,
-           "pvforecast2_modules_per_string": null,
-           "pvforecast2_strings_per_inverter": null,
-           "pvforecast3_surface_tilt": null,
-           "pvforecast3_surface_azimuth": null,
-           "pvforecast3_userhorizon": null,
-           "pvforecast3_peakpower": null,
-           "pvforecast3_pvtechchoice": null,
-           "pvforecast3_mountingplace": null,
-           "pvforecast3_loss": null,
-           "pvforecast3_trackingtype": null,
-           "pvforecast3_optimal_surface_tilt": null,
-           "pvforecast3_optimalangles": null,
-           "pvforecast3_albedo": null,
-           "pvforecast3_module_model": null,
-           "pvforecast3_inverter_model": null,
-           "pvforecast3_inverter_paco": null,
-           "pvforecast3_modules_per_string": null,
-           "pvforecast3_strings_per_inverter": null,
-           "pvforecast4_surface_tilt": null,
-           "pvforecast4_surface_azimuth": null,
-           "pvforecast4_userhorizon": null,
-           "pvforecast4_peakpower": null,
-           "pvforecast4_pvtechchoice": null,
-           "pvforecast4_mountingplace": null,
-           "pvforecast4_loss": null,
-           "pvforecast4_trackingtype": null,
-           "pvforecast4_optimal_surface_tilt": null,
-           "pvforecast4_optimalangles": null,
-           "pvforecast4_albedo": null,
-           "pvforecast4_module_model": null,
-           "pvforecast4_inverter_model": null,
-           "pvforecast4_inverter_paco": null,
-           "pvforecast4_modules_per_string": null,
-           "pvforecast4_strings_per_inverter": null,
-           "pvforecast5_surface_tilt": null,
-           "pvforecast5_surface_azimuth": null,
-           "pvforecast5_userhorizon": null,
-           "pvforecast5_peakpower": null,
-           "pvforecast5_pvtechchoice": null,
-           "pvforecast5_mountingplace": null,
-           "pvforecast5_loss": null,
-           "pvforecast5_trackingtype": null,
-           "pvforecast5_optimal_surface_tilt": null,
-           "pvforecast5_optimalangles": null,
-           "pvforecast5_albedo": null,
-           "pvforecast5_module_model": null,
-           "pvforecast5_inverter_model": null,
-           "pvforecast5_inverter_paco": null,
-           "pvforecast5_modules_per_string": null,
-           "pvforecast5_strings_per_inverter": null,
            "provider_settings": null
        }
    }
@@ -740,128 +586,66 @@ Validators:
    {
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
-           "pvforecast0_surface_tilt": 10.0,
-           "pvforecast0_surface_azimuth": 10.0,
-           "pvforecast0_userhorizon": [
-               10.0,
-               20.0,
-               30.0
+           "planes": [
+               {
+                   "surface_tilt": 10.0,
+                   "surface_azimuth": 10.0,
+                   "userhorizon": [
+                       10.0,
+                       20.0,
+                       30.0
+                   ],
+                   "peakpower": 5.0,
+                   "pvtechchoice": "crystSi",
+                   "mountingplace": "free",
+                   "loss": 14.0,
+                   "trackingtype": 0,
+                   "optimal_surface_tilt": false,
+                   "optimalangles": false,
+                   "albedo": null,
+                   "module_model": null,
+                   "inverter_model": null,
+                   "inverter_paco": 6000,
+                   "modules_per_string": 20,
+                   "strings_per_inverter": 2
+               },
+               {
+                   "surface_tilt": 20.0,
+                   "surface_azimuth": 20.0,
+                   "userhorizon": [
+                       5.0,
+                       15.0,
+                       25.0
+                   ],
+                   "peakpower": 3.5,
+                   "pvtechchoice": "crystSi",
+                   "mountingplace": "free",
+                   "loss": 14.0,
+                   "trackingtype": 1,
+                   "optimal_surface_tilt": false,
+                   "optimalangles": false,
+                   "albedo": null,
+                   "module_model": null,
+                   "inverter_model": null,
+                   "inverter_paco": 4000,
+                   "modules_per_string": 20,
+                   "strings_per_inverter": 2
+               }
            ],
-           "pvforecast0_peakpower": 5.0,
-           "pvforecast0_pvtechchoice": "crystSi",
-           "pvforecast0_mountingplace": "free",
-           "pvforecast0_loss": 14.0,
-           "pvforecast0_trackingtype": 0,
-           "pvforecast0_optimal_surface_tilt": false,
-           "pvforecast0_optimalangles": false,
-           "pvforecast0_albedo": null,
-           "pvforecast0_module_model": null,
-           "pvforecast0_inverter_model": null,
-           "pvforecast0_inverter_paco": 6000,
-           "pvforecast0_modules_per_string": 20,
-           "pvforecast0_strings_per_inverter": 2,
-           "pvforecast1_surface_tilt": 20.0,
-           "pvforecast1_surface_azimuth": 20.0,
-           "pvforecast1_userhorizon": [
-               5.0,
-               15.0,
-               25.0
-           ],
-           "pvforecast1_peakpower": 3.5,
-           "pvforecast1_pvtechchoice": "crystSi",
-           "pvforecast1_mountingplace": "free",
-           "pvforecast1_loss": 14.0,
-           "pvforecast1_trackingtype": null,
-           "pvforecast1_optimal_surface_tilt": false,
-           "pvforecast1_optimalangles": false,
-           "pvforecast1_albedo": null,
-           "pvforecast1_module_model": null,
-           "pvforecast1_inverter_model": null,
-           "pvforecast1_inverter_paco": 4000,
-           "pvforecast1_modules_per_string": 20,
-           "pvforecast1_strings_per_inverter": 2,
-           "pvforecast2_surface_tilt": null,
-           "pvforecast2_surface_azimuth": null,
-           "pvforecast2_userhorizon": null,
-           "pvforecast2_peakpower": null,
-           "pvforecast2_pvtechchoice": null,
-           "pvforecast2_mountingplace": null,
-           "pvforecast2_loss": null,
-           "pvforecast2_trackingtype": null,
-           "pvforecast2_optimal_surface_tilt": null,
-           "pvforecast2_optimalangles": null,
-           "pvforecast2_albedo": null,
-           "pvforecast2_module_model": null,
-           "pvforecast2_inverter_model": null,
-           "pvforecast2_inverter_paco": null,
-           "pvforecast2_modules_per_string": null,
-           "pvforecast2_strings_per_inverter": null,
-           "pvforecast3_surface_tilt": null,
-           "pvforecast3_surface_azimuth": null,
-           "pvforecast3_userhorizon": null,
-           "pvforecast3_peakpower": null,
-           "pvforecast3_pvtechchoice": null,
-           "pvforecast3_mountingplace": null,
-           "pvforecast3_loss": null,
-           "pvforecast3_trackingtype": null,
-           "pvforecast3_optimal_surface_tilt": null,
-           "pvforecast3_optimalangles": null,
-           "pvforecast3_albedo": null,
-           "pvforecast3_module_model": null,
-           "pvforecast3_inverter_model": null,
-           "pvforecast3_inverter_paco": null,
-           "pvforecast3_modules_per_string": null,
-           "pvforecast3_strings_per_inverter": null,
-           "pvforecast4_surface_tilt": null,
-           "pvforecast4_surface_azimuth": null,
-           "pvforecast4_userhorizon": null,
-           "pvforecast4_peakpower": null,
-           "pvforecast4_pvtechchoice": null,
-           "pvforecast4_mountingplace": null,
-           "pvforecast4_loss": null,
-           "pvforecast4_trackingtype": null,
-           "pvforecast4_optimal_surface_tilt": null,
-           "pvforecast4_optimalangles": null,
-           "pvforecast4_albedo": null,
-           "pvforecast4_module_model": null,
-           "pvforecast4_inverter_model": null,
-           "pvforecast4_inverter_paco": null,
-           "pvforecast4_modules_per_string": null,
-           "pvforecast4_strings_per_inverter": null,
-           "pvforecast5_surface_tilt": null,
-           "pvforecast5_surface_azimuth": null,
-           "pvforecast5_userhorizon": null,
-           "pvforecast5_peakpower": null,
-           "pvforecast5_pvtechchoice": null,
-           "pvforecast5_mountingplace": null,
-           "pvforecast5_loss": null,
-           "pvforecast5_trackingtype": null,
-           "pvforecast5_optimal_surface_tilt": null,
-           "pvforecast5_optimalangles": null,
-           "pvforecast5_albedo": null,
-           "pvforecast5_module_model": null,
-           "pvforecast5_inverter_model": null,
-           "pvforecast5_inverter_paco": null,
-           "pvforecast5_modules_per_string": null,
-           "pvforecast5_strings_per_inverter": null,
            "provider_settings": null,
-           "pvforecast_planes": [
-               "pvforecast0",
-               "pvforecast1"
-           ],
-           "pvforecast_planes_peakpower": [
+           "planes_peakpower": [
                5.0,
                3.5
            ],
-           "pvforecast_planes_azimuth": [
+           "planes_azimuth": [
                10.0,
                20.0
            ],
-           "pvforecast_planes_tilt": [
+           "planes_tilt": [
                10.0,
                20.0
            ],
-           "pvforecast_planes_userhorizon": [
+           "planes_userhorizon": [
                [
                    10.0,
                    20.0,
@@ -873,7 +657,7 @@ Validators:
                    25.0
                ]
            ],
-           "pvforecast_planes_inverter_paco": [
+           "planes_inverter_paco": [
                6000.0,
                4000.0
            ]
@@ -889,8 +673,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| pvforecastimport_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import PV forecast data from. |
-| pvforecastimport_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of PV forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import PV forecast data from. |
+| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of PV forecast value lists. |
 :::
 
 #### Example Input/Output
@@ -901,9 +685,92 @@ Validators:
    {
        "pvforecast": {
            "provider_settings": {
-               "pvforecastimport_file_path": null,
-               "pvforecastimport_json": "{\"pvforecast_ac_power\": [0, 8.05, 352.91]}"
+               "import_file_path": null,
+               "import_json": "{\"pvforecast_ac_power\": [0, 8.05, 352.91]}"
            }
+       }
+   }
+```
+
+### PV Forecast Plane Configuration
+
+:::{table} pvforecast::planes::list
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| surface_tilt | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
+| surface_azimuth | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
+| userhorizon | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
+| peakpower | `Optional[float]` | `rw` | `None` | Nominal power of PV system in kW. |
+| pvtechchoice | `Optional[str]` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
+| mountingplace | `Optional[str]` | `rw` | `free` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
+| loss | `Optional[float]` | `rw` | `14.0` | Sum of PV system losses in percent |
+| trackingtype | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
+| optimal_surface_tilt | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
+| optimalangles | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
+| albedo | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
+| module_model | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
+| inverter_model | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
+| inverter_paco | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
+| modules_per_string | `Optional[int]` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
+| strings_per_inverter | `Optional[int]` | `rw` | `None` | Number of the strings of the inverter of this plane. |
+:::
+
+#### Example Input/Output
+
+```{eval-rst}
+.. code-block:: json
+
+   {
+       "pvforecast": {
+           "planes": [
+               {
+                   "surface_tilt": 10.0,
+                   "surface_azimuth": 10.0,
+                   "userhorizon": [
+                       10.0,
+                       20.0,
+                       30.0
+                   ],
+                   "peakpower": 5.0,
+                   "pvtechchoice": "crystSi",
+                   "mountingplace": "free",
+                   "loss": 14.0,
+                   "trackingtype": 0,
+                   "optimal_surface_tilt": false,
+                   "optimalangles": false,
+                   "albedo": null,
+                   "module_model": null,
+                   "inverter_model": null,
+                   "inverter_paco": 6000,
+                   "modules_per_string": 20,
+                   "strings_per_inverter": 2
+               },
+               {
+                   "surface_tilt": 20.0,
+                   "surface_azimuth": 20.0,
+                   "userhorizon": [
+                       5.0,
+                       15.0,
+                       25.0
+                   ],
+                   "peakpower": 3.5,
+                   "pvtechchoice": "crystSi",
+                   "mountingplace": "free",
+                   "loss": 14.0,
+                   "trackingtype": 1,
+                   "optimal_surface_tilt": false,
+                   "optimalangles": false,
+                   "albedo": null,
+                   "module_model": null,
+                   "inverter_model": null,
+                   "inverter_paco": 4000,
+                   "modules_per_string": 20,
+                   "strings_per_inverter": 2
+               }
+           ]
        }
    }
 ```
