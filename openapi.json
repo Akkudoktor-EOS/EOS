@@ -161,6 +161,34 @@
             "ConfigCommonSettings-Output": {
                 "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files.",
                 "properties": {
+                    "config_file_path": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Path to EOS configuration file.",
+                        "readOnly": true,
+                        "title": "Config File Path"
+                    },
+                    "config_folder_path": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Path to EOS configuration directory.",
+                        "readOnly": true,
+                        "title": "Config Folder Path"
+                    },
                     "data_cache_path": {
                         "anyOf": [
                             {
@@ -237,7 +265,9 @@
                 },
                 "required": [
                     "data_output_path",
-                    "data_cache_path"
+                    "data_cache_path",
+                    "config_folder_path",
+                    "config_file_path"
                 ],
                 "title": "ConfigCommonSettings",
                 "type": "object"
@@ -257,6 +287,8 @@
                     "general": {
                         "$ref": "#/components/schemas/ConfigCommonSettings-Output",
                         "default": {
+                            "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json",
+                            "config_folder_path": "/home/user/.config/net.akkudoktoreos.net",
                             "data_cache_subpath": "cache",
                             "data_output_subpath": "output"
                         }
@@ -3087,7 +3119,7 @@
                 ]
             },
             "put": {
-                "description": "Write the provided settings into the current settings.\n\nThe existing settings are completely overwritten. Note that for any setting\nvalue that is None, the configuration will fall back to values from other sources such as\nenvironment variables, the EOS configuration file, or default values.\n\nArgs:\n    settings (SettingsEOS): The settings to write into the current settings.\n\nReturns:\n    configuration (ConfigEOS): The current configuration after the write.",
+                "description": "Update the current config with the provided settings.\n\nNote that for any setting value that is None or unset, the configuration will fall back to\nvalues from other sources such as environment variables, the EOS configuration file, or default\nvalues.\n\nArgs:\n    settings (SettingsEOS): The settings to write into the current settings.\n\nReturns:\n    configuration (ConfigEOS): The current configuration after the write.",
                 "operationId": "fastapi_config_put_v1_config_put",
                 "requestBody": {
                     "content": {

@@ -68,6 +68,9 @@ class ConfigCommonSettings(SettingsBaseModel):
     General configuration to set directories of cache and output files.
     """
 
+    _config_folder_path: ClassVar[Optional[Path]] = None
+    _config_file_path: ClassVar[Optional[Path]] = None
+
     data_folder_path: Optional[Path] = Field(
         default=None, description="Path to EOS data directory.", examples=[None, "/home/eos/data"]
     )
@@ -87,12 +90,23 @@ class ConfigCommonSettings(SettingsBaseModel):
         """Compute data_output_path based on data_folder_path."""
         return get_absolute_path(self.data_folder_path, self.data_output_subpath)
 
-    # Computed fields
     @computed_field  # type: ignore[prop-decorator]
     @property
     def data_cache_path(self) -> Optional[Path]:
         """Compute data_cache_path based on data_folder_path."""
         return get_absolute_path(self.data_folder_path, self.data_cache_subpath)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def config_folder_path(self) -> Optional[Path]:
+        """Path to EOS configuration directory."""
+        return self._config_folder_path
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def config_file_path(self) -> Optional[Path]:
+        """Path to EOS configuration file."""
+        return self._config_file_path
 
 
 class SettingsEOS(BaseSettings):
@@ -191,9 +205,6 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     ENCODING: ClassVar[str] = "UTF-8"
     CONFIG_FILE_NAME: ClassVar[str] = "EOS.config.json"
 
-    _config_folder_path: ClassVar[Optional[Path]] = None
-    _config_file_path: ClassVar[Optional[Path]] = None
-
     @classmethod
     def settings_customise_sources(
         cls,
@@ -224,7 +235,8 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             2. If the configuration file does not exist, creates the directory (if needed) and attempts to copy a
                default configuration file to the location. If the copy fails, uses the default configuration file directly.
             3. Creates a `JsonConfigSettingsSource` for both the configuration file and the default configuration file.
-            4. Updates class attributes `_config_folder_path` and `_config_file_path` to reflect the determined paths.
+            4. Updates class attributes `ConfigCommonSettings._config_folder_path` and
+               `ConfigCommonSettings._config_file_path` to reflect the determined paths.
             5. Returns a tuple containing all provided and newly created settings sources in the desired order.
 
         Notes:
@@ -246,8 +258,8 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         default_settings = JsonConfigSettingsSource(
             settings_cls, json_file=cls.config_default_file_path
         )
-        cls._config_folder_path = config_dir
-        cls._config_file_path = config_file
+        ConfigCommonSettings._config_folder_path = config_dir
+        ConfigCommonSettings._config_file_path = config_file
 
         return (
             init_settings,
@@ -257,16 +269,6 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             file_secret_settings,
             default_settings,
         )
-
-    @property
-    def config_folder_path(self) -> Optional[Path]:
-        """Path to EOS configuration directory."""
-        return self._config_folder_path
-
-    @property
-    def config_file_path(self) -> Optional[Path]:
-        """Path to EOS configuration file."""
-        return self._config_file_path
 
     @classmethod
     @classproperty
@@ -341,13 +343,15 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         self._setup()
 
     def _create_initial_config_file(self) -> None:
-        if self.config_file_path and not self.config_file_path.exists():
-            self.config_file_path.parent.mkdir(parents=True, exist_ok=True)
+        if self.general.config_file_path and not self.general.config_file_path.exists():
+            self.general.config_file_path.parent.mkdir(parents=True, exist_ok=True)
             try:
-                with open(self.config_file_path, "w") as f:
+                with open(self.general.config_file_path, "w") as f:
                     f.write(self.model_dump_json(indent=4))
             except Exception as e:
-                logger.error(f"Could not write configuration file '{self.config_file_path}': {e}")
+                logger.error(
+                    f"Could not write configuration file '{self.general.config_file_path}': {e}"
+                )
 
     def _update_data_folder_path(self) -> None:
         """Updates path to the data directory."""
@@ -412,9 +416,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         Raises:
             ValueError: If the configuration file path is not specified or can not be written to.
         """
-        if not self.config_file_path:
+        if not self.general.config_file_path:
             raise ValueError("Configuration file path unknown.")
-        with self.config_file_path.open("w", encoding=self.ENCODING) as f_out:
+        with self.general.config_file_path.open("w", encoding=self.ENCODING) as f_out:
             json_str = super().model_dump_json()
             f_out.write(json_str)
 

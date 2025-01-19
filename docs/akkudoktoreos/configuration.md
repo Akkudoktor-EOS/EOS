@@ -7,10 +7,9 @@ management.
 
 ## Storing Configuration
 
-EOS stores configuration data in a **key-value store**, where a `configuration key` refers to the
-unique identifier used to store and retrieve specific configuration data. Note that the key-value
-store is memory-based, meaning all stored data will be lost upon restarting the EOS REST server if
-not saved to the `EOS configuration file`.
+EOS stores configuration data in a `nested structure`. Note that configuration changes inside EOS
+are updated in memory, meaning all changes will be lost upon restarting the EOS REST server if not
+saved to the `EOS configuration file`.
 
 Some `configuration keys` are read-only and cannot be altered. These keys are either set up by other
 means, such as environment variables, or determined from other information.
@@ -25,32 +24,33 @@ Use endpoint `PUT /v1/config/file` to save the current configuration to the
 
 ### Load Configuration File
 
-Use endpoint `POST /v1/config/update` to update the configuration from the `EOS configuration file`.
+Use endpoint `POST /v1/config/reset` to reset the configuration to the values in the
+`EOS configuration file`.
 
 ## Configuration Sources and Priorities
 
 The configuration sources and their priorities are as follows:
 
-1. **Settings**: Provided during runtime by the REST interface
+1. **Runtime Config Updates**: Provided during runtime by the REST interface
 2. **Environment Variables**: Defined at startup of the REST server and during runtime
 3. **EOS Configuration File**: Read at startup of the REST server and on request
 4. **Default Values**
 
-### Settings
+### Runtime Config Updates
 
-Settings are sets of configuration data that take precedence over all other configuration data from
-different sources. Note that settings are not persistent. To make the current configuration with the
-current settings persistent, save the configuration to the `EOS configuration file`.
+The EOS configuration can be updated at runtime. Note that those updates are not persistet
+automatically. However it is possible to save the configuration to the `EOS configuration file`.
 
-Use the following endpoints to change the current configuration settings:
+Use the following endpoints to change the current runtime configuration:
 
-- `PUT /v1/config`: Replaces the entire configuration settings.
-- `PUT /v1/config/value`: Sets a specific configuration option.
+- `PUT /v1/config`: Update the entire or parts of the configuration.
 
 ### Environment Variables
 
-All `configuration keys` can be set by environment variables with the same name. EOS recognizes the
-following special environment variables:
+All `configuration keys` can be set by environment variables prefixed with `EOS_` and separated by
+`__` for nested structures. Environment variables are case insensitive.
+
+EOS recognizes the following special environment variables (case sensitive):
 
 - `EOS_CONFIG_DIR`: The directory to search for an EOS configuration file.
 - `EOS_DIR`: The directory used by EOS for data, which will also be searched for an EOS
@@ -65,7 +65,7 @@ If you do not have a configuration file, it will be automatically created on the
 the REST server in a system-dependent location.
 
 To determine the location of the configuration file used by EOS, ask the REST server. The endpoint
-`GET /v1/config` provides the `config_file_path` configuration key.
+`GET /v1/config` provides the `general.config_file_path` configuration key.
 
 EOS searches for the configuration file in the following order:
 
@@ -74,9 +74,15 @@ EOS searches for the configuration file in the following order:
 3. A platform-specific default directory for EOS
 4. The current working directory
 
-The first available configuration file found in these directories is loaded. If no configuration
-file is found, a default configuration file is created in the platform-specific default directory,
-and default settings are loaded into it.
+The first configuration file available in these directories is loaded. If no configuration file is
+found, a default configuration file is created, and the default settings are written to it. The
+location of the created configuration file follows the same order in which EOS searches for
+configuration files, and it depends on whether the relevant environment variables are set.
+
+Use the following endpoints to interact with the configuration file:
+
+- `PUT /v1/config/file`: Save the current configuration to the configuration file.
+- `PUT /v1/config/reset`: Reload the configuration file, all unsaved runtime configuration is reset.
 
 ### Default Values
 

@@ -39,27 +39,36 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
         # PV Forecast
         "pvforecast": {
             "provider": "PVForecastAkkudoktor",
-            "pvforecast0_peakpower": 5.0,
-            "pvforecast0_surface_azimuth": -10,
-            "pvforecast0_surface_tilt": 7,
-            "pvforecast0_userhorizon": [20, 27, 22, 20],
-            "pvforecast0_inverter_paco": 10000,
-            "pvforecast1_peakpower": 4.8,
-            "pvforecast1_surface_azimuth": -90,
-            "pvforecast1_surface_tilt": 7,
-            "pvforecast1_userhorizon": [30, 30, 30, 50],
-            "pvforecast1_inverter_paco": 10000,
-            "pvforecast2_peakpower": 1.4,
-            "pvforecast2_surface_azimuth": -40,
-            "pvforecast2_surface_tilt": 60,
-            "pvforecast2_userhorizon": [60, 30, 0, 30],
-            "pvforecast2_inverter_paco": 2000,
-            "pvforecast3_peakpower": 1.6,
-            "pvforecast3_surface_azimuth": 5,
-            "pvforecast3_surface_tilt": 45,
-            "pvforecast3_userhorizon": [45, 25, 30, 60],
-            "pvforecast3_inverter_paco": 1400,
-            "pvforecast4_peakpower": None,
+            "planes": [
+                {
+                    "peakpower": 5.0,
+                    "surface_azimuth": -10,
+                    "surface_tilt": 7,
+                    "userhorizon": [20, 27, 22, 20],
+                    "inverter_paco": 10000,
+                },
+                {
+                    "peakpower": 4.8,
+                    "surface_azimuth": -90,
+                    "surface_tilt": 7,
+                    "userhorizon": [30, 30, 30, 50],
+                    "inverter_paco": 10000,
+                },
+                {
+                    "peakpower": 1.4,
+                    "surface_azimuth": -40,
+                    "surface_tilt": 60,
+                    "userhorizon": [60, 30, 0, 30],
+                    "inverter_paco": 2000,
+                },
+                {
+                    "peakpower": 1.6,
+                    "surface_azimuth": 5,
+                    "surface_tilt": 45,
+                    "userhorizon": [45, 25, 30, 60],
+                    "inverter_paco": 1400,
+                },
+            ],
         },
         # Weather Forecast
         "weather": {
@@ -67,7 +76,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
         },
         # Electricity Price Forecast
         "elecprice": {
-            "provider": "Akkudoktor",
+            "provider": "ElecPriceAkkudoktor",
         },
         # Load Forecast
         "load": {
@@ -298,7 +307,7 @@ def prepare_optimization_parameters() -> OptimizationParameters:
                 "initial_soc_percentage": 15,
                 "min_soc_percentage": 15,
             },
-            "inverter": {"device_id": "iv1", "max_power_wh": 10000, "battery": "battery1"},
+            "inverter": {"device_id": "iv1", "max_power_wh": 10000, "battery_id": "battery1"},
             "eauto": {
                 "device_id": "ev1",
                 "min_soc_percentage": 50,

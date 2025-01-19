@@ -163,10 +163,14 @@ sample_config_data = {
     },
     "pvforecast": {
         "provider": "PVForecastAkkudoktor",
-        "pvforecast0_peakpower": 5.0,
-        "pvforecast0_surface_azimuth": 180,
-        "pvforecast0_surface_tilt": 30,
-        "pvforecast0_inverter_paco": 10000,
+        "planes": [
+            {
+                "peakpower": 5.0,
+                "surface_azimuth": 180,
+                "surface_tilt": 30,
+                "inverter_paco": 10000,
+            }
+        ],
     },
 }
 

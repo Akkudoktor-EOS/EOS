@@ -15,6 +15,8 @@ General configuration to set directories of cache and output files.
 | data_cache_subpath | `EOS_GENERAL__DATA_CACHE_SUBPATH` | `Optional[pathlib.Path]` | `rw` | `cache` | Sub-path for the EOS cache data directory. |
 | data_output_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Compute data_output_path based on data_folder_path. |
 | data_cache_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Compute data_cache_path based on data_folder_path. |
+| config_folder_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration directory. |
+| config_file_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration file. |
 :::
 
 ### Example Input
@@ -42,7 +44,9 @@ General configuration to set directories of cache and output files.
            "data_output_subpath": "output",
            "data_cache_subpath": "cache",
            "data_output_path": null,
-           "data_cache_path": null
+           "data_cache_path": null,
+           "config_folder_path": "/home/user/.config/net.akkudoktoreos.net",
+           "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
        }
    }
 ```

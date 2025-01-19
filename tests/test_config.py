@@ -57,7 +57,7 @@ def test_computed_paths(config_eos):
 
 def test_singleton_behavior(config_eos, config_default_dirs):
     """Test that ConfigEOS behaves as a singleton."""
-    initial_cfg_file = config_eos.config_file_path
+    initial_cfg_file = config_eos.general.config_file_path
     with patch(
         "akkudoktoreos.config.config.user_config_dir", return_value=str(config_default_dirs[0])
     ):
@@ -65,7 +65,7 @@ def test_singleton_behavior(config_eos, config_default_dirs):
         instance2 = ConfigEOS()
     assert instance1 is config_eos
     assert instance1 is instance2
-    assert instance1.config_file_path == initial_cfg_file
+    assert instance1.general.config_file_path == initial_cfg_file
 
 
 def test_default_config_path(config_eos, config_default_dirs):
@@ -86,13 +86,13 @@ def test_config_file_priority(config_default_dirs):
     config_file = Path(config_default_dir_cwd) / ConfigEOS.CONFIG_FILE_NAME
     config_file.write_text("{}")
     config_eos = get_config()
-    assert config_eos.config_file_path == config_file
+    assert config_eos.general.config_file_path == config_file
 
     config_file = Path(config_default_dir_user) / ConfigEOS.CONFIG_FILE_NAME
     config_file.parent.mkdir()
     config_file.write_text("{}")
     config_eos.update()
-    assert config_eos.config_file_path == config_file
+    assert config_eos.general.config_file_path == config_file
 
 
 @patch("akkudoktoreos.config.config.user_config_dir")
