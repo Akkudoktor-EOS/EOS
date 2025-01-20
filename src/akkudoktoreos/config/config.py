@@ -39,6 +39,7 @@ from akkudoktoreos.prediction.prediction import PredictionCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.prediction.weather import WeatherCommonSettings
 from akkudoktoreos.server.server import ServerCommonSettings
+from akkudoktoreos.utils.datetimeutil import to_timezone
 from akkudoktoreos.utils.utils import UtilsCommonSettings, classproperty
 
 logger = get_logger(__name__)
@@ -65,7 +66,22 @@ def get_absolute_path(
 class ConfigCommonSettings(SettingsBaseModel):
     """Settings for common configuration.
 
-    General configuration to set directories of cache and output files.
+    General configuration to set directories of cache and output files and system location (latitude
+    and longitude).
+    Validators ensure each parameter is within a specified range. A computed property, `timezone`,
+    determines the time zone based on latitude and longitude.
+
+    Attributes:
+        latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.
+        longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.
+
+    Properties:
+        timezone (Optional[str]): Computed time zone string based on the specified latitude
+            and longitude.
+
+    Validators:
+        validate_latitude (float): Ensures `latitude` is within the range -90 to 90.
+        validate_longitude (float): Ensures `longitude` is within the range -180 to 180.
     """
 
     _config_folder_path: ClassVar[Optional[Path]] = None
@@ -83,7 +99,28 @@ class ConfigCommonSettings(SettingsBaseModel):
         default="cache", description="Sub-path for the EOS cache data directory."
     )
 
+    latitude: Optional[float] = Field(
+        default=52.52,
+        ge=-90.0,
+        le=90.0,
+        description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)",
+    )
+    longitude: Optional[float] = Field(
+        default=13.405,
+        ge=-180.0,
+        le=180.0,
+        description="Longitude in decimal degrees, within -180 to 180 (°)",
+    )
+
     # Computed fields
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def timezone(self) -> Optional[str]:
+        """Compute timezone based on latitude and longitude."""
+        if self.latitude and self.longitude:
+            return to_timezone(location=(self.latitude, self.longitude), as_string=True)
+        return None
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def data_output_path(self) -> Optional[Path]:

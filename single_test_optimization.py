@@ -30,11 +30,13 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     """
     # Make a config
     settings = {
+        "general": {
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
         "prediction": {
             "hours": 48,
             "historic_hours": 24,
-            "latitude": 52.52,
-            "longitude": 13.405,
         },
         # PV Forecast
         "pvforecast": {

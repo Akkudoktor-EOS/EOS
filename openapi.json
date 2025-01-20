@@ -107,7 +107,7 @@
                 "type": "object"
             },
             "ConfigCommonSettings-Input": {
-                "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files.",
+                "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
                 "properties": {
                     "data_cache_subpath": {
                         "anyOf": [
@@ -153,13 +153,43 @@
                         "default": "output",
                         "description": "Sub-path for the EOS output data directory.",
                         "title": "Data Output Subpath"
+                    },
+                    "latitude": {
+                        "anyOf": [
+                            {
+                                "maximum": 90.0,
+                                "minimum": -90.0,
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 52.52,
+                        "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)",
+                        "title": "Latitude"
+                    },
+                    "longitude": {
+                        "anyOf": [
+                            {
+                                "maximum": 180.0,
+                                "minimum": -180.0,
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 13.405,
+                        "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
+                        "title": "Longitude"
                     }
                 },
                 "title": "ConfigCommonSettings",
                 "type": "object"
             },
             "ConfigCommonSettings-Output": {
-                "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files.",
+                "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
                 "properties": {
                     "config_file_path": {
                         "anyOf": [
@@ -261,9 +291,53 @@
                         "default": "output",
                         "description": "Sub-path for the EOS output data directory.",
                         "title": "Data Output Subpath"
+                    },
+                    "latitude": {
+                        "anyOf": [
+                            {
+                                "maximum": 90.0,
+                                "minimum": -90.0,
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 52.52,
+                        "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)",
+                        "title": "Latitude"
+                    },
+                    "longitude": {
+                        "anyOf": [
+                            {
+                                "maximum": 180.0,
+                                "minimum": -180.0,
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 13.405,
+                        "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
+                        "title": "Longitude"
+                    },
+                    "timezone": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Compute timezone based on latitude and longitude.",
+                        "readOnly": true,
+                        "title": "Timezone"
                     }
                 },
                 "required": [
+                    "timezone",
                     "data_output_path",
                     "data_cache_path",
                     "config_folder_path",
@@ -290,7 +364,10 @@
                             "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json",
                             "config_folder_path": "/home/user/.config/net.akkudoktoreos.net",
                             "data_cache_subpath": "cache",
-                            "data_output_subpath": "output"
+                            "data_output_subpath": "output",
+                            "latitude": 52.52,
+                            "longitude": 13.405,
+                            "timezone": "Europe/Berlin"
                         }
                     },
                     "load": {
@@ -324,13 +401,10 @@
                         }
                     },
                     "prediction": {
-                        "$ref": "#/components/schemas/PredictionCommonSettings-Output",
+                        "$ref": "#/components/schemas/PredictionCommonSettings",
                         "default": {
                             "historic_hours": 48,
-                            "hours": 48,
-                            "latitude": 52.52,
-                            "longitude": 13.405,
-                            "timezone": "Europe/Berlin"
+                            "hours": 48
                         }
                     },
                     "pvforecast": {
@@ -1989,8 +2063,8 @@
                 "title": "PVForecastPlaneSetting",
                 "type": "object"
             },
-            "PredictionCommonSettings-Input": {
-                "description": "General Prediction Configuration.\n\nThis class provides configuration for prediction settings, allowing users to specify\nparameters such as the forecast duration (in hours) and location (latitude and longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    hours (Optional[int]): Number of hours into the future for predictions.\n        Must be non-negative.\n    historic_hours (Optional[int]): Number of hours into the past for historical data.\n        Must be non-negative.\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_hours (int): Ensures `hours` is a non-negative integer.\n    validate_historic_hours (int): Ensures `historic_hours` is a non-negative integer.\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
+            "PredictionCommonSettings": {
+                "description": "General Prediction Configuration.\n\nThis class provides configuration for prediction settings, allowing users to specify\nparameters such as the forecast duration (in hours).\nValidators ensure each parameter is within a specified range.\n\nAttributes:\n    hours (Optional[int]): Number of hours into the future for predictions.\n        Must be non-negative.\n    historic_hours (Optional[int]): Number of hours into the past for historical data.\n        Must be non-negative.\n\nValidators:\n    validate_hours (int): Ensures `hours` is a non-negative integer.\n    validate_historic_hours (int): Ensures `historic_hours` is a non-negative integer.",
                 "properties": {
                     "historic_hours": {
                         "anyOf": [
@@ -2019,119 +2093,8 @@
                         "default": 48,
                         "description": "Number of hours into the future for predictions",
                         "title": "Hours"
-                    },
-                    "latitude": {
-                        "anyOf": [
-                            {
-                                "maximum": 90.0,
-                                "minimum": -90.0,
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 52.52,
-                        "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)",
-                        "title": "Latitude"
-                    },
-                    "longitude": {
-                        "anyOf": [
-                            {
-                                "maximum": 180.0,
-                                "minimum": -180.0,
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 13.405,
-                        "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
-                        "title": "Longitude"
                     }
                 },
-                "title": "PredictionCommonSettings",
-                "type": "object"
-            },
-            "PredictionCommonSettings-Output": {
-                "description": "General Prediction Configuration.\n\nThis class provides configuration for prediction settings, allowing users to specify\nparameters such as the forecast duration (in hours) and location (latitude and longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    hours (Optional[int]): Number of hours into the future for predictions.\n        Must be non-negative.\n    historic_hours (Optional[int]): Number of hours into the past for historical data.\n        Must be non-negative.\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_hours (int): Ensures `hours` is a non-negative integer.\n    validate_historic_hours (int): Ensures `historic_hours` is a non-negative integer.\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
-                "properties": {
-                    "historic_hours": {
-                        "anyOf": [
-                            {
-                                "minimum": 0.0,
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 48,
-                        "description": "Number of hours into the past for historical predictions data",
-                        "title": "Historic Hours"
-                    },
-                    "hours": {
-                        "anyOf": [
-                            {
-                                "minimum": 0.0,
-                                "type": "integer"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 48,
-                        "description": "Number of hours into the future for predictions",
-                        "title": "Hours"
-                    },
-                    "latitude": {
-                        "anyOf": [
-                            {
-                                "maximum": 90.0,
-                                "minimum": -90.0,
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 52.52,
-                        "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)",
-                        "title": "Latitude"
-                    },
-                    "longitude": {
-                        "anyOf": [
-                            {
-                                "maximum": 180.0,
-                                "minimum": -180.0,
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 13.405,
-                        "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
-                        "title": "Longitude"
-                    },
-                    "timezone": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Compute timezone based on latitude and longitude.",
-                        "readOnly": true,
-                        "title": "Timezone"
-                    }
-                },
-                "required": [
-                    "timezone"
-                ],
                 "title": "PredictionCommonSettings",
                 "type": "object"
             },
@@ -2404,7 +2367,7 @@
                     "prediction": {
                         "anyOf": [
                             {
-                                "$ref": "#/components/schemas/PredictionCommonSettings-Input"
+                                "$ref": "#/components/schemas/PredictionCommonSettings"
                             },
                             {
                                 "type": "null"

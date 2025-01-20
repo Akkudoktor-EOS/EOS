@@ -27,7 +27,7 @@ def provider(config_eos):
         "weather": {
             "provider": "ClearOutside",
         },
-        "prediction": {
+        "general": {
             "latitude": 50.0,
             "longitude": 10.0,
         },
@@ -87,7 +87,7 @@ def test_invalid_coordinates(provider, config_eos):
         "weather": {
             "provider": "ClearOutside",
         },
-        "prediction": {
+        "general": {
             "latitude": 1000.0,
             "longitude": 1000.0,
         },

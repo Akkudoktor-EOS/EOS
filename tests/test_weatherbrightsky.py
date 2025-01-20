@@ -67,8 +67,8 @@ def test_invalid_provider(provider, monkeypatch):
 
 def test_invalid_coordinates(provider, monkeypatch):
     """Test invalid coordinates raise ValueError."""
-    monkeypatch.setenv("EOS_PREDICTION__LATITUDE", "1000")
-    monkeypatch.setenv("EOS_PREDICTION__LONGITUDE", "1000")
+    monkeypatch.setenv("EOS_GENERAL__LATITUDE", "1000")
+    monkeypatch.setenv("EOS_GENERAL__LONGITUDE", "1000")
     with pytest.raises(
         ValueError,  # match="Latitude '1000' and/ or longitude `1000` out of valid range."
     ):

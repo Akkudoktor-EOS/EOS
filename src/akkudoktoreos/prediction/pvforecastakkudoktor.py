@@ -14,11 +14,13 @@ Classes:
 Example:
     # Set up the configuration with necessary fields for URL generation
     settings_data = {
+        "general": {
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
         "prediction": {
             "hours": 48,
             "historic_hours": 24,
-            "latitude": 52.52,
-            "longitude": 13.405,
         },
         "pvforecast": {
             "provider": "PVForecastAkkudoktor",
@@ -213,8 +215,8 @@ class PVForecastAkkudoktor(PVForecastProvider):
         """Build akkudoktor.net API request URL."""
         base_url = "https://api.akkudoktor.net/forecast"
         query_params = [
-            f"lat={self.config.prediction.latitude}",
-            f"lon={self.config.prediction.longitude}",
+            f"lat={self.config.general.latitude}",
+            f"lon={self.config.general.longitude}",
         ]
 
         for i in range(len(self.config.pvforecast.planes)):
@@ -236,7 +238,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
                 "cellCoEff=-0.36",
                 "inverterEfficiency=0.8",
                 "albedo=0.25",
-                f"timezone={self.config.prediction.timezone}",
+                f"timezone={self.config.general.timezone}",
                 "hourly=relativehumidity_2m%2Cwindspeed_10m",
             ]
         )
@@ -265,7 +267,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
         logger.debug(f"Response from {self._url()}: {response}")
         akkudoktor_data = self._validate_data(response.content)
         # We are working on fresh data (no cache), report update time
-        self.update_datetime = to_datetime(in_timezone=self.config.prediction.timezone)
+        self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return akkudoktor_data
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
@@ -285,8 +287,8 @@ class PVForecastAkkudoktor(PVForecastProvider):
         akkudoktor_data = self._request_forecast(force_update=force_update)  # type: ignore
 
         # Timezone of the PV system
-        if self.config.prediction.timezone != akkudoktor_data.meta.timezone:
-            error_msg = f"Configured timezone '{self.config.prediction.timezone}' does not match Akkudoktor timezone '{akkudoktor_data.meta.timezone}'."
+        if self.config.general.timezone != akkudoktor_data.meta.timezone:
+            error_msg = f"Configured timezone '{self.config.general.timezone}' does not match Akkudoktor timezone '{akkudoktor_data.meta.timezone}'."
             logger.error(f"Akkudoktor schema change: {error_msg}")
             raise ValueError(error_msg)
 
@@ -306,7 +308,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
         # Iterate over forecast data points
         for forecast_values in zip(*akkudoktor_data.values):
             original_datetime = forecast_values[0].datetime
-            dt = to_datetime(original_datetime, in_timezone=self.config.prediction.timezone)
+            dt = to_datetime(original_datetime, in_timezone=self.config.general.timezone)
 
             # Skip outdated forecast data
             if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
@@ -375,11 +377,13 @@ if __name__ == "__main__":
     """
     # Set up the configuration with necessary fields for URL generation
     settings_data = {
+        "general": {
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
         "prediction": {
             "hours": 48,
             "historic_hours": 24,
-            "latitude": 52.52,
-            "longitude": 13.405,
         },
         "pvforecast": {
             "provider": "PVForecastAkkudoktor",

@@ -25,11 +25,13 @@ FILE_TESTDATA_PV_FORECAST_RESULT_1 = DIR_TESTDATA.joinpath("pv_forecast_result_1
 def sample_settings(config_eos):
     """Fixture that adds settings data to the global config."""
     settings = {
+        "general": {
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
         "prediction": {
             "hours": 48,
             "historic_hours": 24,
-            "latitude": 52.52,
-            "longitude": 13.405,
         },
         "pvforecast": {
             "provider": "PVForecastAkkudoktor",
@@ -155,11 +157,13 @@ sample_value = AkkudoktorForecastValue(
     windspeed_10m=10.0,
 )
 sample_config_data = {
+    "general": {
+        "latitude": 52.52,
+        "longitude": 13.405,
+    },
     "prediction": {
         "hours": 48,
         "historic_hours": 24,
-        "latitude": 52.52,
-        "longitude": 13.405,
     },
     "pvforecast": {
         "provider": "PVForecastAkkudoktor",
