@@ -27,23 +27,23 @@ python -m venv .venv
 
 Windows:
 
-```bash
+```cmd
 python -m venv .venv
  .venv\Scripts\pip install -r requirements.txt
 ```
 
-Finally, start EOS fastapi server:
+Finally, start the EOS server:
 
 Linux:
 
 ```bash
-.venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/eos.py
+.venv/bin/python src/akkudoktoreos/server/eos.py
 ```
 
 Windows:
 
-```
- .venv\Scripts\fastapi run --port 8503 src/akkudoktoreos/server/eos.py
+```cmd
+.venv\Scripts\python src/akkudoktoreos/server/eos.py
 ```
 
 ### Docker
