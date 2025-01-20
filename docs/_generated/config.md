@@ -879,3 +879,135 @@ Attributes:
        "utils": {}
    }
 ```
+
+## Full example Config
+
+```{eval-rst}
+.. code-block:: json
+
+   {
+       "general": {
+           "data_folder_path": null,
+           "data_output_subpath": "output",
+           "data_cache_subpath": "cache",
+           "latitude": 52.52,
+           "longitude": 13.405
+       },
+       "logging": {
+           "level": "INFO"
+       },
+       "devices": {
+           "batteries": [
+               {
+                   "device_id": "battery1",
+                   "hours": null,
+                   "capacity_wh": 8000,
+                   "charging_efficiency": 0.88,
+                   "discharging_efficiency": 0.88,
+                   "max_charge_power_w": 5000,
+                   "initial_soc_percentage": 0,
+                   "min_soc_percentage": 0,
+                   "max_soc_percentage": 100
+               }
+           ],
+           "inverters": [],
+           "home_appliances": []
+       },
+       "measurement": {
+           "load0_name": "Household",
+           "load1_name": null,
+           "load2_name": null,
+           "load3_name": null,
+           "load4_name": null
+       },
+       "optimization": {
+           "hours": 48,
+           "penalty": 10,
+           "ev_available_charge_rates_percent": [
+               0.0,
+               0.375,
+               0.5,
+               0.625,
+               0.75,
+               0.875,
+               1.0
+           ]
+       },
+       "prediction": {
+           "hours": 48,
+           "historic_hours": 48
+       },
+       "elecprice": {
+           "provider": "ElecPriceAkkudoktor",
+           "charges_kwh": 0.21,
+           "provider_settings": null
+       },
+       "load": {
+           "provider": "LoadAkkudoktor",
+           "provider_settings": null
+       },
+       "pvforecast": {
+           "provider": "PVForecastAkkudoktor",
+           "planes": [
+               {
+                   "surface_tilt": 10.0,
+                   "surface_azimuth": 10.0,
+                   "userhorizon": [
+                       10.0,
+                       20.0,
+                       30.0
+                   ],
+                   "peakpower": 5.0,
+                   "pvtechchoice": "crystSi",
+                   "mountingplace": "free",
+                   "loss": 14.0,
+                   "trackingtype": 0,
+                   "optimal_surface_tilt": false,
+                   "optimalangles": false,
+                   "albedo": null,
+                   "module_model": null,
+                   "inverter_model": null,
+                   "inverter_paco": 6000,
+                   "modules_per_string": 20,
+                   "strings_per_inverter": 2
+               },
+               {
+                   "surface_tilt": 20.0,
+                   "surface_azimuth": 20.0,
+                   "userhorizon": [
+                       5.0,
+                       15.0,
+                       25.0
+                   ],
+                   "peakpower": 3.5,
+                   "pvtechchoice": "crystSi",
+                   "mountingplace": "free",
+                   "loss": 14.0,
+                   "trackingtype": 1,
+                   "optimal_surface_tilt": false,
+                   "optimalangles": false,
+                   "albedo": null,
+                   "module_model": null,
+                   "inverter_model": null,
+                   "inverter_paco": 4000,
+                   "modules_per_string": 20,
+                   "strings_per_inverter": 2
+               }
+           ],
+           "provider_settings": null
+       },
+       "weather": {
+           "provider": "WeatherImport",
+           "provider_settings": null
+       },
+       "server": {
+           "host": "0.0.0.0",
+           "port": 8503,
+           "verbose": false,
+           "startup_eosdash": true,
+           "eosdash_host": "0.0.0.0",
+           "eosdash_port": 8504
+       },
+       "utils": {}
+   }
+```
