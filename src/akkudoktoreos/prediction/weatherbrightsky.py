@@ -96,8 +96,8 @@ class WeatherBrightSky(WeatherProvider):
             ValueError: If the API response does not include expected `weather` data.
         """
         source = "https://api.brightsky.dev"
-        date = to_datetime(self.start_datetime, as_string="Y-M-D")
-        last_date = to_datetime(self.end_datetime, as_string="Y-M-D")
+        date = to_datetime(self.start_datetime, as_string="YYYY-MM-DD")
+        last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
         response = requests.get(
             f"{source}/weather?lat={self.config.latitude}&lon={self.config.longitude}&date={date}&last_date={last_date}&tz={self.config.timezone}"
         )
