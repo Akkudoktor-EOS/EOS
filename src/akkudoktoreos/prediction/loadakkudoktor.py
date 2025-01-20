@@ -129,4 +129,4 @@ class LoadAkkudoktor(LoadProvider):
             self.update_value(date, values)
             date += to_duration("1 hour")
         # We are working on fresh data (no cache), report update time
-        self.update_datetime = to_datetime(in_timezone=self.config.prediction.timezone)
+        self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)

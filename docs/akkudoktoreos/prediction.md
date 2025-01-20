@@ -295,8 +295,8 @@ The `PVForecastAkkudoktor` provider retrieves the PV power forecast data directl
 
 The following prediction configuration options of the PV system must be set:
 
-- `prediction.latitude`: Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)"
-- `prediction.longitude`: Longitude in decimal degrees, within -180 to 180 (°)
+- `general.latitude`: Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)"
+- `general.longitude`: Longitude in decimal degrees, within -180 to 180 (°)
 
 For each plane of the PV system the following configuration options must be set:
 
@@ -310,7 +310,7 @@ Example:
 
 ```Python
 {
-  "prediction": {
+  "general": {
     "latitude": 50.1234,
     "longitude": 9.7654,
   },

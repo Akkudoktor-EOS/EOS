@@ -108,13 +108,13 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         # Try to take data from 5 weeks back for prediction
         date = to_datetime(self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
-        url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.prediction.timezone}"
+        url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.general.timezone}"
         response = requests.get(url)
         logger.debug(f"Response from {url}: {response}")
         response.raise_for_status()  # Raise an error for bad responses
         akkudoktor_data = self._validate_data(response.content)
         # We are working on fresh data (no cache), report update time
-        self.update_datetime = to_datetime(in_timezone=self.config.prediction.timezone)
+        self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return akkudoktor_data
 
     def _cap_outliers(self, data: np.ndarray, sigma: int = 2) -> np.ndarray:
@@ -160,7 +160,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         series_data = pd.Series(dtype=float)  # Initialize an empty series
 
         for value in akkudoktor_data.values:
-            orig_datetime = to_datetime(value.start, in_timezone=self.config.prediction.timezone)
+            orig_datetime = to_datetime(value.start, in_timezone=self.config.general.timezone)
             if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
                 highest_orig_datetime = orig_datetime
 

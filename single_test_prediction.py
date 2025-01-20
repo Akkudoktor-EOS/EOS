@@ -16,11 +16,13 @@ prediction_eos = get_prediction()
 def config_pvforecast() -> dict:
     """Configure settings for PV forecast."""
     settings = {
+        "general": {
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
         "prediction": {
             "hours": 48,
             "historic_hours": 24,
-            "latitude": 52.52,
-            "longitude": 13.405,
         },
         "pvforecast": {
             "provider": "PVForecastAkkudoktor",
@@ -62,11 +64,13 @@ def config_pvforecast() -> dict:
 def config_weather() -> dict:
     """Configure settings for weather forecast."""
     settings = {
+        "general": {
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
         "prediction": {
             "hours": 48,
             "historic_hours": 24,
-            "latitude": 52.52,
-            "longitude": 13.405,
         },
         "weather": dict(),
     }
@@ -76,11 +80,13 @@ def config_weather() -> dict:
 def config_elecprice() -> dict:
     """Configure settings for electricity price forecast."""
     settings = {
+        "general": {
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
         "prediction": {
             "hours": 48,
             "historic_hours": 24,
-            "latitude": 52.52,
-            "longitude": 13.405,
         },
         "elecprice": dict(),
     }
@@ -90,12 +96,14 @@ def config_elecprice() -> dict:
 def config_load() -> dict:
     """Configure settings for load forecast."""
     settings = {
+        "general": {
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
         "prediction": {
             "hours": 48,
             "historic_hours": 24,
-            "latitude": 52.52,
-            "longitude": 13.405,
-        }
+        },
     }
     return settings
 
