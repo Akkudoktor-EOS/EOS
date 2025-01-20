@@ -14,6 +14,7 @@ Key Features:
 
 import json
 import re
+from copy import deepcopy
 from typing import Any, Dict, List, Optional, Type, Union
 from zoneinfo import ZoneInfo
 
@@ -45,7 +46,7 @@ def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, An
         return update_dict
 
     source_dict = source.model_dump(exclude_unset=True)
-    merged_dict = deep_update(source_dict, update_dict)
+    merged_dict = deep_update(source_dict, deepcopy(update_dict))
 
     return merged_dict
 

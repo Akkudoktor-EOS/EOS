@@ -22,6 +22,8 @@ logger = get_logger(__name__)
 documented_types: set[PydanticBaseModel] = set()
 undocumented_types: dict[PydanticBaseModel, tuple[str, list[str]]] = dict()
 
+global_config_dict: dict[str, Any] = dict()
+
 
 def get_title(config: PydanticBaseModel) -> str:
     if config.__doc__ is None:
@@ -209,8 +211,12 @@ def generate_config_table_md(
             table += ".. code-block:: json\n\n"
             if has_examples_list:
                 input_dict = build_nested_structure(toplevel_keys[:-1], ins_dict_list)
+                if not extra_config:
+                    global_config_dict[toplevel_keys[0]] = ins_dict_list
             else:
                 input_dict = build_nested_structure(toplevel_keys, ins_dict_list[0])
+                if not extra_config:
+                    global_config_dict[toplevel_keys[0]] = ins_dict_list[0]
             table += textwrap.indent(json.dumps(input_dict, indent=4), "   ")
             table += "\n"
             table += "```\n\n"
@@ -258,6 +264,16 @@ def generate_config_md(config_eos: ConfigEOS) -> str:
             field_type, [field_name], f"EOS_{field_name.upper()}__", True
         )
 
+    # Full config
+    markdown += "## Full example Config\n\n"
+    markdown += "```{eval-rst}\n"
+    markdown += ".. code-block:: json\n\n"
+    # Test for valid config first
+    config_eos.merge_settings_from_dict(global_config_dict)
+    markdown += textwrap.indent(json.dumps(global_config_dict, indent=4), "   ")
+    markdown += "\n"
+    markdown += "```\n\n"
+
     # Assure there is no double \n at end of file
     markdown = markdown.rstrip("\n")
     markdown += "\n"
@@ -290,7 +306,8 @@ def main():
 
     except Exception as e:
         print(f"Error during Configuration Specification generation: {e}", file=sys.stderr)
-        sys.exit(1)
+        # keep throwing error to debug potential problems (e.g. invalid examples)
+        raise e
 
 
 if __name__ == "__main__":
