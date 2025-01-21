@@ -759,6 +759,33 @@ class DataSequence(DataBase, MutableSequence):
 
         return dates, values
 
+    def key_from_lists(self, key: str, dates: List[DateTime], values: List[float]) -> None:
+        """Update the DataSequence from lists of datetime and value elements.
+
+        The dates list should represent the date_time of each DataRecord, and the values list
+        should represent the corresponding data values for the specified key.
+
+        Args:
+            key (str): The field name in the DataRecord that corresponds to the values in the Series.
+            dates: List of datetime elements.
+            values: List of values corresponding to the specified key in the data records.
+        """
+        self._validate_key_writable(key)
+
+        for i, date_time in enumerate(dates):
+            # Ensure datetime objects are normalized
+            date_time = to_datetime(date_time, to_maxtime=False) if date_time else None
+            # Check if there's an existing record for this date_time
+            existing_record = next((r for r in self.records if r.date_time == date_time), None)
+            if existing_record:
+                # Update existing record's specified key
+                setattr(existing_record, key, values[i])
+            else:
+                # Create a new DataRecord if none exists
+                new_record = self.record_class()(date_time=date_time, **{key: values[i]})
+                self.records.append(new_record)
+        self.sort_by_datetime()
+
     def key_to_series(
         self,
         key: str,

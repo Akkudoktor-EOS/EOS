@@ -616,19 +616,30 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     measurement_key = "measurement_load0_mr"
     measurement_eos.key_delete_by_datetime(key=measurement_key)  # delete all load0_mr measurements
     energy = {}
-    for data_dict in request.measured_data:
-        for date_time, value in data_dict.items():
-            dt_str = to_datetime(date_time, as_string=True)
+    try:
+        for data_dict in request.measured_data:
+            dt_str = to_datetime(data_dict["time"], as_string=True)
+            value = float(data_dict["Last"])
             energy[dt_str] = value
-    energy_mr = 0
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Invalid measured data: {e}.",
+        )
+    energy_mr_dates = []
+    energy_mr_values = []
+    energy_mr = 0.0
     for i, key in enumerate(sorted(energy)):
         energy_mr += energy[key]
         dt = to_datetime(key)
         if i == 0:
             # first element, add start value before
             dt_before = dt - to_duration("1 hour")
-            measurement_eos.update_value(date=dt_before, key=measurement_key, value=0.0)
-        measurement_eos.update_value(date=dt, key=measurement_key, value=energy_mr)
+            energy_mr_dates.append(dt_before)
+            energy_mr_values.append(0.0)
+        energy_mr_dates.append(dt)
+        energy_mr_values.append(energy_mr)
+    measurement_eos.key_from_lists(measurement_key, energy_mr_dates, energy_mr_values)
 
     # Create load forecast
     prediction_eos.update_data(force_update=True)
