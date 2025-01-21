@@ -38,13 +38,13 @@ Start the EOS fastapi server:
 
      .. code-block:: powershell
 
-        .venv\Scripts\fastapi run src/akkudoktoreos/server/eos.py
+        .venv\Scripts\python src/akkudoktoreos/server/eos.py
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        .venv/bin/fastapi run src/akkudoktoreos/server/eos.py
+        .venv/bin/python src/akkudoktoreos/server/eos.py
 
 ```
 

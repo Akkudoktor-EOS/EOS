@@ -84,12 +84,12 @@ clean: clean-docs
 	@echo "Deletion complete."
 
 run:
-	@echo "Starting EOS server, please wait..."
-	.venv/bin/fastapi run --port 8503 src/akkudoktoreos/server/eos.py
+	@echo "Starting EOS production server, please wait..."
+	.venv/bin/python src/akkudoktoreos/server/eos.py
 
 run-dev:
 	@echo "Starting EOS development server, please wait..."
-	.venv/bin/fastapi dev --port 8503 src/akkudoktoreos/server/eos.py
+	.venv/bin/python src/akkudoktoreos/server/eos.py --host localhost --port 8503 --reload true
 
 # Target to setup tests.
 test-setup: pip-dev

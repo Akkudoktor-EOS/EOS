@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import subprocess
 import sys
 from contextlib import asynccontextmanager
@@ -35,6 +36,9 @@ config_eos = get_config()
 measurement_eos = get_measurement()
 prediction_eos = get_prediction()
 ems_eos = get_ems()
+
+# Command line arguments
+args = None
 
 ERROR_PAGE_TEMPLATE = """
 <!DOCTYPE html>
@@ -129,27 +133,76 @@ def create_error_page(
     )
 
 
+# ----------------------
+# EOSdash server startup
+# ----------------------
+
+
 def start_eosdash() -> subprocess.Popen:
-    """Start the fasthtml server as a subprocess."""
+    """Start the EOSdash server as a subprocess.
+
+    Returns:
+        server_process: The process of the EOSdash server
+    """
+    eosdash_path = Path(__file__).parent.resolve().joinpath("eosdash.py")
+
+    if args is None:
+        # No command line arguments
+        host = config_eos.server_eosdash_host
+        port = config_eos.server_eosdash_port
+        eos_host = config_eos.server_eos_host
+        eos_port = config_eos.server_eos_port
+        log_level = "info"
+        access_log = False
+        reload = False
+    else:
+        host = args.host
+        port = config_eos.server_eosdash_port if config_eos.server_eosdash_port else (args.port + 1)
+        eos_host = args.host
+        eos_port = args.port
+        log_level = args.log_level
+        access_log = args.access_log
+        reload = args.reload
+
+    cmd = [
+        sys.executable,
+        str(eosdash_path),
+        "--host",
+        str(host),
+        "--port",
+        str(port),
+        "--eos-host",
+        str(eos_host),
+        "--eos-port",
+        str(eos_port),
+        "--log_level",
+        log_level,
+        "--access_log",
+        str(access_log),
+        "--reload",
+        str(reload),
+    ]
     server_process = subprocess.Popen(
-        [sys.executable, str(server_dir.joinpath("eosdash.py"))],
+        cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+
     return server_process
+
+
+# ----------------------
+# EOS REST Server
+# ----------------------
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
-    if (
-        config_eos.server_eos_startup_eosdash
-        and config_eos.server_eosdash_host
-        and config_eos.server_eosdash_port
-    ):
+    if config_eos.server_eos_startup_eosdash:
         try:
-            fasthtml_process = start_eosdash()
+            eosdash_process = start_eosdash()
         except Exception as e:
             logger.error(f"Failed to start EOSdash server. Error: {e}")
             sys.exit(1)
@@ -169,7 +222,9 @@ app = FastAPI(
         "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
     },
     lifespan=lifespan,
+    root_path=str(Path(__file__).parent),
 )
+
 
 # That's the problem
 opt_class = optimization_problem(verbose=bool(config_eos.server_eos_verbose))
@@ -827,7 +882,7 @@ async def proxy_put(request: Request, path: str) -> Response:
 
 async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse | HTMLResponse]:
     if config_eos.server_eosdash_host and config_eos.server_eosdash_port:
-        # Proxy to fasthtml server
+        # Proxy to EOSdash server
         url = f"http://{config_eos.server_eosdash_host}:{config_eos.server_eosdash_port}/{path}"
         headers = dict(request.headers)
 
@@ -869,22 +924,102 @@ set 'server_eosdash_host' or 'server_eosdash_port' to None.
         return RedirectResponse(url="/docs")
 
 
-def start_eos() -> None:
-    """Start EOS server."""
+def run_eos(host: str, port: int, log_level: str, access_log: bool, reload: bool) -> None:
+    """Run the EOS server with the specified configurations.
+
+    This function starts the EOS server using the Uvicorn ASGI server. It accepts
+    arguments for the host, port, log level, access log, and reload options. The
+    log level is converted to lowercase to ensure compatibility with Uvicorn's
+    expected log level format. If an error occurs while attempting to bind the
+    server to the specified host and port, an error message is logged and the
+    application exits.
+
+    Parameters:
+    host (str): The hostname to bind the server to.
+    port (int): The port number to bind the server to.
+    log_level (str): The log level for the server. Options include "critical", "error",
+                     "warning", "info", "debug", and "trace".
+    access_log (bool): Whether to enable or disable the access log. Set to True to enable.
+    reload (bool): Whether to enable or disable auto-reload. Set to True for development.
+
+    Returns:
+    None
+    """
+    # Make hostname human (and Windows) friendly
+    if host == "0.0.0.0":
+        host = "localhost"
     try:
         uvicorn.run(
-            app,
-            host=str(config_eos.server_eos_host),
-            port=config_eos.server_eos_port,
-            log_level="debug",
-            access_log=True,
+            "akkudoktoreos.server.eos:app",
+            host=host,
+            port=port,
+            log_level=log_level.lower(),  # Convert log_level to lowercase
+            access_log=access_log,
+            reload=reload,
         )
     except Exception as e:
-        logger.error(
-            f"Could not bind to host {config_eos.server_eos_host}:{config_eos.server_eos_port}. Error: {e}"
-        )
-        sys.exit(1)
+        logger.error(f"Could not bind to host {host}:{port}. Error: {e}")
+        raise e
+
+
+def main() -> None:
+    """Parse command-line arguments and start the EOS server with the specified options.
+
+    This function sets up the argument parser to accept command-line arguments for
+    host, port, log_level, access_log, and reload. It uses default values from the
+    config_eos module if arguments are not provided. After parsing the arguments,
+    it starts the EOS server with the specified configurations.
+
+    Command-line Arguments:
+    --host (str): Host for the EOS server (default: value from config_eos).
+    --port (int): Port for the EOS server (default: value from config_eos).
+    --log_level (str): Log level for the server. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "info").
+    --access_log (bool): Enable or disable access log. Options: True or False (default: False).
+    --reload (bool): Enable or disable auto-reload. Useful for development. Options: True or False (default: False).
+    """
+    parser = argparse.ArgumentParser(description="Start EOS server.")
+
+    # Host and port arguments with defaults from config_eos
+    parser.add_argument(
+        "--host",
+        type=str,
+        default=str(config_eos.server_eos_host),
+        help="Host for the EOS server (default: value from config_eos)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=config_eos.server_eos_port,
+        help="Port for the EOS server (default: value from config_eos)",
+    )
+
+    # Optional arguments for log_level, access_log, and reload
+    parser.add_argument(
+        "--log_level",
+        type=str,
+        default="info",
+        help='Log level for the server. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "info")',
+    )
+    parser.add_argument(
+        "--access_log",
+        type=bool,
+        default=False,
+        help="Enable or disable access log. Options: True or False (default: True)",
+    )
+    parser.add_argument(
+        "--reload",
+        type=bool,
+        default=False,
+        help="Enable or disable auto-reload. Useful for development. Options: True or False (default: False)",
+    )
+
+    args = parser.parse_args()
+
+    try:
+        run_eos(args.host, args.port, args.log_level, args.access_log, args.reload)
+    except:
+        exit(1)
 
 
 if __name__ == "__main__":
-    start_eos()
+    main()
