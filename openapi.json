@@ -3806,7 +3806,7 @@
     "/gesamtlast_simple": {
       "get": {
         "summary": "Fastapi Gesamtlast Simple",
-        "description": "Deprecated: Total Load Prediction.\n\nEndpoint to handle total load prediction.\n\nTotal load prediction starts at 00.00.00 today and is provided for 48 hours.\nIf no prediction values are available the missing ones at the start of the series are\nfilled with the first available prediction value.\n\nNote:\n    Set LoadAkkudoktor as load_provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=load_mean' instead.",
+        "description": "Deprecated: Total Load Prediction.\n\nEndpoint to handle total load prediction.\n\nTotal load prediction starts at 00.00.00 today and is provided for 48 hours.\nIf no prediction values are available the missing ones at the start of the series are\nfilled with the first available prediction value.\n\nArgs:\n    year_energy (float): Yearly energy consumption in Wh.\n\nNote:\n    Set LoadAkkudoktor as load_provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=load_mean' instead.",
         "operationId": "fastapi_gesamtlast_simple_gesamtlast_simple_get",
         "parameters": [
           {

@@ -661,6 +661,9 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     If no prediction values are available the missing ones at the start of the series are
     filled with the first available prediction value.
 
+    Args:
+        year_energy (float): Yearly energy consumption in Wh.
+
     Note:
         Set LoadAkkudoktor as load_provider, then update data with
         '/v1/prediction/update'
@@ -669,7 +672,7 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     """
     settings = SettingsEOS(
         load_provider="LoadAkkudoktor",
-        loadakkudoktor_year_energy=year_energy,
+        loadakkudoktor_year_energy=year_energy / 1000,  # Convert to kWh
     )
     config_eos.merge_settings(settings=settings)
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.

@@ -59,6 +59,9 @@ Total load prediction starts at 00.00.00 today and is provided for 48 hours.
 If no prediction values are available the missing ones at the start of the series are
 filled with the first available prediction value.
 
+Args:
+    year_energy (float): Yearly energy consumption in Wh.
+
 Note:
     Set LoadAkkudoktor as load_provider, then update data with
     '/v1/prediction/update'
