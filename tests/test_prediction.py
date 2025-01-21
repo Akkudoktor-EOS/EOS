@@ -78,8 +78,8 @@ def test_prediction_common_settings_valid(
     )
     assert settings.prediction_hours == prediction_hours
     assert settings.prediction_historic_hours == prediction_historic_hours
-    assert settings.latitude == latitude
-    assert settings.longitude == longitude
+    assert settings.secret("latitude") == latitude
+    assert settings.secret("longitude") == longitude
     assert settings.timezone == expected_timezone
 
 
@@ -88,10 +88,10 @@ def test_prediction_common_settings_valid(
     [
         ("prediction_hours", -1, "Input should be greater than or equal to 0"),
         ("prediction_historic_hours", -5, "Input should be greater than or equal to 0"),
-        ("latitude", -91.0, "Input should be greater than or equal to -90"),
-        ("latitude", 91.0, "Input should be less than or equal to 90"),
-        ("longitude", -181.0, "Input should be greater than or equal to -180"),
-        ("longitude", 181.0, "Input should be less than or equal to 180"),
+        ("latitude", -91.0, "must be within -90 to 90"),
+        ("latitude", 91.0, "must be within -90 to 90"),
+        ("longitude", -181.0, "must be within -180 to 180"),
+        ("longitude", 181.0, "must be within -180 to 180"),
     ],
 )
 def test_prediction_common_settings_invalid(field_name, invalid_value, expected_error):

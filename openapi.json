@@ -2344,18 +2344,19 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "number",
-                  "maximum": 90.0,
-                  "minimum": -90.0
+                  "type": "number"
+                },
+                {
+                  "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)",
+              "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0). Maybe used with !secret.",
               "title": "Latitude"
             },
-            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)"
+            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0). Maybe used with !secret."
           },
           {
             "name": "longitude",
@@ -2364,18 +2365,19 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "number",
-                  "maximum": 180.0,
-                  "minimum": -180.0
+                  "type": "number"
+                },
+                {
+                  "type": "string"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
+              "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0). Maybe used with !secret.",
               "title": "Longitude"
             },
-            "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)"
+            "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0). Maybe used with !secret."
           },
           {
             "name": "optimization_hours",
@@ -5443,30 +5445,32 @@
           "latitude": {
             "anyOf": [
               {
-                "type": "number",
-                "maximum": 90.0,
-                "minimum": -90.0
+                "type": "number"
+              },
+              {
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Latitude",
-            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)"
+            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0). Maybe used with !secret."
           },
           "longitude": {
             "anyOf": [
               {
-                "type": "number",
-                "maximum": 180.0,
-                "minimum": -180.0
+                "type": "number"
+              },
+              {
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Longitude",
-            "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)"
+            "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0). Maybe used with !secret."
           },
           "optimization_hours": {
             "anyOf": [
@@ -6000,6 +6004,13 @@
             "description": "Compute the default config file path.",
             "readOnly": true
           },
+          "secrets_default_file_path": {
+            "type": "string",
+            "format": "path",
+            "title": "Secrets Default File Path",
+            "description": "Compute the default secrets file path.",
+            "readOnly": true
+          },
           "package_root_path": {
             "type": "string",
             "format": "path",
@@ -6041,6 +6052,7 @@
           "config_folder_path",
           "config_file_path",
           "config_default_file_path",
+          "secrets_default_file_path",
           "package_root_path",
           "config_keys",
           "config_keys_read_only"
@@ -8142,30 +8154,32 @@
           "latitude": {
             "anyOf": [
               {
-                "type": "number",
-                "maximum": 90.0,
-                "minimum": -90.0
+                "type": "number"
+              },
+              {
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Latitude",
-            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)"
+            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0). Maybe used with !secret."
           },
           "longitude": {
             "anyOf": [
               {
-                "type": "number",
-                "maximum": 180.0,
-                "minimum": -180.0
+                "type": "number"
+              },
+              {
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Longitude",
-            "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)"
+            "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0). Maybe used with !secret."
           },
           "optimization_hours": {
             "anyOf": [

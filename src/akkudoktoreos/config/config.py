@@ -9,6 +9,7 @@ Key features:
 - Managing directory setups for the application
 """
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -166,12 +167,14 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
     EOS_CONFIG_DIR: ClassVar[str] = "EOS_CONFIG_DIR"
     ENCODING: ClassVar[str] = "UTF-8"
     CONFIG_FILE_NAME: ClassVar[str] = "EOS.config.json"
+    SECRETS_FILE_NAME: ClassVar[str] = "EOS.secrets.json"
 
     _settings: ClassVar[Optional[SettingsEOS]] = None
     _file_settings: ClassVar[Optional[SettingsEOS]] = None
 
     _config_folder_path: Optional[Path] = None
     _config_file_path: Optional[Path] = None
+    _secrets_file_path: Optional[Path] = None
 
     # Computed fields
     @computed_field  # type: ignore[prop-decorator]
@@ -191,6 +194,12 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
     def config_default_file_path(self) -> Path:
         """Compute the default config file path."""
         return self.package_root_path.joinpath("data/default.config.json")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def secrets_default_file_path(self) -> Path:
+        """Compute the default secrets file path."""
+        return self.package_root_path.joinpath("data/default.secrets.json")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -222,10 +231,17 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
 
         Configuration data is loaded from a configuration file or a default one is created if none
         exists.
+
+        Secrets are loaded from a secrets file.
         """
         super().__init__()
+        self.from_secrets_file()
         self.from_config_file()
         self.update()
+
+    # ---------------
+    # Settings
+    # ---------------
 
     @property
     def settings(self) -> Optional[SettingsEOS]:
@@ -303,6 +319,66 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         """
         ConfigEOS._settings = None
 
+    # ---------------
+    # Secrets
+    # ---------------
+
+    def _get_secrets_file_path(self) -> tuple[Path, bool]:
+        """Finds the a valid secrets file or returns the desired path for a new secrets file.
+
+        Returns:
+            tuple[Path, bool]: The path to the secrets file and if there is already a secrets file there
+        """
+        config_dirs = []
+        env_base_dir = os.getenv(self.EOS_DIR)
+        env_config_dir = os.getenv(self.EOS_CONFIG_DIR)
+        env_dir = get_absolute_path(env_base_dir, env_config_dir)
+        logger.debug(f"Envionment config dir: '{env_dir}'")
+        if env_dir is not None:
+            config_dirs.append(env_dir.resolve())
+        config_dirs.append(Path(user_config_dir(self.APP_NAME)))
+        config_dirs.append(Path.cwd())
+        for cdir in config_dirs:
+            cfile = cdir.joinpath(self.SECRETS_FILE_NAME)
+            if cfile.exists():
+                logger.debug(f"Found config file: '{cfile}'")
+                return cfile, True
+        # Put a new secrets file where the config file is.
+        config_file_path, _ = self._get_config_file_path()
+        return config_file_path.parent.joinpath(self.SECRETS_FILE_NAME), False
+
+    def from_secrets_file(self) -> None:
+        """Load secrets from the secrets file.
+
+        If the secrets file does not exist, it will be created.
+
+        Raises:
+            ValueError: If the secrets file is invalid or incomplete.
+        """
+        secrets_file, exists = self._get_secrets_file_path()
+        secrets_dir = secrets_file.parent
+
+        # Create secrets directory and copy default secrets if the file does not exist
+        if not exists:
+            secrets_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                shutil.copy2(self.secrets_default_file_path, secrets_file)
+            except Exception as exc:
+                logger.warning(f"Could not copy default secrets: {exc}. Using default secrets...")
+                secrets_file = self.secrets_default_file_path
+                secrets_dir = secrets_file.parent
+
+        # Load and validate the configuration file
+        with secrets_file.open("r", encoding=self.ENCODING) as f_in:
+            try:
+                SettingsBaseModel._secrets = json.load(f_in)
+            except Exception as exc:
+                raise ValueError(f"Secrets '{secrets_file}' is incomplete or not valid: {exc}")
+
+    # ---------------
+    # Data folder
+    # ---------------
+
     def _update_data_folder_path(self) -> None:
         """Updates path to the data directory."""
         # From Settings
@@ -344,11 +420,15 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         data_dir = Path.cwd()
         self.data_folder_path = data_dir
 
+    # ---------------
+    # Configuration file
+    # ---------------
+
     def _get_config_file_path(self) -> tuple[Path, bool]:
         """Finds the a valid configuration file or returns the desired path for a new config file.
 
         Returns:
-            tuple[Path, bool]: The path to the configuration directory and if there is already a config file there
+            tuple[Path, bool]: The path to the configuration file and if there is already a config file there
         """
         config_dirs = []
         env_base_dir = os.getenv(self.EOS_DIR)
@@ -444,6 +524,10 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
                 ConfigEOS._file_settings = SettingsEOS.model_validate_json(json_str)
             except ValidationError as exc:
                 raise ValueError(f"Could not update '{self.config_file_path}': {exc}")
+
+    # ---------------
+    # Configuration value
+    # ---------------
 
     def _config_value(self, key: str) -> Any:
         """Retrieves the configuration value for a specific key, following a priority order.

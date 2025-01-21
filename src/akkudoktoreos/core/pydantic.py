@@ -146,7 +146,7 @@ class PydanticBaseModel(BaseModel):
         return self
 
     def to_dict(self) -> dict:
-        """Convert this PredictionRecord instance to a dictionary representation.
+        """Convert this instance to a dictionary representation.
 
         Returns:
             dict: A dictionary where the keys are the field names of the PydanticBaseModel,

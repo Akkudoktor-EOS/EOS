@@ -98,7 +98,7 @@ class TestPredictionBase:
         # From Prediction Config
         monkeypatch.setenv("latitude", "2.5")
         base.config.update()
-        assert base.config.latitude == 2.5
+        assert base.config.secret("latitude") == 2.5
 
     def test_config_value_from_field_default(self, base, monkeypatch):
         assert base.config.model_fields["prediction_hours"].default == 48
@@ -195,8 +195,8 @@ class TestPredictionProvider:
 
         assert provider.config.prediction_hours == config_eos.prediction_hours
         assert provider.config.prediction_historic_hours == 2
-        assert provider.config.latitude == 37.7749
-        assert provider.config.longitude == -122.4194
+        assert provider.config.secret("latitude") == 37.7749
+        assert provider.config.secret("longitude") == -122.4194
         assert provider.start_datetime == sample_start_datetime
         assert provider.end_datetime == sample_start_datetime + to_duration(
             f"{provider.config.prediction_hours} hours"

@@ -19,7 +19,6 @@ class PVForecastCommonSettings(SettingsBaseModel):
     pvforecast_provider: Optional[str] = Field(
         default=None, description="PVForecast provider id of provider to be used."
     )
-    # pvforecast0_latitude: Optional[float] = Field(default=None, description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)")
     # Plane 0
     pvforecast0_surface_tilt: Optional[float] = Field(
         default=None, description="Tilt angle from horizontal plane. Ignored for two-axis tracking."

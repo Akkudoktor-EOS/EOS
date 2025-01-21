@@ -26,9 +26,9 @@ Attributes:
     weather_clearoutside (WeatherClearOutside): Weather forecast provider using ClearOutside.
 """
 
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
@@ -79,26 +79,90 @@ class PredictionCommonSettings(SettingsBaseModel):
         ge=0,
         description="Number of hours into the past for historical predictions data",
     )
-    latitude: Optional[float] = Field(
+    latitude: Optional[Union[float, str]] = Field(
         default=None,
-        ge=-90.0,
-        le=90.0,
-        description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)",
+        description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°). Maybe used with !secret.",
     )
-    longitude: Optional[float] = Field(
+    longitude: Optional[Union[float, str]] = Field(
         default=None,
-        ge=-180.0,
-        le=180.0,
-        description="Longitude in decimal degrees, within -180 to 180 (°)",
+        description="Longitude in decimal degrees, within -180 to 180 (°). Maybe used with !secret.",
     )
+
+    @field_validator("latitude", mode="before")
+    def validate_latitude(cls, value: Any) -> Optional[Union[float, str]]:
+        """Validates the latitude field.
+
+        Ensures that the value is either:
+        - A string containing "!secret"
+        - A float within the range -90.0 to 90.0 (inclusive)
+        - None
+
+        If the value is a string and not "!secret", it will be converted to a float.
+        If the value is out of bounds or of an invalid type, a `ValueError` is raised.
+
+        Args:
+            value (Any): The value to validate, which may be of any type.
+
+        Returns:
+            Optional[Union[float, str]]: The validated latitude value.
+
+        Raises:
+            ValueError: If the value is not a valid latitude.
+        """
+        if value is None:
+            return value
+        if isinstance(value, str):
+            if "!secret" in value:
+                return value
+            value = float(value)
+        if isinstance(value, float):
+            if value > 90.0 or value < -90.0:
+                raise ValueError("Latitude `{value}` must be within -90 to 90 (°)")
+            return value
+        raise ValueError("Latitude `{value}` must be a string, float, or None")
+
+    @field_validator("longitude", mode="before")
+    def validate_longitude(cls, value: Any) -> Optional[Union[float, str]]:
+        """Validates the longitude field.
+
+        Ensures that the value is either:
+        - A string containing "!secret"
+        - A float within the range -180.0 to 180.0 (inclusive)
+        - None
+
+        If the value is a string and not "!secret", it will be converted to a float.
+        If the value is out of bounds or of an invalid type, a `ValueError` is raised.
+
+        Args:
+            value (Any): The value to validate, which may be of any type.
+
+        Returns:
+            Optional[Union[float, str]]: The validated longitude value.
+
+        Raises:
+            ValueError: If the value is not a valid longitude.
+        """
+        if value is None:
+            return value
+        if isinstance(value, str):
+            if "!secret" in value:
+                return value
+            value = float(value)
+        if isinstance(value, float):
+            if value > 180.0 or value < -180.0:
+                raise ValueError("Longitude `{value}` must be within -180 to 180 (°)")
+            return value
+        raise ValueError("Longitude `{value}` must be a string, float, or None")
 
     # Computed fields
     @computed_field  # type: ignore[prop-decorator]
     @property
     def timezone(self) -> Optional[str]:
         """Compute timezone based on latitude and longitude."""
-        if self.latitude and self.longitude:
-            return to_timezone(location=(self.latitude, self.longitude), as_string=True)
+        latitude = self.secret("latitude")
+        longitude = self.secret("longitude")
+        if isinstance(latitude, float) and isinstance(longitude, float):
+            return to_timezone(location=(latitude, longitude), as_string=True)
         return None
 
 

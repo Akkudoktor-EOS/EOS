@@ -18,8 +18,8 @@
 | `data_folder_path` | `Optional[pathlib.Path]` | `rw` | `None` | Path to EOS data directory. |
 | `data_output_path` | `Optional[pathlib.Path]` | `ro` | `N/A` | Compute data_output_path based on data_folder_path. |
 | `data_output_subpath` | `Optional[pathlib.Path]` | `rw` | `output` | Sub-path for the EOS output data directory. |
-| `latitude` | `Optional[float]` | `rw` | `None` | Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°) |
-| `longitude` | `Optional[float]` | `rw` | `None` | Longitude in decimal degrees, within -180 to 180 (°) |
+| `latitude` | `Union[float, str, NoneType]` | `rw` | `None` | Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°). Maybe used with !secret. |
+| `longitude` | `Union[float, str, NoneType]` | `rw` | `None` | Longitude in decimal degrees, within -180 to 180 (°). Maybe used with !secret. |
 | `package_root_path` | `<class 'pathlib.Path'>` | `ro` | `N/A` | Compute the package root path. |
 | `timezone` | `Optional[str]` | `ro` | `N/A` | Compute timezone based on latitude and longitude. |
 :::
@@ -306,4 +306,15 @@
 | `weather_provider` | `Optional[str]` | `rw` | `None` | Weather provider id of provider to be used. |
 | `weatherimport_file_path` | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import weather data from. |
 | `weatherimport_json` | `Optional[str]` | `rw` | `None` | JSON string, dictionary of weather forecast value lists. |
+:::
+
+## Other Configuration Values
+
+:::{table} Other Configuration Values
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| `secrets_default_file_path` | `<class 'pathlib.Path'>` | `ro` | `N/A` | Compute the default secrets file path. |
 :::

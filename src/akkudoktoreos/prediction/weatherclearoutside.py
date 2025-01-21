@@ -91,8 +91,8 @@ class WeatherClearOutside(WeatherProvider):
             response: Weather forecast request reponse from ClearOutside.
         """
         source = "https://clearoutside.com/forecast"
-        latitude = round(self.config.latitude, 2)
-        longitude = round(self.config.longitude, 2)
+        latitude = round(self.config.secret("latitude"), 2)
+        longitude = round(self.config.secret("longitude"), 2)
         response = requests.get(f"{source}/{latitude}/{longitude}?desktop=true")
         response.raise_for_status()  # Raise an error for bad responses
         logger.debug(f"Response from {source}: {response}")
@@ -307,7 +307,7 @@ class WeatherClearOutside(WeatherProvider):
                 data=clearout_data["Total Clouds (% Sky Obscured)"], index=clearout_data["DateTime"]
             )
             ghi, dni, dhi = self.estimate_irradiance_from_cloud_cover(
-                self.config.latitude, self.config.longitude, cloud_cover
+                self.config.secret("latitude"), self.config.secret("longitude"), cloud_cover
             )
 
             # Add GHI, DNI, DHI to clearout data

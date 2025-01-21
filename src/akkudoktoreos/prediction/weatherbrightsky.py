@@ -200,7 +200,7 @@ class WeatherBrightSky(WeatherProvider):
         description = "Total Clouds (% Sky Obscured)"
         cloud_cover = self._description_to_series(description)
         ghi, dni, dhi = self.estimate_irradiance_from_cloud_cover(
-            self.config.latitude, self.config.longitude, cloud_cover
+            self.config.secret("latitude"), self.config.secret("longitude"), cloud_cover
         )
 
         description = "Global Horizontal Irradiance (W/m2)"

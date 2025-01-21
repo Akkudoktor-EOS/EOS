@@ -203,8 +203,8 @@ class PVForecastAkkudoktor(PVForecastProvider):
         """Build akkudoktor.net API request URL."""
         base_url = "https://api.akkudoktor.net/forecast"
         query_params = [
-            f"lat={self.config.latitude}",
-            f"lon={self.config.longitude}",
+            f"lat={self.config.secret("latitude")}",
+            f"lon={self.config.secret("longitude")}",
         ]
 
         for i in range(len(self.config.pvforecast_planes)):

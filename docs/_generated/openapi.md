@@ -441,9 +441,9 @@ Returns:
 
 - `prediction_historic_hours` (query, optional): Number of hours into the past for historical predictions data
 
-- `latitude` (query, optional): Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)
+- `latitude` (query, optional): Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°). Maybe used with !secret.
 
-- `longitude` (query, optional): Longitude in decimal degrees, within -180 to 180 (°)
+- `longitude` (query, optional): Longitude in decimal degrees, within -180 to 180 (°). Maybe used with !secret.
 
 - `optimization_hours` (query, optional): Number of hours into the future for optimizations.
 

@@ -1,4 +1,5 @@
 from typing import List, Literal, Optional, no_type_check
+from unittest.mock import patch
 
 import pytest
 from pydantic import Field, ValidationError
@@ -7,10 +8,61 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 
 
 class SettingsModel(SettingsBaseModel):
+    """Model for testing SettingsBaseModel."""
+
     name: str = "Default Name"
     age: int = 18
     tags: List[str] = Field(default_factory=list)
-    readonly_field: Literal["ReadOnly"] = "ReadOnly"  # Use Literal instead of const
+    readonly_field: Literal["ReadOnly"] = "ReadOnly"
+
+
+def test_secret_resolution():
+    """Test dynamic resolution of secrets."""
+    with patch.object(
+        SettingsBaseModel, "_secrets", {"api_key": "12345", "db_password": "secure_password"}
+    ):
+        instance = SettingsModel(name="!secret api_key")
+        assert instance.secret("name") == "12345"
+
+
+def test_secret_not_found():
+    """Ensure accessing an undefined secret raises a KeyError."""
+    with patch.object(SettingsBaseModel, "_secrets", {"api_key": "12345"}):
+        instance = SettingsModel(name="!secret unknown_key")
+        with pytest.raises(KeyError, match="Secret 'unknown_key' not found!"):
+            instance.secret("name")
+
+
+def test_secret_resolution_with_no_secrets():
+    """Ensure accessing a secret without secrets raises an error."""
+    with patch.object(SettingsBaseModel, "_secrets", None):
+        instance = SettingsModel(name="!secret api_key")
+        with pytest.raises(KeyError, match="Secrets not set up!"):
+            instance.secret("name")
+
+
+def test_to_secret_dict():
+    """Test converting to a dictionary with resolved secrets."""
+    with patch.object(
+        SettingsBaseModel, "_secrets", {"api_key": "12345", "db_password": "secure_password"}
+    ):
+        instance = SettingsModel(name="!secret api_key", age=30, tags=["tag1", "tag2"])
+        secret_dict = instance.to_secret_dict()
+
+        assert secret_dict["name"] == "12345"
+        assert secret_dict["age"] == 30
+        assert secret_dict["tags"] == ["tag1", "tag2"]
+
+
+def test_to_secret_dict_no_secrets():
+    """Test `to_secret_dict` when no secrets are involved."""
+    with patch.object(SettingsBaseModel, "_secrets", None):
+        instance = SettingsModel(name="John Doe", age=30, tags=["tag1", "tag2"])
+        secret_dict = instance.to_secret_dict()
+
+        assert secret_dict["name"] == "John Doe"
+        assert secret_dict["age"] == 30
+        assert secret_dict["tags"] == ["tag1", "tag2"]
 
 
 def test_reset_to_defaults():
