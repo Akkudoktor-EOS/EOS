@@ -24,7 +24,12 @@ matplotlib.use(
 
 
 class VisualizationReport(ConfigMixin):
-    def __init__(self, filename: str = "visualization_results.pdf", version: str = "0.0.1") -> None:
+    def __init__(
+        self,
+        filename: str = "visualization_results.pdf",
+        version: str = "0.0.1",
+        create_png: bool = False,
+    ) -> None:
         # Initialize the report with a given filename and empty groups
         self.filename = filename
         self.groups: list[list[Callable[[], None]]] = []  # Store groups of charts
@@ -36,10 +41,23 @@ class VisualizationReport(ConfigMixin):
         self.current_time = to_datetime(
             as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.timezone
         )
+        self.chart_counter = 0  # Initialize a global counter for chart filenames
+        self.create_png = create_png
 
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
-        """Add a chart function to the current group."""
+        """Add a chart function to the current group and save it as a PNG."""
         self.current_group.append(chart_func)
+        if self.create_png:
+            # Save the chart as a PNG file
+            output_dir = self.config.data_output_path
+            output_dir.mkdir(parents=True, exist_ok=True)
+            fig, ax = plt.subplots()
+            chart_func()
+            plt.tight_layout()  # Adjust the layout to ensure titles are not cut off
+            self.chart_counter += 1  # Increment the global counter
+            chart_filename = os.path.join(output_dir, f"chart_{self.chart_counter}.png")
+            fig.savefig(chart_filename)
+            plt.close(fig)
 
     def finalize_group(self) -> None:
         """Finalize the current group and prepare for a new group."""
