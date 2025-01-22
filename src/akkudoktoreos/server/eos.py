@@ -34,6 +34,7 @@ from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings, get_prediction
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
+from akkudoktoreos.server.rest.error import create_error_page
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 logger = get_logger(__name__)
@@ -44,98 +45,6 @@ ems_eos = get_ems()
 
 # Command line arguments
 args = None
-
-ERROR_PAGE_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Energy Optimization System (EOS) Error</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background-color: #f5f5f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .error-container {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
-            width: 100%;
-            text-align: center;
-        }
-        .error-code {
-            font-size: 4rem;
-            font-weight: bold;
-            color: #e53e3e;
-            margin: 0;
-        }
-        .error-title {
-            font-size: 1.5rem;
-            color: #2d3748;
-            margin: 1rem 0;
-        }
-        .error-message {
-            color: #4a5568;
-            margin-bottom: 1.5rem;
-        }
-        .error-details {
-            background: #f7fafc;
-            padding: 1rem;
-            border-radius: 4px;
-            margin-bottom: 1.5rem;
-            text-align: left;
-            font-family: monospace;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-        .back-button {
-            background: #3182ce;
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 4px;
-            text-decoration: none;
-            display: inline-block;
-            transition: background-color 0.2s;
-        }
-        .back-button:hover {
-            background: #2c5282;
-        }
-    </style>
-</head>
-<body>
-    <div class="error-container">
-        <h1 class="error-code">STATUS_CODE</h1>
-        <h2 class="error-title">ERROR_TITLE</h2>
-        <p class="error-message">ERROR_MESSAGE</p>
-        <div class="error-details">ERROR_DETAILS</div>
-        <a href="/docs" class="back-button">Back to Home</a>
-    </div>
-</body>
-</html>
-"""
-
-
-def create_error_page(
-    status_code: str, error_title: str, error_message: str, error_details: str
-) -> str:
-    """Create an error page by replacing placeholders in the template."""
-    return (
-        ERROR_PAGE_TEMPLATE.replace("STATUS_CODE", status_code)
-        .replace("ERROR_TITLE", error_title)
-        .replace("ERROR_MESSAGE", error_message)
-        .replace("ERROR_DETAILS", error_details)
-    )
 
 
 # ----------------------
@@ -230,14 +139,37 @@ app = FastAPI(
     root_path=str(Path(__file__).parent),
 )
 
-server_dir = Path(__file__).parent.resolve()
-
 
 class PdfResponse(FileResponse):
     media_type = "application/pdf"
 
 
-@app.put("/v1/config/reset", tags=["config"])
+@app.put("/v1/config/value")
+def fastapi_config_value_put(
+    key: Annotated[str, Query(description="configuration key")],
+    value: Annotated[Any, Query(description="configuration value")],
+) -> ConfigEOS:
+    """Set the configuration option in the settings.
+
+    Args:
+        key (str): configuration key
+        value (Any): configuration value
+
+    Returns:
+        configuration (ConfigEOS): The current configuration after the write.
+    """
+    if key not in config_eos.config_keys:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
+    if key in config_eos.config_keys_read_only:
+        raise HTTPException(status_code=404, detail=f"Key '{key}' is read only.")
+    try:
+        setattr(config_eos, key, value)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
+    return config_eos
+
+
+@app.post("/v1/config/update")
 def fastapi_config_update_post() -> ConfigEOS:
     """Reset the configuration to the EOS configuration file.
 

@@ -1,124 +1,87 @@
 import argparse
 import os
 import sys
-from functools import reduce
-from typing import Any, Union
+from typing import Optional
 
 import uvicorn
-from fasthtml.common import H1, Table, Td, Th, Thead, Titled, Tr, fast_app
-from pydantic.fields import ComputedFieldInfo, FieldInfo
-from pydantic_core import PydanticUndefined
+from monsterui.core import FastHTML, Theme
 
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.logging import get_logger
-from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.server.dash.components import Page
+
+# Pages
+from akkudoktoreos.server.dash.configuration import Configuration
+from akkudoktoreos.server.dash.demo import Demo
+from akkudoktoreos.server.dash.hello import Hello
 
 logger = get_logger(__name__)
-
 config_eos = get_config()
 
 # Command line arguments
-args = None
+args: Optional[argparse.Namespace] = None
 
-
-def get_default_value(field_info: Union[FieldInfo, ComputedFieldInfo], regular_field: bool) -> Any:
-    default_value = ""
-    if regular_field:
-        if (val := field_info.default) is not PydanticUndefined:
-            default_value = val
-    else:
-        default_value = "N/A"
-    return default_value
-
-
-def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple[Any, list[str]]]:
-    resolved_types: list[tuple[Any, list[str]]] = []
-
-    origin = getattr(field_type, "__origin__", field_type)
-    if origin is Union:
-        for arg in getattr(field_type, "__args__", []):
-            if arg is not type(None):
-                resolved_types.extend(resolve_nested_types(arg, parent_types))
-    else:
-        resolved_types.append((field_type, parent_types))
-
-    return resolved_types
-
-
-configs = []
-inner_types: set[type[PydanticBaseModel]] = set()
-for field_name, field_info in list(config_eos.model_fields.items()) + list(
-    config_eos.model_computed_fields.items()
-):
-
-    def extract_nested_models(
-        subfield_info: Union[ComputedFieldInfo, FieldInfo], parent_types: list[str]
-    ) -> None:
-        regular_field = isinstance(subfield_info, FieldInfo)
-        subtype = subfield_info.annotation if regular_field else subfield_info.return_type
-
-        if subtype in inner_types:
-            return
-
-        nested_types = resolve_nested_types(subtype, [])
-        found_basic = False
-        for nested_type, nested_parent_types in nested_types:
-            if not isinstance(nested_type, type) or not issubclass(nested_type, PydanticBaseModel):
-                if found_basic:
-                    continue
-
-                config = {}
-                config["name"] = ".".join(parent_types)
-                try:
-                    config["value"] = reduce(getattr, [config_eos] + parent_types)
-                except AttributeError:
-                    # Parent value(s) are not set in current config
-                    config["value"] = ""
-                config["default"] = get_default_value(subfield_info, regular_field)
-                config["description"] = (
-                    subfield_info.description if subfield_info.description else ""
-                )
-                configs.append(config)
-                found_basic = True
-            else:
-                new_parent_types = parent_types + nested_parent_types
-                inner_types.add(nested_type)
-                for nested_field_name, nested_field_info in list(
-                    nested_type.model_fields.items()
-                ) + list(nested_type.model_computed_fields.items()):
-                    extract_nested_models(
-                        nested_field_info,
-                        new_parent_types + [nested_field_name],
-                    )
-
-    extract_nested_models(field_info, [field_name])
-configs = sorted(configs, key=lambda x: x["name"])
-
-
-app, rt = fast_app(
+# The EOSdash application
+app: FastHTML = FastHTML(
+    title="EOSdash",
+    hdrs=Theme.green.headers(highlightjs=True),
     secret_key=os.getenv("EOS_SERVER__EOSDASH_SESSKEY"),
 )
 
 
-def config_table() -> Table:
-    rows = [
-        Tr(
-            Td(config["name"]),
-            Td(config["value"]),
-            Td(config["default"]),
-            Td(config["description"]),
-            cls="even:bg-purple/5",
-        )
-        for config in configs
-    ]
-    flds = "Name", "Value", "Default", "Description"
-    head = Thead(*map(Th, flds), cls="bg-purple/10")
-    return Table(head, *rows, cls="w-full")
+@app.get("/")
+def get_eosdash():  # type: ignore
+    """Serves the main EOSdash page.
+
+    Returns:
+        Page: The main dashboard page with navigation links and footer.
+    """
+    return Page(
+        None,
+        {
+            "EOSdash": "/eosdash/hello",
+            "Config": "/eosdash/configuration",
+            "Demo": "/eosdash/demo",
+        },
+        Hello(),
+        "Footer_Info",
+    )
 
 
-@rt("/")
-def get():  # type: ignore
-    return Titled("EOS Dashboard", H1("Configuration"), config_table())
+@app.get("/eosdash/hello")
+def get_eosdash_hello():  # type: ignore
+    """Serves the EOSdash Hello page.
+
+    Returns:
+        Hello: The Hello page component.
+    """
+    return Hello()
+
+
+@app.get("/eosdash/configuration")
+def get_eosdash_configuration():  # type: ignore
+    """Serves the EOSdash Configuration page.
+
+    Returns:
+        Configuration: The Configuration page component.
+    """
+    if args is None:
+        eos_host = None
+        eos_port = None
+    else:
+        eos_host = args.eos_host
+        eos_port = args.eos_port
+    return Configuration(eos_host, eos_port)
+
+
+@app.get("/eosdash/demo")
+def get_eosdash_demo():  # type: ignore
+    """Serves the EOSdash Demo page.
+
+    Returns:
+        Demo: The Demo page component.
+    """
+    return Demo()
 
 
 def run_eosdash(host: str, port: int, log_level: str, access_log: bool, reload: bool) -> None:
@@ -131,16 +94,16 @@ def run_eosdash(host: str, port: int, log_level: str, access_log: bool, reload: 
     server to the specified host and port, an error message is logged and the
     application exits.
 
-    Parameters:
-    host (str): The hostname to bind the server to.
-    port (int): The port number to bind the server to.
-    log_level (str): The log level for the server. Options include "critical", "error",
-                     "warning", "info", "debug", and "trace".
-    access_log (bool): Whether to enable or disable the access log. Set to True to enable.
-    reload (bool): Whether to enable or disable auto-reload. Set to True for development.
+    Args:
+        host (str): The hostname to bind the server to.
+        port (int): The port number to bind the server to.
+        log_level (str): The log level for the server. Options include "critical", "error",
+                        "warning", "info", "debug", and "trace".
+        access_log (bool): Whether to enable or disable the access log. Set to True to enable.
+        reload (bool): Whether to enable or disable auto-reload. Set to True for development.
 
     Returns:
-    None
+        None
     """
     # Make hostname Windows friendly
     if host == "0.0.0.0" and os.name == "nt":
@@ -150,7 +113,7 @@ def run_eosdash(host: str, port: int, log_level: str, access_log: bool, reload: 
             "akkudoktoreos.server.eosdash:app",
             host=host,
             port=port,
-            log_level=log_level.lower(),  # Convert log_level to lowercase
+            log_level=log_level.lower(),
             access_log=access_log,
             reload=reload,
         )
@@ -164,7 +127,7 @@ def main() -> None:
 
     This function sets up the argument parser to accept command-line arguments for
     host, port, log_level, access_log, and reload. It uses default values from the
-    config_eos module if arguments are not provided. After parsing the arguments,
+    config module if arguments are not provided. After parsing the arguments,
     it starts the EOSdash server with the specified configurations.
 
     Command-line Arguments:
@@ -178,7 +141,6 @@ def main() -> None:
     """
     parser = argparse.ArgumentParser(description="Start EOSdash server.")
 
-    # Host and port arguments with defaults from config_eos
     parser.add_argument(
         "--host",
         type=str,
@@ -191,8 +153,6 @@ def main() -> None:
         default=config_eos.server.eosdash_port,
         help="Port for the EOSdash server (default: value from config)",
     )
-
-    # EOS Host and port arguments with defaults from config_eos
     parser.add_argument(
         "--eos-host",
         type=str,
@@ -205,8 +165,6 @@ def main() -> None:
         default=config_eos.server.port,
         help="Port for the EOS server (default: value from config)",
     )
-
-    # Optional arguments for log_level, access_log, and reload
     parser.add_argument(
         "--log_level",
         type=str,
@@ -217,7 +175,7 @@ def main() -> None:
         "--access_log",
         type=bool,
         default=False,
-        help="Enable or disable access log. Options: True or False (default: True)",
+        help="Enable or disable access log. Options: True or False (default: False)",
     )
     parser.add_argument(
         "--reload",
@@ -226,6 +184,7 @@ def main() -> None:
         help="Enable or disable auto-reload. Useful for development. Options: True or False (default: False)",
     )
 
+    global args
     args = parser.parse_args()
 
     try:
