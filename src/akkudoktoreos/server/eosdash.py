@@ -1,127 +1,144 @@
 import argparse
 import os
 import sys
-import time
-from functools import reduce
-from typing import Any, Union
+import traceback
+from pathlib import Path
+from typing import Optional
 
 import psutil
 import uvicorn
-from fasthtml.common import H1, Table, Td, Th, Thead, Titled, Tr, fast_app
-from fasthtml.starlette import JSONResponse
-from pydantic.fields import ComputedFieldInfo, FieldInfo
-from pydantic_core import PydanticUndefined
+from fasthtml.common import FileResponse, JSONResponse
+from monsterui.core import FastHTML, Theme
 
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.logging import get_logger
-from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.server.dash.bokeh import BokehJS
+from akkudoktoreos.server.dash.components import Page
+
+# Pages
+from akkudoktoreos.server.dash.configuration import Configuration
+from akkudoktoreos.server.dash.demo import Demo
+from akkudoktoreos.server.dash.footer import Footer
+from akkudoktoreos.server.dash.hello import Hello
+from akkudoktoreos.server.server import get_default_host, wait_for_port_free
+
+# from akkudoktoreos.server.dash.altair import AltairJS
 
 logger = get_logger(__name__)
-
 config_eos = get_config()
 
+# The favicon for EOSdash
+favicon_filepath = Path(__file__).parent.joinpath("dash/assets/favicon/favicon.ico")
+if not favicon_filepath.exists():
+    raise ValueError(f"Does not exist {favicon_filepath}")
+
 # Command line arguments
-args = None
+args: Optional[argparse.Namespace] = None
 
 
-def get_default_value(field_info: Union[FieldInfo, ComputedFieldInfo], regular_field: bool) -> Any:
-    default_value = ""
-    if regular_field:
-        if (val := field_info.default) is not PydanticUndefined:
-            default_value = val
-    else:
-        default_value = "N/A"
-    return default_value
+# Get frankenui and tailwind headers via CDN using Theme.green.headers()
+# Add altair headers
+# hdrs=(Theme.green.headers(highlightjs=True), AltairJS,)
+hdrs = (
+    Theme.green.headers(highlightjs=True),
+    BokehJS,
+)
 
-
-def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple[Any, list[str]]]:
-    resolved_types: list[tuple[Any, list[str]]] = []
-
-    origin = getattr(field_type, "__origin__", field_type)
-    if origin is Union:
-        for arg in getattr(field_type, "__args__", []):
-            if arg is not type(None):
-                resolved_types.extend(resolve_nested_types(arg, parent_types))
-    else:
-        resolved_types.append((field_type, parent_types))
-
-    return resolved_types
-
-
-configs = []
-inner_types: set[type[PydanticBaseModel]] = set()
-for field_name, field_info in list(config_eos.model_fields.items()) + list(
-    config_eos.model_computed_fields.items()
-):
-
-    def extract_nested_models(
-        subfield_info: Union[ComputedFieldInfo, FieldInfo], parent_types: list[str]
-    ) -> None:
-        regular_field = isinstance(subfield_info, FieldInfo)
-        subtype = subfield_info.annotation if regular_field else subfield_info.return_type
-
-        if subtype in inner_types:
-            return
-
-        nested_types = resolve_nested_types(subtype, [])
-        found_basic = False
-        for nested_type, nested_parent_types in nested_types:
-            if not isinstance(nested_type, type) or not issubclass(nested_type, PydanticBaseModel):
-                if found_basic:
-                    continue
-
-                config = {}
-                config["name"] = ".".join(parent_types)
-                try:
-                    config["value"] = reduce(getattr, [config_eos] + parent_types)
-                except AttributeError:
-                    # Parent value(s) are not set in current config
-                    config["value"] = ""
-                config["default"] = get_default_value(subfield_info, regular_field)
-                config["description"] = (
-                    subfield_info.description if subfield_info.description else ""
-                )
-                configs.append(config)
-                found_basic = True
-            else:
-                new_parent_types = parent_types + nested_parent_types
-                inner_types.add(nested_type)
-                for nested_field_name, nested_field_info in list(
-                    nested_type.model_fields.items()
-                ) + list(nested_type.model_computed_fields.items()):
-                    extract_nested_models(
-                        nested_field_info,
-                        new_parent_types + [nested_field_name],
-                    )
-
-    extract_nested_models(field_info, [field_name])
-configs = sorted(configs, key=lambda x: x["name"])
-
-
-app, rt = fast_app(
+# The EOSdash application
+app: FastHTML = FastHTML(
+    title="EOSdash",
+    hdrs=hdrs,
     secret_key=os.getenv("EOS_SERVER__EOSDASH_SESSKEY"),
 )
 
 
-def config_table() -> Table:
-    rows = [
-        Tr(
-            Td(config["name"]),
-            Td(config["value"]),
-            Td(config["default"]),
-            Td(config["description"]),
-            cls="even:bg-purple/5",
-        )
-        for config in configs
-    ]
-    flds = "Name", "Value", "Default", "Description"
-    head = Thead(*map(Th, flds), cls="bg-purple/10")
-    return Table(head, *rows, cls="w-full")
+def eos_server() -> tuple[str, int]:
+    """Retrieves the EOS server host and port configuration.
+
+    If `args` is provided, it uses the `eos_host` and `eos_port` from `args`.
+    Otherwise, it falls back to the values from `config_eos.server`.
+
+    Returns:
+        tuple[str, int]: A tuple containing:
+            - `eos_host` (str): The EOS server hostname or IP.
+            - `eos_port` (int): The EOS server port.
+    """
+    if args is None:
+        eos_host = str(config_eos.server.host)
+        eos_port = config_eos.server.port
+    else:
+        eos_host = args.eos_host
+        eos_port = args.eos_port
+    eos_host = eos_host if eos_host else get_default_host()
+    eos_port = eos_port if eos_port else 8503
+
+    return eos_host, eos_port
 
 
-@rt("/")
-def get():  # type: ignore
-    return Titled("EOS Dashboard", H1("Configuration"), config_table())
+@app.get("/favicon.ico")
+def get_eosdash_favicon():  # type: ignore
+    """Get favicon."""
+    return FileResponse(path=favicon_filepath)
+
+
+@app.get("/")
+def get_eosdash():  # type: ignore
+    """Serves the main EOSdash page.
+
+    Returns:
+        Page: The main dashboard page with navigation links and footer.
+    """
+    return Page(
+        None,
+        {
+            "EOSdash": "/eosdash/hello",
+            "Config": "/eosdash/configuration",
+            "Demo": "/eosdash/demo",
+        },
+        Hello(),
+        Footer(*eos_server()),
+        "/eosdash/footer",
+    )
+
+
+@app.get("/eosdash/footer")
+def get_eosdash_footer():  # type: ignore
+    """Serves the EOSdash Foooter information.
+
+    Returns:
+        Footer: The Footer component.
+    """
+    return Footer(*eos_server())
+
+
+@app.get("/eosdash/hello")
+def get_eosdash_hello():  # type: ignore
+    """Serves the EOSdash Hello page.
+
+    Returns:
+        Hello: The Hello page component.
+    """
+    return Hello()
+
+
+@app.get("/eosdash/configuration")
+def get_eosdash_configuration():  # type: ignore
+    """Serves the EOSdash Configuration page.
+
+    Returns:
+        Configuration: The Configuration page component.
+    """
+    return Configuration(*eos_server())
+
+
+@app.get("/eosdash/demo")
+def get_eosdash_demo():  # type: ignore
+    """Serves the EOSdash Demo page.
+
+    Returns:
+        Demo: The Demo page component.
+    """
+    return Demo(*eos_server())
 
 
 @app.get("/eosdash/health")
@@ -135,7 +152,14 @@ def get_eosdash_health():  # type: ignore
     )
 
 
-def run_eosdash(host: str, port: int, log_level: str, access_log: bool, reload: bool) -> None:
+@app.get("/eosdash/assets/{fname:path}.{ext:static}")
+def get_eosdash_assets(fname: str, ext: str):  # type: ignore
+    """Get assets."""
+    asset_filepath = Path(__file__).parent.joinpath(f"dash/assets/{fname}.{ext}")
+    return FileResponse(path=asset_filepath)
+
+
+def run_eosdash() -> None:
     """Run the EOSdash server with the specified configurations.
 
     This function starts the EOSdash server using the Uvicorn ASGI server. It accepts
@@ -145,65 +169,77 @@ def run_eosdash(host: str, port: int, log_level: str, access_log: bool, reload: 
     server to the specified host and port, an error message is logged and the
     application exits.
 
-    Args:
-        host (str): The hostname to bind the server to.
-        port (int): The port number to bind the server to.
-        log_level (str): The log level for the server. Options include "critical", "error",
-                        "warning", "info", "debug", and "trace".
-        access_log (bool): Whether to enable or disable the access log. Set to True to enable.
-        reload (bool): Whether to enable or disable auto-reload. Set to True for development.
-
     Returns:
         None
     """
+    # Setup parameters from args, config_eos and default
+    # Remember parameters that are also in config
+    # - EOS host
+    if args and args.eos_host:
+        eos_host = args.eos_host
+    elif config_eos.server.host:
+        eos_host = config_eos.server.host
+    else:
+        eos_host = get_default_host()
+    config_eos.server.host = eos_host
+    # - EOS port
+    if args and args.eos_port:
+        eos_port = args.eos_port
+    elif config_eos.server.port:
+        eos_port = config_eos.server.port
+    else:
+        eos_port = 8503
+    config_eos.server.port = eos_port
+    # - EOSdash host
+    if args and args.host:
+        eosdash_host = args.host
+    elif config_eos.server.eosdash.host:
+        eosdash_host = config_eos.server.eosdash_host
+    else:
+        eosdash_host = get_default_host()
+    config_eos.server.eosdash_host = eosdash_host
+    # - EOS port
+    if args and args.port:
+        eosdash_port = args.port
+    elif config_eos.server.eosdash_port:
+        eosdash_port = config_eos.server.eosdash_port
+    else:
+        eosdash_port = 8504
+    config_eos.server.eosdash_port = eosdash_port
+    # - log level
+    if args and args.log_level:
+        log_level = args.log_level
+    else:
+        log_level = "info"
+    # - access log
+    if args and args.access_log:
+        access_log = args.access_log
+    else:
+        access_log = False
+    # - reload
+    if args and args.reload:
+        reload = args.reload
+    else:
+        reload = False
+
     # Make hostname Windows friendly
-    if host == "0.0.0.0" and os.name == "nt":
-        host = "localhost"
+    if eosdash_host == "0.0.0.0" and os.name == "nt":
+        eosdash_host = "localhost"
 
     # Wait for EOSdash port to be free - e.g. in case of restart
-    timeout = 120  # Maximum 120 seconds to wait
-    process_info: list[dict] = []
-    for retries in range(int(timeout / 3)):
-        process_info = []
-        pids: list[int] = []
-        for conn in psutil.net_connections(kind="inet"):
-            if conn.laddr.port == port:
-                if conn.pid not in pids:
-                    # Get fresh process info
-                    process = psutil.Process(conn.pid)
-                    pids.append(conn.pid)
-                    process_info.append(process.as_dict(attrs=["pid", "cmdline"]))
-        if len(process_info) == 0:
-            break
-        logger.info(f"EOSdash waiting for port `{port}` ...")
-        time.sleep(3)
-    if len(process_info) > 0:
-        logger.warning(f"EOSdash port `{port}` in use.")
-        for info in process_info:
-            logger.warning(f"PID: `{info["pid"]}`, CMD: `{info["cmdline"]}`")
-
-    # Setup config from args
-    if args:
-        if args.eos_host:
-            config_eos.server.host = args.eos_host
-        if args.eos_port:
-            config_eos.server.port = args.eos_port
-        if args.host:
-            config_eos.server.eosdash_host = args.host
-        if args.port:
-            config_eos.server.eosdash_port = args.port
+    wait_for_port_free(eosdash_port, timeout=120, waiting_app_name="EOSdash")
 
     try:
         uvicorn.run(
             "akkudoktoreos.server.eosdash:app",
-            host=host,
-            port=port,
-            log_level=log_level.lower(),  # Convert log_level to lowercase
+            host=eosdash_host,
+            port=eosdash_port,
+            log_level=log_level.lower(),
             access_log=access_log,
             reload=reload,
         )
     except Exception as e:
-        logger.error(f"Could not bind to host {host}:{port}. Error: {e}")
+        logger.error(f"Could not bind to host {eosdash_host}:{eosdash_port}. Error: {e}")
         raise e
 
 
@@ -212,7 +248,7 @@ def main() -> None:
 
     This function sets up the argument parser to accept command-line arguments for
     host, port, log_level, access_log, and reload. It uses default values from the
-    config_eos module if arguments are not provided. After parsing the arguments,
+    config module if arguments are not provided. After parsing the arguments,
     it starts the EOSdash server with the specified configurations.
 
     Command-line Arguments:
@@ -226,7 +262,6 @@ def main() -> None:
     """
     parser = argparse.ArgumentParser(description="Start EOSdash server.")
 
-    # Host and port arguments with defaults from config_eos
     parser.add_argument(
         "--host",
         type=str,
@@ -239,8 +274,6 @@ def main() -> None:
         default=config_eos.server.eosdash_port,
         help="Port for the EOSdash server (default: value from config)",
     )
-
-    # EOS Host and port arguments with defaults from config_eos
     parser.add_argument(
         "--eos-host",
         type=str,
@@ -253,8 +286,6 @@ def main() -> None:
         default=config_eos.server.port,
         help="Port of the EOS server (default: value from config)",
     )
-
-    # Optional arguments for log_level, access_log, and reload
     parser.add_argument(
         "--log_level",
         type=str,
@@ -265,7 +296,7 @@ def main() -> None:
         "--access_log",
         type=bool,
         default=False,
-        help="Enable or disable access log. Options: True or False (default: True)",
+        help="Enable or disable access log. Options: True or False (default: False)",
     )
     parser.add_argument(
         "--reload",
@@ -274,13 +305,15 @@ def main() -> None:
         help="Enable or disable auto-reload. Useful for development. Options: True or False (default: False)",
     )
 
+    global args
     args = parser.parse_args()
 
     try:
-        run_eosdash(args.host, args.port, args.log_level, args.access_log, args.reload)
+        run_eosdash()
     except Exception as ex:
         error_msg = f"Failed to run EOSdash: {ex}"
         logger.error(error_msg)
+        traceback.print_exc()
         sys.exit(1)
 
 

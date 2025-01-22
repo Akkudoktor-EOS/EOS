@@ -1845,6 +1845,88 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
 
         return array
 
+    def keys_to_dataframe(
+        self,
+        keys: list[str],
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+        interval: Optional[Any] = None,  # Duration assumed
+        fill_method: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Retrieve a dataframe indexed by fixed time intervals for specified keys from the data in each DataProvider.
+
+        Generates a pandas DataFrame using the NumPy arrays for each specified key, ensuring a common time index..
+
+        Args:
+            keys (list[str]): A list of field names to retrieve.
+            start_datetime (datetime, optional): Start date for filtering records (inclusive).
+            end_datetime (datetime, optional): End date for filtering records (exclusive).
+            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
+            fill_method (str, optional): Method to handle missing values during resampling.
+                - 'linear': Linearly interpolate missing values (for numeric data only).
+                - 'ffill': Forward fill missing values.
+                - 'bfill': Backward fill missing values.
+                - 'none': Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+        Returns:
+            pd.DataFrame: A DataFrame where each column represents a key's array with a common time index.
+
+        Raises:
+            KeyError: If no valid data is found for any of the requested keys.
+            ValueError: If any retrieved array has a different time index than the first one.
+        """
+        # Ensure datetime objects are normalized
+        start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
+        end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
+        if interval is None:
+            interval = to_duration("1 hour")
+        if start_datetime is None:
+            # Take earliest datetime of all providers that are enabled
+            for provider in self.enabled_providers:
+                if start_datetime is None:
+                    start_datetime = provider.min_datetime
+                elif (
+                    provider.min_datetime
+                    and compare_datetimes(provider.min_datetime, start_datetime).lt
+                ):
+                    start_datetime = provider.min_datetime
+        if end_datetime is None:
+            # Take latest datetime of all providers that are enabled
+            for provider in self.enabled_providers:
+                if end_datetime is None:
+                    end_datetime = provider.max_datetime
+                elif (
+                    provider.max_datetime
+                    and compare_datetimes(provider.max_datetime, end_datetime).gt
+                ):
+                    end_datetime = provider.min_datetime
+            if end_datetime:
+                end_datetime.add(seconds=1)
+
+        # Create a DatetimeIndex based on start, end, and interval
+        reference_index = pd.date_range(
+            start=start_datetime, end=end_datetime, freq=interval, inclusive="left"
+        )
+
+        data = {}
+        for key in keys:
+            try:
+                array = self.key_to_array(key, start_datetime, end_datetime, interval, fill_method)
+
+                if len(array) != len(reference_index):
+                    raise ValueError(
+                        f"Array length mismatch for key '{key}' (expected {len(reference_index)}, got {len(array)})"
+                    )
+
+                data[key] = array
+            except KeyError as e:
+                raise KeyError(f"Failed to retrieve data for key '{key}': {e}")
+
+        if not data:
+            raise KeyError(f"No valid data found for the requested keys {keys}.")
+
+        return pd.DataFrame(data, index=reference_index)
+
     def provider_by_id(self, provider_id: str) -> DataProvider:
         """Retrieves a data provider by its unique identifier.
 

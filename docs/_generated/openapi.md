@@ -366,7 +366,7 @@ Returns:
 Fastapi Config Reset Post
 
 ```
-Reset the configuration.
+Reset the configuration to the EOS configuration file.
 
 Returns:
     configuration (ConfigEOS): The current configuration after update.
@@ -665,6 +665,42 @@ Merge the measurement of given key and value into EOS measurements at given date
 - `key` (query, required): Prediction key.
 
 - `value` (query, required): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/prediction/dataframe
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_dataframe_get_v1_prediction_dataframe_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_dataframe_get_v1_prediction_dataframe_get)
+
+Fastapi Prediction Dataframe Get
+
+```
+Get prediction for given key within given date range as series.
+
+Args:
+    key (str): Prediction key
+    start_datetime (Optional[str]): Starting datetime (inclusive).
+        Defaults to start datetime of latest prediction.
+    end_datetime (Optional[str]: Ending datetime (exclusive).
+
+Defaults to end datetime of latest prediction.
+```
+
+**Parameters**:
+
+- `keys` (query, required): Prediction keys.
+
+- `start_datetime` (query, optional): Starting datetime (inclusive).
+
+- `end_datetime` (query, optional): Ending datetime (exclusive).
+
+- `interval` (query, optional): Time duration for each interval. Defaults to 1 hour.
 
 **Responses**:
 

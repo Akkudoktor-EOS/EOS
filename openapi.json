@@ -2229,7 +2229,7 @@
                 "type": "object"
             },
             "ServerCommonSettings": {
-                "description": "Server Configuration.\n\nAttributes:\n    To be added",
+                "description": "Server Configuration.",
                 "properties": {
                     "eosdash_host": {
                         "anyOf": [
@@ -3371,7 +3371,7 @@
         },
         "/v1/config/reset": {
             "post": {
-                "description": "Reset the configuration.\n\nReturns:\n    configuration (ConfigEOS): The current configuration after update.",
+                "description": "Reset the configuration to the EOS configuration file.\n\nReturns:\n    configuration (ConfigEOS): The current configuration after update.",
                 "operationId": "fastapi_config_reset_post_v1_config_reset_post",
                 "responses": {
                     "200": {
@@ -3948,6 +3948,108 @@
                 "summary": "Fastapi Measurement Value Put",
                 "tags": [
                     "measurement"
+                ]
+            }
+        },
+        "/v1/prediction/dataframe": {
+            "get": {
+                "description": "Get prediction for given key within given date range as series.\n\nArgs:\n    key (str): Prediction key\n    start_datetime (Optional[str]): Starting datetime (inclusive).\n        Defaults to start datetime of latest prediction.\n    end_datetime (Optional[str]: Ending datetime (exclusive).\n\nDefaults to end datetime of latest prediction.",
+                "operationId": "fastapi_prediction_dataframe_get_v1_prediction_dataframe_get",
+                "parameters": [
+                    {
+                        "description": "Prediction keys.",
+                        "in": "query",
+                        "name": "keys",
+                        "required": true,
+                        "schema": {
+                            "description": "Prediction keys.",
+                            "items": {
+                                "type": "string"
+                            },
+                            "title": "Keys",
+                            "type": "array"
+                        }
+                    },
+                    {
+                        "description": "Starting datetime (inclusive).",
+                        "in": "query",
+                        "name": "start_datetime",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Starting datetime (inclusive).",
+                            "title": "Start Datetime"
+                        }
+                    },
+                    {
+                        "description": "Ending datetime (exclusive).",
+                        "in": "query",
+                        "name": "end_datetime",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Ending datetime (exclusive).",
+                            "title": "End Datetime"
+                        }
+                    },
+                    {
+                        "description": "Time duration for each interval. Defaults to 1 hour.",
+                        "in": "query",
+                        "name": "interval",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "description": "Time duration for each interval. Defaults to 1 hour.",
+                            "title": "Interval"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PydanticDateTimeDataFrame"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Fastapi Prediction Dataframe Get",
+                "tags": [
+                    "prediction"
                 ]
             }
         },
