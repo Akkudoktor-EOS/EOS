@@ -7,7 +7,7 @@ format, enabling consistent access to forecasted and historical weather attribut
 """
 
 import json
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 import pvlib
@@ -16,14 +16,14 @@ import requests
 from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.weatherabc import WeatherDataRecord, WeatherProvider
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 logger = get_logger(__name__)
 
 
-WheaterDataBrightSkyMapping: List[Tuple[str, Optional[str], Optional[float]]] = [
+WheaterDataBrightSkyMapping: List[Tuple[str, Optional[str], Optional[Union[str, float]]]] = [
     # brightsky_key, description, corr_factor
-    ("timestamp", "DateTime", None),
+    ("timestamp", "DateTime", "to datetime in timezone"),
     ("precipitation", "Precipitation Amount (mm)", 1),
     ("pressure_msl", "Pressure (mb)", 1),
     ("sunshine", None, None),
@@ -96,8 +96,8 @@ class WeatherBrightSky(WeatherProvider):
             ValueError: If the API response does not include expected `weather` data.
         """
         source = "https://api.brightsky.dev"
-        date = to_datetime(self.start_datetime, as_string="YYYY-MM-DD")
-        last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
+        date = to_datetime(self.start_datetime, as_string=True)
+        last_date = to_datetime(self.end_datetime, as_string=True)
         response = requests.get(
             f"{source}/weather?lat={self.config.general.latitude}&lon={self.config.general.longitude}&date={date}&last_date={last_date}&tz={self.config.general.timezone}"
         )
@@ -133,7 +133,8 @@ class WeatherBrightSky(WeatherProvider):
             error_msg = f"No WeatherDataRecord key for '{description}'"
             logger.error(error_msg)
             raise ValueError(error_msg)
-        return self.key_to_series(key)
+        series = self.key_to_series(key)
+        return series
 
     def _description_from_series(self, description: str, data: pd.Series) -> None:
         """Update a weather data with a pandas Series based on its description.
@@ -170,7 +171,7 @@ class WeatherBrightSky(WeatherProvider):
         brightsky_data = self._request_forecast(force_update=force_update)  # type: ignore
 
         # Get key mapping from description
-        brightsky_key_mapping: Dict[str, Tuple[Optional[str], Optional[float]]] = {}
+        brightsky_key_mapping: Dict[str, Tuple[Optional[str], Optional[Union[str, float]]]] = {}
         for brightsky_key, description, corr_factor in WheaterDataBrightSkyMapping:
             if description is None:
                 brightsky_key_mapping[brightsky_key] = (None, None)
@@ -192,7 +193,10 @@ class WeatherBrightSky(WeatherProvider):
                 value = brightsky_record[brightsky_key]
                 corr_factor = item[1]
                 if value and corr_factor:
-                    value = value * corr_factor
+                    if corr_factor == "to datetime in timezone":
+                        value = to_datetime(value, in_timezone=self.config.general.timezone)
+                    else:
+                        value = value * corr_factor
                 setattr(weather_record, key, value)
             self.insert_by_datetime(weather_record)
 
@@ -216,14 +220,30 @@ class WeatherBrightSky(WeatherProvider):
         self._description_from_series(description, dhi)
 
         # Add Preciptable Water (PWAT) with a PVLib method.
-        description = "Temperature (°C)"
-        temperature = self._description_to_series(description)
-
-        description = "Relative Humidity (%)"
-        humidity = self._description_to_series(description)
-
+        key = WeatherDataRecord.key_from_description("Temperature (°C)")
+        assert key
+        temperature = self.key_to_array(
+            key=key,
+            start_datetime=self.start_datetime,
+            end_datetime=self.end_datetime,
+            interval=to_duration("1 hour"),
+        )
+        key = WeatherDataRecord.key_from_description("Relative Humidity (%)")
+        assert key
+        humidity = self.key_to_array(
+            key=key,
+            start_datetime=self.start_datetime,
+            end_datetime=self.end_datetime,
+            interval=to_duration("1 hour"),
+        )
+        data = pvlib.atmosphere.gueymard94_pw(temperature, humidity)
         pwat = pd.Series(
-            data=pvlib.atmosphere.gueymard94_pw(temperature, humidity), index=temperature.index
+            data=data,
+            index=pd.DatetimeIndex(
+                pd.date_range(
+                    start=self.start_datetime, end=self.end_datetime, freq="1h", inclusive="left"
+                )
+            ),
         )
         description = "Preciptable Water (cm)"
         self._description_from_series(description, pwat)

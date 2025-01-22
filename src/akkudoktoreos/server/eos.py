@@ -7,6 +7,7 @@ import os
 import signal
 import subprocess
 import sys
+import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
@@ -844,7 +845,11 @@ def fastapi_prediction_update(
     try:
         prediction_eos.update_data(force_update=force_update, force_enable=force_enable)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on prediction update: {e}")
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error on prediction update: {e}{trace}",
+        )
     return Response()
 
 
@@ -868,7 +873,9 @@ def fastapi_prediction_update_provider(
     try:
         provider.update_data(force_update=force_update, force_enable=force_enable)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on update of provider: {e}")
+        raise HTTPException(
+            status_code=400, detail=f"Error on update of provider '{provider_id}': {e}"
+        )
     return Response()
 
 

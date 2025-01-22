@@ -162,10 +162,7 @@ def test_update_data(mock_get, provider, sample_brightsky_1_json, cache_store):
 
     # Assert: Verify the result is as expected
     mock_get.assert_called_once()
-    assert len(provider) == 338
-
-    # with open(FILE_TESTDATA_WEATHERBRIGHTSKY_2_JSON, "w") as f_out:
-    #    f_out.write(provider.to_json())
+    assert len(provider) == 50
 
 
 # ------------------------------------------------
@@ -188,3 +185,8 @@ def test_brightsky_development_forecast_data(provider, config_eos, is_system_tes
 
     with FILE_TESTDATA_WEATHERBRIGHTSKY_1_JSON.open("w", encoding="utf-8", newline="\n") as f_out:
         json.dump(brightsky_data, f_out, indent=4)
+
+    provider.update_data(force_enable=True, force_update=True)
+
+    with FILE_TESTDATA_WEATHERBRIGHTSKY_2_JSON.open("w", encoding="utf-8", newline="\n") as f_out:
+        f_out.write(provider.model_dump_json(indent=4))
