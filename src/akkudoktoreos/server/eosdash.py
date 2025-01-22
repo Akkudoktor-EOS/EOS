@@ -1,52 +1,86 @@
 import argparse
 import os
+from typing import Optional
 
 import uvicorn
-from fasthtml.common import H1, FastHTML, Table, Td, Th, Thead, Titled, Tr
+from fasthtml.common import FastHTML
+from shad4fast import ShadHead
 
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.server.dash.components import Page
+
+# Pages
+from akkudoktoreos.server.dash.configuration import Configuration
+from akkudoktoreos.server.dash.demo import Demo
+from akkudoktoreos.server.dash.hello import Hello
 
 logger = get_logger(__name__)
-
 config_eos = get_config()
 
 # Command line arguments
-args = None
+args: Optional[argparse.Namespace] = None
 
-configs = []
-for field_name in config_eos.model_fields:
-    config = {}
-    config["name"] = field_name
-    config["value"] = getattr(config_eos, field_name)
-    config["default"] = config_eos.model_fields[field_name].default
-    config["description"] = config_eos.model_fields[field_name].description
-    configs.append(config)
+# The EOS Rest application
+app: FastHTML = FastHTML(
+    pico=False,
+    hdrs=(ShadHead(tw_cdn=True, theme_handle=True),),
+)
 
 
-app = FastHTML()
-rt = app.route
+@app.get("/")
+def get_eosdash():  # type: ignore
+    """Serves the main EOSdash page.
+
+    Returns:
+        Page: The main dashboard page with navigation links and footer.
+    """
+    return Page(
+        None,
+        {
+            "EOSdash": "/eosdash/hello",
+            "Config": "/eosdash/configuration",
+            "Demo": "/eosdash/demo",
+        },
+        Hello(),
+        "Footer_Info",
+    )
 
 
-def config_table() -> Table:
-    rows = [
-        Tr(
-            Td(config["name"]),
-            Td(config["value"]),
-            Td(config["default"]),
-            Td(config["description"]),
-            cls="even:bg-purple/5",
-        )
-        for config in configs
-    ]
-    flds = "Name", "Value", "Default", "Description"
-    head = Thead(*map(Th, flds), cls="bg-purple/10")
-    return Table(head, *rows, cls="w-full")
+@app.get("/eosdash/hello")
+def get_eosdash_hello():  # type: ignore
+    """Serves the EOSdash Hello page.
+
+    Returns:
+        Hello: The Hello page component.
+    """
+    return Hello()
 
 
-@rt("/")
-def get():  # type: ignore
-    return Titled("EOS Dashboard", H1("Configuration"), config_table())
+@app.get("/eosdash/configuration")
+def get_eosdash_configuration():  # type: ignore
+    """Serves the EOSdash Configuration page.
+
+    Returns:
+        Configuration: The Configuration page component.
+    """
+    if args is None:
+        eos_host = None
+        eos_port = None
+    else:
+        eos_host = args.eos_host
+        eos_port = args.eos_port
+    return Configuration(eos_host, eos_port)
+
+
+@app.get("/eosdash/demo")
+def get_eosdash_demo():  # type: ignore
+    """Serves the EOSdash Demo page.
+
+    Returns:
+        Demo: The Demo page component.
+    """
+    return Demo()
 
 
 def run_eosdash(host: str, port: int, log_level: str, access_log: bool, reload: bool) -> None:
@@ -59,16 +93,16 @@ def run_eosdash(host: str, port: int, log_level: str, access_log: bool, reload: 
     server to the specified host and port, an error message is logged and the
     application exits.
 
-    Parameters:
-    host (str): The hostname to bind the server to.
-    port (int): The port number to bind the server to.
-    log_level (str): The log level for the server. Options include "critical", "error",
-                     "warning", "info", "debug", and "trace".
-    access_log (bool): Whether to enable or disable the access log. Set to True to enable.
-    reload (bool): Whether to enable or disable auto-reload. Set to True for development.
+    Args:
+        host (str): The hostname to bind the server to.
+        port (int): The port number to bind the server to.
+        log_level (str): The log level for the server. Options include "critical", "error",
+                        "warning", "info", "debug", and "trace".
+        access_log (bool): Whether to enable or disable the access log. Set to True to enable.
+        reload (bool): Whether to enable or disable auto-reload. Set to True for development.
 
     Returns:
-    None
+        None
     """
     # Make hostname Windows friendly
     if host == "0.0.0.0" and os.name == "nt":
@@ -78,7 +112,7 @@ def run_eosdash(host: str, port: int, log_level: str, access_log: bool, reload: 
             "akkudoktoreos.server.eosdash:app",
             host=host,
             port=port,
-            log_level=log_level.lower(),  # Convert log_level to lowercase
+            log_level=log_level.lower(),
             access_log=access_log,
             reload=reload,
         )
@@ -92,49 +126,44 @@ def main() -> None:
 
     This function sets up the argument parser to accept command-line arguments for
     host, port, log_level, access_log, and reload. It uses default values from the
-    config_eos module if arguments are not provided. After parsing the arguments,
+    config module if arguments are not provided. After parsing the arguments,
     it starts the EOSdash server with the specified configurations.
 
     Command-line Arguments:
-    --host (str): Host for the EOSdash server (default: value from config_eos).
-    --port (int): Port for the EOSdash server (default: value from config_eos).
-    --eos-host (str): Host for the EOS server (default: value from config_eos).
-    --eos-port (int): Port for the EOS server (default: value from config_eos).
+    --host (str): Host for the EOSdash server (default: value from config).
+    --port (int): Port for the EOSdash server (default: value from config).
+    --eos-host (str): Host for the EOS server (default: value from config).
+    --eos-port (int): Port for the EOS server (default: value from config).
     --log_level (str): Log level for the server. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "info").
     --access_log (bool): Enable or disable access log. Options: True or False (default: False).
     --reload (bool): Enable or disable auto-reload. Useful for development. Options: True or False (default: False).
     """
     parser = argparse.ArgumentParser(description="Start EOSdash server.")
 
-    # Host and port arguments with defaults from config_eos
     parser.add_argument(
         "--host",
         type=str,
         default=str(config_eos.server_eosdash_host),
-        help="Host for the EOSdash server (default: value from config_eos)",
+        help="Host for the EOSdash server (default: value from config)",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=config_eos.server_eosdash_port,
-        help="Port for the EOSdash server (default: value from config_eos)",
+        help="Port for the EOSdash server (default: value from config)",
     )
-
-    # EOS Host and port arguments with defaults from config_eos
     parser.add_argument(
         "--eos-host",
         type=str,
         default=str(config_eos.server_eos_host),
-        help="Host for the EOS server (default: value from config_eos)",
+        help="Host for the EOS server (default: value from config)",
     )
     parser.add_argument(
         "--eos-port",
         type=int,
         default=config_eos.server_eos_port,
-        help="Port for the EOS server (default: value from config_eos)",
+        help="Port for the EOS server (default: value from config)",
     )
-
-    # Optional arguments for log_level, access_log, and reload
     parser.add_argument(
         "--log_level",
         type=str,
@@ -145,7 +174,7 @@ def main() -> None:
         "--access_log",
         type=bool,
         default=False,
-        help="Enable or disable access log. Options: True or False (default: True)",
+        help="Enable or disable access log. Options: True or False (default: False)",
     )
     parser.add_argument(
         "--reload",
@@ -154,6 +183,7 @@ def main() -> None:
         help="Enable or disable auto-reload. Useful for development. Options: True or False (default: False)",
     )
 
+    global args
     args = parser.parse_args()
 
     try:

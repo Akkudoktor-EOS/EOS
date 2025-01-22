@@ -8,19 +8,19 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| `config_default_file_path` | `<class 'pathlib.Path'>` | `ro` | `N/A` | Compute the default config file path. |
-| `config_file_path` | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration file. |
-| `config_folder_path` | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration directory. |
+| `config_default_file_path` | `<class 'Path'>` | `ro` | `N/A` | Compute the default config file path. |
+| `config_file_path` | `Optional[Path]` | `ro` | `N/A` | Path to EOS configuration file. |
+| `config_folder_path` | `Optional[Path]` | `ro` | `N/A` | Path to EOS configuration directory. |
 | `config_keys` | `List[str]` | `ro` | `N/A` | Returns the keys of all fields in the configuration. |
 | `config_keys_read_only` | `List[str]` | `ro` | `N/A` | Returns the keys of all read only fields in the configuration. |
-| `data_cache_path` | `Optional[pathlib.Path]` | `ro` | `N/A` | Compute data_cache_path based on data_folder_path. |
-| `data_cache_subpath` | `Optional[pathlib.Path]` | `rw` | `cache` | Sub-path for the EOS cache data directory. |
-| `data_folder_path` | `Optional[pathlib.Path]` | `rw` | `None` | Path to EOS data directory. |
-| `data_output_path` | `Optional[pathlib.Path]` | `ro` | `N/A` | Compute data_output_path based on data_folder_path. |
-| `data_output_subpath` | `Optional[pathlib.Path]` | `rw` | `output` | Sub-path for the EOS output data directory. |
+| `data_cache_path` | `Optional[Path]` | `ro` | `N/A` | Compute data_cache_path based on data_folder_path. |
+| `data_cache_subpath` | `Optional[Path]` | `rw` | `cache` | Sub-path for the EOS cache data directory. |
+| `data_folder_path` | `Optional[Path]` | `rw` | `None` | Path to EOS data directory. |
+| `data_output_path` | `Optional[Path]` | `ro` | `N/A` | Compute data_output_path based on data_folder_path. |
+| `data_output_subpath` | `Optional[Path]` | `rw` | `output` | Sub-path for the EOS output data directory. |
 | `latitude` | `Optional[float]` | `rw` | `None` | Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°) |
 | `longitude` | `Optional[float]` | `rw` | `None` | Longitude in decimal degrees, within -180 to 180 (°) |
-| `package_root_path` | `<class 'pathlib.Path'>` | `ro` | `N/A` | Compute the package root path. |
+| `package_root_path` | `<class 'Path'>` | `ro` | `N/A` | Compute the package root path. |
 | `timezone` | `Optional[str]` | `ro` | `N/A` | Compute timezone based on latitude and longitude. |
 :::
 
@@ -82,7 +82,7 @@
 | ---- | ---- | --------- | ------- | ----------- |
 | `elecprice_charges_kwh` | `Optional[float]` | `rw` | `None` | Electricity price charges (€/kWh). |
 | `elecprice_provider` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
-| `elecpriceimport_file_path` | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import elecprice data from. |
+| `elecpriceimport_file_path` | `Union[str, Path, NoneType]` | `rw` | `None` | Path to the file to import elecprice data from. |
 | `elecpriceimport_json` | `Optional[str]` | `rw` | `None` | JSON string, dictionary of electricity price forecast value lists. |
 :::
 
@@ -94,7 +94,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| `optimization_ev_available_charge_rates_percent` | `Optional[typing.List[float]]` | `rw` | `[0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]` | Charge rates available for the EV in percent of maximum charge. |
+| `optimization_ev_available_charge_rates_percent` | `Optional[List[float]]` | `rw` | `[0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]` | Charge rates available for the EV in percent of maximum charge. |
 | `optimization_hours` | `Optional[int]` | `rw` | `24` | Number of hours into the future for optimizations. |
 | `optimization_penalty` | `Optional[int]` | `rw` | `10` | Penalty factor used in optimization. |
 :::
@@ -131,7 +131,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| `load_import_file_path` | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import load data from. |
+| `load_import_file_path` | `Union[str, Path, NoneType]` | `rw` | `None` | Path to the file to import load data from. |
 | `load_import_json` | `Optional[str]` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
 | `load_provider` | `Optional[str]` | `rw` | `None` | Load provider id of provider to be used. |
 | `loadakkudoktor_year_energy` | `Optional[float]` | `rw` | `None` | Yearly energy consumption (kWh). |
@@ -187,7 +187,7 @@
 | `pvforecast0_surface_azimuth` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
 | `pvforecast0_surface_tilt` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
 | `pvforecast0_trackingtype` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| `pvforecast0_userhorizon` | `Optional[typing.List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
+| `pvforecast0_userhorizon` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
 | `pvforecast1_albedo` | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
 | `pvforecast1_inverter_model` | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
 | `pvforecast1_inverter_paco` | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
@@ -203,7 +203,7 @@
 | `pvforecast1_surface_azimuth` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
 | `pvforecast1_surface_tilt` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
 | `pvforecast1_trackingtype` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| `pvforecast1_userhorizon` | `Optional[typing.List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
+| `pvforecast1_userhorizon` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
 | `pvforecast2_albedo` | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
 | `pvforecast2_inverter_model` | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
 | `pvforecast2_inverter_paco` | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
@@ -219,7 +219,7 @@
 | `pvforecast2_surface_azimuth` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
 | `pvforecast2_surface_tilt` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
 | `pvforecast2_trackingtype` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| `pvforecast2_userhorizon` | `Optional[typing.List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
+| `pvforecast2_userhorizon` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
 | `pvforecast3_albedo` | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
 | `pvforecast3_inverter_model` | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
 | `pvforecast3_inverter_paco` | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
@@ -235,7 +235,7 @@
 | `pvforecast3_surface_azimuth` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
 | `pvforecast3_surface_tilt` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
 | `pvforecast3_trackingtype` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| `pvforecast3_userhorizon` | `Optional[typing.List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
+| `pvforecast3_userhorizon` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
 | `pvforecast4_albedo` | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
 | `pvforecast4_inverter_model` | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
 | `pvforecast4_inverter_paco` | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
@@ -251,7 +251,7 @@
 | `pvforecast4_surface_azimuth` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
 | `pvforecast4_surface_tilt` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
 | `pvforecast4_trackingtype` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| `pvforecast4_userhorizon` | `Optional[typing.List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
+| `pvforecast4_userhorizon` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
 | `pvforecast5_albedo` | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
 | `pvforecast5_inverter_model` | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
 | `pvforecast5_inverter_paco` | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
@@ -267,7 +267,7 @@
 | `pvforecast5_surface_azimuth` | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
 | `pvforecast5_surface_tilt` | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
 | `pvforecast5_trackingtype` | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| `pvforecast5_userhorizon` | `Optional[typing.List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
+| `pvforecast5_userhorizon` | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
 | `pvforecast_planes` | `List[str]` | `ro` | `N/A` | Compute a list of active planes. |
 | `pvforecast_planes_azimuth` | `List[float]` | `ro` | `N/A` | Compute a list of the azimuths per active planes. |
 | `pvforecast_planes_inverter_paco` | `Any` | `ro` | `N/A` | Compute a list of the maximum power rating of the inverter per active planes. |
@@ -275,7 +275,7 @@
 | `pvforecast_planes_tilt` | `List[float]` | `ro` | `N/A` | Compute a list of the tilts per active planes. |
 | `pvforecast_planes_userhorizon` | `Any` | `ro` | `N/A` | Compute a list of the user horizon per active planes. |
 | `pvforecast_provider` | `Optional[str]` | `rw` | `None` | PVForecast provider id of provider to be used. |
-| `pvforecastimport_file_path` | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import PV forecast data from. |
+| `pvforecastimport_file_path` | `Union[str, Path, NoneType]` | `rw` | `None` | Path to the file to import PV forecast data from. |
 | `pvforecastimport_json` | `Optional[str]` | `rw` | `None` | JSON string, dictionary of PV forecast value lists. |
 :::
 
@@ -304,6 +304,6 @@
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
 | `weather_provider` | `Optional[str]` | `rw` | `None` | Weather provider id of provider to be used. |
-| `weatherimport_file_path` | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import weather data from. |
+| `weatherimport_file_path` | `Union[str, Path, NoneType]` | `rw` | `None` | Path to the file to import weather data from. |
 | `weatherimport_json` | `Optional[str]` | `rw` | `None` | JSON string, dictionary of weather forecast value lists. |
 :::

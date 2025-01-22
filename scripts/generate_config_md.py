@@ -94,13 +94,17 @@ def generate_config_md() -> str:
             ].info
             config["default"] = "N/A"
             config["description"] = computed_field_info.description
-            config["type"] = str(computed_field_info.return_type)
+            config["type"] = (
+                str(computed_field_info.return_type).replace("typing.", "").replace("pathlib.", "")
+            )
         else:
             config["read-only"] = "rw"
             field_info = config_eos.model_fields[config_key]
             config["default"] = field_info.default
             config["description"] = field_info.description
-            config["type"] = str(field_info.annotation)
+            config["type"] = (
+                str(field_info.annotation).replace("typing.", "").replace("pathlib.", "")
+            )
 
         configs[config_key] = config
 
