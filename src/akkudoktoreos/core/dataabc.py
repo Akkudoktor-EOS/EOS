@@ -811,7 +811,8 @@ class DataSequence(DataBase, MutableSequence):
         dates, values = self.key_to_lists(
             key=key, start_datetime=start_datetime, end_datetime=end_datetime, dropna=dropna
         )
-        return pd.Series(data=values, index=pd.DatetimeIndex(dates), name=key)
+        series = pd.Series(data=values, index=pd.DatetimeIndex(dates), name=key)
+        return series
 
     def key_from_series(self, key: str, series: pd.Series) -> None:
         """Update the DataSequence from a Pandas Series.
