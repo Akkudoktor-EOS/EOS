@@ -1,8 +1,10 @@
 """Server Module."""
 
 import os
-from typing import Optional
+import time
+from typing import Optional, Union
 
+import psutil
 from pydantic import Field, IPvAnyAddress, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
@@ -17,12 +19,78 @@ def get_default_host() -> str:
     return "0.0.0.0"
 
 
-class ServerCommonSettings(SettingsBaseModel):
-    """Server Configuration.
+def wait_for_port_free(port: int, timeout: int = 0, waiting_app_name: str = "App") -> bool:
+    """Wait for a network port to become free, with timeout.
 
-    Attributes:
-        To be added
+    Checks if the port is currently in use and logs warnings with process details.
+    Retries every 3 seconds until timeout is reached.
+
+    Args:
+        port: The network port number to check
+        timeout: Maximum seconds to wait (0 means check once without waiting)
+        waiting_app_name: Name of the application waiting for the port
+
+    Returns:
+        bool: True if port is free, False if port is still in use after timeout
+
+    Raises:
+        ValueError: If port number or timeout is invalid
+        psutil.Error: If there are problems accessing process information
     """
+    if not 0 <= port <= 65535:
+        raise ValueError(f"Invalid port number: {port}")
+    if timeout < 0:
+        raise ValueError(f"Invalid timeout: {timeout}")
+
+    def get_processes_using_port() -> list[dict]:
+        """Get info about processes using the specified port."""
+        processes: list[dict] = []
+        seen_pids: set[int] = set()
+
+        try:
+            for conn in psutil.net_connections(kind="inet"):
+                if conn.laddr.port == port and conn.pid not in seen_pids:
+                    try:
+                        process = psutil.Process(conn.pid)
+                        seen_pids.add(conn.pid)
+                        processes.append(process.as_dict(attrs=["pid", "cmdline"]))
+                    except psutil.NoSuchProcess:
+                        continue
+        except psutil.Error as e:
+            logger.error(f"Error checking port {port}: {e}")
+            raise
+
+        return processes
+
+    retries = max(int(timeout / 3), 1) if timeout > 0 else 1
+
+    for _ in range(retries):
+        process_info = get_processes_using_port()
+
+        if not process_info:
+            return True
+
+        if timeout <= 0:
+            break
+
+        logger.info(f"{waiting_app_name} waiting for port {port} to become free...")
+        time.sleep(3)
+
+    if process_info:
+        logger.warning(
+            f"{waiting_app_name} port {port} still in use after waiting {timeout} seconds."
+        )
+        for info in process_info:
+            logger.warning(
+                f"Process using port - PID: {info['pid']}, Command: {' '.join(info['cmdline'])}"
+            )
+        return False
+
+    return True
+
+
+class ServerCommonSettings(SettingsBaseModel):
+    """Server Configuration."""
 
     host: Optional[IPvAnyAddress] = Field(
         default=get_default_host(), description="EOS server IP address."
@@ -36,6 +104,15 @@ class ServerCommonSettings(SettingsBaseModel):
         default=get_default_host(), description="EOSdash server IP address."
     )
     eosdash_port: Optional[int] = Field(default=8504, description="EOSdash server IP port number.")
+
+    @field_validator("host", "eosdash_host", mode="before")
+    def validate_server_host(
+        cls, value: Optional[Union[str, IPvAnyAddress]]
+    ) -> Optional[Union[str, IPvAnyAddress]]:
+        if isinstance(value, str):
+            if value.lower() in ("localhost", "loopback"):
+                value = "127.0.0.1"
+        return value
 
     @field_validator("port", "eosdash_port")
     def validate_server_port(cls, value: Optional[int]) -> Optional[int]:

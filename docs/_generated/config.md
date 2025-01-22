@@ -871,9 +871,6 @@ Validators:
 
 ## Server Configuration
 
-Attributes:
-    To be added
-
 :::{table} server
 :widths: 10 20 10 5 5 30
 :align: left

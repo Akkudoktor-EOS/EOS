@@ -437,6 +437,10 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
         index = pd.Index([to_datetime(dt, in_timezone=self.tz) for dt in df.index])
         df.index = index
 
+        # Check if 'date_time' column exists, if not, create it
+        if "date_time" not in df.columns:
+            df["date_time"] = df.index
+
         dtype_mapping = {
             "int": int,
             "float": float,

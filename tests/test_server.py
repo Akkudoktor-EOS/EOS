@@ -9,6 +9,8 @@ import psutil
 import pytest
 import requests
 
+from akkudoktoreos.server.server import get_default_host
+
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
 FILE_TESTDATA_EOSSERVER_CONFIG_1 = DIR_TESTDATA.joinpath("eosserver_config_1.json")
@@ -235,12 +237,11 @@ class TestServerStartStop:
     def test_server_start_eosdash(self, tmpdir):
         """Test the EOSdash server startup from EOS."""
         # Do not use any fixture as this will make pytest the owner of the EOSdash port.
+        host = get_default_host()
         if os.name == "nt":
-            host = "localhost"
             # Windows does not provide SIGKILL
             sigkill = signal.SIGTERM
         else:
-            host = "0.0.0.0"
             sigkill = signal.SIGKILL
         port = 8503
         eosdash_port = 8504

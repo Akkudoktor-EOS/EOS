@@ -63,6 +63,9 @@ class WeatherImport(WeatherProvider, PredictionImportProvider):
         return "WeatherImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
+        if self.config.weather.provider_settings is None:
+            logger.debug(f"{self.provider_id()} data update without provider settings.")
+            return
         if self.config.weather.provider_settings.import_file_path:
             self.import_from_file(
                 self.config.weather.provider_settings.import_file_path, key_prefix="weather"

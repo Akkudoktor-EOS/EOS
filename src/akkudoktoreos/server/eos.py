@@ -7,12 +7,10 @@ import os
 import signal
 import subprocess
 import sys
-import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
 
-import httpx
 import psutil
 import uvicorn
 from fastapi import Body, FastAPI
@@ -48,8 +46,9 @@ from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings, get_prediction
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
+from akkudoktoreos.server.rest.error import create_error_page
 from akkudoktoreos.server.rest.tasks import repeat_every
-from akkudoktoreos.server.server import get_default_host
+from akkudoktoreos.server.server import get_default_host, wait_for_port_free
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 logger = get_logger(__name__)
@@ -60,98 +59,6 @@ ems_eos = get_ems()
 
 # Command line arguments
 args = None
-
-ERROR_PAGE_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Energy Optimization System (EOS) Error</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background-color: #f5f5f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .error-container {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
-            width: 100%;
-            text-align: center;
-        }
-        .error-code {
-            font-size: 4rem;
-            font-weight: bold;
-            color: #e53e3e;
-            margin: 0;
-        }
-        .error-title {
-            font-size: 1.5rem;
-            color: #2d3748;
-            margin: 1rem 0;
-        }
-        .error-message {
-            color: #4a5568;
-            margin-bottom: 1.5rem;
-        }
-        .error-details {
-            background: #f7fafc;
-            padding: 1rem;
-            border-radius: 4px;
-            margin-bottom: 1.5rem;
-            text-align: left;
-            font-family: monospace;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-        .back-button {
-            background: #3182ce;
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 4px;
-            text-decoration: none;
-            display: inline-block;
-            transition: background-color 0.2s;
-        }
-        .back-button:hover {
-            background: #2c5282;
-        }
-    </style>
-</head>
-<body>
-    <div class="error-container">
-        <h1 class="error-code">STATUS_CODE</h1>
-        <h2 class="error-title">ERROR_TITLE</h2>
-        <p class="error-message">ERROR_MESSAGE</p>
-        <div class="error-details">ERROR_DETAILS</div>
-        <a href="/docs" class="back-button">Back to Home</a>
-    </div>
-</body>
-</html>
-"""
-
-
-def create_error_page(
-    status_code: str, error_title: str, error_message: str, error_details: str
-) -> str:
-    """Create an error page by replacing placeholders in the template."""
-    return (
-        ERROR_PAGE_TEMPLATE.replace("STATUS_CODE", status_code)
-        .replace("ERROR_TITLE", error_title)
-        .replace("ERROR_MESSAGE", error_message)
-        .replace("ERROR_DETAILS", error_details)
-    )
 
 
 # ----------------------
@@ -194,18 +101,8 @@ def start_eosdash(
     """
     eosdash_path = Path(__file__).parent.resolve().joinpath("eosdash.py")
 
-    # Check if the EOSdash process is still/ already running, e.g. in case of server restart
-    process_info = None
-    for conn in psutil.net_connections(kind="inet"):
-        if conn.laddr.port == port:
-            process = psutil.Process(conn.pid)
-            # Get the fresh process info
-            process_info = process.as_dict(attrs=["pid", "cmdline"])
-            break
-    if process_info:
-        # Just warn
-        logger.warning(f"EOSdash port `{port}` still/ already in use.")
-        logger.warning(f"PID: `{process_info['pid']}`, CMD: `{process_info['cmdline']}`")
+    # Do a one time check for port free to generate warnings if not so
+    wait_for_port_free(port, timeout=0, waiting_app_name="EOSdash")
 
     cmd = [
         sys.executable,
@@ -391,9 +288,6 @@ app = FastAPI(
 )
 
 
-server_dir = Path(__file__).parent.resolve()
-
-
 class PdfResponse(FileResponse):
     media_type = "application/pdf"
 
@@ -523,7 +417,7 @@ def fastapi_health_get():  # type: ignore
 
 @app.post("/v1/config/reset", tags=["config"])
 def fastapi_config_reset_post() -> ConfigEOS:
-    """Reset the configuration.
+    """Reset the configuration to the EOS configuration file.
 
     Returns:
         configuration (ConfigEOS): The current configuration after update.
@@ -810,6 +704,49 @@ def fastapi_prediction_series_get(
         key=key, start_datetime=start_datetime, end_datetime=end_datetime
     )
     return PydanticDateTimeSeries.from_series(pdseries)
+
+
+@app.get("/v1/prediction/dataframe", tags=["prediction"])
+def fastapi_prediction_dataframe_get(
+    keys: Annotated[list[str], Query(description="Prediction keys.")],
+    start_datetime: Annotated[
+        Optional[str],
+        Query(description="Starting datetime (inclusive)."),
+    ] = None,
+    end_datetime: Annotated[
+        Optional[str],
+        Query(description="Ending datetime (exclusive)."),
+    ] = None,
+    interval: Annotated[
+        Optional[str],
+        Query(description="Time duration for each interval. Defaults to 1 hour."),
+    ] = None,
+) -> PydanticDateTimeDataFrame:
+    """Get prediction for given key within given date range as series.
+
+    Args:
+        key (str): Prediction key
+        start_datetime (Optional[str]): Starting datetime (inclusive).
+            Defaults to start datetime of latest prediction.
+        end_datetime (Optional[str]: Ending datetime (exclusive).
+
+    Defaults to end datetime of latest prediction.
+    """
+    for key in keys:
+        if key not in prediction_eos.record_keys:
+            raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
+    if start_datetime is None:
+        start_datetime = prediction_eos.start_datetime
+    else:
+        start_datetime = to_datetime(start_datetime)
+    if end_datetime is None:
+        end_datetime = prediction_eos.end_datetime
+    else:
+        end_datetime = to_datetime(end_datetime)
+    df = prediction_eos.keys_to_dataframe(
+        keys=keys, start_datetime=start_datetime, end_datetime=end_datetime, interval=interval
+    )
+    return PydanticDateTimeDataFrame.from_dataframe(df, tz=config_eos.general.timezone)
 
 
 @app.get("/v1/prediction/list", tags=["prediction"])
@@ -1223,75 +1160,66 @@ def site_map() -> RedirectResponse:
     return RedirectResponse(url="/docs")
 
 
-# Keep the proxy last to handle all requests that are not taken by the Rest API.
+# Keep the redirect last to handle all requests that are not taken by the Rest API.
 
 
 @app.delete("/{path:path}", include_in_schema=False)
-async def proxy_delete(request: Request, path: str) -> Response:
-    return await proxy(request, path)
+async def redirect_delete(request: Request, path: str) -> Response:
+    return redirect(request, path)
 
 
 @app.get("/{path:path}", include_in_schema=False)
-async def proxy_get(request: Request, path: str) -> Response:
-    return await proxy(request, path)
+async def redirect_get(request: Request, path: str) -> Response:
+    return redirect(request, path)
 
 
 @app.post("/{path:path}", include_in_schema=False)
-async def proxy_post(request: Request, path: str) -> Response:
-    return await proxy(request, path)
+async def redirect_post(request: Request, path: str) -> Response:
+    return redirect(request, path)
 
 
 @app.put("/{path:path}", include_in_schema=False)
-async def proxy_put(request: Request, path: str) -> Response:
-    return await proxy(request, path)
+async def redirect_put(request: Request, path: str) -> Response:
+    return redirect(request, path)
 
 
-async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse | HTMLResponse]:
+def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectResponse]:
+    # Path is not for EOSdash
+    if not (path.startswith("eosdash") or path == ""):
+        host = config_eos.server.eosdash_host
+        if host is None:
+            host = config_eos.server.host
+        host = str(host)
+        port = config_eos.server.eosdash_port
+        if port is None:
+            port = 8504
+        # Make hostname Windows friendly
+        if host == "0.0.0.0" and os.name == "nt":
+            host = "localhost"
+        url = f"http://{host}:{port}/"
+        error_page = create_error_page(
+            status_code="404",
+            error_title="Page Not Found",
+            error_message=f"""<pre>
+URL is unknown: '{request.url}'
+Did you want to connect to <a href="{url}" class="back-button">EOSdash</a>?
+</pre>
+""",
+            error_details="Unknown URL",
+        )
+        return HTMLResponse(content=error_page, status_code=404)
+
     # Make hostname Windows friendly
     host = str(config_eos.server.eosdash_host)
     if host == "0.0.0.0" and os.name == "nt":
         host = "localhost"
     if host and config_eos.server.eosdash_port:
-        # Proxy to EOSdash server
+        # Redirect to EOSdash server
         url = f"http://{host}:{config_eos.server.eosdash_port}/{path}"
-        headers = dict(request.headers)
+        return RedirectResponse(url=url, status_code=303)
 
-        data = await request.body()
-
-        try:
-            async with httpx.AsyncClient() as client:
-                if request.method == "GET":
-                    response = await client.get(url, headers=headers)
-                elif request.method == "POST":
-                    response = await client.post(url, headers=headers, content=data)
-                elif request.method == "PUT":
-                    response = await client.put(url, headers=headers, content=data)
-                elif request.method == "DELETE":
-                    response = await client.delete(url, headers=headers, content=data)
-        except Exception as e:
-            error_page = create_error_page(
-                status_code="404",
-                error_title="Page Not Found",
-                error_message=f"""<pre>
-EOSdash server not reachable: '{url}'
-Did you start the EOSdash server
-or set 'startup_eosdash'?
-If there is no application server intended please
-set 'eosdash_host' or 'eosdash_port' to None.
-</pre>
-""",
-                error_details=f"{e}",
-            )
-            return HTMLResponse(content=error_page, status_code=404)
-
-        return Response(
-            content=response.content,
-            status_code=response.status_code,
-            headers=dict(response.headers),
-        )
-    else:
-        # Redirect the root URL to the site map
-        return RedirectResponse(url="/docs")
+    # Redirect the root URL to the site map
+    return RedirectResponse(url="/docs", status_code=303)
 
 
 def run_eos(host: str, port: int, log_level: str, access_log: bool, reload: bool) -> None:
@@ -1320,26 +1248,7 @@ def run_eos(host: str, port: int, log_level: str, access_log: bool, reload: bool
         host = "localhost"
 
     # Wait for EOS port to be free - e.g. in case of restart
-    timeout = 120  # Maximum 120 seconds to wait
-    process_info: list[dict] = []
-    for retries in range(int(timeout / 10)):
-        process_info = []
-        pids: list[int] = []
-        for conn in psutil.net_connections(kind="inet"):
-            if conn.laddr.port == port:
-                if conn.pid not in pids:
-                    # Get fresh process info
-                    process = psutil.Process(conn.pid)
-                    pids.append(conn.pid)
-                    process_info.append(process.as_dict(attrs=["pid", "cmdline"]))
-        if len(process_info) == 0:
-            break
-        logger.info(f"EOS waiting for port `{port}` ...")
-        time.sleep(10)
-    if len(process_info) > 0:
-        logger.warning(f"EOS port `{port}` in use.")
-        for info in process_info:
-            logger.warning(f"PID: `{info["pid"]}`, CMD: `{info["cmdline"]}`")
+    wait_for_port_free(port, timeout=120, waiting_app_name="EOS")
 
     try:
         uvicorn.run(
