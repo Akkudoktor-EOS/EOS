@@ -92,6 +92,7 @@ for field_name, field_info in list(config_eos.model_fields.items()) + list(
                     )
 
     extract_nested_models(field_info, [field_name])
+configs = sorted(configs, key=lambda x: x["name"])
 
 
 app, rt = fast_app(
