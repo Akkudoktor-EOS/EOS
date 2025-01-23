@@ -1,4 +1,5 @@
 import argparse
+import os
 
 import uvicorn
 from fasthtml.common import H1, FastHTML, Table, Td, Th, Thead, Titled, Tr
@@ -69,8 +70,8 @@ def run_eosdash(host: str, port: int, log_level: str, access_log: bool, reload: 
     Returns:
     None
     """
-    # Make hostname human (and Windows) friendly
-    if host == "0.0.0.0":
+    # Make hostname Windows friendly
+    if host == "0.0.0.0" and os.name == "nt":
         host = "localhost"
     try:
         uvicorn.run(

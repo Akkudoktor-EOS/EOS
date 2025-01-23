@@ -28,13 +28,17 @@ COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r requirements.txt
 
-COPY src .
+COPY pyproject.toml .
+RUN mkdir -p src && pip install -e .
+
+COPY src src
 
 USER eos
 ENTRYPOINT []
 
 EXPOSE 8503
+EXPOSE 8504
 
-CMD ["python", "-m", "akkudoktoreos.server.eos"]
+CMD ["python", "src/akkudoktoreos/server/eos.py", "--host", "0.0.0.0"]
 
 VOLUME ["${MPLCONFIGDIR}", "${EOS_CACHE_DIR}", "${EOS_OUTPUT_DIR}", "${EOS_CONFIG_DIR}"]
