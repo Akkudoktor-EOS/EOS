@@ -196,7 +196,7 @@ Prediction keys:
 
 Configuration options:
 
-- `prediction`: General prediction configuration.
+- `general`: General configuration.
 
   - `latitude`: Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)"
   - `longitude`: Longitude in decimal degrees, within -180 to 180 (°)

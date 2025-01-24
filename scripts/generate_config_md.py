@@ -11,7 +11,7 @@ from typing import Any, Union
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
-from akkudoktoreos.config.config import ConfigCommonSettings, ConfigEOS, get_config
+from akkudoktoreos.config.config import ConfigEOS, GeneralSettings, get_config
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.utils.docs import get_model_structure_from_examples
@@ -250,10 +250,10 @@ def generate_config_md(config_eos: ConfigEOS) -> str:
         str: The Markdown representation of the configuration spec.
     """
     # Fix file path for general settings to not show local/test file path
-    ConfigCommonSettings._config_file_path = Path(
+    GeneralSettings._config_file_path = Path(
         "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
     )
-    ConfigCommonSettings._config_folder_path = config_eos.general.config_file_path.parent
+    GeneralSettings._config_folder_path = config_eos.general.config_file_path.parent
 
     markdown = "# Configuration Table\n\n"
 

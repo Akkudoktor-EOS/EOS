@@ -147,14 +147,12 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
         """Provides measurement key for given name and topic."""
         topic = topic.lower()
 
-        print(self.topics)
         if topic not in self.topics:
             return None
 
         topic_keys = [
             key for key in self.config.measurement.model_fields.keys() if key.startswith(topic)
         ]
-        print(topic_keys)
         key = None
         if topic == "load":
             for config_key in topic_keys:

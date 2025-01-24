@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from akkudoktoreos.config.config import ConfigCommonSettings, ConfigEOS
+from akkudoktoreos.config.config import ConfigEOS, GeneralSettings
 from akkudoktoreos.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -159,8 +159,8 @@ def test_config_copy(config_eos, monkeypatch):
     ],
 )
 def test_config_common_settings_valid(latitude, longitude, expected_timezone):
-    """Test valid settings for ConfigCommonSettings."""
-    general_settings = ConfigCommonSettings(
+    """Test valid settings for GeneralSettings."""
+    general_settings = GeneralSettings(
         latitude=latitude,
         longitude=longitude,
     )
@@ -184,30 +184,30 @@ def test_config_common_settings_invalid(field_name, invalid_value, expected_erro
         "latitude": 40.7128,
         "longitude": -74.0060,
     }
-    assert ConfigCommonSettings(**valid_data) is not None
+    assert GeneralSettings(**valid_data) is not None
     valid_data[field_name] = invalid_value
 
     with pytest.raises(ValidationError, match=expected_error):
-        ConfigCommonSettings(**valid_data)
+        GeneralSettings(**valid_data)
 
 
 def test_config_common_settings_no_location():
     """Test that timezone is None when latitude and longitude are not provided."""
-    settings = ConfigCommonSettings(latitude=None, longitude=None)
+    settings = GeneralSettings(latitude=None, longitude=None)
     assert settings.timezone is None
 
 
 def test_config_common_settings_with_location():
     """Test that timezone is correctly computed when latitude and longitude are provided."""
-    settings = ConfigCommonSettings(latitude=34.0522, longitude=-118.2437)
+    settings = GeneralSettings(latitude=34.0522, longitude=-118.2437)
     assert settings.timezone == "America/Los_Angeles"
 
 
 def test_config_common_settings_timezone_none_when_coordinates_missing():
     """Test that timezone is None when latitude or longitude is missing."""
-    config_no_latitude = ConfigCommonSettings(latitude=None, longitude=-74.0060)
-    config_no_longitude = ConfigCommonSettings(latitude=40.7128, longitude=None)
-    config_no_coords = ConfigCommonSettings(latitude=None, longitude=None)
+    config_no_latitude = GeneralSettings(latitude=None, longitude=-74.0060)
+    config_no_longitude = GeneralSettings(latitude=40.7128, longitude=None)
+    config_no_coords = GeneralSettings(latitude=None, longitude=None)
 
     assert config_no_latitude.timezone is None
     assert config_no_longitude.timezone is None

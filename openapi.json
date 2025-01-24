@@ -106,7 +106,7 @@
                 "title": "BaseBatteryParameters",
                 "type": "object"
             },
-            "ConfigCommonSettings-Input": {
+            "GeneralSettings-Input": {
                 "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
                 "properties": {
                     "data_cache_subpath": {
@@ -185,10 +185,10 @@
                         "title": "Longitude"
                     }
                 },
-                "title": "ConfigCommonSettings",
+                "title": "GeneralSettings",
                 "type": "object"
             },
-            "ConfigCommonSettings-Output": {
+            "GeneralSettings-Output": {
                 "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
                 "properties": {
                     "config_file_path": {
@@ -343,7 +343,7 @@
                     "config_folder_path",
                     "config_file_path"
                 ],
-                "title": "ConfigCommonSettings",
+                "title": "GeneralSettings",
                 "type": "object"
             },
             "ConfigEOS": {
@@ -359,7 +359,7 @@
                         "default": {}
                     },
                     "general": {
-                        "$ref": "#/components/schemas/ConfigCommonSettings-Output",
+                        "$ref": "#/components/schemas/GeneralSettings-Output",
                         "default": {
                             "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json",
                             "config_folder_path": "/home/user/.config/net.akkudoktoreos.net",
@@ -2317,7 +2317,7 @@
                     "general": {
                         "anyOf": [
                             {
-                                "$ref": "#/components/schemas/ConfigCommonSettings-Input"
+                                "$ref": "#/components/schemas/GeneralSettings-Input"
                             },
                             {
                                 "type": "null"

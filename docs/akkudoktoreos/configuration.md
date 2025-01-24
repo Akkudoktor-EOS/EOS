@@ -38,7 +38,7 @@ The configuration sources and their priorities are as follows:
 
 ### Runtime Config Updates
 
-The EOS configuration can be updated at runtime. Note that those updates are not persistet
+The EOS configuration can be updated at runtime. Note that those updates are not persistent
 automatically. However it is possible to save the configuration to the `EOS configuration file`.
 
 Use the following endpoints to change the current runtime configuration:
