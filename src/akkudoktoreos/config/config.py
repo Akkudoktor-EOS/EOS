@@ -27,6 +27,7 @@ from pydantic_settings.sources import ConfigFileSourceMixin
 # settings
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
+from akkudoktoreos.core.decorators import classproperty
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.logsettings import LoggingCommonSettings
 from akkudoktoreos.core.pydantic import merge_models
@@ -40,7 +41,7 @@ from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.prediction.weather import WeatherCommonSettings
 from akkudoktoreos.server.server import ServerCommonSettings
 from akkudoktoreos.utils.datetimeutil import to_timezone
-from akkudoktoreos.utils.utils import UtilsCommonSettings, classproperty
+from akkudoktoreos.utils.utils import UtilsCommonSettings
 
 logger = get_logger(__name__)
 
@@ -63,7 +64,7 @@ def get_absolute_path(
     return None
 
 
-class ConfigCommonSettings(SettingsBaseModel):
+class GeneralSettings(SettingsBaseModel):
     """Settings for common configuration.
 
     General configuration to set directories of cache and output files and system location (latitude
@@ -152,7 +153,7 @@ class SettingsEOS(BaseSettings):
     Used by updating the configuration with specific settings only.
     """
 
-    general: Optional[ConfigCommonSettings] = None
+    general: Optional[GeneralSettings] = None
     logging: Optional[LoggingCommonSettings] = None
     devices: Optional[DevicesCommonSettings] = None
     measurement: Optional[MeasurementCommonSettings] = None
@@ -176,7 +177,7 @@ class SettingsEOSDefaults(SettingsEOS):
     Used by ConfigEOS instance to make all fields available.
     """
 
-    general: ConfigCommonSettings = ConfigCommonSettings()
+    general: GeneralSettings = GeneralSettings()
     logging: LoggingCommonSettings = LoggingCommonSettings()
     devices: DevicesCommonSettings = DevicesCommonSettings()
     measurement: MeasurementCommonSettings = MeasurementCommonSettings()
@@ -254,7 +255,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         """Customizes the order and handling of settings sources for a Pydantic BaseSettings subclass.
 
         This method determines the sources for application configuration settings, including
-        environment variables, dotenv files, JSON configuration files, and file secrets.
+        environment variables, dotenv files and JSON configuration files.
         It ensures that a default configuration file exists and creates one if necessary.
 
         Args:
@@ -262,7 +263,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             init_settings (PydanticBaseSettingsSource): The initial settings source, typically passed at runtime.
             env_settings (PydanticBaseSettingsSource): Settings sourced from environment variables.
             dotenv_settings (PydanticBaseSettingsSource): Settings sourced from a dotenv file.
-            file_secret_settings (PydanticBaseSettingsSource): Settings sourced from secret files.
+            file_secret_settings (PydanticBaseSettingsSource): Unused (needed for parent class interface).
 
         Returns:
             tuple[PydanticBaseSettingsSource, ...]: A tuple of settings sources in the order they should be applied.
@@ -272,8 +273,8 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             2. If the configuration file does not exist, creates the directory (if needed) and attempts to copy a
                default configuration file to the location. If the copy fails, uses the default configuration file directly.
             3. Creates a `JsonConfigSettingsSource` for both the configuration file and the default configuration file.
-            4. Updates class attributes `ConfigCommonSettings._config_folder_path` and
-               `ConfigCommonSettings._config_file_path` to reflect the determined paths.
+            4. Updates class attributes `GeneralSettings._config_folder_path` and
+               `GeneralSettings._config_file_path` to reflect the determined paths.
             5. Returns a tuple containing all provided and newly created settings sources in the desired order.
 
         Notes:
@@ -295,15 +296,14 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         default_settings = JsonConfigSettingsSource(
             settings_cls, json_file=cls.config_default_file_path
         )
-        ConfigCommonSettings._config_folder_path = config_dir
-        ConfigCommonSettings._config_file_path = config_file
+        GeneralSettings._config_folder_path = config_dir
+        GeneralSettings._config_file_path = config_file
 
         return (
             init_settings,
             env_settings,
             dotenv_settings,
             file_settings,
-            file_secret_settings,
             default_settings,
         )
 
