@@ -43,10 +43,10 @@ class VisualizationReport(ConfigMixin):
         )
         self.create_img = create_img
 
-    def add_chart_to_group(self, chart_func: Callable[[], None], title: str) -> None:
+    def add_chart_to_group(self, chart_func: Callable[[], None], title: str | None) -> None:
         """Add a chart function to the current group and save it as a PNG and SVG."""
         self.current_group.append(chart_func)
-        if self.create_img:
+        if self.create_img and title:
             server_output_dir = self.config.data_cache_path
             server_output_dir.mkdir(parents=True, exist_ok=True)
             fig, ax = plt.subplots()
