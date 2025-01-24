@@ -52,7 +52,6 @@ class VisualizationReport(ConfigMixin):
             fig, ax = plt.subplots()
             chart_func()
             plt.tight_layout()  # Adjust the layout to ensure titles are not cut off
-            # Remove self.chart_counter and sanitize title
             sanitized_title = "".join(c if c.isalnum() else "_" for c in title)
             chart_filename_base = os.path.join(server_output_dir, f"chart_{sanitized_title}")
             fig.savefig(f"{chart_filename_base}.svg")
