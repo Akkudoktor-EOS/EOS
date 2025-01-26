@@ -1,3 +1,4 @@
+import logging
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -19,6 +20,8 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
 FILE_TESTDATA_PV_FORECAST_INPUT_1 = DIR_TESTDATA.joinpath("pv_forecast_input_1.json")
 FILE_TESTDATA_PV_FORECAST_RESULT_1 = DIR_TESTDATA.joinpath("pv_forecast_result_1.txt")
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture

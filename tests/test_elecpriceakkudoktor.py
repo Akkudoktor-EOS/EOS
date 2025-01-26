@@ -1,11 +1,11 @@
 import json
+import logging
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
 import requests
-import logging
 
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.prediction.elecpriceakkudoktor import (
