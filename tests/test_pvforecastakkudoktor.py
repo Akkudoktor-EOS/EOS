@@ -23,6 +23,9 @@ FILE_TESTDATA_PV_FORECAST_RESULT_1 = DIR_TESTDATA.joinpath("pv_forecast_result_1
 
 logger = logging.getLogger(__name__)
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
 
 @pytest.fixture
 def sample_settings(config_eos):
@@ -226,7 +229,7 @@ def test_pvforecast_akkudoktor_data_record():
 
 def test_pvforecast_akkudoktor_validate_data(provider_empty_instance, sample_forecast_data_raw):
     """Test validation of PV forecast data on sample data."""
-    logger.warning("The following errors are intentional and part of the test.")
+    logger.info("The following errors are intentional and part of the test.")
     with pytest.raises(
         ValueError,
         match="Field: meta\nError: Field required\nType: missing\nField: values\nError: Field required\nType: missing\n",

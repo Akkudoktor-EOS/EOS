@@ -24,6 +24,9 @@ FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON = DIR_TESTDATA.joinpath(
 
 logger = logging.getLogger(__name__)
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
 
 @pytest.fixture
 def provider(monkeypatch, config_eos):
@@ -148,7 +151,7 @@ def test_update_data_with_incomplete_forecast(mock_get, provider):
     mock_response.status_code = 200
     mock_response.content = json.dumps(incomplete_data)
     mock_get.return_value = mock_response
-    logger.warning("The following errors are intentional and part of the test.")
+    logger.info("The following errors are intentional and part of the test.")
     with pytest.raises(ValueError):
         provider._update_data(force_update=True)
 
