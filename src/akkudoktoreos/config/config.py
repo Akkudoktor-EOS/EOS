@@ -167,7 +167,10 @@ class SettingsEOS(BaseSettings):
     utils: Optional[UtilsCommonSettings] = None
 
     model_config = SettingsConfigDict(
-        env_nested_delimiter="__", nested_model_default_partial_update=True, env_prefix="EOS_"
+        env_nested_delimiter="__",
+        nested_model_default_partial_update=True,
+        env_prefix="EOS_",
+        ignored_types=(classproperty,),
     )
 
 
@@ -307,13 +310,11 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             default_settings,
         )
 
-    @classmethod
     @classproperty
     def config_default_file_path(cls) -> Path:
         """Compute the default config file path."""
         return cls.package_root_path.joinpath("data/default.config.json")
 
-    @classmethod
     @classproperty
     def package_root_path(cls) -> Path:
         """Compute the package root path."""

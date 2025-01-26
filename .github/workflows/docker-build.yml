@@ -7,13 +7,11 @@ on:
   push:
     branches:
       - 'main'
-      - 'feature/config-overhaul'
     tags:
       - 'v*'
   pull_request:
     branches:
-      - 'main'
-      - 'feature/config-overhaul'
+      - '**'
 
 env:
   DOCKERHUB_REPO: akkudoktor/eos
@@ -40,7 +38,9 @@ jobs:
         run: |
           if ${{ github.event_name == 'pull_request' }}; then
             echo 'matrix=[
-              {"platform": "linux/arm64"}
+              {"platform": {"name": "linux/amd64"}},
+              {"platform": {"name": "linux/arm64"}},
+              {"platform": {"name": "linux/386"}},
             ]' | tr -d '[:space:]' >> $GITHUB_OUTPUT
           else
             echo 'matrix=[]' >> $GITHUB_OUTPUT
@@ -58,13 +58,69 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - linux/amd64
-          - linux/arm64
+          - name: linux/amd64
+            base: python
+            python: 3.12  # pendulum not yet on pypi for 3.13
+            rustup_install: ""
+            apt_packages: ""
+            apt_build_packages: ""
+            pip_extra_url: ""
+          - name: linux/arm64
+            base: python
+            python: 3.12  # pendulum not yet on pypi for 3.13
+            rustup_install: ""
+            apt_packages: ""
+            apt_build_packages: ""
+            pip_extra_url: ""
+          - name: linux/arm/v6
+            base: python
+            python: 3.11  # highest version on piwheels
+            rustup_install: true
+            # numpy: libopenblas0
+            # h5py: libhdf5-hl-310
+            #apt_packages: "libopenblas0 libhdf5-hl-310"
+            apt_packages: ""  #TODO verify
+            # pendulum: git (apply patch)
+            # matplotlib (countourpy): g++
+            # fastapi (MarkupSafe): gcc
+            # rustup installer: curl
+            apt_build_packages: "curl git g++"
+            pip_extra_url: "https://www.piwheels.org/simple"  # armv6/v7 packages
+          - name: linux/arm/v7
+            base: python
+            python: 3.11  # highest version on piwheels
+            rustup_install: true
+            # numpy: libopenblas0
+            # h5py: libhdf5-hl-310
+            #apt_packages: "libopenblas0 libhdf5-hl-310"
+            apt_packages: ""  #TODO verify
+            # pendulum: git (apply patch)
+            # matplotlib (countourpy): g++
+            # fastapi (MarkupSafe): gcc
+            # rustup installer: curl
+            apt_build_packages: "curl git g++"
+            pip_extra_url: "https://www.piwheels.org/simple"  # armv6/v7 packages
+          - name: linux/386
+            # Get 32bit distributor fix for pendulum, not yet officially released.
+            # Needs Debian testing instead of python:xyz which is based on Debian stable.
+            base: debian
+            python: trixie
+            rustup_install: ""
+            # numpy: libopenblas0
+            # h5py: libhdf5-hl-310
+            apt_packages: "python3-pendulum python3-pip libopenblas0 libhdf5-hl-310"
+            # numpy: g++, libc-dev
+            # skikit: pkgconf python3-dev, libopenblas-dev
+            # uvloop: make
+            # h5py: libhdf5-dev
+            # many others g++/gcc
+            apt_build_packages: "g++ pkgconf libc-dev python3-dev make libopenblas-dev libhdf5-dev"
+            pip_extra_url: ""
         exclude: ${{ fromJSON(needs.platform-excludes.outputs.excludes) }}
     steps:
       - name: Prepare
         run: |
-          platform=${{ matrix.platform }}
+          platform=${{ matrix.platform.name }}
           echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
 
       - name: Docker meta
@@ -98,7 +154,8 @@ jobs:
       - name: Login to GHCR
         uses: docker/login-action@v3
         # skip for pull requests
-        if: ${{ github.event_name != 'pull_request' }}
+        #TODO: uncomment again
+        #if: ${{ github.event_name != 'pull_request' }}
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -106,8 +163,7 @@ jobs:
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-        # skip for pull requests
-        if: ${{ github.event_name != 'pull_request' }}
+        #if: ${{ github.event_name != 'pull_request' }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -116,10 +172,19 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          platforms: ${{ matrix.platform }}
+          platforms: ${{ matrix.platform.name }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          outputs: type=image,"name=${{ env.DOCKERHUB_REPO }},${{ env.GHCR_REPO }}",push-by-digest=true,name-canonical=true,"push=${{ github.event_name != 'pull_request' }}","annotation-index.org.opencontainers.image.description=${{ env.EOS_REPO_DESCRIPTION }}"
+          #TODO: uncomment again
+          #outputs: type=image,"name=${{ env.DOCKERHUB_REPO }},${{ env.GHCR_REPO }}",push-by-digest=true,name-canonical=true,"push=${{ github.event_name != 'pull_request' }}","annotation-index.org.opencontainers.image.description=${{ env.EOS_REPO_DESCRIPTION }}"
+          outputs: type=image,"name=${{ env.DOCKERHUB_REPO }},${{ env.GHCR_REPO }}",push-by-digest=true,name-canonical=true,push=true,"annotation-index.org.opencontainers.image.description=${{ env.EOS_REPO_DESCRIPTION }}"
+          build-args: |
+            BASE_IMAGE=${{ matrix.platform.base }}
+            PYTHON_VERSION=${{ matrix.platform.python }}
+            PIP_EXTRA_INDEX_URL=${{ matrix.platform.pip_extra_url }}
+            APT_PACKAGES=${{ matrix.platform.apt_packages }}
+            APT_BUILD_PACKAGES=${{ matrix.platform.apt_build_packages }}
+            RUSTUP_INSTALL=${{ matrix.platform.rustup_install }}
 
       - name: Generate artifact attestation DockerHub
         uses: actions/attest-build-provenance@v2
