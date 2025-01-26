@@ -223,6 +223,7 @@ def test_pvforecast_akkudoktor_data_record():
 
 def test_pvforecast_akkudoktor_validate_data(provider_empty_instance, sample_forecast_data_raw):
     """Test validation of PV forecast data on sample data."""
+    logger.info("The following errors are intentional and part of the test.")
     with pytest.raises(
         ValueError,
         match="Field: meta\nError: Field required\nType: missing\nField: values\nError: Field required\nType: missing\n",

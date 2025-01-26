@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 import requests
+import logging
 
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.prediction.elecpriceakkudoktor import (
@@ -20,6 +21,8 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON = DIR_TESTDATA.joinpath(
     "elecpriceforecast_akkudoktor_1.json"
 )
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
@@ -145,6 +148,7 @@ def test_update_data_with_incomplete_forecast(mock_get, provider):
     mock_response.status_code = 200
     mock_response.content = json.dumps(incomplete_data)
     mock_get.return_value = mock_response
+    logger.info("The following errors are intentional and part of the test.")
     with pytest.raises(ValueError):
         provider._update_data(force_update=True)
 
