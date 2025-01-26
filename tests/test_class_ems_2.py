@@ -269,7 +269,7 @@ def test_set_parameters(create_ems_instance):
 def test_set_akku_discharge_hours(create_ems_instance):
     """Test the set_akku_discharge_hours method of EnergieManagementSystem."""
     ems = create_ems_instance
-    discharge_hours = np.full(ems.config.prediction_hours, 1.0)
+    discharge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_akku_discharge_hours(discharge_hours)
     assert np.array_equal(
         ems.battery.discharge_array, discharge_hours
@@ -279,7 +279,7 @@ def test_set_akku_discharge_hours(create_ems_instance):
 def test_set_akku_ac_charge_hours(create_ems_instance):
     """Test the set_akku_ac_charge_hours method of EnergieManagementSystem."""
     ems = create_ems_instance
-    ac_charge_hours = np.full(ems.config.prediction_hours, 1.0)
+    ac_charge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_akku_ac_charge_hours(ac_charge_hours)
     assert np.array_equal(
         ems.ac_charge_hours, ac_charge_hours
@@ -289,7 +289,7 @@ def test_set_akku_ac_charge_hours(create_ems_instance):
 def test_set_akku_dc_charge_hours(create_ems_instance):
     """Test the set_akku_dc_charge_hours method of EnergieManagementSystem."""
     ems = create_ems_instance
-    dc_charge_hours = np.full(ems.config.prediction_hours, 1.0)
+    dc_charge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_akku_dc_charge_hours(dc_charge_hours)
     assert np.array_equal(
         ems.dc_charge_hours, dc_charge_hours
@@ -299,7 +299,7 @@ def test_set_akku_dc_charge_hours(create_ems_instance):
 def test_set_ev_charge_hours(create_ems_instance):
     """Test the set_ev_charge_hours method of EnergieManagementSystem."""
     ems = create_ems_instance
-    ev_charge_hours = np.full(ems.config.prediction_hours, 1.0)
+    ev_charge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_ev_charge_hours(ev_charge_hours)
     assert np.array_equal(
         ems.ev_charge_hours, ev_charge_hours
