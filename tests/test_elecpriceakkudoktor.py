@@ -1,5 +1,4 @@
 import json
-import logging
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -8,6 +7,7 @@ import pytest
 import requests
 
 from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.elecpriceakkudoktor import (
     AkkudoktorElecPrice,
     AkkudoktorElecPriceValue,
@@ -22,10 +22,7 @@ FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON = DIR_TESTDATA.joinpath(
     "elecpriceforecast_akkudoktor_1.json"
 )
 
-logger = logging.getLogger(__name__)
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+logger = get_logger(__name__)
 
 
 @pytest.fixture

@@ -1,4 +1,3 @@
-import logging
 import sys
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -6,6 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.prediction.pvforecastakkudoktor import (
     AkkudoktorForecastHorizon,
@@ -21,10 +21,7 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 FILE_TESTDATA_PV_FORECAST_INPUT_1 = DIR_TESTDATA.joinpath("pv_forecast_input_1.json")
 FILE_TESTDATA_PV_FORECAST_RESULT_1 = DIR_TESTDATA.joinpath("pv_forecast_result_1.txt")
 
-logger = logging.getLogger(__name__)
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+logger = get_logger(__name__)
 
 
 @pytest.fixture
