@@ -51,6 +51,70 @@ def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, An
     return merged_dict
 
 
+def access_nested_value(
+    model: BaseModel, path: str, setter: bool, value: Optional[Any] = None
+) -> Any:
+    """Get or set a nested model value based on the provided path.
+
+    Supports string paths (with '/' separators) or sequence paths (list/tuple).
+    Trims leading and trailing '/' from string paths.
+
+    Args:
+        model (BaseModel): The model object for partial assignment.
+        path (str): The path to the model key (e.g., "key1/key2/key3" or key1/key2/0).
+        setter (bool): True to set value at path, False to return value at path.
+        value (Optional[Any]): The value to set.
+
+    Returns:
+        Any: The retrieved value if acting as a getter, or None if setting a value.
+    """
+    path_elements = path.strip("/").split("/")
+
+    cfg: Any = model
+    parent: BaseModel = model
+    model_key: str = ""
+
+    for i, key in enumerate(path_elements):
+        is_final_key = i == len(path_elements) - 1
+
+        if isinstance(cfg, list):
+            try:
+                idx = int(key)
+                if is_final_key:
+                    if not setter:  # Getter
+                        return cfg[idx]
+                    else:  # Setter
+                        new_list = list(cfg)
+                        new_list[idx] = value
+                        # Trigger validation
+                        setattr(parent, model_key, new_list)
+                else:
+                    cfg = cfg[idx]
+            except ValidationError as e:
+                raise ValueError(f"Error updating model: {e}") from e
+            except (ValueError, IndexError) as e:
+                raise IndexError(f"Invalid list index at {path}: {key}") from e
+
+        elif isinstance(cfg, BaseModel):
+            parent = cfg
+            model_key = key
+            if is_final_key:
+                if not setter:  # Getter
+                    return getattr(cfg, key)
+                else:  # Setter
+                    try:
+                        # Verification also if nested value is provided opposed to just setattr
+                        # Will merge partial assignment
+                        cfg = cfg.__pydantic_validator__.validate_assignment(cfg, key, value)
+                    except Exception as e:
+                        raise ValueError(f"Error updating model: {e}") from e
+            else:
+                cfg = getattr(cfg, key)
+
+        else:
+            raise KeyError(f"Key '{key}' not found in model.")
+
+
 class PydanticTypeAdapterDateTime(TypeAdapter[pendulum.DateTime]):
     """Custom type adapter for Pendulum DateTime fields."""
 

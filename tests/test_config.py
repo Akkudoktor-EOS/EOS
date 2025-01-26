@@ -212,3 +212,165 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
     assert config_no_latitude.timezone is None
     assert config_no_longitude.timezone is None
     assert config_no_coords.timezone is None
+
+
+# Test partial assignments and possible side effects
+@pytest.mark.parametrize(
+    "path, value, expected, exception",
+    [
+        # Correct value assignment
+        (
+            "general/latitude",
+            42.0,
+            [("general.latitude", 42.0), ("general.longitude", 13.405)],
+            None,
+        ),
+        # Correct value assignment (trailing /)
+        (
+            "general/latitude/",
+            41,
+            [("general.latitude", 41.0), ("general.longitude", 13.405)],
+            None,
+        ),
+        # Correct value assignment (cast)
+        (
+            "general/latitude",
+            "43.0",
+            [("general.latitude", 43.0), ("general.longitude", 13.405)],
+            None,
+        ),
+        # Invalid value assignment (constraint)
+        (
+            "general/latitude",
+            91.0,
+            [("general.latitude", 52.52), ("general.longitude", 13.405)],
+            ValueError,
+        ),
+        # Invalid value assignment (type)
+        (
+            "general/latitude",
+            "test",
+            [("general.latitude", 52.52), ("general.longitude", 13.405)],
+            ValueError,
+        ),
+        # Invalid path
+        (
+            "general/latitude/test",
+            "",
+            [("general.latitude", 52.52), ("general.longitude", 13.405)],
+            KeyError,
+        ),
+        # Correct value nested assignment
+        (
+            "general",
+            {"latitude": 22},
+            [("general.latitude", 22.0), ("general.longitude", 13.405)],
+            None,
+        ),
+        # Invalid value nested assignment
+        (
+            "general",
+            {"latitude": "test"},
+            [("general.latitude", 52.52), ("general.longitude", 13.405)],
+            ValueError,
+        ),
+        # Correct value for list
+        (
+            "optimization/ev_available_charge_rates_percent/0",
+            0.1,
+            [
+                (
+                    "optimization.ev_available_charge_rates_percent",
+                    [0.1, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                )
+            ],
+            None,
+        ),
+        # Invalid value for list
+        (
+            "optimization/ev_available_charge_rates_percent/0",
+            "invalid",
+            [
+                (
+                    "optimization.ev_available_charge_rates_percent",
+                    [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                )
+            ],
+            ValueError,
+        ),
+        # Invalid index (out of bound)
+        (
+            "optimization/ev_available_charge_rates_percent/10",
+            0,
+            [
+                (
+                    "optimization.ev_available_charge_rates_percent",
+                    [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                )
+            ],
+            IndexError,
+        ),
+        # Invalid index (no number)
+        (
+            "optimization/ev_available_charge_rates_percent/test",
+            0,
+            [
+                (
+                    "optimization.ev_available_charge_rates_percent",
+                    [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                )
+            ],
+            IndexError,
+        ),
+        # Unset value (set None)
+        (
+            "optimization/ev_available_charge_rates_percent",
+            None,
+            [
+                (
+                    "optimization.ev_available_charge_rates_percent",
+                    None,
+                )
+            ],
+            None,
+        ),
+    ],
+)
+def test_set_nested_key(path, value, expected, exception, config_eos):
+    if not exception:
+        config_eos.set_config_value(path, value)
+        for expected_path, expected_value in expected:
+            assert eval(f"config_eos.{expected_path}") == expected_value
+    else:
+        with pytest.raises(exception):
+            config_eos.set_config_value(path, value)
+        for expected_path, expected_value in expected:
+            assert eval(f"config_eos.{expected_path}") == expected_value
+
+
+@pytest.mark.parametrize(
+    "path, expected_value, exception",
+    [
+        ("general/latitude", 52.52, None),
+        ("general/latitude/", 52.52, None),
+        ("general/latitude/test", None, KeyError),
+        (
+            "optimization/ev_available_charge_rates_percent/1",
+            0.375,
+            None,
+        ),
+        ("optimization/ev_available_charge_rates_percent/10", 0, IndexError),
+        ("optimization/ev_available_charge_rates_percent/test", 0, IndexError),
+        (
+            "optimization/ev_available_charge_rates_percent",
+            [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+            None,
+        ),
+    ],
+)
+def test_get_nested_key(path, expected_value, exception, config_eos):
+    if not exception:
+        assert config_eos.get_config_value(path) == expected_value
+    else:
+        with pytest.raises(exception):
+            config_eos.get_config_value(path)

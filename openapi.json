@@ -106,246 +106,6 @@
                 "title": "BaseBatteryParameters",
                 "type": "object"
             },
-            "GeneralSettings-Input": {
-                "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
-                "properties": {
-                    "data_cache_subpath": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "cache",
-                        "description": "Sub-path for the EOS cache data directory.",
-                        "title": "Data Cache Subpath"
-                    },
-                    "data_folder_path": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Path to EOS data directory.",
-                        "examples": [
-                            null,
-                            "/home/eos/data"
-                        ],
-                        "title": "Data Folder Path"
-                    },
-                    "data_output_subpath": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "output",
-                        "description": "Sub-path for the EOS output data directory.",
-                        "title": "Data Output Subpath"
-                    },
-                    "latitude": {
-                        "anyOf": [
-                            {
-                                "maximum": 90.0,
-                                "minimum": -90.0,
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 52.52,
-                        "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)",
-                        "title": "Latitude"
-                    },
-                    "longitude": {
-                        "anyOf": [
-                            {
-                                "maximum": 180.0,
-                                "minimum": -180.0,
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 13.405,
-                        "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
-                        "title": "Longitude"
-                    }
-                },
-                "title": "GeneralSettings",
-                "type": "object"
-            },
-            "GeneralSettings-Output": {
-                "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
-                "properties": {
-                    "config_file_path": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Path to EOS configuration file.",
-                        "readOnly": true,
-                        "title": "Config File Path"
-                    },
-                    "config_folder_path": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Path to EOS configuration directory.",
-                        "readOnly": true,
-                        "title": "Config Folder Path"
-                    },
-                    "data_cache_path": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Compute data_cache_path based on data_folder_path.",
-                        "readOnly": true,
-                        "title": "Data Cache Path"
-                    },
-                    "data_cache_subpath": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "cache",
-                        "description": "Sub-path for the EOS cache data directory.",
-                        "title": "Data Cache Subpath"
-                    },
-                    "data_folder_path": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Path to EOS data directory.",
-                        "examples": [
-                            null,
-                            "/home/eos/data"
-                        ],
-                        "title": "Data Folder Path"
-                    },
-                    "data_output_path": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Compute data_output_path based on data_folder_path.",
-                        "readOnly": true,
-                        "title": "Data Output Path"
-                    },
-                    "data_output_subpath": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "output",
-                        "description": "Sub-path for the EOS output data directory.",
-                        "title": "Data Output Subpath"
-                    },
-                    "latitude": {
-                        "anyOf": [
-                            {
-                                "maximum": 90.0,
-                                "minimum": -90.0,
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 52.52,
-                        "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)",
-                        "title": "Latitude"
-                    },
-                    "longitude": {
-                        "anyOf": [
-                            {
-                                "maximum": 180.0,
-                                "minimum": -180.0,
-                                "type": "number"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": 13.405,
-                        "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
-                        "title": "Longitude"
-                    },
-                    "timezone": {
-                        "anyOf": [
-                            {
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Compute timezone based on latitude and longitude.",
-                        "readOnly": true,
-                        "title": "Timezone"
-                    }
-                },
-                "required": [
-                    "timezone",
-                    "data_output_path",
-                    "data_cache_path",
-                    "config_folder_path",
-                    "config_file_path"
-                ],
-                "title": "GeneralSettings",
-                "type": "object"
-            },
             "ConfigEOS": {
                 "additionalProperties": false,
                 "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_CONFIG_DIR` environment variable\n    2. The directory specified by the `EOS_DIR` environment variable.\n    3. A platform specific default directory for EOS.\n    4. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nAttributes:\n    config_folder_path (Optional[Path]): Path to the configuration directory.\n    config_file_path (Optional[Path]): Path to the configuration file.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    ```python\n    config_eos = ConfigEOS()  # Always returns the same instance\n    print(config_eos.prediction.hours)  # Access a setting from the loaded configuration\n    ```",
@@ -875,6 +635,246 @@
                     "pvpower"
                 ],
                 "title": "ForecastResponse",
+                "type": "object"
+            },
+            "GeneralSettings-Input": {
+                "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
+                "properties": {
+                    "data_cache_subpath": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": "cache",
+                        "description": "Sub-path for the EOS cache data directory.",
+                        "title": "Data Cache Subpath"
+                    },
+                    "data_folder_path": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Path to EOS data directory.",
+                        "examples": [
+                            null,
+                            "/home/eos/data"
+                        ],
+                        "title": "Data Folder Path"
+                    },
+                    "data_output_subpath": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": "output",
+                        "description": "Sub-path for the EOS output data directory.",
+                        "title": "Data Output Subpath"
+                    },
+                    "latitude": {
+                        "anyOf": [
+                            {
+                                "maximum": 90.0,
+                                "minimum": -90.0,
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 52.52,
+                        "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)",
+                        "title": "Latitude"
+                    },
+                    "longitude": {
+                        "anyOf": [
+                            {
+                                "maximum": 180.0,
+                                "minimum": -180.0,
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 13.405,
+                        "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
+                        "title": "Longitude"
+                    }
+                },
+                "title": "GeneralSettings",
+                "type": "object"
+            },
+            "GeneralSettings-Output": {
+                "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
+                "properties": {
+                    "config_file_path": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Path to EOS configuration file.",
+                        "readOnly": true,
+                        "title": "Config File Path"
+                    },
+                    "config_folder_path": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Path to EOS configuration directory.",
+                        "readOnly": true,
+                        "title": "Config Folder Path"
+                    },
+                    "data_cache_path": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Compute data_cache_path based on data_folder_path.",
+                        "readOnly": true,
+                        "title": "Data Cache Path"
+                    },
+                    "data_cache_subpath": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": "cache",
+                        "description": "Sub-path for the EOS cache data directory.",
+                        "title": "Data Cache Subpath"
+                    },
+                    "data_folder_path": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Path to EOS data directory.",
+                        "examples": [
+                            null,
+                            "/home/eos/data"
+                        ],
+                        "title": "Data Folder Path"
+                    },
+                    "data_output_path": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Compute data_output_path based on data_folder_path.",
+                        "readOnly": true,
+                        "title": "Data Output Path"
+                    },
+                    "data_output_subpath": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": "output",
+                        "description": "Sub-path for the EOS output data directory.",
+                        "title": "Data Output Subpath"
+                    },
+                    "latitude": {
+                        "anyOf": [
+                            {
+                                "maximum": 90.0,
+                                "minimum": -90.0,
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 52.52,
+                        "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)",
+                        "title": "Latitude"
+                    },
+                    "longitude": {
+                        "anyOf": [
+                            {
+                                "maximum": 180.0,
+                                "minimum": -180.0,
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 13.405,
+                        "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
+                        "title": "Longitude"
+                    },
+                    "timezone": {
+                        "anyOf": [
+                            {
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Compute timezone based on latitude and longitude.",
+                        "readOnly": true,
+                        "title": "Timezone"
+                    }
+                },
+                "required": [
+                    "timezone",
+                    "data_output_path",
+                    "data_cache_path",
+                    "config_folder_path",
+                    "config_file_path"
+                ],
+                "title": "GeneralSettings",
                 "type": "object"
             },
             "GesamtlastRequest": {
@@ -3161,6 +3161,103 @@
                     }
                 },
                 "summary": "Fastapi Config Update Post",
+                "tags": [
+                    "config"
+                ]
+            }
+        },
+        "/v1/config/{path}": {
+            "get": {
+                "description": "Get the value of a nested key or index in the config model.\n\nArgs:\n    path (str): The nested path to the key (e.g., \"general/latitude\" or \"optimize/nested_list/0\").\n\nReturns:\n    value (Any): The value of the selected nested key.",
+                "operationId": "fastapi_config_get_key_v1_config__path__get",
+                "parameters": [
+                    {
+                        "description": "The nested path to the configuration key (e.g., general/latitude).",
+                        "in": "path",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "description": "The nested path to the configuration key (e.g., general/latitude).",
+                            "title": "Path",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Fastapi Config Get Key",
+                "tags": [
+                    "config"
+                ]
+            },
+            "put": {
+                "description": "Update a nested key or index in the config model.\n\nArgs:\n    path (str): The nested path to the key (e.g., \"general/latitude\" or \"optimize/nested_list/0\").\n    value (Any): The new value to assign to the key or index at path.\n\nReturns:\n    configuration (ConfigEOS): The current configuration after the update.",
+                "operationId": "fastapi_config_put_key_v1_config__path__put",
+                "parameters": [
+                    {
+                        "description": "The nested path to the configuration key (e.g., general/latitude).",
+                        "in": "path",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "description": "The nested path to the configuration key (e.g., general/latitude).",
+                            "title": "Path",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "description": "The value to assign to the specified configuration path.",
+                                "title": "Value"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConfigEOS"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Fastapi Config Put Key",
                 "tags": [
                     "config"
                 ]
