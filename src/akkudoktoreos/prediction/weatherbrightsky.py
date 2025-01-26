@@ -62,13 +62,13 @@ class WeatherBrightSky(WeatherProvider):
     of hours into the future and retains historical data.
 
     Attributes:
-        prediction_hours (int, optional): Number of hours in the future for the forecast.
-        prediction_historic_hours (int, optional): Number of past hours for retaining data.
+        hours (int, optional): Number of hours in the future for the forecast.
+        historic_hours (int, optional): Number of past hours for retaining data.
         latitude (float, optional): The latitude in degrees, validated to be between -90 and 90.
         longitude (float, optional): The longitude in degrees, validated to be between -180 and 180.
         start_datetime (datetime, optional): Start datetime for forecasts, defaults to the current datetime.
-        end_datetime (datetime, computed): The forecast's end datetime, computed based on `start_datetime` and `prediction_hours`.
-        keep_datetime (datetime, computed): The datetime to retain historical data, computed from `start_datetime` and `prediction_historic_hours`.
+        end_datetime (datetime, computed): The forecast's end datetime, computed based on `start_datetime` and `hours`.
+        keep_datetime (datetime, computed): The datetime to retain historical data, computed from `start_datetime` and `historic_hours`.
 
     Methods:
         provider_id(): Returns a unique identifier for the provider.
@@ -99,7 +99,7 @@ class WeatherBrightSky(WeatherProvider):
         date = to_datetime(self.start_datetime, as_string="YYYY-MM-DD")
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
         response = requests.get(
-            f"{source}/weather?lat={self.config.latitude}&lon={self.config.longitude}&date={date}&last_date={last_date}&tz={self.config.timezone}"
+            f"{source}/weather?lat={self.config.general.latitude}&lon={self.config.general.longitude}&date={date}&last_date={last_date}&tz={self.config.general.timezone}"
         )
         response.raise_for_status()  # Raise an error for bad responses
         logger.debug(f"Response from {source}: {response}")
@@ -109,7 +109,7 @@ class WeatherBrightSky(WeatherProvider):
             logger.error(error_msg)
             raise ValueError(error_msg)
         # We are working on fresh data (no cache), report update time
-        self.update_datetime = to_datetime(in_timezone=self.config.timezone)
+        self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return brightsky_data
 
     def _description_to_series(self, description: str) -> pd.Series:
@@ -200,7 +200,7 @@ class WeatherBrightSky(WeatherProvider):
         description = "Total Clouds (% Sky Obscured)"
         cloud_cover = self._description_to_series(description)
         ghi, dni, dhi = self.estimate_irradiance_from_cloud_cover(
-            self.config.latitude, self.config.longitude, cloud_cover
+            self.config.general.latitude, self.config.general.longitude, cloud_cover
         )
 
         description = "Global Horizontal Irradiance (W/m2)"

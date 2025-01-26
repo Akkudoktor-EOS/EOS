@@ -12,30 +12,35 @@ Key features:
 import os
 import shutil
 from pathlib import Path
-from typing import Any, ClassVar, List, Optional
+from typing import Any, ClassVar, Optional, Type
 
 from platformdirs import user_config_dir, user_data_dir
-from pydantic import Field, ValidationError, computed_field
+from pydantic import Field, computed_field
+from pydantic_settings import (
+    BaseSettings,
+    JsonConfigSettingsSource,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+from pydantic_settings.sources import ConfigFileSourceMixin
 
 # settings
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
+from akkudoktoreos.core.decorators import classproperty
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.logsettings import LoggingCommonSettings
-from akkudoktoreos.devices.devices import DevicesCommonSettings
+from akkudoktoreos.core.pydantic import merge_models
+from akkudoktoreos.devices.settings import DevicesCommonSettings
 from akkudoktoreos.measurement.measurement import MeasurementCommonSettings
 from akkudoktoreos.optimization.optimization import OptimizationCommonSettings
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
-from akkudoktoreos.prediction.elecpriceimport import ElecPriceImportCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
-from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
-from akkudoktoreos.prediction.loadimport import LoadImportCommonSettings
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
-from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
 from akkudoktoreos.prediction.weather import WeatherCommonSettings
-from akkudoktoreos.prediction.weatherimport import WeatherImportCommonSettings
 from akkudoktoreos.server.server import ServerCommonSettings
+from akkudoktoreos.utils.datetimeutil import to_timezone
 from akkudoktoreos.utils.utils import UtilsCommonSettings
 
 logger = get_logger(__name__)
@@ -59,61 +64,134 @@ def get_absolute_path(
     return None
 
 
-class ConfigCommonSettings(SettingsBaseModel):
-    """Settings for common configuration."""
+class GeneralSettings(SettingsBaseModel):
+    """Settings for common configuration.
+
+    General configuration to set directories of cache and output files and system location (latitude
+    and longitude).
+    Validators ensure each parameter is within a specified range. A computed property, `timezone`,
+    determines the time zone based on latitude and longitude.
+
+    Attributes:
+        latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.
+        longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.
+
+    Properties:
+        timezone (Optional[str]): Computed time zone string based on the specified latitude
+            and longitude.
+
+    Validators:
+        validate_latitude (float): Ensures `latitude` is within the range -90 to 90.
+        validate_longitude (float): Ensures `longitude` is within the range -180 to 180.
+    """
+
+    _config_folder_path: ClassVar[Optional[Path]] = None
+    _config_file_path: ClassVar[Optional[Path]] = None
 
     data_folder_path: Optional[Path] = Field(
-        default=None, description="Path to EOS data directory."
+        default=None, description="Path to EOS data directory.", examples=[None, "/home/eos/data"]
     )
 
     data_output_subpath: Optional[Path] = Field(
-        "output", description="Sub-path for the EOS output data directory."
+        default="output", description="Sub-path for the EOS output data directory."
     )
 
     data_cache_subpath: Optional[Path] = Field(
-        "cache", description="Sub-path for the EOS cache data directory."
+        default="cache", description="Sub-path for the EOS cache data directory."
+    )
+
+    latitude: Optional[float] = Field(
+        default=52.52,
+        ge=-90.0,
+        le=90.0,
+        description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)",
+    )
+    longitude: Optional[float] = Field(
+        default=13.405,
+        ge=-180.0,
+        le=180.0,
+        description="Longitude in decimal degrees, within -180 to 180 (°)",
     )
 
     # Computed fields
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def timezone(self) -> Optional[str]:
+        """Compute timezone based on latitude and longitude."""
+        if self.latitude and self.longitude:
+            return to_timezone(location=(self.latitude, self.longitude), as_string=True)
+        return None
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def data_output_path(self) -> Optional[Path]:
         """Compute data_output_path based on data_folder_path."""
         return get_absolute_path(self.data_folder_path, self.data_output_subpath)
 
-    # Computed fields
     @computed_field  # type: ignore[prop-decorator]
     @property
     def data_cache_path(self) -> Optional[Path]:
         """Compute data_cache_path based on data_folder_path."""
         return get_absolute_path(self.data_folder_path, self.data_cache_subpath)
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def config_folder_path(self) -> Optional[Path]:
+        """Path to EOS configuration directory."""
+        return self._config_folder_path
 
-class SettingsEOS(
-    ConfigCommonSettings,
-    LoggingCommonSettings,
-    DevicesCommonSettings,
-    MeasurementCommonSettings,
-    OptimizationCommonSettings,
-    PredictionCommonSettings,
-    ElecPriceCommonSettings,
-    ElecPriceImportCommonSettings,
-    LoadCommonSettings,
-    LoadAkkudoktorCommonSettings,
-    LoadImportCommonSettings,
-    PVForecastCommonSettings,
-    PVForecastImportCommonSettings,
-    WeatherCommonSettings,
-    WeatherImportCommonSettings,
-    ServerCommonSettings,
-    UtilsCommonSettings,
-):
-    """Settings for all EOS."""
-
-    pass
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def config_file_path(self) -> Optional[Path]:
+        """Path to EOS configuration file."""
+        return self._config_file_path
 
 
-class ConfigEOS(SingletonMixin, SettingsEOS):
+class SettingsEOS(BaseSettings):
+    """Settings for all EOS.
+
+    Used by updating the configuration with specific settings only.
+    """
+
+    general: Optional[GeneralSettings] = None
+    logging: Optional[LoggingCommonSettings] = None
+    devices: Optional[DevicesCommonSettings] = None
+    measurement: Optional[MeasurementCommonSettings] = None
+    optimization: Optional[OptimizationCommonSettings] = None
+    prediction: Optional[PredictionCommonSettings] = None
+    elecprice: Optional[ElecPriceCommonSettings] = None
+    load: Optional[LoadCommonSettings] = None
+    pvforecast: Optional[PVForecastCommonSettings] = None
+    weather: Optional[WeatherCommonSettings] = None
+    server: Optional[ServerCommonSettings] = None
+    utils: Optional[UtilsCommonSettings] = None
+
+    model_config = SettingsConfigDict(
+        env_nested_delimiter="__", nested_model_default_partial_update=True, env_prefix="EOS_"
+    )
+
+
+class SettingsEOSDefaults(SettingsEOS):
+    """Settings for all of EOS with defaults.
+
+    Used by ConfigEOS instance to make all fields available.
+    """
+
+    general: GeneralSettings = GeneralSettings()
+    logging: LoggingCommonSettings = LoggingCommonSettings()
+    devices: DevicesCommonSettings = DevicesCommonSettings()
+    measurement: MeasurementCommonSettings = MeasurementCommonSettings()
+    optimization: OptimizationCommonSettings = OptimizationCommonSettings()
+    prediction: PredictionCommonSettings = PredictionCommonSettings()
+    elecprice: ElecPriceCommonSettings = ElecPriceCommonSettings()
+    load: LoadCommonSettings = LoadCommonSettings()
+    pvforecast: PVForecastCommonSettings = PVForecastCommonSettings()
+    weather: WeatherCommonSettings = WeatherCommonSettings()
+    server: ServerCommonSettings = ServerCommonSettings()
+    utils: UtilsCommonSettings = UtilsCommonSettings()
+
+
+class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     """Singleton configuration handler for the EOS application.
 
     ConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic
@@ -143,8 +221,6 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         in one part of the application reflects across all references to this class.
 
     Attributes:
-        _settings (ClassVar[SettingsEOS]): Holds application-wide settings.
-        _file_settings (ClassVar[SettingsEOS]): Stores configuration loaded from file.
         config_folder_path (Optional[Path]): Path to the configuration directory.
         config_file_path (Optional[Path]): Path to the configuration file.
 
@@ -155,7 +231,7 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         To initialize and access configuration attributes (only one instance is created):
         ```python
         config_eos = ConfigEOS()  # Always returns the same instance
-        print(config_eos.prediction_hours)  # Access a setting from the loaded configuration
+        print(config_eos.prediction.hours)  # Access a setting from the loaded configuration
         ```
 
     """
@@ -167,111 +243,113 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
     ENCODING: ClassVar[str] = "UTF-8"
     CONFIG_FILE_NAME: ClassVar[str] = "EOS.config.json"
 
-    _settings: ClassVar[Optional[SettingsEOS]] = None
-    _file_settings: ClassVar[Optional[SettingsEOS]] = None
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Customizes the order and handling of settings sources for a Pydantic BaseSettings subclass.
 
-    _config_folder_path: Optional[Path] = None
-    _config_file_path: Optional[Path] = None
+        This method determines the sources for application configuration settings, including
+        environment variables, dotenv files and JSON configuration files.
+        It ensures that a default configuration file exists and creates one if necessary.
 
-    # Computed fields
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def config_folder_path(self) -> Optional[Path]:
-        """Path to EOS configuration directory."""
-        return self._config_folder_path
+        Args:
+            settings_cls (Type[BaseSettings]): The Pydantic BaseSettings class for which sources are customized.
+            init_settings (PydanticBaseSettingsSource): The initial settings source, typically passed at runtime.
+            env_settings (PydanticBaseSettingsSource): Settings sourced from environment variables.
+            dotenv_settings (PydanticBaseSettingsSource): Settings sourced from a dotenv file.
+            file_secret_settings (PydanticBaseSettingsSource): Unused (needed for parent class interface).
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def config_file_path(self) -> Optional[Path]:
-        """Path to EOS configuration file."""
-        return self._config_file_path
+        Returns:
+            tuple[PydanticBaseSettingsSource, ...]: A tuple of settings sources in the order they should be applied.
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def config_default_file_path(self) -> Path:
+        Behavior:
+            1. Checks for the existence of a JSON configuration file in the expected location.
+            2. If the configuration file does not exist, creates the directory (if needed) and attempts to copy a
+               default configuration file to the location. If the copy fails, uses the default configuration file directly.
+            3. Creates a `JsonConfigSettingsSource` for both the configuration file and the default configuration file.
+            4. Updates class attributes `GeneralSettings._config_folder_path` and
+               `GeneralSettings._config_file_path` to reflect the determined paths.
+            5. Returns a tuple containing all provided and newly created settings sources in the desired order.
+
+        Notes:
+            - This method logs a warning if the default configuration file cannot be copied.
+            - It ensures that a fallback to the default configuration file is always possible.
+        """
+        file_settings: Optional[ConfigFileSourceMixin] = None
+        config_file, exists = cls._get_config_file_path()
+        config_dir = config_file.parent
+        if not exists:
+            config_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                shutil.copy2(cls.config_default_file_path, config_file)
+            except Exception as exc:
+                logger.warning(f"Could not copy default config: {exc}. Using default config...")
+                config_file = cls.config_default_file_path
+                config_dir = config_file.parent
+        file_settings = JsonConfigSettingsSource(settings_cls, json_file=config_file)
+        default_settings = JsonConfigSettingsSource(
+            settings_cls, json_file=cls.config_default_file_path
+        )
+        GeneralSettings._config_folder_path = config_dir
+        GeneralSettings._config_file_path = config_file
+
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            file_settings,
+            default_settings,
+        )
+
+    @classmethod
+    @classproperty
+    def config_default_file_path(cls) -> Path:
         """Compute the default config file path."""
-        return self.package_root_path.joinpath("data/default.config.json")
+        return cls.package_root_path.joinpath("data/default.config.json")
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def package_root_path(self) -> Path:
+    @classmethod
+    @classproperty
+    def package_root_path(cls) -> Path:
         """Compute the package root path."""
         return Path(__file__).parent.parent.resolve()
 
-    # Computed fields
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def config_keys(self) -> List[str]:
-        """Returns the keys of all fields in the configuration."""
-        key_list = []
-        key_list.extend(list(self.model_fields.keys()))
-        key_list.extend(list(self.__pydantic_decorators__.computed_fields.keys()))
-        return key_list
-
-    # Computed fields
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def config_keys_read_only(self) -> List[str]:
-        """Returns the keys of all read only fields in the configuration."""
-        key_list = []
-        key_list.extend(list(self.__pydantic_decorators__.computed_fields.keys()))
-        return key_list
-
-    def __init__(self) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initializes the singleton ConfigEOS instance.
 
         Configuration data is loaded from a configuration file or a default one is created if none
         exists.
         """
-        super().__init__()
-        self.from_config_file()
-        self.update()
+        if hasattr(self, "_initialized"):
+            return
+        super().__init__(*args, **kwargs)
+        self._create_initial_config_file()
+        self._update_data_folder_path()
 
-    @property
-    def settings(self) -> Optional[SettingsEOS]:
-        """Returns global settings for EOS.
+    def _setup(self, *args: Any, **kwargs: Any) -> None:
+        """Re-initialize global settings."""
+        SettingsEOSDefaults.__init__(self, *args, **kwargs)
+        self._create_initial_config_file()
+        self._update_data_folder_path()
 
-        Settings generally provide configuration for EOS and are typically set only once.
-
-        Returns:
-            SettingsEOS: The settings for EOS or None.
-        """
-        return ConfigEOS._settings
-
-    @classmethod
-    def _merge_and_update_settings(cls, settings: SettingsEOS) -> None:
-        """Merge new and available settings.
-
-        Args:
-            settings (SettingsEOS): The new settings to apply.
-        """
-        for key in SettingsEOS.model_fields:
-            if value := getattr(settings, key, None):
-                setattr(cls._settings, key, value)
-
-    def merge_settings(self, settings: SettingsEOS, force: Optional[bool] = None) -> None:
+    def merge_settings(self, settings: SettingsEOS) -> None:
         """Merges the provided settings into the global settings for EOS, with optional overwrite.
 
         Args:
             settings (SettingsEOS): The settings to apply globally.
-            force (Optional[bool]): If True, overwrites the existing settings completely.
-                If False, the new settings are merged to the existing ones with priority for
-                the new ones. Defaults to False.
 
         Raises:
-            ValueError: If settings are already set and `force` is not True or
-                if the `settings` is not a `SettingsEOS` instance.
+            ValueError: If the `settings` is not a `SettingsEOS` instance.
         """
         if not isinstance(settings, SettingsEOS):
             raise ValueError(f"Settings must be an instance of SettingsEOS: '{settings}'.")
 
-        if ConfigEOS._settings is None or force:
-            ConfigEOS._settings = settings
-        else:
-            self._merge_and_update_settings(settings)
-
-        # Update configuration after merging
-        self.update()
+        self.merge_settings_from_dict(settings.model_dump(exclude_none=True, exclude_unset=True))
 
     def merge_settings_from_dict(self, data: dict) -> None:
         """Merges the provided dictionary data into the current instance.
@@ -289,141 +367,83 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
 
         Example:
             >>> config = get_config()
-            >>> new_data = {"prediction_hours": 24, "server_eos_port": 8000}
+            >>> new_data = {"prediction": {"hours": 24}, "server": {"port": 8000}}
             >>> config.merge_settings_from_dict(new_data)
         """
-        # Create new settings instance with reset optional fields and merged data
-        settings = SettingsEOS.from_dict(data)
-        self.merge_settings(settings)
+        self._setup(**merge_models(self, data))
 
     def reset_settings(self) -> None:
-        """Reset all available settings.
+        """Reset all changed settings to environment/config file defaults.
 
         This functions basically deletes the settings provided before.
         """
-        ConfigEOS._settings = None
+        self._setup()
+
+    def _create_initial_config_file(self) -> None:
+        if self.general.config_file_path and not self.general.config_file_path.exists():
+            self.general.config_file_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                with open(self.general.config_file_path, "w") as f:
+                    f.write(self.model_dump_json(indent=4))
+            except Exception as e:
+                logger.error(
+                    f"Could not write configuration file '{self.general.config_file_path}': {e}"
+                )
 
     def _update_data_folder_path(self) -> None:
         """Updates path to the data directory."""
         # From Settings
-        if self.settings and (data_dir := self.settings.data_folder_path):
+        if data_dir := self.general.data_folder_path:
             try:
                 data_dir.mkdir(parents=True, exist_ok=True)
-                self.data_folder_path = data_dir
+                self.general.data_folder_path = data_dir
                 return
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Could not setup data dir: {e}")
         # From EOS_DIR env
-        env_dir = os.getenv(self.EOS_DIR)
-        if env_dir is not None:
+        if env_dir := os.getenv(self.EOS_DIR):
             try:
                 data_dir = Path(env_dir).resolve()
                 data_dir.mkdir(parents=True, exist_ok=True)
-                self.data_folder_path = data_dir
+                self.general.data_folder_path = data_dir
                 return
-            except:
-                pass
-        # From configuration file
-        if self._file_settings and (data_dir := self._file_settings.data_folder_path):
-            try:
-                data_dir.mkdir(parents=True, exist_ok=True)
-                self.data_folder_path = data_dir
-                return
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Could not setup data dir: {e}")
         # From platform specific default path
         try:
             data_dir = Path(user_data_dir(self.APP_NAME, self.APP_AUTHOR))
             if data_dir is not None:
                 data_dir.mkdir(parents=True, exist_ok=True)
-                self.data_folder_path = data_dir
+                self.general.data_folder_path = data_dir
                 return
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Could not setup data dir: {e}")
         # Current working directory
         data_dir = Path.cwd()
-        self.data_folder_path = data_dir
+        self.general.data_folder_path = data_dir
 
-    def _get_config_file_path(self) -> tuple[Path, bool]:
+    @classmethod
+    def _get_config_file_path(cls) -> tuple[Path, bool]:
         """Finds the a valid configuration file or returns the desired path for a new config file.
 
         Returns:
             tuple[Path, bool]: The path to the configuration directory and if there is already a config file there
         """
         config_dirs = []
-        env_base_dir = os.getenv(self.EOS_DIR)
-        env_config_dir = os.getenv(self.EOS_CONFIG_DIR)
+        env_base_dir = os.getenv(cls.EOS_DIR)
+        env_config_dir = os.getenv(cls.EOS_CONFIG_DIR)
         env_dir = get_absolute_path(env_base_dir, env_config_dir)
-        logger.debug(f"Envionment config dir: '{env_dir}'")
+        logger.debug(f"Environment config dir: '{env_dir}'")
         if env_dir is not None:
             config_dirs.append(env_dir.resolve())
-        config_dirs.append(Path(user_config_dir(self.APP_NAME)))
+        config_dirs.append(Path(user_config_dir(cls.APP_NAME)))
         config_dirs.append(Path.cwd())
         for cdir in config_dirs:
-            cfile = cdir.joinpath(self.CONFIG_FILE_NAME)
+            cfile = cdir.joinpath(cls.CONFIG_FILE_NAME)
             if cfile.exists():
                 logger.debug(f"Found config file: '{cfile}'")
                 return cfile, True
-        return config_dirs[0].joinpath(self.CONFIG_FILE_NAME), False
-
-    def settings_from_config_file(self) -> tuple[SettingsEOS, Path]:
-        """Load settings from the configuration file.
-
-        If the config file does not exist, it will be created.
-
-        Returns:
-            tuple of settings and path
-            settings (SettingsEOS): The settings defined by the EOS configuration file.
-            path (pathlib.Path): The path of the configuration file.
-
-        Raises:
-            ValueError: If the configuration file is invalid or incomplete.
-        """
-        config_file, exists = self._get_config_file_path()
-        config_dir = config_file.parent
-
-        # Create config directory and copy default config if file does not exist
-        if not exists:
-            config_dir.mkdir(parents=True, exist_ok=True)
-            try:
-                shutil.copy2(self.config_default_file_path, config_file)
-            except Exception as exc:
-                logger.warning(f"Could not copy default config: {exc}. Using default config...")
-                config_file = self.config_default_file_path
-                config_dir = config_file.parent
-
-        # Load and validate the configuration file
-        with config_file.open("r", encoding=self.ENCODING) as f_in:
-            try:
-                json_str = f_in.read()
-                settings = SettingsEOS.model_validate_json(json_str)
-            except ValidationError as exc:
-                raise ValueError(f"Configuration '{config_file}' is incomplete or not valid: {exc}")
-
-        return settings, config_file
-
-    def from_config_file(self) -> tuple[SettingsEOS, Path]:
-        """Load the configuration file settings for EOS.
-
-        Returns:
-            tuple of settings and path
-            settings (SettingsEOS): The settings defined by the EOS configuration file.
-            path (pathlib.Path): The path of the configuration file.
-
-        Raises:
-            ValueError: If the configuration file is invalid or incomplete.
-        """
-        # Load settings from config file
-        ConfigEOS._file_settings, config_file = self.settings_from_config_file()
-
-        # Update configuration in memory
-        self.update()
-
-        # Everything worked, remember the values
-        self._config_folder_path = config_file.parent
-        self._config_file_path = config_file
-
-        return ConfigEOS._file_settings, config_file
+        return config_dirs[0].joinpath(cls.CONFIG_FILE_NAME), False
 
     def to_config_file(self) -> None:
         """Saves the current configuration to the configuration file.
@@ -433,77 +453,24 @@ class ConfigEOS(SingletonMixin, SettingsEOS):
         Raises:
             ValueError: If the configuration file path is not specified or can not be written to.
         """
-        if not self.config_file_path:
+        if not self.general.config_file_path:
             raise ValueError("Configuration file path unknown.")
-        with self.config_file_path.open("w", encoding=self.ENCODING) as f_out:
-            try:
-                json_str = super().to_json()
-                # Write to file
-                f_out.write(json_str)
-                # Also remember as actual settings
-                ConfigEOS._file_settings = SettingsEOS.model_validate_json(json_str)
-            except ValidationError as exc:
-                raise ValueError(f"Could not update '{self.config_file_path}': {exc}")
-
-    def _config_value(self, key: str) -> Any:
-        """Retrieves the configuration value for a specific key, following a priority order.
-
-        Values are fetched in the following order:
-            1. Settings.
-            2. Environment variables.
-            3. EOS configuration file.
-            4. Current configuration.
-            5. Field default constants.
-
-        Args:
-            key (str): The configuration key to retrieve.
-
-        Returns:
-            Any: The configuration value, or None if not found.
-        """
-        # Settings
-        if ConfigEOS._settings:
-            if (value := getattr(self.settings, key, None)) is not None:
-                return value
-
-        # Environment variables
-        if (value := os.getenv(key)) is not None:
-            try:
-                return float(value)
-            except ValueError:
-                return value
-
-        # EOS configuration file.
-        if self._file_settings:
-            if (value := getattr(self._file_settings, key, None)) is not None:
-                return value
-
-        # Current configuration - key is valid as called by update().
-        if (value := getattr(self, key, None)) is not None:
-            return value
-
-        # Field default constants
-        if (value := ConfigEOS.model_fields[key].default) is not None:
-            return value
-
-        logger.debug(f"Value for configuration key '{key}' not found or is {value}")
-        return None
+        with self.general.config_file_path.open("w", encoding=self.ENCODING) as f_out:
+            json_str = super().model_dump_json()
+            f_out.write(json_str)
 
     def update(self) -> None:
         """Updates all configuration fields.
 
         This method updates all configuration fields using the following order for value retrieval:
-            1. Settings.
+            1. Current settings.
             2. Environment variables.
             3. EOS configuration file.
-            4. Current configuration.
-            5. Field default constants.
+            4. Field default constants.
 
         The first non None value in priority order is taken.
         """
-        self._update_data_folder_path()
-        for key in self.model_fields:
-            setattr(self, key, self._config_value(key))
+        self._setup(**self.model_dump())
 
 
 def get_config() -> ConfigEOS:

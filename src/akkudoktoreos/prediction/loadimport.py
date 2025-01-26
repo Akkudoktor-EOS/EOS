@@ -22,15 +22,19 @@ logger = get_logger(__name__)
 class LoadImportCommonSettings(SettingsBaseModel):
     """Common settings for load data import from file or JSON string."""
 
-    load_import_file_path: Optional[Union[str, Path]] = Field(
-        default=None, description="Path to the file to import load data from."
+    import_file_path: Optional[Union[str, Path]] = Field(
+        default=None,
+        description="Path to the file to import load data from.",
+        examples=[None, "/path/to/yearly_load.json"],
     )
-    load_import_json: Optional[str] = Field(
-        default=None, description="JSON string, dictionary of load forecast value lists."
+    import_json: Optional[str] = Field(
+        default=None,
+        description="JSON string, dictionary of load forecast value lists.",
+        examples=['{"load0_mean": [676.71, 876.19, 527.13]}'],
     )
 
     # Validators
-    @field_validator("load_import_file_path", mode="after")
+    @field_validator("import_file_path", mode="after")
     @classmethod
     def validate_loadimport_file_path(cls, value: Optional[Union[str, Path]]) -> Optional[Path]:
         if value is None:
@@ -58,7 +62,7 @@ class LoadImport(LoadProvider, PredictionImportProvider):
         return "LoadImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.load_import_file_path is not None:
-            self.import_from_file(self.config.load_import_file_path, key_prefix="load")
-        if self.config.load_import_json is not None:
-            self.import_from_json(self.config.load_import_json, key_prefix="load")
+        if self.config.load.provider_settings.import_file_path:
+            self.import_from_file(self.config.provider_settings.import_file_path, key_prefix="load")
+        if self.config.load.provider_settings.import_json:
+            self.import_from_json(self.config.load.provider_settings.import_json, key_prefix="load")

@@ -535,7 +535,7 @@ class TestDataSequence:
         json_str = sequence.to_json()
         assert isinstance(json_str, str)
         assert "2023-11-06" in json_str
-        assert ":0.8" in json_str
+        assert ": 0.8" in json_str
 
     def test_from_json(self, sequence, sequence2):
         json_str = sequence2.to_json()

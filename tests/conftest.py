@@ -64,6 +64,25 @@ def config_mixin(config_eos):
         yield config_mixin_patch
 
 
+@pytest.fixture
+def devices_eos(config_mixin):
+    from akkudoktoreos.devices.devices import get_devices
+
+    devices = get_devices()
+    print("devices_eos reset!")
+    devices.reset()
+    return devices
+
+
+@pytest.fixture
+def devices_mixin(devices_eos):
+    with patch(
+        "akkudoktoreos.core.coreabc.DevicesMixin.devices", new_callable=PropertyMock
+    ) as devices_mixin_patch:
+        devices_mixin_patch.return_value = devices_eos
+        yield devices_mixin_patch
+
+
 # Test if test has side effect of writing to system (user) config file
 # Before activating, make sure that no user config file exists (e.g. ~/.config/net.akkudoktoreos.eos/EOS.config.json)
 @pytest.fixture(autouse=True)
@@ -114,20 +133,24 @@ def config_eos(
     monkeypatch,
 ) -> ConfigEOS:
     """Fixture to reset EOS config to default values."""
-    monkeypatch.setenv("data_cache_subpath", str(config_default_dirs[-1] / "data/cache"))
-    monkeypatch.setenv("data_output_subpath", str(config_default_dirs[-1] / "data/output"))
+    monkeypatch.setenv(
+        "EOS_CONFIG__DATA_CACHE_SUBPATH", str(config_default_dirs[-1] / "data/cache")
+    )
+    monkeypatch.setenv(
+        "EOS_CONFIG__DATA_OUTPUT_SUBPATH", str(config_default_dirs[-1] / "data/output")
+    )
     config_file = config_default_dirs[0] / ConfigEOS.CONFIG_FILE_NAME
     config_file_cwd = config_default_dirs[1] / ConfigEOS.CONFIG_FILE_NAME
     assert not config_file.exists()
     assert not config_file_cwd.exists()
     config_eos = get_config()
     config_eos.reset_settings()
-    assert config_file == config_eos.config_file_path
+    assert config_file == config_eos.general.config_file_path
     assert config_file.exists()
     assert not config_file_cwd.exists()
-    assert config_default_dirs[-1] / "data" == config_eos.data_folder_path
-    assert config_default_dirs[-1] / "data/cache" == config_eos.data_cache_path
-    assert config_default_dirs[-1] / "data/output" == config_eos.data_output_path
+    assert config_default_dirs[-1] / "data" == config_eos.general.data_folder_path
+    assert config_default_dirs[-1] / "data/cache" == config_eos.general.data_cache_path
+    assert config_default_dirs[-1] / "data/output" == config_eos.general.data_output_path
     return config_eos
 
 
@@ -166,6 +189,7 @@ def server(xprocess, config_eos, config_default_dirs):
         # Set environment before any subprocess run, to keep custom config dir
         env = os.environ.copy()
         env["EOS_DIR"] = str(config_default_dirs[-1])
+        project_dir = config_eos.package_root_path
 
         # assure server to be installed
         try:
@@ -175,9 +199,9 @@ def server(xprocess, config_eos, config_default_dirs):
                 env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                cwd=project_dir,
             )
         except subprocess.CalledProcessError:
-            project_dir = config_eos.package_root_path
             subprocess.run(
                 [sys.executable, "-m", "pip", "install", "-e", project_dir],
                 check=True,

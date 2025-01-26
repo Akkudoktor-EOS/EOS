@@ -9,21 +9,19 @@ logger = get_logger(__name__)
 
 
 class OptimizationCommonSettings(SettingsBaseModel):
-    """Base configuration for optimization settings.
+    """General Optimization Configuration.
 
     Attributes:
-        optimization_hours (int): Number of hours for optimizations.
+        hours (int): Number of hours for optimizations.
     """
 
-    optimization_hours: Optional[int] = Field(
-        default=24, ge=0, description="Number of hours into the future for optimizations."
+    hours: Optional[int] = Field(
+        default=48, ge=0, description="Number of hours into the future for optimizations."
     )
 
-    optimization_penalty: Optional[int] = Field(
-        default=10, description="Penalty factor used in optimization."
-    )
+    penalty: Optional[int] = Field(default=10, description="Penalty factor used in optimization.")
 
-    optimization_ev_available_charge_rates_percent: Optional[List[float]] = Field(
+    ev_available_charge_rates_percent: Optional[List[float]] = Field(
         default=[
             0.0,
             6.0 / 16.0,

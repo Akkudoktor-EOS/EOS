@@ -86,7 +86,7 @@ def test_config_md_current(config_eos):
         sys.path.insert(0, str(root_dir))
         from scripts import generate_config_md
 
-        config_md = generate_config_md.generate_config_md()
+        config_md = generate_config_md.generate_config_md(config_eos)
 
     with open(new_config_md_path, "w", encoding="utf8") as f_new:
         f_new.write(config_md)
