@@ -411,9 +411,9 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             costs_per_hour[hour_idx] = energy_consumption_grid_actual * hourly_electricity_price
             revenue_per_hour[hour_idx] = energy_feedin_grid_actual * hourly_energy_revenue
 
-        total_cost = np.sum(costs_per_hour)
-        total_losses = np.sum(losses_wh_per_hour)
-        total_revenue = np.sum(revenue_per_hour)
+        total_cost = np.nansum(costs_per_hour)
+        total_losses = np.nansum(losses_wh_per_hour)
+        total_revenue = np.nansum(revenue_per_hour)
 
         # Prepare output dictionary
         return {
