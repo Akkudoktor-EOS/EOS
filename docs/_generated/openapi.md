@@ -257,6 +257,70 @@ Returns:
 
 ---
 
+## GET /v1/config/{path}
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_get_key_v1_config__path__get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_get_key_v1_config__path__get)
+
+Fastapi Config Get Key
+
+```
+Get the value of a nested key or index in the config model.
+
+Args:
+    path (str): The nested path to the key (e.g., "general/latitude" or "optimize/nested_list/0").
+
+Returns:
+    value (Any): The value of the selected nested key.
+```
+
+**Parameters**:
+
+- `path` (path, required): The nested path to the configuration key (e.g., general/latitude).
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## PUT /v1/config/{path}
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_put_key_v1_config__path__put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_put_key_v1_config__path__put)
+
+Fastapi Config Put Key
+
+```
+Update a nested key or index in the config model.
+
+Args:
+    path (str): The nested path to the key (e.g., "general/latitude" or "optimize/nested_list/0").
+    value (Any): The new value to assign to the key or index at path.
+
+Returns:
+    configuration (ConfigEOS): The current configuration after the update.
+```
+
+**Parameters**:
+
+- `path` (path, required): The nested path to the configuration key (e.g., general/latitude).
+
+**Request Body**:
+
+- `application/json`: {
+  "description": "The value to assign to the specified configuration path.",
+  "title": "Value"
+}
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
 ## PUT /v1/measurement/data
 
 **Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_data_put_v1_measurement_data_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_data_put_v1_measurement_data_put)

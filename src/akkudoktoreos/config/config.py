@@ -30,7 +30,7 @@ from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.decorators import classproperty
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.logsettings import LoggingCommonSettings
-from akkudoktoreos.core.pydantic import merge_models
+from akkudoktoreos.core.pydantic import access_nested_value, merge_models
 from akkudoktoreos.devices.settings import DevicesCommonSettings
 from akkudoktoreos.measurement.measurement import MeasurementCommonSettings
 from akkudoktoreos.optimization.optimization import OptimizationCommonSettings
@@ -378,6 +378,32 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         This functions basically deletes the settings provided before.
         """
         self._setup()
+
+    def set_config_value(self, path: str, value: Any) -> None:
+        """Set a configuration value based on the provided path.
+
+        Supports string paths (with '/' separators) or sequence paths (list/tuple).
+        Trims leading and trailing '/' from string paths.
+
+        Args:
+            path (str): The path to the configuration key (e.g., "key1/key2/key3" or key1/key2/0).
+            value (Any]): The value to set.
+        """
+        access_nested_value(self, path, True, value)
+
+    def get_config_value(self, path: str) -> Any:
+        """Get a configuration value based on the provided path.
+
+        Supports string paths (with '/' separators) or sequence paths (list/tuple).
+        Trims leading and trailing '/' from string paths.
+
+        Args:
+            path (str): The path to the configuration key (e.g., "key1/key2/key3" or key1/key2/0).
+
+        Returns:
+            Any: The retrieved value.
+        """
+        return access_nested_value(self, path, False)
 
     def _create_initial_config_file(self) -> None:
         if self.general.config_file_path and not self.general.config_file_path.exists():
