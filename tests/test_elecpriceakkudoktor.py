@@ -148,7 +148,7 @@ def test_update_data_with_incomplete_forecast(mock_get, provider):
     mock_response.status_code = 200
     mock_response.content = json.dumps(incomplete_data)
     mock_get.return_value = mock_response
-    logger.info("The following errors are intentional and part of the test.")
+    logger.warning("The following errors are intentional and part of the test.")
     with pytest.raises(ValueError):
         provider._update_data(force_update=True)
 
