@@ -310,7 +310,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
 
         # Fetch objects
         battery = self.battery
-        assert battery  # please mypy
+        assert battery  # to please mypy
         ev = self.ev
         home_appliance = self.home_appliance
         inverter = self.inverter
@@ -320,7 +320,6 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        # Optimized total hours calculation
         end_hour = len(load_energy_array)
         total_hours = end_hour - start_hour
 
@@ -389,7 +388,7 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
                     eigenverbrauch,
                 ) = inverter.process_energy(energy_produced, consumption, hour)
 
-            # AC PV Battery Charge (single check for battery existence)
+            # AC PV Battery Charge
             if hour_ac_charge > 0.0:
                 battery.set_charge_allowed_for_hour(1, hour)
                 battery_charged_energy_actual, battery_losses_actual = battery.charge_energy(
@@ -411,8 +410,6 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             # Financial calculations
             costs_per_hour[hour_idx] = energy_consumption_grid_actual * hourly_electricity_price
             revenue_per_hour[hour_idx] = energy_feedin_grid_actual * hourly_energy_revenue
-
-        # Compute total balance calculations using NumPy's optimized functions
 
         total_cost = np.sum(costs_per_hour)
         total_losses = np.sum(losses_wh_per_hour)
