@@ -164,6 +164,9 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
                 "max_charge_power_w": 11040,
                 "initial_soc_percentage": 5,
             },
+            "inverter": {
+                "max_power_wh": 10000,
+            },
             "temperature_forecast": temperature_forecast,
             "start_solution": start_solution,
         }
@@ -317,6 +320,9 @@ def prepare_optimization_parameters() -> OptimizationParameters:
                 "charging_efficiency": 0.95,
                 "max_charge_power_w": 11040,
                 "initial_soc_percentage": 5,
+            },
+            "inverter": {
+                "max_power_wh": 10000,
             },
             "temperature_forecast": temperature_forecast,
             "start_solution": start_solution,
