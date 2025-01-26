@@ -1,5 +1,6 @@
-import logging
 from typing import List, Sequence
+
+from akkudoktoreos.core.logging import get_logger
 
 
 class Heatpump:
@@ -21,7 +22,7 @@ class Heatpump:
     def __init__(self, max_heat_output: int, hours: int):
         self.max_heat_output = max_heat_output
         self.hours = hours
-        self.log = logging.getLogger(__name__)
+        self.log = get_logger(__name__)
 
     def __check_outside_temperature_range__(self, temp_celsius: float) -> bool:
         """Check if temperature is in valid range between -100 and 100 degree Celsius.
