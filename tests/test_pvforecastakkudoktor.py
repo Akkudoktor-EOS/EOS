@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.prediction.pvforecastakkudoktor import (
     AkkudoktorForecastHorizon,
@@ -19,6 +20,8 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
 FILE_TESTDATA_PV_FORECAST_INPUT_1 = DIR_TESTDATA.joinpath("pv_forecast_input_1.json")
 FILE_TESTDATA_PV_FORECAST_RESULT_1 = DIR_TESTDATA.joinpath("pv_forecast_result_1.txt")
+
+logger = get_logger(__name__)
 
 
 @pytest.fixture
@@ -223,6 +226,7 @@ def test_pvforecast_akkudoktor_data_record():
 
 def test_pvforecast_akkudoktor_validate_data(provider_empty_instance, sample_forecast_data_raw):
     """Test validation of PV forecast data on sample data."""
+    logger.info("The following errors are intentional and part of the test.")
     with pytest.raises(
         ValueError,
         match="Field: meta\nError: Field required\nType: missing\nField: values\nError: Field required\nType: missing\n",
