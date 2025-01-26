@@ -10,7 +10,9 @@ from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
 
 import httpx
 import uvicorn
-from fastapi import FastAPI, Query, Request
+from fastapi import Body, FastAPI
+from fastapi import Path as FastapiPath
+from fastapi import Query, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
@@ -300,6 +302,58 @@ def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
     return config_eos
+
+
+@app.put("/v1/config/{path:path}", tags=["config"])
+def fastapi_config_put_key(
+    path: str = FastapiPath(
+        ..., description="The nested path to the configuration key (e.g., general/latitude)."
+    ),
+    value: Any = Body(..., description="The value to assign to the specified configuration path."),
+) -> ConfigEOS:
+    """Update a nested key or index in the config model.
+
+    Args:
+        path (str): The nested path to the key (e.g., "general/latitude" or "optimize/nested_list/0").
+        value (Any): The new value to assign to the key or index at path.
+
+    Returns:
+        configuration (ConfigEOS): The current configuration after the update.
+    """
+    try:
+        config_eos.set_config_value(path, value)
+    except IndexError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return config_eos
+
+
+@app.get("/v1/config/{path:path}", tags=["config"])
+def fastapi_config_get_key(
+    path: str = FastapiPath(
+        ..., description="The nested path to the configuration key (e.g., general/latitude)."
+    ),
+) -> Response:
+    """Get the value of a nested key or index in the config model.
+
+    Args:
+        path (str): The nested path to the key (e.g., "general/latitude" or "optimize/nested_list/0").
+
+    Returns:
+        value (Any): The value of the selected nested key.
+    """
+    try:
+        return config_eos.get_config_value(path)
+    except IndexError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/v1/measurement/keys", tags=["measurement"])
