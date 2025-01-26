@@ -6,6 +6,7 @@ import pytest
 from akkudoktoreos.core.ems import (
     EnergieManagementSystem,
     EnergieManagementSystemParameters,
+    SimulationResult,
     get_ems,
 )
 from akkudoktoreos.devices.battery import (
@@ -182,6 +183,7 @@ def test_simulation(create_ems_instance):
     # Assertions to validate results
     assert result is not None, "Result should not be None"
     assert isinstance(result, dict), "Result should be a dictionary"
+    assert SimulationResult(**result) is not None
     assert "Last_Wh_pro_Stunde" in result, "Result should contain 'Last_Wh_pro_Stunde'"
 
     """
@@ -240,7 +242,7 @@ def test_simulation(create_ems_instance):
 
     assert (
         abs(result["Netzeinspeisung_Wh_pro_Stunde"][10] - 3946.93) < 1e-3
-    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 4000."
+    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 3946.93."
 
     assert (
         abs(result["Netzeinspeisung_Wh_pro_Stunde"][11] - 0.0) < 1e-3
@@ -251,6 +253,78 @@ def test_simulation(create_ems_instance):
     ), "'akku_soc_pro_stunde[20]' should be 10."
     assert (
         abs(result["Last_Wh_pro_Stunde"][20] - 6050.98) < 1e-3
-    ), "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
+    ), "'Last_Wh_pro_Stunde[20]' should be 6050.98."
 
     print("All tests passed successfully.")
+
+
+def test_set_parameters(create_ems_instance):
+    """Test the set_parameters method of EnergieManagementSystem."""
+    ems = create_ems_instance
+
+    # Check if parameters are set correctly
+    assert ems.load_energy_array is not None, "load_energy_array should not be None"
+    assert ems.pv_prediction_wh is not None, "pv_prediction_wh should not be None"
+    assert ems.elect_price_hourly is not None, "elect_price_hourly should not be None"
+    assert (
+        ems.elect_revenue_per_hour_arr is not None
+    ), "elect_revenue_per_hour_arr should not be None"
+
+
+def test_set_akku_discharge_hours(create_ems_instance):
+    """Test the set_akku_discharge_hours method of EnergieManagementSystem."""
+    ems = create_ems_instance
+    discharge_hours = np.full(ems.config.prediction_hours, 1.0)
+    ems.set_akku_discharge_hours(discharge_hours)
+    assert np.array_equal(
+        ems.battery.discharge_array, discharge_hours
+    ), "Discharge hours should be set correctly"
+
+
+def test_set_akku_ac_charge_hours(create_ems_instance):
+    """Test the set_akku_ac_charge_hours method of EnergieManagementSystem."""
+    ems = create_ems_instance
+    ac_charge_hours = np.full(ems.config.prediction_hours, 1.0)
+    ems.set_akku_ac_charge_hours(ac_charge_hours)
+    assert np.array_equal(
+        ems.ac_charge_hours, ac_charge_hours
+    ), "AC charge hours should be set correctly"
+
+
+def test_set_akku_dc_charge_hours(create_ems_instance):
+    """Test the set_akku_dc_charge_hours method of EnergieManagementSystem."""
+    ems = create_ems_instance
+    dc_charge_hours = np.full(ems.config.prediction_hours, 1.0)
+    ems.set_akku_dc_charge_hours(dc_charge_hours)
+    assert np.array_equal(
+        ems.dc_charge_hours, dc_charge_hours
+    ), "DC charge hours should be set correctly"
+
+
+def test_set_ev_charge_hours(create_ems_instance):
+    """Test the set_ev_charge_hours method of EnergieManagementSystem."""
+    ems = create_ems_instance
+    ev_charge_hours = np.full(ems.config.prediction_hours, 1.0)
+    ems.set_ev_charge_hours(ev_charge_hours)
+    assert np.array_equal(
+        ems.ev_charge_hours, ev_charge_hours
+    ), "EV charge hours should be set correctly"
+
+
+def test_reset(create_ems_instance):
+    """Test the reset method of EnergieManagementSystem."""
+    ems = create_ems_instance
+    ems.reset()
+    assert ems.ev.current_soc_percentage() == 100, "EV SOC should be reset to initial value"
+    assert (
+        ems.battery.current_soc_percentage() == 80
+    ), "Battery SOC should be reset to initial value"
+
+
+def test_simulate_start_now(create_ems_instance):
+    """Test the simulate_start_now method of EnergieManagementSystem."""
+    ems = create_ems_instance
+    result = ems.simulate_start_now()
+    assert result is not None, "Result should not be None"
+    assert isinstance(result, dict), "Result should be a dictionary"
+    assert "Last_Wh_pro_Stunde" in result, "Result should contain 'Last_Wh_pro_Stunde'"
