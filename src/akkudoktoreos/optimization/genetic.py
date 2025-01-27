@@ -1,4 +1,3 @@
-import logging
 import random
 import time
 from typing import Any, Optional
@@ -121,7 +120,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         # Set a fixed seed for random operations if provided or in debug mode
         if self.fix_seed is not None:
             random.seed(self.fix_seed)
-        elif logger.level == logging.DEBUG:
+        elif logger.level == "DEBUG":
             self.fix_seed = random.randint(1, 100000000000)
             random.seed(self.fix_seed)
 
