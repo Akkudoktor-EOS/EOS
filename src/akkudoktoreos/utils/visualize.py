@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import textwrap
 from collections.abc import Sequence
@@ -639,7 +638,7 @@ def prepare_visualize(
 
     if filtered_balance.size > 0 or filtered_losses.size > 0:
         report.finalize_group()
-    if logger.level == logging.DEBUG or results["fixed_seed"]:
+    if logger.level == "DEBUG" or results["fixed_seed"]:
         report.create_line_chart(
             0,
             [
@@ -735,9 +734,9 @@ def generate_example_report(filename: str = "example_report.pdf") -> None:
 
     report.finalize_group()  # Finalize the third group of charts
 
-    logger.setLevel(logging.DEBUG)  # set level for example report
+    logger.setLevel("DEBUG")  # set level for example report
 
-    if logger.level == logging.DEBUG:
+    if logger.level == "DEBUG":
         report.create_line_chart(
             x_hours,
             [np.array([0.2, 0.25, 0.3, 0.35])],
