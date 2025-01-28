@@ -154,7 +154,7 @@ class VisualizationReport(ConfigMixin):
             )  # Major ticks every day
             plt.gca().xaxis.set_minor_locator(
 +                mdates.HourLocator(interval=2, tz=self.config.timezone)
-+            )
++           )
             # Minor ticks every 6 hours
             plt.gca().xaxis.set_minor_formatter(mdates.DateFormatter("%H", tz=self.config.timezone))
             # plt.gcf().autofmt_xdate(rotation=45, which="major")
