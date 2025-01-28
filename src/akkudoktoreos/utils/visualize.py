@@ -147,14 +147,14 @@ class VisualizationReport(ConfigMixin):
 
             # Format the time axis
             plt.gca().xaxis.set_major_formatter(
-                mdates.DateFormatter("%Y-%m-%d")
+                mdates.DateFormatter("%Y-%m-%d", tz=self.config.timezone)
             )  # Show date and time
             plt.gca().xaxis.set_major_locator(
-                mdates.DayLocator(interval=1, tz=None)
+                mdates.DayLocator(interval=1, tz=self.config.timezone)
             )  # Major ticks every day
-            plt.gca().xaxis.set_minor_locator(mdates.HourLocator(interval=3, tz=None))
+            plt.gca().xaxis.set_minor_locator(mdates.HourLocator(interval=2, tz=self.config.timezone))
             # Minor ticks every 6 hours
-            plt.gca().xaxis.set_minor_formatter(mdates.DateFormatter("%H"))
+            plt.gca().xaxis.set_minor_formatter(mdates.DateFormatter("%H", tz=self.config.timezone))
             # plt.gcf().autofmt_xdate(rotation=45, which="major")
             # Auto-format the x-axis for readability
 
@@ -174,6 +174,7 @@ class VisualizationReport(ConfigMixin):
 
             # Add vertical line for the current date if within the axis range
             current_time = pendulum.now(self.config.timezone)
+            #current_time = pendulum.now().add(hours=1)
             if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
                 plt.axvline(current_time, color="r", linestyle="--", label="Now")
                 plt.text(current_time, plt.ylim()[1], "Now", color="r", ha="center", va="bottom")
@@ -419,10 +420,11 @@ def prepare_visualize(
     start_hour: Optional[int] = 0,
 ) -> None:
     report = VisualizationReport(filename)
-    next_full_hour_date = pendulum.now(report.config.timezone).start_of("hour").add(hours=1)
+    next_full_hour_date = pendulum.now(report.config.timezone).start_of("hour").add(hours=0)
+    full_hour_date_today = pendulum.now(report.config.timezone).start_of("day").add(hours=0)
     # Group 1:
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
+        full_hour_date_today,  # start_date
         [
             parameters.ems.gesamtlast,
         ],
@@ -432,7 +434,7 @@ def prepare_visualize(
         labels=["Total Load (Wh)"],
     )
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
+        full_hour_date_today,  # start_date
         [
             parameters.ems.pv_prognose_wh,
         ],
@@ -442,7 +444,7 @@ def prepare_visualize(
     )
 
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
+        full_hour_date_today,  # start_date
         [np.full(len(parameters.ems.gesamtlast), parameters.ems.einspeiseverguetung_euro_pro_wh)],
         title="Remuneration",
         # xlabel="Hours", # not enough space
@@ -451,7 +453,7 @@ def prepare_visualize(
     )
     if parameters.temperature_forecast:
         report.create_line_chart_date(
-            next_full_hour_date,  # start_date
+            full_hour_date_today,  # start_date
             [
                 parameters.temperature_forecast,
             ],
@@ -501,7 +503,7 @@ def prepare_visualize(
         markers=["o", "x"],
     )
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
+        full_hour_date_today,  # start_date
         [parameters.ems.strompreis_euro_pro_wh],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
