@@ -152,7 +152,9 @@ class VisualizationReport(ConfigMixin):
             plt.gca().xaxis.set_major_locator(
                 mdates.DayLocator(interval=1, tz=self.config.timezone)
             )  # Major ticks every day
-            plt.gca().xaxis.set_minor_locator(mdates.HourLocator(interval=2, tz=self.config.timezone))
+            plt.gca().xaxis.set_minor_locator(
++                mdates.HourLocator(interval=2, tz=self.config.timezone)
++            )
             # Minor ticks every 6 hours
             plt.gca().xaxis.set_minor_formatter(mdates.DateFormatter("%H", tz=self.config.timezone))
             # plt.gcf().autofmt_xdate(rotation=45, which="major")
@@ -174,7 +176,7 @@ class VisualizationReport(ConfigMixin):
 
             # Add vertical line for the current date if within the axis range
             current_time = pendulum.now(self.config.timezone)
-            #current_time = pendulum.now().add(hours=1)
+            # current_time = pendulum.now().add(hours=1)
             if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
                 plt.axvline(current_time, color="r", linestyle="--", label="Now")
                 plt.text(current_time, plt.ylim()[1], "Now", color="r", ha="center", va="bottom")
