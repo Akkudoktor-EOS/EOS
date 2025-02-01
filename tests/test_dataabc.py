@@ -116,7 +116,6 @@ class TestDataBase:
     def base(self):
         # Provide default values for configuration
         derived = DerivedBase()
-        derived.config.update()
         return derived
 
     def test_get_config_value_key_error(self, base):
