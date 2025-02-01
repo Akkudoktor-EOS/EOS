@@ -206,9 +206,6 @@ class PredictionProvider(PredictionStartEndKeepMixin, DataProvider):
             force_enable (bool, optional): If True, forces the update even if the provider is disabled.
             force_update (bool, optional): If True, forces the provider to update the data even if still cached.
         """
-        # Update prediction configuration
-        self.config.update()
-
         # Check after configuration is updated.
         if not force_enable and not self.enabled():
             return
