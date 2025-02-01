@@ -8,9 +8,19 @@ Documentation can be found at [Akkudoktor-EOS](https://akkudoktor-eos.readthedoc
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## System requirements
+
+- Python >= 3.11, < 3.13
+- Architecture: amd64, aarch64 (armv8)
+- OS: Linux, Windows, macOS
+
+Note: For Python 3.13 some dependencies (e.g. [Pendulum](https://github.com/python-pendulum/Pendulum)) are not yet available on https://pypi.org and have to be manually compiled (a recent [Rust](https://www.rust-lang.org/tools/install) installation is required).
+
+Other architectures (e.g. armv6, armv7) are unsupported for now, because a multitude of dependencies are not available on https://piwheels.org and have to be built manually (a recent Rust installation and [GCC](https://gcc.gnu.org/) are required, Python 3.11 is recommended).
+
 ## Installation
 
-The project requires Python 3.11 or newer. Official docker images can be found at [akkudoktor/eos](https://hub.docker.com/r/akkudoktor/eos).
+The project requires Python 3.11 or newer. Docker images (amd64/aarch64) can be found at [akkudoktor/eos](https://hub.docker.com/r/akkudoktor/eos).
 
 Following sections describe how to locally start the EOS server on `http://localhost:8503`.
 
