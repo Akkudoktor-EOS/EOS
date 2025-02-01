@@ -244,7 +244,6 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             force_update (bool, optional): If True, forces to update the data even if still cached.
         """
         self.set_start_hour(start_hour=start_hour)
-        self.config.update()
 
         # Check for run definitions
         if self.start_datetime is None:

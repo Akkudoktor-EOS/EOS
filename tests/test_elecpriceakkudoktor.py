@@ -88,9 +88,6 @@ def test_request_forecast(mock_get, provider, sample_akkudoktor_1_json):
     mock_response.content = json.dumps(sample_akkudoktor_1_json)
     mock_get.return_value = mock_response
 
-    # Preset, as this is usually done by update()
-    provider.config.update()
-
     # Test function
     akkudoktor_data = provider._request_forecast()
 
