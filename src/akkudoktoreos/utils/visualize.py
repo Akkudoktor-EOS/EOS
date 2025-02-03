@@ -13,6 +13,7 @@ import pendulum
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.core.coreabc import ConfigMixin
+from akkudoktoreos.core.ems import EnergieManagementSystem
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.optimization.genetic import OptimizationParameters
 from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -152,7 +153,9 @@ class VisualizationReport(ConfigMixin):
             plt.gca().xaxis.set_major_locator(
                 mdates.DayLocator(interval=1, tz=self.config.timezone)
             )  # Major ticks every day
-            plt.gca().xaxis.set_minor_locator(mdates.HourLocator(interval=2, tz=self.config.timezone))
+            plt.gca().xaxis.set_minor_locator(
+                mdates.HourLocator(interval=2, tz=self.config.timezone)
+            )
             # Minor ticks every 6 hours
             plt.gca().xaxis.set_minor_formatter(mdates.DateFormatter("%H", tz=self.config.timezone))
             # plt.gcf().autofmt_xdate(rotation=45, which="major")
@@ -174,7 +177,7 @@ class VisualizationReport(ConfigMixin):
 
             # Add vertical line for the current date if within the axis range
             current_time = pendulum.now(self.config.timezone)
-            #current_time = pendulum.now().add(hours=1)
+            # current_time = pendulum.now().add(hours=1)
             if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
                 plt.axvline(current_time, color="r", linestyle="--", label="Now")
                 plt.text(current_time, plt.ylim()[1], "Now", color="r", ha="center", va="bottom")
@@ -188,8 +191,10 @@ class VisualizationReport(ConfigMixin):
             hours_since_start = [(t - timestamps[0]).total_seconds() / 3600 for t in timestamps]
             # ax2.set_xticks(timestamps[::48])  # Set ticks every 12 hours
             # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[::48]])
-            ax2.set_xticks(timestamps[:: len(timestamps) // 24])  # Select 10 evenly spaced ticks
-            ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 24]])
+            # ax2.set_xticks(timestamps[:: len(timestamps) // 24])  # Select 10 evenly spaced ticks
+            ax2.set_xticks(timestamps[:: len(timestamps) // 12])  # Select 10 evenly spaced ticks
+            # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 24]])
+            ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 12]])
             if x2label:
                 ax2.set_xlabel(x2label)
 
@@ -417,16 +422,17 @@ def prepare_visualize(
     parameters: OptimizationParameters,
     results: dict,
     filename: str = "visualization_results.pdf",
-    start_hour: Optional[int] = 0,
+    start_hour: int = 0,
 ) -> None:
     report = VisualizationReport(filename)
-    next_full_hour_date = pendulum.now(report.config.timezone).start_of("hour").add(hours=0)
-    full_hour_date_today = pendulum.now(report.config.timezone).start_of("day").add(hours=0)
+    # next_full_hour_date = pendulum.now(report.config.timezone).start_of("day").add(hours=start_hour)
+    # next_full_hour_date = to_datetime().set(minute=0, second=0, microsecond=0)
+    next_full_hour_date = EnergieManagementSystem.set_start_datetime()
     # Group 1:
     report.create_line_chart_date(
-        full_hour_date_today,  # start_date
+        next_full_hour_date,
         [
-            parameters.ems.gesamtlast,
+            parameters.ems.gesamtlast[start_hour:],
         ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
@@ -434,9 +440,9 @@ def prepare_visualize(
         labels=["Total Load (Wh)"],
     )
     report.create_line_chart_date(
-        full_hour_date_today,  # start_date
+        next_full_hour_date,
         [
-            parameters.ems.pv_prognose_wh,
+            parameters.ems.pv_prognose_wh[start_hour:],
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
@@ -444,8 +450,13 @@ def prepare_visualize(
     )
 
     report.create_line_chart_date(
-        full_hour_date_today,  # start_date
-        [np.full(len(parameters.ems.gesamtlast), parameters.ems.einspeiseverguetung_euro_pro_wh)],
+        next_full_hour_date,
+        [
+            np.full(
+                len(parameters.ems.gesamtlast) - start_hour,
+                parameters.ems.einspeiseverguetung_euro_pro_wh,
+            )
+        ],
         title="Remuneration",
         # xlabel="Hours", # not enough space
         ylabel="€/Wh",
@@ -453,9 +464,9 @@ def prepare_visualize(
     )
     if parameters.temperature_forecast:
         report.create_line_chart_date(
-            full_hour_date_today,  # start_date
+            next_full_hour_date,
             [
-                parameters.temperature_forecast,
+                parameters.temperature_forecast[start_hour:],
             ],
             title="Temperature Forecast",
             # xlabel="Hours", # not enough space
@@ -503,22 +514,36 @@ def prepare_visualize(
         markers=["o", "x"],
     )
     report.create_line_chart_date(
-        full_hour_date_today,  # start_date
-        [parameters.ems.strompreis_euro_pro_wh],
+        next_full_hour_date,  # start_date
+        [parameters.ems.strompreis_euro_pro_wh[start_hour:]],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (€/Wh)",
         x2label=None,  # not enough space
     )
 
+    labels = list(
+        item
+        for sublist in zip(
+            list(str(i) for i in range(0, 23, 2)), list(str(" ") for i in range(0, 23, 2))
+        )
+        for item in sublist
+    )
+    labels = labels[start_hour:] + labels
+
     report.create_bar_chart(
-        list(str(i) for i in range(len(results["ac_charge"]))),
-        [results["ac_charge"], results["dc_charge"], results["discharge_allowed"]],
+        labels,
+        [
+            results["ac_charge"][start_hour:],
+            results["dc_charge"][start_hour:],
+            results["discharge_allowed"][start_hour:],
+        ],
         title="AC/DC Charging and Discharge Overview",
         ylabel="Relative Power (0-1) / Discharge (0 or 1)",
         label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
         colors=["blue", "green", "red"],
         bottom=3,
+        xlabels=labels,
     )
     report.finalize_group()
 
