@@ -265,6 +265,12 @@ class SingletonMixin:
         class MySingletonModel(SingletonMixin, PydanticBaseModel):
             name: str
 
+            # implement __init__ to avoid re-initialization of parent class PydanticBaseModel:
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                if hasattr(self, "_initialized"):
+                    return
+                super().__init__(*args, **kwargs)
+
         instance1 = MySingletonModel(name="Instance 1")
         instance2 = MySingletonModel(name="Instance 2")
 

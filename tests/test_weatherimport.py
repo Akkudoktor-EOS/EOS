@@ -13,12 +13,16 @@ FILE_TESTDATA_WEATHERIMPORT_1_JSON = DIR_TESTDATA.joinpath("import_input_1.json"
 
 
 @pytest.fixture
-def weather_provider(sample_import_1_json, config_eos):
+def provider(sample_import_1_json, config_eos):
     """Fixture to create a WeatherProvider instance."""
     settings = {
-        "weather_provider": "WeatherImport",
-        "weatherimport_file_path": str(FILE_TESTDATA_WEATHERIMPORT_1_JSON),
-        "weatherimport_json": json.dumps(sample_import_1_json),
+        "weather": {
+            "provider": "WeatherImport",
+            "provider_settings": {
+                "import_file_path": str(FILE_TESTDATA_WEATHERIMPORT_1_JSON),
+                "import_json": json.dumps(sample_import_1_json),
+            },
+        }
     }
     config_eos.merge_settings_from_dict(settings)
     provider = WeatherImport()
@@ -39,20 +43,24 @@ def sample_import_1_json():
 # ------------------------------------------------
 
 
-def test_singleton_instance(weather_provider):
+def test_singleton_instance(provider):
     """Test that WeatherForecast behaves as a singleton."""
     another_instance = WeatherImport()
-    assert weather_provider is another_instance
+    assert provider is another_instance
 
 
-def test_invalid_provider(weather_provider, config_eos, monkeypatch):
-    """Test requesting an unsupported weather_provider."""
+def test_invalid_provider(provider, config_eos, monkeypatch):
+    """Test requesting an unsupported provider."""
     settings = {
-        "weather_provider": "<invalid>",
-        "weatherimport_file_path": str(FILE_TESTDATA_WEATHERIMPORT_1_JSON),
+        "weather": {
+            "provider": "<invalid>",
+            "provider_settings": {
+                "import_file_path": str(FILE_TESTDATA_WEATHERIMPORT_1_JSON),
+            },
+        }
     }
     config_eos.merge_settings_from_dict(settings)
-    assert weather_provider.enabled() == False
+    assert provider.enabled() == False
 
 
 # ------------------------------------------------
@@ -73,33 +81,33 @@ def test_invalid_provider(weather_provider, config_eos, monkeypatch):
         ("2024-10-27 00:00:00", False),  # DST change in Germany (25 hours/ day)
     ],
 )
-def test_import(weather_provider, sample_import_1_json, start_datetime, from_file, config_eos):
+def test_import(provider, sample_import_1_json, start_datetime, from_file, config_eos):
     """Test fetching forecast from Import."""
     ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
-        config_eos.weatherimport_json = None
-        assert config_eos.weatherimport_json is None
+        config_eos.weather.provider_settings.import_json = None
+        assert config_eos.weather.provider_settings.import_json is None
     else:
-        config_eos.weatherimport_file_path = None
-        assert config_eos.weatherimport_file_path is None
-    weather_provider.clear()
+        config_eos.weather.provider_settings.import_file_path = None
+        assert config_eos.weather.provider_settings.import_file_path is None
+    provider.clear()
 
     # Call the method
-    weather_provider.update_data()
+    provider.update_data()
 
     # Assert: Verify the result is as expected
-    assert weather_provider.start_datetime is not None
-    assert weather_provider.total_hours is not None
-    assert compare_datetimes(weather_provider.start_datetime, ems_eos.start_datetime).equal
+    assert provider.start_datetime is not None
+    assert provider.total_hours is not None
+    assert compare_datetimes(provider.start_datetime, ems_eos.start_datetime).equal
     values = sample_import_1_json["weather_temp_air"]
-    value_datetime_mapping = weather_provider.import_datetimes(ems_eos.start_datetime, len(values))
+    value_datetime_mapping = provider.import_datetimes(ems_eos.start_datetime, len(values))
     for i, mapping in enumerate(value_datetime_mapping):
-        assert i < len(weather_provider.records)
+        assert i < len(provider.records)
         expected_datetime, expected_value_index = mapping
         expected_value = values[expected_value_index]
-        result_datetime = weather_provider.records[i].date_time
-        result_value = weather_provider.records[i]["weather_temp_air"]
+        result_datetime = provider.records[i].date_time
+        result_value = provider.records[i]["weather_temp_air"]
 
         # print(f"{i}: Expected: {expected_datetime}:{expected_value}")
         # print(f"{i}:   Result: {result_datetime}:{result_value}")

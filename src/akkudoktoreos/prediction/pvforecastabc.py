@@ -28,18 +28,18 @@ class PVForecastProvider(PredictionProvider):
     PVForecastProvider is a thread-safe singleton, ensuring only one instance of this class is created.
 
     Configuration variables:
-        pvforecast_provider (str): Prediction provider for pvforecast.
+        provider (str): Prediction provider for pvforecast.
 
     Attributes:
-        prediction_hours (int, optional): The number of hours into the future for which predictions are generated.
-        prediction_historic_hours (int, optional): The number of past hours for which historical data is retained.
+        hours (int, optional): The number of hours into the future for which predictions are generated.
+        historic_hours (int, optional): The number of past hours for which historical data is retained.
         latitude (float, optional): The latitude in degrees, must be within -90 to 90.
         longitude (float, optional): The longitude in degrees, must be within -180 to 180.
         start_datetime (datetime, optional): The starting datetime for predictions (inlcusive), defaults to the current datetime if unspecified.
         end_datetime (datetime, computed): The datetime representing the end of the prediction range (exclusive),
-            calculated based on `start_datetime` and `prediction_hours`.
+            calculated based on `start_datetime` and `hours`.
         keep_datetime (datetime, computed): The earliest datetime for retaining historical data (inclusive), calculated
-            based on `start_datetime` and `prediction_historic_hours`.
+            based on `start_datetime` and `historic_hours`.
     """
 
     # overload
@@ -54,6 +54,6 @@ class PVForecastProvider(PredictionProvider):
 
     def enabled(self) -> bool:
         logger.debug(
-            f"PVForecastProvider ID {self.provider_id()} vs. config {self.config.pvforecast_provider}"
+            f"PVForecastProvider ID {self.provider_id()} vs. config {self.config.pvforecast.provider}"
         )
-        return self.provider_id() == self.config.pvforecast_provider
+        return self.provider_id() == self.config.pvforecast.provider

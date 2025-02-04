@@ -1,11 +1,17 @@
 import argparse
 import os
+import sys
+from functools import reduce
+from typing import Any, Union
 
 import uvicorn
-from fasthtml.common import H1, FastHTML, Table, Td, Th, Thead, Titled, Tr
+from fasthtml.common import H1, Table, Td, Th, Thead, Titled, Tr, fast_app
+from pydantic.fields import ComputedFieldInfo, FieldInfo
+from pydantic_core import PydanticUndefined
 
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.core.pydantic import PydanticBaseModel
 
 logger = get_logger(__name__)
 
@@ -14,18 +20,84 @@ config_eos = get_config()
 # Command line arguments
 args = None
 
+
+def get_default_value(field_info: Union[FieldInfo, ComputedFieldInfo], regular_field: bool) -> Any:
+    default_value = ""
+    if regular_field:
+        if (val := field_info.default) is not PydanticUndefined:
+            default_value = val
+    else:
+        default_value = "N/A"
+    return default_value
+
+
+def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple[Any, list[str]]]:
+    resolved_types: list[tuple[Any, list[str]]] = []
+
+    origin = getattr(field_type, "__origin__", field_type)
+    if origin is Union:
+        for arg in getattr(field_type, "__args__", []):
+            if arg is not type(None):
+                resolved_types.extend(resolve_nested_types(arg, parent_types))
+    else:
+        resolved_types.append((field_type, parent_types))
+
+    return resolved_types
+
+
 configs = []
-for field_name in config_eos.model_fields:
-    config = {}
-    config["name"] = field_name
-    config["value"] = getattr(config_eos, field_name)
-    config["default"] = config_eos.model_fields[field_name].default
-    config["description"] = config_eos.model_fields[field_name].description
-    configs.append(config)
+inner_types: set[type[PydanticBaseModel]] = set()
+for field_name, field_info in list(config_eos.model_fields.items()) + list(
+    config_eos.model_computed_fields.items()
+):
+
+    def extract_nested_models(
+        subfield_info: Union[ComputedFieldInfo, FieldInfo], parent_types: list[str]
+    ) -> None:
+        regular_field = isinstance(subfield_info, FieldInfo)
+        subtype = subfield_info.annotation if regular_field else subfield_info.return_type
+
+        if subtype in inner_types:
+            return
+
+        nested_types = resolve_nested_types(subtype, [])
+        found_basic = False
+        for nested_type, nested_parent_types in nested_types:
+            if not isinstance(nested_type, type) or not issubclass(nested_type, PydanticBaseModel):
+                if found_basic:
+                    continue
+
+                config = {}
+                config["name"] = ".".join(parent_types)
+                try:
+                    config["value"] = reduce(getattr, [config_eos] + parent_types)
+                except AttributeError:
+                    # Parent value(s) are not set in current config
+                    config["value"] = ""
+                config["default"] = get_default_value(subfield_info, regular_field)
+                config["description"] = (
+                    subfield_info.description if subfield_info.description else ""
+                )
+                configs.append(config)
+                found_basic = True
+            else:
+                new_parent_types = parent_types + nested_parent_types
+                inner_types.add(nested_type)
+                for nested_field_name, nested_field_info in list(
+                    nested_type.model_fields.items()
+                ) + list(nested_type.model_computed_fields.items()):
+                    extract_nested_models(
+                        nested_field_info,
+                        new_parent_types + [nested_field_name],
+                    )
+
+    extract_nested_models(field_info, [field_name])
+configs = sorted(configs, key=lambda x: x["name"])
 
 
-app = FastHTML()
-rt = app.route
+app, rt = fast_app(
+    secret_key=os.getenv("EOS_SERVER__EOSDASH_SESSKEY"),
+)
 
 
 def config_table() -> Table:
@@ -96,10 +168,10 @@ def main() -> None:
     it starts the EOSdash server with the specified configurations.
 
     Command-line Arguments:
-    --host (str): Host for the EOSdash server (default: value from config_eos).
-    --port (int): Port for the EOSdash server (default: value from config_eos).
-    --eos-host (str): Host for the EOS server (default: value from config_eos).
-    --eos-port (int): Port for the EOS server (default: value from config_eos).
+    --host (str): Host for the EOSdash server (default: value from config).
+    --port (int): Port for the EOSdash server (default: value from config).
+    --eos-host (str): Host for the EOS server (default: value from config).
+    --eos-port (int): Port for the EOS server (default: value from config).
     --log_level (str): Log level for the server. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "info").
     --access_log (bool): Enable or disable access log. Options: True or False (default: False).
     --reload (bool): Enable or disable auto-reload. Useful for development. Options: True or False (default: False).
@@ -110,28 +182,28 @@ def main() -> None:
     parser.add_argument(
         "--host",
         type=str,
-        default=str(config_eos.server_eosdash_host),
-        help="Host for the EOSdash server (default: value from config_eos)",
+        default=str(config_eos.server.eosdash_host),
+        help="Host for the EOSdash server (default: value from config)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=config_eos.server_eosdash_port,
-        help="Port for the EOSdash server (default: value from config_eos)",
+        default=config_eos.server.eosdash_port,
+        help="Port for the EOSdash server (default: value from config)",
     )
 
     # EOS Host and port arguments with defaults from config_eos
     parser.add_argument(
         "--eos-host",
         type=str,
-        default=str(config_eos.server_eos_host),
-        help="Host for the EOS server (default: value from config_eos)",
+        default=str(config_eos.server.host),
+        help="Host for the EOS server (default: value from config)",
     )
     parser.add_argument(
         "--eos-port",
         type=int,
-        default=config_eos.server_eos_port,
-        help="Port for the EOS server (default: value from config_eos)",
+        default=config_eos.server.port,
+        help="Port for the EOS server (default: value from config)",
     )
 
     # Optional arguments for log_level, access_log, and reload
@@ -159,7 +231,7 @@ def main() -> None:
     try:
         run_eosdash(args.host, args.port, args.log_level, args.access_log, args.reload)
     except:
-        exit(1)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

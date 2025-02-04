@@ -1110,7 +1110,7 @@ class DataProvider(SingletonMixin, DataSequence):
 
         To be implemented by derived classes.
         """
-        return self.provider_id() == self.config.abstract_provider
+        raise NotImplementedError()
 
     @abstractmethod
     def _update_data(self, force_update: Optional[bool] = False) -> None:
@@ -1120,6 +1120,11 @@ class DataProvider(SingletonMixin, DataSequence):
             force_update (bool, optional): If True, forces the provider to update the data even if still cached.
         """
         pass
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if hasattr(self, "_initialized"):
+            return
+        super().__init__(*args, **kwargs)
 
     def update_data(
         self,
@@ -1594,6 +1599,11 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
             )
         )
         return list(key_set)
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if hasattr(self, "_initialized"):
+            return
+        super().__init__(*args, **kwargs)
 
     def __getitem__(self, key: str) -> pd.Series:
         """Retrieve a Pandas Series for a specified key from the data in each DataProvider.

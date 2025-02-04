@@ -114,16 +114,16 @@ class PredictionStartEndKeepMixin(PredictionBase):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def end_datetime(self) -> Optional[DateTime]:
-        """Compute the end datetime based on the `start_datetime` and `prediction_hours`.
+        """Compute the end datetime based on the `start_datetime` and `hours`.
 
         Ajusts the calculated end time if DST transitions occur within the prediction window.
 
         Returns:
             Optional[DateTime]: The calculated end datetime, or `None` if inputs are missing.
         """
-        if self.start_datetime and self.config.prediction_hours:
+        if self.start_datetime and self.config.prediction.hours:
             end_datetime = self.start_datetime + to_duration(
-                f"{self.config.prediction_hours} hours"
+                f"{self.config.prediction.hours} hours"
             )
             dst_change = end_datetime.offset_hours - self.start_datetime.offset_hours
             logger.debug(f"Pre: {self.start_datetime}..{end_datetime}: DST change: {dst_change}")
@@ -147,10 +147,10 @@ class PredictionStartEndKeepMixin(PredictionBase):
             return None
         historic_hours = self.historic_hours_min()
         if (
-            self.config.prediction_historic_hours
-            and self.config.prediction_historic_hours > historic_hours
+            self.config.prediction.historic_hours
+            and self.config.prediction.historic_hours > historic_hours
         ):
-            historic_hours = int(self.config.prediction_historic_hours)
+            historic_hours = int(self.config.prediction.historic_hours)
         return self.start_datetime - to_duration(f"{historic_hours} hours")
 
     @computed_field  # type: ignore[prop-decorator]
@@ -206,9 +206,6 @@ class PredictionProvider(PredictionStartEndKeepMixin, DataProvider):
             force_enable (bool, optional): If True, forces the update even if the provider is disabled.
             force_update (bool, optional): If True, forces the provider to update the data even if still cached.
         """
-        # Update prediction configuration
-        self.config.update()
-
         # Check after configuration is updated.
         if not force_enable and not self.enabled():
             return

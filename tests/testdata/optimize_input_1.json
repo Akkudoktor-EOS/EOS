@@ -26,15 +26,19 @@
         ]
     },
     "pv_akku": {
+        "device_id": "battery1",
         "capacity_wh": 26400,
         "max_charge_power_w": 5000,
         "initial_soc_percentage": 80,
         "min_soc_percentage": 15
     },
     "inverter": {
-        "max_power_wh": 10000
+        "device_id": "inverter1",
+        "max_power_wh": 10000,
+        "battery_id": "battery1"
     },
     "eauto": {
+        "device_id": "ev1",
         "capacity_wh": 60000,
         "charging_efficiency": 0.95,
         "discharging_efficiency": 1.0,

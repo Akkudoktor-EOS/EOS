@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import textwrap
 from collections.abc import Sequence
@@ -24,7 +23,12 @@ matplotlib.use(
 
 
 class VisualizationReport(ConfigMixin):
-    def __init__(self, filename: str = "visualization_results.pdf", version: str = "0.0.1") -> None:
+    def __init__(
+        self,
+        filename: str = "visualization_results.pdf",
+        version: str = "0.0.1",
+        create_img: bool = True,
+    ) -> None:
         # Initialize the report with a given filename and empty groups
         self.filename = filename
         self.groups: list[list[Callable[[], None]]] = []  # Store groups of charts
@@ -34,12 +38,23 @@ class VisualizationReport(ConfigMixin):
         self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
         self.version = version  # overwrite version as test for constant output of pdf for test
         self.current_time = to_datetime(
-            as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.timezone
+            as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.general.timezone
         )
+        self.create_img = create_img
 
-    def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
-        """Add a chart function to the current group."""
+    def add_chart_to_group(self, chart_func: Callable[[], None], title: str | None) -> None:
+        """Add a chart function to the current group and save it as a PNG and SVG."""
         self.current_group.append(chart_func)
+        if self.create_img and title:
+            server_output_dir = self.config.general.data_cache_path
+            server_output_dir.mkdir(parents=True, exist_ok=True)
+            fig, ax = plt.subplots()
+            chart_func()
+            plt.tight_layout()  # Adjust the layout to ensure titles are not cut off
+            sanitized_title = "".join(c if c.isalnum() else "_" for c in title)
+            chart_filename_base = os.path.join(server_output_dir, f"chart_{sanitized_title}")
+            fig.savefig(f"{chart_filename_base}.svg")
+            plt.close(fig)
 
     def finalize_group(self) -> None:
         """Finalize the current group and prepare for a new group."""
@@ -51,7 +66,7 @@ class VisualizationReport(ConfigMixin):
 
     def _initialize_pdf(self) -> None:
         """Create the output directory if it doesn't exist and initialize the PDF."""
-        output_dir = self.config.data_output_path
+        output_dir = self.config.general.data_output_path
 
         # If self.filename is already a valid path, use it; otherwise, combine it with output_dir
         if os.path.isabs(self.filename):
@@ -173,7 +188,7 @@ class VisualizationReport(ConfigMixin):
             plt.grid(True)
 
             # Add vertical line for the current date if within the axis range
-            current_time = pendulum.now(self.config.timezone)
+            current_time = pendulum.now(self.config.general.timezone)
             if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
                 plt.axvline(current_time, color="r", linestyle="--", label="Now")
                 plt.text(current_time, plt.ylim()[1], "Now", color="r", ha="center", va="bottom")
@@ -195,7 +210,7 @@ class VisualizationReport(ConfigMixin):
             # Ensure ax1 and ax2 are aligned
             # assert ax1.get_xlim() == ax2.get_xlim(), "ax1 and ax2 are not aligned"
 
-        self.add_chart_to_group(chart)  # Add chart function to current group
+        self.add_chart_to_group(chart, title)  # Add chart function to current group
 
     def create_line_chart(
         self,
@@ -256,7 +271,7 @@ class VisualizationReport(ConfigMixin):
             plt.grid(True)  # Show grid
             plt.xlim(x[0] - 0.5, x[-1] + 0.5)  # Adjust x-limits
 
-        self.add_chart_to_group(chart)  # Add chart function to current group
+        self.add_chart_to_group(chart, title)  # Add chart function to current group
 
     def create_scatter_plot(
         self,
@@ -278,7 +293,7 @@ class VisualizationReport(ConfigMixin):
                 plt.colorbar(scatter, label="Constraint")  # Add colorbar if color data is provided
             plt.grid(True)  # Show grid
 
-        self.add_chart_to_group(chart)  # Add chart function to current group
+        self.add_chart_to_group(chart, title)  # Add chart function to current group
 
     def create_bar_chart(
         self,
@@ -328,7 +343,7 @@ class VisualizationReport(ConfigMixin):
             plt.grid(True, zorder=0)  # Show grid in the background
             plt.xlim(-0.5, len(labels) - 0.5)  # Set x-axis limits
 
-        self.add_chart_to_group(chart)  # Add chart function to current group
+        self.add_chart_to_group(chart, title)  # Add chart function to current group
 
     def create_violin_plot(
         self, data_list: list[np.ndarray], labels: list[str], title: str, xlabel: str, ylabel: str
@@ -343,7 +358,7 @@ class VisualizationReport(ConfigMixin):
             plt.ylabel(ylabel)  # Set y-axis label
             plt.grid(True)  # Show grid
 
-        self.add_chart_to_group(chart)  # Add chart function to current group
+        self.add_chart_to_group(chart, title)  # Add chart function to current group
 
     def add_text_page(self, text: str, title: Optional[str] = None, fontsize: int = 12) -> None:
         """Add a page with text content to the PDF."""
@@ -362,7 +377,7 @@ class VisualizationReport(ConfigMixin):
             self.pdf_pages.savefig(fig)  # Save the figure as a page in the PDF
             plt.close(fig)  # Close the figure to free up memory
 
-        self.add_chart_to_group(chart)  # Treat the text page as a "chart" in the group
+        self.add_chart_to_group(chart, title)  # Treat the text page as a "chart" in the group
 
     def add_json_page(
         self, json_obj: dict, title: Optional[str] = None, fontsize: int = 12
@@ -400,7 +415,7 @@ class VisualizationReport(ConfigMixin):
             self.pdf_pages.savefig(fig)  # Save the figure as a page in the PDF
             plt.close(fig)  # Close the figure to free up memory
 
-        self.add_chart_to_group(chart)  # Treat the JSON page as a "chart" in the group
+        self.add_chart_to_group(chart, title)  # Treat the JSON page as a "chart" in the group
 
     def generate_pdf(self) -> None:
         """Generate the PDF report with all the added chart groups."""
@@ -419,7 +434,7 @@ def prepare_visualize(
     start_hour: Optional[int] = 0,
 ) -> None:
     report = VisualizationReport(filename)
-    next_full_hour_date = pendulum.now(report.config.timezone).start_of("hour").add(hours=1)
+    next_full_hour_date = pendulum.now(report.config.general.timezone).start_of("hour").add(hours=1)
     # Group 1:
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
@@ -503,7 +518,7 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
         [parameters.ems.strompreis_euro_pro_wh],
-        # title="Electricity Price", # not enough space
+        title="Electricity Price",
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (€/Wh)",
         x2label=None,  # not enough space
@@ -538,7 +553,7 @@ def prepare_visualize(
     report.create_scatter_plot(
         extra_data["verluste"],
         extra_data["bilanz"],
-        title="",
+        title="Scatter Plot",
         xlabel="losses",
         ylabel="balance",
         c=extra_data["nebenbedingung"],
@@ -599,7 +614,7 @@ def prepare_visualize(
 
     if filtered_balance.size > 0 or filtered_losses.size > 0:
         report.finalize_group()
-    if logger.level == logging.DEBUG or results["fixed_seed"]:
+    if logger.level == "DEBUG" or results["fixed_seed"]:
         report.create_line_chart(
             0,
             [
@@ -695,9 +710,9 @@ def generate_example_report(filename: str = "example_report.pdf") -> None:
 
     report.finalize_group()  # Finalize the third group of charts
 
-    logger.setLevel(logging.DEBUG)  # set level for example report
+    logger.setLevel("DEBUG")  # set level for example report
 
-    if logger.level == logging.DEBUG:
+    if logger.level == "DEBUG":
         report.create_line_chart(
             x_hours,
             [np.array([0.2, 0.25, 0.3, 0.35])],

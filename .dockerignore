@@ -1,8 +1,8 @@
 .git/
 .github/
-eos-data/
-mariadb-data/
-test_data/
+**/__pycache__/
+**/*.pyc
+**/*.egg-info/
 .dockerignore
 .env
 .gitignore
@@ -12,4 +12,4 @@ LICENSE
 Makefile
 NOTICE
 README.md
-.venv
+.venv/

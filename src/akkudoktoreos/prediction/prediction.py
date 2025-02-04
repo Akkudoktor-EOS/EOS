@@ -28,7 +28,7 @@ Attributes:
 
 from typing import List, Optional, Union
 
-from pydantic import Field, computed_field
+from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
@@ -41,65 +41,34 @@ from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
 from akkudoktoreos.prediction.weatherbrightsky import WeatherBrightSky
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
 from akkudoktoreos.prediction.weatherimport import WeatherImport
-from akkudoktoreos.utils.datetimeutil import to_timezone
 
 
 class PredictionCommonSettings(SettingsBaseModel):
-    """Base configuration for prediction settings, including forecast duration, geographic location, and time zone.
+    """General Prediction Configuration.
 
     This class provides configuration for prediction settings, allowing users to specify
-    parameters such as the forecast duration (in hours) and location (latitude and longitude).
-    Validators ensure each parameter is within a specified range. A computed property, `timezone`,
-    determines the time zone based on latitude and longitude.
+    parameters such as the forecast duration (in hours).
+    Validators ensure each parameter is within a specified range.
 
     Attributes:
-        prediction_hours (Optional[int]): Number of hours into the future for predictions.
+        hours (Optional[int]): Number of hours into the future for predictions.
             Must be non-negative.
-        prediction_historic_hours (Optional[int]): Number of hours into the past for historical data.
+        historic_hours (Optional[int]): Number of hours into the past for historical data.
             Must be non-negative.
-        latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.
-        longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.
-
-    Properties:
-        timezone (Optional[str]): Computed time zone string based on the specified latitude
-            and longitude.
 
     Validators:
-        validate_prediction_hours (int): Ensures `prediction_hours` is a non-negative integer.
-        validate_prediction_historic_hours (int): Ensures `prediction_historic_hours` is a non-negative integer.
-        validate_latitude (float): Ensures `latitude` is within the range -90 to 90.
-        validate_longitude (float): Ensures `longitude` is within the range -180 to 180.
+        validate_hours (int): Ensures `hours` is a non-negative integer.
+        validate_historic_hours (int): Ensures `historic_hours` is a non-negative integer.
     """
 
-    prediction_hours: Optional[int] = Field(
+    hours: Optional[int] = Field(
         default=48, ge=0, description="Number of hours into the future for predictions"
     )
-    prediction_historic_hours: Optional[int] = Field(
+    historic_hours: Optional[int] = Field(
         default=48,
         ge=0,
         description="Number of hours into the past for historical predictions data",
     )
-    latitude: Optional[float] = Field(
-        default=None,
-        ge=-90.0,
-        le=90.0,
-        description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)",
-    )
-    longitude: Optional[float] = Field(
-        default=None,
-        ge=-180.0,
-        le=180.0,
-        description="Longitude in decimal degrees, within -180 to 180 (°)",
-    )
-
-    # Computed fields
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def timezone(self) -> Optional[str]:
-        """Compute timezone based on latitude and longitude."""
-        if self.latitude and self.longitude:
-            return to_timezone(location=(self.latitude, self.longitude), as_string=True)
-        return None
 
 
 class Prediction(PredictionContainer):

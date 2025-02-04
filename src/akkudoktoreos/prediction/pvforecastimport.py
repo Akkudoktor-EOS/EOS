@@ -22,21 +22,22 @@ logger = get_logger(__name__)
 class PVForecastImportCommonSettings(SettingsBaseModel):
     """Common settings for pvforecast data import from file or JSON string."""
 
-    pvforecastimport_file_path: Optional[Union[str, Path]] = Field(
-        default=None, description="Path to the file to import PV forecast data from."
+    import_file_path: Optional[Union[str, Path]] = Field(
+        default=None,
+        description="Path to the file to import PV forecast data from.",
+        examples=[None, "/path/to/pvforecast.json"],
     )
 
-    pvforecastimport_json: Optional[str] = Field(
+    import_json: Optional[str] = Field(
         default=None,
         description="JSON string, dictionary of PV forecast value lists.",
+        examples=['{"pvforecast_ac_power": [0, 8.05, 352.91]}'],
     )
 
     # Validators
-    @field_validator("pvforecastimport_file_path", mode="after")
+    @field_validator("import_file_path", mode="after")
     @classmethod
-    def validate_pvforecastimport_file_path(
-        cls, value: Optional[Union[str, Path]]
-    ) -> Optional[Path]:
+    def validate_import_file_path(cls, value: Optional[Union[str, Path]]) -> Optional[Path]:
         if value is None:
             return None
         if isinstance(value, str):
@@ -62,7 +63,13 @@ class PVForecastImport(PVForecastProvider, PredictionImportProvider):
         return "PVForecastImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.pvforecastimport_file_path is not None:
-            self.import_from_file(self.config.pvforecastimport_file_path, key_prefix="pvforecast")
-        if self.config.pvforecastimport_json is not None:
-            self.import_from_json(self.config.pvforecastimport_json, key_prefix="pvforecast")
+        if self.config.pvforecast.provider_settings.import_file_path is not None:
+            self.import_from_file(
+                self.config.pvforecast.provider_settings.import_file_path,
+                key_prefix="pvforecast",
+            )
+        if self.config.pvforecast.provider_settings.import_json is not None:
+            self.import_from_json(
+                self.config.pvforecast.provider_settings.import_json,
+                key_prefix="pvforecast",
+            )

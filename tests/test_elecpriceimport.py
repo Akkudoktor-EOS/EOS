@@ -13,12 +13,16 @@ FILE_TESTDATA_ELECPRICEIMPORT_1_JSON = DIR_TESTDATA.joinpath("import_input_1.jso
 
 
 @pytest.fixture
-def elecprice_provider(sample_import_1_json, config_eos):
+def provider(sample_import_1_json, config_eos):
     """Fixture to create a ElecPriceProvider instance."""
     settings = {
-        "elecprice_provider": "ElecPriceImport",
-        "elecpriceimport_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
-        "elecpriceimport_json": json.dumps(sample_import_1_json),
+        "elecprice": {
+            "provider": "ElecPriceImport",
+            "provider_settings": {
+                "import_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
+                "import_json": json.dumps(sample_import_1_json),
+            },
+        }
     }
     config_eos.merge_settings_from_dict(settings)
     provider = ElecPriceImport()
@@ -39,20 +43,24 @@ def sample_import_1_json():
 # ------------------------------------------------
 
 
-def test_singleton_instance(elecprice_provider):
+def test_singleton_instance(provider):
     """Test that ElecPriceForecast behaves as a singleton."""
     another_instance = ElecPriceImport()
-    assert elecprice_provider is another_instance
+    assert provider is another_instance
 
 
-def test_invalid_provider(elecprice_provider, config_eos):
-    """Test requesting an unsupported elecprice_provider."""
+def test_invalid_provider(provider, config_eos):
+    """Test requesting an unsupported provider."""
     settings = {
-        "elecprice_provider": "<invalid>",
-        "elecpriceimport_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
+        "elecprice": {
+            "provider": "<invalid>",
+            "provider_settings": {
+                "import_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
+            },
+        }
     }
     config_eos.merge_settings_from_dict(settings)
-    assert not elecprice_provider.enabled()
+    assert not provider.enabled()
 
 
 # ------------------------------------------------
@@ -73,35 +81,33 @@ def test_invalid_provider(elecprice_provider, config_eos):
         ("2024-10-27 00:00:00", False),  # DST change in Germany (25 hours/ day)
     ],
 )
-def test_import(elecprice_provider, sample_import_1_json, start_datetime, from_file, config_eos):
+def test_import(provider, sample_import_1_json, start_datetime, from_file, config_eos):
     """Test fetching forecast from Import."""
     ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
-        config_eos.elecpriceimport_json = None
-        assert config_eos.elecpriceimport_json is None
+        config_eos.elecprice.provider_settings.import_json = None
+        assert config_eos.elecprice.provider_settings.import_json is None
     else:
-        config_eos.elecpriceimport_file_path = None
-        assert config_eos.elecpriceimport_file_path is None
-    elecprice_provider.clear()
+        config_eos.elecprice.provider_settings.import_file_path = None
+        assert config_eos.elecprice.provider_settings.import_file_path is None
+    provider.clear()
 
     # Call the method
-    elecprice_provider.update_data()
+    provider.update_data()
 
     # Assert: Verify the result is as expected
-    assert elecprice_provider.start_datetime is not None
-    assert elecprice_provider.total_hours is not None
-    assert compare_datetimes(elecprice_provider.start_datetime, ems_eos.start_datetime).equal
+    assert provider.start_datetime is not None
+    assert provider.total_hours is not None
+    assert compare_datetimes(provider.start_datetime, ems_eos.start_datetime).equal
     values = sample_import_1_json["elecprice_marketprice_wh"]
-    value_datetime_mapping = elecprice_provider.import_datetimes(
-        ems_eos.start_datetime, len(values)
-    )
+    value_datetime_mapping = provider.import_datetimes(ems_eos.start_datetime, len(values))
     for i, mapping in enumerate(value_datetime_mapping):
-        assert i < len(elecprice_provider.records)
+        assert i < len(provider.records)
         expected_datetime, expected_value_index = mapping
         expected_value = values[expected_value_index]
-        result_datetime = elecprice_provider.records[i].date_time
-        result_value = elecprice_provider.records[i]["elecprice_marketprice_wh"]
+        result_datetime = provider.records[i].date_time
+        result_value = provider.records[i]["elecprice_marketprice_wh"]
 
         # print(f"{i}: Expected: {expected_datetime}:{expected_value}")
         # print(f"{i}:   Result: {result_datetime}:{result_value}")

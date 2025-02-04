@@ -68,15 +68,15 @@ class WeatherClearOutside(WeatherProvider):
     WeatherClearOutside is a thread-safe singleton, ensuring only one instance of this class is created.
 
     Attributes:
-        prediction_hours (int, optional): The number of hours into the future for which predictions are generated.
-        prediction_historic_hours (int, optional): The number of past hours for which historical data is retained.
+        hours (int, optional): The number of hours into the future for which predictions are generated.
+        historic_hours (int, optional): The number of past hours for which historical data is retained.
         latitude (float, optional): The latitude in degrees, must be within -90 to 90.
         longitude (float, optional): The longitude in degrees, must be within -180 to 180.
         start_datetime (datetime, optional): The starting datetime for predictions, defaults to the current datetime if unspecified.
         end_datetime (datetime, computed): The datetime representing the end of the prediction range,
-            calculated based on `start_datetime` and `prediction_hours`.
+            calculated based on `start_datetime` and `hours`.
         keep_datetime (datetime, computed): The earliest datetime for retaining historical data, calculated
-            based on `start_datetime` and `prediction_historic_hours`.
+            based on `start_datetime` and `historic_hours`.
     """
 
     @classmethod
@@ -91,13 +91,13 @@ class WeatherClearOutside(WeatherProvider):
             response: Weather forecast request reponse from ClearOutside.
         """
         source = "https://clearoutside.com/forecast"
-        latitude = round(self.config.latitude, 2)
-        longitude = round(self.config.longitude, 2)
+        latitude = round(self.config.general.latitude, 2)
+        longitude = round(self.config.general.longitude, 2)
         response = requests.get(f"{source}/{latitude}/{longitude}?desktop=true")
         response.raise_for_status()  # Raise an error for bad responses
         logger.debug(f"Response from {source}: {response}")
         # We are working on fresh data (no cache), report update time
-        self.update_datetime = to_datetime(in_timezone=self.config.timezone)
+        self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return response
 
     def _update_data(self, force_update: Optional[bool] = None) -> None:
@@ -307,7 +307,7 @@ class WeatherClearOutside(WeatherProvider):
                 data=clearout_data["Total Clouds (% Sky Obscured)"], index=clearout_data["DateTime"]
             )
             ghi, dni, dhi = self.estimate_irradiance_from_cloud_cover(
-                self.config.latitude, self.config.longitude, cloud_cover
+                self.config.general.latitude, self.config.general.longitude, cloud_cover
             )
 
             # Add GHI, DNI, DHI to clearout data

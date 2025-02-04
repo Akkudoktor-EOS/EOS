@@ -54,11 +54,11 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
     of hours into the future and retains historical data.
 
     Attributes:
-        prediction_hours (int, optional): Number of hours in the future for the forecast.
-        prediction_historic_hours (int, optional): Number of past hours for retaining data.
+        hours (int, optional): Number of hours in the future for the forecast.
+        historic_hours (int, optional): Number of past hours for retaining data.
         start_datetime (datetime, optional): Start datetime for forecasts, defaults to the current datetime.
-        end_datetime (datetime, computed): The forecast's end datetime, computed based on `start_datetime` and `prediction_hours`.
-        keep_datetime (datetime, computed): The datetime to retain historical data, computed from `start_datetime` and `prediction_historic_hours`.
+        end_datetime (datetime, computed): The forecast's end datetime, computed based on `start_datetime` and `hours`.
+        keep_datetime (datetime, computed): The datetime to retain historical data, computed from `start_datetime` and `historic_hours`.
 
     Methods:
         provider_id(): Returns a unique identifier for the provider.
@@ -108,13 +108,13 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         # Try to take data from 5 weeks back for prediction
         date = to_datetime(self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
-        url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.timezone}"
+        url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.general.timezone}"
         response = requests.get(url)
         logger.debug(f"Response from {url}: {response}")
         response.raise_for_status()  # Raise an error for bad responses
         akkudoktor_data = self._validate_data(response.content)
         # We are working on fresh data (no cache), report update time
-        self.update_datetime = to_datetime(in_timezone=self.config.timezone)
+        self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return akkudoktor_data
 
     def _cap_outliers(self, data: np.ndarray, sigma: int = 2) -> np.ndarray:
@@ -125,18 +125,16 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         capped_data = data.clip(min=lower_bound, max=upper_bound)
         return capped_data
 
-    def _predict_ets(
-        self, history: np.ndarray, seasonal_periods: int, prediction_hours: int
-    ) -> np.ndarray:
+    def _predict_ets(self, history: np.ndarray, seasonal_periods: int, hours: int) -> np.ndarray:
         clean_history = self._cap_outliers(history)
         model = ExponentialSmoothing(
             clean_history, seasonal="add", seasonal_periods=seasonal_periods
         ).fit()
-        return model.forecast(prediction_hours)
+        return model.forecast(hours)
 
-    def _predict_median(self, history: np.ndarray, prediction_hours: int) -> np.ndarray:
+    def _predict_median(self, history: np.ndarray, hours: int) -> np.ndarray:
         clean_history = self._cap_outliers(history)
-        return np.full(prediction_hours, np.median(clean_history))
+        return np.full(hours, np.median(clean_history))
 
     def _update_data(
         self, force_update: Optional[bool] = False
@@ -155,14 +153,14 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
 
-        # Get elecprice_charges_kwh in wh
-        charges_wh = (self.config.elecprice_charges_kwh or 0) / 1000
+        # Get charges_kwh in wh
+        charges_wh = (self.config.elecprice.charges_kwh or 0) / 1000
 
         highest_orig_datetime = None  # newest datetime from the api after that we want to update.
         series_data = pd.Series(dtype=float)  # Initialize an empty series
 
         for value in akkudoktor_data.values:
-            orig_datetime = to_datetime(value.start, in_timezone=self.config.timezone)
+            orig_datetime = to_datetime(value.start, in_timezone=self.config.general.timezone)
             if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
                 highest_orig_datetime = orig_datetime
 
@@ -183,27 +181,23 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         assert highest_orig_datetime  # mypy fix
 
         # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
-        needed_prediction_hours = int(
-            self.config.prediction_hours
+        needed_hours = int(
+            self.config.prediction.hours
             - ((highest_orig_datetime - self.start_datetime).total_seconds() // 3600)
         )
 
-        if needed_prediction_hours <= 0:
+        if needed_hours <= 0:
             logger.warning(
-                f"No prediction needed. needed_prediction_hours={needed_prediction_hours}, prediction_hours={self.config.prediction_hours},highest_orig_datetime {highest_orig_datetime}, start_datetime {self.start_datetime}"
-            )  # this might keep data longer than self.start_datetime + self.config.prediction_hours in the records
+                f"No prediction needed. needed_hours={needed_hours}, hours={self.config.prediction.hours},highest_orig_datetime {highest_orig_datetime}, start_datetime {self.start_datetime}"
+            )  # this might keep data longer than self.start_datetime + self.config.prediction.hours in the records
             return
 
         if amount_datasets > 800:  # we do the full ets with seasons of 1 week
-            prediction = self._predict_ets(
-                history, seasonal_periods=168, prediction_hours=needed_prediction_hours
-            )
+            prediction = self._predict_ets(history, seasonal_periods=168, hours=needed_hours)
         elif amount_datasets > 168:  # not enough data to do seasons of 1 week, but enough for 1 day
-            prediction = self._predict_ets(
-                history, seasonal_periods=24, prediction_hours=needed_prediction_hours
-            )
+            prediction = self._predict_ets(history, seasonal_periods=24, hours=needed_hours)
         elif amount_datasets > 0:  # not enough data for ets, do median
-            prediction = self._predict_median(history, prediction_hours=needed_prediction_hours)
+            prediction = self._predict_median(history, hours=needed_hours)
         else:
             logger.error("No data available for prediction")
             raise ValueError("No data available")

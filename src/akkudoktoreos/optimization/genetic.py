@@ -1,7 +1,5 @@
-import logging
 import random
 import time
-from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
@@ -25,7 +23,6 @@ from akkudoktoreos.devices.battery import (
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
-from akkudoktoreos.prediction.interpolator import SelfConsumptionProbabilityInterpolator
 from akkudoktoreos.utils.utils import NumpyEncoder
 
 logger = get_logger(__name__)
@@ -112,8 +109,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
     ):
         """Initialize the optimization problem with the required parameters."""
         self.opti_param: dict[str, Any] = {}
-        self.fixed_eauto_hours = self.config.prediction_hours - self.config.optimization_hours
-        self.possible_charge_values = self.config.optimization_ev_available_charge_rates_percent
+        self.fixed_eauto_hours = self.config.prediction.hours - self.config.optimization.hours
+        self.possible_charge_values = self.config.optimization.ev_available_charge_rates_percent
         self.verbose = verbose
         self.fix_seed = fixed_seed
         self.optimize_ev = True
@@ -123,7 +120,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         # Set a fixed seed for random operations if provided or in debug mode
         if self.fix_seed is not None:
             random.seed(self.fix_seed)
-        elif logger.level == logging.DEBUG:
+        elif logger.level == "DEBUG":
             self.fix_seed = random.randint(1, 100000000000)
             random.seed(self.fix_seed)
 
@@ -180,23 +177,23 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             total_states = 3 * len_ac
 
         # 1. Mutating the charge_discharge part
-        charge_discharge_part = individual[: self.config.prediction_hours]
+        charge_discharge_part = individual[: self.config.prediction.hours]
         (charge_discharge_mutated,) = self.toolbox.mutate_charge_discharge(charge_discharge_part)
 
         # Instead of a fixed clamping to 0..8 or 0..6 dynamically:
         charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, total_states - 1)
-        individual[: self.config.prediction_hours] = charge_discharge_mutated
+        individual[: self.config.prediction.hours] = charge_discharge_mutated
 
         # 2. Mutating the EV charge part, if active
         if self.optimize_ev:
             ev_charge_part = individual[
-                self.config.prediction_hours : self.config.prediction_hours * 2
+                self.config.prediction.hours : self.config.prediction.hours * 2
             ]
             (ev_charge_part_mutated,) = self.toolbox.mutate_ev_charge_index(ev_charge_part)
-            ev_charge_part_mutated[self.config.prediction_hours - self.fixed_eauto_hours :] = [
+            ev_charge_part_mutated[self.config.prediction.hours - self.fixed_eauto_hours :] = [
                 0
             ] * self.fixed_eauto_hours
-            individual[self.config.prediction_hours : self.config.prediction_hours * 2] = (
+            individual[self.config.prediction.hours : self.config.prediction.hours * 2] = (
                 ev_charge_part_mutated
             )
 
@@ -212,13 +209,13 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
     def create_individual(self) -> list[int]:
         # Start with discharge states for the individual
         individual_components = [
-            self.toolbox.attr_discharge_state() for _ in range(self.config.prediction_hours)
+            self.toolbox.attr_discharge_state() for _ in range(self.config.prediction.hours)
         ]
 
         # Add EV charge index values if optimize_ev is True
         if self.optimize_ev:
             individual_components += [
-                self.toolbox.attr_ev_charge_index() for _ in range(self.config.prediction_hours)
+                self.toolbox.attr_ev_charge_index() for _ in range(self.config.prediction.hours)
             ]
 
         # Add the start time of the household appliance if it's being optimized
@@ -251,7 +248,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             individual.extend(eautocharge_hours_index.tolist())
         elif self.optimize_ev:
             # Falls optimize_ev aktiv ist, aber keine EV-Daten vorhanden sind, fügen wir Nullen hinzu
-            individual.extend([0] * self.config.prediction_hours)
+            individual.extend([0] * self.config.prediction.hours)
 
         # Add dishwasher start time if applicable
         if self.opti_param.get("home_appliance", 0) > 0 and washingstart_int is not None:
@@ -273,12 +270,13 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         3. Dishwasher start time (integer if applicable).
         """
         # Discharge hours as a NumPy array of ints
-        discharge_hours_bin = np.array(individual[: self.config.prediction_hours], dtype=int)
+        discharge_hours_bin = np.array(individual[: self.config.prediction.hours], dtype=int)
 
         # EV charge hours as a NumPy array of ints (if optimize_ev is True)
         eautocharge_hours_index = (
+            # append ev charging states to individual
             np.array(
-                individual[self.config.prediction_hours : self.config.prediction_hours * 2],
+                individual[self.config.prediction.hours : self.config.prediction.hours * 2],
                 dtype=int,
             )
             if self.optimize_ev
@@ -390,7 +388,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             )
             self.ems.set_ev_charge_hours(eautocharge_hours_float)
         else:
-            self.ems.set_ev_charge_hours(np.full(self.config.prediction_hours, 0))
+            self.ems.set_ev_charge_hours(np.full(self.config.prediction.hours, 0))
 
         return self.ems.simulate(self.ems.start_datetime.hour)
 
@@ -452,7 +450,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         #     min_length = min(battery_soc_per_hour.size, discharge_hours_bin.size)
         #     battery_soc_per_hour_tail = battery_soc_per_hour[-min_length:]
         #     discharge_hours_bin_tail = discharge_hours_bin[-min_length:]
-        #     len_ac = len(self.config.optimization_ev_available_charge_rates_percent)
+        #     len_ac = len(self.config.optimization.ev_available_charge_rates_percent)
 
         #     # # Find hours where battery SoC is 0
         #     # zero_soc_mask = battery_soc_per_hour_tail == 0
@@ -501,7 +499,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
                     if parameters.eauto and self.ems.ev
                     else 0
                 )
-                * self.config.optimization_penalty,
+                * self.config.optimization.penalty,
             )
 
         return (gesamtbilanz,)
@@ -569,30 +567,26 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             start_hour = self.ems.start_datetime.hour
 
         einspeiseverguetung_euro_pro_wh = np.full(
-            self.config.prediction_hours, parameters.ems.einspeiseverguetung_euro_pro_wh
+            self.config.prediction.hours, parameters.ems.einspeiseverguetung_euro_pro_wh
         )
 
-        # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
-        sc = SelfConsumptionProbabilityInterpolator(
-            Path(__file__).parent.resolve() / ".." / "data" / "regular_grid_interpolator.pkl"
-        )
+        # TODO: Refactor device setup phase out
+        self.devices.reset()
 
         # Initialize PV and EV batteries
         akku: Optional[Battery] = None
         if parameters.pv_akku:
-            akku = Battery(
-                parameters.pv_akku,
-                hours=self.config.prediction_hours,
-            )
-            akku.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
+            akku = Battery(parameters.pv_akku)
+            self.devices.add_device(akku)
+            akku.set_charge_per_hour(np.full(self.config.prediction.hours, 1))
 
         eauto: Optional[Battery] = None
         if parameters.eauto:
             eauto = Battery(
                 parameters.eauto,
-                hours=self.config.prediction_hours,
             )
-            eauto.set_charge_per_hour(np.full(self.config.prediction_hours, 1))
+            self.devices.add_device(eauto)
+            eauto.set_charge_per_hour(np.full(self.config.prediction.hours, 1))
             self.optimize_ev = (
                 parameters.eauto.min_soc_percentage - parameters.eauto.initial_soc_percentage >= 0
             )
@@ -603,20 +597,22 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         dishwasher = (
             HomeAppliance(
                 parameters=parameters.dishwasher,
-                hours=self.config.prediction_hours,
             )
             if parameters.dishwasher is not None
             else None
         )
+        self.devices.add_device(dishwasher)
 
         # Initialize the inverter and energy management system
         inverter: Optional[Inverter] = None
         if parameters.inverter:
             inverter = Inverter(
-                sc,
                 parameters.inverter,
-                akku,
             )
+            self.devices.add_device(inverter)
+
+        self.devices.post_setup()
+
         self.ems.set_parameters(
             parameters.ems,
             inverter=inverter,

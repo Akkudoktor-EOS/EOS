@@ -169,6 +169,11 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
     dc_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(default=None, description="TBD")
     ev_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(default=None, description="TBD")
 
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if hasattr(self, "_initialized"):
+            return
+        super().__init__(*args, **kwargs)
+
     def set_parameters(
         self,
         parameters: EnergieManagementSystemParameters,
@@ -193,9 +198,9 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
         self.ev = ev
         self.home_appliance = home_appliance
         self.inverter = inverter
-        self.ac_charge_hours = np.full(self.config.prediction_hours, 0.0)
-        self.dc_charge_hours = np.full(self.config.prediction_hours, 1.0)
-        self.ev_charge_hours = np.full(self.config.prediction_hours, 0.0)
+        self.ac_charge_hours = np.full(self.config.prediction.hours, 0.0)
+        self.dc_charge_hours = np.full(self.config.prediction.hours, 1.0)
+        self.ev_charge_hours = np.full(self.config.prediction.hours, 0.0)
 
     def set_akku_discharge_hours(self, ds: np.ndarray) -> None:
         if self.battery:
@@ -239,18 +244,17 @@ class EnergieManagementSystem(SingletonMixin, ConfigMixin, PredictionMixin, Pyda
             force_update (bool, optional): If True, forces to update the data even if still cached.
         """
         self.set_start_hour(start_hour=start_hour)
-        self.config.update()
 
         # Check for run definitions
         if self.start_datetime is None:
             error_msg = "Start datetime unknown."
             logger.error(error_msg)
             raise ValueError(error_msg)
-        if self.config.prediction_hours is None:
+        if self.config.prediction.hours is None:
             error_msg = "Prediction hours unknown."
             logger.error(error_msg)
             raise ValueError(error_msg)
-        if self.config.optimisation_hours is None:
+        if self.config.prediction.optimisation_hours is None:
             error_msg = "Optimisation hours unknown."
             logger.error(error_msg)
             raise ValueError(error_msg)
