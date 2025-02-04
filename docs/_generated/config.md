@@ -68,8 +68,8 @@ Validators:
            "timezone": "Europe/Berlin",
            "data_output_path": null,
            "data_cache_path": null,
-           "config_folder_path": "/home/user/.config/net.akkudoktoreos.net",
-           "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
+           "config_folder_path": "\\home\\user\\.config\\net.akkudoktoreos.net",
+           "config_file_path": "\\home\\user\\.config\\net.akkudoktoreos.net\\EOS.config.json"
        }
    }
 ```
