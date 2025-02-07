@@ -12,6 +12,7 @@ import pendulum
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.core.coreabc import ConfigMixin
+from akkudoktoreos.core.ems import EnergyManagement
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.optimization.genetic import OptimizationParameters
 from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -162,14 +163,18 @@ class VisualizationReport(ConfigMixin):
 
             # Format the time axis
             plt.gca().xaxis.set_major_formatter(
-                mdates.DateFormatter("%Y-%m-%d")
+                mdates.DateFormatter("%Y-%m-%d", tz=self.config.general.timezone)
             )  # Show date and time
             plt.gca().xaxis.set_major_locator(
-                mdates.DayLocator(interval=1, tz=None)
+                mdates.DayLocator(interval=1, tz=self.config.general.timezone)
             )  # Major ticks every day
-            plt.gca().xaxis.set_minor_locator(mdates.HourLocator(interval=3, tz=None))
+            plt.gca().xaxis.set_minor_locator(
+                mdates.HourLocator(interval=2, tz=self.config.general.timezone)
+            )
             # Minor ticks every 6 hours
-            plt.gca().xaxis.set_minor_formatter(mdates.DateFormatter("%H"))
+            plt.gca().xaxis.set_minor_formatter(
+                mdates.DateFormatter("%H", tz=self.config.general.timezone)
+            )
             # plt.gcf().autofmt_xdate(rotation=45, which="major")
             # Auto-format the x-axis for readability
 
@@ -202,8 +207,10 @@ class VisualizationReport(ConfigMixin):
             hours_since_start = [(t - timestamps[0]).total_seconds() / 3600 for t in timestamps]
             # ax2.set_xticks(timestamps[::48])  # Set ticks every 12 hours
             # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[::48]])
-            ax2.set_xticks(timestamps[:: len(timestamps) // 24])  # Select 10 evenly spaced ticks
-            ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 24]])
+            # ax2.set_xticks(timestamps[:: len(timestamps) // 24])  # Select 10 evenly spaced ticks
+            ax2.set_xticks(timestamps[:: len(timestamps) // 12])  # Select 10 evenly spaced ticks
+            # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 24]])
+            ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 12]])
             if x2label:
                 ax2.set_xlabel(x2label)
 
@@ -431,15 +438,15 @@ def prepare_visualize(
     parameters: OptimizationParameters,
     results: dict,
     filename: str = "visualization_results.pdf",
-    start_hour: Optional[int] = 0,
+    start_hour: int = 0,
 ) -> None:
     report = VisualizationReport(filename)
-    next_full_hour_date = pendulum.now(report.config.general.timezone).start_of("hour").add(hours=1)
+    next_full_hour_date = EnergyManagement.set_start_datetime()
     # Group 1:
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
+        next_full_hour_date,
         [
-            parameters.ems.gesamtlast,
+            parameters.ems.gesamtlast[start_hour:],
         ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
@@ -447,9 +454,9 @@ def prepare_visualize(
         labels=["Total Load (Wh)"],
     )
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
+        next_full_hour_date,
         [
-            parameters.ems.pv_prognose_wh,
+            parameters.ems.pv_prognose_wh[start_hour:],
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
@@ -457,8 +464,13 @@ def prepare_visualize(
     )
 
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
-        [np.full(len(parameters.ems.gesamtlast), parameters.ems.einspeiseverguetung_euro_pro_wh)],
+        next_full_hour_date,
+        [
+            np.full(
+                len(parameters.ems.gesamtlast) - start_hour,
+                parameters.ems.einspeiseverguetung_euro_pro_wh,
+            )
+        ],
         title="Remuneration",
         # xlabel="Hours", # not enough space
         ylabel="€/Wh",
@@ -466,9 +478,9 @@ def prepare_visualize(
     )
     if parameters.temperature_forecast:
         report.create_line_chart_date(
-            next_full_hour_date,  # start_date
+            next_full_hour_date,
             [
-                parameters.temperature_forecast,
+                parameters.temperature_forecast[start_hour:],
             ],
             title="Temperature Forecast",
             # xlabel="Hours", # not enough space
@@ -517,21 +529,35 @@ def prepare_visualize(
     )
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
-        [parameters.ems.strompreis_euro_pro_wh],
-        title="Electricity Price",
+        [parameters.ems.strompreis_euro_pro_wh[start_hour:]],
+        # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (€/Wh)",
         x2label=None,  # not enough space
     )
 
+    labels = list(
+        item
+        for sublist in zip(
+            list(str(i) for i in range(0, 23, 2)), list(str(" ") for i in range(0, 23, 2))
+        )
+        for item in sublist
+    )
+    labels = labels[start_hour:] + labels
+
     report.create_bar_chart(
-        list(str(i) for i in range(len(results["ac_charge"]))),
-        [results["ac_charge"], results["dc_charge"], results["discharge_allowed"]],
+        labels,
+        [
+            results["ac_charge"][start_hour:],
+            results["dc_charge"][start_hour:],
+            results["discharge_allowed"][start_hour:],
+        ],
         title="AC/DC Charging and Discharge Overview",
         ylabel="Relative Power (0-1) / Discharge (0 or 1)",
         label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
         colors=["blue", "green", "red"],
         bottom=3,
+        xlabels=labels,
     )
     report.finalize_group()
 
