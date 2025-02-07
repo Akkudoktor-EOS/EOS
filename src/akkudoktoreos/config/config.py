@@ -281,6 +281,12 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             - This method logs a warning if the default configuration file cannot be copied.
             - It ensures that a fallback to the default configuration file is always possible.
         """
+        setting_sources = [
+            init_settings,
+            env_settings,
+            dotenv_settings,
+        ]
+
         file_settings: Optional[ConfigFileSourceMixin] = None
         config_file, exists = cls._get_config_file_path()
         config_dir = config_file.parent
@@ -292,20 +298,21 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 logger.warning(f"Could not copy default config: {exc}. Using default config...")
                 config_file = cls.config_default_file_path
                 config_dir = config_file.parent
-        file_settings = JsonConfigSettingsSource(settings_cls, json_file=config_file)
+        try:
+            file_settings = JsonConfigSettingsSource(settings_cls, json_file=config_file)
+            setting_sources.append(file_settings)
+        except Exception as e:
+            logger.error(
+                f"Error reading config file '{config_file}' (falling back to default config): {e}"
+            )
         default_settings = JsonConfigSettingsSource(
             settings_cls, json_file=cls.config_default_file_path
         )
         GeneralSettings._config_folder_path = config_dir
         GeneralSettings._config_file_path = config_file
 
-        return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            file_settings,
-            default_settings,
-        )
+        setting_sources.append(default_settings)
+        return tuple(setting_sources)
 
     @classmethod
     @classproperty
@@ -462,7 +469,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         logger.debug(f"Environment config dir: '{env_dir}'")
         if env_dir is not None:
             config_dirs.append(env_dir.resolve())
-        config_dirs.append(Path(user_config_dir(cls.APP_NAME)))
+        config_dirs.append(Path(user_config_dir(cls.APP_NAME, cls.APP_AUTHOR)))
         config_dirs.append(Path.cwd())
         for cdir in config_dirs:
             cfile = cdir.joinpath(cls.CONFIG_FILE_NAME)
