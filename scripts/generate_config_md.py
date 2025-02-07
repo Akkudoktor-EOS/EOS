@@ -86,7 +86,7 @@ def get_default_value(field_info: Union[FieldInfo, ComputedFieldInfo], regular_f
 
 
 def get_type_name(field_type: type) -> str:
-    type_name = str(field_type).replace("typing.", "")
+    type_name = str(field_type).replace("typing.", "").replace("pathlib._local", "pathlib")
     if type_name.startswith("<class"):
         type_name = field_type.__name__
     return type_name
