@@ -33,6 +33,7 @@ Linux:
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -e .
 ```
 
 Windows:
@@ -40,9 +41,10 @@ Windows:
 ```cmd
 python -m venv .venv
  .venv\Scripts\pip install -r requirements.txt
+ .venv\Scripts\pip install -e .
 ```
 
-Finally, start the EOS server:
+Finally, start the EOS server to access it at `http://localhost:8503` (API docs at `http://localhost:8503/docs`):
 
 Linux:
 
@@ -57,6 +59,8 @@ Windows:
 ```
 
 ### Docker
+
+Start EOS with following command to access it at `http://localhost:8503` (API docs at `http://localhost:8503/docs`):
 
 ```bash
 docker compose up

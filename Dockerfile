@@ -39,6 +39,7 @@ ENTRYPOINT []
 EXPOSE 8503
 EXPOSE 8504
 
+ENV server_eosdash_host=0.0.0.0
 CMD ["python", "src/akkudoktoreos/server/eos.py", "--host", "0.0.0.0"]
 
 VOLUME ["${MPLCONFIGDIR}", "${EOS_CACHE_DIR}", "${EOS_OUTPUT_DIR}", "${EOS_CONFIG_DIR}"]
