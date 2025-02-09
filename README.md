@@ -44,7 +44,7 @@ python -m venv .venv
 .venv\Scripts\pip install -e .
 ```
 
-Finally, start the EOS server:
+Finally, start the EOS server to access it at `http://localhost:8503` (API docs at `http://localhost:8503/docs`):
 
 Linux:
 
@@ -59,6 +59,8 @@ Windows:
 ```
 
 ### Docker
+
+Start EOS with following command to access it at `http://localhost:8503` (API docs at `http://localhost:8503/docs`):
 
 ```bash
 docker compose up
