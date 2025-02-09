@@ -1,5 +1,6 @@
 """Server Module."""
 
+import os
 from typing import Optional
 
 from pydantic import Field, IPvAnyAddress, field_validator
@@ -10,6 +11,12 @@ from akkudoktoreos.core.logging import get_logger
 logger = get_logger(__name__)
 
 
+def get_default_host() -> str:
+    if os.name == "nt":
+        return "127.0.0.1"
+    return "0.0.0.0"
+
+
 class ServerCommonSettings(SettingsBaseModel):
     """Common server settings.
 
@@ -18,7 +25,7 @@ class ServerCommonSettings(SettingsBaseModel):
     """
 
     server_eos_host: Optional[IPvAnyAddress] = Field(
-        default="0.0.0.0", description="EOS server IP address."
+        default=get_default_host(), description="EOS server IP address."
     )
     server_eos_port: Optional[int] = Field(default=8503, description="EOS server IP port number.")
     server_eos_verbose: Optional[bool] = Field(default=False, description="Enable debug output")
@@ -26,7 +33,7 @@ class ServerCommonSettings(SettingsBaseModel):
         default=True, description="EOS server to start EOSdash server."
     )
     server_eosdash_host: Optional[IPvAnyAddress] = Field(
-        default="0.0.0.0", description="EOSdash server IP address."
+        default=get_default_host(), description="EOSdash server IP address."
     )
     server_eosdash_port: Optional[int] = Field(
         default=8504, description="EOSdash server IP port number."

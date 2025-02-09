@@ -33,6 +33,7 @@ See also [README.md](README.md).
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
+pip install -e .
 ```
 
 Install make to get access to helpful shortcuts (documentation generation, manual formatting, etc.).

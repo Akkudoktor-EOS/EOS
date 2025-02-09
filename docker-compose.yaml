@@ -17,6 +17,6 @@ services:
       - longitude=13.4
       - elecprice_provider=ElecPriceAkkudoktor
       - elecprice_charges_kwh=0.21
-      - server_fasthtml_host=none
+      - EOS_SERVER__EOSDASH_SESSKEY=s3cr3t
     ports:
       - "${EOS_PORT}:${EOS_PORT}"
