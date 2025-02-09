@@ -101,3 +101,7 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "xprocess.*"
 ignore_missing_imports = true
+
+[tool.poetry.dependencies]
+sphinx = "^8.1.3"
+pyscipopt = "^5.2.1"
