@@ -17,7 +17,6 @@ from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     optimization_problem,
 )
-from akkudoktoreos.optimization.exact_optimization import MILPOptimization
 from akkudoktoreos.prediction.prediction import get_prediction
 
 get_logger(__name__, logging_level="DEBUG")
@@ -335,8 +334,7 @@ def run_optimization(
     opt_class = optimization_problem(verbose=verbose, fixed_seed=seed)
 
     # Perform the optimisation based on the provided parameters and start hour
-    result = MILPOptimization(verbose=verbose).optimize_ems(parameters=parameters, start_hour = 2)
-    #result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour, ngen=ngen)
+    result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour, ngen=ngen)
 
     return result.model_dump_json()
 
@@ -396,22 +394,26 @@ def main():
             sys.exit(1)
     else:
         # Run without profiling
-        start_time = time.time()
-        result = run_optimization(
-            real_world=args.real_world,
-            start_hour=args.start_hour,
-            verbose=args.verbose,
-            seed=args.seed,
-            parameters_file=args.parameters_file,
-            ngen=args.ngen,
-        )
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        if args.verbose:
-            print(f"\nElapsed time: {elapsed_time:.4f} seconds.")
-            print("\nOptimization Result:")
-        print(result)
+        try:
+            start_time = time.time()
+            result = run_optimization(
+                real_world=args.real_world,
+                start_hour=args.start_hour,
+                verbose=args.verbose,
+                seed=args.seed,
+                parameters_file=args.parameters_file,
+                ngen=args.ngen,
+            )
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            if args.verbose:
+                print(f"\nElapsed time: {elapsed_time:.4f} seconds.")
+                print("\nOptimization Result:")
+            print(result)
 
+        except Exception as e:
+            print(f"Error during optimization: {e}", file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":
