@@ -223,7 +223,6 @@ app = FastAPI(
         "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
     },
     lifespan=lifespan,
-    root_path=str(Path(__file__).parent),
 )
 
 
@@ -882,9 +881,13 @@ async def proxy_put(request: Request, path: str) -> Response:
 
 
 async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse | HTMLResponse]:
-    if config_eos.server_eosdash_host and config_eos.server_eosdash_port:
+    # Make hostname Windows friendly
+    host = str(config_eos.server_eosdash_host)
+    if host == "0.0.0.0" and os.name == "nt":
+        host = "localhost"
+    if host and config_eos.server_eosdash_port:
         # Proxy to EOSdash server
-        url = f"http://{config_eos.server_eosdash_host}:{config_eos.server_eosdash_port}/{path}"
+        url = f"http://{host}:{config_eos.server_eosdash_port}/{path}"
         headers = dict(request.headers)
 
         data = await request.body()

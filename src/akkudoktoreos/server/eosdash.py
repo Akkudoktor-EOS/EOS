@@ -24,7 +24,7 @@ for field_name in config_eos.model_fields:
     configs.append(config)
 
 
-app = FastHTML()
+app = FastHTML(secret_key=os.getenv("EOS_SERVER__EOSDASH_SESSKEY"))
 rt = app.route
 
 
