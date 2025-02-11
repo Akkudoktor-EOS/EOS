@@ -78,14 +78,11 @@ class MILPOptimization(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin):
             verbose (bool, optional): Enable verbose output. Defaults to False.
         """
         self.opti_param: dict[str, Any] = {}
-        self.possible_charge_values = (
-            self.config.optimization_ev_available_charge_rates_percent
-        )
         self.verbose = verbose
 
     def optimize_ems(
-        self,
-        parameters: OptimizationParameters,
+            self,
+            parameters: OptimizationParameters,
     ) -> ExactSolutioResponse:
         """Solve the energy management system optimization problem using MILP.
 
@@ -99,8 +96,8 @@ class MILPOptimization(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin):
 
         Args:
             parameters (OptimizationParameters): Input parameters containing:
-                - Load profiles (gesamtlast)
-                - PV generation forecast (pv_prognose_wh)
+                - Load profiles (total_load)
+                - PV generation forecast (pv_forecast_wh)
                 - Battery parameters (capacity, efficiency, power limits)
                 - Price data (grid import/export prices)
                 - Initial conditions
@@ -139,112 +136,123 @@ class MILPOptimization(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin):
         model = Model("energy_management")
 
         # Define sets
-        set_t = range(self.config.prediction_hours)  # Time steps
+        time_steps = range(self.config.prediction_hours)  # Time steps
 
         # Extract parameters from input
-        g_t = parameters.ems.gesamtlast  # Required total energy
-        f_t = parameters.ems.pv_prognose_wh  # Forecasted production
+        total_load = parameters.ems.total_load  # Required total energy
+        pv_forecast = parameters.ems.pv_forecast_wh  # Forecasted production
 
         # Battery parameters
-        s_min = {}
-        s_max = {}
-        s_init = {}
-        k_max = {}
-        cap = {}
-        eta_c = {}
-        eta_d = {}
-        set_i = []
-        battery_cand = ["pv_akku", "eauto"]  # Battery types
-        for i in battery_cand:
-            battery = getattr(parameters, i, None)
+        soc_min = {}  # Minimum state of charge
+        soc_max = {}  # Maximum state of charge
+        soc_init = {}  # Initial state of charge
+        power_max = {}  # Maximum charging/discharging power
+        capacity = {}  # Battery capacity
+        eff_charge = {}  # Charging efficiency
+        eff_discharge = {}  # Discharging efficiency
+        battery_set = []  # Set of available batteries
+
+        battery_types = ["pv_battery", "ev"]  # Battery types
+        for batt_type in battery_types:
+            battery = getattr(parameters, batt_type, None)
             if battery is not None:
-                s_min[i] = getattr(battery, "min_soc_percentage", 0)
-                s_max[i] = getattr(battery, "max_soc_percentage", 100)
-                s_init[i] = getattr(battery, "init_soc_percentage", 50)
-                k_max[i] = getattr(battery, "max_charge_power_w", None)
-                cap[i] = getattr(battery, "capacity_wh", None)
-                # Charging efficiency
-                eta_c[i] = getattr(battery, "charging_efficiency", 1)
-                # Discharging efficiency
-                eta_d[i] = getattr(battery, "discharging_efficiency", 1)
-                set_i.append(i)
+                soc_min[batt_type] = getattr(battery, "min_soc_percentage", 0)
+                soc_max[batt_type] = getattr(battery, "max_soc_percentage", 100)
+                soc_init[batt_type] = getattr(battery, "init_soc_percentage", 50)
+                power_max[batt_type] = getattr(battery, "max_charge_power_w", None)
+                capacity[batt_type] = getattr(battery, "capacity_wh", None)
+                eff_charge[batt_type] = getattr(battery, "charging_efficiency", 1)
+                eff_discharge[batt_type] = getattr(battery, "discharging_efficiency", 1)
+                battery_set.append(batt_type)
 
         # Price parameters
-        p_N = parameters.ems.strompreis_euro_pro_wh  # Price for buying from grid
-        p_E = (
-            parameters.ems.einspeiseverguetung_euro_pro_wh
-        )  # Price for selling to grid
-        p_a = (
-            parameters.ems.preis_euro_pro_wh_akku
-        )  # Value of stored energy at end of horizon cents per wh
+        price_import = parameters.ems.grid_price_eur_per_wh  # Price for buying from grid
+        price_export = parameters.ems.feed_in_price_eur_per_wh  # Price for selling to grid
+        price_storage = parameters.ems.storage_value_eur_per_wh  # Value of stored energy at end of horizon
 
         # Create variables
-        c = {}  # Charging power
-        d = {}  # Discharging power
-        s = {}  # State of charge
-        for i in set_i:
-            for t in set_t:
-                c[i, t] = model.addVar(name=f"c_{i}_{t}", vtype="C", lb=0, ub=k_max[i])
-                d[i, t] = model.addVar(name=f"d_{i}_{t}", vtype="C", lb=0, ub=k_max[i])
-                s[i, t] = model.addVar(
-                    name=f"s_{i}_{t}", vtype="C", lb=s_min[i], ub=s_max[i]
+        charge = {}  # Charging power
+        discharge = {}  # Discharging power
+        soc = {}  # State of charge
+        for batt_type in battery_set:
+            for t in time_steps:
+                charge[batt_type, t] = model.addVar(
+                    name=f"charge_{batt_type}_{t}",
+                    vtype="C",
+                    lb=0,
+                    ub=power_max[batt_type]
+                )
+                discharge[batt_type, t] = model.addVar(
+                    name=f"discharge_{batt_type}_{t}",
+                    vtype="C",
+                    lb=0,
+                    ub=power_max[batt_type]
+                )
+                soc[batt_type, t] = model.addVar(
+                    name=f"soc_{batt_type}_{t}",
+                    vtype="C",
+                    lb=soc_min[batt_type],
+                    ub=soc_max[batt_type]
                 )
 
-        n = {}  # Grid import
-        e = {}  # Grid export
-        for t in set_t:
-            n[t] = model.addVar(name=f"n_{t}", vtype="C", lb=0)
-            e[t] = model.addVar(name=f"e_{t}", vtype="C", lb=0)
+        grid_import = {}  # Grid import power
+        grid_export = {}  # Grid export power
+        for t in time_steps:
+            grid_import[t] = model.addVar(name=f"grid_import_{t}", vtype="C", lb=0)
+            grid_export[t] = model.addVar(name=f"grid_export_{t}", vtype="C", lb=0)
 
         # Add constraints
         # Grid balance constraint
-        for t in set_t:
+        for t in time_steps:
             model.addCons(
-                quicksum(-c[i, t] + d[i, t] for i in set_i) + f_t[t] + n[t]
-                == e[t] + g_t[t],
+                quicksum(-charge[batt_type, t] + discharge[batt_type, t] for batt_type in battery_set)
+                + pv_forecast[t] + grid_import[t] == grid_export[t] + total_load[t],
                 name=f"grid_balance_{t}",
             )
 
         # Battery dynamics constraints
-        for i in set_i:
-            for t in set_t[:-1]:
-                if t == set_t[0]:
+        for batt_type in battery_set:
+            for t in time_steps[:-1]:
+                if t == time_steps[0]:
                     model.addCons(
-                        s[i, t]
-                        == s_init[i]
-                        + eta_c[i] * c[i, t] / cap[i]
-                        - (1 / eta_d[i]) * d[i, t] / cap[i],
-                        name=f"battery_dynamics_{i}_{t}",
+                        soc[batt_type, t] == soc_init[batt_type]
+                        + eff_charge[batt_type] * charge[batt_type, t] / capacity[batt_type]
+                        - (1 / eff_discharge[batt_type]) * discharge[batt_type, t] / capacity[batt_type],
+                        name=f"battery_dynamics_{batt_type}_{t}",
                     )
                 else:
                     model.addCons(
-                        s[i, t]
-                        == s[i, t - 1]
-                        + eta_c[i] * c[i, t] / cap[i]
-                        - (1 / eta_d[i]) * d[i, t] / cap[i],
-                        name=f"battery_dynamics_{i}_{t}",
+                        soc[batt_type, t] == soc[batt_type, t - 1]
+                        + eff_charge[batt_type] * charge[batt_type, t] / capacity[batt_type]
+                        - (1 / eff_discharge[batt_type]) * discharge[batt_type, t] / capacity[batt_type],
+                        name=f"battery_dynamics_{batt_type}_{t}",
                     )
 
-        # We need to forbid the combination of einspese and netzbezugn, in times where ein is better than
-        for t in set_t:
-            if p_N[t] <= p_E:
-                f = model.addVar(
-                    name=f"enforce_onedirectional_powerflow{t}", vtype="B", lb=0, ub=1
+        # Prevent simultaneous import and export when import price is less than or equal to export price
+        for t in time_steps:
+            if price_import[t] <= price_export:
+                flow_direction = model.addVar(
+                    name=f"flow_direction_{t}",
+                    vtype="B",
+                    lb=0,
+                    ub=1
                 )
-                big_m = sum(eta_c[i] * k_max[i] for i in set_i) + max(g_t)
-                model.addCons(e[t] <= big_m * f, name=f"set_indicator_if_einpeisung{t}")
+                big_m = sum(eff_charge[batt_type] * power_max[batt_type] for batt_type in battery_set) + max(total_load)
                 model.addCons(
-                    n[t] <= big_m * (1 - f), name=f"no_netzbezug_if_einpeisung{t}"
+                    grid_export[t] <= big_m * flow_direction,
+                    name=f"export_constraint_{t}"
+                )
+                model.addCons(
+                    grid_import[t] <= big_m * (1 - flow_direction),
+                    name=f"import_constraint_{t}"
                 )
 
         # Set objective
-        objective = quicksum(-n[t] * p_N[t] + e[t] * p_E for t in set_t) + quicksum(
-            s[i, set_t[-1]] * p_a for i in set_i
-        )
+        objective = quicksum(-grid_import[t] * price_import[t] + grid_export[t] * price_export for t in time_steps) + \
+                    quicksum(soc[batt_type, time_steps[-1]] * price_storage for batt_type in battery_set)
         model.setObjective(objective, "maximize")
 
         # Solve the model
-        # Print the number of variables and constraints
         if self.verbose:
             print("Number of variables:", len(model.getVars()))
             print("Number of constraints:", len(model.getConss()))
@@ -255,16 +263,16 @@ class MILPOptimization(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin):
             raise ValueError("No optimal solution found")
 
         # Extract solution
-        ac_charge = [model.getVal(c["pv_akku", t]) / k_max["eauto"] for t in set_t]
-        dc_charge = [model.getVal(c["pv_akku", t]) / k_max["pv_akku"] for t in set_t]
+        ac_charge = [model.getVal(charge["pv_battery", t]) / power_max["ev"] for t in time_steps]
+        dc_charge = [model.getVal(charge["pv_battery", t]) / power_max["pv_battery"] for t in time_steps]
 
-        if "eauto" in set_i:
-            eauto_charge = [model.getVal(c["eauto", t]) / k_max["eauto"] for t in set_t]
+        if "ev" in battery_set:
+            ev_charge = [model.getVal(charge["ev", t]) / power_max["ev"] for t in time_steps]
         else:
-            eauto_charge = None
+            ev_charge = None
 
         return ExactSolutioResponse(
             ac_charge=ac_charge,
             dc_charge=dc_charge,
-            eauto_charge=eauto_charge,
+            eauto_charge=ev_charge,
         )
