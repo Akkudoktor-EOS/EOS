@@ -19,6 +19,7 @@ Install the dependencies in a virtual environment:
 
         python -m venv .venv
         .venv\Scripts\pip install -r requirements.txt
+        .venv\Scripts\pip install -e .
 
   .. tab:: Linux
 
@@ -26,6 +27,7 @@ Install the dependencies in a virtual environment:
 
         python -m venv .venv
         .venv/bin/pip install -r requirements.txt
+        .venv/bin/pip install -e .
 
 ```
 
