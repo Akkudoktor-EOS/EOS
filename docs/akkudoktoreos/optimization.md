@@ -4,11 +4,13 @@
 
 ## Introduction
 
-The `POST /optimize` API endpoint optimizes your energy management system based on various inputs including electricity prices, battery storage capacity, PV forecast, and temperature data.
+The `POST /optimize` API endpoint optimizes your energy management system based on various inputs
+including electricity prices, battery storage capacity, PV forecast, and temperature data.
 
 ## Input Payload
 
 ### Sample Request
+
 ```json
 {
     "ems": {
@@ -49,31 +51,39 @@ The `POST /optimize` API endpoint optimizes your energy management system based 
 ### Energy Management System (EMS)
 
 #### Battery Cost (`preis_euro_pro_wh_akku`)
+
 - Unit: €/Wh
 - Purpose: Represents the residual value of energy stored in the battery
 - Impact: Lower values encourage battery depletion, higher values preserve charge at the end of the simulation.
 
 #### Feed-in Tariff (`einspeiseverguetung_euro_pro_wh`)
+
 - Unit: €/Wh
 - Purpose: Compensation received for feeding excess energy back to the grid
 
 #### Total Load Forecast (`gesamtlast`)
+
 - Unit: W
 - Time Range: 48 hours (00:00 today to 23:00 tomorrow)
 - Format: Array of hourly values
 - Note: Exclude optimizable loads (EV charging, battery charging, etc.)
 
-##### Data Sources:
-1. Standard Load Profile: `GET /v1/prediction/list?key=load_mean` for a standard load profile based on your yearly consumption.
-2. Adjusted Load Profile: `GET /v1/prediction/list?key=load_mean_adjusted` for a combination of a standard load profile based on your yearly consumption incl. data from last 48h.
+##### Data Sources
+
+1. Standard Load Profile: `GET /v1/prediction/list?key=load_mean` for a standard load profile based
+   on your yearly consumption.
+2. Adjusted Load Profile: `GET /v1/prediction/list?key=load_mean_adjusted` for a combination of a
+   standard load profile based on your yearly consumption incl. data from last 48h.
 
 #### PV Generation Forecast (`pv_prognose_wh`)
+
 - Unit: W
 - Time Range: 48 hours (00:00 today to 23:00 tomorrow)
 - Format: Array of hourly values
 - Data Source: `GET /v1/prediction/series?key=pvforecast_ac_power`
 
 #### Electricity Price Forecast (`strompreis_euro_pro_wh`)
+
 - Unit: €/Wh
 - Time Range: 48 hours (00:00 today to 23:00 tomorrow)
 - Format: Array of hourly values
@@ -84,20 +94,24 @@ Verify prices against your local tariffs.
 ### Battery Storage System
 
 #### Configuration
+
 - `capacity_wh`: Total battery capacity in Wh
 - `charging_efficiency`: Charging efficiency (0-1)
 - `discharging_efficiency`: Discharging efficiency (0-1)
 - `max_charge_power_w`: Maximum charging power in W
 
 #### State of Charge (SoC)
+
 - `initial_soc_percentage`: Current battery level (%)
 - `min_soc_percentage`: Minimum allowed SoC (%)
 - `max_soc_percentage`: Maximum allowed SoC (%)
 
 ### Inverter
+
 - `max_power_wh`: Maximum inverter power in Wh
 
 ### Electric Vehicle (EV)
+
 - `capacity_wh`: Battery capacity in Wh
 - `charging_efficiency`: Charging efficiency (0-1)
 - `discharging_efficiency`: Discharging efficiency (0-1)
@@ -107,6 +121,7 @@ Verify prices against your local tariffs.
 - `max_soc_percentage`: Maximum allowed SoC (%)
 
 ### Temperature Forecast
+
 - Unit: °C
 - Time Range: 48 hours (00:00 today to 23:00 tomorrow)
 - Format: Array of hourly values
@@ -115,6 +130,7 @@ Verify prices against your local tariffs.
 ## Output Format
 
 ### Sample Response
+
 ```json
 {
     "ac_charge": [0.625, 0, ..., 0.75, 0],
@@ -137,6 +153,7 @@ Verify prices against your local tariffs.
 ### Output Parameters
 
 #### Battery Control
+
 - `ac_charge`: Grid charging schedule (0-1)
 - `dc_charge`: DC charging schedule (0-1)
 - `discharge_allowed`: Discharge permission (0 or 1)
@@ -147,9 +164,11 @@ Verify prices against your local tariffs.
 `ac_charge` multiplied by the maximum charge power of the battery results in the planned charging power.
 
 #### EV Charging
+
 - `eautocharge_hours_float`: EV charging schedule (0-1)
 
 #### Results
+
 The `result` object contains detailed information about the optimization outcome.
 The length of the array is between 25 and 48 and starts at the current hour and ends at 23:00 tomorrow.
 
@@ -173,6 +192,9 @@ The length of the array is between 25 and 48 and starts at the current hour and 
 - `akku_soc_pro_stunde`: Array of hourly battery state of charge values (%)
 
 ## Timeframe overview
-<a href="../_static/optimization_timeframes.png" target="_blank">
-    <img src="../_static/optimization_timeframes.png" alt="EOS Price in euro per watt hour in battery" width="300">
-</a>
+
+```{figure} ../_static/optimization_timeframes.png
+:alt: Timeframe Overview
+
+Timeframe Overview
+```
