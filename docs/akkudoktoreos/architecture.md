@@ -20,17 +20,22 @@ EOS Architecture
 
 ### Configuration
 
-The configuration controls all aspects of EOS: optimization, prediction, measurement, and energy management.
+The configuration controls all aspects of EOS: optimization, prediction, measurement, and energy
+management.
 
 ### Energy Management
 
-Energy management is the overall process to provide planning data for scheduling the different devices in your system in an optimal way. Energy management cares for the update of predictions and the optimization of the planning based on the simulated behavior of the devices. The planning is on the hour. Sub-hour energy management is left
+Energy management is the overall process to provide planning data for scheduling the different
+devices in your system in an optimal way. Energy management cares for the update of predictions and
+the optimization of the planning based on the simulated behavior of the devices. The planning is on
+the hour. Sub-hour energy management is left
 
 ### Optimization
 
 ### Device Simulations
 
-Device simulations simulate devices' behavior based on internal logic and predicted data. They provide the data needed for optimization.
+Device simulations simulate devices' behavior based on internal logic and predicted data. They
+provide the data needed for optimization.
 
 ### Predictions
 
@@ -38,7 +43,8 @@ Predictions provide predicted future data to be used by the optimization.
 
 ### Measurements
 
-Measurements are utilized to refine predictions using real data from your system, thereby enhancing accuracy.
+Measurements are utilized to refine predictions using real data from your system, thereby enhancing
+accuracy.
 
 ### EOS Server
 
