@@ -5,9 +5,9 @@
 Measurements are utilized to refine predictions using real data from your system, thereby enhancing
 accuracy.
 
-- **Household Load Measurement**
-- **Grid Export Measurement**
-- **Grid Import Measurement**
+- Household Load Measurement
+- Grid Export Measurement
+- Grid Import Measurement
 
 ## Storing Measurements
 

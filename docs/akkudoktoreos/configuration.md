@@ -31,10 +31,10 @@ Use endpoint `POST /v1/config/reset` to reset the configuration to the values in
 
 The configuration sources and their priorities are as follows:
 
-1. **Runtime Config Updates**: Provided during runtime by the REST interface
-2. **Environment Variables**: Defined at startup of the REST server and during runtime
-3. **EOS Configuration File**: Read at startup of the REST server and on request
-4. **Default Values**
+1. `Settings`: Provided during runtime by the REST interface
+2. `Environment Variables`: Defined at startup of the REST server and during runtime
+3. `EOS Configuration File`: Read at startup of the REST server and on request
+4. `Default Values`
 
 ### Runtime Config Updates
 
