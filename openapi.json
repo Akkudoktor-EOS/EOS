@@ -106,10 +106,44 @@
                 "title": "BaseBatteryParameters",
                 "type": "object"
             },
+            "CacheCommonSettings": {
+                "description": "Cache Configuration.",
+                "properties": {
+                    "cleanup_interval": {
+                        "default": 300,
+                        "description": "Intervall in seconds for EOS file cache cleanup.",
+                        "title": "Cleanup Interval",
+                        "type": "number"
+                    },
+                    "subpath": {
+                        "anyOf": [
+                            {
+                                "format": "path",
+                                "type": "string"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": "cache",
+                        "description": "Sub-path for the EOS cache data directory.",
+                        "title": "Subpath"
+                    }
+                },
+                "title": "CacheCommonSettings",
+                "type": "object"
+            },
             "ConfigEOS": {
                 "additionalProperties": false,
                 "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_CONFIG_DIR` environment variable\n    2. The directory specified by the `EOS_DIR` environment variable.\n    3. A platform specific default directory for EOS.\n    4. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nAttributes:\n    config_folder_path (Optional[Path]): Path to the configuration directory.\n    config_file_path (Optional[Path]): Path to the configuration file.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    ```python\n    config_eos = ConfigEOS()  # Always returns the same instance\n    print(config_eos.prediction.hours)  # Access a setting from the loaded configuration\n    ```",
                 "properties": {
+                    "cache": {
+                        "$ref": "#/components/schemas/CacheCommonSettings",
+                        "default": {
+                            "cleanup_interval": 300.0,
+                            "subpath": "cache"
+                        }
+                    },
                     "devices": {
                         "$ref": "#/components/schemas/DevicesCommonSettings",
                         "default": {}
@@ -118,12 +152,17 @@
                         "$ref": "#/components/schemas/ElecPriceCommonSettings",
                         "default": {}
                     },
+                    "ems": {
+                        "$ref": "#/components/schemas/EnergyManagementCommonSettings",
+                        "default": {
+                            "startup_delay": 5.0
+                        }
+                    },
                     "general": {
                         "$ref": "#/components/schemas/GeneralSettings-Output",
                         "default": {
                             "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json",
                             "config_folder_path": "/home/user/.config/net.akkudoktoreos.net",
-                            "data_cache_subpath": "cache",
                             "data_output_subpath": "output",
                             "latitude": 52.52,
                             "longitude": 13.405,
@@ -548,7 +587,36 @@
                 "title": "ElectricVehicleResult",
                 "type": "object"
             },
-            "EnergieManagementSystemParameters": {
+            "EnergyManagementCommonSettings": {
+                "description": "Energy Management Configuration.",
+                "properties": {
+                    "interval": {
+                        "anyOf": [
+                            {
+                                "type": "number"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Intervall in seconds between EOS energy management runs.",
+                        "examples": [
+                            "300"
+                        ],
+                        "title": "Interval"
+                    },
+                    "startup_delay": {
+                        "default": 5,
+                        "description": "Startup delay in seconds for EOS energy management runs.",
+                        "minimum": 1.0,
+                        "title": "Startup Delay",
+                        "type": "number"
+                    }
+                },
+                "title": "EnergyManagementCommonSettings",
+                "type": "object"
+            },
+            "EnergyManagementParameters": {
                 "additionalProperties": false,
                 "properties": {
                     "einspeiseverguetung_euro_pro_wh": {
@@ -603,7 +671,7 @@
                     "preis_euro_pro_wh_akku",
                     "gesamtlast"
                 ],
-                "title": "EnergieManagementSystemParameters",
+                "title": "EnergyManagementParameters",
                 "type": "object"
             },
             "ForecastResponse": {
@@ -640,20 +708,6 @@
             "GeneralSettings-Input": {
                 "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude.\n\nValidators:\n    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.\n    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.",
                 "properties": {
-                    "data_cache_subpath": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "cache",
-                        "description": "Sub-path for the EOS cache data directory.",
-                        "title": "Data Cache Subpath"
-                    },
                     "data_folder_path": {
                         "anyOf": [
                             {
@@ -750,34 +804,6 @@
                         "readOnly": true,
                         "title": "Config Folder Path"
                     },
-                    "data_cache_path": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "description": "Compute data_cache_path based on data_folder_path.",
-                        "readOnly": true,
-                        "title": "Data Cache Path"
-                    },
-                    "data_cache_subpath": {
-                        "anyOf": [
-                            {
-                                "format": "path",
-                                "type": "string"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ],
-                        "default": "cache",
-                        "description": "Sub-path for the EOS cache data directory.",
-                        "title": "Data Cache Subpath"
-                    },
                     "data_folder_path": {
                         "anyOf": [
                             {
@@ -870,7 +896,6 @@
                 "required": [
                     "timezone",
                     "data_output_path",
-                    "data_cache_path",
                     "config_folder_path",
                     "config_file_path"
                 ],
@@ -1361,7 +1386,7 @@
                         ]
                     },
                     "ems": {
-                        "$ref": "#/components/schemas/EnergieManagementSystemParameters"
+                        "$ref": "#/components/schemas/EnergyManagementParameters"
                     },
                     "inverter": {
                         "anyOf": [
@@ -2294,6 +2319,17 @@
                 "additionalProperties": false,
                 "description": "Settings for all EOS.\n\nUsed by updating the configuration with specific settings only.",
                 "properties": {
+                    "cache": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/CacheCommonSettings"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Cache Settings"
+                    },
                     "devices": {
                         "anyOf": [
                             {
@@ -2302,7 +2338,8 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "Devices Settings"
                     },
                     "elecprice": {
                         "anyOf": [
@@ -2312,7 +2349,19 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "Electricity Price Settings"
+                    },
+                    "ems": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/EnergyManagementCommonSettings"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Energy Management Settings"
                     },
                     "general": {
                         "anyOf": [
@@ -2322,7 +2371,8 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "General Settings"
                     },
                     "load": {
                         "anyOf": [
@@ -2332,7 +2382,8 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "Load Settings"
                     },
                     "logging": {
                         "anyOf": [
@@ -2342,7 +2393,8 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "Logging Settings"
                     },
                     "measurement": {
                         "anyOf": [
@@ -2352,7 +2404,8 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "Measurement Settings"
                     },
                     "optimization": {
                         "anyOf": [
@@ -2362,7 +2415,8 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "Optimization Settings"
                     },
                     "prediction": {
                         "anyOf": [
@@ -2372,7 +2426,8 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "Prediction Settings"
                     },
                     "pvforecast": {
                         "anyOf": [
@@ -2382,7 +2437,8 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "PV Forecast Settings"
                     },
                     "server": {
                         "anyOf": [
@@ -2392,7 +2448,8 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "Server Settings"
                     },
                     "utils": {
                         "anyOf": [
@@ -2402,7 +2459,8 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "Utilities Settings"
                     },
                     "weather": {
                         "anyOf": [
@@ -2412,7 +2470,8 @@
                             {
                                 "type": "null"
                             }
-                        ]
+                        ],
+                        "description": "Weather Settings"
                     }
                 },
                 "title": "SettingsEOS",
@@ -3060,6 +3119,172 @@
                 ]
             }
         },
+        "/v1/admin/cache": {
+            "get": {
+                "description": "Current cache management data.\n\nReturns:\n    data (dict): The management data.",
+                "operationId": "fastapi_admin_cache_get_v1_admin_cache_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Fastapi Admin Cache Get V1 Admin Cache Get",
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Fastapi Admin Cache Get",
+                "tags": [
+                    "admin"
+                ]
+            }
+        },
+        "/v1/admin/cache/clear": {
+            "post": {
+                "description": "Clear the cache from expired data.\n\nDeletes expired cache files.\n\nArgs:\n    clear_all (Optional[bool]): Delete all cached files. Default is False.\n\nReturns:\n    data (dict): The management data after cleanup.",
+                "operationId": "fastapi_admin_cache_clear_post_v1_admin_cache_clear_post",
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "clear_all",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "boolean"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Clear All"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Fastapi Admin Cache Clear Post V1 Admin Cache Clear Post",
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Fastapi Admin Cache Clear Post",
+                "tags": [
+                    "admin"
+                ]
+            }
+        },
+        "/v1/admin/cache/load": {
+            "post": {
+                "description": "Load cache management data.\n\nReturns:\n    data (dict): The management data that was loaded.",
+                "operationId": "fastapi_admin_cache_load_post_v1_admin_cache_load_post",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Fastapi Admin Cache Load Post V1 Admin Cache Load Post",
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Fastapi Admin Cache Load Post",
+                "tags": [
+                    "admin"
+                ]
+            }
+        },
+        "/v1/admin/cache/save": {
+            "post": {
+                "description": "Save the current cache management data.\n\nReturns:\n    data (dict): The management data that was saved.",
+                "operationId": "fastapi_admin_cache_save_post_v1_admin_cache_save_post",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Fastapi Admin Cache Save Post V1 Admin Cache Save Post",
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Fastapi Admin Cache Save Post",
+                "tags": [
+                    "admin"
+                ]
+            }
+        },
+        "/v1/admin/server/restart": {
+            "post": {
+                "description": "Restart the server.\n\nRestart EOS properly by starting a new instance before exiting the old one.",
+                "operationId": "fastapi_admin_server_restart_post_v1_admin_server_restart_post",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Fastapi Admin Server Restart Post V1 Admin Server Restart Post",
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Fastapi Admin Server Restart Post",
+                "tags": [
+                    "admin"
+                ]
+            }
+        },
+        "/v1/admin/server/shutdown": {
+            "post": {
+                "description": "Shutdown the server.",
+                "operationId": "fastapi_admin_server_shutdown_post_v1_admin_server_shutdown_post",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "title": "Response Fastapi Admin Server Shutdown Post V1 Admin Server Shutdown Post",
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Fastapi Admin Server Shutdown Post",
+                "tags": [
+                    "admin"
+                ]
+            }
+        },
         "/v1/config": {
             "get": {
                 "description": "Get the current configuration.\n\nReturns:\n    configuration (ConfigEOS): The current configuration.",
@@ -3145,9 +3370,9 @@
             }
         },
         "/v1/config/reset": {
-            "put": {
-                "description": "Reset the configuration to the EOS configuration file.\n\nReturns:\n    configuration (ConfigEOS): The current configuration after update.",
-                "operationId": "fastapi_config_update_post_v1_config_reset_put",
+            "post": {
+                "description": "Reset the configuration.\n\nReturns:\n    configuration (ConfigEOS): The current configuration after update.",
+                "operationId": "fastapi_config_reset_post_v1_config_reset_post",
                 "responses": {
                     "200": {
                         "content": {
@@ -3160,7 +3385,7 @@
                         "description": "Successful Response"
                     }
                 },
-                "summary": "Fastapi Config Update Post",
+                "summary": "Fastapi Config Reset Post",
                 "tags": [
                     "config"
                 ]
@@ -3261,6 +3486,23 @@
                 "tags": [
                     "config"
                 ]
+            }
+        },
+        "/v1/health": {
+            "get": {
+                "description": "Health check endpoint to verify that the EOS server is alive.",
+                "operationId": "fastapi_health_get_v1_health_get",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        },
+                        "description": "Successful Response"
+                    }
+                },
+                "summary": "Fastapi Health Get"
             }
         },
         "/v1/measurement/data": {
@@ -3709,6 +3951,88 @@
                 ]
             }
         },
+        "/v1/prediction/import/{provider_id}": {
+            "put": {
+                "description": "Import prediction for given provider ID.\n\nArgs:\n    provider_id: ID of provider to update.\n    data: Prediction data.\n    force_enable: Update data even if provider is disabled.\n        Defaults to False.",
+                "operationId": "fastapi_prediction_import_provider_v1_prediction_import__provider_id__put",
+                "parameters": [
+                    {
+                        "description": "Provider ID.",
+                        "in": "path",
+                        "name": "provider_id",
+                        "required": true,
+                        "schema": {
+                            "description": "Provider ID.",
+                            "title": "Provider Id",
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "force_enable",
+                        "required": false,
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "boolean"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "title": "Force Enable"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "anyOf": [
+                                    {
+                                        "$ref": "#/components/schemas/PydanticDateTimeDataFrame"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/PydanticDateTimeData"
+                                    },
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ],
+                                "title": "Data"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        },
+                        "description": "Successful Response"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HTTPValidationError"
+                                }
+                            }
+                        },
+                        "description": "Validation Error"
+                    }
+                },
+                "summary": "Fastapi Prediction Import Provider",
+                "tags": [
+                    "prediction"
+                ]
+            }
+        },
         "/v1/prediction/keys": {
             "get": {
                 "description": "Get a list of available prediction keys.",
@@ -3788,7 +4112,7 @@
                         }
                     },
                     {
-                        "description": "Time duration for each interval.",
+                        "description": "Time duration for each interval. Defaults to 1 hour.",
                         "in": "query",
                         "name": "interval",
                         "required": false,
@@ -3801,7 +4125,7 @@
                                     "type": "null"
                                 }
                             ],
-                            "description": "Time duration for each interval.",
+                            "description": "Time duration for each interval. Defaults to 1 hour.",
                             "title": "Interval"
                         }
                     }
@@ -3981,9 +4305,16 @@
                         "name": "force_update",
                         "required": false,
                         "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "boolean"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
                             "default": false,
-                            "title": "Force Update",
-                            "type": "boolean"
+                            "title": "Force Update"
                         }
                     },
                     {
@@ -3991,9 +4322,16 @@
                         "name": "force_enable",
                         "required": false,
                         "schema": {
+                            "anyOf": [
+                                {
+                                    "type": "boolean"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
                             "default": false,
-                            "title": "Force Enable",
-                            "type": "boolean"
+                            "title": "Force Enable"
                         }
                     }
                 ],

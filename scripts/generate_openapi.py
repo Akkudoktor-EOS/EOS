@@ -16,6 +16,7 @@ Example:
 
 import argparse
 import json
+import os
 import sys
 
 from fastapi.openapi.utils import get_openapi
@@ -57,9 +58,11 @@ def main():
     try:
         openapi_spec = generate_openapi()
         openapi_spec_str = json.dumps(openapi_spec, indent=2)
+        if os.name == "nt":
+            openapi_spec_str = openapi_spec_str.replace("127.0.0.1", "0.0.0.0")
         if args.output_file:
             # Write to file
-            with open(args.output_file, "w", encoding="utf8") as f:
+            with open(args.output_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(openapi_spec_str)
         else:
             # Write to std output

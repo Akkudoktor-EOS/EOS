@@ -24,14 +24,16 @@ class ServerCommonSettings(SettingsBaseModel):
         To be added
     """
 
-    host: Optional[IPvAnyAddress] = Field(default="0.0.0.0", description="EOS server IP address.")
+    host: Optional[IPvAnyAddress] = Field(
+        default=get_default_host(), description="EOS server IP address."
+    )
     port: Optional[int] = Field(default=8503, description="EOS server IP port number.")
     verbose: Optional[bool] = Field(default=False, description="Enable debug output")
     startup_eosdash: Optional[bool] = Field(
         default=True, description="EOS server to start EOSdash server."
     )
     eosdash_host: Optional[IPvAnyAddress] = Field(
-        default="0.0.0.0", description="EOSdash server IP address."
+        default=get_default_host(), description="EOSdash server IP address."
     )
     eosdash_port: Optional[int] = Field(default=8504, description="EOSdash server IP port number.")
 

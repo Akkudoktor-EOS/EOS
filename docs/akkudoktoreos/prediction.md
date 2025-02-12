@@ -143,8 +143,11 @@ The prediction key for the electricity price forecast data is:
 - `elecprice_marketprice_wh`: Electricity market price per Wh (€/Wh).
 
 The electricity proce forecast data must be provided in one of the formats described in
-<project:#prediction-import-providers>. The data source must be given in the
+<project:#prediction-import-providers>. The data source can be given in the
 `import_file_path` or `import_json` configuration option.
+
+The data may additionally or solely be provided by the
+**PUT** `/v1/prediction/import/ElecPriceImport` endpoint.
 
 ## Load Prediction
 
@@ -186,8 +189,11 @@ The prediction keys for the load forecast data are:
 - `load_mean_adjusted`: Predicted load mean value adjusted by load measurement (W).
 
 The load forecast data must be provided in one of the formats described in
-<project:#prediction-import-providers>. The data source must be given in the `loadimport_file_path`
+<project:#prediction-import-providers>. The data source can be given in the `loadimport_file_path`
 or `loadimport_json` configuration option.
+
+The data may additionally or solely be provided by the
+**PUT** `/v1/prediction/import/LoadImport` endpoint.
 
 ## PV Power Prediction
 
@@ -403,8 +409,11 @@ The prediction keys for the PV forecast data are:
 - `pvforecast_dc_power`: Total AC power (W).
 
 The PV forecast data must be provided in one of the formats described in
-<project:#prediction-import-providers>. The data source must be given in the
+<project:#prediction-import-providers>. The data source can be given in the
 `import_file_path` or `import_json` configuration option.
+
+The data may additionally or solely be provided by the
+**PUT** `/v1/prediction/import/PVForecastImport` endpoint.
 
 ## Weather Prediction
 
@@ -501,7 +510,7 @@ The `WeatherImport` provider is designed to import weather forecast data from a 
 string. An external entity should update the file or JSON string whenever new prediction data
 becomes available.
 
-The prediction keys for the PV forecast data are:
+The prediction keys for the weather forecast data are:
 
 - `weather_dew_point`: Dew Point (°C)
 - `weather_dhi`: Diffuse Horizontal Irradiance (W/m2)
@@ -527,5 +536,8 @@ The prediction keys for the PV forecast data are:
 - `weather_wind_speed`: Wind Speed (kmph)
 
 The PV forecast data must be provided in one of the formats described in
-<project:#prediction-import-providers>. The data source must be given in the
+<project:#prediction-import-providers>. The data source can be given in the
 `import_file_path` or `import_json` configuration option.
+
+The data may additionally or solely be provided by the
+**PUT** `/v1/prediction/import/WeatherImport` endpoint.

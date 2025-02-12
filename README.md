@@ -40,8 +40,8 @@ Windows:
 
 ```cmd
 python -m venv .venv
- .venv\Scripts\pip install -r requirements.txt
- .venv\Scripts\pip install -e .
+.venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\pip install -e .
 ```
 
 Finally, start the EOS server to access it at `http://localhost:8503` (API docs at `http://localhost:8503/docs`):

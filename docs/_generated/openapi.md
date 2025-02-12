@@ -166,6 +166,127 @@ Note:
 
 ---
 
+## GET /v1/admin/cache
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_admin_cache_get_v1_admin_cache_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_admin_cache_get_v1_admin_cache_get)
+
+Fastapi Admin Cache Get
+
+```
+Current cache management data.
+
+Returns:
+    data (dict): The management data.
+```
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## POST /v1/admin/cache/clear
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_admin_cache_clear_post_v1_admin_cache_clear_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_admin_cache_clear_post_v1_admin_cache_clear_post)
+
+Fastapi Admin Cache Clear Post
+
+```
+Clear the cache from expired data.
+
+Deletes expired cache files.
+
+Args:
+    clear_all (Optional[bool]): Delete all cached files. Default is False.
+
+Returns:
+    data (dict): The management data after cleanup.
+```
+
+**Parameters**:
+
+- `clear_all` (query, optional): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## POST /v1/admin/cache/load
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_admin_cache_load_post_v1_admin_cache_load_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_admin_cache_load_post_v1_admin_cache_load_post)
+
+Fastapi Admin Cache Load Post
+
+```
+Load cache management data.
+
+Returns:
+    data (dict): The management data that was loaded.
+```
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## POST /v1/admin/cache/save
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_admin_cache_save_post_v1_admin_cache_save_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_admin_cache_save_post_v1_admin_cache_save_post)
+
+Fastapi Admin Cache Save Post
+
+```
+Save the current cache management data.
+
+Returns:
+    data (dict): The management data that was saved.
+```
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## POST /v1/admin/server/restart
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_admin_server_restart_post_v1_admin_server_restart_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_admin_server_restart_post_v1_admin_server_restart_post)
+
+Fastapi Admin Server Restart Post
+
+```
+Restart the server.
+
+Restart EOS properly by starting a new instance before exiting the old one.
+```
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## POST /v1/admin/server/shutdown
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_admin_server_shutdown_post_v1_admin_server_shutdown_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_admin_server_shutdown_post_v1_admin_server_shutdown_post)
+
+Fastapi Admin Server Shutdown Post
+
+```
+Shutdown the server.
+```
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
 ## GET /v1/config
 
 **Links**: [local](http://localhost:8503/docs#/default/fastapi_config_get_v1_config_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_get_v1_config_get)
@@ -238,14 +359,14 @@ Returns:
 
 ---
 
-## PUT /v1/config/reset
+## POST /v1/config/reset
 
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_update_post_v1_config_reset_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_update_post_v1_config_reset_put)
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_reset_post_v1_config_reset_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_reset_post_v1_config_reset_post)
 
-Fastapi Config Update Post
+Fastapi Config Reset Post
 
 ```
-Reset the configuration to the EOS configuration file.
+Reset the configuration.
 
 Returns:
     configuration (ConfigEOS): The current configuration after update.
@@ -318,6 +439,22 @@ Returns:
 - **200**: Successful Response
 
 - **422**: Validation Error
+
+---
+
+## GET /v1/health
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_health_get_v1_health_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_health_get_v1_health_get)
+
+Fastapi Health Get
+
+```
+Health check endpoint to verify that the EOS server is alive.
+```
+
+**Responses**:
+
+- **200**: Successful Response
 
 ---
 
@@ -537,6 +674,56 @@ Merge the measurement of given key and value into EOS measurements at given date
 
 ---
 
+## PUT /v1/prediction/import/{provider_id}
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_import_provider_v1_prediction_import__provider_id__put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_import_provider_v1_prediction_import__provider_id__put)
+
+Fastapi Prediction Import Provider
+
+```
+Import prediction for given provider ID.
+
+Args:
+    provider_id: ID of provider to update.
+    data: Prediction data.
+    force_enable: Update data even if provider is disabled.
+        Defaults to False.
+```
+
+**Parameters**:
+
+- `provider_id` (path, required): Provider ID.
+
+- `force_enable` (query, optional): No description provided.
+
+**Request Body**:
+
+- `application/json`: {
+  "anyOf": [
+    {
+      "$ref": "#/components/schemas/PydanticDateTimeDataFrame"
+    },
+    {
+      "$ref": "#/components/schemas/PydanticDateTimeData"
+    },
+    {
+      "type": "object"
+    },
+    {
+      "type": "null"
+    }
+  ],
+  "title": "Data"
+}
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
 ## GET /v1/prediction/keys
 
 **Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_keys_get_v1_prediction_keys_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_keys_get_v1_prediction_keys_get)
@@ -580,7 +767,7 @@ Args:
 
 - `end_datetime` (query, optional): Ending datetime (exclusive).
 
-- `interval` (query, optional): Time duration for each interval.
+- `interval` (query, optional): Time duration for each interval. Defaults to 1 hour.
 
 **Responses**:
 

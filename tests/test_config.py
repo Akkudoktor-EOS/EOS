@@ -1,5 +1,6 @@
 import tempfile
 from pathlib import Path
+from typing import Union
 from unittest.mock import patch
 
 import pytest
@@ -46,12 +47,19 @@ def test_computed_paths(config_eos):
                 "general": {
                     "data_folder_path": "/base/data",
                     "data_output_subpath": "extra/output",
-                    "data_cache_subpath": "somewhere/cache",
-                }
+                },
+                "cache": {
+                    "subpath": "somewhere/cache",
+                },
             }
         )
+    assert config_eos.general.data_folder_path == Path("/base/data")
     assert config_eos.general.data_output_path == Path("/base/data/extra/output")
-    assert config_eos.general.data_cache_path == Path("/base/data/somewhere/cache")
+    assert config_eos.cache.path() == Path("/base/data/somewhere/cache")
+    # Check non configurable pathes
+    assert config_eos.package_root_path == Path(__file__).parent.parent.resolve().joinpath(
+        "src/akkudoktoreos"
+    )
     # reset settings so the config_eos fixture can verify the default paths
     config_eos.reset_settings()
 
@@ -374,3 +382,64 @@ def test_get_nested_key(path, expected_value, exception, config_eos):
     else:
         with pytest.raises(exception):
             config_eos.get_config_value(path)
+
+
+def test_merge_settings_from_dict_invalid(config_eos):
+    """Test merging invalid data."""
+    invalid_settings = {
+        "general": {
+            "latitude": "invalid_latitude"  # Should be a float
+        },
+    }
+
+    with pytest.raises(Exception):  # Pydantic ValidationError expected
+        config_eos.merge_settings_from_dict(invalid_settings)
+
+
+def test_merge_settings_partial(config_eos):
+    """Test merging only a subset of settings."""
+    partial_settings: dict[str, dict[str, Union[float, None, str]]] = {
+        "general": {
+            "latitude": 51.1657  # Only latitude is updated
+        },
+    }
+
+    config_eos.merge_settings_from_dict(partial_settings)
+    assert config_eos.general.latitude == 51.1657
+    assert config_eos.general.longitude == 13.405  # Should remain unchanged
+
+    partial_settings = {
+        "weather": {
+            "provider": "BrightSky",
+        },
+    }
+
+    config_eos.merge_settings_from_dict(partial_settings)
+    assert config_eos.weather.provider == "BrightSky"
+
+    partial_settings = {
+        "general": {
+            "latitude": None,
+        },
+        "weather": {
+            "provider": "ClearOutside",
+        },
+    }
+
+    config_eos.merge_settings_from_dict(partial_settings)
+    assert config_eos.general.latitude is None
+    assert config_eos.weather.provider == "ClearOutside"
+
+    # Assure update keeps same values
+    config_eos.update()
+    assert config_eos.general.latitude is None
+    assert config_eos.weather.provider == "ClearOutside"
+
+
+def test_merge_settings_empty(config_eos):
+    """Test merging an empty dictionary does not change settings."""
+    original_latitude = config_eos.general.latitude
+
+    config_eos.merge_settings_from_dict({})  # No changes
+
+    assert config_eos.general.latitude == original_latitude  # Should remain unchanged

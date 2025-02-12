@@ -201,8 +201,8 @@ class TestPredictionProvider:
     def test_update_method_force_enable(self, provider, monkeypatch):
         """Test that `update` executes when `force_enable` is True, even if `enabled` is False."""
         # Preset values that are needed by update
-        monkeypatch.setenv("EOS_PREDICTION__LATITUDE", "37.7749")
-        monkeypatch.setenv("EOS_PREDICTION__LONGITUDE", "-122.4194")
+        monkeypatch.setenv("EOS_GENERAL__LATITUDE", "37.7749")
+        monkeypatch.setenv("EOS_GENERAL__LONGITUDE", "-122.4194")
 
         # Override enabled to return False for this test
         DerivedPredictionProvider.provider_enabled = False

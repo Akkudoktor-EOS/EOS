@@ -80,7 +80,7 @@ def sample_settings(config_eos):
 @pytest.fixture
 def sample_forecast_data():
     """Fixture that returns sample forecast data converted to pydantic model."""
-    with open(FILE_TESTDATA_PV_FORECAST_INPUT_1, "r", encoding="utf8") as f_in:
+    with FILE_TESTDATA_PV_FORECAST_INPUT_1.open("r", encoding="utf-8", newline=None) as f_in:
         input_data = f_in.read()
     return PVForecastAkkudoktor._validate_data(input_data)
 
@@ -88,7 +88,7 @@ def sample_forecast_data():
 @pytest.fixture
 def sample_forecast_data_raw():
     """Fixture that returns raw sample forecast data."""
-    with open(FILE_TESTDATA_PV_FORECAST_INPUT_1, "r", encoding="utf8") as f_in:
+    with FILE_TESTDATA_PV_FORECAST_INPUT_1.open("r", encoding="utf-8", newline=None) as f_in:
         input_data = f_in.read()
     return input_data
 
@@ -96,7 +96,7 @@ def sample_forecast_data_raw():
 @pytest.fixture
 def sample_forecast_report():
     """Fixture that returns sample forecast data report."""
-    with open(FILE_TESTDATA_PV_FORECAST_RESULT_1, "r", encoding="utf8") as f_res:
+    with FILE_TESTDATA_PV_FORECAST_RESULT_1.open("r", encoding="utf-8", newline=None) as f_res:
         input_data = f_res.read()
     return input_data
 
