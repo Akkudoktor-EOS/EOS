@@ -22,12 +22,13 @@ from pydantic_settings import (
     PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
-from pydantic_settings.sources import ConfigFileSourceMixin
 
 # settings
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.core.cachesettings import CacheCommonSettings
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.decorators import classproperty
+from akkudoktoreos.core.emsettings import EnergyManagementCommonSettings
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.logsettings import LoggingCommonSettings
 from akkudoktoreos.core.pydantic import access_nested_value, merge_models
@@ -96,10 +97,6 @@ class GeneralSettings(SettingsBaseModel):
         default="output", description="Sub-path for the EOS output data directory."
     )
 
-    data_cache_subpath: Optional[Path] = Field(
-        default="cache", description="Sub-path for the EOS cache data directory."
-    )
-
     latitude: Optional[float] = Field(
         default=52.52,
         ge=-90.0,
@@ -130,12 +127,6 @@ class GeneralSettings(SettingsBaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def data_cache_path(self) -> Optional[Path]:
-        """Compute data_cache_path based on data_folder_path."""
-        return get_absolute_path(self.data_folder_path, self.data_cache_subpath)
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
     def config_folder_path(self) -> Optional[Path]:
         """Path to EOS configuration directory."""
         return self._config_folder_path
@@ -153,18 +144,62 @@ class SettingsEOS(BaseSettings):
     Used by updating the configuration with specific settings only.
     """
 
-    general: Optional[GeneralSettings] = None
-    logging: Optional[LoggingCommonSettings] = None
-    devices: Optional[DevicesCommonSettings] = None
-    measurement: Optional[MeasurementCommonSettings] = None
-    optimization: Optional[OptimizationCommonSettings] = None
-    prediction: Optional[PredictionCommonSettings] = None
-    elecprice: Optional[ElecPriceCommonSettings] = None
-    load: Optional[LoadCommonSettings] = None
-    pvforecast: Optional[PVForecastCommonSettings] = None
-    weather: Optional[WeatherCommonSettings] = None
-    server: Optional[ServerCommonSettings] = None
-    utils: Optional[UtilsCommonSettings] = None
+    general: Optional[GeneralSettings] = Field(
+        default=None,
+        description="General Settings",
+    )
+    cache: Optional[CacheCommonSettings] = Field(
+        default=None,
+        description="Cache Settings",
+    )
+    ems: Optional[EnergyManagementCommonSettings] = Field(
+        default=None,
+        description="Energy Management Settings",
+    )
+    logging: Optional[LoggingCommonSettings] = Field(
+        default=None,
+        description="Logging Settings",
+    )
+    devices: Optional[DevicesCommonSettings] = Field(
+        default=None,
+        description="Devices Settings",
+    )
+    measurement: Optional[MeasurementCommonSettings] = Field(
+        default=None,
+        description="Measurement Settings",
+    )
+    optimization: Optional[OptimizationCommonSettings] = Field(
+        default=None,
+        description="Optimization Settings",
+    )
+    prediction: Optional[PredictionCommonSettings] = Field(
+        default=None,
+        description="Prediction Settings",
+    )
+    elecprice: Optional[ElecPriceCommonSettings] = Field(
+        default=None,
+        description="Electricity Price Settings",
+    )
+    load: Optional[LoadCommonSettings] = Field(
+        default=None,
+        description="Load Settings",
+    )
+    pvforecast: Optional[PVForecastCommonSettings] = Field(
+        default=None,
+        description="PV Forecast Settings",
+    )
+    weather: Optional[WeatherCommonSettings] = Field(
+        default=None,
+        description="Weather Settings",
+    )
+    server: Optional[ServerCommonSettings] = Field(
+        default=None,
+        description="Server Settings",
+    )
+    utils: Optional[UtilsCommonSettings] = Field(
+        default=None,
+        description="Utilities Settings",
+    )
 
     model_config = SettingsConfigDict(
         env_nested_delimiter="__",
@@ -181,6 +216,8 @@ class SettingsEOSDefaults(SettingsEOS):
     """
 
     general: GeneralSettings = GeneralSettings()
+    cache: CacheCommonSettings = CacheCommonSettings()
+    ems: EnergyManagementCommonSettings = EnergyManagementCommonSettings()
     logging: LoggingCommonSettings = LoggingCommonSettings()
     devices: DevicesCommonSettings = DevicesCommonSettings()
     measurement: MeasurementCommonSettings = MeasurementCommonSettings()
@@ -290,7 +327,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             dotenv_settings,
         ]
 
-        file_settings: Optional[ConfigFileSourceMixin] = None
+        file_settings: Optional[JsonConfigSettingsSource] = None
         config_file, exists = cls._get_config_file_path()
         config_dir = config_file.parent
         if not exists:
@@ -335,13 +372,15 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         """
         if hasattr(self, "_initialized"):
             return
-        super().__init__(*args, **kwargs)
-        self._create_initial_config_file()
-        self._update_data_folder_path()
+        self._setup(self, *args, **kwargs)
 
     def _setup(self, *args: Any, **kwargs: Any) -> None:
         """Re-initialize global settings."""
+        # Assure settings base knows EOS configuration
+        SettingsBaseModel.config = self
+        # (Re-)load settings
         SettingsEOSDefaults.__init__(self, *args, **kwargs)
+        # Init config file and data folder pathes
         self._create_initial_config_file()
         self._update_data_folder_path()
 
@@ -417,7 +456,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         if self.general.config_file_path and not self.general.config_file_path.exists():
             self.general.config_file_path.parent.mkdir(parents=True, exist_ok=True)
             try:
-                with open(self.general.config_file_path, "w") as f:
+                with self.general.config_file_path.open("w", encoding="utf-8", newline="\n") as f:
                     f.write(self.model_dump_json(indent=4))
             except Exception as e:
                 logger.error(
@@ -489,7 +528,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         """
         if not self.general.config_file_path:
             raise ValueError("Configuration file path unknown.")
-        with self.general.config_file_path.open("w", encoding=self.ENCODING) as f_out:
+        with self.general.config_file_path.open("w", encoding="utf-8", newline="\n") as f_out:
             json_str = super().model_dump_json()
             f_out.write(json_str)
 

@@ -1,32 +1,14 @@
-"""Class for in-memory managing of cache files.
+"""In-memory and file caching.
 
-The `CacheFileStore` class is a singleton-based, thread-safe key-value store for managing
-temporary file objects, allowing the creation, retrieval, and management of cache files.
-
-Classes:
---------
-- CacheFileStore: A thread-safe, singleton class for in-memory managing of file-like cache objects.
-- CacheFileStoreMeta: Metaclass for enforcing the singleton behavior in `CacheFileStore`.
-
-Example usage:
---------------
-    # CacheFileStore usage
-    >>> cache_store = CacheFileStore()
-    >>> cache_store.create('example_key')
-    >>> cache_file = cache_store.get('example_key')
-    >>> cache_file.write('Some data')
-    >>> cache_file.seek(0)
-    >>> print(cache_file.read())  # Output: 'Some data'
-
-Notes:
-------
-- Cache files are automatically associated with the current date unless specified.
+Decorators and classes for caching results of computations,
+both in memory (using an LRU cache) and in temporary files. It also includes
+mechanisms for managing cache file expiration and retrieval.
 """
 
-from __future__ import annotations
-
+import functools
 import hashlib
 import inspect
+import json
 import os
 import pickle
 import tempfile
@@ -35,8 +17,8 @@ from typing import (
     IO,
     Any,
     Callable,
+    ClassVar,
     Dict,
-    Generic,
     List,
     Literal,
     Optional,
@@ -44,29 +26,226 @@ from typing import (
     TypeVar,
 )
 
+import cachebox
 from pendulum import DateTime, Duration
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
-from akkudoktoreos.core.coreabc import ConfigMixin
+from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin
 from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
 logger = get_logger(__name__)
 
 
-T = TypeVar("T")
+# ---------------------------------
+# In-Memory Caching Functionality
+# ---------------------------------
+
+# Define a type variable for methods and functions
+TCallable = TypeVar("TCallable", bound=Callable[..., Any])
+
+
+def cache_until_update_store_callback(event: int, key: Any, value: Any) -> None:
+    """Calback function for CacheUntilUpdateStore."""
+    CacheUntilUpdateStore.last_event = event
+    CacheUntilUpdateStore.last_key = key
+    CacheUntilUpdateStore.last_value = value
+    if event == cachebox.EVENT_MISS:
+        CacheUntilUpdateStore.miss_count += 1
+    elif event == cachebox.EVENT_HIT:
+        CacheUntilUpdateStore.hit_count += 1
+    else:
+        # unreachable code
+        raise NotImplementedError
+
+
+class CacheUntilUpdateStore(SingletonMixin):
+    """Singleton-based in-memory LRU (Least Recently Used) cache.
+
+    This cache is shared across the application to store results of decorated
+    methods or functions until the next EMS (Energy Management System) update.
+
+    The cache uses an LRU eviction strategy, storing up to 100 items, with the oldest
+    items being evicted once the cache reaches its capacity.
+    """
+
+    cache: ClassVar[cachebox.LRUCache] = cachebox.LRUCache(maxsize=100, iterable=None, capacity=100)
+    last_event: ClassVar[Optional[int]] = None
+    last_key: ClassVar[Any] = None
+    last_value: ClassVar[Any] = None
+    hit_count: ClassVar[int] = 0
+    miss_count: ClassVar[int] = 0
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initializes the `CacheUntilUpdateStore` instance with default parameters.
+
+        The cache uses an LRU eviction strategy with a maximum size of 100 items.
+        This cache is a singleton, meaning only one instance will exist throughout
+        the application lifecycle.
+
+        Example:
+            >>> cache = CacheUntilUpdateStore()
+        """
+        if hasattr(self, "_initialized"):
+            return
+        super().__init__(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        """Propagates method calls to the cache object.
+
+        This method allows you to call methods on the underlying cache object,
+        and it will delegate the call to the cache's corresponding method.
+
+        Args:
+            name (str): The name of the method being called.
+
+        Returns:
+            Callable: A method bound to the cache object.
+
+        Raises:
+            AttributeError: If the cache object does not have the requested method.
+
+        Example:
+            >>> result = cache.get("key")
+        """
+        # This will return a method of the target cache, or raise an AttributeError
+        target_attr = getattr(self.cache, name)
+        if callable(target_attr):
+            return target_attr
+        else:
+            return target_attr
+
+    def __getitem__(self, key: Any) -> Any:
+        """Retrieves an item from the cache by its key.
+
+        Args:
+            key (Any): The key used for subscripting to retrieve an item.
+
+        Returns:
+            Any: The value corresponding to the key in the cache.
+
+        Raises:
+            KeyError: If the key does not exist in the cache.
+
+        Example:
+            >>> value = cache["user_data"]
+        """
+        return CacheUntilUpdateStore.cache[key]
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        """Stores an item in the cache.
+
+        Args:
+            key (Any): The key used to store the item in the cache.
+            value (Any): The value to store.
+
+        Example:
+            >>> cache["user_data"] = {"name": "Alice", "age": 30}
+        """
+        CacheUntilUpdateStore.cache[key] = value
+
+    def __len__(self) -> int:
+        """Returns the number of items in the cache."""
+        return len(CacheUntilUpdateStore.cache)
+
+    def __repr__(self) -> str:
+        """Provides a string representation of the CacheUntilUpdateStore object."""
+        return repr(CacheUntilUpdateStore.cache)
+
+    def clear(self) -> None:
+        """Clears the cache, removing all stored items.
+
+        This method propagates the `clear` method call to the underlying cache object,
+        ensuring that the cache is emptied when necessary (e.g., at the end of the energy
+        management system run).
+
+        Example:
+            >>> cache.clear()
+        """
+        if hasattr(self.cache, "clear") and callable(getattr(self.cache, "clear")):
+            CacheUntilUpdateStore.cache.clear()
+            CacheUntilUpdateStore.last_event = None
+            CacheUntilUpdateStore.last_key = None
+            CacheUntilUpdateStore.last_value = None
+            CacheUntilUpdateStore.miss_count = 0
+            CacheUntilUpdateStore.hit_count = 0
+        else:
+            raise AttributeError(f"'{self.cache.__class__.__name__}' object has no method 'clear'")
+
+
+def cachemethod_until_update(method: TCallable) -> TCallable:
+    """Decorator for in memory caching the result of an instance method.
+
+    This decorator caches the method's result in `CacheUntilUpdateStore`, ensuring
+    that subsequent calls with the same arguments return the cached result until the
+    next EMS update cycle.
+
+    Args:
+        method (Callable): The instance method to be decorated.
+
+    Returns:
+        Callable: The wrapped method with caching functionality.
+
+    Example:
+        >>> class MyClass:
+        >>>     @cachemethod_until_update
+        >>>     def expensive_method(self, param: str) -> str:
+        >>>         # Perform expensive computation
+        >>>         return f"Computed {param}"
+    """
+
+    @cachebox.cachedmethod(
+        cache=CacheUntilUpdateStore().cache, callback=cache_until_update_store_callback
+    )
+    @functools.wraps(method)
+    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+        result = method(self, *args, **kwargs)
+        return result
+
+    return wrapper
+
+
+def cache_until_update(func: TCallable) -> TCallable:
+    """Decorator for in memory caching the result of a standalone function.
+
+    This decorator caches the function's result in `CacheUntilUpdateStore`, ensuring
+    that subsequent calls with the same arguments return the cached result until the
+    next EMS update cycle.
+
+    Args:
+        func (Callable): The function to be decorated.
+
+    Returns:
+        Callable: The wrapped function with caching functionality.
+
+    Example:
+        >>> @cache_until_next_update
+        >>> def expensive_function(param: str) -> str:
+        >>>     # Perform expensive computation
+        >>>     return f"Computed {param}"
+    """
+
+    @cachebox.cached(
+        cache=CacheUntilUpdateStore().cache, callback=cache_until_update_store_callback
+    )
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        result = func(*args, **kwargs)
+        return result
+
+    return wrapper
+
+
+# ---------------------------------
+# Cache File Management
+# ---------------------------------
+
 Param = ParamSpec("Param")
 RetType = TypeVar("RetType")
 
 
-class CacheFileRecord(BaseModel):
-    # Enable custom serialization globally in config
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-        use_enum_values=True,
-        validate_assignment=True,
-    )
-
+class CacheFileRecord(PydanticBaseModel):
     cache_file: Any = Field(..., description="File descriptor of the cache file.")
     until_datetime: DateTime = Field(..., description="Datetime until the cache file is valid.")
     ttl_duration: Optional[Duration] = Field(
@@ -74,24 +253,7 @@ class CacheFileRecord(BaseModel):
     )
 
 
-class CacheFileStoreMeta(type, Generic[T]):
-    """A thread-safe implementation of CacheFileStore."""
-
-    _instances: dict[CacheFileStoreMeta[T], T] = {}
-
-    _lock: threading.Lock = threading.Lock()
-    """Lock object to synchronize threads on first access to CacheFileStore."""
-
-    def __call__(cls) -> T:
-        """Return CacheFileStore instance."""
-        with cls._lock:
-            if cls not in cls._instances:
-                instance = super().__call__()
-                cls._instances[cls] = instance
-        return cls._instances[cls]
-
-
-class CacheFileStore(ConfigMixin, metaclass=CacheFileStoreMeta):
+class CacheFileStore(ConfigMixin, SingletonMixin):
     """A key-value store that manages file-like tempfile objects to be used as cache files.
 
     Cache files are associated with a date. If no date is specified, the cache files are
@@ -105,7 +267,7 @@ class CacheFileStore(ConfigMixin, metaclass=CacheFileStoreMeta):
         store (dict): A dictionary that holds the in-memory cache file objects
                       with their associated keys and dates.
 
-    Example usage:
+    Example:
         >>> cache_store = CacheFileStore()
         >>> cache_store.create('example_file')
         >>> cache_file = cache_store.get('example_file')
@@ -114,14 +276,18 @@ class CacheFileStore(ConfigMixin, metaclass=CacheFileStoreMeta):
         >>> print(cache_file.read())  # Output: 'Some data'
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initializes the CacheFileStore instance.
 
         This constructor sets up an empty key-value store (a dictionary) where each key
         corresponds to a cache file that is associated with a given key and an optional date.
         """
+        if hasattr(self, "_initialized"):
+            return
         self._store: Dict[str, CacheFileRecord] = {}
-        self._store_lock = threading.Lock()
+        self._store_lock = threading.RLock()
+        self._store_file = self.config.cache.path().joinpath("cachefilestore.json")
+        super().__init__(*args, **kwargs)
 
     def _until_datetime_by_options(
         self,
@@ -329,9 +495,9 @@ class CacheFileStore(ConfigMixin, metaclass=CacheFileStoreMeta):
                 # File already available
                 cache_file_obj = cache_item.cache_file
             else:
-                self.config.general.data_cache_path.mkdir(parents=True, exist_ok=True)
+                self.config.cache.path().mkdir(parents=True, exist_ok=True)
                 cache_file_obj = tempfile.NamedTemporaryFile(
-                    mode=mode, delete=delete, suffix=suffix, dir=self.config.general.data_cache_path
+                    mode=mode, delete=delete, suffix=suffix, dir=self.config.cache.path()
                 )
                 self._store[cache_file_key] = CacheFileRecord(
                     cache_file=cache_file_obj,
@@ -502,7 +668,7 @@ class CacheFileStore(ConfigMixin, metaclass=CacheFileStoreMeta):
 
     def clear(
         self,
-        clear_all: bool = False,
+        clear_all: Optional[bool] = None,
         before_datetime: Optional[Any] = None,
     ) -> None:
         """Deletes all cache files or those expiring before `before_datetime`.
@@ -516,8 +682,6 @@ class CacheFileStore(ConfigMixin, metaclass=CacheFileStoreMeta):
         Raises:
             OSError: If there's an error during file deletion.
         """
-        delete_keys = []  # List of keys to delete, prevent deleting when traversing the store
-
         # Some weired logic to prevent calling to_datetime on clear_all.
         # Clear_all may be set on __del__. At this time some info for to_datetime will
         # not be available anymore.
@@ -528,6 +692,8 @@ class CacheFileStore(ConfigMixin, metaclass=CacheFileStoreMeta):
                 before_datetime = to_datetime(before_datetime)
 
         with self._store_lock:  # Synchronize access to _store
+            delete_keys = []  # List of keys to delete, prevent deleting when traversing the store
+
             for cache_file_key, cache_item in self._store.items():
                 # Some weired logic to prevent calling to_datetime on clear_all.
                 # Clear_all may be set on __del__. At this time some info for to_datetime will
@@ -565,6 +731,89 @@ class CacheFileStore(ConfigMixin, metaclass=CacheFileStoreMeta):
 
             for delete_key in delete_keys:
                 del self._store[delete_key]
+
+    def current_store(self) -> dict:
+        """Current state of the store.
+
+        Returns:
+            data (dict): current cache management data.
+        """
+        with self._store_lock:
+            store_current = {}
+            for key, record in self._store.items():
+                ttl_duration = record.ttl_duration
+                if ttl_duration:
+                    ttl_duration = ttl_duration.total_seconds()
+                store_current[key] = {
+                    # Convert file-like objects to file paths for serialization
+                    "cache_file": self._get_file_path(record.cache_file),
+                    "mode": record.cache_file.mode,
+                    "until_datetime": to_datetime(record.until_datetime, as_string=True),
+                    "ttl_duration": ttl_duration,
+                }
+            return store_current
+
+    def save_store(self) -> dict:
+        """Saves the current state of the store to a file.
+
+        Returns:
+            data (dict): cache management data that was saved.
+        """
+        with self._store_lock:
+            self._store_file.parent.mkdir(parents=True, exist_ok=True)
+            store_to_save = self.current_store()
+            with self._store_file.open("w", encoding="utf-8", newline="\n") as f:
+                try:
+                    json.dump(store_to_save, f, indent=4)
+                except Exception as e:
+                    logger.error(f"Error saving cache file store: {e}")
+            return store_to_save
+
+    def load_store(self) -> dict:
+        """Loads the state of the store from a file.
+
+        Returns:
+            data (dict): cache management data that was loaded.
+        """
+        with self._store_lock:
+            store_loaded = {}
+            if self._store_file.exists():
+                with self._store_file.open("r", encoding="utf-8", newline=None) as f:
+                    try:
+                        store_to_load = json.load(f)
+                    except Exception as e:
+                        logger.error(
+                            f"Error loading cache file store: {e}\n"
+                            + f"Deleting the store file {self._store_file}."
+                        )
+                        self._store_file.unlink()
+                        return {}
+                    for key, record in store_to_load.items():
+                        if record is None:
+                            continue
+                        if key in self._store.keys():
+                            # Already available - do not overwrite by record from file
+                            continue
+                        try:
+                            cache_file_obj = open(
+                                record["cache_file"], "rb+" if "b" in record["mode"] else "r+"
+                            )
+                        except Exception as e:
+                            cache_file_record = record["cache_file"]
+                            logger.warning(f"Can not open cache file '{cache_file_record}': {e}")
+                            continue
+                        ttl_duration = record["ttl_duration"]
+                        if ttl_duration:
+                            ttl_duration = to_duration(float(record["ttl_duration"]))
+                        self._store[key] = CacheFileRecord(
+                            cache_file=cache_file_obj,
+                            until_datetime=record["until_datetime"],
+                            ttl_duration=ttl_duration,
+                        )
+                        cache_file_obj.seek(0)
+                        # Remember newly loaded
+                        store_loaded[key] = record
+            return store_loaded
 
 
 def cache_in_file(

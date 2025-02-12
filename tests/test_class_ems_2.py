@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 
 from akkudoktoreos.core.ems import (
-    EnergieManagementSystem,
-    EnergieManagementSystemParameters,
+    EnergyManagement,
+    EnergyManagementParameters,
     SimulationResult,
     get_ems,
 )
@@ -20,8 +20,8 @@ start_hour = 0
 
 # Example initialization of necessary components
 @pytest.fixture
-def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
-    """Fixture to create an EnergieManagementSystem instance with given test parameters."""
+def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
+    """Fixture to create an EnergyManagement instance with given test parameters."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
         {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
@@ -130,7 +130,7 @@ def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
     # Initialize the energy management system with the respective parameters
     ems = get_ems()
     ems.set_parameters(
-        EnergieManagementSystemParameters(
+        EnergyManagementParameters(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
@@ -153,7 +153,7 @@ def create_ems_instance(devices_eos, config_eos) -> EnergieManagementSystem:
 
 
 def test_simulation(create_ems_instance):
-    """Test the EnergieManagementSystem simulation method."""
+    """Test the EnergyManagement simulation method."""
     ems = create_ems_instance
 
     # Simulate starting from hour 0 (this value can be adjusted)
@@ -254,7 +254,7 @@ def test_simulation(create_ems_instance):
 
 
 def test_set_parameters(create_ems_instance):
-    """Test the set_parameters method of EnergieManagementSystem."""
+    """Test the set_parameters method of EnergyManagement."""
     ems = create_ems_instance
 
     # Check if parameters are set correctly
@@ -267,7 +267,7 @@ def test_set_parameters(create_ems_instance):
 
 
 def test_set_akku_discharge_hours(create_ems_instance):
-    """Test the set_akku_discharge_hours method of EnergieManagementSystem."""
+    """Test the set_akku_discharge_hours method of EnergyManagement."""
     ems = create_ems_instance
     discharge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_akku_discharge_hours(discharge_hours)
@@ -277,7 +277,7 @@ def test_set_akku_discharge_hours(create_ems_instance):
 
 
 def test_set_akku_ac_charge_hours(create_ems_instance):
-    """Test the set_akku_ac_charge_hours method of EnergieManagementSystem."""
+    """Test the set_akku_ac_charge_hours method of EnergyManagement."""
     ems = create_ems_instance
     ac_charge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_akku_ac_charge_hours(ac_charge_hours)
@@ -287,7 +287,7 @@ def test_set_akku_ac_charge_hours(create_ems_instance):
 
 
 def test_set_akku_dc_charge_hours(create_ems_instance):
-    """Test the set_akku_dc_charge_hours method of EnergieManagementSystem."""
+    """Test the set_akku_dc_charge_hours method of EnergyManagement."""
     ems = create_ems_instance
     dc_charge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_akku_dc_charge_hours(dc_charge_hours)
@@ -297,7 +297,7 @@ def test_set_akku_dc_charge_hours(create_ems_instance):
 
 
 def test_set_ev_charge_hours(create_ems_instance):
-    """Test the set_ev_charge_hours method of EnergieManagementSystem."""
+    """Test the set_ev_charge_hours method of EnergyManagement."""
     ems = create_ems_instance
     ev_charge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_ev_charge_hours(ev_charge_hours)
@@ -307,7 +307,7 @@ def test_set_ev_charge_hours(create_ems_instance):
 
 
 def test_reset(create_ems_instance):
-    """Test the reset method of EnergieManagementSystem."""
+    """Test the reset method of EnergyManagement."""
     ems = create_ems_instance
     ems.reset()
     assert ems.ev.current_soc_percentage() == 100, "EV SOC should be reset to initial value"
@@ -317,7 +317,7 @@ def test_reset(create_ems_instance):
 
 
 def test_simulate_start_now(create_ems_instance):
-    """Test the simulate_start_now method of EnergieManagementSystem."""
+    """Test the simulate_start_now method of EnergyManagement."""
     ems = create_ems_instance
     result = ems.simulate_start_now()
     assert result is not None, "Result should not be None"

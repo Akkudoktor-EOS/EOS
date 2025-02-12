@@ -80,13 +80,13 @@ from typing import Any, List, Optional, Union
 import requests
 from pydantic import Field, ValidationError, computed_field
 
+from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.pvforecastabc import (
     PVForecastDataRecord,
     PVForecastProvider,
 )
-from akkudoktoreos.utils.cacheutil import cache_in_file
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
 
 logger = get_logger(__name__)
@@ -267,7 +267,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
         logger.debug(f"Response from {self._url()}: {response}")
         akkudoktor_data = self._validate_data(response.content)
         # We are working on fresh data (no cache), report update time
-        self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
+
         return akkudoktor_data
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:

@@ -562,6 +562,102 @@ class TestDataSequence:
         assert dates == [to_datetime(datetime(2023, 11, 5)), to_datetime(datetime(2023, 11, 6))]
         assert values == [0.8, 0.9]
 
+    def test_to_dataframe_full_data(self, sequence):
+        """Test conversion of all records to a DataFrame without filtering."""
+        record1 = self.create_test_record("2024-01-01T12:00:00Z", 10)
+        record2 = self.create_test_record("2024-01-01T13:00:00Z", 20)
+        record3 = self.create_test_record("2024-01-01T14:00:00Z", 30)
+        sequence.append(record1)
+        sequence.append(record2)
+        sequence.append(record3)
+
+        df = sequence.to_dataframe()
+
+        # Validate DataFrame structure
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert len(df) == 3  # All records should be included
+        assert "data_value" in df.columns
+
+    def test_to_dataframe_with_filter(self, sequence):
+        """Test filtering records by datetime range."""
+        record1 = self.create_test_record("2024-01-01T12:00:00Z", 10)
+        record2 = self.create_test_record("2024-01-01T13:00:00Z", 20)
+        record3 = self.create_test_record("2024-01-01T14:00:00Z", 30)
+        sequence.append(record1)
+        sequence.append(record2)
+        sequence.append(record3)
+
+        start = to_datetime("2024-01-01T12:30:00Z")
+        end = to_datetime("2024-01-01T14:00:00Z")
+
+        df = sequence.to_dataframe(start_datetime=start, end_datetime=end)
+
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert len(df) == 1  # Only one record should match the range
+        assert df.index[0] == pd.Timestamp("2024-01-01T13:00:00Z")
+
+    def test_to_dataframe_no_matching_records(self, sequence):
+        """Test when no records match the given datetime filter."""
+        record1 = self.create_test_record("2024-01-01T12:00:00Z", 10)
+        record2 = self.create_test_record("2024-01-01T13:00:00Z", 20)
+        sequence.append(record1)
+        sequence.append(record2)
+
+        start = to_datetime("2024-01-01T14:00:00Z")  # Start time after all records
+        end = to_datetime("2024-01-01T15:00:00Z")
+
+        df = sequence.to_dataframe(start_datetime=start, end_datetime=end)
+
+        assert isinstance(df, pd.DataFrame)
+        assert df.empty  # No records should match
+
+    def test_to_dataframe_empty_sequence(self, sequence):
+        """Test when DataSequence has no records."""
+        sequence = DataSequence(records=[])
+
+        df = sequence.to_dataframe()
+
+        assert isinstance(df, pd.DataFrame)
+        assert df.empty  # Should return an empty DataFrame
+
+    def test_to_dataframe_no_start_datetime(self, sequence):
+        """Test when only end_datetime is given (all past records should be included)."""
+        record1 = self.create_test_record("2024-01-01T12:00:00Z", 10)
+        record2 = self.create_test_record("2024-01-01T13:00:00Z", 20)
+        record3 = self.create_test_record("2024-01-01T14:00:00Z", 30)
+        sequence.append(record1)
+        sequence.append(record2)
+        sequence.append(record3)
+
+        end = to_datetime("2024-01-01T13:00:00Z")  # Include only first record
+
+        df = sequence.to_dataframe(end_datetime=end)
+
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert len(df) == 1
+        assert df.index[0] == pd.Timestamp("2024-01-01T12:00:00Z")
+
+    def test_to_dataframe_no_end_datetime(self, sequence):
+        """Test when only start_datetime is given (all future records should be included)."""
+        record1 = self.create_test_record("2024-01-01T12:00:00Z", 10)
+        record2 = self.create_test_record("2024-01-01T13:00:00Z", 20)
+        record3 = self.create_test_record("2024-01-01T14:00:00Z", 30)
+        sequence.append(record1)
+        sequence.append(record2)
+        sequence.append(record3)
+
+        start = to_datetime("2024-01-01T13:00:00Z")  # Include last two records
+
+        df = sequence.to_dataframe(start_datetime=start)
+
+        assert isinstance(df, pd.DataFrame)
+        assert not df.empty
+        assert len(df) == 2
+        assert df.index[0] == pd.Timestamp("2024-01-01T13:00:00Z")
+
 
 class TestDataProvider:
     # Fixtures and helper functions

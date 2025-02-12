@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -14,7 +15,7 @@ def test_openapi_spec_current(config_eos):
     expected_spec_path = DIR_PROJECT_ROOT / "openapi.json"
     new_spec_path = DIR_TESTDATA / "openapi-new.json"
 
-    with open(expected_spec_path) as f_expected:
+    with expected_spec_path.open("r", encoding="utf-8", newline=None) as f_expected:
         expected_spec = json.load(f_expected)
 
     # Patch get_config and import within guard to patch global variables within the eos module.
@@ -25,12 +26,14 @@ def test_openapi_spec_current(config_eos):
         from scripts import generate_openapi
 
         spec = generate_openapi.generate_openapi()
+        spec_str = json.dumps(spec, indent=4, sort_keys=True)
 
-    with open(new_spec_path, "w") as f_new:
-        json.dump(spec, f_new, indent=4, sort_keys=True)
+    if os.name == "nt":
+        spec_str = spec_str.replace("127.0.0.1", "0.0.0.0")
+    with new_spec_path.open("w", encoding="utf-8", newline="\n") as f_new:
+        f_new.write(spec_str)
 
     # Serialize to ensure comparison is consistent
-    spec_str = json.dumps(spec, indent=4, sort_keys=True)
     expected_spec_str = json.dumps(expected_spec, indent=4, sort_keys=True)
 
     try:
@@ -47,7 +50,7 @@ def test_openapi_md_current(config_eos):
     expected_spec_md_path = DIR_PROJECT_ROOT / "docs" / "_generated" / "openapi.md"
     new_spec_md_path = DIR_TESTDATA / "openapi-new.md"
 
-    with open(expected_spec_md_path, encoding="utf8") as f_expected:
+    with expected_spec_md_path.open("r", encoding="utf-8", newline=None) as f_expected:
         expected_spec_md = f_expected.read()
 
     # Patch get_config and import within guard to patch global variables within the eos module.
@@ -59,7 +62,9 @@ def test_openapi_md_current(config_eos):
 
         spec_md = generate_openapi_md.generate_openapi_md()
 
-    with open(new_spec_md_path, "w", encoding="utf8") as f_new:
+    if os.name == "nt":
+        spec_md = spec_md.replace("127.0.0.1", "0.0.0.0")
+    with new_spec_md_path.open("w", encoding="utf-8", newline="\n") as f_new:
         f_new.write(spec_md)
 
     try:
@@ -76,7 +81,7 @@ def test_config_md_current(config_eos):
     expected_config_md_path = DIR_PROJECT_ROOT / "docs" / "_generated" / "config.md"
     new_config_md_path = DIR_TESTDATA / "config-new.md"
 
-    with open(expected_config_md_path, encoding="utf8") as f_expected:
+    with expected_config_md_path.open("r", encoding="utf-8", newline=None) as f_expected:
         expected_config_md = f_expected.read()
 
     # Patch get_config and import within guard to patch global variables within the eos module.
@@ -88,7 +93,9 @@ def test_config_md_current(config_eos):
 
         config_md = generate_config_md.generate_config_md(config_eos)
 
-    with open(new_config_md_path, "w", encoding="utf8") as f_new:
+    if os.name == "nt":
+        config_md = config_md.replace("127.0.0.1", "0.0.0.0").replace("\\\\", "/")
+    with new_config_md_path.open("w", encoding="utf-8", newline="\n") as f_new:
         f_new.write(config_md)
 
     try:

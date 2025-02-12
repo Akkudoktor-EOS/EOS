@@ -33,7 +33,7 @@ def provider(sample_import_1_json, config_eos):
 @pytest.fixture
 def sample_import_1_json():
     """Fixture that returns sample forecast data report."""
-    with open(FILE_TESTDATA_WEATHERIMPORT_1_JSON, "r") as f_res:
+    with FILE_TESTDATA_WEATHERIMPORT_1_JSON.open("r", encoding="utf-8", newline=None) as f_res:
         input_data = json.load(f_res)
     return input_data
 

@@ -12,7 +12,7 @@ from akkudoktoreos.core.coreabc import (
     DevicesMixin,
     EnergyManagementSystemMixin,
 )
-from akkudoktoreos.core.ems import EnergieManagementSystemParameters, SimulationResult
+from akkudoktoreos.core.ems import EnergyManagementParameters, SimulationResult
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import ParametersBaseModel
 from akkudoktoreos.devices.battery import (
@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 
 
 class OptimizationParameters(ParametersBaseModel):
-    ems: EnergieManagementSystemParameters
+    ems: EnergyManagementParameters
     pv_akku: Optional[SolarPanelBatteryParameters]
     inverter: Optional[InverterParameters]
     eauto: Optional[ElectricVehicleParameters]

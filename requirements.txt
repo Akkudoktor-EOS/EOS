@@ -1,3 +1,4 @@
+cachebox==4.4.2
 numpy==2.2.2
 numpydantic==1.6.7
 matplotlib==3.10.0
@@ -11,6 +12,7 @@ requests==2.32.3
 pandas==2.2.3
 pendulum==3.0.0
 platformdirs==4.3.6
+psutil==6.1.1
 pvlib==0.11.2
 pydantic==2.10.6
 statsmodels==0.14.4
