@@ -1,0 +1,20 @@
+{
+    "plugins": {
+        "md007": {
+            "enabled": true,
+            "code_block_line_length" : 160
+        },
+        "md013": {
+            "enabled": true,
+            "line_length" : 120
+        },
+        "md041": {
+            "enabled": false
+        }
+    },
+    "extensions": {
+        "front-matter" : {
+            "enabled" : true
+        }
+    }
+}

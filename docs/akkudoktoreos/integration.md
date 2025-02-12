@@ -17,18 +17,17 @@ APIs, and online services in creative and practical ways.
 
 Andreas Schmitz uses [Node-RED](https://nodered.org/) as part of his home automation setup.
 
-### Resources
+### Node-Red Resources
 
-- [Installation Guide (German)](https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/) — A detailed guide on integrating an early version of EOS with
-  `Node-RED`.
+- [Installation Guide (German)](https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/)
+  \— A detailed guide on integrating an early version of EOS with `Node-RED`.
 
 ## Home Assistant
 
 [Home Assistant](https://www.home-assistant.io/) is an open-source home automation platform that
 emphasizes local control and user privacy.
 
-### Resources
+### Home Assistant Resources
 
 - Duetting's [EOS Home Assistant Addon](https://github.com/Duetting/ha_eos_addon) — Additional
-  details can be found in this
-  [discussion thread](https://github.com/Akkudoktor-EOS/EOS/discussions/294).
+  details can be found in this [discussion thread](https://github.com/Akkudoktor-EOS/EOS/discussions/294).

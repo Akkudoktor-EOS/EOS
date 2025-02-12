@@ -24,7 +24,7 @@ akkudoktoreos/serverapi.md
 akkudoktoreos/api.rst
 ```
 
-# Indices and tables
+## Indices and tables
 
 - {ref}`genindex`
 - {ref}`modindex`
