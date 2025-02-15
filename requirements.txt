@@ -1,4 +1,4 @@
-numpy==2.2.2
+numpy==2.2.3
 numpydantic==1.6.7
 matplotlib==3.10.0
 fastapi[standard]==0.115.8
