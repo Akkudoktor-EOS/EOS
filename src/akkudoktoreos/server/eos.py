@@ -271,6 +271,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Handover to application
     yield
 
+    if config_eos.server.startup_eosdash:
+        eosdash_process.terminate()
+
     # On shutdown
     cache_save()
 
