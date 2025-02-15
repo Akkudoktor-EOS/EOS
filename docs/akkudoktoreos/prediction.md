@@ -217,13 +217,20 @@ Configuration options:
     - `PVForecastImport`: Imports from a file or JSON string.
 
   - `planes[].surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
-  - `planes[].surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).
+  - `planes[].surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane.
+                                Clockwise from north (north=0, east=90, south=180, west=270).
   - `planes[].userhorizon`: Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.
   - `planes[].peakpower`: Nominal power of PV system in kW.
   - `planes[].pvtechchoice`: PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.
   - `planes[].mountingplace`: Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.
   - `planes[].loss`: Sum of PV system losses in percent
-  - `planes[].trackingtype`: Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.
+  - `planes[].trackingtype`: Type of suntracking.
+                             0=fixed,
+                             1=single horizontal axis aligned north-south,
+                             2=two-axis tracking,
+                             3=vertical axis tracking,
+                             4=single horizontal axis aligned east-west,
+                             5=single inclined axis aligned north-south.
   - `planes[].optimal_surface_tilt`: Calculate the optimum tilt angle. Ignored for two-axis tracking.
   - `planes[].optimalangles`: Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.
   - `planes[].albedo`: Proportion of the light hitting the ground that it reflects back.
@@ -348,7 +355,8 @@ The following prediction configuration options of the PV system must be set:
 For each plane of the PV system the following configuration options must be set:
 
 - `pvforecast.planes[].surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
-- `pvforecast.planes[].surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).
+- `pvforecast.planes[].surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane.
+                                         Clockwise from north (north=0, east=90, south=180, west=270).
 - `pvforecast.planes[].userhorizon`: Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.
 - `pvforecast.planes[].inverter_paco`: AC power rating of the inverter. [W]
 - `pvforecast.planes[].peakpower`: Nominal power of PV system in kW.
@@ -448,8 +456,8 @@ Configuration options:
 
   - `provider`: Load provider id of provider to be used.
 
-    - `BrightSky`: Retrieves from https://api.brightsky.dev.
-    - `ClearOutside`: Retrieves from https://clearoutside.com/forecast.
+    - `BrightSky`: Retrieves from [BrightSky](https://api.brightsky.dev).
+    - `ClearOutside`: Retrieves from [ClearOutside](https://clearoutside.com/forecast).
     - `LoadImport`: Imports from a file or JSON string.
 
   - `provider_settings.import_file_path`: Path to the file to import weatherforecast data from.
