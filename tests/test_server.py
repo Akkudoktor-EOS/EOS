@@ -240,9 +240,9 @@ class TestServerStartStop:
         host = get_default_host()
         if os.name == "nt":
             # Windows does not provide SIGKILL
-            sigkill = signal.SIGTERM  # type: ignore[attr-defined]
+            sigkill = signal.SIGTERM  # type: ignore[attr-defined,unused-ignore]
         else:
-            sigkill = signal.SIGKILL  # type: ignore
+            sigkill = signal.SIGKILL  # type: ignore[attr-defined,unused-ignore]
         port = 8503
         eosdash_port = 8504
         timeout = 120

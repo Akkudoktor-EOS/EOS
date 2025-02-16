@@ -84,7 +84,7 @@ testpaths = [ "tests", ]
 files = ["src", "tests"]
 exclude = "class_soc_calc\\.py$"
 check_untyped_defs = true
-warn_unused_ignores = false
+warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
 module = "akkudoktoreos.*"
