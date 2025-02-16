@@ -123,23 +123,23 @@ def cfg_non_existent(request):
     user_dir = user_config_dir(ConfigEOS.APP_NAME)
     user_config_file = Path(user_dir).joinpath(ConfigEOS.CONFIG_FILE_NAME)
     cwd_config_file = Path.cwd().joinpath(ConfigEOS.CONFIG_FILE_NAME)
-    assert (
-        not user_config_file.exists()
-    ), f"Config file {user_config_file} exists, please delete before test!"
-    assert (
-        not cwd_config_file.exists()
-    ), f"Config file {cwd_config_file} exists, please delete before test!"
+    assert not user_config_file.exists(), (
+        f"Config file {user_config_file} exists, please delete before test!"
+    )
+    assert not cwd_config_file.exists(), (
+        f"Config file {cwd_config_file} exists, please delete before test!"
+    )
 
     # Yield to test
     yield
 
     # After test
-    assert (
-        not user_config_file.exists()
-    ), f"Config file {user_config_file} created, please check test!"
-    assert (
-        not cwd_config_file.exists()
-    ), f"Config file {cwd_config_file} created, please check test!"
+    assert not user_config_file.exists(), (
+        f"Config file {user_config_file} created, please check test!"
+    )
+    assert not cwd_config_file.exists(), (
+        f"Config file {cwd_config_file} created, please check test!"
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -311,7 +311,7 @@ def server_base(xprocess: XProcess) -> Generator[dict[str, Union[str, int]], Non
             # Windows does not provide SIGKILL
             sigkill = signal.SIGTERM
         else:
-            sigkill = signal.SIGKILL
+            sigkill = signal.SIGKILL  # type: ignore
         # - Use pid on EOS health endpoint
         try:
             result = requests.get(f"{server}/v1/health", timeout=2)

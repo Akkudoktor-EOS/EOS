@@ -204,7 +204,7 @@ async def server_shutdown_task() -> None:
     # Gracefully shut down this process.
     pid = psutil.Process().pid
     if os.name == "nt":
-        os.kill(pid, signal.CTRL_C_EVENT)  # type: ignore[attr-defined]
+        os.kill(pid, signal.CTRL_C_EVENT)
     else:
         os.kill(pid, signal.SIGTERM)
 
