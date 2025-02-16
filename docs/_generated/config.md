@@ -8,19 +8,19 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| `config_default_file_path` | `<class 'pathlib.Path'>` | `ro` | `N/A` | Compute the default config file path. |
-| `config_file_path` | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration file. |
-| `config_folder_path` | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration directory. |
+| `config_default_file_path` | `<class 'pathlib._local.Path'>` | `ro` | `N/A` | Compute the default config file path. |
+| `config_file_path` | `Optional[pathlib._local.Path]` | `ro` | `N/A` | Path to EOS configuration file. |
+| `config_folder_path` | `Optional[pathlib._local.Path]` | `ro` | `N/A` | Path to EOS configuration directory. |
 | `config_keys` | `List[str]` | `ro` | `N/A` | Returns the keys of all fields in the configuration. |
 | `config_keys_read_only` | `List[str]` | `ro` | `N/A` | Returns the keys of all read only fields in the configuration. |
-| `data_cache_path` | `Optional[pathlib.Path]` | `ro` | `N/A` | Compute data_cache_path based on data_folder_path. |
-| `data_cache_subpath` | `Optional[pathlib.Path]` | `rw` | `cache` | Sub-path for the EOS cache data directory. |
-| `data_folder_path` | `Optional[pathlib.Path]` | `rw` | `None` | Path to EOS data directory. |
-| `data_output_path` | `Optional[pathlib.Path]` | `ro` | `N/A` | Compute data_output_path based on data_folder_path. |
-| `data_output_subpath` | `Optional[pathlib.Path]` | `rw` | `output` | Sub-path for the EOS output data directory. |
+| `data_cache_path` | `Optional[pathlib._local.Path]` | `ro` | `N/A` | Compute data_cache_path based on data_folder_path. |
+| `data_cache_subpath` | `Optional[pathlib._local.Path]` | `rw` | `cache` | Sub-path for the EOS cache data directory. |
+| `data_folder_path` | `Optional[pathlib._local.Path]` | `rw` | `None` | Path to EOS data directory. |
+| `data_output_path` | `Optional[pathlib._local.Path]` | `ro` | `N/A` | Compute data_output_path based on data_folder_path. |
+| `data_output_subpath` | `Optional[pathlib._local.Path]` | `rw` | `output` | Sub-path for the EOS output data directory. |
 | `latitude` | `Optional[float]` | `rw` | `None` | Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°) |
 | `longitude` | `Optional[float]` | `rw` | `None` | Longitude in decimal degrees, within -180 to 180 (°) |
-| `package_root_path` | `<class 'pathlib.Path'>` | `ro` | `N/A` | Compute the package root path. |
+| `package_root_path` | `<class 'pathlib._local.Path'>` | `ro` | `N/A` | Compute the package root path. |
 | `timezone` | `Optional[str]` | `ro` | `N/A` | Compute timezone based on latitude and longitude. |
 :::
 
@@ -82,7 +82,7 @@
 | ---- | ---- | --------- | ------- | ----------- |
 | `elecprice_charges_kwh` | `Optional[float]` | `rw` | `None` | Electricity price charges (€/kWh). |
 | `elecprice_provider` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
-| `elecpriceimport_file_path` | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import elecprice data from. |
+| `elecpriceimport_file_path` | `Union[str, pathlib._local.Path, NoneType]` | `rw` | `None` | Path to the file to import elecprice data from. |
 | `elecpriceimport_json` | `Optional[str]` | `rw` | `None` | JSON string, dictionary of electricity price forecast value lists. |
 :::
 
@@ -131,7 +131,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| `load_import_file_path` | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import load data from. |
+| `load_import_file_path` | `Union[str, pathlib._local.Path, NoneType]` | `rw` | `None` | Path to the file to import load data from. |
 | `load_import_json` | `Optional[str]` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
 | `load_provider` | `Optional[str]` | `rw` | `None` | Load provider id of provider to be used. |
 | `loadakkudoktor_year_energy` | `Optional[float]` | `rw` | `None` | Yearly energy consumption (kWh). |
@@ -275,7 +275,7 @@
 | `pvforecast_planes_tilt` | `List[float]` | `ro` | `N/A` | Compute a list of the tilts per active planes. |
 | `pvforecast_planes_userhorizon` | `Any` | `ro` | `N/A` | Compute a list of the user horizon per active planes. |
 | `pvforecast_provider` | `Optional[str]` | `rw` | `None` | PVForecast provider id of provider to be used. |
-| `pvforecastimport_file_path` | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import PV forecast data from. |
+| `pvforecastimport_file_path` | `Union[str, pathlib._local.Path, NoneType]` | `rw` | `None` | Path to the file to import PV forecast data from. |
 | `pvforecastimport_json` | `Optional[str]` | `rw` | `None` | JSON string, dictionary of PV forecast value lists. |
 :::
 
@@ -287,11 +287,11 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| `server_eos_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOS server IP address. |
+| `server_eos_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `127.0.0.1` | EOS server IP address. |
 | `server_eos_port` | `Optional[int]` | `rw` | `8503` | EOS server IP port number. |
 | `server_eos_startup_eosdash` | `Optional[bool]` | `rw` | `True` | EOS server to start EOSdash server. |
 | `server_eos_verbose` | `Optional[bool]` | `rw` | `False` | Enable debug output |
-| `server_eosdash_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOSdash server IP address. |
+| `server_eosdash_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `127.0.0.1` | EOSdash server IP address. |
 | `server_eosdash_port` | `Optional[int]` | `rw` | `8504` | EOSdash server IP port number. |
 :::
 
@@ -304,6 +304,6 @@
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
 | `weather_provider` | `Optional[str]` | `rw` | `None` | Weather provider id of provider to be used. |
-| `weatherimport_file_path` | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import weather data from. |
+| `weatherimport_file_path` | `Union[str, pathlib._local.Path, NoneType]` | `rw` | `None` | Path to the file to import weather data from. |
 | `weatherimport_json` | `Optional[str]` | `rw` | `None` | JSON string, dictionary of weather forecast value lists. |
 :::

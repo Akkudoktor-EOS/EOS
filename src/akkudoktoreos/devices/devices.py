@@ -121,7 +121,7 @@ class Devices(SingletonMixin, DevicesBase):
     verluste_wh_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, description="The losses in watt-hours per hour."
     )
-    akku_soc_pro_stunde: Optional[NDArray[Shape["*"], float]] = Field(
+    battery_soc_per_hour: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
         description="The state of charge of the battery (not the EV) in percentage per hour.",
     )
@@ -183,7 +183,7 @@ class Devices(SingletonMixin, DevicesBase):
         self.grid_import_wh_pro_stunde = np.full((self.total_hours), np.nan)
         self.kosten_euro_pro_stunde = np.full((self.total_hours), np.nan)
         self.einnahmen_euro_pro_stunde = np.full((self.total_hours), np.nan)
-        self.akku_soc_pro_stunde = np.full((self.total_hours), np.nan)
+        self.battery_soc_per_hour = np.full((self.total_hours), np.nan)
         self.eauto_soc_pro_stunde = np.full((self.total_hours), np.nan)
         self.verluste_wh_pro_stunde = np.full((self.total_hours), np.nan)
         self.home_appliance_wh_per_hour = np.full((self.total_hours), np.nan)
@@ -191,7 +191,7 @@ class Devices(SingletonMixin, DevicesBase):
         # Set initial state
         simulation_step = to_duration("1 hour")
         if self.battery:
-            self.akku_soc_pro_stunde[0] = self.battery.current_soc_percentage()
+            self.battery_soc_per_hour[0] = self.battery.current_soc_percentage()
         if self.ev:
             self.eauto_soc_pro_stunde[0] = self.ev.current_soc_percentage()
 
@@ -280,9 +280,9 @@ class Devices(SingletonMixin, DevicesBase):
 
             # battery SOC tracking
             if self.battery:
-                self.akku_soc_pro_stunde[stunde_since_now] = self.battery.current_soc_percentage()
+                self.battery_soc_per_hour[stunde_since_now] = self.battery.current_soc_percentage()
             else:
-                self.akku_soc_pro_stunde[stunde_since_now] = 0.0
+                self.battery_soc_per_hour[stunde_since_now] = 0.0
 
     def report_dict(self) -> Dict[str, Any]:
         """Provides devices simulation output as a dictionary."""
@@ -291,7 +291,7 @@ class Devices(SingletonMixin, DevicesBase):
             "grid_export_Wh_pro_Stunde": self.grid_export_wh_pro_stunde,
             "grid_import_Wh_pro_Stunde": self.grid_import_wh_pro_stunde,
             "Kosten_Euro_pro_Stunde": self.kosten_euro_pro_stunde,
-            "akku_soc_pro_stunde": self.akku_soc_pro_stunde,
+            "battery_soc_per_hour": self.battery_soc_per_hour,
             "Einnahmen_Euro_pro_Stunde": self.einnahmen_euro_pro_stunde,
             "Gesamtbilanz_Euro": self.total_balance_euro,
             "EAuto_SoC_pro_Stunde": self.eauto_soc_pro_stunde,

@@ -145,7 +145,7 @@ Verify prices against your local tariffs.
         "Gesamtbilanz_Euro": 2.51,
         "Gesamteinnahmen_Euro": 2.88,
         "Gesamtkosten_Euro": 5.39,
-        "akku_soc_pro_stunde": [...]
+        "battery_soc_per_hour": [...]
     }
 }
 ```
@@ -173,10 +173,12 @@ The `result` object contains detailed information about the optimization outcome
 The length of the array is between 25 and 48 and starts at the current hour and ends at 23:00 tomorrow.
 
 - `Last_Wh_pro_Stunde`: Array of hourly load values in Wh
+
   - Shows the total energy consumption per hour
   - Includes household load, battery charging/discharging, and EV charging
 
 - `EAuto_SoC_pro_Stunde`: Array of hourly EV state of charge values (%)
+
   - Shows the projected EV battery level throughout the optimization period
 
 - `Einnahmen_Euro_pro_Stunde`: Array of hourly revenue values in Euro
@@ -189,7 +191,7 @@ The length of the array is between 25 and 48 and starts at the current hour and 
 
 - `Gesamtkosten_Euro`: Total costs in Euro
 
-- `akku_soc_pro_stunde`: Array of hourly battery state of charge values (%)
+- `battery_soc_per_hour`: Array of hourly battery state of charge values (%)
 
 ## Timeframe overview
 
