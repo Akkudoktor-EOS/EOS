@@ -242,7 +242,7 @@ class TestServerStartStop:
             # Windows does not provide SIGKILL
             sigkill = signal.SIGTERM  # type: ignore[attr-defined]
         else:
-            sigkill = signal.SIGKILL  # type: ignore[attr-defined]
+            sigkill = signal.SIGKILL  # type: ignore
         port = 8503
         eosdash_port = 8504
         timeout = 120
