@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 import sys
 
 import git
@@ -284,9 +285,11 @@ def main():
 
     try:
         openapi_md = generate_openapi_md()
+        if os.name == "nt":
+            openapi_md = openapi_md.replace("127.0.0.1", "0.0.0.0")
         if args.output_file:
             # Write to file
-            with open(args.output_file, "w", encoding="utf8") as f:
+            with open(args.output_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(openapi_md)
         else:
             # Write to std output

@@ -13,7 +13,7 @@ reference_file = DIR_TESTDATA / "test_example_report.pdf"
 
 def test_generate_pdf_example(config_eos):
     """Test generation of example visualization report."""
-    output_dir = config_eos.data_output_path
+    output_dir = config_eos.general.data_output_path
     assert output_dir is not None
     output_file = output_dir / filename
     assert not output_file.exists()

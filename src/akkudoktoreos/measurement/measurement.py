@@ -23,20 +23,22 @@ logger = get_logger(__name__)
 
 
 class MeasurementCommonSettings(SettingsBaseModel):
-    measurement_load0_name: Optional[str] = Field(
-        default=None, description="Name of the load0 source (e.g. 'Household', 'Heat Pump')"
+    """Measurement Configuration."""
+
+    load0_name: Optional[str] = Field(
+        default=None, description="Name of the load0 source", examples=["Household", "Heat Pump"]
     )
-    measurement_load1_name: Optional[str] = Field(
-        default=None, description="Name of the load1 source (e.g. 'Household', 'Heat Pump')"
+    load1_name: Optional[str] = Field(
+        default=None, description="Name of the load1 source", examples=[None]
     )
-    measurement_load2_name: Optional[str] = Field(
-        default=None, description="Name of the load2 source (e.g. 'Household', 'Heat Pump')"
+    load2_name: Optional[str] = Field(
+        default=None, description="Name of the load2 source", examples=[None]
     )
-    measurement_load3_name: Optional[str] = Field(
-        default=None, description="Name of the load3 source (e.g. 'Household', 'Heat Pump')"
+    load3_name: Optional[str] = Field(
+        default=None, description="Name of the load3 source", examples=[None]
     )
-    measurement_load4_name: Optional[str] = Field(
-        default=None, description="Name of the load4 source (e.g. 'Household', 'Heat Pump')"
+    load4_name: Optional[str] = Field(
+        default=None, description="Name of the load4 source", examples=[None]
     )
 
 
@@ -48,42 +50,42 @@ class MeasurementDataRecord(DataRecord):
     """
 
     # Single loads, to be aggregated to total load
-    measurement_load0_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load0 meter reading [kWh]"
+    load0_mr: Optional[float] = Field(
+        default=None, ge=0, description="Load0 meter reading [kWh]", examples=[40421]
     )
-    measurement_load1_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load1 meter reading [kWh]"
+    load1_mr: Optional[float] = Field(
+        default=None, ge=0, description="Load1 meter reading [kWh]", examples=[None]
     )
-    measurement_load2_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load2 meter reading [kWh]"
+    load2_mr: Optional[float] = Field(
+        default=None, ge=0, description="Load2 meter reading [kWh]", examples=[None]
     )
-    measurement_load3_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load3 meter reading [kWh]"
+    load3_mr: Optional[float] = Field(
+        default=None, ge=0, description="Load3 meter reading [kWh]", examples=[None]
     )
-    measurement_load4_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load4 meter reading [kWh]"
-    )
-
-    measurement_max_loads: ClassVar[int] = 5  # Maximum number of loads that can be set
-
-    measurement_grid_export_mr: Optional[float] = Field(
-        default=None, ge=0, description="Export to grid meter reading [kWh]"
+    load4_mr: Optional[float] = Field(
+        default=None, ge=0, description="Load4 meter reading [kWh]", examples=[None]
     )
 
-    measurement_grid_import_mr: Optional[float] = Field(
-        default=None, ge=0, description="Import from grid meter reading [kWh]"
+    max_loads: ClassVar[int] = 5  # Maximum number of loads that can be set
+
+    grid_export_mr: Optional[float] = Field(
+        default=None, ge=0, description="Export to grid meter reading [kWh]", examples=[1000]
+    )
+
+    grid_import_mr: Optional[float] = Field(
+        default=None, ge=0, description="Import from grid meter reading [kWh]", examples=[1000]
     )
 
     # Computed fields
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def measurement_loads(self) -> List[str]:
+    def loads(self) -> List[str]:
         """Compute a list of active loads."""
         active_loads = []
 
-        # Loop through measurement_loadx
-        for i in range(self.measurement_max_loads):
-            load_attr = f"measurement_load{i}_mr"
+        # Loop through loadx
+        for i in range(self.max_loads):
+            load_attr = f"load{i}_mr"
 
             # Check if either attribute is set and add to active loads
             if getattr(self, load_attr, None):
@@ -103,8 +105,13 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
     )
 
     topics: ClassVar[List[str]] = [
-        "measurement_load",
+        "load",
     ]
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if hasattr(self, "_initialized"):
+            return
+        super().__init__(*args, **kwargs)
 
     def _interval_count(
         self, start_datetime: DateTime, end_datetime: DateTime, interval: Duration
@@ -143,11 +150,16 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
         if topic not in self.topics:
             return None
 
-        topic_keys = [key for key in self.config.config_keys if key.startswith(topic)]
+        topic_keys = [
+            key for key in self.config.measurement.model_fields.keys() if key.startswith(topic)
+        ]
         key = None
-        if topic == "measurement_load":
+        if topic == "load":
             for config_key in topic_keys:
-                if config_key.endswith("_name") and getattr(self.config, config_key) == name:
+                if (
+                    config_key.endswith("_name")
+                    and getattr(self.config.measurement, config_key) == name
+                ):
                     key = topic + config_key[len(topic) : len(topic) + 1] + "_mr"
                     break
 
@@ -243,9 +255,9 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             end_datetime = self[-1].date_time
         size = self._interval_count(start_datetime, end_datetime, interval)
         load_total_array = np.zeros(size)
-        # Loop through measurement_load<x>_mr
-        for i in range(self.record_class().measurement_max_loads):
-            key = f"measurement_load{i}_mr"
+        # Loop through load<x>_mr
+        for i in range(self.record_class().max_loads):
+            key = f"load{i}_mr"
             # Calculate load per interval
             load_array = self._energy_from_meter_readings(
                 key=key, start_datetime=start_datetime, end_datetime=end_datetime, interval=interval

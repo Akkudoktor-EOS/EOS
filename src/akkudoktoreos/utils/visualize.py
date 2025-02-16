@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 import textwrap
 from collections.abc import Sequence
@@ -13,7 +12,7 @@ import pendulum
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.core.coreabc import ConfigMixin
-from akkudoktoreos.core.ems import EnergieManagementSystem
+from akkudoktoreos.core.ems import EnergyManagement
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.optimization.genetic import OptimizationParameters
 from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -35,7 +34,7 @@ class VisualizationReport(ConfigMixin):
         self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
         self.version = version  # overwrite version as test for constant output of pdf for test
         self.current_time = to_datetime(
-            as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.timezone
+            as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.general.timezone
         )
 
     def add_chart_to_group(self, chart_func: Callable[[], None]) -> None:
@@ -52,7 +51,7 @@ class VisualizationReport(ConfigMixin):
 
     def _initialize_pdf(self) -> None:
         """Create the output directory if it doesn't exist and initialize the PDF."""
-        output_dir = self.config.data_output_path
+        output_dir = self.config.general.data_output_path
 
         # If self.filename is already a valid path, use it; otherwise, combine it with output_dir
         if os.path.isabs(self.filename):
@@ -148,16 +147,18 @@ class VisualizationReport(ConfigMixin):
 
             # Format the time axis
             plt.gca().xaxis.set_major_formatter(
-                mdates.DateFormatter("%Y-%m-%d", tz=self.config.timezone)
+                mdates.DateFormatter("%Y-%m-%d", tz=self.config.general.timezone)
             )  # Show date and time
             plt.gca().xaxis.set_major_locator(
-                mdates.DayLocator(interval=1, tz=self.config.timezone)
+                mdates.DayLocator(interval=1, tz=self.config.general.timezone)
             )  # Major ticks every day
             plt.gca().xaxis.set_minor_locator(
-                mdates.HourLocator(interval=2, tz=self.config.timezone)
+                mdates.HourLocator(interval=2, tz=self.config.general.timezone)
             )
             # Minor ticks every 6 hours
-            plt.gca().xaxis.set_minor_formatter(mdates.DateFormatter("%H", tz=self.config.timezone))
+            plt.gca().xaxis.set_minor_formatter(
+                mdates.DateFormatter("%H", tz=self.config.general.timezone)
+            )
             # plt.gcf().autofmt_xdate(rotation=45, which="major")
             # Auto-format the x-axis for readability
 
@@ -176,7 +177,7 @@ class VisualizationReport(ConfigMixin):
             plt.grid(True)
 
             # Add vertical line for the current date if within the axis range
-            current_time = pendulum.now(self.config.timezone)
+            current_time = pendulum.now(self.config.general.timezone)
             # current_time = pendulum.now().add(hours=1)
             if timestamps[0].subtract(hours=2) <= current_time <= timestamps[-1]:
                 plt.axvline(current_time, color="r", linestyle="--", label="Now")
@@ -427,7 +428,7 @@ def prepare_visualize(
     report = VisualizationReport(filename)
     # next_full_hour_date = pendulum.now(report.config.timezone).start_of("day").add(hours=start_hour)
     # next_full_hour_date = to_datetime().set(minute=0, second=0, microsecond=0)
-    next_full_hour_date = EnergieManagementSystem.set_start_datetime()
+    next_full_hour_date = EnergyManagement.set_start_datetime()
     # Group 1:
     report.create_line_chart_date(
         next_full_hour_date,
@@ -628,7 +629,7 @@ def prepare_visualize(
 
     if filtered_balance.size > 0 or filtered_losses.size > 0:
         report.finalize_group()
-    if logger.level == logging.DEBUG or results["fixed_seed"]:
+    if logger.level == "DEBUG" or results["fixed_seed"]:
         report.create_line_chart(
             0,
             [
@@ -724,9 +725,9 @@ def generate_example_report(filename: str = "example_report.pdf") -> None:
 
     report.finalize_group()  # Finalize the third group of charts
 
-    logger.setLevel(logging.DEBUG)  # set level for example report
+    logger.setLevel("DEBUG")  # set level for example report
 
-    if logger.level == logging.DEBUG:
+    if logger.level == "DEBUG":
         report.create_line_chart(
             x_hours,
             [np.array([0.2, 0.25, 0.3, 0.35])],

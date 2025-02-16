@@ -49,7 +49,9 @@ def test_optimize(
 ):
     """Test optimierung_ems."""
     # Assure configuration holds the correct values
-    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 48})
+    config_eos.merge_settings_from_dict(
+        {"prediction": {"hours": 48}, "optimization": {"hours": 48}}
+    )
 
     # Load input and output data
     file = DIR_TESTDATA / fn_in
@@ -84,7 +86,8 @@ def test_optimize(
             parameters=input_data, start_hour=start_hour, ngen=ngen
         )
         # Write test output to file, so we can take it as new data on intended change
-        with open(DIR_TESTDATA / f"new_{fn_out}", "w") as f_out:
+        TESTDATA_FILE = DIR_TESTDATA / f"new_{fn_out}"
+        with TESTDATA_FILE.open("w", encoding="utf-8", newline="\n") as f_out:
             f_out.write(ergebnis.model_dump_json(indent=4, exclude_unset=True))
 
         assert ergebnis.result.Gesamtbilanz_Euro == pytest.approx(

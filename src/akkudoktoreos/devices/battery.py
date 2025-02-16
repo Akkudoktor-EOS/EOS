@@ -1,11 +1,14 @@
 from typing import Any, Optional
 
 import numpy as np
-from pydantic import BaseModel, Field, field_validator
+from pydantic import Field, field_validator
 
 from akkudoktoreos.core.logging import get_logger
-from akkudoktoreos.core.pydantic import ParametersBaseModel
-from akkudoktoreos.devices.devicesabc import DeviceBase
+from akkudoktoreos.devices.devicesabc import (
+    DeviceBase,
+    DeviceOptimizeResult,
+    DeviceParameters,
+)
 from akkudoktoreos.utils.utils import NumpyEncoder
 
 logger = get_logger(__name__)
@@ -22,14 +25,26 @@ def max_charging_power_field(description: Optional[str] = None) -> float:
 
 
 def initial_soc_percentage_field(description: str) -> int:
-    return Field(default=0, ge=0, le=100, description=description)
+    return Field(default=0, ge=0, le=100, description=description, examples=[42])
 
 
-class BaseBatteryParameters(ParametersBaseModel):
-    """Base class for battery parameters with fields for capacity, efficiency, and state of charge."""
+def discharging_efficiency_field(default_value: float) -> float:
+    return Field(
+        default=default_value,
+        gt=0,
+        le=1,
+        description="A float representing the discharge efficiency of the battery.",
+    )
 
+
+class BaseBatteryParameters(DeviceParameters):
+    """Battery Device Simulation Configuration."""
+
+    device_id: str = Field(description="ID of battery", examples=["battery1"])
     capacity_wh: int = Field(
-        gt=0, description="An integer representing the capacity of the battery in watt-hours."
+        gt=0,
+        description="An integer representing the capacity of the battery in watt-hours.",
+        examples=[8000],
     )
     charging_efficiency: float = Field(
         default=0.88,
@@ -37,12 +52,7 @@ class BaseBatteryParameters(ParametersBaseModel):
         le=1,
         description="A float representing the charging efficiency of the battery.",
     )
-    discharging_efficiency: float = Field(
-        default=0.88,
-        gt=0,
-        le=1,
-        description="A float representing the discharge efficiency of the battery.",
-    )
+    discharging_efficiency: float = discharging_efficiency_field(0.88)
     max_charge_power_w: Optional[float] = max_charging_power_field()
     initial_soc_percentage: int = initial_soc_percentage_field(
         "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
@@ -52,6 +62,7 @@ class BaseBatteryParameters(ParametersBaseModel):
         ge=0,
         le=100,
         description="An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+        examples=[10],
     )
     max_soc_percentage: int = Field(
         default=100,
@@ -66,17 +77,19 @@ class SolarPanelBatteryParameters(BaseBatteryParameters):
 
 
 class ElectricVehicleParameters(BaseBatteryParameters):
-    """Parameters specific to an electric vehicle (EV)."""
+    """Battery Electric Vehicle Device Simulation Configuration."""
 
-    discharging_efficiency: float = 1.0
+    device_id: str = Field(description="ID of electric vehicle", examples=["ev1"])
+    discharging_efficiency: float = discharging_efficiency_field(1.0)
     initial_soc_percentage: int = initial_soc_percentage_field(
         "An integer representing the current state of charge (SOC) of the battery in percentage."
     )
 
 
-class ElectricVehicleResult(BaseModel):
+class ElectricVehicleResult(DeviceOptimizeResult):
     """Result class containing information related to the electric vehicle's charging and discharging behavior."""
 
+    device_id: str = Field(description="ID of electric vehicle", examples=["ev1"])
     charge_array: list[float] = Field(
         description="Hourly charging status (0 for no charging, 1 for charging)."
     )
@@ -84,7 +97,6 @@ class ElectricVehicleResult(BaseModel):
         description="Hourly discharging status (0 for no discharging, 1 for discharging)."
     )
     discharging_efficiency: float = Field(description="The discharge efficiency as a float..")
-    hours: int = Field(description="Number of hours in the simulation.")
     capacity_wh: int = Field(description="Capacity of the EV’s battery in watt-hours.")
     charging_efficiency: float = Field(description="Charging efficiency as a float..")
     max_charge_power_w: int = Field(description="Maximum charging power in watts.")
@@ -103,81 +115,30 @@ class ElectricVehicleResult(BaseModel):
 class Battery(DeviceBase):
     """Represents a battery device with methods to simulate energy charging and discharging."""
 
-    def __init__(
-        self,
-        parameters: Optional[BaseBatteryParameters] = None,
-        hours: Optional[int] = 24,
-        provider_id: Optional[str] = None,
-    ):
-        # Initialize configuration and parameters
-        self.provider_id = provider_id
-        self.prefix = "<invalid>"
-        if self.provider_id == "GenericBattery":
-            self.prefix = "battery"
-        elif self.provider_id == "GenericBEV":
-            self.prefix = "bev"
+    def __init__(self, parameters: Optional[BaseBatteryParameters] = None):
+        self.parameters: Optional[BaseBatteryParameters] = None
+        super().__init__(parameters)
 
-        self.parameters = parameters
-        if hours is None:
-            self.hours = self.total_hours  # TODO where does that come from?
-        else:
-            self.hours = hours
-
-        self.initialised = False
-
-        # Run setup if parameters are given, otherwise setup() has to be called later when the config is initialised.
-        if self.parameters is not None:
-            self.setup()
-
-    def setup(self) -> None:
+    def _setup(self) -> None:
         """Sets up the battery parameters based on configuration or provided parameters."""
-        if self.initialised:
-            return
+        assert self.parameters is not None
+        self.capacity_wh = self.parameters.capacity_wh
+        self.initial_soc_percentage = self.parameters.initial_soc_percentage
+        self.charging_efficiency = self.parameters.charging_efficiency
+        self.discharging_efficiency = self.parameters.discharging_efficiency
 
-        if self.provider_id:
-            # Setup from configuration
-            self.capacity_wh = getattr(self.config, f"{self.prefix}_capacity")
-            self.initial_soc_percentage = getattr(self.config, f"{self.prefix}_initial_soc")
-            self.hours = self.total_hours  # TODO where does that come from?
-            self.charging_efficiency = getattr(self.config, f"{self.prefix}_charging_efficiency")
-            self.discharging_efficiency = getattr(
-                self.config, f"{self.prefix}_discharging_efficiency"
-            )
-            self.max_charge_power_w = getattr(self.config, f"{self.prefix}_max_charging_power")
-
-            if self.provider_id == "GenericBattery":
-                self.min_soc_percentage = getattr(
-                    self.config,
-                    f"{self.prefix}_soc_min",
-                )
-            else:
-                self.min_soc_percentage = 0
-
-            self.max_soc_percentage = getattr(
-                self.config,
-                f"{self.prefix}_soc_max",
-            )
-        elif self.parameters:
-            # Setup from parameters
-            self.capacity_wh = self.parameters.capacity_wh
-            self.initial_soc_percentage = self.parameters.initial_soc_percentage
-            self.charging_efficiency = self.parameters.charging_efficiency
-            self.discharging_efficiency = self.parameters.discharging_efficiency
-            self.max_charge_power_w = self.parameters.max_charge_power_w
-            # Only assign for storage battery
-            self.min_soc_percentage = (
-                self.parameters.min_soc_percentage
-                if isinstance(self.parameters, SolarPanelBatteryParameters)
-                else 0
-            )
-            self.max_soc_percentage = self.parameters.max_soc_percentage
-        else:
-            error_msg = "Parameters and provider ID are missing. Cannot instantiate."
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+        # Only assign for storage battery
+        self.min_soc_percentage = (
+            self.parameters.min_soc_percentage
+            if isinstance(self.parameters, SolarPanelBatteryParameters)
+            else 0
+        )
+        self.max_soc_percentage = self.parameters.max_soc_percentage
 
         # Initialize state of charge
-        if self.max_charge_power_w is None:
+        if self.parameters.max_charge_power_w is not None:
+            self.max_charge_power_w = self.parameters.max_charge_power_w
+        else:
             self.max_charge_power_w = self.capacity_wh  # TODO this should not be equal capacity_wh
         self.discharge_array = np.full(self.hours, 1)
         self.charge_array = np.full(self.hours, 1)
@@ -185,11 +146,10 @@ class Battery(DeviceBase):
         self.min_soc_wh = (self.min_soc_percentage / 100) * self.capacity_wh
         self.max_soc_wh = (self.max_soc_percentage / 100) * self.capacity_wh
 
-        self.initialised = True
-
     def to_dict(self) -> dict[str, Any]:
         """Converts the object to a dictionary representation."""
         return {
+            "device_id": self.device_id,
             "capacity_wh": self.capacity_wh,
             "initial_soc_percentage": self.initial_soc_percentage,
             "soc_wh": self.soc_wh,

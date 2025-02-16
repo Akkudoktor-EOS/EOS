@@ -16,6 +16,7 @@ Example:
 
 import argparse
 import json
+import os
 import sys
 
 from fastapi.openapi.utils import get_openapi
@@ -37,6 +38,11 @@ def generate_openapi() -> dict:
         routes=app.routes,
     )
 
+    # Fix file path for general settings to not show local/test file path
+    general = openapi_spec["components"]["schemas"]["ConfigEOS"]["properties"]["general"]["default"]
+    general["config_file_path"] = "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
+    general["config_folder_path"] = "/home/user/.config/net.akkudoktoreos.net"
+
     return openapi_spec
 
 
@@ -52,9 +58,11 @@ def main():
     try:
         openapi_spec = generate_openapi()
         openapi_spec_str = json.dumps(openapi_spec, indent=2)
+        if os.name == "nt":
+            openapi_spec_str = openapi_spec_str.replace("127.0.0.1", "0.0.0.0")
         if args.output_file:
             # Write to file
-            with open(args.output_file, "w", encoding="utf8") as f:
+            with open(args.output_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(openapi_spec_str)
         else:
             # Write to std output

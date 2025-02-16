@@ -557,6 +557,7 @@
         ]
     },
     "eauto_obj": {
+        "device_id": "ev1",
         "charge_array": [
             1.0,
             1.0,

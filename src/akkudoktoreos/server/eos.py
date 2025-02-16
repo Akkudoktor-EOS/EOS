@@ -1,20 +1,32 @@
 #!/usr/bin/env python3
 
 import argparse
+import asyncio
+import json
 import os
+import signal
 import subprocess
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
 
-import httpx
+import psutil
 import uvicorn
-from fastapi import FastAPI, Query, Request
+from fastapi import Body, FastAPI
+from fastapi import Path as FastapiPath
+from fastapi import Query, Request
 from fastapi.exceptions import HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    Response,
+)
 
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
+from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import (
@@ -29,7 +41,14 @@ from akkudoktoreos.optimization.genetic import (
     OptimizeResponse,
     optimization_problem,
 )
-from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
+from akkudoktoreos.prediction.load import LoadCommonSettings
+from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
+from akkudoktoreos.prediction.prediction import PredictionCommonSettings, get_prediction
+from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
+from akkudoktoreos.server.rest.error import create_error_page
+from akkudoktoreos.server.rest.tasks import repeat_every
+from akkudoktoreos.server.server import get_default_host, wait_for_port_free
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 logger = get_logger(__name__)
@@ -41,133 +60,54 @@ ems_eos = get_ems()
 # Command line arguments
 args = None
 
-ERROR_PAGE_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Energy Optimization System (EOS) Error</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background-color: #f5f5f5;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-        .error-container {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
-            width: 100%;
-            text-align: center;
-        }
-        .error-code {
-            font-size: 4rem;
-            font-weight: bold;
-            color: #e53e3e;
-            margin: 0;
-        }
-        .error-title {
-            font-size: 1.5rem;
-            color: #2d3748;
-            margin: 1rem 0;
-        }
-        .error-message {
-            color: #4a5568;
-            margin-bottom: 1.5rem;
-        }
-        .error-details {
-            background: #f7fafc;
-            padding: 1rem;
-            border-radius: 4px;
-            margin-bottom: 1.5rem;
-            text-align: left;
-            font-family: monospace;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-        .back-button {
-            background: #3182ce;
-            color: white;
-            border: none;
-            padding: 0.75rem 1.5rem;
-            border-radius: 4px;
-            text-decoration: none;
-            display: inline-block;
-            transition: background-color 0.2s;
-        }
-        .back-button:hover {
-            background: #2c5282;
-        }
-    </style>
-</head>
-<body>
-    <div class="error-container">
-        <h1 class="error-code">STATUS_CODE</h1>
-        <h2 class="error-title">ERROR_TITLE</h2>
-        <p class="error-message">ERROR_MESSAGE</p>
-        <div class="error-details">ERROR_DETAILS</div>
-        <a href="/docs" class="back-button">Back to Home</a>
-    </div>
-</body>
-</html>
-"""
-
-
-def create_error_page(
-    status_code: str, error_title: str, error_message: str, error_details: str
-) -> str:
-    """Create an error page by replacing placeholders in the template."""
-    return (
-        ERROR_PAGE_TEMPLATE.replace("STATUS_CODE", status_code)
-        .replace("ERROR_TITLE", error_title)
-        .replace("ERROR_MESSAGE", error_message)
-        .replace("ERROR_DETAILS", error_details)
-    )
-
 
 # ----------------------
 # EOSdash server startup
 # ----------------------
 
 
-def start_eosdash() -> subprocess.Popen:
+def start_eosdash(
+    host: str,
+    port: int,
+    eos_host: str,
+    eos_port: int,
+    log_level: str,
+    access_log: bool,
+    reload: bool,
+    eos_dir: str,
+    eos_config_dir: str,
+) -> subprocess.Popen:
     """Start the EOSdash server as a subprocess.
 
+    This function starts the EOSdash server by launching it as a subprocess. It checks if the server
+    is already running on the specified port and either returns the existing process or starts a new one.
+
+    Args:
+        host (str): The hostname for the EOSdash server.
+        port (int): The port for the EOSdash server.
+        eos_host (str): The hostname for the EOS server.
+        eos_port (int): The port for the EOS server.
+        log_level (str): The logging level for the EOSdash server.
+        access_log (bool): Flag to enable or disable access logging.
+        reload (bool): Flag to enable or disable auto-reloading.
+        eos_dir (str): Path to the EOS data directory.
+        eos_config_dir (str): Path to the EOS configuration directory.
+
     Returns:
-        server_process: The process of the EOSdash server
+        subprocess.Popen: The process of the EOSdash server.
+
+    Raises:
+        RuntimeError: If the EOSdash server fails to start.
     """
     eosdash_path = Path(__file__).parent.resolve().joinpath("eosdash.py")
 
-    if args is None:
-        # No command line arguments
-        host = config_eos.server_eosdash_host
-        port = config_eos.server_eosdash_port
-        eos_host = config_eos.server_eos_host
-        eos_port = config_eos.server_eos_port
-        log_level = "info"
-        access_log = False
-        reload = False
-    else:
-        host = args.host
-        port = config_eos.server_eosdash_port if config_eos.server_eosdash_port else (args.port + 1)
-        eos_host = args.host
-        eos_port = args.port
-        log_level = args.log_level
-        access_log = args.access_log
-        reload = args.reload
+    # Do a one time check for port free to generate warnings if not so
+    wait_for_port_free(port, timeout=0, waiting_app_name="EOSdash")
 
     cmd = [
         sys.executable,
-        str(eosdash_path),
+        "-m",
+        "akkudoktoreos.server.eosdash",
         "--host",
         str(host),
         "--port",
@@ -183,11 +123,23 @@ def start_eosdash() -> subprocess.Popen:
         "--reload",
         str(reload),
     ]
-    server_process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    # Set environment before any subprocess run, to keep custom config dir
+    env = os.environ.copy()
+    env["EOS_DIR"] = eos_dir
+    env["EOS_CONFIG_DIR"] = eos_config_dir
+
+    try:
+        server_process = subprocess.Popen(
+            cmd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+    except subprocess.CalledProcessError as ex:
+        error_msg = f"Could not start EOSdash: {ex}"
+        logger.error(error_msg)
+        raise RuntimeError(error_msg)
 
     return server_process
 
@@ -197,20 +149,130 @@ def start_eosdash() -> subprocess.Popen:
 # ----------------------
 
 
+def cache_clear(clear_all: Optional[bool] = None) -> None:
+    """Cleanup expired cache files."""
+    if clear_all:
+        CacheFileStore().clear(clear_all=True)
+    else:
+        CacheFileStore().clear(before_datetime=to_datetime())
+
+
+def cache_load() -> dict:
+    """Load cache from cachefilestore.json."""
+    return CacheFileStore().load_store()
+
+
+def cache_save() -> dict:
+    """Save cache to cachefilestore.json."""
+    return CacheFileStore().save_store()
+
+
+@repeat_every(seconds=float(config_eos.cache.cleanup_interval))
+def cache_cleanup_task() -> None:
+    """Repeating task to clear cache from expired cache files."""
+    cache_clear()
+
+
+@repeat_every(
+    seconds=10,
+    wait_first=config_eos.ems.startup_delay,
+)
+def energy_management_task() -> None:
+    """Repeating task for energy management."""
+    ems_eos.manage_energy()
+
+
+async def server_shutdown_task() -> None:
+    """One-shot task for shutting down the EOS server.
+
+    This coroutine performs the following actions:
+    1. Ensures the cache is saved by calling the cache_save function.
+    2. Waits for 5 seconds to allow the EOS server to complete any ongoing tasks.
+    3. Gracefully shuts down the current process by sending the appropriate signal.
+
+    If running on Windows, the CTRL_C_EVENT signal is sent to terminate the process.
+    On other operating systems, the SIGTERM signal is used.
+
+    Finally, logs a message indicating that the EOS server has been terminated.
+    """
+    # Assure cache is saved
+    cache_save()
+
+    # Give EOS time to finish some work
+    await asyncio.sleep(5)
+
+    # Gracefully shut down this process.
+    pid = psutil.Process().pid
+    if os.name == "nt":
+        os.kill(pid, signal.CTRL_C_EVENT)  # type: ignore[attr-defined]
+    else:
+        os.kill(pid, signal.SIGTERM)
+
+    logger.info(f"🚀 EOS terminated, PID {pid}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
-    if config_eos.server_eos_startup_eosdash:
+    if config_eos.server.startup_eosdash:
         try:
-            eosdash_process = start_eosdash()
+            if args is None:
+                # No command line arguments
+                host = config_eos.server.eosdash_host
+                port = config_eos.server.eosdash_port
+                eos_host = config_eos.server.host
+                eos_port = config_eos.server.port
+                log_level = "info"
+                access_log = False
+                reload = False
+            else:
+                host = args.host
+                port = (
+                    config_eos.server.eosdash_port
+                    if config_eos.server.eosdash_port
+                    else (args.port + 1)
+                )
+                eos_host = args.host
+                eos_port = args.port
+                log_level = args.log_level
+                access_log = args.access_log
+                reload = args.reload
+
+            host = host if host else get_default_host()
+            port = port if port else 8504
+            eos_host = eos_host if eos_host else get_default_host()
+            eos_port = eos_port if eos_port else 8503
+
+            eos_dir = str(config_eos.general.data_folder_path)
+            eos_config_dir = str(config_eos.general.config_folder_path)
+
+            eosdash_process = start_eosdash(
+                host=host,
+                port=port,
+                eos_host=eos_host,
+                eos_port=eos_port,
+                log_level=log_level,
+                access_log=access_log,
+                reload=reload,
+                eos_dir=eos_dir,
+                eos_config_dir=eos_config_dir,
+            )
         except Exception as e:
             logger.error(f"Failed to start EOSdash server. Error: {e}")
             sys.exit(1)
+    cache_load()
+    if config_eos.cache.cleanup_interval is None:
+        logger.warning("Cache file cleanup disabled. Set cache.cleanup_interval.")
+    else:
+        await cache_cleanup_task()
+    await energy_management_task()
+
     # Handover to application
     yield
+
     # On shutdown
-    # nothing to do
+    cache_save()
 
 
 app = FastAPI(
@@ -226,76 +288,151 @@ app = FastAPI(
 )
 
 
-# That's the problem
-opt_class = optimization_problem(verbose=bool(config_eos.server_eos_verbose))
-
-server_dir = Path(__file__).parent.resolve()
-
-
 class PdfResponse(FileResponse):
     media_type = "application/pdf"
 
 
-@app.put("/v1/config/value")
-def fastapi_config_value_put(
-    key: Annotated[str, Query(description="configuration key")],
-    value: Annotated[Any, Query(description="configuration value")],
-) -> ConfigEOS:
-    """Set the configuration option in the settings.
+@app.post("/v1/admin/cache/clear", tags=["admin"])
+def fastapi_admin_cache_clear_post(clear_all: Optional[bool] = None) -> dict:
+    """Clear the cache from expired data.
+
+    Deletes expired cache files.
 
     Args:
-        key (str): configuration key
-        value (Any): configuration value
+        clear_all (Optional[bool]): Delete all cached files. Default is False.
 
     Returns:
-        configuration (ConfigEOS): The current configuration after the write.
+        data (dict): The management data after cleanup.
     """
-    if key not in config_eos.config_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-    if key in config_eos.config_keys_read_only:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is read only.")
     try:
-        setattr(config_eos, key, value)
+        cache_clear(clear_all=clear_all)
+        data = CacheFileStore().current_store()
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
-    return config_eos
+        raise HTTPException(status_code=400, detail=f"Error on cache clear: {e}")
+    return data
 
 
-@app.post("/v1/config/update")
-def fastapi_config_update_post() -> ConfigEOS:
-    """Update the configuration from the EOS configuration file.
+@app.post("/v1/admin/cache/save", tags=["admin"])
+def fastapi_admin_cache_save_post() -> dict:
+    """Save the current cache management data.
+
+    Returns:
+        data (dict): The management data that was saved.
+    """
+    try:
+        data = cache_save()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error on cache save: {e}")
+    return data
+
+
+@app.post("/v1/admin/cache/load", tags=["admin"])
+def fastapi_admin_cache_load_post() -> dict:
+    """Load cache management data.
+
+    Returns:
+        data (dict): The management data that was loaded.
+    """
+    try:
+        data = cache_save()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error on cache load: {e}")
+    return data
+
+
+@app.get("/v1/admin/cache", tags=["admin"])
+def fastapi_admin_cache_get() -> dict:
+    """Current cache management data.
+
+    Returns:
+        data (dict): The management data.
+    """
+    try:
+        data = CacheFileStore().current_store()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error on cache data retrieval: {e}")
+    return data
+
+
+@app.post("/v1/admin/server/restart", tags=["admin"])
+async def fastapi_admin_server_restart_post() -> dict:
+    """Restart the server.
+
+    Restart EOS properly by starting a new instance before exiting the old one.
+    """
+    logger.info("🔄 Restarting EOS...")
+
+    # Start a new EOS (Uvicorn) process
+    # Force a new process group to make the new process easily distinguishable from the current one
+    # Set environment before any subprocess run, to keep custom config dir
+    env = os.environ.copy()
+    env["EOS_DIR"] = str(config_eos.general.data_folder_path)
+    env["EOS_CONFIG_DIR"] = str(config_eos.general.config_folder_path)
+
+    new_process = subprocess.Popen(
+        [
+            sys.executable,
+        ]
+        + sys.argv,
+        env=env,
+        start_new_session=True,
+    )
+    logger.info(f"🚀 EOS restarted, PID {new_process.pid}")
+
+    # Gracefully shut down this process.
+    asyncio.create_task(server_shutdown_task())
+
+    # Will be executed because shutdown is delegated to async coroutine
+    return {
+        "message": "Restarting EOS...",
+        "pid": new_process.pid,
+    }
+
+
+@app.post("/v1/admin/server/shutdown", tags=["admin"])
+async def fastapi_admin_server_shutdown_post() -> dict:
+    """Shutdown the server."""
+    logger.info("🔄 Stopping EOS...")
+
+    # Gracefully shut down this process.
+    asyncio.create_task(server_shutdown_task())
+
+    # Will be executed because shutdown is delegated to async coroutine
+    return {
+        "message": "Stopping EOS...",
+        "pid": psutil.Process().pid,
+    }
+
+
+@app.get("/v1/health")
+def fastapi_health_get():  # type: ignore
+    """Health check endpoint to verify that the EOS server is alive."""
+    return JSONResponse(
+        {
+            "status": "alive",
+            "pid": psutil.Process().pid,
+        }
+    )
+
+
+@app.post("/v1/config/reset", tags=["config"])
+def fastapi_config_reset_post() -> ConfigEOS:
+    """Reset the configuration to the EOS configuration file.
 
     Returns:
         configuration (ConfigEOS): The current configuration after update.
     """
     try:
-        _, config_file_path = config_eos.from_config_file()
-    except:
+        config_eos.reset_settings()
+    except Exception as e:
         raise HTTPException(
             status_code=404,
-            detail=f"Cannot update configuration from file '{config_file_path}'.",
+            detail=f"Cannot reset configuration: {e}",
         )
     return config_eos
 
 
-@app.get("/v1/config/file")
-def fastapi_config_file_get() -> SettingsEOS:
-    """Get the settings as defined by the EOS configuration file.
-
-    Returns:
-        settings (SettingsEOS): The settings defined by the EOS configuration file.
-    """
-    try:
-        settings, config_file_path = config_eos.settings_from_config_file()
-    except:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Cannot read configuration from file '{config_file_path}'.",
-        )
-    return settings
-
-
-@app.put("/v1/config/file")
+@app.put("/v1/config/file", tags=["config"])
 def fastapi_config_file_put() -> ConfigEOS:
     """Save the current configuration to the EOS configuration file.
 
@@ -312,7 +449,7 @@ def fastapi_config_file_put() -> ConfigEOS:
     return config_eos
 
 
-@app.get("/v1/config")
+@app.get("/v1/config", tags=["config"])
 def fastapi_config_get() -> ConfigEOS:
     """Get the current configuration.
 
@@ -322,15 +459,13 @@ def fastapi_config_get() -> ConfigEOS:
     return config_eos
 
 
-@app.put("/v1/config")
-def fastapi_config_put(
-    settings: Annotated[SettingsEOS, Query(description="settings")],
-) -> ConfigEOS:
-    """Write the provided settings into the current settings.
+@app.put("/v1/config", tags=["config"])
+def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
+    """Update the current config with the provided settings.
 
-    The existing settings are completely overwritten. Note that for any setting
-    value that is None, the configuration will fall back to values from other sources such as
-    environment variables, the EOS configuration file, or default values.
+    Note that for any setting value that is None or unset, the configuration will fall back to
+    values from other sources such as environment variables, the EOS configuration file, or default
+    values.
 
     Args:
         settings (SettingsEOS): The settings to write into the current settings.
@@ -339,19 +474,71 @@ def fastapi_config_put(
         configuration (ConfigEOS): The current configuration after the write.
     """
     try:
-        config_eos.merge_settings(settings, force=True)
+        config_eos.merge_settings(settings)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
     return config_eos
 
 
-@app.get("/v1/measurement/keys")
+@app.put("/v1/config/{path:path}", tags=["config"])
+def fastapi_config_put_key(
+    path: str = FastapiPath(
+        ..., description="The nested path to the configuration key (e.g., general/latitude)."
+    ),
+    value: Any = Body(..., description="The value to assign to the specified configuration path."),
+) -> ConfigEOS:
+    """Update a nested key or index in the config model.
+
+    Args:
+        path (str): The nested path to the key (e.g., "general/latitude" or "optimize/nested_list/0").
+        value (Any): The new value to assign to the key or index at path.
+
+    Returns:
+        configuration (ConfigEOS): The current configuration after the update.
+    """
+    try:
+        config_eos.set_config_value(path, value)
+    except IndexError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return config_eos
+
+
+@app.get("/v1/config/{path:path}", tags=["config"])
+def fastapi_config_get_key(
+    path: str = FastapiPath(
+        ..., description="The nested path to the configuration key (e.g., general/latitude)."
+    ),
+) -> Response:
+    """Get the value of a nested key or index in the config model.
+
+    Args:
+        path (str): The nested path to the key (e.g., "general/latitude" or "optimize/nested_list/0").
+
+    Returns:
+        value (Any): The value of the selected nested key.
+    """
+    try:
+        return config_eos.get_config_value(path)
+    except IndexError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/v1/measurement/keys", tags=["measurement"])
 def fastapi_measurement_keys_get() -> list[str]:
     """Get a list of available measurement keys."""
     return sorted(measurement_eos.record_keys)
 
 
-@app.get("/v1/measurement/load-mr/series/by-name")
+@app.get("/v1/measurement/load-mr/series/by-name", tags=["measurement"])
 def fastapi_measurement_load_mr_series_by_name_get(
     name: Annotated[str, Query(description="Load name.")],
 ) -> PydanticDateTimeSeries:
@@ -367,7 +554,7 @@ def fastapi_measurement_load_mr_series_by_name_get(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.put("/v1/measurement/load-mr/value/by-name")
+@app.put("/v1/measurement/load-mr/value/by-name", tags=["measurement"])
 def fastapi_measurement_load_mr_value_by_name_put(
     datetime: Annotated[str, Query(description="Datetime.")],
     name: Annotated[str, Query(description="Load name.")],
@@ -386,7 +573,7 @@ def fastapi_measurement_load_mr_value_by_name_put(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.put("/v1/measurement/load-mr/series/by-name")
+@app.put("/v1/measurement/load-mr/series/by-name", tags=["measurement"])
 def fastapi_measurement_load_mr_series_by_name_put(
     name: Annotated[str, Query(description="Load name.")], series: PydanticDateTimeSeries
 ) -> PydanticDateTimeSeries:
@@ -404,7 +591,7 @@ def fastapi_measurement_load_mr_series_by_name_put(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.get("/v1/measurement/series")
+@app.get("/v1/measurement/series", tags=["measurement"])
 def fastapi_measurement_series_get(
     key: Annotated[str, Query(description="Prediction key.")],
 ) -> PydanticDateTimeSeries:
@@ -415,7 +602,7 @@ def fastapi_measurement_series_get(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.put("/v1/measurement/value")
+@app.put("/v1/measurement/value", tags=["measurement"])
 def fastapi_measurement_value_put(
     datetime: Annotated[str, Query(description="Datetime.")],
     key: Annotated[str, Query(description="Prediction key.")],
@@ -429,7 +616,7 @@ def fastapi_measurement_value_put(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.put("/v1/measurement/series")
+@app.put("/v1/measurement/series", tags=["measurement"])
 def fastapi_measurement_series_put(
     key: Annotated[str, Query(description="Prediction key.")], series: PydanticDateTimeSeries
 ) -> PydanticDateTimeSeries:
@@ -442,27 +629,47 @@ def fastapi_measurement_series_put(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.put("/v1/measurement/dataframe")
+@app.put("/v1/measurement/dataframe", tags=["measurement"])
 def fastapi_measurement_dataframe_put(data: PydanticDateTimeDataFrame) -> None:
     """Merge the measurement data given as dataframe into EOS measurements."""
     dataframe = data.to_dataframe()
     measurement_eos.import_from_dataframe(dataframe)
 
 
-@app.put("/v1/measurement/data")
+@app.put("/v1/measurement/data", tags=["measurement"])
 def fastapi_measurement_data_put(data: PydanticDateTimeData) -> None:
     """Merge the measurement data given as datetime data into EOS measurements."""
     datetimedata = data.to_dict()
     measurement_eos.import_from_dict(datetimedata)
 
 
-@app.get("/v1/prediction/keys")
+@app.get("/v1/prediction/providers", tags=["prediction"])
+def fastapi_prediction_providers_get(enabled: Optional[bool] = None) -> list[str]:
+    """Get a list of available prediction providers.
+
+    Args:
+        enabled (bool): Return enabled/disabled providers. If unset, return all providers.
+    """
+    if enabled is not None:
+        enabled_status = [enabled]
+    else:
+        enabled_status = [True, False]
+    return sorted(
+        [
+            provider.provider_id()
+            for provider in prediction_eos.providers
+            if provider.enabled() in enabled_status
+        ]
+    )
+
+
+@app.get("/v1/prediction/keys", tags=["prediction"])
 def fastapi_prediction_keys_get() -> list[str]:
     """Get a list of available prediction keys."""
     return sorted(prediction_eos.record_keys)
 
 
-@app.get("/v1/prediction/series")
+@app.get("/v1/prediction/series", tags=["prediction"])
 def fastapi_prediction_series_get(
     key: Annotated[str, Query(description="Prediction key.")],
     start_datetime: Annotated[
@@ -499,7 +706,50 @@ def fastapi_prediction_series_get(
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
-@app.get("/v1/prediction/list")
+@app.get("/v1/prediction/dataframe", tags=["prediction"])
+def fastapi_prediction_dataframe_get(
+    keys: Annotated[list[str], Query(description="Prediction keys.")],
+    start_datetime: Annotated[
+        Optional[str],
+        Query(description="Starting datetime (inclusive)."),
+    ] = None,
+    end_datetime: Annotated[
+        Optional[str],
+        Query(description="Ending datetime (exclusive)."),
+    ] = None,
+    interval: Annotated[
+        Optional[str],
+        Query(description="Time duration for each interval. Defaults to 1 hour."),
+    ] = None,
+) -> PydanticDateTimeDataFrame:
+    """Get prediction for given key within given date range as series.
+
+    Args:
+        key (str): Prediction key
+        start_datetime (Optional[str]): Starting datetime (inclusive).
+            Defaults to start datetime of latest prediction.
+        end_datetime (Optional[str]: Ending datetime (exclusive).
+
+    Defaults to end datetime of latest prediction.
+    """
+    for key in keys:
+        if key not in prediction_eos.record_keys:
+            raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
+    if start_datetime is None:
+        start_datetime = prediction_eos.start_datetime
+    else:
+        start_datetime = to_datetime(start_datetime)
+    if end_datetime is None:
+        end_datetime = prediction_eos.end_datetime
+    else:
+        end_datetime = to_datetime(end_datetime)
+    df = prediction_eos.keys_to_dataframe(
+        keys=keys, start_datetime=start_datetime, end_datetime=end_datetime, interval=interval
+    )
+    return PydanticDateTimeDataFrame.from_dataframe(df, tz=config_eos.general.timezone)
+
+
+@app.get("/v1/prediction/list", tags=["prediction"])
 def fastapi_prediction_list_get(
     key: Annotated[str, Query(description="Prediction key.")],
     start_datetime: Annotated[
@@ -512,7 +762,7 @@ def fastapi_prediction_list_get(
     ] = None,
     interval: Annotated[
         Optional[str],
-        Query(description="Time duration for each interval."),
+        Query(description="Time duration for each interval. Defaults to 1 hour."),
     ] = None,
 ) -> List[Any]:
     """Get prediction for given key within given date range as value list.
@@ -549,8 +799,40 @@ def fastapi_prediction_list_get(
     return prediction_list
 
 
-@app.post("/v1/prediction/update")
-def fastapi_prediction_update(force_update: bool = False, force_enable: bool = False) -> Response:
+@app.put("/v1/prediction/import/{provider_id}", tags=["prediction"])
+def fastapi_prediction_import_provider(
+    provider_id: str = FastapiPath(..., description="Provider ID."),
+    data: Optional[Union[PydanticDateTimeDataFrame, PydanticDateTimeData, dict]] = None,
+    force_enable: Optional[bool] = None,
+) -> Response:
+    """Import prediction for given provider ID.
+
+    Args:
+        provider_id: ID of provider to update.
+        data: Prediction data.
+        force_enable: Update data even if provider is disabled.
+            Defaults to False.
+    """
+    try:
+        provider = prediction_eos.provider_by_id(provider_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not found.")
+    if not provider.enabled() and not force_enable:
+        raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not enabled.")
+    try:
+        provider.import_from_json(json_str=json.dumps(data))
+        provider.update_datetime = to_datetime(in_timezone=config_eos.general.timezone)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Error on import for provider '{provider_id}': {e}"
+        )
+    return Response()
+
+
+@app.post("/v1/prediction/update", tags=["prediction"])
+def fastapi_prediction_update(
+    force_update: Optional[bool] = False, force_enable: Optional[bool] = False
+) -> Response:
     """Update predictions for all providers.
 
     Args:
@@ -562,11 +844,11 @@ def fastapi_prediction_update(force_update: bool = False, force_enable: bool = F
     try:
         prediction_eos.update_data(force_update=force_update, force_enable=force_enable)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on update of provider: {e}")
+        raise HTTPException(status_code=400, detail=f"Error on prediction update: {e}")
     return Response()
 
 
-@app.post("/v1/prediction/update/{provider_id}")
+@app.post("/v1/prediction/update/{provider_id}", tags=["prediction"])
 def fastapi_prediction_update_provider(
     provider_id: str, force_update: Optional[bool] = False, force_enable: Optional[bool] = False
 ) -> Response:
@@ -590,7 +872,7 @@ def fastapi_prediction_update_provider(
     return Response()
 
 
-@app.get("/strompreis")
+@app.get("/strompreis", tags=["prediction"])
 def fastapi_strompreis() -> list[float]:
     """Deprecated: Electricity Market Price Prediction per Wh (€/Wh).
 
@@ -602,14 +884,16 @@ def fastapi_strompreis() -> list[float]:
         Electricity price charges are added.
 
     Note:
-        Set ElecPriceAkkudoktor as elecprice_provider, then update data with
+        Set ElecPriceAkkudoktor as provider, then update data with
         '/v1/prediction/update'
         and then request data with
         '/v1/prediction/list?key=elecprice_marketprice_wh' or
         '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.
     """
     settings = SettingsEOS(
-        elecprice_provider="ElecPriceAkkudoktor",
+        elecprice=ElecPriceCommonSettings(
+            provider="ElecPriceAkkudoktor",
+        )
     )
     config_eos.merge_settings(settings=settings)
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
@@ -642,7 +926,7 @@ class GesamtlastRequest(PydanticBaseModel):
     hours: int
 
 
-@app.post("/gesamtlast")
+@app.post("/gesamtlast", tags=["prediction"])
 def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     """Deprecated: Total Load Prediction with adjustment.
 
@@ -659,16 +943,22 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
         '/v1/measurement/value'
     """
     settings = SettingsEOS(
-        prediction_hours=request.hours,
-        load_provider="LoadAkkudoktor",
-        loadakkudoktor_year_energy=request.year_energy,
+        prediction=PredictionCommonSettings(
+            hours=request.hours,
+        ),
+        load=LoadCommonSettings(
+            provider="LoadAkkudoktor",
+            provider_settings=LoadAkkudoktorCommonSettings(
+                loadakkudoktor_year_energy=request.year_energy,
+            ),
+        ),
     )
     config_eos.merge_settings(settings=settings)
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
 
     # Insert measured data into EOS measurement
     # Convert from energy per interval to dummy energy meter readings
-    measurement_key = "measurement_load0_mr"
+    measurement_key = "load0_mr"
     measurement_eos.key_delete_by_datetime(key=measurement_key)  # delete all load0_mr measurements
     energy = {}
     try:
@@ -717,7 +1007,7 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     return prediction_list
 
 
-@app.get("/gesamtlast_simple")
+@app.get("/gesamtlast_simple", tags=["prediction"])
 def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     """Deprecated: Total Load Prediction.
 
@@ -731,14 +1021,18 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
         year_energy (float): Yearly energy consumption in Wh.
 
     Note:
-        Set LoadAkkudoktor as load_provider, then update data with
+        Set LoadAkkudoktor as provider, then update data with
         '/v1/prediction/update'
         and then request data with
         '/v1/prediction/list?key=load_mean' instead.
     """
     settings = SettingsEOS(
-        load_provider="LoadAkkudoktor",
-        loadakkudoktor_year_energy=year_energy / 1000,  # Convert to kWh
+        load=LoadCommonSettings(
+            provider="LoadAkkudoktor",
+            provider_settings=LoadAkkudoktorCommonSettings(
+                loadakkudoktor_year_energy=year_energy / 1000,  # Convert to kWh
+            ),
+        )
     )
     config_eos.merge_settings(settings=settings)
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
@@ -769,7 +1063,7 @@ class ForecastResponse(PydanticBaseModel):
     pvpower: list[float]
 
 
-@app.get("/pvforecast")
+@app.get("/pvforecast", tags=["prediction"])
 def fastapi_pvforecast() -> ForecastResponse:
     """Deprecated: PV Forecast Prediction.
 
@@ -780,21 +1074,25 @@ def fastapi_pvforecast() -> ForecastResponse:
     filled with the first available forecast value.
 
     Note:
-        Set PVForecastAkkudoktor as pvforecast_provider, then update data with
+        Set PVForecastAkkudoktor as provider, then update data with
         '/v1/prediction/update'
         and then request data with
         '/v1/prediction/list?key=pvforecast_ac_power' and
         '/v1/prediction/list?key=pvforecastakkudoktor_temp_air' instead.
     """
-    settings = SettingsEOS(
-        elecprice_provider="PVForecastAkkudoktor",
-    )
+    settings = SettingsEOS(pvforecast=PVForecastCommonSettings(provider="PVForecastAkkudoktor"))
     config_eos.merge_settings(settings=settings)
 
     ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
 
     # Create PV forecast
-    prediction_eos.update_data(force_update=True)
+    try:
+        prediction_eos.update_data(force_update=True)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not get the PV forecast: {e}",
+        )
 
     # Get the forcast starting at start of day
     start_datetime = to_datetime().start_of("day")
@@ -820,30 +1118,35 @@ def fastapi_pvforecast() -> ForecastResponse:
     return ForecastResponse(temperature=temp_air, pvpower=ac_power)
 
 
-@app.post("/optimize")
+@app.post("/optimize", tags=["optimize"])
 def fastapi_optimize(
     parameters: OptimizationParameters,
     start_hour: Annotated[
         Optional[int], Query(description="Defaults to current hour of the day.")
     ] = None,
+    ngen: Optional[int] = None,
 ) -> OptimizeResponse:
     if start_hour is None:
         start_hour = to_datetime().hour
+    extra_args: dict[str, Any] = dict()
+    if ngen is not None:
+        extra_args["ngen"] = ngen
 
     # TODO: Remove when config and prediction update is done by EMS.
     config_eos.update()
     prediction_eos.update_data()
 
     # Perform optimization simulation
-    result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour)
+    opt_class = optimization_problem(verbose=bool(config_eos.server.verbose))
+    result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour, **extra_args)
     # print(result)
     return result
 
 
-@app.get("/visualization_results.pdf", response_class=PdfResponse)
+@app.get("/visualization_results.pdf", response_class=PdfResponse, tags=["optimize"])
 def get_pdf() -> PdfResponse:
     # Endpoint to serve the generated PDF with visualization results
-    output_path = config_eos.data_output_path
+    output_path = config_eos.general.data_output_path
     if output_path is None or not output_path.is_dir():
         raise HTTPException(status_code=404, detail=f"Output path does not exist: {output_path}.")
     file_path = output_path / "visualization_results.pdf"
@@ -857,75 +1160,66 @@ def site_map() -> RedirectResponse:
     return RedirectResponse(url="/docs")
 
 
-# Keep the proxy last to handle all requests that are not taken by the Rest API.
+# Keep the redirect last to handle all requests that are not taken by the Rest API.
 
 
 @app.delete("/{path:path}", include_in_schema=False)
-async def proxy_delete(request: Request, path: str) -> Response:
-    return await proxy(request, path)
+async def redirect_delete(request: Request, path: str) -> Response:
+    return redirect(request, path)
 
 
 @app.get("/{path:path}", include_in_schema=False)
-async def proxy_get(request: Request, path: str) -> Response:
-    return await proxy(request, path)
+async def redirect_get(request: Request, path: str) -> Response:
+    return redirect(request, path)
 
 
 @app.post("/{path:path}", include_in_schema=False)
-async def proxy_post(request: Request, path: str) -> Response:
-    return await proxy(request, path)
+async def redirect_post(request: Request, path: str) -> Response:
+    return redirect(request, path)
 
 
 @app.put("/{path:path}", include_in_schema=False)
-async def proxy_put(request: Request, path: str) -> Response:
-    return await proxy(request, path)
+async def redirect_put(request: Request, path: str) -> Response:
+    return redirect(request, path)
 
 
-async def proxy(request: Request, path: str) -> Union[Response | RedirectResponse | HTMLResponse]:
-    # Make hostname Windows friendly
-    host = str(config_eos.server_eosdash_host)
-    if host == "0.0.0.0" and os.name == "nt":
-        host = "localhost"
-    if host and config_eos.server_eosdash_port:
-        # Proxy to EOSdash server
-        url = f"http://{host}:{config_eos.server_eosdash_port}/{path}"
-        headers = dict(request.headers)
-
-        data = await request.body()
-
-        try:
-            async with httpx.AsyncClient() as client:
-                if request.method == "GET":
-                    response = await client.get(url, headers=headers)
-                elif request.method == "POST":
-                    response = await client.post(url, headers=headers, content=data)
-                elif request.method == "PUT":
-                    response = await client.put(url, headers=headers, content=data)
-                elif request.method == "DELETE":
-                    response = await client.delete(url, headers=headers, content=data)
-        except Exception as e:
-            error_page = create_error_page(
-                status_code="404",
-                error_title="Page Not Found",
-                error_message=f"""<pre>
-EOSdash server not reachable: '{url}'
-Did you start the EOSdash server
-or set 'server_eos_startup_eosdash'?
-If there is no application server intended please
-set 'server_eosdash_host' or 'server_eosdash_port' to None.
+def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectResponse]:
+    # Path is not for EOSdash
+    if not (path.startswith("eosdash") or path == ""):
+        host = config_eos.server.eosdash_host
+        if host is None:
+            host = config_eos.server.host
+        host = str(host)
+        port = config_eos.server.eosdash_port
+        if port is None:
+            port = 8504
+        # Make hostname Windows friendly
+        if host == "0.0.0.0" and os.name == "nt":
+            host = "localhost"
+        url = f"http://{host}:{port}/"
+        error_page = create_error_page(
+            status_code="404",
+            error_title="Page Not Found",
+            error_message=f"""<pre>
+URL is unknown: '{request.url}'
+Did you want to connect to <a href="{url}" class="back-button">EOSdash</a>?
 </pre>
 """,
-                error_details=f"{e}",
-            )
-            return HTMLResponse(content=error_page, status_code=404)
-
-        return Response(
-            content=response.content,
-            status_code=response.status_code,
-            headers=dict(response.headers),
+            error_details="Unknown URL",
         )
-    else:
-        # Redirect the root URL to the site map
-        return RedirectResponse(url="/docs")
+        return HTMLResponse(content=error_page, status_code=404)
+
+    # Make hostname Windows friendly
+    host = str(config_eos.server.eosdash_host)
+    if host == "0.0.0.0" and os.name == "nt":
+        host = "localhost"
+    if host and config_eos.server.eosdash_port:
+        # Redirect to EOSdash server
+        url = f"http://{host}:{config_eos.server.eosdash_port}/{path}"
+        return RedirectResponse(url=url, status_code=303)
+
+    # Redirect the root URL to the site map
+    return RedirectResponse(url="/docs", status_code=303)
 
 
 def run_eos(host: str, port: int, log_level: str, access_log: bool, reload: bool) -> None:
@@ -952,6 +1246,10 @@ def run_eos(host: str, port: int, log_level: str, access_log: bool, reload: bool
     # Make hostname Windows friendly
     if host == "0.0.0.0" and os.name == "nt":
         host = "localhost"
+
+    # Wait for EOS port to be free - e.g. in case of restart
+    wait_for_port_free(port, timeout=120, waiting_app_name="EOS")
+
     try:
         uvicorn.run(
             "akkudoktoreos.server.eos:app",
@@ -975,8 +1273,8 @@ def main() -> None:
     it starts the EOS server with the specified configurations.
 
     Command-line Arguments:
-    --host (str): Host for the EOS server (default: value from config_eos).
-    --port (int): Port for the EOS server (default: value from config_eos).
+    --host (str): Host for the EOS server (default: value from config).
+    --port (int): Port for the EOS server (default: value from config).
     --log_level (str): Log level for the server. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "info").
     --access_log (bool): Enable or disable access log. Options: True or False (default: False).
     --reload (bool): Enable or disable auto-reload. Useful for development. Options: True or False (default: False).
@@ -987,14 +1285,14 @@ def main() -> None:
     parser.add_argument(
         "--host",
         type=str,
-        default=str(config_eos.server_eos_host),
-        help="Host for the EOS server (default: value from config_eos)",
+        default=str(config_eos.server.host),
+        help="Host for the EOS server (default: value from config)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=config_eos.server_eos_port,
-        help="Port for the EOS server (default: value from config_eos)",
+        default=config_eos.server.port,
+        help="Port for the EOS server (default: value from config)",
     )
 
     # Optional arguments for log_level, access_log, and reload
@@ -1019,10 +1317,13 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    host = args.host if args.host else get_default_host()
+    port = args.port if args.port else 8503
+
     try:
-        run_eos(args.host, args.port, args.log_level, args.access_log, args.reload)
+        run_eos(host, port, args.log_level, args.access_log, args.reload)
     except:
-        exit(1)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,86 @@
+{
+  "elecprice": {
+    "charges_kwh": 0.21,
+    "provider": "ElecPriceAkkudoktor"
+  },
+  "general": {
+    "latitude": 52.5,
+    "longitude": 13.4
+  },
+  "prediction": {
+    "historic_hours": 48,
+    "hours": 48
+  },
+  "load": {
+    "provider": "LoadAkkudoktor",
+    "provider_settings": {
+      "loadakkudoktor_year_energy": 20000
+    }
+  },
+  "optimization": {
+    "hours": 48
+  },
+  "pvforecast": {
+    "planes": [
+      {
+        "peakpower": 5.0,
+        "surface_azimuth": -10,
+        "surface_tilt": 7,
+        "userhorizon": [
+          20,
+          27,
+          22,
+          20
+        ],
+        "inverter_paco": 10000
+      },
+      {
+        "peakpower": 4.8,
+        "surface_azimuth": -90,
+        "surface_tilt": 7,
+        "userhorizon": [
+          30,
+          30,
+          30,
+          50
+        ],
+        "inverter_paco": 10000
+      },
+      {
+        "peakpower": 1.4,
+        "surface_azimuth": -40,
+        "surface_tilt": 60,
+        "userhorizon": [
+          60,
+          30,
+          0,
+          30
+        ],
+        "inverter_paco": 2000
+      },
+      {
+        "peakpower": 1.6,
+        "surface_azimuth": 5,
+        "surface_tilt": 45,
+        "userhorizon": [
+          45,
+          25,
+          30,
+          60
+        ],
+        "inverter_paco": 1400
+      }
+    ],
+    "provider": "PVForecastAkkudoktor"
+  },
+  "server": {
+    "startup_eosdash": true,
+    "host": "0.0.0.0",
+    "port": 8503,
+    "eosdash_host": "0.0.0.0",
+    "eosdash_port": 8504
+  },
+  "weather": {
+    "provider": "BrightSky"
+  }
+}

@@ -99,6 +99,7 @@ html_theme_options = {
     "logo_only": False,
     "titles_only": True,
 }
+html_css_files = ["eos.css"]
 
 # -- Options for autodoc -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html

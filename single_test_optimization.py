@@ -30,42 +30,63 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     """
     # Make a config
     settings = {
-        # -- General --
-        "prediction_hours": 48,
-        "prediction_historic_hours": 24,
-        "latitude": 52.52,
-        "longitude": 13.405,
-        # -- Predictions --
+        "general": {
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
+        "prediction": {
+            "hours": 48,
+            "historic_hours": 24,
+        },
         # PV Forecast
-        "pvforecast_provider": "PVForecastAkkudoktor",
-        "pvforecast0_peakpower": 5.0,
-        "pvforecast0_surface_azimuth": -10,
-        "pvforecast0_surface_tilt": 7,
-        "pvforecast0_userhorizon": [20, 27, 22, 20],
-        "pvforecast0_inverter_paco": 10000,
-        "pvforecast1_peakpower": 4.8,
-        "pvforecast1_surface_azimuth": -90,
-        "pvforecast1_surface_tilt": 7,
-        "pvforecast1_userhorizon": [30, 30, 30, 50],
-        "pvforecast1_inverter_paco": 10000,
-        "pvforecast2_peakpower": 1.4,
-        "pvforecast2_surface_azimuth": -40,
-        "pvforecast2_surface_tilt": 60,
-        "pvforecast2_userhorizon": [60, 30, 0, 30],
-        "pvforecast2_inverter_paco": 2000,
-        "pvforecast3_peakpower": 1.6,
-        "pvforecast3_surface_azimuth": 5,
-        "pvforecast3_surface_tilt": 45,
-        "pvforecast3_userhorizon": [45, 25, 30, 60],
-        "pvforecast3_inverter_paco": 1400,
-        "pvforecast4_peakpower": None,
+        "pvforecast": {
+            "provider": "PVForecastAkkudoktor",
+            "planes": [
+                {
+                    "peakpower": 5.0,
+                    "surface_azimuth": -10,
+                    "surface_tilt": 7,
+                    "userhorizon": [20, 27, 22, 20],
+                    "inverter_paco": 10000,
+                },
+                {
+                    "peakpower": 4.8,
+                    "surface_azimuth": -90,
+                    "surface_tilt": 7,
+                    "userhorizon": [30, 30, 30, 50],
+                    "inverter_paco": 10000,
+                },
+                {
+                    "peakpower": 1.4,
+                    "surface_azimuth": -40,
+                    "surface_tilt": 60,
+                    "userhorizon": [60, 30, 0, 30],
+                    "inverter_paco": 2000,
+                },
+                {
+                    "peakpower": 1.6,
+                    "surface_azimuth": 5,
+                    "surface_tilt": 45,
+                    "userhorizon": [45, 25, 30, 60],
+                    "inverter_paco": 1400,
+                },
+            ],
+        },
         # Weather Forecast
-        "weather_provider": "ClearOutside",
+        "weather": {
+            "provider": "ClearOutside",
+        },
         # Electricity Price Forecast
-        "elecprice_provider": "ElecPriceAkkudoktor",
+        "elecprice": {
+            "provider": "ElecPriceAkkudoktor",
+        },
         # Load Forecast
-        "load_provider": "LoadAkkudoktor",
-        "loadakkudoktor_year_energy": 5000,  # Energy consumption per year in kWh
+        "load": {
+            "provider": "LoadAkkudoktor",
+            "provider_settings": {
+                "loadakkudoktor_year_energy": 5000,  # Energy consumption per year in kWh
+            },
+        },
         # -- Simulations --
     }
     config_eos = get_config()
@@ -129,19 +150,19 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
                 "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
             },
             "pv_akku": {
+                "device_id": "battery1",
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
                 "min_soc_percentage": 15,
             },
+            "inverter": {"device_id": "iv1", "max_power_wh": 10000, "battery_id": "battery1"},
             "eauto": {
+                "device_id": "ev1",
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,
                 "charging_efficiency": 0.95,
                 "max_charge_power_w": 11040,
                 "initial_soc_percentage": 5,
-            },
-            "inverter": {
-                "max_power_wh": 10000,
             },
             "temperature_forecast": temperature_forecast,
             "start_solution": start_solution,
@@ -283,19 +304,19 @@ def prepare_optimization_parameters() -> OptimizationParameters:
                 "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
             },
             "pv_akku": {
+                "device_id": "battery1",
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
                 "min_soc_percentage": 15,
             },
+            "inverter": {"device_id": "iv1", "max_power_wh": 10000, "battery_id": "battery1"},
             "eauto": {
+                "device_id": "ev1",
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,
                 "charging_efficiency": 0.95,
                 "max_charge_power_w": 11040,
                 "initial_soc_percentage": 5,
-            },
-            "inverter": {
-                "max_power_wh": 10000,
             },
             "temperature_forecast": temperature_forecast,
             "start_solution": start_solution,
@@ -330,7 +351,9 @@ def run_optimization(
 
     # Initialize the optimization problem using the default configuration
     config_eos = get_config()
-    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 48})
+    config_eos.merge_settings_from_dict(
+        {"prediction": {"hours": 48}, "optimization": {"hours": 48}}
+    )
     opt_class = optimization_problem(verbose=verbose, fixed_seed=seed)
 
     # Perform the optimisation based on the provided parameters and start hour

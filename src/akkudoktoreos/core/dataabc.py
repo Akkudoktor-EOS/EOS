@@ -953,6 +953,44 @@ class DataSequence(DataBase, MutableSequence):
         array = resampled.values
         return array
 
+    def to_dataframe(
+        self,
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+    ) -> pd.DataFrame:
+        """Converts the sequence of DataRecord instances into a Pandas DataFrame.
+
+        Args:
+            start_datetime (Optional[datetime]): The lower bound for filtering (inclusive).
+                Defaults to the earliest possible datetime if None.
+            end_datetime (Optional[datetime]): The upper bound for filtering (exclusive).
+                Defaults to the latest possible datetime if None.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the filtered data from all records.
+        """
+        if not self.records:
+            return pd.DataFrame()  # Return empty DataFrame if no records exist
+
+        # Use filter_by_datetime to get filtered records
+        filtered_records = self.filter_by_datetime(start_datetime, end_datetime)
+
+        # Convert filtered records to a dictionary list
+        data = [record.model_dump() for record in filtered_records]
+
+        # Convert to DataFrame
+        df = pd.DataFrame(data)
+        if df.empty:
+            return df
+
+        # Ensure `date_time` column exists and use it for the index
+        if not "date_time" in df.columns:
+            error_msg = f"Cannot create dataframe: no `date_time` column in `{df}`."
+            logger.error(error_msg)
+            raise TypeError(error_msg)
+        df.index = pd.DatetimeIndex(df["date_time"])
+        return df
+
     def sort_by_datetime(self, reverse: bool = False) -> None:
         """Sort the DataRecords in the sequence by their date_time attribute.
 
@@ -1110,7 +1148,7 @@ class DataProvider(SingletonMixin, DataSequence):
 
         To be implemented by derived classes.
         """
-        return self.provider_id() == self.config.abstract_provider
+        raise NotImplementedError()
 
     @abstractmethod
     def _update_data(self, force_update: Optional[bool] = False) -> None:
@@ -1120,6 +1158,11 @@ class DataProvider(SingletonMixin, DataSequence):
             force_update (bool, optional): If True, forces the provider to update the data even if still cached.
         """
         pass
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if hasattr(self, "_initialized"):
+            return
+        super().__init__(*args, **kwargs)
 
     def update_data(
         self,
@@ -1460,7 +1503,7 @@ class DataImportMixin:
                 error_msg += f"Field: {field}\nError: {message}\nType: {error_type}\n"
             logger.debug(f"PydanticDateTimeDataFrame import: {error_msg}")
 
-        # Try dictionary with special keys start_datetime and intervall
+        # Try dictionary with special keys start_datetime and interval
         try:
             import_data = PydanticDateTimeData.model_validate_json(json_str)
             self.import_from_dict(import_data.to_dict())
@@ -1520,7 +1563,7 @@ class DataImportMixin:
             and `key_prefix = "load"`, only the "load_mean" key will be processed even though
             both keys are in the record.
         """
-        with import_file_path.open("r") as import_file:
+        with import_file_path.open("r", encoding="utf-8", newline=None) as import_file:
             import_str = import_file.read()
         self.import_from_json(
             import_str, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval
@@ -1594,6 +1637,11 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
             )
         )
         return list(key_set)
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if hasattr(self, "_initialized"):
+            return
+        super().__init__(*args, **kwargs)
 
     def __getitem__(self, key: str) -> pd.Series:
         """Retrieve a Pandas Series for a specified key from the data in each DataProvider.
@@ -1796,6 +1844,88 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
             raise KeyError(f"No data found for key '{key}'.")
 
         return array
+
+    def keys_to_dataframe(
+        self,
+        keys: list[str],
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+        interval: Optional[Any] = None,  # Duration assumed
+        fill_method: Optional[str] = None,
+    ) -> pd.DataFrame:
+        """Retrieve a dataframe indexed by fixed time intervals for specified keys from the data in each DataProvider.
+
+        Generates a pandas DataFrame using the NumPy arrays for each specified key, ensuring a common time index..
+
+        Args:
+            keys (list[str]): A list of field names to retrieve.
+            start_datetime (datetime, optional): Start date for filtering records (inclusive).
+            end_datetime (datetime, optional): End date for filtering records (exclusive).
+            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
+            fill_method (str, optional): Method to handle missing values during resampling.
+                - 'linear': Linearly interpolate missing values (for numeric data only).
+                - 'ffill': Forward fill missing values.
+                - 'bfill': Backward fill missing values.
+                - 'none': Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+        Returns:
+            pd.DataFrame: A DataFrame where each column represents a key's array with a common time index.
+
+        Raises:
+            KeyError: If no valid data is found for any of the requested keys.
+            ValueError: If any retrieved array has a different time index than the first one.
+        """
+        # Ensure datetime objects are normalized
+        start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
+        end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
+        if interval is None:
+            interval = to_duration("1 hour")
+        if start_datetime is None:
+            # Take earliest datetime of all providers that are enabled
+            for provider in self.enabled_providers:
+                if start_datetime is None:
+                    start_datetime = provider.min_datetime
+                elif (
+                    provider.min_datetime
+                    and compare_datetimes(provider.min_datetime, start_datetime).lt
+                ):
+                    start_datetime = provider.min_datetime
+        if end_datetime is None:
+            # Take latest datetime of all providers that are enabled
+            for provider in self.enabled_providers:
+                if end_datetime is None:
+                    end_datetime = provider.max_datetime
+                elif (
+                    provider.max_datetime
+                    and compare_datetimes(provider.max_datetime, end_datetime).gt
+                ):
+                    end_datetime = provider.min_datetime
+            if end_datetime:
+                end_datetime.add(seconds=1)
+
+        # Create a DatetimeIndex based on start, end, and interval
+        reference_index = pd.date_range(
+            start=start_datetime, end=end_datetime, freq=interval, inclusive="left"
+        )
+
+        data = {}
+        for key in keys:
+            try:
+                array = self.key_to_array(key, start_datetime, end_datetime, interval, fill_method)
+
+                if len(array) != len(reference_index):
+                    raise ValueError(
+                        f"Array length mismatch for key '{key}' (expected {len(reference_index)}, got {len(array)})"
+                    )
+
+                data[key] = array
+            except KeyError as e:
+                raise KeyError(f"Failed to retrieve data for key '{key}': {e}")
+
+        if not data:
+            raise KeyError(f"No valid data found for the requested keys {keys}.")
+
+        return pd.DataFrame(data, index=reference_index)
 
     def provider_by_id(self, provider_id: str) -> DataProvider:
         """Retrieves a data provider by its unique identifier.

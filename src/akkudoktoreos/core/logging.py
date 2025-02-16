@@ -52,6 +52,10 @@ def get_logger(
     # Create a logger with the specified name
     logger = pylogging.getLogger(name)
     logger.propagate = True
+    # This is already supported by pydantic-settings in LoggingCommonSettings, however in case
+    # loading the config itself fails and to set the level before we load the config, we set it here manually.
+    if logging_level is None and (env_level := os.getenv("EOS_LOGGING__LEVEL")) is not None:
+        logging_level = env_level
     if logging_level is not None:
         level = logging_str_to_level(logging_level)
         logger.setLevel(level)

@@ -1,8 +1,8 @@
 """Test Module for logging Module."""
 
 import logging
-import os
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
 import pytest
 
@@ -13,16 +13,7 @@ from akkudoktoreos.core.logging import get_logger
 # -----------------------------
 
 
-@pytest.fixture
-def clean_up_log_file():
-    """Fixture to clean up log files after tests."""
-    log_file = "test.log"
-    yield log_file
-    if os.path.exists(log_file):
-        os.remove(log_file)
-
-
-def test_get_logger_console_logging(clean_up_log_file):
+def test_get_logger_console_logging():
     """Test logger creation with console logging."""
     logger = get_logger("test_logger", logging_level="DEBUG")
 
@@ -37,9 +28,10 @@ def test_get_logger_console_logging(clean_up_log_file):
     assert isinstance(logger.handlers[0], logging.StreamHandler)
 
 
-def test_get_logger_file_logging(clean_up_log_file):
+def test_get_logger_file_logging(tmpdir):
     """Test logger creation with file logging."""
-    logger = get_logger("test_logger", log_file="test.log", logging_level="WARNING")
+    log_file = Path(tmpdir).joinpath("test.log")
+    logger = get_logger("test_logger", log_file=str(log_file), logging_level="WARNING")
 
     # Check logger name
     assert logger.name == "test_logger"
@@ -53,10 +45,10 @@ def test_get_logger_file_logging(clean_up_log_file):
     assert isinstance(logger.handlers[1], RotatingFileHandler)
 
     # Check file existence
-    assert os.path.exists("test.log")
+    assert log_file.exists()
 
 
-def test_get_logger_no_file_logging(clean_up_log_file):
+def test_get_logger_no_file_logging():
     """Test logger creation without file logging."""
     logger = get_logger("test_logger")
 
@@ -71,7 +63,7 @@ def test_get_logger_no_file_logging(clean_up_log_file):
     assert isinstance(logger.handlers[0], logging.StreamHandler)
 
 
-def test_get_logger_with_invalid_level(clean_up_log_file):
+def test_get_logger_with_invalid_level():
     """Test logger creation with an invalid logging level."""
     with pytest.raises(ValueError, match="Unknown loggin level: INVALID"):
         logger = get_logger("test_logger", logging_level="INVALID")

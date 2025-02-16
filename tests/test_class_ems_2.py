@@ -1,11 +1,9 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
 
 from akkudoktoreos.core.ems import (
-    EnergieManagementSystem,
-    EnergieManagementSystemParameters,
+    EnergyManagement,
+    EnergyManagementParameters,
     SimulationResult,
     get_ems,
 )
@@ -16,64 +14,61 @@ from akkudoktoreos.devices.battery import (
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
-from akkudoktoreos.prediction.interpolator import SelfConsumptionProbabilityInterpolator
 
 start_hour = 0
 
 
 # Example initialization of necessary components
 @pytest.fixture
-def create_ems_instance(config_eos) -> EnergieManagementSystem:
-    """Fixture to create an EnergieManagementSystem instance with given test parameters."""
+def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
+    """Fixture to create an EnergyManagement instance with given test parameters."""
     # Assure configuration holds the correct values
-    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
-    assert config_eos.prediction_hours is not None
+    config_eos.merge_settings_from_dict(
+        {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
+    )
+    assert config_eos.prediction.hours == 48
 
     # Initialize the battery and the inverter
     akku = Battery(
         SolarPanelBatteryParameters(
-            capacity_wh=5000, initial_soc_percentage=80, min_soc_percentage=10
-        ),
-        hours=config_eos.prediction_hours,
+            device_id="pv1", capacity_wh=5000, initial_soc_percentage=80, min_soc_percentage=10
+        )
     )
-
-    # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
-    sc = SelfConsumptionProbabilityInterpolator(
-        Path(__file__).parent.resolve()
-        / ".."
-        / "src"
-        / "akkudoktoreos"
-        / "data"
-        / "regular_grid_interpolator.pkl"
-    )
-
     akku.reset()
-    inverter = Inverter(sc, InverterParameters(max_power_wh=10000), akku)
+    devices_eos.add_device(akku)
+
+    inverter = Inverter(
+        InverterParameters(device_id="iv1", max_power_wh=10000, battery_id=akku.device_id)
+    )
+    devices_eos.add_device(inverter)
 
     # Household device (currently not used, set to None)
     home_appliance = HomeAppliance(
         HomeApplianceParameters(
+            device_id="dishwasher1",
             consumption_wh=2000,
             duration_h=2,
-        ),
-        hours=config_eos.prediction_hours,
+        )
     )
     home_appliance.set_starting_time(2)
+    devices_eos.add_device(home_appliance)
 
     # Example initialization of electric car battery
     eauto = Battery(
         ElectricVehicleParameters(
-            capacity_wh=26400, initial_soc_percentage=100, min_soc_percentage=100
+            device_id="ev1", capacity_wh=26400, initial_soc_percentage=100, min_soc_percentage=100
         ),
-        hours=config_eos.prediction_hours,
     )
+    devices_eos.add_device(eauto)
+
+    devices_eos.post_setup()
 
     # Parameters based on previous example data
-    pv_prognose_wh = [0.0] * config_eos.prediction_hours
+    pv_prognose_wh = [0.0] * config_eos.prediction.hours
     pv_prognose_wh[10] = 5000.0
     pv_prognose_wh[11] = 5000.0
 
-    strompreis_euro_pro_wh = [0.001] * config_eos.prediction_hours
+    strompreis_euro_pro_wh = [0.001] * config_eos.prediction.hours
     strompreis_euro_pro_wh[0:10] = [0.00001] * 10
     strompreis_euro_pro_wh[11:15] = [0.00005] * 4
     strompreis_euro_pro_wh[20] = 0.00001
@@ -135,7 +130,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
     # Initialize the energy management system with the respective parameters
     ems = get_ems()
     ems.set_parameters(
-        EnergieManagementSystemParameters(
+        EnergyManagementParameters(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
@@ -147,10 +142,10 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
         home_appliance=home_appliance,
     )
 
-    ac = np.full(config_eos.prediction_hours, 0.0)
+    ac = np.full(config_eos.prediction.hours, 0.0)
     ac[20] = 1
     ems.set_akku_ac_charge_hours(ac)
-    dc = np.full(config_eos.prediction_hours, 0.0)
+    dc = np.full(config_eos.prediction.hours, 0.0)
     dc[11] = 1
     ems.set_akku_dc_charge_hours(dc)
 
@@ -158,7 +153,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
 
 
 def test_simulation(create_ems_instance):
-    """Test the EnergieManagementSystem simulation method."""
+    """Test the EnergyManagement simulation method."""
     ems = create_ems_instance
 
     # Simulate starting from hour 0 (this value can be adjusted)
@@ -259,7 +254,7 @@ def test_simulation(create_ems_instance):
 
 
 def test_set_parameters(create_ems_instance):
-    """Test the set_parameters method of EnergieManagementSystem."""
+    """Test the set_parameters method of EnergyManagement."""
     ems = create_ems_instance
 
     # Check if parameters are set correctly
@@ -272,9 +267,9 @@ def test_set_parameters(create_ems_instance):
 
 
 def test_set_akku_discharge_hours(create_ems_instance):
-    """Test the set_akku_discharge_hours method of EnergieManagementSystem."""
+    """Test the set_akku_discharge_hours method of EnergyManagement."""
     ems = create_ems_instance
-    discharge_hours = np.full(ems.config.prediction_hours, 1.0)
+    discharge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_akku_discharge_hours(discharge_hours)
     assert np.array_equal(
         ems.battery.discharge_array, discharge_hours
@@ -282,9 +277,9 @@ def test_set_akku_discharge_hours(create_ems_instance):
 
 
 def test_set_akku_ac_charge_hours(create_ems_instance):
-    """Test the set_akku_ac_charge_hours method of EnergieManagementSystem."""
+    """Test the set_akku_ac_charge_hours method of EnergyManagement."""
     ems = create_ems_instance
-    ac_charge_hours = np.full(ems.config.prediction_hours, 1.0)
+    ac_charge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_akku_ac_charge_hours(ac_charge_hours)
     assert np.array_equal(
         ems.ac_charge_hours, ac_charge_hours
@@ -292,9 +287,9 @@ def test_set_akku_ac_charge_hours(create_ems_instance):
 
 
 def test_set_akku_dc_charge_hours(create_ems_instance):
-    """Test the set_akku_dc_charge_hours method of EnergieManagementSystem."""
+    """Test the set_akku_dc_charge_hours method of EnergyManagement."""
     ems = create_ems_instance
-    dc_charge_hours = np.full(ems.config.prediction_hours, 1.0)
+    dc_charge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_akku_dc_charge_hours(dc_charge_hours)
     assert np.array_equal(
         ems.dc_charge_hours, dc_charge_hours
@@ -302,9 +297,9 @@ def test_set_akku_dc_charge_hours(create_ems_instance):
 
 
 def test_set_ev_charge_hours(create_ems_instance):
-    """Test the set_ev_charge_hours method of EnergieManagementSystem."""
+    """Test the set_ev_charge_hours method of EnergyManagement."""
     ems = create_ems_instance
-    ev_charge_hours = np.full(ems.config.prediction_hours, 1.0)
+    ev_charge_hours = np.full(ems.config.prediction.hours, 1.0)
     ems.set_ev_charge_hours(ev_charge_hours)
     assert np.array_equal(
         ems.ev_charge_hours, ev_charge_hours
@@ -312,7 +307,7 @@ def test_set_ev_charge_hours(create_ems_instance):
 
 
 def test_reset(create_ems_instance):
-    """Test the reset method of EnergieManagementSystem."""
+    """Test the reset method of EnergyManagement."""
     ems = create_ems_instance
     ems.reset()
     assert ems.ev.current_soc_percentage() == 100, "EV SOC should be reset to initial value"
@@ -322,7 +317,7 @@ def test_reset(create_ems_instance):
 
 
 def test_simulate_start_now(create_ems_instance):
-    """Test the simulate_start_now method of EnergieManagementSystem."""
+    """Test the simulate_start_now method of EnergyManagement."""
     ems = create_ems_instance
     result = ems.simulate_start_now()
     assert result is not None, "Result should not be None"

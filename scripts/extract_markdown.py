@@ -150,7 +150,7 @@ def main():
 
     try:
         if args.input_file:
-            with open(args.input_file, "r", encoding="utf8") as f:
+            with open(args.input_file, "r", encoding="utf-8", newline=None) as f:
                 content = f.read()
         elif args.input:
             content = args.input
@@ -164,7 +164,7 @@ def main():
         )
         if args.output_file:
             # Write to file
-            with open(args.output_file, "w", encoding="utf8") as f:
+            with open(args.output_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(extracted_content)
         else:
             # Write to std output

@@ -1,11 +1,9 @@
-from pathlib import Path
-
 import numpy as np
 import pytest
 
 from akkudoktoreos.core.ems import (
-    EnergieManagementSystem,
-    EnergieManagementSystemParameters,
+    EnergyManagement,
+    EnergyManagementParameters,
     SimulationResult,
     get_ems,
 )
@@ -16,58 +14,58 @@ from akkudoktoreos.devices.battery import (
 )
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
-from akkudoktoreos.prediction.interpolator import SelfConsumptionProbabilityInterpolator
 
 start_hour = 1
 
 
 # Example initialization of necessary components
 @pytest.fixture
-def create_ems_instance(config_eos) -> EnergieManagementSystem:
-    """Fixture to create an EnergieManagementSystem instance with given test parameters."""
+def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
+    """Fixture to create an EnergyManagement instance with given test parameters."""
     # Assure configuration holds the correct values
-    config_eos.merge_settings_from_dict({"prediction_hours": 48, "optimization_hours": 24})
-    assert config_eos.prediction_hours is not None
+    config_eos.merge_settings_from_dict(
+        {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
+    )
+    assert config_eos.prediction.hours == 48
 
     # Initialize the battery and the inverter
     akku = Battery(
         SolarPanelBatteryParameters(
-            capacity_wh=5000, initial_soc_percentage=80, min_soc_percentage=10
-        ),
-        hours=config_eos.prediction_hours,
+            device_id="battery1",
+            capacity_wh=5000,
+            initial_soc_percentage=80,
+            min_soc_percentage=10,
+        )
     )
-
-    # 1h Load to Sub 1h Load Distribution -> SelfConsumptionRate
-    sc = SelfConsumptionProbabilityInterpolator(
-        Path(__file__).parent.resolve()
-        / ".."
-        / "src"
-        / "akkudoktoreos"
-        / "data"
-        / "regular_grid_interpolator.pkl"
-    )
-
     akku.reset()
-    inverter = Inverter(sc, InverterParameters(max_power_wh=10000), akku)
+    devices_eos.add_device(akku)
+
+    inverter = Inverter(
+        InverterParameters(device_id="inverter1", max_power_wh=10000, battery_id=akku.device_id)
+    )
+    devices_eos.add_device(inverter)
 
     # Household device (currently not used, set to None)
     home_appliance = HomeAppliance(
         HomeApplianceParameters(
+            device_id="dishwasher1",
             consumption_wh=2000,
             duration_h=2,
         ),
-        hours=config_eos.prediction_hours,
     )
     home_appliance.set_starting_time(2)
+    devices_eos.add_device(home_appliance)
 
     # Example initialization of electric car battery
     eauto = Battery(
         ElectricVehicleParameters(
-            capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
+            device_id="ev1", capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
         ),
-        hours=config_eos.prediction_hours,
     )
-    eauto.set_charge_per_hour(np.full(config_eos.prediction_hours, 1))
+    eauto.set_charge_per_hour(np.full(config_eos.prediction.hours, 1))
+    devices_eos.add_device(eauto)
+
+    devices_eos.post_setup()
 
     # Parameters based on previous example data
     pv_prognose_wh = [
@@ -229,7 +227,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
     # Initialize the energy management system with the respective parameters
     ems = get_ems()
     ems.set_parameters(
-        EnergieManagementSystemParameters(
+        EnergyManagementParameters(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
@@ -245,7 +243,7 @@ def create_ems_instance(config_eos) -> EnergieManagementSystem:
 
 
 def test_simulation(create_ems_instance):
-    """Test the EnergieManagementSystem simulation method."""
+    """Test the EnergyManagement simulation method."""
     ems = create_ems_instance
 
     # Simulate starting from hour 1 (this value can be adjusted)

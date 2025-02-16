@@ -40,8 +40,8 @@ Windows:
 
 ```cmd
 python -m venv .venv
- .venv\Scripts\pip install -r requirements.txt
- .venv\Scripts\pip install -e .
+.venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\pip install -e .
 ```
 
 Finally, start the EOS server to access it at `http://localhost:8503` (API docs at `http://localhost:8503/docs`):
@@ -65,6 +65,8 @@ Start EOS with following command to access it at `http://localhost:8503` (API do
 ```bash
 docker compose up
 ```
+
+If you are running the EOS container on a system hosting multiple services, such as a Synology NAS, and want to allow external network access to EOS, please ensure that the default exported ports (8503, 8504) are available on the host. On Synology systems, these ports might already be in use (refer to [this guide](https://kb.synology.com/en-me/DSM/tutorial/What_network_ports_are_used_by_Synology_services)). If the ports are occupied, you will need to reconfigure the exported ports accordingly.
 
 ## Configuration
 

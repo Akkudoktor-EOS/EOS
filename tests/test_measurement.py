@@ -3,7 +3,11 @@ import pytest
 from pendulum import datetime, duration
 
 from akkudoktoreos.config.config import SettingsEOS
-from akkudoktoreos.measurement.measurement import MeasurementDataRecord, get_measurement
+from akkudoktoreos.measurement.measurement import (
+    MeasurementCommonSettings,
+    MeasurementDataRecord,
+    get_measurement,
+)
 
 
 @pytest.fixture
@@ -13,33 +17,33 @@ def measurement_eos():
     measurement.records = [
         MeasurementDataRecord(
             date_time=datetime(2023, 1, 1, hour=0),
-            measurement_load0_mr=100,
-            measurement_load1_mr=200,
+            load0_mr=100,
+            load1_mr=200,
         ),
         MeasurementDataRecord(
             date_time=datetime(2023, 1, 1, hour=1),
-            measurement_load0_mr=150,
-            measurement_load1_mr=250,
+            load0_mr=150,
+            load1_mr=250,
         ),
         MeasurementDataRecord(
             date_time=datetime(2023, 1, 1, hour=2),
-            measurement_load0_mr=200,
-            measurement_load1_mr=300,
+            load0_mr=200,
+            load1_mr=300,
         ),
         MeasurementDataRecord(
             date_time=datetime(2023, 1, 1, hour=3),
-            measurement_load0_mr=250,
-            measurement_load1_mr=350,
+            load0_mr=250,
+            load1_mr=350,
         ),
         MeasurementDataRecord(
             date_time=datetime(2023, 1, 1, hour=4),
-            measurement_load0_mr=300,
-            measurement_load1_mr=400,
+            load0_mr=300,
+            load1_mr=400,
         ),
         MeasurementDataRecord(
             date_time=datetime(2023, 1, 1, hour=5),
-            measurement_load0_mr=350,
-            measurement_load1_mr=450,
+            load0_mr=350,
+            load1_mr=450,
         ),
     ]
     return measurement
@@ -75,7 +79,7 @@ def test_interval_count_invalid_non_positive_interval(measurement_eos):
 
 def test_energy_from_meter_readings_valid_input(measurement_eos):
     """Test _energy_from_meter_readings with valid inputs and proper alignment of load data."""
-    key = "measurement_load0_mr"
+    key = "load0_mr"
     start_datetime = datetime(2023, 1, 1, 0)
     end_datetime = datetime(2023, 1, 1, 5)
     interval = duration(hours=1)
@@ -90,7 +94,7 @@ def test_energy_from_meter_readings_valid_input(measurement_eos):
 
 def test_energy_from_meter_readings_empty_array(measurement_eos):
     """Test _energy_from_meter_readings with no data (empty array)."""
-    key = "measurement_load0_mr"
+    key = "load0_mr"
     start_datetime = datetime(2023, 1, 1, 0)
     end_datetime = datetime(2023, 1, 1, 5)
     interval = duration(hours=1)
@@ -112,7 +116,7 @@ def test_energy_from_meter_readings_empty_array(measurement_eos):
 
 def test_energy_from_meter_readings_misaligned_array(measurement_eos):
     """Test _energy_from_meter_readings with misaligned array size."""
-    key = "measurement_load1_mr"
+    key = "load1_mr"
     start_datetime = measurement_eos.min_datetime
     end_datetime = measurement_eos.max_datetime
     interval = duration(hours=1)
@@ -130,7 +134,7 @@ def test_energy_from_meter_readings_misaligned_array(measurement_eos):
 
 def test_energy_from_meter_readings_partial_data(measurement_eos, caplog):
     """Test _energy_from_meter_readings with partial data (misaligned but empty array)."""
-    key = "measurement_load2_mr"
+    key = "load2_mr"
     start_datetime = datetime(2023, 1, 1, 0)
     end_datetime = datetime(2023, 1, 1, 5)
     interval = duration(hours=1)
@@ -149,7 +153,7 @@ def test_energy_from_meter_readings_partial_data(measurement_eos, caplog):
 
 def test_energy_from_meter_readings_negative_interval(measurement_eos):
     """Test _energy_from_meter_readings with a negative interval."""
-    key = "measurement_load3_mr"
+    key = "load3_mr"
     start_datetime = datetime(2023, 1, 1, 0)
     end_datetime = datetime(2023, 1, 1, 5)
     interval = duration(hours=-1)
@@ -186,21 +190,25 @@ def test_load_total_no_data(measurement_eos):
 def test_name_to_key(measurement_eos):
     """Test name_to_key functionality."""
     settings = SettingsEOS(
-        measurement_load0_name="Household",
-        measurement_load1_name="Heat Pump",
+        measurement=MeasurementCommonSettings(
+            load0_name="Household",
+            load1_name="Heat Pump",
+        )
     )
     measurement_eos.config.merge_settings(settings)
 
-    assert measurement_eos.name_to_key("Household", "measurement_load") == "measurement_load0_mr"
-    assert measurement_eos.name_to_key("Heat Pump", "measurement_load") == "measurement_load1_mr"
-    assert measurement_eos.name_to_key("Unknown", "measurement_load") is None
+    assert measurement_eos.name_to_key("Household", "load") == "load0_mr"
+    assert measurement_eos.name_to_key("Heat Pump", "load") == "load1_mr"
+    assert measurement_eos.name_to_key("Unknown", "load") is None
 
 
 def test_name_to_key_invalid_topic(measurement_eos):
     """Test name_to_key with an invalid topic."""
     settings = SettingsEOS(
-        measurement_load0_name="Household",
-        measurement_load1_name="Heat Pump",
+        MeasurementCommonSettings(
+            load0_name="Household",
+            load1_name="Heat Pump",
+        )
     )
     measurement_eos.config.merge_settings(settings)
 

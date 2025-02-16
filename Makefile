@@ -17,10 +17,12 @@ help:
 	@echo "  docker-build - Rebuild docker image"
 	@echo "  docs         - Generate HTML documentation (in build/docs/html/)."
 	@echo "  read-docs    - Read HTML documentation in your browser."
-	@echo "  gen-docs     - Generate openapi.json and docs/_generated/*."
-	@echo "  clean-docs   - Remove generated documentation."
-	@echo "  run          - Run EOS production server in the virtual environment."
-	@echo "  run-dev      - Run EOS development server in the virtual environment (automatically reloads)."
+	@echo "  gen-docs     - Generate openapi.json and docs/_generated/*.""
+	@echo "  clean-docs   - Remove generated documentation.""
+	@echo "  run          - Run EOS production server in virtual environment."
+	@echo "  run-dev      - Run EOS development server in virtual environment (automatically reloads)."
+	@echo "  run-dash     - Run EOSdash production server in virtual environment."
+	@echo "  run-dash-dev - Run EOSdash development server in virtual environment (automatically reloads)."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
 
@@ -85,11 +87,19 @@ clean: clean-docs
 
 run:
 	@echo "Starting EOS production server, please wait..."
-	.venv/bin/python src/akkudoktoreos/server/eos.py
+	.venv/bin/python -m akkudoktoreos.server.eos
 
 run-dev:
 	@echo "Starting EOS development server, please wait..."
-	.venv/bin/python src/akkudoktoreos/server/eos.py --host localhost --port 8503 --reload true
+	.venv/bin/python -m akkudoktoreos.server.eos --host localhost --port 8503 --reload true
+
+run-dash:
+	@echo "Starting EOSdash production server, please wait..."
+	.venv/bin/python -m akkudoktoreos.server.eosdash
+
+run-dash-dev:
+	@echo "Starting EOSdash development server, please wait..."
+	.venv/bin/python -m akkudoktoreos.server.eosdash --host localhost --port 8504 --reload true
 
 # Target to setup tests.
 test-setup: pip-dev

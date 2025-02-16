@@ -1,8 +1,13 @@
+cachebox==4.4.2
 numpy==2.2.3
 numpydantic==1.6.7
 matplotlib==3.10.0
 fastapi[standard]==0.115.8
 python-fasthtml==0.12.1
+MonsterUI==0.0.29
+markdown-it-py==3.0.0
+mdit-py-plugins==0.4.2
+bokeh==3.6.3
 uvicorn==0.34.0
 scikit-learn==1.6.1
 timezonefinder==6.5.8
@@ -11,6 +16,9 @@ requests==2.32.3
 pandas==2.2.3
 pendulum==3.0.0
 platformdirs==4.3.6
+psutil==6.1.1
 pvlib==0.11.2
 pydantic==2.10.6
 statsmodels==0.14.4
+pydantic-settings==2.7.0
+linkify-it-py==2.0.3
