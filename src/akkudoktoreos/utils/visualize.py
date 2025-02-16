@@ -454,7 +454,9 @@ def prepare_visualize(
         [
             np.full(
                 len(parameters.ems.gesamtlast) - start_hour,
-                parameters.ems.einspeiseverguetung_euro_pro_wh,
+                parameters.ems.einspeiseverguetung_euro_pro_wh[start_hour:]
+                if isinstance(parameters.ems.einspeiseverguetung_euro_pro_wh, list)
+                else parameters.ems.einspeiseverguetung_euro_pro_wh,
             )
         ],
         title="Remuneration",
