@@ -240,7 +240,7 @@ class TestServerStartStop:
         host = get_default_host()
         if os.name == "nt":
             # Windows does not provide SIGKILL
-            sigkill = signal.SIGTERM
+            sigkill = signal.SIGTERM  # type: ignore[attr-defined]
         else:
             sigkill = signal.SIGKILL  # type: ignore[attr-defined]
         port = 8503
