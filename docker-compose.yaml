@@ -21,5 +21,6 @@ services:
       - EOS_ELECPRICE__PROVIDER=ElecPriceAkkudoktor
       - EOS_ELECPRICE__CHARGES_KWH=0.21
     ports:
-      - "${EOS_SERVER__PORT}:${EOS_SERVER__PORT}"
-      - "${EOS_SERVER__EOSDASH_PORT}:${EOS_SERVER__EOSDASH_PORT}"
+      # Configure what ports to expose on host
+      - "${EOS_SERVER__PORT}:8503"
+      - "${EOS_SERVER__EOSDASH_PORT}:8504"
