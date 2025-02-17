@@ -10,8 +10,7 @@
 :maxdepth: 2
 :caption: 'Contents:'
 
-welcome.md
-akkudoktoreos/about.md
+akkudoktoreos/introduction.md
 develop/getting_started.md
 develop/CONTRIBUTING.md
 akkudoktoreos/architecture.md
