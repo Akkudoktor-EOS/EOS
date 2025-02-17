@@ -1,15 +1,15 @@
-from akkudoktoreos.optimization.genetic import OptimizationParameters
+from typing import Any, Optional
+
+from pydantic import Field
+from pyscipopt import Model, quicksum
+
 from akkudoktoreos.core.coreabc import (
     ConfigMixin,
     DevicesMixin,
     EnergyManagementSystemMixin,
 )
-
-from typing import Any, Optional
-from pyscipopt import Model, quicksum
-
 from akkudoktoreos.core.pydantic import ParametersBaseModel
-from pydantic import Field
+from akkudoktoreos.optimization.genetic import OptimizationParameters
 
 
 class ExactSolutionResponse(ParametersBaseModel):
@@ -53,7 +53,6 @@ class MILPOptimization(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin):
     def optimize_ems(
         self,
         parameters: OptimizationParameters,
-        save_model: bool = False,
     ) -> ExactSolutionResponse:
         """Solve the energy management system optimization problem using MILP.
 
@@ -134,9 +133,9 @@ class MILPOptimization(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin):
                 # expects values to be between 0 and 100 to represent %
                 soc_init[batt_type] = getattr(battery, "init_soc_percentage", 50)
                 # expects values to be in w
-                power_max[batt_type] = getattr(battery, "max_charge_power_w", None)
+                power_max[batt_type] = getattr(battery, "max_charge_power_w", 0)
                 # expects values to be in wh
-                capacity[batt_type] = getattr(battery, "capacity_wh", None)
+                capacity[batt_type] = getattr(battery, "capacity_wh", 0)
                 # expects values to be in float in the range 0-1
                 eff_charge[batt_type] = getattr(battery, "charging_efficiency", 1)
                 # expects values to be in float in the range 0-1
@@ -216,7 +215,12 @@ class MILPOptimization(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin):
 
         # Prevent simultaneous import and export when import price is less than or equal to export price
         for t in time_steps:
-            if price_import[t] <= price_export:
+            if isinstance(price_export, float):
+                enforce_flow = price_import[t] <= price_export
+            else:
+                enforce_flow = price_import[t] <= price_export[t]
+
+            if enforce_flow:
                 flow_direction = model.addVar(name=f"flow_direction_{t}", vtype="B", lb=0, ub=1)
                 max_bezug = sum(
                     eff_charge[batt_type] * power_max[batt_type] for batt_type in battery_set
@@ -240,7 +244,6 @@ class MILPOptimization(ConfigMixin, DevicesMixin, EnergyManagementSystemMixin):
             for batt_type in battery_set
         )
         model.setObjective(objective, "maximize")
-        model.writeProblem("nobattery.lp")
         model.optimize()
 
         # Solve the model

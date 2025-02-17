@@ -13,12 +13,9 @@ import numpy as np
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.core.logging import get_logger
-from akkudoktoreos.optimization.genetic import (
-    OptimizationParameters,
-)
 from akkudoktoreos.optimization.exact_optimization import MILPOptimization
+from akkudoktoreos.optimization.genetic import OptimizationParameters
 from akkudoktoreos.prediction.prediction import get_prediction
-
 
 get_logger(__name__, logging_level="DEBUG")
 

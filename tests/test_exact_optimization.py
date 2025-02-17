@@ -1,11 +1,16 @@
-import pytest
-from typing import Dict, Any
+from typing import Any, Dict
+
 import numpy as np
-from akkudoktoreos.optimization.exact_optimization import MILPOptimization, ExactSolutionResponse
-from akkudoktoreos.optimization.genetic import OptimizationParameters
+import pytest
+
 from akkudoktoreos.config.config import get_config
-from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.optimization.exact_optimization import (
+    ExactSolutionResponse,
+    MILPOptimization,
+)
+from akkudoktoreos.optimization.genetic import OptimizationParameters
+from akkudoktoreos.prediction.prediction import get_prediction
 
 
 class TestExactOptimization:
@@ -290,7 +295,7 @@ class TestExactOptimization:
 
         optimizer = MILPOptimization(verbose=False)
 
-        result = optimizer.optimize_ems(params, save_model=True)
+        result = optimizer.optimize_ems(params)
         assert len(result.akku_charge) == 0
         assert result.eauto_charge is None
 
