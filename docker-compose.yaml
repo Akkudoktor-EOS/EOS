@@ -19,4 +19,6 @@ services:
       - elecprice_charges_kwh=0.21
       - EOS_SERVER__EOSDASH_SESSKEY=s3cr3t
     ports:
-      - "${EOS_PORT}:${EOS_PORT}"
+      # Configure what ports to expose on host
+      - "${EOS_PORT}:8503"
+      - "${EOSDASH_PORT}:8504"
