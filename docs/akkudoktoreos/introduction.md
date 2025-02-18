@@ -31,7 +31,7 @@ The Akkudoktor EOS addresses this challenge by simulating energy flows in the ho
 
 ### Input Data
 
-![Overview](../_static/introduction/overview.svg)
+![Overview](../_static/introduction/overview.png)
 
 The EOS requires various types of data for the simulation:
 
