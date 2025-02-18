@@ -54,7 +54,7 @@ Target values
 - Charge level the electric car should reach in the next few hours
 - Consumers to run in the next few hours
 
-There are various service providers available for PV forecasting that calculate forecast data for a PV system based on the various influencing factors, such as system size, orientation, location, time of year and weather conditions. EOS also offers a simple PV forecasting service which can be used. This service uses public data in the background.
+There are various service providers available for PV forecasting that calculate forecast data for a PV system based on the various influencing factors, such as system size, orientation, location, time of year and weather conditions. EOS also offers a [simple PV forecasting service](#prediction-page) which can be used. This service uses public data in the background.
 
 For the forecast of household consumption EOS provides a standard load curve for an average day based on annual household consumption that you can fetch via API. This data was compiled based on data from several households and provides an initial usable basis.
 Alternatively your own collected historical data could be used to reflect your personal consumption behaviour.
@@ -95,9 +95,11 @@ The Akkudoktor EOS can be integrated into a wide variety of systems with a varie
 
 However, the components are not integrated by the EOS itself, but must be intergrated by the owner using an integration component and currently requires some effort and technical know-how.
 
-One possible solution that enables the integration of components and EOS is Node-RED.
+Any [integration](#integration-page) solution that can act as an intermediary between the components and the REST API of EOS can be used. One possible solution that enables the integration of components and EOS is Node-RED. Another solution could be Home Assistant itself.
 
 Access to the data and functions of the components can be done in a variety of ways. Node-RED offers a large number of types of nodes that allow access via the protocols commonly used in this area, such as Modbus or MQTT. Access to any existing databases, such as InfluxDB or PostgreSQL, is also possible via nodes provided by Node-RED.
+
+In Home Assistant you could use an automation to prepare the input payload for EOS and then use the RESTful integration to call EOS. Based on this concept there is already a solutuion created by [Duetting](#duetting-solution).
 
 It becomes easier if a smart home solution like Homa Assistant, openHAB or ioBroker or solutions such as evcc or openWB are already in use. In this case, these solutions already take over the technical integration and communication with the components at a technical level and Node-RED offers nodes for accessing these solutions, so that the corresponding sources can be easily integrated into a flow.
 
