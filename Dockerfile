@@ -11,6 +11,9 @@ ENV EOS_CACHE_DIR="${EOS_DIR}/cache"
 ENV EOS_OUTPUT_DIR="${EOS_DIR}/output"
 ENV EOS_CONFIG_DIR="${EOS_DIR}/config"
 
+# Overwrite when starting the container in a production environment
+ENV EOS_SERVER__EOSDASH_SESSKEY=s3cr3t
+
 WORKDIR ${EOS_DIR}
 
 RUN adduser --system --group --no-create-home eos \
