@@ -99,9 +99,9 @@ Any [integration](#integration-page) solution that can act as an intermediary be
 
 Access to the data and functions of the components can be done in a variety of ways. Node-RED offers a large number of types of nodes that allow access via the protocols commonly used in this area, such as Modbus or MQTT. Access to any existing databases, such as InfluxDB or PostgreSQL, is also possible via nodes provided by Node-RED.
 
-In Home Assistant you could use an automation to prepare the input payload for EOS and then use the RESTful integration to call EOS. Based on this concept there is already a solutuion created by [Duetting](#duetting-solution).
-
 It becomes easier if a smart home solution like Homa Assistant, openHAB or ioBroker or solutions such as evcc or openWB are already in use. In this case, these solutions already take over the technical integration and communication with the components at a technical level and Node-RED offers nodes for accessing these solutions, so that the corresponding sources can be easily integrated into a flow.
+
+In Home Assistant you could use an automation to prepare the input payload for EOS and then use the RESTful integration to call EOS. Based on this concept there is already a solutuion created by [Duetting](#duetting-solution).
 
 The plan created by EOS must also be executed via this integration component, with the respective devices receiving their instructions according to the plan.
 
