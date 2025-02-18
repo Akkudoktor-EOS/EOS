@@ -12,7 +12,7 @@ However, many solutions only take current values such as PV power output, charge
 
 The Akkudoktor EOS takes the possibilities to a new level by taking into account the relevant values ​​of the upcoming hours of the generation system with battery storage as well as other energy-intensive consumers.
 
-![Introdution](../_static/introduction/introduction.svg)
+![Introdution](../_static/introduction/introduction.png)
 
 The challenge is to charge (electric car) or start the consumers (washing machine, dryer) at the right time and to do so as cost-efficiently as possible. If PV yield forecast, battery storage and dynamic electricity price forecasts are included in the calculation, the possibilities increase, but unfortunately so does the complexity.
 
@@ -91,7 +91,7 @@ If required, the simulation result can also be created and downloaded in graphic
 
 The Akkudoktor EOS can be integrated into a wide variety of systems with a variety of components.
 
-![Integration](../_static/introduction/integration.svg)
+![Integration](../_static/introduction/integration.png)
 
 However, the components are not integrated by the EOS itself, but must be intergrated by the owner using an integration component and currently requires some effort and technical know-how.
 
