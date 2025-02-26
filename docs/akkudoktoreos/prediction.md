@@ -1,4 +1,5 @@
 % SPDX-License-Identifier: Apache-2.0
+(prediction-page)=
 
 # Predictions
 
@@ -199,19 +200,19 @@ Configuration options:
 - `longitude`: Longitude in decimal degrees, within -180 to 180 (°)
 - `pvforecast<0..5>_surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
 - `pvforecast<0..5>_surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane.
-                                      Clockwise from north (north=0, east=90, south=180, west=270).
+  Clockwise from north (north=0, east=90, south=180, west=270).
 - `pvforecast<0..5>_userhorizon`: Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.
 - `pvforecast<0..5>_peakpower`: Nominal power of PV system in kW.
 - `pvforecast<0..5>_pvtechchoice`: PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'.
 - `pvforecast<0..5>_mountingplace`: Type of mounting for PV system. Options are 'free' for free-standing
-                                    and 'building' for building-integrated.
+  and 'building' for building-integrated.
 - `pvforecast<0..5>_loss`: Sum of PV system losses in percent
 - `pvforecast<0..5>_trackingtype`: Type of suntracking. 0=fixed,
-                                   1=single horizontal axis aligned north-south,
-                                   2=two-axis tracking,
-                                   3=vertical axis tracking,
-                                   4=single horizontal axis aligned east-west,
-                                   5=single inclined axis aligned north-south.
+  1=single horizontal axis aligned north-south,
+  2=two-axis tracking,
+  3=vertical axis tracking,
+  4=single horizontal axis aligned east-west,
+  5=single inclined axis aligned north-south.
 - `pvforecast<0..5>_optimal_surface_tilt`: Calculate the optimum tilt angle. Ignored for two-axis tracking.
 - `pvforecast<0..5>_optimalangles`: Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.
 - `pvforecast<0..5>_albedo`: Proportion of the light hitting the ground that it reflects back.
@@ -223,7 +224,7 @@ Configuration options:
 - `pvforecastimport_file_path`: Path to the file to import PV forecast data from.
 - `pvforecastimport_json`: JSON string, dictionary of PV forecast value lists.
 
-------
+---
 
 Some of the configuration options directly follow the
 [PVGIS](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/getting-started-pvgis/pvgis-user-manual_en)
@@ -257,13 +258,13 @@ conditions (STC), which are a constant 1000W of solar irradiation per square met
 the array, at an array temperature of 25°C. The peak power should be entered in kilowatt-peak (kWp).
 If you do not know the declared peak power of your modules but instead know the area of the modules
 and the declared conversion efficiency (in percent), you can calculate the peak power as
-power = area * efficiency / 100.
+power = area \* efficiency / 100.
 
 Bifacial modules: PVGIS doesn't make specific calculations for bifacial modules at present. Users
 who wish to explore the possible benefits of this technology can input the power value for Bifacial
 Nameplate Irradiance. This can also be can also be estimated from the front side peak power P_STC
 value and the bifaciality factor, φ (if reported in the module data sheet) as:
-P_BNPI  = P_STC \* (1 + φ \* 0.135). NB this bifacial approach  is not appropriate for BAPV or BIPV
+P_BNPI = P_STC \* (1 + φ \* 0.135). NB this bifacial approach is not appropriate for BAPV or BIPV
 installations or for modules mounting on a N-S axis i.e. facing E-W.
 
 - `pvforecast<0..5>_loss`
@@ -304,7 +305,7 @@ represent equal angular distance around the horizon. For instance, if you have 3
 point is due north, the next is 10 degrees east of north, and so on, until the last point, 10
 degrees west of north.
 
-------
+---
 
 Most of the configuration options are in line with the
 [PVLib](https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html) definition for PVGIS data.
@@ -320,7 +321,7 @@ Tilt angle from horizontal plane.
 Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180,
 west=270). This is offset 180 degrees from the convention used by PVGIS.
 
-------
+---
 
 ### PVForecastAkkudoktor Provider
 
@@ -336,7 +337,7 @@ For each plane `<0..5>` of the PV system the following configuration options mus
 
 - `pvforecast<0..5>_surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
 - `pvforecast<0..5>_surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane.
-                                      Clockwise from north (north=0, east=90, south=180, west=270).
+  Clockwise from north (north=0, east=90, south=180, west=270).
 - `pvforecast<0..5>_userhorizon`: Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.
 - `pvforecast<0..5>_inverter_paco`: AC power rating of the inverter. [W]
 - `pvforecast<0..5>_peakpower`: Nominal power of PV system in kW.
