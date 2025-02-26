@@ -8,11 +8,32 @@
 
 ```{toctree}
 :maxdepth: 2
-:caption: 'Contents:'
+:caption: Overview
 
 akkudoktoreos/introduction.md
+
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Tutorials
+
 develop/getting_started.md
+
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: How-To Guides
+
 develop/CONTRIBUTING.md
+
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Reference
+
 akkudoktoreos/architecture.md
 akkudoktoreos/configuration.md
 akkudoktoreos/optimization.md
@@ -21,6 +42,7 @@ akkudoktoreos/measurement.md
 akkudoktoreos/integration.md
 akkudoktoreos/serverapi.md
 akkudoktoreos/api.rst
+
 ```
 
 ## Indices and tables
