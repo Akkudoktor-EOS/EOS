@@ -1,6 +1,6 @@
 import json
-import sys
 import os
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
