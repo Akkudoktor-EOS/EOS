@@ -26,9 +26,12 @@ def test_openapi_spec_current(config_eos):
         from scripts import generate_openapi
 
         spec = generate_openapi.generate_openapi()
+        spec_str = json.dumps(spec, indent=4, sort_keys=True)
 
-    with open(new_spec_path, "w") as f_new:
-        json.dump(spec, f_new, indent=4, sort_keys=True)
+    if os.name == "nt":
+        spec_str = spec_str.replace("127.0.0.1", "0.0.0.0")
+    with new_spec_path.open("w", encoding="utf-8", newline="\n") as f_new:
+        f_new.write(spec_str)
 
     # Serialize to ensure comparison is consistent
     spec_str = json.dumps(spec, indent=4, sort_keys=True)
@@ -60,7 +63,9 @@ def test_openapi_md_current(config_eos):
 
         spec_md = generate_openapi_md.generate_openapi_md()
 
-    with open(new_spec_md_path, "w", encoding="utf8") as f_new:
+    if os.name == "nt":
+        spec_md = spec_md.replace("127.0.0.1", "0.0.0.0")
+    with new_spec_md_path.open("w", encoding="utf-8", newline="\n") as f_new:
         f_new.write(spec_md)
 
     try:
