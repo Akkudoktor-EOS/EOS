@@ -287,11 +287,11 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| `server_eos_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `127.0.0.1` | EOS server IP address. |
+| `server_eos_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOS server IP address. |
 | `server_eos_port` | `Optional[int]` | `rw` | `8503` | EOS server IP port number. |
 | `server_eos_startup_eosdash` | `Optional[bool]` | `rw` | `True` | EOS server to start EOSdash server. |
 | `server_eos_verbose` | `Optional[bool]` | `rw` | `False` | Enable debug output |
-| `server_eosdash_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `127.0.0.1` | EOSdash server IP address. |
+| `server_eosdash_host` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOSdash server IP address. |
 | `server_eosdash_port` | `Optional[int]` | `rw` | `8504` | EOSdash server IP port number. |
 :::
 

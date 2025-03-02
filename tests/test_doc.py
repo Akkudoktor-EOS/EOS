@@ -1,5 +1,6 @@
 import json
 import sys
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -88,7 +89,9 @@ def test_config_md_current(config_eos):
 
         config_md = generate_config_md.generate_config_md()
 
-    with open(new_config_md_path, "w", encoding="utf8") as f_new:
+    if os.name == "nt":
+        config_md = config_md.replace("127.0.0.1", "0.0.0.0").replace("\\\\", "/")
+    with new_config_md_path.open("w", encoding="utf-8", newline="\n") as f_new:
         f_new.write(config_md)
 
     try:
