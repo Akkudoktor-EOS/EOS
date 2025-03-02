@@ -4,7 +4,7 @@ from typing import Union
 
 import pandas as pd
 import requests
-from bokeh.models import ColumnDataSource, Range1d
+from bokeh.models import ColumnDataSource, LinearAxis, Range1d
 from bokeh.plotting import figure
 from monsterui.franken import FT, Grid, P
 
@@ -135,6 +135,52 @@ def DemoWeatherIrradiance(predictions: pd.DataFrame, config: dict) -> FT:
     return Bokeh(plot)
 
 
+def DemoLoad(predictions: pd.DataFrame, config: dict) -> FT:
+    source = ColumnDataSource(predictions)
+    provider = config["load"]["provider"]
+    if provider == "LoadAkkudoktor":
+        year_energy = config["load"]["provider_settings"]["loadakkudoktor_year_energy"]
+        provider = f"{provider}, {year_energy} kWh"
+
+    plot = figure(
+        x_axis_type="datetime",
+        title=f"Load Prediction ({provider})",
+        x_axis_label="Datetime",
+        y_axis_label="Load [W]",
+        sizing_mode="stretch_width",
+        height=400,
+    )
+    plot.extra_y_ranges["stddev"] = Range1d(0, 1000)
+    y2_axis = LinearAxis(y_range_name="stddev", axis_label="Load Standard Deviation [W]")
+    y2_axis.axis_label_text_color = "green"
+    plot.add_layout(y2_axis, "left")
+
+    plot.line(
+        "date_time",
+        "load_mean",
+        source=source,
+        legend_label="Load mean value",
+        color="red",
+    )
+    plot.line(
+        "date_time",
+        "load_mean_adjusted",
+        source=source,
+        legend_label="Load adjusted by measurement",
+        color="blue",
+    )
+    plot.line(
+        "date_time",
+        "load_std",
+        source=source,
+        legend_label="Load standard deviation",
+        color="green",
+        y_range_name="stddev",
+    )
+
+    return Bokeh(plot)
+
+
 def Demo(eos_host: str, eos_port: Union[str, int]) -> str:
     server = f"http://{eos_host}:{eos_port}"
 
@@ -188,6 +234,9 @@ def Demo(eos_host: str, eos_port: Union[str, int]) -> str:
                 "weather_ghi",
                 "weather_dni",
                 "weather_dhi",
+                "load_mean",
+                "load_std",
+                "load_mean_adjusted",
             ],
         }
         result = requests.get(f"{server}/v1/prediction/dataframe", params=params)
@@ -213,5 +262,6 @@ def Demo(eos_host: str, eos_port: Union[str, int]) -> str:
         DemoElectricityPriceForecast(predictions, democonfig),
         DemoWeatherTempAir(predictions, democonfig),
         DemoWeatherIrradiance(predictions, democonfig),
+        DemoLoad(predictions, democonfig),
         cols_max=2,
     )
