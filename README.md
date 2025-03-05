@@ -10,7 +10,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## System requirements
 
-- Python >= 3.10, < 3.13
+- Python >= 3.11, < 3.13
 - Architecture: amd64, aarch64 (armv8)
 - OS: Linux, Windows, macOS
 
