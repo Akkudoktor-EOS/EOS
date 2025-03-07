@@ -16,7 +16,7 @@ from akkudoktoreos.server.dash.bokeh import BokehJS
 from akkudoktoreos.server.dash.components import Page
 
 # Pages
-from akkudoktoreos.server.dash.configuration import Configuration
+from akkudoktoreos.server.dash.configuration import ConfigKeyUpdate, Configuration
 from akkudoktoreos.server.dash.demo import Demo
 from akkudoktoreos.server.dash.footer import Footer
 from akkudoktoreos.server.dash.hello import Hello
@@ -129,6 +129,11 @@ def get_eosdash_configuration():  # type: ignore
         Configuration: The Configuration page component.
     """
     return Configuration(*eos_server())
+
+
+@app.put("/eosdash/configuration")
+def put_eosdash_configuration(d: dict):  # type: ignore
+    return ConfigKeyUpdate(*eos_server(), d["key"], d["value"])
 
 
 @app.get("/eosdash/demo")

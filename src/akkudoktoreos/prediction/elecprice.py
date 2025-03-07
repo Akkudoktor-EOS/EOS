@@ -1,9 +1,20 @@
 from typing import Optional
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImportCommonSettings
+from akkudoktoreos.prediction.prediction import get_prediction
+
+prediction_eos = get_prediction()
+
+# Valid elecprice providers
+elecprice_providers = [
+    provider.provider_id()
+    for provider in prediction_eos.providers
+    if isinstance(provider, ElecPriceProvider)
+]
 
 
 class ElecPriceCommonSettings(SettingsBaseModel):
@@ -21,3 +32,13 @@ class ElecPriceCommonSettings(SettingsBaseModel):
     provider_settings: Optional[ElecPriceImportCommonSettings] = Field(
         default=None, description="Provider settings", examples=[None]
     )
+
+    # Validators
+    @field_validator("provider", mode="after")
+    @classmethod
+    def validate_provider(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or value in elecprice_providers:
+            return value
+        raise ValueError(
+            f"Provider '{value}' is not a valid electricity price provider: {elecprice_providers}."
+        )

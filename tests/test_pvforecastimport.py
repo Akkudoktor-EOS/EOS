@@ -59,8 +59,8 @@ def test_invalid_provider(provider, config_eos):
             },
         }
     }
-    config_eos.merge_settings_from_dict(settings)
-    assert not provider.enabled()
+    with pytest.raises(ValueError, match="not a valid PV forecast provider"):
+        config_eos.merge_settings_from_dict(settings)
 
 
 # ------------------------------------------------
