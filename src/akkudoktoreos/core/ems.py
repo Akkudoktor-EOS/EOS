@@ -1,3 +1,4 @@
+import traceback
 from typing import Any, ClassVar, Optional
 
 import numpy as np
@@ -305,12 +306,13 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         if EnergyManagement._last_datetime is None:
             # Never run before
             try:
-                # Try to run a first energy management. May fail due to config incomplete.
-                self.run()
                 # Remember energy run datetime.
                 EnergyManagement._last_datetime = current_datetime
+                # Try to run a first energy management. May fail due to config incomplete.
+                self.run()
             except Exception as e:
-                message = f"EOS init: {e}"
+                trace = "".join(traceback.TracebackException.from_exception(e).format())
+                message = f"EOS init: {e}\n{trace}"
                 logger.error(message)
             return
 
@@ -328,7 +330,8 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         try:
             self.run()
         except Exception as e:
-            message = f"EOS run: {e}"
+            trace = "".join(traceback.TracebackException.from_exception(e).format())
+            message = f"EOS run: {e}\n{trace}"
             logger.error(message)
 
         # Remember the energy management run - keep on interval even if we missed some intervals

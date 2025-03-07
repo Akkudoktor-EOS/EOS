@@ -486,7 +486,9 @@ def fastapi_config_put_key(
     path: str = FastapiPath(
         ..., description="The nested path to the configuration key (e.g., general/latitude)."
     ),
-    value: Any = Body(..., description="The value to assign to the specified configuration path."),
+    value: Optional[Any] = Body(
+        None, description="The value to assign to the specified configuration path (can be None)."
+    ),
 ) -> ConfigEOS:
     """Update a nested key or index in the config model.
 
@@ -848,7 +850,7 @@ def fastapi_prediction_update(
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         raise HTTPException(
             status_code=400,
-            detail=f"Error on prediction update: {e}{trace}",
+            detail=f"Error on prediction update: {e}\n{trace}",
         )
     return Response()
 

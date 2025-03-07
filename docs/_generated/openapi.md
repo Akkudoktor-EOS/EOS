@@ -430,7 +430,13 @@ Returns:
 **Request Body**:
 
 - `application/json`: {
-  "description": "The value to assign to the specified configuration path.",
+  "anyOf": [
+    {},
+    {
+      "type": "null"
+    }
+  ],
+  "description": "The value to assign to the specified configuration path (can be None).",
   "title": "Value"
 }
 
