@@ -6,10 +6,20 @@ from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
 from akkudoktoreos.utils.docs import get_model_structure_from_examples
 
 logger = get_logger(__name__)
+prediction_eos = get_prediction()
+
+# Valid PV forecast providers
+pvforecast_providers = [
+    provider.provider_id()
+    for provider in prediction_eos.providers
+    if isinstance(provider, PVForecastProvider)
+]
 
 
 class PVForecastPlaneSetting(SettingsBaseModel):
@@ -129,6 +139,16 @@ class PVForecastCommonSettings(SettingsBaseModel):
     )
 
     max_planes: ClassVar[int] = 6  # Maximum number of planes that can be set
+
+    # Validators
+    @field_validator("provider", mode="after")
+    @classmethod
+    def validate_provider(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or value in pvforecast_providers:
+            return value
+        raise ValueError(
+            f"Provider '{value}' is not a valid PV forecast provider: {pvforecast_providers}."
+        )
 
     @field_validator("planes")
     def validate_planes(

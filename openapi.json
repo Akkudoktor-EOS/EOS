@@ -3453,12 +3453,17 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "description": "The value to assign to the specified configuration path.",
+                                "anyOf": [
+                                    {},
+                                    {
+                                        "type": "null"
+                                    }
+                                ],
+                                "description": "The value to assign to the specified configuration path (can be None).",
                                 "title": "Value"
                             }
                         }
-                    },
-                    "required": true
+                    }
                 },
                 "responses": {
                     "200": {

@@ -79,8 +79,8 @@ def test_invalid_provider(provider, config_eos):
             "provider": "<invalid>",
         }
     }
-    config_eos.merge_settings_from_dict(settings)
-    assert not provider.enabled()
+    with pytest.raises(ValueError, match="not a valid weather provider"):
+        config_eos.merge_settings_from_dict(settings)
 
 
 def test_invalid_coordinates(provider, config_eos):
