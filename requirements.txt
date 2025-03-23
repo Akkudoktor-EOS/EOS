@@ -1,9 +1,9 @@
 cachebox==4.4.2
-numpy==2.2.2
-numpydantic==1.6.7
-matplotlib==3.10.0
-fastapi[standard]==0.115.7
-python-fasthtml==0.12.0
+numpy==2.2.4
+numpydantic==1.6.8
+matplotlib==3.10.1
+fastapi[standard]==0.115.11
+python-fasthtml==0.12.4
 MonsterUI==0.0.29
 markdown-it-py==3.0.0
 mdit-py-plugins==0.4.2
@@ -15,9 +15,9 @@ deap==1.4.2
 requests==2.32.3
 pandas==2.2.3
 pendulum==3.0.0
-platformdirs==4.3.6
+platformdirs==4.3.7
 psutil==6.1.1
-pvlib==0.11.2
+pvlib==0.12.0
 pydantic==2.10.6
 statsmodels==0.14.4
 pydantic-settings==2.7.0
