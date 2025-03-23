@@ -1,4 +1,5 @@
 % SPDX-License-Identifier: Apache-2.0
+(prediction-page)=
 
 # Predictions
 
@@ -243,7 +244,7 @@ Configuration options:
   - `provider_settings.import_file_path`: Path to the file to import PV forecast data from.
   - `provider_settings.import_json`: JSON string, dictionary of PV forecast value lists.
 
-------
+---
 
 Detailed definitions taken from
 [PVGIS](https://joint-research-centre.ec.europa.eu/photovoltaic-geographical-information-system-pvgis/getting-started-pvgis/pvgis-user-manual_en).
@@ -274,13 +275,13 @@ conditions (STC), which are a constant 1000W of solar irradiation per square met
 the array, at an array temperature of 25°C. The peak power should be entered in kilowatt-peak (kWp).
 If you do not know the declared peak power of your modules but instead know the area of the modules
 and the declared conversion efficiency (in percent), you can calculate the peak power as
-power = area * efficiency / 100.
+power = area \* efficiency / 100.
 
 Bifacial modules: PVGIS doesn't make specific calculations for bifacial modules at present. Users
 who wish to explore the possible benefits of this technology can input the power value for Bifacial
 Nameplate Irradiance. This can also be can also be estimated from the front side peak power P_STC
 value and the bifaciality factor, φ (if reported in the module data sheet) as:
-P_BNPI  = P_STC \* (1 + φ \* 0.135). NB this bifacial approach  is not appropriate for BAPV or BIPV
+P_BNPI = P_STC \* (1 + φ \* 0.135). NB this bifacial approach is not appropriate for BAPV or BIPV
 installations or for modules mounting on a N-S axis i.e. facing E-W.
 
 - `loss`
@@ -321,7 +322,7 @@ represent equal angular distance around the horizon. For instance, if you have 3
 point is due north, the next is 10 degrees east of north, and so on, until the last point, 10
 degrees west of north.
 
-------
+---
 
 Most of the configuration options are in line with the
 [PVLib](https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html) definition for PVGIS data.
@@ -337,7 +338,7 @@ Tilt angle from horizontal plane.
 Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180,
 west=270). This is offset 180 degrees from the convention used by PVGIS.
 
-------
+---
 
 ### PVForecastAkkudoktor Provider
 
