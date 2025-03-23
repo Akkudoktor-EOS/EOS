@@ -1,5 +1,5 @@
 numpy==2.2.3
-numpydantic==1.6.7
+numpydantic==1.6.8
 matplotlib==3.10.1
 fastapi[standard]==0.115.11
 python-fasthtml==0.12.4
