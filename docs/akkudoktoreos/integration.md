@@ -1,4 +1,5 @@
 % SPDX-License-Identifier: Apache-2.0
+(integration-page)=
 
 # Integration
 
@@ -26,6 +27,8 @@ Andreas Schmitz uses [Node-RED](https://nodered.org/) as part of his home automa
 
 [Home Assistant](https://www.home-assistant.io/) is an open-source home automation platform that
 emphasizes local control and user privacy.
+
+(duetting-solution)=
 
 ### Home Assistant Resources
 
