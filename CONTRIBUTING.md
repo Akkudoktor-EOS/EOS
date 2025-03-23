@@ -6,7 +6,7 @@ The `EOS` project is in early development, therefore we encourage contribution i
 
 ## Documentation
 
-Latest development documentation can be found at [Akkudoktor-EOS](https://akkudoktor-eos.readthedocs.io/en/main/).
+Latest development documentation can be found at [Akkudoktor-EOS](https://akkudoktor-eos.readthedocs.io/en/latest/).
 
 ## Bug Reports
 
