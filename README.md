@@ -10,7 +10,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Installation
 
-The project requires Python 3.10 or newer. Official docker images can be found at [akkudoktor/eos](https://hub.docker.com/r/akkudoktor/eos).
+The project requires Python 3.11 or newer. Official docker images can be found at [akkudoktor/eos](https://hub.docker.com/r/akkudoktor/eos).
 
 Following sections describe how to locally start the EOS server on `http://localhost:8503`.
 
