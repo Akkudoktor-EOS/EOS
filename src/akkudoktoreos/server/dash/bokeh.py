@@ -8,19 +8,19 @@ from bokeh.models import Plot
 from monsterui.franken import H4, Card, NotStr, Script
 
 BokehJS = [
-    Script(src="https://cdn.bokeh.org/bokeh/release/bokeh-3.6.3.min.js", crossorigin="anonymous"),
+    Script(src="https://cdn.bokeh.org/bokeh/release/bokeh-3.7.0.min.js", crossorigin="anonymous"),
     Script(
-        src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.6.3.min.js",
+        src="https://cdn.bokeh.org/bokeh/release/bokeh-widgets-3.7.0.min.js",
         crossorigin="anonymous",
     ),
     Script(
-        src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.6.3.min.js", crossorigin="anonymous"
+        src="https://cdn.bokeh.org/bokeh/release/bokeh-tables-3.7.0.min.js", crossorigin="anonymous"
     ),
     Script(
-        src="https://cdn.bokeh.org/bokeh/release/bokeh-gl-3.6.3.min.js", crossorigin="anonymous"
+        src="https://cdn.bokeh.org/bokeh/release/bokeh-gl-3.7.0.min.js", crossorigin="anonymous"
     ),
     Script(
-        src="https://cdn.bokeh.org/bokeh/release/bokeh-mathjax-3.6.3.min.js",
+        src="https://cdn.bokeh.org/bokeh/release/bokeh-mathjax-3.7.0.min.js",
         crossorigin="anonymous",
     ),
 ]

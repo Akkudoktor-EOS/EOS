@@ -12,17 +12,16 @@ from monsterui.core import FastHTML, Theme
 
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.logging import get_logger
-from akkudoktoreos.server.dash.bokeh import BokehJS
-from akkudoktoreos.server.dash.components import Page
 
 # Pages
-from akkudoktoreos.server.dash.configuration import Configuration
+from akkudoktoreos.server.dash.admin import Admin
+from akkudoktoreos.server.dash.bokeh import BokehJS
+from akkudoktoreos.server.dash.components import Page
+from akkudoktoreos.server.dash.configuration import ConfigKeyUpdate, Configuration
 from akkudoktoreos.server.dash.demo import Demo
 from akkudoktoreos.server.dash.footer import Footer
 from akkudoktoreos.server.dash.hello import Hello
 from akkudoktoreos.server.server import get_default_host, wait_for_port_free
-
-# from akkudoktoreos.server.dash.altair import AltairJS
 
 logger = get_logger(__name__)
 config_eos = get_config()
@@ -37,8 +36,7 @@ args: Optional[argparse.Namespace] = None
 
 
 # Get frankenui and tailwind headers via CDN using Theme.green.headers()
-# Add altair headers
-# hdrs=(Theme.green.headers(highlightjs=True), AltairJS,)
+# Add Bokeh headers
 hdrs = (
     Theme.green.headers(highlightjs=True),
     BokehJS,
@@ -94,6 +92,7 @@ def get_eosdash():  # type: ignore
             "EOSdash": "/eosdash/hello",
             "Config": "/eosdash/configuration",
             "Demo": "/eosdash/demo",
+            "Admin": "/eosdash/admin",
         },
         Hello(),
         Footer(*eos_server()),
@@ -121,6 +120,21 @@ def get_eosdash_hello():  # type: ignore
     return Hello()
 
 
+@app.get("/eosdash/admin")
+def get_eosdash_admin():  # type: ignore
+    """Serves the EOSdash Admin page.
+
+    Returns:
+        Admin: The Admin page component.
+    """
+    return Admin(*eos_server())
+
+
+@app.post("/eosdash/admin")
+def post_eosdash_admin(data: dict):  # type: ignore
+    return Admin(*eos_server(), data)
+
+
 @app.get("/eosdash/configuration")
 def get_eosdash_configuration():  # type: ignore
     """Serves the EOSdash Configuration page.
@@ -129,6 +143,11 @@ def get_eosdash_configuration():  # type: ignore
         Configuration: The Configuration page component.
     """
     return Configuration(*eos_server())
+
+
+@app.put("/eosdash/configuration")
+def put_eosdash_configuration(data: dict):  # type: ignore
+    return ConfigKeyUpdate(*eos_server(), data["key"], data["value"])
 
 
 @app.get("/eosdash/demo")

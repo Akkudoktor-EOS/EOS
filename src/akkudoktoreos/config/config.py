@@ -529,7 +529,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         if not self.general.config_file_path:
             raise ValueError("Configuration file path unknown.")
         with self.general.config_file_path.open("w", encoding="utf-8", newline="\n") as f_out:
-            json_str = super().model_dump_json()
+            json_str = super().model_dump_json(indent=4)
             f_out.write(json_str)
 
     def update(self) -> None:

@@ -59,8 +59,8 @@ def test_invalid_provider(provider, config_eos, monkeypatch):
             },
         }
     }
-    config_eos.merge_settings_from_dict(settings)
-    assert provider.enabled() == False
+    with pytest.raises(ValueError, match="not a valid weather provider"):
+        config_eos.merge_settings_from_dict(settings)
 
 
 # ------------------------------------------------

@@ -1,7 +1,8 @@
+import json
 from typing import Any, Dict, List, Optional, Sequence, TypeVar, Union
 
 import requests
-from monsterui.franken import Div, DividerLine, P, Table, Tbody, Td, Th, Thead, Tr
+from monsterui.franken import Div, DividerLine, P
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
@@ -14,6 +15,10 @@ logger = get_logger(__name__)
 config_eos = get_config()
 
 T = TypeVar("T")
+
+# Latest configuration update results
+# Dictionary of config names and associated dictionary with keys "value", "result", "error", "open".
+config_update_latest: dict[str, dict[str, Optional[Union[str, bool]]]] = {}
 
 
 def get_nested_value(
@@ -151,8 +156,8 @@ def configuration(values: dict) -> list[dict]:
                     config["type"] = (
                         type_description.replace("typing.", "")
                         .replace("pathlib.", "")
-                        .replace("[", "[ ")
                         .replace("NoneType", "None")
+                        .replace("<class 'float'>", "float")
                     )
                     configs.append(config)
                     found_basic = True
@@ -171,20 +176,16 @@ def configuration(values: dict) -> list[dict]:
     return sorted(configs, key=lambda x: x["name"])
 
 
-def get_configuration(eos_host: Optional[str], eos_port: Optional[Union[str, int]]) -> list[dict]:
+def get_configuration(eos_host: str, eos_port: Union[str, int]) -> list[dict]:
     """Fetch and process configuration data from the specified EOS server.
 
     Args:
-        eos_host (Optional[str]): The hostname of the server.
-        eos_port (Optional[Union[str, int]]): The port of the server.
+        eos_host (str): The hostname of the EOS server.
+        eos_port (Union[str, int]): The port of the EOS server.
 
     Returns:
         List[dict]: A list of processed configuration entries.
     """
-    if eos_host is None:
-        eos_host = config_eos.server.host
-    if eos_port is None:
-        eos_port = config_eos.server.port
     server = f"http://{eos_host}:{eos_port}"
 
     # Get current configuration from server
@@ -201,25 +202,37 @@ def get_configuration(eos_host: Optional[str], eos_port: Optional[Union[str, int
     return configuration(config)
 
 
-def Configuration(eos_host: Optional[str], eos_port: Optional[Union[str, int]]) -> Div:
+def Configuration(
+    eos_host: str, eos_port: Union[str, int], configuration: Optional[list[dict]] = None
+) -> Div:
     """Create a visual representation of the configuration.
 
     Args:
-        eos_host (Optional[str]): The hostname of the EOS server.
-        eos_port (Optional[Union[str, int]]): The port of the EOS server.
+        eos_host (str): The hostname of the EOS server.
+        eos_port (Union[str, int]): The port of the EOS server.
+        configuration (Optional[list[dict]]): Optional configuration. If not provided it will be
+            retrievd from EOS.
 
     Returns:
-        Table: A `monsterui.franken.Table` component displaying configuration details.
+        rows:  Rows of configuration details.
     """
-    flds = "Name", "Type", "RO/RW", "Value", "Default", "Description"
+    if not configuration:
+        configuration = get_configuration(eos_host, eos_port)
     rows = []
     last_category = ""
-    for config in get_configuration(eos_host, eos_port):
+    for config in configuration:
         category = config["name"].split(".")[0]
         if category != last_category:
             rows.append(P(category))
             rows.append(DividerLine())
             last_category = category
+        update_error = config_update_latest.get(config["name"], {}).get("error")
+        update_value = config_update_latest.get(config["name"], {}).get("value")
+        update_open = config_update_latest.get(config["name"], {}).get("open")
+        # Make mypy happy - should never trigger
+        assert isinstance(update_error, (str, type(None)))
+        assert isinstance(update_value, (str, type(None)))
+        assert isinstance(update_open, (bool, type(None)))
         rows.append(
             ConfigCard(
                 config["name"],
@@ -228,48 +241,59 @@ def Configuration(eos_host: Optional[str], eos_port: Optional[Union[str, int]]) 
                 config["value"],
                 config["default"],
                 config["description"],
+                update_error,
+                update_value,
+                update_open,
             )
         )
     return Div(*rows, cls="space-y-4")
 
 
-def ConfigurationOrg(eos_host: Optional[str], eos_port: Optional[Union[str, int]]) -> Table:
-    """Create a visual representation of the configuration.
+def ConfigKeyUpdate(eos_host: str, eos_port: Union[str, int], key: str, value: str) -> P:
+    """Update configuration key and create a visual representation of the configuration.
 
     Args:
-        eos_host (Optional[str]): The hostname of the EOS server.
-        eos_port (Optional[Union[str, int]]): The port of the EOS server.
+        eos_host (str): The hostname of the EOS server.
+        eos_port (Union[str, int]): The port of the EOS server.
+        key (str): configuration key in dot notation
+        value (str): configuration value as json string
 
     Returns:
-        Table: A `monsterui.franken.Table` component displaying configuration details.
+        rows:  Rows of configuration details.
     """
-    flds = "Name", "Type", "RO/RW", "Value", "Default", "Description"
-    rows = [
-        Tr(
-            Td(
-                config["name"],
-                cls="max-w-64 text-wrap break-all",
-            ),
-            Td(
-                config["type"],
-                cls="max-w-48 text-wrap break-all",
-            ),
-            Td(
-                config["read-only"],
-                cls="max-w-24 text-wrap break-all",
-            ),
-            Td(
-                config["value"],
-                cls="max-w-md text-wrap break-all",
-            ),
-            Td(config["default"], cls="max-w-48 text-wrap break-all"),
-            Td(
-                config["description"],
-                cls="max-w-prose text-wrap",
-            ),
-            cls="",
-        )
-        for config in get_configuration(eos_host, eos_port)
-    ]
-    head = Thead(*map(Th, flds), cls="text-left")
-    return Table(head, Tbody(*rows), cls="w-full uk-table uk-table-divider uk-table-striped")
+    server = f"http://{eos_host}:{eos_port}"
+    path = key.replace(".", "/")
+    try:
+        data = json.loads(value)
+    except:
+        if value in ("None", "none", "Null", "null"):
+            data = None
+        else:
+            data = value
+
+    error = None
+    result = None
+    try:
+        result = requests.put(f"{server}/v1/config/{path}", json=data)
+        result.raise_for_status()
+    except requests.exceptions.HTTPError as err:
+        if result:
+            detail = result.json()["detail"]
+        else:
+            detail = "No details"
+        error = f"Can not set {key} on {server}: {err}, {detail}"
+    # Mark all updates as closed
+    for k in config_update_latest:
+        config_update_latest[k]["open"] = False
+    # Remember this update as latest one
+    config_update_latest[key] = {
+        "error": error,
+        "result": result.json() if result else None,
+        "value": value,
+        "open": True,
+    }
+    if error or result is None:
+        # Reread configuration to be shure we display actual data
+        return Configuration(eos_host, eos_port)
+    # Use configuration already provided
+    return Configuration(eos_host, eos_port, configuration(result.json()))

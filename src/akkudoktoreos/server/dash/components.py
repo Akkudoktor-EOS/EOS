@@ -1,8 +1,6 @@
 from typing import Any, Optional, Union
 
 from fasthtml.common import H1, Div, Li
-
-# from mdit_py_plugins import plugin1, plugin2
 from monsterui.foundations import stringify
 from monsterui.franken import (
     Button,
@@ -13,6 +11,7 @@ from monsterui.franken import (
     Details,
     DivLAligned,
     DivRAligned,
+    Form,
     Grid,
     Input,
     P,
@@ -70,8 +69,22 @@ def ScrollArea(
 
 
 def ConfigCard(
-    config_name: str, config_type: str, read_only: str, value: str, default: str, description: str
+    config_name: str,
+    config_type: str,
+    read_only: str,
+    value: str,
+    default: str,
+    description: str,
+    update_error: Optional[str],
+    update_value: Optional[str],
+    update_open: Optional[bool],
 ) -> Card:
+    """Creates a styled configuration card."""
+    config_id = config_name.replace(".", "-")
+    if not update_value:
+        update_value = value
+    if not update_open:
+        update_open = False
     return Card(
         Details(
             Summary(
@@ -85,24 +98,45 @@ def ConfigCard(
                             P(read_only),
                         ),
                     ),
-                    Input(value=value) if read_only == "rw" else P(value),
+                    P(value),
                 ),
-                # cls="flex cursor-pointer list-none items-center gap-4",
                 cls="list-none",
             ),
             Grid(
                 P(description),
                 P(config_type),
             ),
+            # Default
             Grid(
-                DivRAligned(
-                    P("default") if read_only == "rw" else P(""),
-                ),
-                P(default) if read_only == "rw" else P(""),
+                DivRAligned(P("default")),
+                P(default),
             )
             if read_only == "rw"
             else None,
+            # Set value
+            Grid(
+                DivRAligned(P("update")),
+                Grid(
+                    Form(
+                        Input(value=config_name, type="hidden", id="key"),
+                        Input(value=update_value, type="text", id="value"),
+                        hx_put="/eosdash/configuration",
+                        hx_target="#page-content",
+                        hx_swap="innerHTML",
+                    ),
+                ),
+            )
+            if read_only == "rw"
+            else None,
+            # Last error
+            Grid(
+                DivRAligned(P("update error")),
+                P(update_error),
+            )
+            if update_error
+            else None,
             cls="space-y-4 gap-4",
+            open=update_open,
         ),
         cls="w-full",
     )
