@@ -130,8 +130,8 @@ def create_error_page(
     return (
         ERROR_PAGE_TEMPLATE.replace("STATUS_CODE", status_code)
         .replace("ERROR_TITLE", error_title)
-        .replace("ERROR_MESSAGE", error_message)
-        .replace("ERROR_DETAILS", error_details)
+        .replace("ERROR_MESSAGE", html.escape(error_message))
+        .replace("ERROR_DETAILS", html.escape(error_details))
     )
 
 
@@ -908,14 +908,14 @@ async def proxy(request: Request, path: str) -> Union[Response | RedirectRespons
                 status_code="404",
                 error_title="Page Not Found",
                 error_message=f"""<pre>
-EOSdash server not reachable: '{html.escape(url)}'
+EOSdash server not reachable: '{url}'
 Did you start the EOSdash server
 or set 'server_eos_startup_eosdash'?
 If there is no application server intended please
 set 'server_eosdash_host' or 'server_eosdash_port' to None.
 </pre>
 """,
-                error_details=f"{html.escape(e)}",
+                error_details=f"{e}",
             )
             return HTMLResponse(content=error_page, status_code=404)
 

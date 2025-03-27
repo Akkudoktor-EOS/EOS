@@ -588,9 +588,9 @@ class TestDataProvider:
         """Test that DataProvider enforces singleton behavior."""
         instance1 = provider
         instance2 = DerivedDataProvider()
-        assert instance1 is instance2, (
-            "Singleton pattern is not enforced; instances are not the same."
-        )
+        assert (
+            instance1 is instance2
+        ), "Singleton pattern is not enforced; instances are not the same."
 
     def test_update_method_with_defaults(self, provider, sample_start_datetime, monkeypatch):
         """Test the `update` method with default parameters."""
@@ -608,9 +608,9 @@ class TestDataProvider:
         DerivedDataProvider.provider_updated = False
         provider.update_data(force_enable=True)
         assert provider.enabled() is False, "Provider should be disabled, but enabled() is True."
-        assert DerivedDataProvider.provider_updated is True, (
-            "Provider should have been executed, but was not."
-        )
+        assert (
+            DerivedDataProvider.provider_updated is True
+        ), "Provider should have been executed, but was not."
 
     def test_delete_by_datetime(self, provider, sample_start_datetime):
         """Test `delete_by_datetime` method for removing records by datetime range."""
@@ -625,12 +625,12 @@ class TestDataProvider:
             start_datetime=sample_start_datetime - to_duration("2 hours"),
             end_datetime=sample_start_datetime + to_duration("2 hours"),
         )
-        assert len(provider.records) == 1, (
-            "Only one record should remain after deletion by datetime."
-        )
-        assert provider.records[0].date_time == sample_start_datetime - to_duration("3 hours"), (
-            "Unexpected record remains."
-        )
+        assert (
+            len(provider.records) == 1
+        ), "Only one record should remain after deletion by datetime."
+        assert provider.records[0].date_time == sample_start_datetime - to_duration(
+            "3 hours"
+        ), "Unexpected record remains."
 
 
 class TestDataImportProvider:

@@ -114,9 +114,9 @@ def test_soc_limits(setup_pv_battery):
 def test_max_charge_power_w(setup_pv_battery):
     battery = setup_pv_battery
     battery.setup()
-    assert battery.parameters.max_charge_power_w == 8000, (
-        "Default max charge power should be 5000W, We ask for 8000W here"
-    )
+    assert (
+        battery.parameters.max_charge_power_w == 8000
+    ), "Default max charge power should be 5000W, We ask for 8000W here"
 
 
 def test_charge_energy_within_limits(setup_pv_battery):
@@ -140,9 +140,9 @@ def test_charge_energy_exceeds_capacity(setup_pv_battery):
     # Try to overcharge beyond max capacity
     charged_wh, losses_wh = battery.charge_energy(wh=20000, hour=2)
 
-    assert charged_wh + initial_soc_wh <= battery.max_soc_wh, (
-        "Charging should not exceed max capacity"
-    )
+    assert (
+        charged_wh + initial_soc_wh <= battery.max_soc_wh
+    ), "Charging should not exceed max capacity"
     assert losses_wh >= 0, "Losses should not be negative"
     assert battery.soc_wh == battery.max_soc_wh, "SOC should be at max after overcharge attempt"
 
@@ -172,9 +172,9 @@ def test_charge_energy_relative_power(setup_pv_battery):
 
     assert charged_wh > 0, "Charging should occur with relative power"
     assert losses_wh >= 0, "Losses should not be negative"
-    assert charged_wh <= battery.max_charge_power_w * relative_power, (
-        "Charging should respect relative power limit"
-    )
+    assert (
+        charged_wh <= battery.max_charge_power_w * relative_power
+    ), "Charging should respect relative power limit"
     assert battery.soc_wh > 0, "SOC should increase after charging"
 
 
@@ -201,19 +201,19 @@ def test_car_and_pv_battery_discharge_and_max_charge_power(setup_pv_battery, set
     # Test discharge for PV battery
     pv_discharged_wh, pv_loss_wh = pv_battery.discharge_energy(3000, 5)
     assert pv_discharged_wh > 0, "PV battery should discharge energy"
-    assert pv_battery.current_soc_percentage() >= pv_battery.parameters.min_soc_percentage, (
-        "PV battery SOC should stay above min SOC"
-    )
-    assert pv_battery.parameters.max_charge_power_w == 8000, (
-        "PV battery max charge power should remain as defined"
-    )
+    assert (
+        pv_battery.current_soc_percentage() >= pv_battery.parameters.min_soc_percentage
+    ), "PV battery SOC should stay above min SOC"
+    assert (
+        pv_battery.parameters.max_charge_power_w == 8000
+    ), "PV battery max charge power should remain as defined"
 
     # Test discharge for car battery
     car_discharged_wh, car_loss_wh = car_battery.discharge_energy(5000, 10)
     assert car_discharged_wh > 0, "Car battery should discharge energy"
-    assert car_battery.current_soc_percentage() >= car_battery.parameters.min_soc_percentage, (
-        "Car battery SOC should stay above min SOC"
-    )
-    assert car_battery.parameters.max_charge_power_w == 7000, (
-        "Car battery max charge power should remain as defined"
-    )
+    assert (
+        car_battery.current_soc_percentage() >= car_battery.parameters.min_soc_percentage
+    ), "Car battery SOC should stay above min SOC"
+    assert (
+        car_battery.parameters.max_charge_power_w == 7000
+    ), "Car battery max charge power should remain as defined"
