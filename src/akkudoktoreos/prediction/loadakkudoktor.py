@@ -122,10 +122,11 @@ class LoadAkkudoktor(LoadProvider):
             }
             if date.day_of_week < 5:
                 # Monday to Friday (0..4)
-                values["load_mean_adjusted"] = hourly_stats[0] + weekday_adjust[date.hour]
+                value_adjusted = hourly_stats[0] + weekday_adjust[date.hour]
             else:
                 # Saturday, Sunday (5, 6)
-                values["load_mean_adjusted"] = hourly_stats[0] + weekend_adjust[date.hour]
+                value_adjusted = hourly_stats[0] + weekend_adjust[date.hour]
+            values["load_mean_adjusted"] = max(0, value_adjusted)
             self.update_value(date, values)
             date += to_duration("1 hour")
         # We are working on fresh data (no cache), report update time
