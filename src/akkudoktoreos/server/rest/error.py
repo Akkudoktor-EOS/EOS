@@ -1,3 +1,5 @@
+import html
+
 ERROR_PAGE_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -86,6 +88,6 @@ def create_error_page(
     return (
         ERROR_PAGE_TEMPLATE.replace("STATUS_CODE", status_code)
         .replace("ERROR_TITLE", error_title)
-        .replace("ERROR_MESSAGE", error_message)
-        .replace("ERROR_DETAILS", error_details)
+        .replace("ERROR_MESSAGE", html.escape(error_message))
+        .replace("ERROR_DETAILS", html.escape(error_details))
     )
