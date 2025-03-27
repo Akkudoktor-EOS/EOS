@@ -283,69 +283,69 @@ def test_simulation(create_ems_instance):
     assert SimulationResult(**result) is not None
 
     # Check the length of the main arrays
-    assert (
-        len(result["Last_Wh_pro_Stunde"]) == 47
-    ), "The length of 'Last_Wh_pro_Stunde' should be 48."
-    assert (
-        len(result["Netzeinspeisung_Wh_pro_Stunde"]) == 47
-    ), "The length of 'Netzeinspeisung_Wh_pro_Stunde' should be 48."
-    assert (
-        len(result["Netzbezug_Wh_pro_Stunde"]) == 47
-    ), "The length of 'Netzbezug_Wh_pro_Stunde' should be 48."
-    assert (
-        len(result["Kosten_Euro_pro_Stunde"]) == 47
-    ), "The length of 'Kosten_Euro_pro_Stunde' should be 48."
-    assert (
-        len(result["akku_soc_pro_stunde"]) == 47
-    ), "The length of 'akku_soc_pro_stunde' should be 48."
+    assert len(result["Last_Wh_pro_Stunde"]) == 47, (
+        "The length of 'Last_Wh_pro_Stunde' should be 48."
+    )
+    assert len(result["Netzeinspeisung_Wh_pro_Stunde"]) == 47, (
+        "The length of 'Netzeinspeisung_Wh_pro_Stunde' should be 48."
+    )
+    assert len(result["Netzbezug_Wh_pro_Stunde"]) == 47, (
+        "The length of 'Netzbezug_Wh_pro_Stunde' should be 48."
+    )
+    assert len(result["Kosten_Euro_pro_Stunde"]) == 47, (
+        "The length of 'Kosten_Euro_pro_Stunde' should be 48."
+    )
+    assert len(result["akku_soc_pro_stunde"]) == 47, (
+        "The length of 'akku_soc_pro_stunde' should be 48."
+    )
 
     # Verify specific values in the 'Last_Wh_pro_Stunde' array
-    assert (
-        result["Last_Wh_pro_Stunde"][1] == 1527.13
-    ), "The value at index 1 of 'Last_Wh_pro_Stunde' should be 1527.13."
-    assert (
-        result["Last_Wh_pro_Stunde"][2] == 1468.88
-    ), "The value at index 2 of 'Last_Wh_pro_Stunde' should be 1468.88."
-    assert (
-        result["Last_Wh_pro_Stunde"][12] == 1132.03
-    ), "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
+    assert result["Last_Wh_pro_Stunde"][1] == 1527.13, (
+        "The value at index 1 of 'Last_Wh_pro_Stunde' should be 1527.13."
+    )
+    assert result["Last_Wh_pro_Stunde"][2] == 1468.88, (
+        "The value at index 2 of 'Last_Wh_pro_Stunde' should be 1468.88."
+    )
+    assert result["Last_Wh_pro_Stunde"][12] == 1132.03, (
+        "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
+    )
 
     # Verify that the value at index 0 is 'None'
     # Check that 'Netzeinspeisung_Wh_pro_Stunde' and 'Netzbezug_Wh_pro_Stunde' are consistent
-    assert (
-        result["Netzbezug_Wh_pro_Stunde"][1] == 0
-    ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 0."
+    assert result["Netzbezug_Wh_pro_Stunde"][1] == 0, (
+        "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 0."
+    )
 
     # Verify the total balance
-    assert (
-        abs(result["Gesamtbilanz_Euro"] - 1.958185274567674) < 1e-5
-    ), "Total balance should be 1.958185274567674."
+    assert abs(result["Gesamtbilanz_Euro"] - 1.958185274567674) < 1e-5, (
+        "Total balance should be 1.958185274567674."
+    )
 
     # Check total revenue and total costs
-    assert (
-        abs(result["Gesamteinnahmen_Euro"] - 1.168863124510214) < 1e-5
-    ), "Total revenue should be 1.168863124510214."
-    assert (
-        abs(result["Gesamtkosten_Euro"] - 3.127048399077888) < 1e-5
-    ), "Total costs should be 3.127048399077888 ."
+    assert abs(result["Gesamteinnahmen_Euro"] - 1.168863124510214) < 1e-5, (
+        "Total revenue should be 1.168863124510214."
+    )
+    assert abs(result["Gesamtkosten_Euro"] - 3.127048399077888) < 1e-5, (
+        "Total costs should be 3.127048399077888 ."
+    )
 
     # Check the losses
-    assert (
-        abs(result["Gesamt_Verluste"] - 2871.5330639359036) < 1e-5
-    ), "Total losses should be 2871.5330639359036 ."
+    assert abs(result["Gesamt_Verluste"] - 2871.5330639359036) < 1e-5, (
+        "Total losses should be 2871.5330639359036 ."
+    )
 
     # Check the values in 'akku_soc_pro_stunde'
-    assert (
-        result["akku_soc_pro_stunde"][-1] == 42.151590909090906
-    ), "The value at index -1 of 'akku_soc_pro_stunde' should be 42.151590909090906."
-    assert (
-        result["akku_soc_pro_stunde"][1] == 60.08659090909091
-    ), "The value at index 1 of 'akku_soc_pro_stunde' should be 60.08659090909091."
+    assert result["akku_soc_pro_stunde"][-1] == 42.151590909090906, (
+        "The value at index -1 of 'akku_soc_pro_stunde' should be 42.151590909090906."
+    )
+    assert result["akku_soc_pro_stunde"][1] == 60.08659090909091, (
+        "The value at index 1 of 'akku_soc_pro_stunde' should be 60.08659090909091."
+    )
 
     # Check home appliances
-    assert (
-        sum(ems.home_appliance.get_load_curve()) == 2000
-    ), "The sum of 'ems.home_appliance.get_load_curve()' should be 2000."
+    assert sum(ems.home_appliance.get_load_curve()) == 2000, (
+        "The sum of 'ems.home_appliance.get_load_curve()' should be 2000."
+    )
 
     assert (
         np.nansum(

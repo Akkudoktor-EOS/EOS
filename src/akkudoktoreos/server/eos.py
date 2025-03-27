@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 
 import argparse
+import html
 import os
 import subprocess
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
-import html
+
 import httpx
 import uvicorn
 from fastapi import FastAPI, Query, Request
