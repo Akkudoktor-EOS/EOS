@@ -7,7 +7,7 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
-
+import html
 import httpx
 import uvicorn
 from fastapi import FastAPI, Query, Request
@@ -907,14 +907,14 @@ async def proxy(request: Request, path: str) -> Union[Response | RedirectRespons
                 status_code="404",
                 error_title="Page Not Found",
                 error_message=f"""<pre>
-EOSdash server not reachable: '{url}'
+EOSdash server not reachable: '{html.escape(url)}'
 Did you start the EOSdash server
 or set 'server_eos_startup_eosdash'?
 If there is no application server intended please
 set 'server_eosdash_host' or 'server_eosdash_port' to None.
 </pre>
 """,
-                error_details=f"{e}",
+                error_details=f"{html.escape(e)}",
             )
             return HTMLResponse(content=error_page, status_code=404)
 
