@@ -88,7 +88,7 @@ class WeatherClearOutside(WeatherProvider):
         """Requests weather forecast from ClearOutside.
 
         Returns:
-            response: Weather forecast request reponse from ClearOutside.
+            response: Weather forecast request response from ClearOutside.
         """
         source = "https://clearoutside.com/forecast"
         latitude = round(self.config.general.latitude, 2)
