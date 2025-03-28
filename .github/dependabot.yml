@@ -5,7 +5,16 @@
 
 version: 2
 updates:
+  # Update dependencies on the main branch
   - package-ecosystem: "pip" # See documentation for possible values
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    target-branch: "main" # Target the main branch
+
+  # Update dependencies on the feature/config-nested branch
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    target-branch: "feature/config-nested" # Target the specific feature branch
