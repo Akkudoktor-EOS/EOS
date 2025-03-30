@@ -552,8 +552,9 @@ Validators:
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | provider | `EOS_PVFORECAST__PROVIDER` | `Optional[str]` | `rw` | `None` | PVForecast provider id of provider to be used. |
-| planes | `EOS_PVFORECAST__PLANES` | `Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]` | `rw` | `None` | Plane configuration. |
 | provider_settings | `EOS_PVFORECAST__PROVIDER_SETTINGS` | `Optional[akkudoktoreos.prediction.pvforecastimport.PVForecastImportCommonSettings]` | `rw` | `None` | Provider settings |
+| planes | `EOS_PVFORECAST__PLANES` | `Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]` | `rw` | `None` | Plane configuration. |
+| max_planes | `EOS_PVFORECAST__MAX_PLANES` | `Optional[int]` | `rw` | `0` | Maximum number of planes that can be set |
 | planes_peakpower | | `List[float]` | `ro` | `N/A` | Compute a list of the peak power per active planes. |
 | planes_azimuth | | `List[float]` | `ro` | `N/A` | Compute a list of the azimuths per active planes. |
 | planes_tilt | | `List[float]` | `ro` | `N/A` | Compute a list of the tilts per active planes. |
@@ -569,6 +570,7 @@ Validators:
    {
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
+           "provider_settings": null,
            "planes": [
                {
                    "surface_tilt": 10.0,
@@ -615,7 +617,7 @@ Validators:
                    "strings_per_inverter": 2
                }
            ],
-           "provider_settings": null
+           "max_planes": 0
        }
    }
 ```
@@ -628,6 +630,7 @@ Validators:
    {
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
+           "provider_settings": null,
            "planes": [
                {
                    "surface_tilt": 10.0,
@@ -674,7 +677,7 @@ Validators:
                    "strings_per_inverter": 2
                }
            ],
-           "provider_settings": null,
+           "max_planes": 0,
            "planes_peakpower": [
                5.0,
                3.5
@@ -707,33 +710,6 @@ Validators:
    }
 ```
 
-### Common settings for pvforecast data import from file or JSON string
-
-:::{table} pvforecast::provider_settings
-:widths: 10 10 5 5 30
-:align: left
-
-| Name | Type | Read-Only | Default | Description |
-| ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import PV forecast data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of PV forecast value lists. |
-:::
-
-#### Example Input/Output
-
-```{eval-rst}
-.. code-block:: json
-
-   {
-       "pvforecast": {
-           "provider_settings": {
-               "import_file_path": null,
-               "import_json": "{\"pvforecast_ac_power\": [0, 8.05, 352.91]}"
-           }
-       }
-   }
-```
-
 ### PV Forecast Plane Configuration
 
 :::{table} pvforecast::planes::list
@@ -742,8 +718,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| surface_tilt | `Optional[float]` | `rw` | `None` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
-| surface_azimuth | `Optional[float]` | `rw` | `None` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
+| surface_tilt | `Optional[float]` | `rw` | `30.0` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
+| surface_azimuth | `Optional[float]` | `rw` | `180.0` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
 | userhorizon | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
 | peakpower | `Optional[float]` | `rw` | `None` | Nominal power of PV system in kW. |
 | pvtechchoice | `Optional[str]` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
@@ -755,7 +731,7 @@ Validators:
 | albedo | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
 | module_model | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
 | inverter_model | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
-| inverter_paco | `Optional[int]` | `rw` | `None` | AC power rating of the inverter. [W] |
+| inverter_paco | `Optional[int]` | `rw` | `None` | AC power rating of the inverter [W]. |
 | modules_per_string | `Optional[int]` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
 | strings_per_inverter | `Optional[int]` | `rw` | `None` | Number of the strings of the inverter of this plane. |
 :::
@@ -813,6 +789,33 @@ Validators:
                    "strings_per_inverter": 2
                }
            ]
+       }
+   }
+```
+
+### Common settings for pvforecast data import from file or JSON string
+
+:::{table} pvforecast::provider_settings
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import PV forecast data from. |
+| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of PV forecast value lists. |
+:::
+
+#### Example Input/Output
+
+```{eval-rst}
+.. code-block:: json
+
+   {
+       "pvforecast": {
+           "provider_settings": {
+               "import_file_path": null,
+               "import_json": "{\"pvforecast_ac_power\": [0, 8.05, 352.91]}"
+           }
        }
    }
 ```
@@ -997,6 +1000,7 @@ Validators:
        },
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
+           "provider_settings": null,
            "planes": [
                {
                    "surface_tilt": 10.0,
@@ -1043,7 +1047,7 @@ Validators:
                    "strings_per_inverter": 2
                }
            ],
-           "provider_settings": null
+           "max_planes": 0
        },
        "weather": {
            "provider": "WeatherImport",

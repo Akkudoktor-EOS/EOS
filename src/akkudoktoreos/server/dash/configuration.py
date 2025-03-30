@@ -2,17 +2,32 @@ import json
 from typing import Any, Dict, List, Optional, Sequence, TypeVar, Union
 
 import requests
-from monsterui.franken import Div, DividerLine, P
+from monsterui.franken import (
+    H3,
+    H4,
+    Card,
+    Details,
+    Div,
+    DividerLine,
+    DivLAligned,
+    DivRAligned,
+    Form,
+    Grid,
+    Input,
+    P,
+    Summary,
+    UkIcon,
+)
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
-from akkudoktoreos.config.config import get_config
+from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.prediction.pvforecast import PVForecastPlaneSetting
 from akkudoktoreos.server.dash.components import ConfigCard
 
 logger = get_logger(__name__)
-config_eos = get_config()
 
 T = TypeVar("T")
 
@@ -53,10 +68,10 @@ def get_nested_value(
         # Traverse the structure
         current = dictionary
         for key in keys:
-            if isinstance(current, dict) and isinstance(key, str):
-                current = current[key]
-            elif isinstance(current, list) and isinstance(key, int):
-                current = current[key]
+            if isinstance(current, dict):
+                current = current[str(key)]
+            elif isinstance(current, list):
+                current = current[int(key)]
             else:
                 raise KeyError(f"Invalid key or index: {key}")
         return current
@@ -106,25 +121,36 @@ def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple
     return resolved_types
 
 
-def configuration(values: dict) -> list[dict]:
+def configuration(
+    model: type[PydanticBaseModel], values: dict, values_prefix: list[str] = []
+) -> list[dict]:
     """Generate configuration details based on provided values and model metadata.
 
     Args:
+        model (type[PydanticBaseModel]): The Pydantic model to extract configuration from.
         values (dict): A dictionary containing the current configuration values.
+        values_prefix (list[str]): A list of parent type names that prefixes the model values in the values.
 
     Returns:
-        List[dict]: A sorted list of configuration details, each represented as a dictionary.
+        list[dict]: A sorted list of configuration details, each represented as a dictionary.
     """
     configs = []
     inner_types: set[type[PydanticBaseModel]] = set()
 
-    for field_name, field_info in list(config_eos.model_fields.items()) + list(
-        config_eos.model_computed_fields.items()
+    for field_name, field_info in list(model.model_fields.items()) + list(
+        model.model_computed_fields.items()
     ):
 
         def extract_nested_models(
             subfield_info: Union[ComputedFieldInfo, FieldInfo], parent_types: list[str]
         ) -> None:
+            """Extract nested models from the given subfield information.
+
+            Args:
+                subfield_info (Union[ComputedFieldInfo, FieldInfo]): Field metadata from Pydantic.
+                parent_types (list[str]): A list of parent type names for hierarchical representation.
+            """
+            nonlocal values, values_prefix
             regular_field = isinstance(subfield_info, FieldInfo)
             subtype = subfield_info.annotation if regular_field else subfield_info.return_type
 
@@ -141,9 +167,11 @@ def configuration(values: dict) -> list[dict]:
                         continue
 
                     config = {}
-                    config["name"] = ".".join(parent_types)
-                    config["value"] = str(get_nested_value(values, parent_types, "<unknown>"))
-                    config["default"] = str(get_default_value(subfield_info, regular_field))
+                    config["name"] = ".".join(values_prefix + parent_types)
+                    config["value"] = json.dumps(
+                        get_nested_value(values, values_prefix + parent_types, "<unknown>")
+                    )
+                    config["default"] = json.dumps(get_default_value(subfield_info, regular_field))
                     config["description"] = (
                         subfield_info.description if subfield_info.description else ""
                     )
@@ -192,14 +220,188 @@ def get_configuration(eos_host: str, eos_port: Union[str, int]) -> list[dict]:
     try:
         result = requests.get(f"{server}/v1/config")
         result.raise_for_status()
+        config = result.json()
     except requests.exceptions.HTTPError as e:
+        config = {}
         detail = result.json()["detail"]
         warning_msg = f"Can not retrieve configuration from {server}: {e}, {detail}"
         logger.warning(warning_msg)
-        return configuration({})
-    config = result.json()
 
-    return configuration(config)
+    return configuration(ConfigEOS, config)
+
+
+def ConfigPlanesCard(
+    config_name: str,
+    config_type: str,
+    read_only: str,
+    value: str,
+    default: str,
+    description: str,
+    max_planes: int,
+    update_error: Optional[str],
+    update_value: Optional[str],
+    update_open: Optional[bool],
+) -> Card:
+    """Creates a styled configuration card for PV planes.
+
+    This function generates a configuration card that is displayed in the UI with
+    various sections such as configuration name, type, description, default value,
+    current value, and error details. It supports both read-only and editable modes.
+
+    Args:
+        config_name (str): The name of the PV planes configuration.
+        config_type (str): The type of the PV planes configuration.
+        read_only (str): Indicates if the PV planes configuration is read-only ("rw" for read-write,
+                         any other value indicates read-only).
+        value (str): The current value of the PV planes configuration.
+        default (str): The default value of the PV planes configuration.
+        description (str): A description of the PV planes configuration.
+        max_planes (int): Maximum number of planes that can be set
+        update_error (Optional[str]): The error message, if any, during the update process.
+        update_value (Optional[str]): The value to be updated, if different from the current value.
+        update_open (Optional[bool]): A flag indicating whether the update section of the card
+                                      should be initially expanded.
+
+    Returns:
+        Card: A styled Card component containing the PV planes configuration details.
+    """
+    config_id = config_name.replace(".", "-")
+    # Remember overall planes update status
+    planes_update_error = update_error
+    planes_update_value = update_value
+    if not planes_update_value:
+        planes_update_value = value
+    planes_update_open = update_open
+    if not planes_update_open:
+        planes_update_open = False
+    # Create EOS planes configuration
+    eos_planes = json.loads(value)
+    eos_planes_config = {
+        "pvforecast": {
+            "planes": eos_planes,
+        },
+    }
+    # Create cards for all planes
+    rows = []
+    for i in range(0, max_planes):
+        plane_config = configuration(
+            PVForecastPlaneSetting(),
+            eos_planes_config,
+            values_prefix=["pvforecast", "planes", str(i)],
+        )
+        plane_rows = []
+        plane_update_open = False
+        if eos_planes and len(eos_planes) > i:
+            plane_value = json.dumps(eos_planes[i])
+        else:
+            plane_value = json.dumps(None)
+        for config in plane_config:
+            update_error = config_update_latest.get(config["name"], {}).get("error")  # type: ignore
+            update_value = config_update_latest.get(config["name"], {}).get("value")  # type: ignore
+            update_open = config_update_latest.get(config["name"], {}).get("open")  # type: ignore
+            if update_open:
+                planes_update_open = True
+                plane_update_open = True
+            # Make mypy happy - should never trigger
+            assert isinstance(update_error, (str, type(None)))
+            assert isinstance(update_value, (str, type(None)))
+            assert isinstance(update_open, (bool, type(None)))
+            plane_rows.append(
+                ConfigCard(
+                    config["name"],
+                    config["type"],
+                    config["read-only"],
+                    config["value"],
+                    config["default"],
+                    config["description"],
+                    update_error,
+                    update_value,
+                    update_open,
+                )
+            )
+        rows.append(
+            Card(
+                Details(
+                    Summary(
+                        Grid(
+                            Grid(
+                                DivLAligned(
+                                    UkIcon(icon="play"),
+                                    H4(f"pvforecast.planes.{i}"),
+                                ),
+                                DivRAligned(
+                                    P(read_only),
+                                ),
+                            ),
+                            P(plane_value),
+                        ),
+                        cls="list-none",
+                    ),
+                    *plane_rows,
+                    cls="space-y-4 gap-4",
+                    open=plane_update_open,
+                ),
+                cls="w-full",
+            )
+        )
+
+    return Card(
+        Details(
+            Summary(
+                Grid(
+                    Grid(
+                        DivLAligned(
+                            UkIcon(icon="play"),
+                            P(config_name),
+                        ),
+                        DivRAligned(
+                            P(read_only),
+                        ),
+                    ),
+                    P(value),
+                ),
+                cls="list-none",
+            ),
+            Grid(
+                P(description),
+                P(config_type),
+            ),
+            # Default
+            Grid(
+                DivRAligned(P("default")),
+                P(default),
+            )
+            if read_only == "rw"
+            else None,
+            # Set value
+            Grid(
+                DivRAligned(P("update")),
+                Grid(
+                    Form(
+                        Input(value=config_name, type="hidden", id="key"),
+                        Input(value=planes_update_value, type="text", id="value"),
+                        hx_put="/eosdash/configuration",
+                        hx_target="#page-content",
+                        hx_swap="innerHTML",
+                    ),
+                ),
+            )
+            if read_only == "rw"
+            else None,
+            # Last error
+            Grid(
+                DivRAligned(P("update error")),
+                P(planes_update_error),
+            )
+            if planes_update_error
+            else None,
+            # Now come the single element configs
+            *rows,
+            cls="space-y-4 gap-4",
+            open=planes_update_open,
+        ),
+        cls="w-full",
+    )
 
 
 def Configuration(
@@ -220,10 +422,19 @@ def Configuration(
         configuration = get_configuration(eos_host, eos_port)
     rows = []
     last_category = ""
+    # find some special configuration values
+    max_planes = 0
+    for config in configuration:
+        if config["name"] == "pvforecast.max_planes":
+            try:
+                max_planes = int(config["value"])
+            except:
+                max_planes = 0
+    # build visual representation
     for config in configuration:
         category = config["name"].split(".")[0]
         if category != last_category:
-            rows.append(P(category))
+            rows.append(H3(category))
             rows.append(DividerLine())
             last_category = category
         update_error = config_update_latest.get(config["name"], {}).get("error")
@@ -233,19 +444,39 @@ def Configuration(
         assert isinstance(update_error, (str, type(None)))
         assert isinstance(update_value, (str, type(None)))
         assert isinstance(update_open, (bool, type(None)))
-        rows.append(
-            ConfigCard(
-                config["name"],
-                config["type"],
-                config["read-only"],
-                config["value"],
-                config["default"],
-                config["description"],
-                update_error,
-                update_value,
-                update_open,
+        if (
+            config["type"]
+            == "Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]"
+        ):
+            # Special configuration for PV planes
+            rows.append(
+                ConfigPlanesCard(
+                    config["name"],
+                    config["type"],
+                    config["read-only"],
+                    config["value"],
+                    config["default"],
+                    config["description"],
+                    max_planes,
+                    update_error,
+                    update_value,
+                    update_open,
+                )
             )
-        )
+        else:
+            rows.append(
+                ConfigCard(
+                    config["name"],
+                    config["type"],
+                    config["read-only"],
+                    config["value"],
+                    config["default"],
+                    config["description"],
+                    update_error,
+                    update_value,
+                    update_open,
+                )
+            )
     return Div(*rows, cls="space-y-4")
 
 
@@ -272,15 +503,20 @@ def ConfigKeyUpdate(eos_host: str, eos_port: Union[str, int], key: str, value: s
             data = value
 
     error = None
-    result = None
+    config = None
     try:
-        result = requests.put(f"{server}/v1/config/{path}", json=data)
-        result.raise_for_status()
+        response = requests.put(f"{server}/v1/config/{path}", json=data)
+        response.raise_for_status()
+        config = response.json()
     except requests.exceptions.HTTPError as err:
-        if result:
-            detail = result.json()["detail"]
-        else:
-            detail = "No details"
+        try:
+            # Try to get 'detail' from the JSON response
+            detail = response.json().get(
+                "detail", f"No error details for data '{data}' '{response.text}'"
+            )
+        except ValueError:
+            # Response is not JSON
+            detail = f"No error details for data '{data}' '{response.text}'"
         error = f"Can not set {key} on {server}: {err}, {detail}"
     # Mark all updates as closed
     for k in config_update_latest:
@@ -288,12 +524,12 @@ def ConfigKeyUpdate(eos_host: str, eos_port: Union[str, int], key: str, value: s
     # Remember this update as latest one
     config_update_latest[key] = {
         "error": error,
-        "result": result.json() if result else None,
+        "result": config,
         "value": value,
         "open": True,
     }
-    if error or result is None:
+    if error or config is None:
         # Reread configuration to be shure we display actual data
         return Configuration(eos_host, eos_port)
     # Use configuration already provided
-    return Configuration(eos_host, eos_port, configuration(result.json()))
+    return Configuration(eos_host, eos_port, configuration(ConfigEOS, config))

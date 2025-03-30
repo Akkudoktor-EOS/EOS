@@ -23,6 +23,9 @@ help:
 	@echo "  run-dev      - Run EOS development server in virtual environment (automatically reloads)."
 	@echo "  run-dash     - Run EOSdash production server in virtual environment."
 	@echo "  run-dash-dev - Run EOSdash development server in virtual environment (automatically reloads)."
+	@echo "  test         - Run tests."
+	@echo "  test-full    - Run tests with full optimization."
+	@echo "  test-ci      - Run tests as CI does. No user config file allowed."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
 
@@ -109,6 +112,11 @@ test-setup: pip-dev
 test:
 	@echo "Running tests..."
 	.venv/bin/pytest -vs --cov src --cov-report term-missing
+
+# Target to run tests as done by CI on Github.
+test-ci:
+	@echo "Running tests as CI..."
+	.venv/bin/pytest --full-run --check-config-side-effect -vs --cov src --cov-report term-missing
 
 # Target to run all tests.
 test-full:

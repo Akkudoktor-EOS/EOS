@@ -209,6 +209,7 @@
                     "pvforecast": {
                         "$ref": "#/components/schemas/PVForecastCommonSettings-Output",
                         "default": {
+                            "max_planes": 0,
                             "planes_azimuth": [],
                             "planes_inverter_paco": [],
                             "planes_peakpower": [],
@@ -1553,6 +1554,20 @@
             "PVForecastCommonSettings-Input": {
                 "description": "PV Forecast Configuration.",
                 "properties": {
+                    "max_planes": {
+                        "anyOf": [
+                            {
+                                "minimum": 0.0,
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 0,
+                        "description": "Maximum number of planes that can be set",
+                        "title": "Max Planes"
+                    },
                     "planes": {
                         "anyOf": [
                             {
@@ -1646,6 +1661,20 @@
             "PVForecastCommonSettings-Output": {
                 "description": "PV Forecast Configuration.",
                 "properties": {
+                    "max_planes": {
+                        "anyOf": [
+                            {
+                                "minimum": 0.0,
+                                "type": "integer"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "default": 0,
+                        "description": "Maximum number of planes that can be set",
+                        "title": "Max Planes"
+                    },
                     "planes": {
                         "anyOf": [
                             {
@@ -1864,7 +1893,7 @@
                                 "type": "null"
                             }
                         ],
-                        "description": "AC power rating of the inverter. [W]",
+                        "description": "AC power rating of the inverter [W].",
                         "examples": [
                             6000,
                             4000
@@ -2012,6 +2041,7 @@
                                 "type": "null"
                             }
                         ],
+                        "default": 180.0,
                         "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
                         "examples": [
                             10.0,
@@ -2028,6 +2058,7 @@
                                 "type": "null"
                             }
                         ],
+                        "default": 30.0,
                         "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
                         "examples": [
                             10.0,
