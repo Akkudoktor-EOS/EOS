@@ -2,7 +2,7 @@ numpy==2.2.4
 numpydantic==1.6.8
 matplotlib==3.10.1
 fastapi[standard]==0.115.12
-python-fasthtml==0.12.4
+python-fasthtml==0.12.6
 uvicorn==0.34.0
 scikit-learn==1.6.1
 timezonefinder==6.5.9
