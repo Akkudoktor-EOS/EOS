@@ -5,7 +5,7 @@ fastapi[standard]==0.115.12
 python-fasthtml==0.12.4
 uvicorn==0.34.0
 scikit-learn==1.6.1
-timezonefinder==6.5.8
+timezonefinder==6.5.9
 deap==1.4.2
 requests==2.32.3
 pandas==2.2.3
