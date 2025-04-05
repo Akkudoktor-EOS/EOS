@@ -15,7 +15,7 @@ Key Features:
 import json
 import re
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Type, Union, get_args, get_origin
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -51,70 +51,6 @@ def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, An
     return merged_dict
 
 
-def access_nested_value(
-    model: BaseModel, path: str, setter: bool, value: Optional[Any] = None
-) -> Any:
-    """Get or set a nested model value based on the provided path.
-
-    Supports string paths (with '/' separators) or sequence paths (list/tuple).
-    Trims leading and trailing '/' from string paths.
-
-    Args:
-        model (BaseModel): The model object for partial assignment.
-        path (str): The path to the model key (e.g., "key1/key2/key3" or key1/key2/0).
-        setter (bool): True to set value at path, False to return value at path.
-        value (Optional[Any]): The value to set.
-
-    Returns:
-        Any: The retrieved value if acting as a getter, or None if setting a value.
-    """
-    path_elements = path.strip("/").split("/")
-
-    cfg: Any = model
-    parent: BaseModel = model
-    model_key: str = ""
-
-    for i, key in enumerate(path_elements):
-        is_final_key = i == len(path_elements) - 1
-
-        if isinstance(cfg, list):
-            try:
-                idx = int(key)
-                if is_final_key:
-                    if not setter:  # Getter
-                        return cfg[idx]
-                    else:  # Setter
-                        new_list = list(cfg)
-                        new_list[idx] = value
-                        # Trigger validation
-                        setattr(parent, model_key, new_list)
-                else:
-                    cfg = cfg[idx]
-            except ValidationError as e:
-                raise ValueError(f"Error updating model: {e}") from e
-            except (ValueError, IndexError) as e:
-                raise IndexError(f"Invalid list index at {path}: {key}") from e
-
-        elif isinstance(cfg, BaseModel):
-            parent = cfg
-            model_key = key
-            if is_final_key:
-                if not setter:  # Getter
-                    return getattr(cfg, key)
-                else:  # Setter
-                    try:
-                        # Verification also if nested value is provided opposed to just setattr
-                        # Will merge partial assignment
-                        cfg = cfg.__pydantic_validator__.validate_assignment(cfg, key, value)
-                    except Exception as e:
-                        raise ValueError(f"Error updating model: {e}") from e
-            else:
-                cfg = getattr(cfg, key)
-
-        else:
-            raise KeyError(f"Key '{key}' not found in model.")
-
-
 class PydanticTypeAdapterDateTime(TypeAdapter[pendulum.DateTime]):
     """Custom type adapter for Pendulum DateTime fields."""
 
@@ -146,7 +82,333 @@ class PydanticTypeAdapterDateTime(TypeAdapter[pendulum.DateTime]):
         return bool(re.match(iso8601_pattern, value))
 
 
-class PydanticBaseModel(BaseModel):
+class PydanticModelNestedValueMixin:
+    """A mixin providing methods to get and set nested values within a Pydantic model.
+
+    The methods use a '/'-separated path to denote the nested values.
+    Supports handling `Optional`, `List`, and `Dict` types, ensuring correct initialization of
+    missing attributes.
+    """
+
+    def get_nested_value(self, path: str) -> Any:
+        """Retrieve a nested value from the model using a '/'-separated path.
+
+        Supports accessing nested attributes and list indices.
+
+        Args:
+            path (str): A '/'-separated path to the nested attribute (e.g., "key1/key2/0").
+
+        Returns:
+            Any: The retrieved value.
+
+        Raises:
+            KeyError: If a key is not found in the model.
+            IndexError: If a list index is out of bounds or invalid.
+
+        Example:
+            ```python
+            class Address(PydanticBaseModel):
+                city: str
+
+            class User(PydanticBaseModel):
+                name: str
+                address: Address
+
+            user = User(name="Alice", address=Address(city="New York"))
+            city = user.get_nested_value("address/city")
+            print(city)  # Output: "New York"
+            ```
+        """
+        path_elements = path.strip("/").split("/")
+        model: Any = self
+
+        for key in path_elements:
+            if isinstance(model, list):
+                try:
+                    model = model[int(key)]
+                except (ValueError, IndexError) as e:
+                    raise IndexError(f"Invalid list index at '{path}': {key}; {e}")
+            elif isinstance(model, BaseModel):
+                model = getattr(model, key)
+            else:
+                raise KeyError(f"Key '{key}' not found in model.")
+
+        return model
+
+    def set_nested_value(self, path: str, value: Any) -> None:
+        """Set a nested value in the model using a '/'-separated path.
+
+        Supports modifying nested attributes and list indices while preserving Pydantic validation.
+        Automatically initializes missing `Optional`, `Union`, `dict`, and `list` fields if necessary.
+        If a missing field cannot be initialized, raises an exception.
+
+        Args:
+            path (str): A '/'-separated path to the nested attribute (e.g., "key1/key2/0").
+            value (Any): The new value to set.
+
+        Raises:
+            KeyError: If a key is not found in the model.
+            IndexError: If a list index is out of bounds or invalid.
+            ValueError: If a validation error occurs.
+            TypeError: If a missing field cannot be initialized.
+
+        Example:
+            ```python
+            class Address(PydanticBaseModel):
+                city: Optional[str]
+
+            class User(PydanticBaseModel):
+                name: str
+                address: Optional[Address]
+                settings: Optional[Dict[str, Any]]
+
+            user = User(name="Alice", address=None, settings=None)
+            user.set_nested_value("address/city", "Los Angeles")
+            user.set_nested_value("settings/theme", "dark")
+
+            print(user.address.city)  # Output: "Los Angeles"
+            print(user.settings)  # Output: {'theme': 'dark'}
+            ```
+        """
+        path_elements = path.strip("/").split("/")
+        # The model we are currently working on
+        model: Any = self
+        # The model we get the type information from. It is a pydantic BaseModel
+        parent: BaseModel = model
+        # The field that provides type information for the current key
+        # Fields may have nested types that translates to a sequence of keys, not just one
+        # - my_field: Optional[list[OtherModel]] -> e.g. "myfield/0" for index 0
+        #   parent_key = ["myfield",] ... ["myfield", "0"]
+        #   parent_key_types = [list, OtherModel]
+        parent_key: list[str] = []
+        parent_key_types: list = []
+
+        for i, key in enumerate(path_elements):
+            is_final_key = i == len(path_elements) - 1
+            # Add current key to parent key to enable nested type tracking
+            parent_key.append(key)
+
+            # Get next value
+            next_value = None
+            if isinstance(model, BaseModel):
+                # If this is the final key, set the value
+                if is_final_key:
+                    try:
+                        model.__pydantic_validator__.validate_assignment(model, key, value)
+                    except ValidationError as e:
+                        raise ValueError(f"Error updating model: {e}") from e
+                    return
+
+                # Track parent and key for possible assignment later
+                parent = model
+                parent_key = [
+                    key,
+                ]
+                parent_key_types = self._get_key_types(model, key)
+
+                # Attempt to access the next attribute, handling None values
+                next_value = getattr(model, key, None)
+
+                # Handle missing values (initialize dict/list/model if necessary)
+                if next_value is None:
+                    next_type = parent_key_types[len(parent_key) - 1]
+                    next_value = self._initialize_value(next_type)
+                    if next_value is None:
+                        raise TypeError(
+                            f"Unable to initialize missing value for key '{key}' in path '{path}' with type {next_type} of {parent_key}:{parent_key_types}."
+                        )
+                    setattr(parent, key, next_value)
+                    # pydantic may copy on validation assignment - reread to get the copied model
+                    next_value = getattr(model, key, None)
+
+            elif isinstance(model, list):
+                # Handle lists (ensure index exists and modify safely)
+                try:
+                    idx = int(key)
+                except Exception as e:
+                    raise IndexError(
+                        f"Invalid list index '{key}' at '{path}': key = {key}; parent = {parent}, parent_key = {parent_key}; model = {model}; {e}"
+                    )
+
+                # Get next type from parent key type information
+                next_type = parent_key_types[len(parent_key) - 1]
+
+                if len(model) > idx:
+                    next_value = model[idx]
+                else:
+                    # Extend the list with default values if index is out of range
+                    while len(model) <= idx:
+                        next_value = self._initialize_value(next_type)
+                        if next_value is None:
+                            raise TypeError(
+                                f"Unable to initialize missing value for key '{key}' in path '{path}' with type {next_type} of {parent_key}:{parent_key_types}."
+                            )
+                        model.append(next_value)
+
+                if is_final_key:
+                    if (
+                        (isinstance(next_type, type) and not isinstance(value, next_type))
+                        or (next_type is dict and not isinstance(value, dict))
+                        or (next_type is list and not isinstance(value, list))
+                    ):
+                        raise TypeError(
+                            f"Expected type {next_type} for key '{key}' in path '{path}', but got {type(value)}: {value}"
+                        )
+                    model[idx] = value
+                    return
+
+            elif isinstance(model, dict):
+                # Handle dictionaries (auto-create missing keys)
+
+                # Get next type from parent key type information
+                next_type = parent_key_types[len(parent_key) - 1]
+
+                if is_final_key:
+                    if (
+                        (isinstance(next_type, type) and not isinstance(value, next_type))
+                        or (next_type is dict and not isinstance(value, dict))
+                        or (next_type is list and not isinstance(value, list))
+                    ):
+                        raise TypeError(
+                            f"Expected type {next_type} for key '{key}' in path '{path}', but got {type(value)}: {value}"
+                        )
+                    model[key] = value
+                    return
+
+                if key not in model:
+                    next_value = self._initialize_value(next_type)
+                    if next_value is None:
+                        raise TypeError(
+                            f"Unable to initialize missing value for key '{key}' in path '{path}' with type {next_type} of {parent_key}:{parent_key_types}."
+                        )
+                    model[key] = next_value
+                else:
+                    next_value = model[key]
+
+            else:
+                raise KeyError(f"Key '{key}' not found in model.")
+
+            # Move deeper
+            model = next_value
+
+    @staticmethod
+    def _get_key_types(model: Type[BaseModel], key: str) -> List[Union[Type[Any], list, dict]]:
+        """Returns a list of nested types for a given Pydantic model key.
+
+        - Skips `Optional` and `Union`, using only the first non-None type.
+        - Skips dictionary keys and only adds value types.
+        - Keeps `list` and `dict` as origins.
+
+        Args:
+            model (Type[BaseModel]): The Pydantic model class to inspect.
+            key (str): The attribute name in the model.
+
+        Returns:
+            List[Union[Type[Any], list, dict]]: A list of extracted types, preserving `list` and `dict` origins.
+
+        Raises:
+            TypeError: If the key does not exist or lacks a valid type annotation.
+        """
+        if key not in model.model_fields:
+            raise TypeError(f"Field '{key}' does not exist in model '{model.__name__}'.")
+
+        field_annotation = model.model_fields[key].annotation
+        if not field_annotation:
+            raise TypeError(
+                f"Missing type annotation for field '{key}' in model '{model.__name__}'."
+            )
+
+        nested_types: list[Union[Type[Any], list, dict]] = []
+        queue: list[Any] = [field_annotation]
+
+        while queue:
+            annotation = queue.pop(0)
+            origin = get_origin(annotation)
+            args = get_args(annotation)
+
+            # Handle Union (Optional[X] is treated as Union[X, None])
+            if origin is Union:
+                queue.extend(arg for arg in args if arg is not type(None))
+                continue
+
+            # Handle lists and dictionaries
+            if origin is list:
+                nested_types.append(list)
+                if args:
+                    queue.append(args[0])  # Extract value type for list[T]
+                continue
+
+            if origin is dict:
+                nested_types.append(dict)
+                if len(args) == 2:
+                    queue.append(args[1])  # Extract only the value type for dict[K, V]
+                continue
+
+            # If it's a BaseModel, add it to the list
+            if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+                nested_types.append(annotation)
+                continue
+
+            # Otherwise, it's a standard type (e.g., str, int, bool, float, etc.)
+            nested_types.append(annotation)
+
+        return nested_types
+
+    @staticmethod
+    def _initialize_value(type_hint: Type[Any] | None | list[Any] | dict[Any, Any]) -> Any:
+        """Initialize a missing value based on the provided type hint.
+
+        Args:
+            type_hint (Type[Any] | None | list[Any] | dict[Any, Any]): The type hint that determines
+                how the missing value should be initialized.
+
+        Returns:
+            Any: An instance of the expected type (e.g., list, dict, or Pydantic model), or `None`
+                if initialization is not possible.
+
+        Raises:
+            TypeError: If instantiation fails.
+
+        Example:
+            - For `list[str]`, returns `[]`
+            - For `dict[str, Any]`, returns `{}`
+            - For `Address` (a Pydantic model), returns a new `Address()` instance.
+        """
+        if type_hint is None:
+            return None
+
+        # Handle direct instances of list or dict
+        if isinstance(type_hint, list):
+            return []
+        if isinstance(type_hint, dict):
+            return {}
+
+        origin = get_origin(type_hint)
+
+        # Handle generic list and dictionary
+        if origin is list:
+            return []
+        if origin is dict:
+            return {}
+
+        # Handle Pydantic models
+        if isinstance(type_hint, type) and issubclass(type_hint, BaseModel):
+            try:
+                return type_hint.model_construct()
+            except Exception as e:
+                raise TypeError(f"Failed to initialize model '{type_hint.__name__}': {e}")
+
+        # Handle standard built-in types (int, float, str, bool, etc.)
+        if isinstance(type_hint, type):
+            try:
+                return type_hint()
+            except Exception as e:
+                raise TypeError(f"Failed to initialize instance of '{type_hint.__name__}': {e}")
+
+        raise TypeError(f"Unsupported type hint '{type_hint}' for initialization.")
+
+
+class PydanticBaseModel(BaseModel, PydanticModelNestedValueMixin):
     """Base model class with automatic serialization and deserialization of `pendulum.DateTime` fields.
 
     This model serializes pendulum.DateTime objects to ISO 8601 strings and

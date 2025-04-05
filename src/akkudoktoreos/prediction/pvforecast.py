@@ -1,6 +1,6 @@
 """PV forecast module for PV power predictions."""
 
-from typing import Any, ClassVar, List, Optional, Self
+from typing import Any, List, Optional, Self
 
 from pydantic import Field, computed_field, field_validator, model_validator
 
@@ -27,12 +27,12 @@ class PVForecastPlaneSetting(SettingsBaseModel):
 
     # latitude: Optional[float] = Field(default=None, description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)")
     surface_tilt: Optional[float] = Field(
-        default=None,
+        default=30.0,
         description="Tilt angle from horizontal plane. Ignored for two-axis tracking.",
         examples=[10.0, 20.0],
     )
     surface_azimuth: Optional[float] = Field(
-        default=None,
+        default=180.0,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
         examples=[10.0, 20.0],
     )
@@ -81,7 +81,7 @@ class PVForecastPlaneSetting(SettingsBaseModel):
         default=None, description="Model of the inverter of this plane.", examples=[None]
     )
     inverter_paco: Optional[int] = Field(
-        default=None, description="AC power rating of the inverter. [W]", examples=[6000, 4000]
+        default=None, description="AC power rating of the inverter [W].", examples=[6000, 4000]
     )
     modules_per_string: Optional[int] = Field(
         default=None,
@@ -132,13 +132,21 @@ class PVForecastCommonSettings(SettingsBaseModel):
         examples=["PVForecastAkkudoktor"],
     )
 
+    provider_settings: Optional[PVForecastImportCommonSettings] = Field(
+        default=None, description="Provider settings", examples=[None]
+    )
+
     planes: Optional[list[PVForecastPlaneSetting]] = Field(
         default=None,
         description="Plane configuration.",
         examples=[get_model_structure_from_examples(PVForecastPlaneSetting, True)],
     )
 
-    max_planes: ClassVar[int] = 6  # Maximum number of planes that can be set
+    max_planes: Optional[int] = Field(
+        default=0,
+        ge=0,
+        description="Maximum number of planes that can be set",
+    )
 
     # Validators
     @field_validator("provider", mode="after")
@@ -149,18 +157,6 @@ class PVForecastCommonSettings(SettingsBaseModel):
         raise ValueError(
             f"Provider '{value}' is not a valid PV forecast provider: {pvforecast_providers}."
         )
-
-    @field_validator("planes")
-    def validate_planes(
-        cls, planes: Optional[list[PVForecastPlaneSetting]]
-    ) -> Optional[list[PVForecastPlaneSetting]]:
-        if planes is not None and len(planes) > cls.max_planes:
-            raise ValueError(f"Maximum number of supported planes: {cls.max_planes}.")
-        return planes
-
-    provider_settings: Optional[PVForecastImportCommonSettings] = Field(
-        default=None, description="Provider settings", examples=[None]
-    )
 
     ## Computed fields
     @computed_field  # type: ignore[prop-decorator]

@@ -1,8 +1,13 @@
 from typing import Any, Optional, Union
 
 from fasthtml.common import H1, Div, Li
+from monsterui.daisy import (
+    Alert,
+    AlertT,
+)
 from monsterui.foundations import stringify
 from monsterui.franken import (
+    H3,
     Button,
     ButtonT,
     Card,
@@ -68,6 +73,26 @@ def ScrollArea(
     )
 
 
+def Success(*c: Any) -> Alert:
+    return Alert(
+        DivLAligned(
+            UkIcon("check"),
+            P(*c),
+        ),
+        cls=AlertT.success,
+    )
+
+
+def Error(*c: Any) -> Alert:
+    return Alert(
+        DivLAligned(
+            UkIcon("triangle-alert"),
+            P(*c),
+        ),
+        cls=AlertT.error,
+    )
+
+
 def ConfigCard(
     config_name: str,
     config_type: str,
@@ -79,7 +104,28 @@ def ConfigCard(
     update_value: Optional[str],
     update_open: Optional[bool],
 ) -> Card:
-    """Creates a styled configuration card."""
+    """Creates a styled configuration card for displaying configuration details.
+
+    This function generates a configuration card that is displayed in the UI with
+    various sections such as configuration name, type, description, default value,
+    current value, and error details. It supports both read-only and editable modes.
+
+    Args:
+        config_name (str): The name of the configuration.
+        config_type (str): The type of the configuration.
+        read_only (str): Indicates if the configuration is read-only ("rw" for read-write,
+                         any other value indicates read-only).
+        value (str): The current value of the configuration.
+        default (str): The default value of the configuration.
+        description (str): A description of the configuration.
+        update_error (Optional[str]): The error message, if any, during the update process.
+        update_value (Optional[str]): The value to be updated, if different from the current value.
+        update_open (Optional[bool]): A flag indicating whether the update section of the card
+                                      should be initially expanded.
+
+    Returns:
+        Card: A styled Card component containing the configuration details.
+    """
     config_id = config_name.replace(".", "-")
     if not update_value:
         update_value = value
@@ -207,7 +253,7 @@ def DashboardTabs(dashboard_items: dict[str, str]) -> Card:
     dash_items = [
         Li(
             DashboardTrigger(
-                menu,
+                H3(menu),
                 hx_get=f"{path}",
                 hx_target="#page-content",
                 hx_swap="innerHTML",

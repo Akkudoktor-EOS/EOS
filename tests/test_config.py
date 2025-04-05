@@ -304,7 +304,7 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
                     [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
                 )
             ],
-            ValueError,
+            TypeError,
         ),
         # Invalid index (out of bound)
         (
@@ -316,7 +316,7 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
                     [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
                 )
             ],
-            IndexError,
+            TypeError,
         ),
         # Invalid index (no number)
         (
@@ -346,14 +346,27 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
 )
 def test_set_nested_key(path, value, expected, exception, config_eos):
     if not exception:
-        config_eos.set_config_value(path, value)
+        config_eos.set_nested_value(path, value)
         for expected_path, expected_value in expected:
-            assert eval(f"config_eos.{expected_path}") == expected_value
+            actual_value = eval(f"config_eos.{expected_path}")
+            assert actual_value == expected_value, (
+                f"Expected {expected_value} at {expected_path}, but got {actual_value}"
+            )
     else:
-        with pytest.raises(exception):
-            config_eos.set_config_value(path, value)
-        for expected_path, expected_value in expected:
-            assert eval(f"config_eos.{expected_path}") == expected_value
+        try:
+            config_eos.set_nested_value(path, value)
+            for expected_path, expected_value in expected:
+                actual_value = eval(f"config_eos.{expected_path}")
+                assert actual_value == expected_value, (
+                    f"Expected {expected_value} at {expected_path}, but got {actual_value}"
+                )
+            pytest.fail(
+                f"Expected exception {exception} but none was raised. Set '{expected_path}' to '{actual_value}'"
+            )
+        except Exception as e:
+            assert isinstance(e, exception), (
+                f"Expected exception {exception}, but got {type(e)}: {e}"
+            )
 
 
 @pytest.mark.parametrize(
@@ -378,10 +391,10 @@ def test_set_nested_key(path, value, expected, exception, config_eos):
 )
 def test_get_nested_key(path, expected_value, exception, config_eos):
     if not exception:
-        assert config_eos.get_config_value(path) == expected_value
+        assert config_eos.get_nested_value(path) == expected_value
     else:
         with pytest.raises(exception):
-            config_eos.get_config_value(path)
+            config_eos.get_nested_value(path)
 
 
 def test_merge_settings_from_dict_invalid(config_eos):

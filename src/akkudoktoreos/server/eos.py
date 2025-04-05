@@ -500,13 +500,13 @@ def fastapi_config_put_key(
         configuration (ConfigEOS): The current configuration after the update.
     """
     try:
-        config_eos.set_config_value(path, value)
-    except IndexError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except KeyError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        config_eos.set_nested_value(path, value)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error on update of configuration '{path}','{value}': {e}\n{trace}",
+        )
 
     return config_eos
 
@@ -526,7 +526,7 @@ def fastapi_config_get_key(
         value (Any): The value of the selected nested key.
     """
     try:
-        return config_eos.get_config_value(path)
+        return config_eos.get_nested_value(path)
     except IndexError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except KeyError as e:

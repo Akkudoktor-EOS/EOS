@@ -138,23 +138,11 @@ def test_mixed_plane_configuration(settings):
     assert settings.planes_peakpower == [5.0, 5000.0, 3.0]
 
 
-def test_max_planes_limit(settings):
-    """Test that the maximum number of planes is enforced."""
-    assert settings.max_planes == 6
-
-    # Create settings with more planes than allowed (should only recognize up to max)
-    plane_settings = [{"peakpower": 5.0} for _ in range(8)]
-
-    with pytest.raises(ValueError):
-        PVForecastCommonSettings(planes=plane_settings)
-
-
-def test_invalid_plane_settings():
+def test_none_plane_settings():
     """Test that optional parameters can be None for non-zero planes."""
-    with pytest.raises(ValueError):
-        PVForecastPlaneSetting(
-            peakpower=5.0,
-            albedo=None,
-            module_model=None,
-            userhorizon=None,
-        )
+    setting = PVForecastPlaneSetting(
+        peakpower=5.0,
+        albedo=None,
+        module_model=None,
+        userhorizon=None,
+    )

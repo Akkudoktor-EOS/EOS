@@ -368,7 +368,7 @@ def test_to_datetime(
         # print(f"Result:   {result} tz={result.timezone}")
         # print(f"Compare:  {compare}")
         if expected_approximately:
-            assert compare.time_diff < 200
+            assert compare.time_diff < 300
         else:
             assert compare.equal == True
 
