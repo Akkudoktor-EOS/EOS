@@ -1,0 +1,35 @@
+[general]
+# verbosity should be a value between 1 and 3, the commandline -v flags take precedence over this
+verbosity = 3
+
+regex-style-search=true
+
+# Ignore rules, reference them by id or name (comma-separated)
+ignore=title-trailing-punctuation, T3
+
+# Enable specific community contributed rules
+contrib=contrib-title-conventional-commits,CC1
+
+# Set the extra-path where gitlint will search for user defined rules
+extra-path=scripts/gitlint
+
+[title-max-length]
+line-length=80
+
+[title-min-length]
+min-length=5
+
+[ignore-by-title]
+# Match commit titles starting with "Release"
+regex=^Release(.*)
+ignore=title-max-length,body-min-length
+
+[ignore-by-body]
+# Match commits message bodies that have a line that contains 'release'
+regex=(.*)release(.*)
+ignore=all
+
+[ignore-by-author-name]
+# Match commits by author name (e.g. ignore dependabot commits)
+regex=dependabot
+ignore=all
