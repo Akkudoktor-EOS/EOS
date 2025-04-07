@@ -6,7 +6,7 @@ sphinx==8.2.3
 sphinx_rtd_theme==3.0.2
 sphinx-tabs==3.4.7
 pytest==8.3.5
-pytest-cov==6.0.0
+pytest-cov==6.1.1
 pytest-xprocess==1.0.2
 pre-commit
 mypy==1.15.0
