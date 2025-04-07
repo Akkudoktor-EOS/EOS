@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip install dist test test-full docker-run docker-build docs read-docs clean format mypy run run-dev
+.PHONY: help venv pip install dist test test-full docker-run docker-build docs read-docs clean format gitlint mypy run run-dev
 
 # Default target
 all: help
@@ -11,6 +11,7 @@ help:
 	@echo "  pip          - Install dependencies from requirements.txt."
 	@echo "  pip-dev      - Install dependencies from requirements-dev.txt."
 	@echo "  format       - Format source code."
+	@echo "  gitlint      - Lint last commit message."
 	@echo "  mypy         - Run mypy."
 	@echo "  install      - Install EOS in editable form (development mode) into virtual environment."
 	@echo "  docker-run   - Run entire setup on docker"
@@ -126,6 +127,10 @@ test-full:
 # Target to format code.
 format:
 	.venv/bin/pre-commit run --all-files
+
+# Target to trigger gitlint using pre-commit for the last commit message
+gitlint:
+	.venv/bin/pre-commit run gitlint --hook-stage commit-msg --commit-msg-filename .git/COMMIT_EDITMSG
 
 # Target to format code.
 mypy:

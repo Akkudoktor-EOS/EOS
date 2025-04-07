@@ -21,8 +21,8 @@ There are just too many possibilities and the project would drown in tickets oth
 ## Code Contributions
 
 We welcome code contributions and bug fixes via [Pull Requests](https://github.com/Akkudoktor-EOS/EOS/pulls).
-To make collaboration easier, we require pull requests to pass code style and unit tests.
-
+To make collaboration easier, we require pull requests to pass code style, unit tests, and commit
+message style checks.
 
 ### Setup development environment
 
@@ -60,6 +60,7 @@ To run formatting automatically before every commit:
 
 ```bash
 pre-commit install
+pre-commit install --hook-type commit-msg
 ```
 
 Or run them manually:
@@ -75,3 +76,8 @@ Use `pytest` to run tests locally:
 ```bash
 python -m pytest -vs --cov src --cov-report term-missing tests/
 ```
+
+### Commit message style
+
+Our commit message checks use [`gitlint`](https://github.com/jorisroovers/gitlint). The checks
+enforce the [`Conventional Commits`](https://www.conventionalcommits.org) commit message style.
