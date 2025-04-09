@@ -19,6 +19,7 @@ class classproperty:
         class MyClass:
             _value = 42
 
+            @classmethod
             @classproperty
             def value(cls):
                 return cls._value

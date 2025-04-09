@@ -11,6 +11,12 @@ services:
       dockerfile: "Dockerfile"
       args:
         PYTHON_VERSION: "${PYTHON_VERSION}"
+        BASE_IMAGE: "${BASE_IMAGE}"
+        IMAGE_SUFFIX: "${IMAGE_SUFFIX}"
+        APT_PACKAGES: "${APT_PACKAGES:-}"
+        APT_BUILD_PACKAGES: "${APT_BUILD_PACKAGES:-}"
+        PIP_EXTRA_INDEX_URL: "${PIP_EXTRA_INDEX_URL:-}"
+        RUSTUP_INSTALL: "${RUSTUP_INSTALL:-}"
     env_file:
       - .env
     environment:
