@@ -1,4 +1,4 @@
-cachebox==4.4.2
+cachebox==4.5.3
 numpy==2.2.4
 numpydantic==1.6.8
 matplotlib==3.10.1
