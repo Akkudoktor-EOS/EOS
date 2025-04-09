@@ -7,7 +7,7 @@ python-fasthtml==0.12.12
 MonsterUI==1.0.11
 markdown-it-py==3.0.0
 mdit-py-plugins==0.4.2
-bokeh==3.7.0
+bokeh==3.7.2
 uvicorn==0.34.0
 scikit-learn==1.6.1
 timezonefinder==6.5.9
