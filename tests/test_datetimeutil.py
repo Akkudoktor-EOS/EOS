@@ -1,10 +1,13 @@
 """Test Module for pendulum.datetimeutil Module."""
 
+import re
+
 import pendulum
 import pytest
 from pendulum.tz.timezone import Timezone
 
 from akkudoktoreos.utils.datetimeutil import (
+    MAX_DURATION_STRING_LENGTH,
     compare_datetimes,
     hours_in_day,
     to_datetime,
@@ -620,3 +623,33 @@ def test_compare_datetimes_gt(dt1, dt2):
     assert compare_datetimes(dt1, dt2).gt
     assert compare_datetimes(dt1, dt2).le == False
     assert compare_datetimes(dt1, dt2).lt == False
+
+
+def test_to_duration_excessive_length_raises_valueerror():
+    """Test that to_duration raises ValueError for strings exceeding max length.
+
+    This test covers the fix for the ReDoS vulnerability.
+    Related to: #494
+    """
+    # String exceeds limits
+    long_string = "a" * (MAX_DURATION_STRING_LENGTH + 50)
+
+    # Expected Errormessage – ESCAPED für Regex
+    expected_error_message = re.escape(
+        f"Input string exceeds maximum allowed length ({MAX_DURATION_STRING_LENGTH})."
+    )
+
+    # Check if error was raised
+    with pytest.raises(ValueError, match=expected_error_message):
+        to_duration(long_string)
+
+    # Optional: String exactly at the limit should NOT trigger the length check.
+    at_limit_string = "b" * MAX_DURATION_STRING_LENGTH
+    try:
+        to_duration(at_limit_string)
+    except ValueError as e:
+        if str(e) == f"Input string exceeds maximum allowed length ({MAX_DURATION_STRING_LENGTH}).":
+            pytest.fail(
+                f"to_duration raised length ValueError unexpectedly for string at limit: {at_limit_string}"
+            )
+        pass
