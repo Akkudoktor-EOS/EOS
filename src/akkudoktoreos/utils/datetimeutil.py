@@ -34,7 +34,7 @@ from timezonefinder import TimezoneFinder
 from akkudoktoreos.core.logging import get_logger
 
 logger = get_logger(__name__)
-
+MAX_DURATION_STRING_LENGTH = 350
 
 @overload
 def to_datetime(
@@ -287,7 +287,10 @@ def to_duration(
             "second": 1,
         }
 
-        # Regular expression to match time components like '2 days', '5 hours', etc.
+       # Mitigate ReDoS vulnerability (#494) by checking input string length.
+        if len(input_value) > MAX_DURATION_STRING_LENGTH:
+            raise ValueError(f"Input string exceeds maximum allowed length ({MAX_DURATION_STRING_LENGTH}).")
+       # Regular expression to match time components like '2 days', '5 hours', etc.
         matches = re.findall(r"(\d+)\s*(days?|hours?|minutes?|seconds?)", input_value)
 
         if not matches:
