@@ -4,7 +4,7 @@ numpydantic==1.6.8
 matplotlib==3.10.1
 fastapi[standard]==0.115.12
 python-fasthtml==0.12.14
-MonsterUI==1.0.18
+MonsterUI==1.0.19
 markdown-it-py==3.0.0
 mdit-py-plugins==0.4.2
 bokeh==3.7.2
