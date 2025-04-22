@@ -1147,9 +1147,14 @@ def fastapi_optimize(
 
     # Perform optimization simulation
     opt_class = optimization_problem(verbose=bool(config_eos.server.verbose))
-    result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour, **extra_args)
-    # print(result)
-    return result
+    try:
+        result = opt_class.optimierung_ems(
+            parameters=parameters, start_hour=start_hour, **extra_args
+        )
+        # print(result)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Optimize error: {e}.")
 
 
 @app.get("/visualization_results.pdf", response_class=PdfResponse, tags=["optimize"])
