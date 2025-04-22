@@ -20,5 +20,5 @@ psutil==7.0.0
 pvlib==0.12.0
 pydantic==2.10.6
 statsmodels==0.14.4
-pydantic-settings==2.8.1
+pydantic-settings==2.9.1
 linkify-it-py==2.0.3
