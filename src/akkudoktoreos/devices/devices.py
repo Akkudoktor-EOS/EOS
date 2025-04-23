@@ -39,10 +39,14 @@ class Devices(SingletonMixin, DevicesBase):
             device.post_setup()
 
 
-# Initialize the Devices  simulation, it is a singleton.
-devices = Devices()
+# Initialize the Devices simulation, it is a singleton.
+devices: Optional[Devices] = None
 
 
 def get_devices() -> Devices:
+    global devices
+    # Fix circular import at runtime
+    if devices is None:
+        devices = Devices()
     """Gets the EOS Devices simulation."""
     return devices
