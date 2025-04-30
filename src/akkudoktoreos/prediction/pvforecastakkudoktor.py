@@ -291,7 +291,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
         Raises:
             ValueError: If the API response does not include expected `meta` data.
         """
-        response = requests.get(self._url())
+        response = requests.get(self._url(), timeout=10)
         response.raise_for_status()  # Raise an error for bad responses
         logger.debug(f"Response from {self._url()}: {response}")
         akkudoktor_data = self._validate_data(response.content)
@@ -332,7 +332,8 @@ class PVForecastAkkudoktor(PVForecastProvider):
             logger.error(f"Akkudoktor schema change: {error_msg}")
             raise ValueError(error_msg)
 
-        assert self.start_datetime  # mypy fix
+        if not self.start_datetime:
+            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
 
         # Iterate over forecast data points
         for forecast_values in zip(*akkudoktor_data.values):

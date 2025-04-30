@@ -186,7 +186,7 @@ def Demo(eos_host: str, eos_port: Union[str, int]) -> str:
 
     # Get current configuration from server
     try:
-        result = requests.get(f"{server}/v1/config")
+        result = requests.get(f"{server}/v1/config", timeout=10)
         result.raise_for_status()
     except requests.exceptions.HTTPError as err:
         detail = result.json()["detail"]
@@ -200,12 +200,12 @@ def Demo(eos_host: str, eos_port: Union[str, int]) -> str:
     with FILE_DEMOCONFIG.open("r", encoding="utf-8") as fd:
         democonfig = json.load(fd)
     try:
-        result = requests.put(f"{server}/v1/config", json=democonfig)
+        result = requests.put(f"{server}/v1/config", json=democonfig, timeout=10)
         result.raise_for_status()
     except requests.exceptions.HTTPError as err:
         detail = result.json()["detail"]
         # Try to reset to original config
-        requests.put(f"{server}/v1/config", json=config)
+        requests.put(f"{server}/v1/config", json=config, timeout=10)
         return P(
             f"Can not set demo configuration on {server}: {err}, {detail}",
             cls="text-center",
@@ -213,12 +213,12 @@ def Demo(eos_host: str, eos_port: Union[str, int]) -> str:
 
     # Update all predictions
     try:
-        result = requests.post(f"{server}/v1/prediction/update")
+        result = requests.post(f"{server}/v1/prediction/update", timeout=10)
         result.raise_for_status()
     except requests.exceptions.HTTPError as err:
         detail = result.json()["detail"]
         # Try to reset to original config
-        requests.put(f"{server}/v1/config", json=config)
+        requests.put(f"{server}/v1/config", json=config, timeout=10)
         return P(
             f"Can not update predictions on {server}: {err}, {detail}",
             cls="text-center",
@@ -239,7 +239,7 @@ def Demo(eos_host: str, eos_port: Union[str, int]) -> str:
                 "load_mean_adjusted",
             ],
         }
-        result = requests.get(f"{server}/v1/prediction/dataframe", params=params)
+        result = requests.get(f"{server}/v1/prediction/dataframe", params=params, timeout=10)
         result.raise_for_status()
         predictions = PydanticDateTimeDataFrame(**result.json()).to_dataframe()
     except requests.exceptions.HTTPError as err:
@@ -255,7 +255,7 @@ def Demo(eos_host: str, eos_port: Union[str, int]) -> str:
         )
 
     # Reset to original config
-    requests.put(f"{server}/v1/config", json=config)
+    requests.put(f"{server}/v1/config", json=config, timeout=10)
 
     return Grid(
         DemoPVForecast(predictions, democonfig),

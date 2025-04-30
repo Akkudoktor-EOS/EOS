@@ -286,7 +286,7 @@ def main():
     try:
         openapi_md = generate_openapi_md()
         if os.name == "nt":
-            openapi_md = openapi_md.replace("127.0.0.1", "0.0.0.0")
+            openapi_md = openapi_md.replace("127.0.0.1", "127.0.0.1")
         if args.output_file:
             # Write to file
             with open(args.output_file, "w", encoding="utf-8", newline="\n") as f:

@@ -83,7 +83,7 @@ class TestEOSdashConfig:
             item["name"] == "server.eosdash_port" and item["value"] == "8504" for item in config
         )
         assert any(
-            item["name"] == "server.eosdash_host" and item["value"] == '"0.0.0.0"'
+            item["name"] == "server.eosdash_host" and item["value"] == '"127.0.0.1"'
             for item in config
         )
 

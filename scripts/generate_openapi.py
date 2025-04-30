@@ -58,8 +58,6 @@ def main():
     try:
         openapi_spec = generate_openapi()
         openapi_spec_str = json.dumps(openapi_spec, indent=2)
-        if os.name == "nt":
-            openapi_spec_str = openapi_spec_str.replace("127.0.0.1", "0.0.0.0")
         if args.output_file:
             # Write to file
             with open(args.output_file, "w", encoding="utf-8", newline="\n") as f:

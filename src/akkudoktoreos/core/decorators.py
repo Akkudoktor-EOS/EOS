@@ -34,7 +34,7 @@ class classproperty:
                                       argument and returns a value.
 
     Raises:
-        AssertionError: If `fget` is not defined when `__get__` is called.
+        RuntimeError: If `fget` is not defined when `__get__` is called.
     """
 
     def __init__(self, fget: Callable[[Any], Any]) -> None:
@@ -43,5 +43,6 @@ class classproperty:
     def __get__(self, _: Any, owner_cls: Optional[type[Any]] = None) -> Any:
         if owner_cls is None:
             return self
-        assert self.fget is not None
+        if self.fget is None:
+            raise RuntimeError("'fget' not defined when `__get__` is called")
         return self.fget(owner_cls)

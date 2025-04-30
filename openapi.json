@@ -220,9 +220,9 @@
                     "server": {
                         "$ref": "#/components/schemas/ServerCommonSettings",
                         "default": {
-                            "eosdash_host": "0.0.0.0",
+                            "eosdash_host": "127.0.0.1",
                             "eosdash_port": 8504,
-                            "host": "0.0.0.0",
+                            "host": "127.0.0.1",
                             "port": 8503,
                             "startup_eosdash": true,
                             "verbose": false
@@ -2279,7 +2279,7 @@
                                 "type": "null"
                             }
                         ],
-                        "default": "0.0.0.0",
+                        "default": "127.0.0.1",
                         "description": "EOSdash server IP address.",
                         "title": "Eosdash Host"
                     },
@@ -2306,7 +2306,7 @@
                                 "type": "null"
                             }
                         ],
-                        "default": "0.0.0.0",
+                        "default": "127.0.0.1",
                         "description": "EOS server IP address.",
                         "title": "Host"
                     },

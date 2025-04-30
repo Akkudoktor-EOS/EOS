@@ -429,7 +429,7 @@ def server(xprocess, config_eos, config_default_dirs) -> Generator[str, None, No
     Provides URL of the server.
     """
     # create url/port info to the server
-    url = "http://0.0.0.0:8503"
+    url = "http://127.0.0.1:8503"
 
     class Starter(ProcessStarter):
         # Set environment before any subprocess run, to keep custom config dir

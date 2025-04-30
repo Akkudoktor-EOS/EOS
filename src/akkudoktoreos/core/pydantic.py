@@ -450,8 +450,8 @@ class PydanticBaseModel(BaseModel, PydanticModelNestedValueMixin):
         if expected_type is pendulum.DateTime or expected_type is AwareDatetime:
             try:
                 value = to_datetime(value)
-            except:
-                pass
+            except Exception as e:
+                raise ValueError(f"Cannot convert {value!r} to datetime: {e}")
         return value
 
     # Override Pydantic’s serialization for all DateTime fields

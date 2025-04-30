@@ -121,7 +121,8 @@ class Battery(DeviceBase):
 
     def _setup(self) -> None:
         """Sets up the battery parameters based on configuration or provided parameters."""
-        assert self.parameters is not None
+        if self.parameters is None:
+            raise ValueError(f"Parameters not set: {self.parameters}")
         self.capacity_wh = self.parameters.capacity_wh
         self.initial_soc_percentage = self.parameters.initial_soc_percentage
         self.charging_efficiency = self.parameters.charging_efficiency

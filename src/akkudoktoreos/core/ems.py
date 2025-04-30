@@ -393,7 +393,8 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
 
         # Fetch objects
         battery = self.battery
-        assert battery  # to please mypy
+        if battery is None:
+            raise ValueError(f"battery not set: {battery}")
         ev = self.ev
         home_appliance = self.home_appliance
         inverter = self.inverter

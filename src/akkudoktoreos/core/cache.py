@@ -956,7 +956,7 @@ def cache_in_file(
                     logger.debug("Used cache file for function: " + func.__name__)
                     cache_file.seek(0)
                     if "b" in mode:
-                        result = pickle.load(cache_file)
+                        result = pickle.load(cache_file)  # noqa: S301
                     else:
                         result = cache_file.read()
                 except Exception as e:

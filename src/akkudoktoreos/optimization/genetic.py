@@ -121,7 +121,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         if self.fix_seed is not None:
             random.seed(self.fix_seed)
         elif logger.level == "DEBUG":
-            self.fix_seed = random.randint(1, 100000000000)
+            self.fix_seed = random.randint(1, 100000000000)  # noqa: S311
             random.seed(self.fix_seed)
 
     def decode_charge_discharge(

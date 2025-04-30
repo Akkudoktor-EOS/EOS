@@ -43,12 +43,18 @@ profile = "black"
 
 [tool.ruff]
 line-length = 100
+exclude = [
+    "tests",
+    "scripts",
+]
+output-format = "full"
 
 [tool.ruff.lint]
 select = [
     "F",      # Enable all `Pyflakes` rules.
     "D",      # Enable all `pydocstyle` rules, limiting to those that adhere to the
               # Google convention via `convention = "google"`, below.
+    "S",      # Enable all `flake8-bandit` rules.
 ]
 ignore = [
    # Prevent errors due to ruff false positives

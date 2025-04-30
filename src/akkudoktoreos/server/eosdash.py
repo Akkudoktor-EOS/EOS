@@ -242,7 +242,7 @@ def run_eosdash() -> None:
         reload = False
 
     # Make hostname Windows friendly
-    if eosdash_host == "0.0.0.0" and os.name == "nt":
+    if eosdash_host == "0.0.0.0" and os.name == "nt":  # noqa: S104
         eosdash_host = "localhost"
 
     # Wait for EOSdash port to be free - e.g. in case of restart

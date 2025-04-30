@@ -104,12 +104,13 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             - add the file cache again.
         """
         source = "https://api.akkudoktor.net"
-        assert self.start_datetime  # mypy fix
+        if not self.start_datetime:
+            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
         # Try to take data from 5 weeks back for prediction
         date = to_datetime(self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
         url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.general.timezone}"
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         logger.debug(f"Response from {url}: {response}")
         response.raise_for_status()  # Raise an error for bad responses
         akkudoktor_data = self._validate_data(response.content)
@@ -148,7 +149,8 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         """
         # Get Akkudoktor electricity price data
         akkudoktor_data = self._request_forecast(force_update=force_update)  # type: ignore
-        assert self.start_datetime  # mypy fix
+        if not self.start_datetime:
+            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
 
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
@@ -178,7 +180,10 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         )
 
         amount_datasets = len(self.records)
-        assert highest_orig_datetime  # mypy fix
+        if not highest_orig_datetime:  # mypy fix
+            error_msg = f"Highest original datetime not available: {highest_orig_datetime}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
         needed_hours = int(

@@ -1,6 +1,7 @@
 """Server Module."""
 
-import os
+import ipaddress
+import re
 import time
 from typing import Optional, Union
 
@@ -14,9 +15,39 @@ logger = get_logger(__name__)
 
 
 def get_default_host() -> str:
-    if os.name == "nt":
-        return "127.0.0.1"
-    return "0.0.0.0"
+    """Default host for EOS."""
+    return "127.0.0.1"
+
+
+def is_valid_ip_or_hostname(value: str) -> bool:
+    """Validate whether a string is a valid IP address (IPv4 or IPv6) or hostname.
+
+    This function first attempts to interpret the input as an IP address using the
+    standard library `ipaddress` module. If that fails, it checks whether the input
+    is a valid hostname according to RFC 1123, which allows domain names consisting
+    of alphanumeric characters and hyphens, with specific length and structure rules.
+
+    Args:
+        value (str): The input string to validate.
+
+    Returns:
+        bool: True if the input is a valid IP address or hostname, False otherwise.
+    """
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        pass
+
+    if len(value) > 253:
+        return False
+
+    hostname_regex = re.compile(
+        r"^(?=.{1,253}$)(?!-)[A-Z\d-]{1,63}(?<!-)"
+        r"(?:\.(?!-)[A-Z\d-]{1,63}(?<!-))*\.?$",
+        re.IGNORECASE,
+    )
+    return bool(hostname_regex.fullmatch(value))
 
 
 def wait_for_port_free(port: int, timeout: int = 0, waiting_app_name: str = "App") -> bool:
@@ -110,6 +141,8 @@ class ServerCommonSettings(SettingsBaseModel):
         cls, value: Optional[Union[str, IPvAnyAddress]]
     ) -> Optional[Union[str, IPvAnyAddress]]:
         if isinstance(value, str):
+            if not is_valid_ip_or_hostname(value):
+                raise ValueError(f"Invalid host: {value}")
             if value.lower() in ("localhost", "loopback"):
                 value = "127.0.0.1"
         return value

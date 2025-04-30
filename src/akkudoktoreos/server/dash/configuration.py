@@ -218,7 +218,7 @@ def get_configuration(eos_host: str, eos_port: Union[str, int]) -> list[dict]:
 
     # Get current configuration from server
     try:
-        result = requests.get(f"{server}/v1/config")
+        result = requests.get(f"{server}/v1/config", timeout=10)
         result.raise_for_status()
         config = result.json()
     except requests.exceptions.HTTPError as e:
@@ -303,9 +303,14 @@ def ConfigPlanesCard(
                 planes_update_open = True
                 plane_update_open = True
             # Make mypy happy - should never trigger
-            assert isinstance(update_error, (str, type(None)))
-            assert isinstance(update_value, (str, type(None)))
-            assert isinstance(update_open, (bool, type(None)))
+            if (
+                not isinstance(update_error, (str, type(None)))
+                or not isinstance(update_value, (str, type(None)))
+                or not isinstance(update_open, (bool, type(None)))
+            ):
+                error_msg = "update_error or update_value or update_open of wrong type."
+                logger.error(error_msg)
+                raise TypeError(error_msg)
             plane_rows.append(
                 ConfigCard(
                     config["name"],
@@ -441,9 +446,14 @@ def Configuration(
         update_value = config_update_latest.get(config["name"], {}).get("value")
         update_open = config_update_latest.get(config["name"], {}).get("open")
         # Make mypy happy - should never trigger
-        assert isinstance(update_error, (str, type(None)))
-        assert isinstance(update_value, (str, type(None)))
-        assert isinstance(update_open, (bool, type(None)))
+        if (
+            not isinstance(update_error, (str, type(None)))
+            or not isinstance(update_value, (str, type(None)))
+            or not isinstance(update_open, (bool, type(None)))
+        ):
+            error_msg = "update_error or update_value or update_open of wrong type."
+            logger.error(error_msg)
+            raise TypeError(error_msg)
         if (
             config["type"]
             == "Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]"
@@ -505,7 +515,7 @@ def ConfigKeyUpdate(eos_host: str, eos_port: Union[str, int], key: str, value: s
     error = None
     config = None
     try:
-        response = requests.put(f"{server}/v1/config/{path}", json=data)
+        response = requests.put(f"{server}/v1/config/{path}", json=data, timeout=10)
         response.raise_for_status()
         config = response.json()
     except requests.exceptions.HTTPError as err:
