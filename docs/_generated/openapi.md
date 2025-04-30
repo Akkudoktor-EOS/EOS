@@ -749,7 +749,8 @@ Args:
       "$ref": "#/components/schemas/PydanticDateTimeData"
     },
     {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": true
     },
     {
       "type": "null"

@@ -911,6 +911,7 @@
                     },
                     "measured_data": {
                         "items": {
+                            "additionalProperties": true,
                             "type": "object"
                         },
                         "title": "Measured Data",
@@ -2190,6 +2191,7 @@
                 "properties": {
                     "data": {
                         "additionalProperties": {
+                            "additionalProperties": true,
                             "type": "object"
                         },
                         "title": "Data",
@@ -2233,6 +2235,7 @@
                 "description": "Pydantic model for validating pandas Series with datetime index in JSON format.\n\nThis model handles Series data serialized with orient='index', where the keys are\ndatetime strings and values are the series values. Provides validation and\nconversion between JSON and pandas Series with datetime index.\n\nAttributes:\n    data (Dict[str, Any]): Dictionary mapping datetime strings to values.\n    dtype (str): The data type of the series values.\n    tz (str | None): Timezone name if the datetime index is timezone-aware.",
                 "properties": {
                     "data": {
+                        "additionalProperties": true,
                         "title": "Data",
                         "type": "object"
                     },
@@ -3159,6 +3162,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
+                                    "additionalProperties": true,
                                     "title": "Response Fastapi Admin Cache Get V1 Admin Cache Get",
                                     "type": "object"
                                 }
@@ -3200,6 +3204,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
+                                    "additionalProperties": true,
                                     "title": "Response Fastapi Admin Cache Clear Post V1 Admin Cache Clear Post",
                                     "type": "object"
                                 }
@@ -3233,6 +3238,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
+                                    "additionalProperties": true,
                                     "title": "Response Fastapi Admin Cache Load Post V1 Admin Cache Load Post",
                                     "type": "object"
                                 }
@@ -3256,6 +3262,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
+                                    "additionalProperties": true,
                                     "title": "Response Fastapi Admin Cache Save Post V1 Admin Cache Save Post",
                                     "type": "object"
                                 }
@@ -3279,6 +3286,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
+                                    "additionalProperties": true,
                                     "title": "Response Fastapi Admin Server Restart Post V1 Admin Server Restart Post",
                                     "type": "object"
                                 }
@@ -3302,6 +3310,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
+                                    "additionalProperties": true,
                                     "title": "Response Fastapi Admin Server Shutdown Post V1 Admin Server Shutdown Post",
                                     "type": "object"
                                 }
@@ -4134,6 +4143,7 @@
                                         "$ref": "#/components/schemas/PydanticDateTimeData"
                                     },
                                     {
+                                        "additionalProperties": true,
                                         "type": "object"
                                     },
                                     {
