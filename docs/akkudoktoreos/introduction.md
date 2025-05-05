@@ -139,7 +139,7 @@ of components.
 
 ![Integration](../_static/introduction/integration.png)
 
-However, the components are not integrated by the EOS itself, but must be intergrated by
+However, the components are not integrated by the EOS itself, but must be integrated by
 the user using an integration solution and currently requires some effort and technical
 know-how.
 
@@ -153,7 +153,7 @@ Node-RED offers a large number of types of nodes that allow access via the proto
 commonly used in this area, such as Modbus or MQTT. Access to any existing databases,
 such as InfluxDB or PostgreSQL, is also possible via nodes provided by Node-RED.
 
-It becomes easier if a smart home solution like Homa Assistant, openHAB or ioBroker or
+It becomes easier if a smart home solution like Home Assistant, openHAB or ioBroker or
 solutions such as evcc or openWB are already in use. In this case, these smart home
 solutions already take over the technical integration and communication with the components
 at a technical level and Node-RED offers nodes for accessing these solutions, so that the
