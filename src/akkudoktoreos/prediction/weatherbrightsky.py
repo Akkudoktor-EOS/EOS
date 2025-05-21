@@ -9,6 +9,7 @@ format, enabling consistent access to forecasted and historical weather attribut
 import json
 from typing import Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import pandas as pd
 import pvlib
 import requests
@@ -228,6 +229,11 @@ class WeatherBrightSky(WeatherProvider):
             end_datetime=self.end_datetime,
             interval=to_duration("1 hour"),
         )
+        if any(x is None or isinstance(x, float) and np.isnan(x) for x in temperature):
+            # We can not calculate PWAT
+            debug_msg = f"Innvalid temperature '{temperature}'"
+            logger.debug(debug_msg)
+            return
         key = WeatherDataRecord.key_from_description("Relative Humidity (%)")
         assert key
         humidity = self.key_to_array(
@@ -236,6 +242,11 @@ class WeatherBrightSky(WeatherProvider):
             end_datetime=self.end_datetime,
             interval=to_duration("1 hour"),
         )
+        if any(x is None or isinstance(x, float) and np.isnan(x) for x in humidity):
+            # We can not calculate PWAT
+            debug_msg = f"Innvalid humidity '{humidity}'"
+            logger.debug(debug_msg)
+            return
         data = pvlib.atmosphere.gueymard94_pw(temperature, humidity)
         pwat = pd.Series(
             data=data,
