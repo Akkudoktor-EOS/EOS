@@ -161,7 +161,7 @@ corresponding sources can be easily integrated into a flow.
 
 In Home Assistant you could use an automation to prepare the input payload for EOS and
 then use the RESTful integration to call EOS. Based on this concept there is already a
-home assistand add-on created by [Duetting](#duetting-solution).
+Home Assistant add-on created by [Duetting](#duetting-solution).
 
 The plan created by EOS must also be executed via the chosen integration solution,
 with the respective devices receiving their instructions according to the plan.
