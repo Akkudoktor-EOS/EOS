@@ -27,14 +27,14 @@ Example:
             "planes": [
                 {
                     "peakpower": 5.0,
-                    "surface_azimuth": -10,
+                    "surface_azimuth": 170,
                     "surface_tilt": 7,
                     "userhorizon": [20, 27, 22, 20],
                     "inverter_paco": 10000,
                 },
                 {
                     "peakpower": 4.8,
-                    "surface_azimuth": -90,
+                    "surface_azimuth": 90,
                     "surface_tilt": 7,
                     "userhorizon": [30, 30, 30, 50],
                     "inverter_paco": 10000,
@@ -221,7 +221,12 @@ class PVForecastAkkudoktor(PVForecastProvider):
 
         for i in range(len(self.config.pvforecast.planes)):
             query_params.append(f"power={int(self.config.pvforecast.planes_peakpower[i] * 1000)}")
-            query_params.append(f"azimuth={int(self.config.pvforecast.planes_azimuth[i])}")
+            # EOS orientation of of pv modules in azimuth in degree:
+            #   north=0, east=90, south=180, west=270
+            # Akkudoktor orientation of pv modules in azimuth in degree:
+            #   north=+-180, east=-90, south=0, west=90
+            azimuth_akkudoktor = int(self.config.pvforecast.planes_azimuth[i]) - 180
+            query_params.append(f"azimuth={azimuth_akkudoktor}")
             query_params.append(f"tilt={int(self.config.pvforecast.planes_tilt[i])}")
             query_params.append(
                 f"powerInverter={int(self.config.pvforecast.planes_inverter_paco[i])}"
@@ -390,28 +395,28 @@ if __name__ == "__main__":
             "planes": [
                 {
                     "peakpower": 5.0,
-                    "surface_azimuth": -10,
+                    "surface_azimuth": 170,
                     "surface_tilt": 7,
                     "userhorizon": [20, 27, 22, 20],
                     "inverter_paco": 10000,
                 },
                 {
                     "peakpower": 4.8,
-                    "surface_azimuth": -90,
+                    "surface_azimuth": 90,
                     "surface_tilt": 7,
                     "userhorizon": [30, 30, 30, 50],
                     "inverter_paco": 10000,
                 },
                 {
                     "peakpower": 1.4,
-                    "surface_azimuth": -40,
+                    "surface_azimuth": 140,
                     "surface_tilt": 60,
                     "userhorizon": [60, 30, 0, 30],
                     "inverter_paco": 2000,
                 },
                 {
                     "peakpower": 1.6,
-                    "surface_azimuth": 5,
+                    "surface_azimuth": 185,
                     "surface_tilt": 45,
                     "userhorizon": [45, 25, 30, 60],
                     "inverter_paco": 1400,

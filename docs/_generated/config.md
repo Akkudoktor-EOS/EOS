@@ -574,7 +574,7 @@ Validators:
            "planes": [
                {
                    "surface_tilt": 10.0,
-                   "surface_azimuth": 10.0,
+                   "surface_azimuth": 180.0,
                    "userhorizon": [
                        10.0,
                        20.0,
@@ -596,7 +596,7 @@ Validators:
                },
                {
                    "surface_tilt": 20.0,
-                   "surface_azimuth": 20.0,
+                   "surface_azimuth": 90.0,
                    "userhorizon": [
                        5.0,
                        15.0,
@@ -634,7 +634,7 @@ Validators:
            "planes": [
                {
                    "surface_tilt": 10.0,
-                   "surface_azimuth": 10.0,
+                   "surface_azimuth": 180.0,
                    "userhorizon": [
                        10.0,
                        20.0,
@@ -656,7 +656,7 @@ Validators:
                },
                {
                    "surface_tilt": 20.0,
-                   "surface_azimuth": 20.0,
+                   "surface_azimuth": 90.0,
                    "userhorizon": [
                        5.0,
                        15.0,
@@ -683,8 +683,8 @@ Validators:
                3.5
            ],
            "planes_azimuth": [
-               10.0,
-               20.0
+               180.0,
+               90.0
            ],
            "planes_tilt": [
                10.0,
@@ -746,7 +746,7 @@ Validators:
            "planes": [
                {
                    "surface_tilt": 10.0,
-                   "surface_azimuth": 10.0,
+                   "surface_azimuth": 180.0,
                    "userhorizon": [
                        10.0,
                        20.0,
@@ -768,7 +768,7 @@ Validators:
                },
                {
                    "surface_tilt": 20.0,
-                   "surface_azimuth": 20.0,
+                   "surface_azimuth": 90.0,
                    "userhorizon": [
                        5.0,
                        15.0,
@@ -1004,7 +1004,7 @@ Validators:
            "planes": [
                {
                    "surface_tilt": 10.0,
-                   "surface_azimuth": 10.0,
+                   "surface_azimuth": 180.0,
                    "userhorizon": [
                        10.0,
                        20.0,
@@ -1026,7 +1026,7 @@ Validators:
                },
                {
                    "surface_tilt": 20.0,
-                   "surface_azimuth": 20.0,
+                   "surface_azimuth": 90.0,
                    "userhorizon": [
                        5.0,
                        15.0,

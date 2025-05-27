@@ -24,7 +24,7 @@
     "planes": [
       {
         "peakpower": 5.0,
-        "surface_azimuth": -10,
+        "surface_azimuth": 170,
         "surface_tilt": 7,
         "userhorizon": [
           20,
@@ -36,7 +36,7 @@
       },
       {
         "peakpower": 4.8,
-        "surface_azimuth": -90,
+        "surface_azimuth": 90,
         "surface_tilt": 7,
         "userhorizon": [
           30,
@@ -48,7 +48,7 @@
       },
       {
         "peakpower": 1.4,
-        "surface_azimuth": -40,
+        "surface_azimuth": 140,
         "surface_tilt": 60,
         "userhorizon": [
           60,
@@ -60,7 +60,7 @@
       },
       {
         "peakpower": 1.6,
-        "surface_azimuth": 5,
+        "surface_azimuth": 185,
         "surface_tilt": 45,
         "userhorizon": [
           45,
