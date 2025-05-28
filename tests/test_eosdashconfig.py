@@ -95,7 +95,7 @@ class TestEOSdashConfig:
             PVForecastPlaneSetting(), values, values_prefix=["pvforecast", "planes", "0"]
         )
         assert any(
-            item["name"] == "pvforecast.planes.0.surface_azimuth" and item["value"] == "-10"
+            item["name"] == "pvforecast.planes.0.surface_azimuth" and item["value"] == "170"
             for item in config
         )
         assert any(

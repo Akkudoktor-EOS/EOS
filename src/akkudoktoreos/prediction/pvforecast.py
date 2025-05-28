@@ -28,13 +28,17 @@ class PVForecastPlaneSetting(SettingsBaseModel):
     # latitude: Optional[float] = Field(default=None, description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)")
     surface_tilt: Optional[float] = Field(
         default=30.0,
+        ge=0.0,
+        le=90.0,
         description="Tilt angle from horizontal plane. Ignored for two-axis tracking.",
         examples=[10.0, 20.0],
     )
     surface_azimuth: Optional[float] = Field(
         default=180.0,
+        ge=0.0,
+        le=360.0,
         description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-        examples=[10.0, 20.0],
+        examples=[180.0, 90.0],
     )
     userhorizon: Optional[List[float]] = Field(
         default=None,

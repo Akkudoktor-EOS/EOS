@@ -1594,7 +1594,7 @@
                                     "peakpower": 5.0,
                                     "pvtechchoice": "crystSi",
                                     "strings_per_inverter": 2,
-                                    "surface_azimuth": 10.0,
+                                    "surface_azimuth": 180.0,
                                     "surface_tilt": 10.0,
                                     "trackingtype": 0,
                                     "userhorizon": [
@@ -1613,7 +1613,7 @@
                                     "peakpower": 3.5,
                                     "pvtechchoice": "crystSi",
                                     "strings_per_inverter": 2,
-                                    "surface_azimuth": 20.0,
+                                    "surface_azimuth": 90.0,
                                     "surface_tilt": 20.0,
                                     "trackingtype": 1,
                                     "userhorizon": [
@@ -1701,7 +1701,7 @@
                                     "peakpower": 5.0,
                                     "pvtechchoice": "crystSi",
                                     "strings_per_inverter": 2,
-                                    "surface_azimuth": 10.0,
+                                    "surface_azimuth": 180.0,
                                     "surface_tilt": 10.0,
                                     "trackingtype": 0,
                                     "userhorizon": [
@@ -1720,7 +1720,7 @@
                                     "peakpower": 3.5,
                                     "pvtechchoice": "crystSi",
                                     "strings_per_inverter": 2,
-                                    "surface_azimuth": 20.0,
+                                    "surface_azimuth": 90.0,
                                     "surface_tilt": 20.0,
                                     "trackingtype": 1,
                                     "userhorizon": [
@@ -2036,6 +2036,8 @@
                     "surface_azimuth": {
                         "anyOf": [
                             {
+                                "maximum": 360.0,
+                                "minimum": 0.0,
                                 "type": "number"
                             },
                             {
@@ -2045,14 +2047,16 @@
                         "default": 180.0,
                         "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
                         "examples": [
-                            10.0,
-                            20.0
+                            180.0,
+                            90.0
                         ],
                         "title": "Surface Azimuth"
                     },
                     "surface_tilt": {
                         "anyOf": [
                             {
+                                "maximum": 90.0,
+                                "minimum": 0.0,
                                 "type": "number"
                             },
                             {
