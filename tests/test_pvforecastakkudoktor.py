@@ -19,6 +19,9 @@ from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
 FILE_TESTDATA_PV_FORECAST_INPUT_1 = DIR_TESTDATA.joinpath("pv_forecast_input_1.json")
+FILE_TESTDATA_PV_FORECAST_INPUT_SINGLE_PLANE = DIR_TESTDATA.joinpath(
+    "pv_forecast_input_single_plane.json"
+)
 FILE_TESTDATA_PV_FORECAST_RESULT_1 = DIR_TESTDATA.joinpath("pv_forecast_result_1.txt")
 
 logger = get_logger(__name__)
@@ -89,6 +92,16 @@ def sample_forecast_data():
 def sample_forecast_data_raw():
     """Fixture that returns raw sample forecast data."""
     with FILE_TESTDATA_PV_FORECAST_INPUT_1.open("r", encoding="utf-8", newline=None) as f_in:
+        input_data = f_in.read()
+    return input_data
+
+
+@pytest.fixture
+def sample_forecast_data_single_plane_raw():
+    """Fixture that returns raw sample forecast data."""
+    with FILE_TESTDATA_PV_FORECAST_INPUT_SINGLE_PLANE.open(
+        "r", encoding="utf-8", newline=None
+    ) as f_in:
         input_data = f_in.read()
     return input_data
 
@@ -233,6 +246,20 @@ def test_pvforecast_akkudoktor_validate_data(provider_empty_instance, sample_for
     ):
         ret = provider_empty_instance._validate_data("{}")
     data = provider_empty_instance._validate_data(sample_forecast_data_raw)
+    # everything worked
+
+
+def test_pvforecast_akkudoktor_validate_data_single_plane(
+    provider_empty_instance, sample_forecast_data_single_plane_raw
+):
+    """Test validation of PV forecast data on sample data with a single plane."""
+    logger.info("The following errors are intentional and part of the test.")
+    with pytest.raises(
+        ValueError,
+        match="Field: meta\nError: Field required\nType: missing\nField: values\nError: Field required\nType: missing\n",
+    ):
+        ret = provider_empty_instance._validate_data("{}")
+    data = provider_empty_instance._validate_data(sample_forecast_data_single_plane_raw)
     # everything worked
 
 
