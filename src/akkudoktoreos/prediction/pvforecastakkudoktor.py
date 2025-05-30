@@ -116,12 +116,12 @@ class AkkudoktorForecastMeta(PydanticBaseModel):
 
     @field_validator("power", "azimuth", "tilt", "powerInverter", mode="before")
     @classmethod
-    def ensure_list(cls, v):
+    def ensure_list(cls, v: Any) -> List[int]:
         return v if isinstance(v, list) else [v]
 
     @field_validator("horizont", mode="before")
     @classmethod
-    def normalize_horizont(cls, v):
+    def normalize_horizont(cls, v: Any) -> List[List[AkkudoktorForecastHorizon]]:
         if isinstance(v, list):
             # Case: flat list of dicts
             if v and isinstance(v[0], dict):
@@ -133,7 +133,7 @@ class AkkudoktorForecastMeta(PydanticBaseModel):
 
     @field_validator("horizontString", mode="before")
     @classmethod
-    def parse_horizont_string(cls, v):
+    def parse_horizont_string(cls, v: Any) -> List[str]:
         if isinstance(v, str):
             return [s.strip() for s in v.split(",")]
         return v
