@@ -160,7 +160,9 @@
         "min_soc_percentage": 0
     },
     "inverter": {
-        "max_power_wh": 10000
+        "device_id": "inverter1",
+        "max_power_wh": 10000,
+        "battery_id": "battery1"
     },
     "eauto": {
         "device_id": "ev1",
@@ -169,11 +171,6 @@
         "max_charge_power_w": 11040,
         "initial_soc_percentage": 5,
         "min_soc_percentage": 80
-    },
-    "inverter": {
-        "device_id": "inverter1",
-        "max_power_wh": 10000,
-        "battery_id": "battery1"
     },
     "dishwasher": {
         "device_id": "dishwasher1",
