@@ -78,7 +78,7 @@ Methods:
 from typing import Any, List, Optional, Union
 
 import requests
-from pydantic import Field, ValidationError, computed_field
+from pydantic import Field, ValidationError, computed_field, field_validator
 
 from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.logging import get_logger
@@ -114,6 +114,29 @@ class AkkudoktorForecastMeta(PydanticBaseModel):
     horizont: List[List[AkkudoktorForecastHorizon]]
     horizontString: List[str]
 
+    @field_validator("power", "azimuth", "tilt", "powerInverter", mode="before")
+    @classmethod
+    def ensure_list(cls, v):
+        return v if isinstance(v, list) else [v]
+        
+    @field_validator("horizont", mode="before")
+    @classmethod
+    def normalize_horizont(cls, v):
+        if isinstance(v, list):
+            # Case: flat list of dicts
+            if v and isinstance(v[0], dict):
+                return [v]
+            # Already in correct nested form
+            if v and isinstance(v[0], list):
+                return v
+        return v
+        
+    @field_validator("horizontString", mode="before")
+    @classmethod
+    def parse_horizont_string(cls, v):
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",")]
+        return v
 
 class AkkudoktorForecastValue(PydanticBaseModel):
     datetime: str
