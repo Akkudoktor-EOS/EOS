@@ -118,6 +118,7 @@ class AkkudoktorForecastMeta(PydanticBaseModel):
     @classmethod
     def ensure_list(cls, v):
         return v if isinstance(v, list) else [v]
+
     @field_validator("horizont", mode="before")
     @classmethod
     def normalize_horizont(cls, v):
@@ -129,6 +130,7 @@ class AkkudoktorForecastMeta(PydanticBaseModel):
             if v and isinstance(v[0], list):
                 return v
         return v
+
     @field_validator("horizontString", mode="before")
     @classmethod
     def parse_horizont_string(cls, v):
