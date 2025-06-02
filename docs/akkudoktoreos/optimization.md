@@ -21,6 +21,7 @@ including electricity prices, battery storage capacity, PV forecast, and tempera
         "strompreis_euro_pro_wh": [0.0003784, 0.0003868, ..., 0.00034102, 0.00033709]
     },
     "pv_akku": {
+        "device_id": "battery1",
         "capacity_wh": 12000,
         "charging_efficiency": 0.92,
         "discharging_efficiency": 0.92,
@@ -30,9 +31,12 @@ including electricity prices, battery storage capacity, PV forecast, and tempera
         "max_soc_percentage": 100
     },
     "inverter": {
+        "device_id": "inverter1",
         "max_power_wh": 15500
+        "battery_id": "battery1",
     },
     "eauto": {
+        "device_id": "auto1",
         "capacity_wh": 64000,
         "charging_efficiency": 0.88,
         "discharging_efficiency": 0.88,
