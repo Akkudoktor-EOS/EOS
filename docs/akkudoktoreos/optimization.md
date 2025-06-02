@@ -99,6 +99,7 @@ Verify prices against your local tariffs.
 
 #### Configuration
 
+- `device_id`: ID of battery
 - `capacity_wh`: Total battery capacity in Wh
 - `charging_efficiency`: Charging efficiency (0-1)
 - `discharging_efficiency`: Discharging efficiency (0-1)
@@ -112,10 +113,13 @@ Verify prices against your local tariffs.
 
 ### Inverter
 
+- `device_id`: ID of inverter
 - `max_power_wh`: Maximum inverter power in Wh
+- `battery_id`: ID of battery
 
 ### Electric Vehicle (EV)
 
+- `device_id`: ID of electric vehicle
 - `capacity_wh`: Battery capacity in Wh
 - `charging_efficiency`: Charging efficiency (0-1)
 - `discharging_efficiency`: Discharging efficiency (0-1)
