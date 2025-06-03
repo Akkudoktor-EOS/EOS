@@ -14,7 +14,7 @@ class SelfConsumptionProbabilityInterpolator:
         self.filepath = filepath
         # Load the RegularGridInterpolator
         with open(self.filepath, "rb") as file:
-            self.interpolator: RegularGridInterpolator = pickle.load(file)
+            self.interpolator: RegularGridInterpolator = pickle.load(file)  # noqa: S301
 
     @lru_cache(maxsize=128)
     def generate_points(

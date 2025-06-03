@@ -34,7 +34,8 @@ class HomeAppliance(DeviceBase):
         super().__init__(parameters)
 
     def _setup(self) -> None:
-        assert self.parameters is not None
+        if self.parameters is None:
+            raise ValueError(f"Parameters not set: {self.parameters}")
         self.load_curve = np.zeros(self.hours)  # Initialize the load curve with zeros
         self.duration_h = self.parameters.duration_h
         self.consumption_wh = self.parameters.consumption_wh

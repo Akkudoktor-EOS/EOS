@@ -82,8 +82,8 @@ def AdminConfig(
     try:
         if config:
             config_file_path = get_nested_value(config, ["general", "config_file_path"])
-    except:
-        pass
+    except Exception as e:
+        logger.debug(f"general.config_file_path: {e}")
     # export config file
     export_to_file_next_tag = to_datetime(as_string="YYYYMMDDHHmmss")
     export_to_file_status = (None,)
@@ -95,7 +95,7 @@ def AdminConfig(
         if data["action"] == "save_to_file":
             # Safe current configuration to file
             try:
-                result = requests.put(f"{server}/v1/config/file")
+                result = requests.put(f"{server}/v1/config/file", timeout=10)
                 result.raise_for_status()
                 config_file_path = result.json()["general"]["config_file_path"]
                 status = Success(f"Saved to '{config_file_path}' on '{eos_hostname}'")
@@ -143,7 +143,7 @@ def AdminConfig(
                 try:
                     with import_file_path.open("r", encoding="utf-8", newline=None) as fd:
                         import_config = json.load(fd)
-                    result = requests.put(f"{server}/v1/config", json=import_config)
+                    result = requests.put(f"{server}/v1/config", json=import_config, timeout=10)
                     result.raise_for_status()
                     import_from_file_status = Success(
                         f"Config imported from '{import_file_path}' on '{eosdash_hostname}'"
@@ -267,7 +267,7 @@ def Admin(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = None)
     # Get current configuration from server
     server = f"http://{eos_host}:{eos_port}"
     try:
-        result = requests.get(f"{server}/v1/config")
+        result = requests.get(f"{server}/v1/config", timeout=10)
         result.raise_for_status()
         config = result.json()
     except requests.exceptions.HTTPError as e:

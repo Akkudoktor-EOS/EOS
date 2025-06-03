@@ -170,7 +170,8 @@ class DevicesBase(DevicesStartEndMixin, PredictionMixin):
     def add_device(self, device: Optional["DeviceBase"]) -> None:
         if device is None:
             return
-        assert device.device_id not in self.devices, f"{device.device_id} already registered"
+        if device.device_id in self.devices:
+            raise ValueError(f"{device.device_id} already registered")
         self.devices[device.device_id] = device
 
     def remove_device(self, device: Type["DeviceBase"] | str) -> bool:

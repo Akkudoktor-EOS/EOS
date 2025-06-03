@@ -28,8 +28,6 @@ def test_openapi_spec_current(config_eos):
         spec = generate_openapi.generate_openapi()
         spec_str = json.dumps(spec, indent=4, sort_keys=True)
 
-    if os.name == "nt":
-        spec_str = spec_str.replace("127.0.0.1", "0.0.0.0")
     with new_spec_path.open("w", encoding="utf-8", newline="\n") as f_new:
         f_new.write(spec_str)
 
@@ -62,8 +60,6 @@ def test_openapi_md_current(config_eos):
 
         spec_md = generate_openapi_md.generate_openapi_md()
 
-    if os.name == "nt":
-        spec_md = spec_md.replace("127.0.0.1", "0.0.0.0")
     with new_spec_md_path.open("w", encoding="utf-8", newline="\n") as f_new:
         f_new.write(spec_md)
 
@@ -94,7 +90,7 @@ def test_config_md_current(config_eos):
         config_md = generate_config_md.generate_config_md(config_eos)
 
     if os.name == "nt":
-        config_md = config_md.replace("127.0.0.1", "0.0.0.0").replace("\\\\", "/")
+        config_md = config_md.replace("\\\\", "/")
     with new_config_md_path.open("w", encoding="utf-8", newline="\n") as f_new:
         f_new.write(config_md)
 

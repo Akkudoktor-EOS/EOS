@@ -298,7 +298,7 @@ def main():
     try:
         config_md = generate_config_md(config_eos)
         if os.name == "nt":
-            config_md = config_md.replace("127.0.0.1", "0.0.0.0").replace("\\\\", "/")
+            config_md = config_md.replace("\\\\", "/")
         if args.output_file:
             # Write to file
             with open(args.output_file, "w", encoding="utf-8", newline="\n") as f:

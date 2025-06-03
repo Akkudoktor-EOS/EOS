@@ -24,7 +24,7 @@ def get_alive(eos_host: str, eos_port: Union[str, int]) -> str:
     """
     result = requests.Response()
     try:
-        result = requests.get(f"http://{eos_host}:{eos_port}/v1/health")
+        result = requests.get(f"http://{eos_host}:{eos_port}/v1/health", timeout=10)
         if result.status_code == 200:
             alive = result.json()["status"]
         else:

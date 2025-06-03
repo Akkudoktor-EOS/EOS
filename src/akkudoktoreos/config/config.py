@@ -376,6 +376,15 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
     def _setup(self, *args: Any, **kwargs: Any) -> None:
         """Re-initialize global settings."""
+        # Check for config file content/ version type
+        config_file, exists = self._get_config_file_path()
+        if exists:
+            with config_file.open("r", encoding="utf-8", newline=None) as f_config:
+                config_txt = f_config.read()
+                if '"directories": {' in config_txt or '"server_eos_host": ' in config_txt:
+                    error_msg = f"Configuration file '{config_file}' is outdated. Please remove or update  manually."
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
         # Assure settings base knows EOS configuration
         SettingsBaseModel.config = self
         # (Re-)load settings
@@ -394,7 +403,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             ValueError: If the `settings` is not a `SettingsEOS` instance.
         """
         if not isinstance(settings, SettingsEOS):
-            raise ValueError(f"Settings must be an instance of SettingsEOS: '{settings}'.")
+            error_msg = f"Settings must be an instance of SettingsEOS: '{settings}'."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         self.merge_settings_from_dict(settings.model_dump(exclude_none=True, exclude_unset=True))
 
@@ -471,10 +482,10 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
     @classmethod
     def _get_config_file_path(cls) -> tuple[Path, bool]:
-        """Finds the a valid configuration file or returns the desired path for a new config file.
+        """Find a valid configuration file or return the desired path for a new config file.
 
         Returns:
-            tuple[Path, bool]: The path to the configuration directory and if there is already a config file there
+            tuple[Path, bool]: The path to the configuration file and if there is already a config file there
         """
         config_dirs = []
         env_base_dir = os.getenv(cls.EOS_DIR)

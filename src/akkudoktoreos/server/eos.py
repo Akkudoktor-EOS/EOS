@@ -49,7 +49,11 @@ from akkudoktoreos.prediction.prediction import PredictionCommonSettings, get_pr
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.server.rest.error import create_error_page
 from akkudoktoreos.server.rest.tasks import repeat_every
-from akkudoktoreos.server.server import get_default_host, wait_for_port_free
+from akkudoktoreos.server.server import (
+    get_default_host,
+    is_valid_ip_or_hostname,
+    wait_for_port_free,
+)
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 logger = get_logger(__name__)
@@ -100,6 +104,11 @@ def start_eosdash(
     Raises:
         RuntimeError: If the EOSdash server fails to start.
     """
+    if not is_valid_ip_or_hostname(host):
+        raise ValueError(f"Invalid EOSdash host: {host}")
+    if not is_valid_ip_or_hostname(eos_host):
+        raise ValueError(f"Invalid EOS host: {eos_host}")
+
     eosdash_path = Path(__file__).parent.resolve().joinpath("eosdash.py")
 
     # Do a one time check for port free to generate warnings if not so
@@ -130,7 +139,7 @@ def start_eosdash(
     env["EOS_CONFIG_DIR"] = eos_config_dir
 
     try:
-        server_process = subprocess.Popen(
+        server_process = subprocess.Popen(  # noqa: S603
             cmd,
             env=env,
             stdout=subprocess.PIPE,
@@ -240,10 +249,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 access_log = args.access_log
                 reload = args.reload
 
-            host = host if host else get_default_host()
-            port = port if port else 8504
             eos_host = eos_host if eos_host else get_default_host()
             eos_port = eos_port if eos_port else 8503
+            host = host if host else eos_host
+            port = port if port else 8504
 
             eos_dir = str(config_eos.general.data_folder_path)
             eos_config_dir = str(config_eos.general.config_folder_path)
@@ -370,7 +379,7 @@ async def fastapi_admin_server_restart_post() -> dict:
     env["EOS_DIR"] = str(config_eos.general.data_folder_path)
     env["EOS_CONFIG_DIR"] = str(config_eos.general.config_folder_path)
 
-    new_process = subprocess.Popen(
+    new_process = subprocess.Popen(  # noqa: S603
         [
             sys.executable,
         ]
@@ -1208,7 +1217,7 @@ def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectRespons
         if port is None:
             port = 8504
         # Make hostname Windows friendly
-        if host == "0.0.0.0" and os.name == "nt":
+        if host == "0.0.0.0" and os.name == "nt":  # noqa: S104
             host = "localhost"
         url = f"http://{host}:{port}/"
         error_page = create_error_page(
@@ -1225,7 +1234,7 @@ Did you want to connect to <a href="{url}" class="back-button">EOSdash</a>?
 
     # Make hostname Windows friendly
     host = str(config_eos.server.eosdash_host)
-    if host == "0.0.0.0" and os.name == "nt":
+    if host == "0.0.0.0" and os.name == "nt":  # noqa: S104
         host = "localhost"
     if host and config_eos.server.eosdash_port:
         # Redirect to EOSdash server
@@ -1258,7 +1267,7 @@ def run_eos(host: str, port: int, log_level: str, access_log: bool, reload: bool
     None
     """
     # Make hostname Windows friendly
-    if host == "0.0.0.0" and os.name == "nt":
+    if host == "0.0.0.0" and os.name == "nt":  # noqa: S104
         host = "localhost"
 
     # Wait for EOS port to be free - e.g. in case of restart

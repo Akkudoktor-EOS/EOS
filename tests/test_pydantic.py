@@ -152,7 +152,7 @@ class TestPydanticBaseModel:
         assert model.datetime_field == dt
 
     def test_invalid_datetime_string(self):
-        with pytest.raises(ValidationError, match="Input should be an instance of DateTime"):
+        with pytest.raises(ValidationError, match="Cannot convert 'invalid_datetime' to datetime"):
             PydanticTestModel(datetime_field="invalid_datetime")
 
     def test_iso8601_serialization(self):

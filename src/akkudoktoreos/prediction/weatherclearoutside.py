@@ -93,7 +93,7 @@ class WeatherClearOutside(WeatherProvider):
         source = "https://clearoutside.com/forecast"
         latitude = round(self.config.general.latitude, 2)
         longitude = round(self.config.general.longitude, 2)
-        response = requests.get(f"{source}/{latitude}/{longitude}?desktop=true")
+        response = requests.get(f"{source}/{latitude}/{longitude}?desktop=true", timeout=10)
         response.raise_for_status()  # Raise an error for bad responses
         logger.debug(f"Response from {source}: {response}")
         # We are working on fresh data (no cache), report update time

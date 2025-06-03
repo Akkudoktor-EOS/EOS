@@ -28,7 +28,8 @@ class Inverter(DeviceBase):
         super().__init__(parameters)
 
     def _setup(self) -> None:
-        assert self.parameters is not None
+        if self.parameters is None:
+            raise ValueError(f"Parameters not set: {self.parameters}")
         if self.parameters.battery_id is None:
             # For the moment raise exception
             # TODO: Make battery configurable by config
@@ -41,7 +42,8 @@ class Inverter(DeviceBase):
         )  # Maximum power that the inverter can handle
 
     def _post_setup(self) -> None:
-        assert self.parameters is not None
+        if self.parameters is None:
+            raise ValueError(f"Parameters not set: {self.parameters}")
         self.battery = self.devices.get_device_by_id(self.parameters.battery_id)
 
     def process_energy(

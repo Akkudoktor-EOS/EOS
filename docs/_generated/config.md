@@ -880,11 +880,11 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| host | `EOS_SERVER__HOST` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOS server IP address. |
+| host | `EOS_SERVER__HOST` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `127.0.0.1` | EOS server IP address. |
 | port | `EOS_SERVER__PORT` | `Optional[int]` | `rw` | `8503` | EOS server IP port number. |
 | verbose | `EOS_SERVER__VERBOSE` | `Optional[bool]` | `rw` | `False` | Enable debug output |
 | startup_eosdash | `EOS_SERVER__STARTUP_EOSDASH` | `Optional[bool]` | `rw` | `True` | EOS server to start EOSdash server. |
-| eosdash_host | `EOS_SERVER__EOSDASH_HOST` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `0.0.0.0` | EOSdash server IP address. |
+| eosdash_host | `EOS_SERVER__EOSDASH_HOST` | `Optional[pydantic.networks.IPvAnyAddress]` | `rw` | `127.0.0.1` | EOSdash server IP address. |
 | eosdash_port | `EOS_SERVER__EOSDASH_PORT` | `Optional[int]` | `rw` | `8504` | EOSdash server IP port number. |
 :::
 
@@ -895,11 +895,11 @@ Validators:
 
    {
        "server": {
-           "host": "0.0.0.0",
+           "host": "127.0.0.1",
            "port": 8503,
            "verbose": false,
            "startup_eosdash": true,
-           "eosdash_host": "0.0.0.0",
+           "eosdash_host": "127.0.0.1",
            "eosdash_port": 8504
        }
    }
@@ -1054,11 +1054,11 @@ Validators:
            "provider_settings": null
        },
        "server": {
-           "host": "0.0.0.0",
+           "host": "127.0.0.1",
            "port": 8503,
            "verbose": false,
            "startup_eosdash": true,
-           "eosdash_host": "0.0.0.0",
+           "eosdash_host": "127.0.0.1",
            "eosdash_port": 8504
        },
        "utils": {}

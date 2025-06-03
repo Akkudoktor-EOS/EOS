@@ -100,7 +100,8 @@ class WeatherBrightSky(WeatherProvider):
         date = to_datetime(self.start_datetime, as_string=True)
         last_date = to_datetime(self.end_datetime, as_string=True)
         response = requests.get(
-            f"{source}/weather?lat={self.config.general.latitude}&lon={self.config.general.longitude}&date={date}&last_date={last_date}&tz={self.config.general.timezone}"
+            f"{source}/weather?lat={self.config.general.latitude}&lon={self.config.general.longitude}&date={date}&last_date={last_date}&tz={self.config.general.timezone}",
+            timeout=10,
         )
         response.raise_for_status()  # Raise an error for bad responses
         logger.debug(f"Response from {source}: {response}")
@@ -222,7 +223,7 @@ class WeatherBrightSky(WeatherProvider):
 
         # Add Preciptable Water (PWAT) with a PVLib method.
         key = WeatherDataRecord.key_from_description("Temperature (°C)")
-        assert key
+        assert key  # noqa: S101
         temperature = self.key_to_array(
             key=key,
             start_datetime=self.start_datetime,
@@ -235,7 +236,7 @@ class WeatherBrightSky(WeatherProvider):
             logger.debug(debug_msg)
             return
         key = WeatherDataRecord.key_from_description("Relative Humidity (%)")
-        assert key
+        assert key  # noqa: S101
         humidity = self.key_to_array(
             key=key,
             start_datetime=self.start_datetime,
