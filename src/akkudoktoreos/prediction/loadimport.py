@@ -9,14 +9,12 @@ format, enabling consistent access to forecasted and historical load attributes.
 from pathlib import Path
 from typing import Optional, Union
 
+from loguru import logger
 from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.loadabc import LoadProvider
 from akkudoktoreos.prediction.predictionabc import PredictionImportProvider
-
-logger = get_logger(__name__)
 
 
 class LoadImportCommonSettings(SettingsBaseModel):

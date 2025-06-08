@@ -13,12 +13,9 @@ Classes:
 import threading
 from typing import Any, ClassVar, Dict, Optional, Type
 
+from loguru import logger
 from pendulum import DateTime
 from pydantic import computed_field
-
-from akkudoktoreos.core.logging import get_logger
-
-logger = get_logger(__name__)
 
 config_eos: Any = None
 measurement_eos: Any = None

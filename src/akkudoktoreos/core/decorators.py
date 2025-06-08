@@ -1,10 +1,6 @@
 from collections.abc import Callable
 from typing import Any, Optional
 
-from akkudoktoreos.core.logging import get_logger
-
-logger = get_logger(__name__)
-
 
 class classproperty:
     """A decorator to define a read-only property at the class level.

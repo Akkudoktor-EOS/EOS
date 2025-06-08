@@ -10,6 +10,7 @@ from typing import Any, Optional, Union
 
 import requests
 from fasthtml.common import Select
+from loguru import logger
 from monsterui.foundations import stringify
 from monsterui.franken import (  # Select, TODO: Select from FrankenUI does not work - using Select from FastHTML instead
     H3,
@@ -29,12 +30,9 @@ from monsterui.franken import (  # Select, TODO: Select from FrankenUI does not 
 )
 from platformdirs import user_config_dir
 
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.server.dash.components import Error, Success
 from akkudoktoreos.server.dash.configuration import get_nested_value
 from akkudoktoreos.utils.datetimeutil import to_datetime
-
-logger = get_logger(__name__)
 
 # Directory to export files to, or to import files from
 export_import_directory = Path(user_config_dir("net.akkudoktor.eosdash", "akkudoktor"))

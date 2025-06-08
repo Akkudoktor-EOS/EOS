@@ -27,16 +27,13 @@ from typing import (
 )
 
 import cachebox
+from loguru import logger
 from pendulum import DateTime, Duration
 from pydantic import Field
 
 from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
-
-logger = get_logger(__name__)
-
 
 # ---------------------------------
 # In-Memory Caching Functionality

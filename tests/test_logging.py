@@ -1,69 +1,35 @@
 """Test Module for logging Module."""
-
 import logging
-from logging.handlers import RotatingFileHandler
+import os
+import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
+from loguru import logger
 
-from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.core.logging import track_logging_config
 
 # -----------------------------
-# get_logger
+# logsettings
 # -----------------------------
 
+class TestLoggingCommonSettings:
+    def teardown_method(self):
+        """Reset Loguru after each test to avoid handler contamination."""
+        logger.remove()
 
-def test_get_logger_console_logging():
-    """Test logger creation with console logging."""
-    logger = get_logger("test_logger", logging_level="DEBUG")
+    def test_valid_console_level_sets_logging(self, config_eos, caplog):
+        config_eos.track_nested_value("/logging", track_logging_config)
+        config_eos.set_nested_value("/logging/console_level", "INFO")
+        assert config_eos.get_nested_value("/logging/console_level") == "INFO"
+        assert config_eos.logging.console_level == "INFO"
+        assert any("console: INFO" in message for message in caplog.messages)
 
-    # Check logger name
-    assert logger.name == "test_logger"
-
-    # Check logger level
-    assert logger.level == logging.DEBUG
-
-    # Check console handler is present
-    assert len(logger.handlers) == 1
-    assert isinstance(logger.handlers[0], logging.StreamHandler)
-
-
-def test_get_logger_file_logging(tmpdir):
-    """Test logger creation with file logging."""
-    log_file = Path(tmpdir).joinpath("test.log")
-    logger = get_logger("test_logger", log_file=str(log_file), logging_level="WARNING")
-
-    # Check logger name
-    assert logger.name == "test_logger"
-
-    # Check logger level
-    assert logger.level == logging.WARNING
-
-    # Check console handler is present
-    assert len(logger.handlers) == 2  # One for console and one for file
-    assert isinstance(logger.handlers[0], logging.StreamHandler)
-    assert isinstance(logger.handlers[1], RotatingFileHandler)
-
-    # Check file existence
-    assert log_file.exists()
-
-
-def test_get_logger_no_file_logging():
-    """Test logger creation without file logging."""
-    logger = get_logger("test_logger")
-
-    # Check logger name
-    assert logger.name == "test_logger"
-
-    # Check logger level
-    assert logger.level == logging.INFO
-
-    # Check no file handler is present
-    assert len(logger.handlers) >= 1  # First is console handler (maybe be pytest handler)
-    assert isinstance(logger.handlers[0], logging.StreamHandler)
-
-
-def test_get_logger_with_invalid_level():
-    """Test logger creation with an invalid logging level."""
-    with pytest.raises(ValueError, match="Unknown loggin level: INVALID"):
-        logger = get_logger("test_logger", logging_level="INVALID")
+    def test_valid_console_level_calls_tracking_callback(self, config_eos):
+        with patch("akkudoktoreos.core.logging.track_logging_config") as mock_setup:
+            config_eos.track_nested_value("/logging", mock_setup)
+            config_eos.set_nested_value("/logging/console_level", "INFO")
+            assert config_eos.get_nested_value("/logging/console_level") == "INFO"
+            assert config_eos.logging.console_level == "INFO"
+            mock_setup.assert_called_once()

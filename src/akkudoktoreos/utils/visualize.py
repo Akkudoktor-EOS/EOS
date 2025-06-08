@@ -13,14 +13,15 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.core.coreabc import ConfigMixin
 from akkudoktoreos.core.ems import EnergyManagement
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.optimization.genetic import OptimizationParameters
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
-logger = get_logger(__name__)
 matplotlib.use(
     "Agg"
 )  # non-interactive backend that can only write to files, backend needed to stay in main thread.
+
+
+debug_visualize: bool = False
 
 
 class VisualizationReport(ConfigMixin):
@@ -440,6 +441,8 @@ def prepare_visualize(
     filename: str = "visualization_results.pdf",
     start_hour: int = 0,
 ) -> None:
+    global debug_visualize
+
     report = VisualizationReport(filename)
     next_full_hour_date = EnergyManagement.set_start_datetime()
     # Group 1:
@@ -642,7 +645,7 @@ def prepare_visualize(
 
     if filtered_balance.size > 0 or filtered_losses.size > 0:
         report.finalize_group()
-    if logger.level == "DEBUG" or results["fixed_seed"]:
+    if debug_visualize or results["fixed_seed"]:
         report.create_line_chart(
             0,
             [
@@ -667,6 +670,8 @@ def prepare_visualize(
 
 def generate_example_report(filename: str = "example_report.pdf") -> None:
     """Generate example visualization report."""
+    global debug_visualize
+
     report = VisualizationReport(filename, "test")
     x_hours = 0  # Define x-axis start values (e.g., hours)
 
@@ -738,9 +743,9 @@ def generate_example_report(filename: str = "example_report.pdf") -> None:
 
     report.finalize_group()  # Finalize the third group of charts
 
-    logger.setLevel("DEBUG")  # set level for example report
+    debug_visualize = True  # set level for example report
 
-    if logger.level == "DEBUG":
+    if debug_visualize:
         report.create_line_chart(
             x_hours,
             [np.array([0.2, 0.25, 0.3, 0.35])],

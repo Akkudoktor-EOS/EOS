@@ -14,6 +14,7 @@ import shutil
 from pathlib import Path
 from typing import Any, ClassVar, Optional, Type
 
+from loguru import logger
 from platformdirs import user_config_dir, user_data_dir
 from pydantic import Field, computed_field
 from pydantic_settings import (
@@ -29,7 +30,6 @@ from akkudoktoreos.core.cachesettings import CacheCommonSettings
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.decorators import classproperty
 from akkudoktoreos.core.emsettings import EnergyManagementCommonSettings
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.logsettings import LoggingCommonSettings
 from akkudoktoreos.core.pydantic import PydanticModelNestedValueMixin, merge_models
 from akkudoktoreos.devices.settings import DevicesCommonSettings
@@ -43,8 +43,6 @@ from akkudoktoreos.prediction.weather import WeatherCommonSettings
 from akkudoktoreos.server.server import ServerCommonSettings
 from akkudoktoreos.utils.datetimeutil import to_timezone
 from akkudoktoreos.utils.utils import UtilsCommonSettings
-
-logger = get_logger(__name__)
 
 
 def get_absolute_path(
@@ -80,10 +78,6 @@ class GeneralSettings(SettingsBaseModel):
     Properties:
         timezone (Optional[str]): Computed time zone string based on the specified latitude
             and longitude.
-
-    Validators:
-        validate_latitude (float): Ensures `latitude` is within the range -90 to 90.
-        validate_longitude (float): Ensures `longitude` is within the range -180 to 180.
     """
 
     _config_folder_path: ClassVar[Optional[Path]] = None
@@ -282,6 +276,16 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     EOS_CONFIG_DIR: ClassVar[str] = "EOS_CONFIG_DIR"
     ENCODING: ClassVar[str] = "UTF-8"
     CONFIG_FILE_NAME: ClassVar[str] = "EOS.config.json"
+
+    def __hash__(self) -> int:
+        # ConfigEOS is a singleton
+        return hash("config_eos")
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, ConfigEOS):
+            return False
+        # ConfigEOS is a singleton
+        return True
 
     @classmethod
     def settings_customise_sources(

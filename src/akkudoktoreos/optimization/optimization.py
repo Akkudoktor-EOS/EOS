@@ -3,9 +3,6 @@ from typing import List, Optional
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.logging import get_logger
-
-logger = get_logger(__name__)
 
 
 class OptimizationCommonSettings(SettingsBaseModel):

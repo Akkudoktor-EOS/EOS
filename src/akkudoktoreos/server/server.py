@@ -6,12 +6,10 @@ import time
 from typing import Optional, Union
 
 import psutil
+from loguru import logger
 from pydantic import Field, IPvAnyAddress, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.logging import get_logger
-
-logger = get_logger(__name__)
 
 
 def get_default_host() -> str:

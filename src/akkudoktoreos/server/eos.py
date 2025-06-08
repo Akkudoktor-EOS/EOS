@@ -25,11 +25,13 @@ from fastapi.responses import (
     RedirectResponse,
     Response,
 )
+from loguru import logger
 
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
 from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.ems import get_ems
-from akkudoktoreos.core.logging import get_logger
+from akkudoktoreos.core.logabc import LOGGING_LEVELS
+from akkudoktoreos.core.logging import read_file_log, track_logging_config
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeData,
@@ -56,7 +58,6 @@ from akkudoktoreos.server.server import (
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
-logger = get_logger(__name__)
 config_eos = get_config()
 measurement_eos = get_measurement()
 prediction_eos = get_prediction()
@@ -65,6 +66,14 @@ ems_eos = get_ems()
 # Command line arguments
 args = None
 
+
+# ----------------------
+# Logging configuration
+# ----------------------
+
+logger.remove()
+track_logging_config(config_eos, "logging", None, None)
+config_eos.track_nested_value("/logging", track_logging_config)
 
 # ----------------------
 # EOSdash server startup
@@ -177,18 +186,32 @@ def cache_save() -> dict:
     return CacheFileStore().save_store()
 
 
-@repeat_every(seconds=float(config_eos.cache.cleanup_interval))
+def cache_cleanup_on_exception(e: Exception) -> None:
+    logger.error("Cache cleanup task caught an exception: {}", e, exc_info=True)
+
+
+@repeat_every(
+    seconds=float(config_eos.cache.cleanup_interval),
+    on_exception=cache_cleanup_on_exception,
+)
 def cache_cleanup_task() -> None:
     """Repeating task to clear cache from expired cache files."""
+    logger.debug("Clear cache")
     cache_clear()
+
+
+def energy_management_on_exception(e: Exception) -> None:
+    logger.error("Energy management task caught an exception: {}", e, exc_info=True)
 
 
 @repeat_every(
     seconds=10,
     wait_first=config_eos.ems.startup_delay,
+    on_exception=energy_management_on_exception,
 )
 def energy_management_task() -> None:
     """Repeating task for energy management."""
+    logger.debug("Check EMS run")
     ems_eos.manage_energy()
 
 
@@ -219,6 +242,7 @@ async def server_shutdown_task() -> None:
         os.kill(pid, signal.SIGTERM)  # type: ignore[attr-defined,unused-ignore]
 
     logger.info(f"🚀 EOS terminated, PID {pid}")
+    sys.exit(0)
 
 
 @asynccontextmanager
@@ -542,6 +566,52 @@ def fastapi_config_get_key(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/v1/logging/log", tags=["logging"])
+async def fastapi_logging_get_log(
+    limit: int = Query(100, description="Maximum number of log entries to return."),
+    level: Optional[str] = Query(None, description="Filter by log level (e.g., INFO, ERROR)."),
+    contains: Optional[str] = Query(None, description="Filter logs containing this substring."),
+    regex: Optional[str] = Query(None, description="Filter logs by matching regex in message."),
+    from_time: Optional[str] = Query(
+        None, description="Start time (ISO format) for filtering logs."
+    ),
+    to_time: Optional[str] = Query(None, description="End time (ISO format) for filtering logs."),
+    tail: bool = Query(False, description="If True, returns the most recent lines (tail mode)."),
+) -> JSONResponse:
+    """Get structured log entries from the EOS log file.
+
+    Filters and returns log entries based on the specified query parameters. The log
+    file is expected to contain newline-delimited JSON entries.
+
+    Args:
+        limit (int): Maximum number of entries to return.
+        level (Optional[str]): Filter logs by severity level (e.g., DEBUG, INFO).
+        contains (Optional[str]): Return only logs that include this string in the message.
+        regex (Optional[str]): Return logs that match this regular expression in the message.
+        from_time (Optional[str]): ISO 8601 timestamp to filter logs not older than this.
+        to_time (Optional[str]): ISO 8601 timestamp to filter logs not newer than this.
+        tail (bool): If True, fetch the most recent log entries (like `tail`).
+
+    Returns:
+        JSONResponse: A JSON list of log entries.
+    """
+    log_path = config_eos.logging.file_path
+    try:
+        logs = read_file_log(
+            log_path=log_path,
+            limit=limit,
+            level=level,
+            contains=contains,
+            regex=regex,
+            from_time=from_time,
+            to_time=to_time,
+            tail=tail,
+        )
+        return JSONResponse(content=logs)
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 @app.get("/v1/measurement/keys", tags=["measurement"])
@@ -1245,45 +1315,46 @@ Did you want to connect to <a href="{url}" class="back-button">EOSdash</a>?
     return RedirectResponse(url="/docs", status_code=303)
 
 
-def run_eos(host: str, port: int, log_level: str, access_log: bool, reload: bool) -> None:
+def run_eos(host: str, port: int, log_level: str, reload: bool) -> None:
     """Run the EOS server with the specified configurations.
 
-    This function starts the EOS server using the Uvicorn ASGI server. It accepts
-    arguments for the host, port, log level, access log, and reload options. The
-    log level is converted to lowercase to ensure compatibility with Uvicorn's
-    expected log level format. If an error occurs while attempting to bind the
-    server to the specified host and port, an error message is logged and the
-    application exits.
+    Starts the EOS server using the Uvicorn ASGI server. Logs an error and exits if
+    binding to the host and port fails.
 
-    Parameters:
-    host (str): The hostname to bind the server to.
-    port (int): The port number to bind the server to.
-    log_level (str): The log level for the server. Options include "critical", "error",
-                     "warning", "info", "debug", and "trace".
-    access_log (bool): Whether to enable or disable the access log. Set to True to enable.
-    reload (bool): Whether to enable or disable auto-reload. Set to True for development.
+    Args:
+        host (str): Hostname to bind the server to.
+        port (int): Port number to bind the server to.
+        log_level (str): Log level for the server. One of
+            "critical", "error", "warning", "info", "debug", or "trace".
+        reload (bool): Enable or disable auto-reload. True for development.
 
     Returns:
-    None
+        None
     """
     # Make hostname Windows friendly
     if host == "0.0.0.0" and os.name == "nt":  # noqa: S104
         host = "localhost"
 
+    # Setup console logging level using nested value
+    # - triggers logging configuration by track_logging_config
+    if log_level.upper() in LOGGING_LEVELS:
+        config_eos.set_nested_value("logging/console_level", log_level.upper())
+
     # Wait for EOS port to be free - e.g. in case of restart
     wait_for_port_free(port, timeout=120, waiting_app_name="EOS")
 
     try:
+        # Let uvicorn run the fastAPI app
         uvicorn.run(
             "akkudoktoreos.server.eos:app",
             host=host,
             port=port,
-            log_level=log_level.lower(),  # Convert log_level to lowercase
-            access_log=access_log,
+            log_level="info",
+            access_log=True,
             reload=reload,
         )
     except Exception as e:
-        logger.error(f"Could not bind to host {host}:{port}. Error: {e}")
+        logger.exception("Failed to start uvicorn server.")
         raise e
 
 
@@ -1298,7 +1369,7 @@ def main() -> None:
     Command-line Arguments:
     --host (str): Host for the EOS server (default: value from config).
     --port (int): Port for the EOS server (default: value from config).
-    --log_level (str): Log level for the server. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "info").
+    --log_level (str): Log level for the server console. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "info").
     --access_log (bool): Enable or disable access log. Options: True or False (default: False).
     --reload (bool): Enable or disable auto-reload. Useful for development. Options: True or False (default: False).
     """
@@ -1322,14 +1393,8 @@ def main() -> None:
     parser.add_argument(
         "--log_level",
         type=str,
-        default="info",
-        help='Log level for the server. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "info")',
-    )
-    parser.add_argument(
-        "--access_log",
-        type=bool,
-        default=False,
-        help="Enable or disable access log. Options: True or False (default: True)",
+        default="none",
+        help='Log level for the server console. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "none")',
     )
     parser.add_argument(
         "--reload",
@@ -1344,7 +1409,7 @@ def main() -> None:
     port = args.port if args.port else 8503
 
     try:
-        run_eos(host, port, args.log_level, args.access_log, args.reload)
+        run_eos(host, port, args.log_level, args.reload)
     except:
         sys.exit(1)
 

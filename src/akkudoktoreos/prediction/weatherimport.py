@@ -9,14 +9,12 @@ format, enabling consistent access to forecasted and historical weather attribut
 from pathlib import Path
 from typing import Optional, Union
 
+from loguru import logger
 from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.predictionabc import PredictionImportProvider
 from akkudoktoreos.prediction.weatherabc import WeatherProvider
-
-logger = get_logger(__name__)
 
 
 class WeatherImportCommonSettings(SettingsBaseModel):

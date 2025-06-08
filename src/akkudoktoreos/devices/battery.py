@@ -3,15 +3,12 @@ from typing import Any, Optional
 import numpy as np
 from pydantic import Field, field_validator
 
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.devices.devicesabc import (
     DeviceBase,
     DeviceOptimizeResult,
     DeviceParameters,
 )
 from akkudoktoreos.utils.utils import NumpyEncoder
-
-logger = get_logger(__name__)
 
 
 def max_charging_power_field(description: Optional[str] = None) -> float:

@@ -156,7 +156,7 @@ class TestDataRecord:
         assert "data_value" in record_dict
         assert record_dict["data_value"] == 20.0
         record2 = DerivedRecord.from_dict(record_dict)
-        assert record2 == record
+        assert record2.model_dump() == record.model_dump()
 
     def test_to_json(self):
         record = self.create_test_record(datetime(2024, 1, 3, tzinfo=timezone.utc), 10.0)
@@ -165,7 +165,7 @@ class TestDataRecord:
         assert "data_value" in json_str
         assert "20.0" in json_str
         record2 = DerivedRecord.from_json(json_str)
-        assert record2 == record
+        assert record2.model_dump() == record.model_dump()
 
 
 class TestDataSequence:
@@ -526,7 +526,7 @@ class TestDataSequence:
         data_dict = sequence.to_dict()
         assert isinstance(data_dict, dict)
         sequence_other = sequence.from_dict(data_dict)
-        assert sequence_other == sequence
+        assert sequence_other.model_dump() == sequence.model_dump()
 
     def test_to_json(self, sequence):
         record = self.create_test_record(datetime(2023, 11, 6), 0.8)

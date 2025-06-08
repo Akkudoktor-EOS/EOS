@@ -27,13 +27,11 @@ from datetime import date, datetime, timedelta
 from typing import Any, List, Literal, Optional, Tuple, Union, overload
 
 import pendulum
+from loguru import logger
 from pendulum import Date, DateTime, Duration
 from pendulum.tz.timezone import Timezone
 from timezonefinder import TimezoneFinder
 
-from akkudoktoreos.core.logging import get_logger
-
-logger = get_logger(__name__)
 MAX_DURATION_STRING_LENGTH = 350
 
 
@@ -154,22 +152,22 @@ def to_datetime(
                 fmt_tz = f"{fmt} z"
                 dt_tz = f"{date_input} {in_timezone}"
                 dt = pendulum.from_format(dt_tz, fmt_tz)
-                logger.debug(
+                logger.trace(
                     f"Str Fmt converted: {dt}, tz={dt.tz} from {date_input}, tz={in_timezone}"
                 )
                 break
             except ValueError as e:
-                logger.debug(f"{date_input}, {fmt}, {e}")
+                logger.trace(f"{date_input}, {fmt}, {e}")
                 dt = None
         else:
             # DateTime input with timezone info
             try:
                 dt = pendulum.parse(date_input)
-                logger.debug(
+                logger.trace(
                     f"Pendulum Fmt converted: {dt}, tz={dt.tz} from {date_input}, tz={in_timezone}"
                 )
             except pendulum.parsing.exceptions.ParserError as e:
-                logger.debug(f"Date string {date_input} does not match any Pendulum formats: {e}")
+                logger.trace(f"Date string {date_input} does not match any Pendulum formats: {e}")
                 dt = None
         if dt is None:
             # Some special values
@@ -181,7 +179,7 @@ def to_datetime(
                 timestamp = float(date_input)
                 dt = pendulum.from_timestamp(timestamp, tz="UTC")
             except (ValueError, TypeError) as e:
-                logger.debug(f"Date string {date_input} does not match timestamp format: {e}")
+                logger.trace(f"Date string {date_input} does not match timestamp format: {e}")
                 dt = None
         if dt is None:
             raise ValueError(f"Date string {date_input} does not match any known formats.")
@@ -202,7 +200,7 @@ def to_datetime(
 
     # Represent in target timezone
     dt_in_tz = dt.in_timezone(in_timezone)
-    logger.debug(
+    logger.trace(
         f"\nTimezone adapted to: {in_timezone}\nfrom: {dt} tz={dt.timezone}\nto:   {dt_in_tz} tz={dt_in_tz.tz}"
     )
     dt = dt_in_tz
@@ -277,7 +275,7 @@ def to_duration(
             duration = pendulum.parse(input_value)
             return duration - duration.start_of("day")
         except pendulum.parsing.exceptions.ParserError as e:
-            logger.debug(f"Invalid Pendulum time string format '{input_value}': {e}")
+            logger.trace(f"Invalid Pendulum time string format '{input_value}': {e}")
 
         # Handle strings like "2 days 5 hours 30 minutes"
         total_seconds = 0

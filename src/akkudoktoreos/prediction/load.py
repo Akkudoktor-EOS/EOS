@@ -5,13 +5,11 @@ from typing import Optional, Union
 from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.loadabc import LoadProvider
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.loadimport import LoadImportCommonSettings
 from akkudoktoreos.prediction.prediction import get_prediction
 
-logger = get_logger(__name__)
 prediction_eos = get_prediction()
 
 # Valid load providers

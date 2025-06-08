@@ -174,7 +174,7 @@ but usually find good local optima very quickly in a large solution space.
 
 ## Links
 
-- [German Video explaining the basic concept and installation process for the early version of EOS (YouTube)](https://www.youtube.com/live/ftQULW4-1ts?si=oDdBBifCpUmiCXaY)
+- [German Videos explaining the basic concept and installation process of EOS (YouTube)](https://www.youtube.com/playlist?list=PL8_vk9A-s7zLD865Oou6y3EeQLlNtu-Hn)
 - [German Forum of Akkudoktor EOS](https://akkudoktor.net/c/der-akkudoktor/eos)
 - [Akkudoktor-EOS GitHub Repository](https://github.com/Akkudoktor-EOS/EOS)
 - [Latest EOS Documentation](https://akkudoktor-eos.readthedocs.io/en/latest/)

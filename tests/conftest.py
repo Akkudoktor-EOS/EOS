@@ -16,35 +16,75 @@ import pendulum
 import psutil
 import pytest
 import requests
+from _pytest.logging import LogCaptureFixture
+from loguru import logger
 from xprocess import ProcessStarter, XProcess
 
 from akkudoktoreos.config.config import ConfigEOS, get_config
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.server.server import get_default_host
 
-logger = get_logger(__name__)
+# -----------------------------------------------
+# Adapt pytest logging handling to Loguru logging
+# -----------------------------------------------
+
+@pytest.fixture
+def caplog(caplog: LogCaptureFixture):
+    """Propagate Loguru logs to the pytest caplog handler."""
+    handler_id = logger.add(
+        caplog.handler,
+        format="{message}",
+        level=0,
+        filter=lambda record: record["level"].no >= caplog.handler.level,
+        enqueue=False,  # Set to 'True' if your test is spawning child processes.
+    )
+    yield caplog
+    try:
+        logger.remove(handler_id)
+    except:
+        # May already be deleted
+        pass
+
+
+@pytest.fixture
+def reportlog(pytestconfig):
+    """Propagate Loguru logs to the pytest terminal reporter."""
+    logging_plugin = pytestconfig.pluginmanager.getplugin("logging-plugin")
+    handler_id = logger.add(logging_plugin.report_handler, format="{message}")
+    yield
+    try:
+        logger.remove(handler_id)
+    except:
+        # May already be deleted
+        pass
+
+
+@pytest.fixture(autouse=True)
+def propagate_logs():
+    """Deal with the pytest --log-cli-level command-line flag.
+
+    This option controls the standard logging logs, not loguru ones.
+    For this reason, we first install a PropagateHandler for compatibility.
+    """
+    class PropagateHandler(logging.Handler):
+        def emit(self, record):
+            if logging.getLogger(record.name).isEnabledFor(record.levelno):
+                logging.getLogger(record.name).handle(record)
+
+    logger.remove()
+    logger.add(PropagateHandler(), format="{message}")
+    yield
 
 
 @pytest.fixture()
 def disable_debug_logging(scope="session", autouse=True):
     """Automatically disable debug logging for all tests."""
-    original_levels = {}
-    root_logger = logging.getLogger()
+    logger.remove()  # Remove all loggers
+    logger.add(sys.stderr, level="INFO")  # Only show INFO and above
 
-    original_levels[root_logger] = root_logger.level
-    root_logger.setLevel(logging.INFO)
 
-    for logger_name, logger in logging.root.manager.loggerDict.items():
-        if isinstance(logger, logging.Logger):
-            original_levels[logger] = logger.level
-            if logger.level <= logging.DEBUG:
-                logger.setLevel(logging.INFO)
-
-    yield
-
-    for logger, level in original_levels.items():
-        logger.setLevel(level)
-
+# -----------------------------------------------
+# Provide pytest options for specific test setups
+# -----------------------------------------------
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -144,6 +184,7 @@ def cfg_non_existent(request):
 
 @pytest.fixture(autouse=True)
 def user_cwd(config_default_dirs):
+    """Patch cwd provided by module pathlib.Path.cwd."""
     with patch(
         "pathlib.Path.cwd",
         return_value=config_default_dirs[1],
@@ -153,6 +194,7 @@ def user_cwd(config_default_dirs):
 
 @pytest.fixture(autouse=True)
 def user_config_dir(config_default_dirs):
+    """Patch user_config_dir provided by module platformdirs."""
     with patch(
         "akkudoktoreos.config.config.user_config_dir",
         return_value=str(config_default_dirs[0]),
@@ -162,6 +204,7 @@ def user_config_dir(config_default_dirs):
 
 @pytest.fixture(autouse=True)
 def user_data_dir(config_default_dirs):
+    """Patch user_data_dir provided by module platformdirs."""
     with patch(
         "akkudoktoreos.config.config.user_data_dir",
         return_value=str(config_default_dirs[-1] / "data"),
@@ -189,14 +232,18 @@ def config_eos(
     config_file_cwd = config_default_dirs[1] / ConfigEOS.CONFIG_FILE_NAME
     assert not config_file.exists()
     assert not config_file_cwd.exists()
+
     config_eos = get_config()
     config_eos.reset_settings()
     assert config_file == config_eos.general.config_file_path
     assert config_file.exists()
     assert not config_file_cwd.exists()
+
+    # Check user data directory pathes (config_default_dirs[-1] == data_default_dir_user)
     assert config_default_dirs[-1] / "data" == config_eos.general.data_folder_path
     assert config_default_dirs[-1] / "data/cache" == config_eos.cache.path()
     assert config_default_dirs[-1] / "data/output" == config_eos.general.data_output_path
+    assert config_default_dirs[-1] / "data/output/eos.log" == config_eos.logging.file_path
     return config_eos
 
 

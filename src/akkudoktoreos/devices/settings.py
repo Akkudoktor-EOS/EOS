@@ -3,12 +3,9 @@ from typing import Optional
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.devices.battery import BaseBatteryParameters
 from akkudoktoreos.devices.generic import HomeApplianceParameters
 from akkudoktoreos.devices.inverter import InverterParameters
-
-logger = get_logger(__name__)
 
 
 class DevicesCommonSettings(SettingsBaseModel):

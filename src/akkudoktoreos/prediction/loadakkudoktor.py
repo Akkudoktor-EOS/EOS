@@ -3,14 +3,12 @@
 from typing import Optional
 
 import numpy as np
+from loguru import logger
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.loadabc import LoadProvider
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
-
-logger = get_logger(__name__)
 
 
 class LoadAkkudoktorCommonSettings(SettingsBaseModel):

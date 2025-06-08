@@ -18,14 +18,11 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from loguru import logger
 
 from akkudoktoreos.core.cache import cache_in_file
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.weatherabc import WeatherDataRecord, WeatherProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration, to_timezone
-
-logger = get_logger(__name__)
-
 
 WheaterDataClearOutsideMapping: List[Tuple[str, Optional[str], Optional[float]]] = [
     # clearoutside_key, description, corr_factor

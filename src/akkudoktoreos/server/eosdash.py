@@ -8,10 +8,10 @@ from typing import Optional
 import psutil
 import uvicorn
 from fasthtml.common import FileResponse, JSONResponse
+from loguru import logger
 from monsterui.core import FastHTML, Theme
 
 from akkudoktoreos.config.config import get_config
-from akkudoktoreos.core.logging import get_logger
 
 # Pages
 from akkudoktoreos.server.dash.admin import Admin
@@ -23,7 +23,6 @@ from akkudoktoreos.server.dash.footer import Footer
 from akkudoktoreos.server.dash.hello import Hello
 from akkudoktoreos.server.server import get_default_host, wait_for_port_free
 
-logger = get_logger(__name__)
 config_eos = get_config()
 
 # The favicon for EOSdash

@@ -5,13 +5,11 @@ from typing import Any, List, Optional, Self
 from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
 from akkudoktoreos.utils.docs import get_model_structure_from_examples
 
-logger = get_logger(__name__)
 prediction_eos = get_prediction()
 
 # Valid PV forecast providers

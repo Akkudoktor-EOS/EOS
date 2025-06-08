@@ -375,28 +375,28 @@ Example:
         "surface_azimuth": -10,
         "surface_tilt": 7,
         "userhorizon": [20, 27, 22, 20],
-        "inverter_paco": 10000,
+        "inverter_paco": 10000
       },
       {
         "peakpower": 4.8,
         "surface_azimuth": -90,
         "surface_tilt": 7,
         "userhorizon": [30, 30, 30, 50],
-        "inverter_paco": 10000,
+        "inverter_paco": 10000
       },
       {
         "peakpower": 1.4,
         "surface_azimuth": -40,
         "surface_tilt": 60,
         "userhorizon": [60, 30, 0, 30],
-        "inverter_paco": 2000,
+        "inverter_paco": 2000
       },
       {
         "peakpower": 1.6,
         "surface_azimuth": 5,
         "surface_tilt": 45,
         "userhorizon": [45, 25, 30, 60],
-        "inverter_paco": 1400,
+        "inverter_paco": 1400
       }
     ]
   }

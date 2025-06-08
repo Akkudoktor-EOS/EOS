@@ -76,6 +76,11 @@ read-docs: docs
 	@echo "Read the documentation in your browser"
 	.venv/bin/python -m webbrowser build/docs/html/index.html
 
+# Clean Python bytecode
+clean-bytecode:
+	find . -type d -name "__pycache__" -exec rm -r {} +
+	find . -type f -name "*.pyc" -delete
+
 # Clean target to remove generated documentation and documentation artefacts
 clean-docs:
 	@echo "Searching and deleting all '_autosum' directories in docs..."
