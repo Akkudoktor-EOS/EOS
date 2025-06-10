@@ -10,6 +10,7 @@ and manipulation of configuration and prediction data in a clear, scalable, and 
 
 from typing import List, Optional
 
+from loguru import logger
 from pendulum import DateTime
 from pydantic import Field, computed_field
 
@@ -22,10 +23,7 @@ from akkudoktoreos.core.dataabc import (
     DataRecord,
     DataSequence,
 )
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.utils.datetimeutil import to_duration
-
-logger = get_logger(__name__)
 
 
 class PredictionBase(DataBase, MeasurementMixin):

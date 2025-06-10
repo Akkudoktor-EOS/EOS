@@ -5,10 +5,10 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 import requests
+from loguru import logger
 
 from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.ems import get_ems
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.elecpriceakkudoktor import (
     AkkudoktorElecPrice,
     AkkudoktorElecPriceValue,
@@ -21,8 +21,6 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON = DIR_TESTDATA.joinpath(
     "elecpriceforecast_akkudoktor_1.json"
 )
-
-logger = get_logger(__name__)
 
 
 @pytest.fixture
@@ -94,7 +92,7 @@ def test_request_forecast(mock_get, provider, sample_akkudoktor_1_json):
     akkudoktor_data = provider._request_forecast()
 
     assert isinstance(akkudoktor_data, AkkudoktorElecPrice)
-    assert akkudoktor_data.values[0] == AkkudoktorElecPriceValue(
+    assert akkudoktor_data.values[0].model_dump() == AkkudoktorElecPriceValue(
         start_timestamp=1733785200000,
         end_timestamp=1733788800000,
         start="2024-12-09T23:00:00.000Z",
@@ -102,7 +100,7 @@ def test_request_forecast(mock_get, provider, sample_akkudoktor_1_json):
         marketprice=92.85,
         unit="Eur/MWh",
         marketpriceEurocentPerKWh=9.29,
-    )
+    ).model_dump()
 
 
 @patch("requests.get")

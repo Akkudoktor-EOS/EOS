@@ -42,6 +42,9 @@ def generate_openapi() -> dict:
     general = openapi_spec["components"]["schemas"]["ConfigEOS"]["properties"]["general"]["default"]
     general["config_file_path"] = "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
     general["config_folder_path"] = "/home/user/.config/net.akkudoktoreos.net"
+    # Fix file path for logging settings to not show local/test file path
+    logging = openapi_spec["components"]["schemas"]["ConfigEOS"]["properties"]["logging"]["default"]
+    logging["file_path"] = "/home/user/.local/share/net.akkudoktoreos.net/output/eos.log"
 
     return openapi_spec
 

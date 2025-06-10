@@ -9,6 +9,7 @@ The measurements can be added programmatically or imported from a file or JSON s
 from typing import Any, ClassVar, List, Optional
 
 import numpy as np
+from loguru import logger
 from numpydantic import NDArray, Shape
 from pendulum import DateTime, Duration
 from pydantic import Field, computed_field
@@ -16,10 +17,7 @@ from pydantic import Field, computed_field
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.dataabc import DataImportMixin, DataRecord, DataSequence
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.utils.datetimeutil import to_duration
-
-logger = get_logger(__name__)
 
 
 class MeasurementCommonSettings(SettingsBaseModel):

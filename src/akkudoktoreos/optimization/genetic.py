@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 import numpy as np
 from deap import algorithms, base, creator, tools
+from loguru import logger
 from pydantic import Field, field_validator, model_validator
 from typing_extensions import Self
 
@@ -13,7 +14,6 @@ from akkudoktoreos.core.coreabc import (
     EnergyManagementSystemMixin,
 )
 from akkudoktoreos.core.ems import EnergyManagementParameters, SimulationResult
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import ParametersBaseModel
 from akkudoktoreos.devices.battery import (
     Battery,
@@ -24,8 +24,6 @@ from akkudoktoreos.devices.battery import (
 from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
 from akkudoktoreos.devices.inverter import Inverter, InverterParameters
 from akkudoktoreos.utils.utils import NumpyEncoder
-
-logger = get_logger(__name__)
 
 
 class OptimizationParameters(ParametersBaseModel):

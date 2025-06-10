@@ -3,9 +3,9 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+from loguru import logger
 
 from akkudoktoreos.core.ems import get_ems
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.prediction.pvforecastakkudoktor import (
     AkkudoktorForecastHorizon,
@@ -23,8 +23,6 @@ FILE_TESTDATA_PV_FORECAST_INPUT_SINGLE_PLANE = DIR_TESTDATA.joinpath(
     "pv_forecast_input_single_plane.json"
 )
 FILE_TESTDATA_PV_FORECAST_RESULT_1 = DIR_TESTDATA.joinpath("pv_forecast_result_1.txt")
-
-logger = get_logger(__name__)
 
 
 @pytest.fixture

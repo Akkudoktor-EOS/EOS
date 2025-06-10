@@ -3,6 +3,7 @@
 from enum import Enum
 from typing import Optional, Type
 
+from loguru import logger
 from pendulum import DateTime
 from pydantic import Field, computed_field
 
@@ -12,11 +13,8 @@ from akkudoktoreos.core.coreabc import (
     EnergyManagementSystemMixin,
     PredictionMixin,
 )
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import ParametersBaseModel
 from akkudoktoreos.utils.datetimeutil import to_duration
-
-logger = get_logger(__name__)
 
 
 class DeviceParameters(ParametersBaseModel):

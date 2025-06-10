@@ -1,12 +1,10 @@
 from typing import Optional
 
+from loguru import logger
 from pydantic import Field
 
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.devices.devicesabc import DeviceBase, DeviceParameters
 from akkudoktoreos.prediction.interpolator import get_eos_load_interpolator
-
-logger = get_logger(__name__)
 
 
 class InverterParameters(DeviceParameters):

@@ -40,6 +40,7 @@ akkudoktoreos/optimization.md
 akkudoktoreos/prediction.md
 akkudoktoreos/measurement.md
 akkudoktoreos/integration.md
+akkudoktoreos/logging.md
 akkudoktoreos/serverapi.md
 akkudoktoreos/api.rst
 

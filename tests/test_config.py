@@ -4,12 +4,10 @@ from typing import Union
 from unittest.mock import patch
 
 import pytest
+from loguru import logger
 from pydantic import ValidationError
 
 from akkudoktoreos.config.config import ConfigEOS, GeneralSettings
-from akkudoktoreos.core.logging import get_logger
-
-logger = get_logger(__name__)
 
 
 # overwrite config_mixin fixture from conftest

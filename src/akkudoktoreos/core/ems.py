@@ -2,6 +2,7 @@ import traceback
 from typing import Any, ClassVar, Optional
 
 import numpy as np
+from loguru import logger
 from numpydantic import NDArray, Shape
 from pendulum import DateTime
 from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
@@ -9,15 +10,12 @@ from typing_extensions import Self
 
 from akkudoktoreos.core.cache import CacheUntilUpdateStore
 from akkudoktoreos.core.coreabc import ConfigMixin, PredictionMixin, SingletonMixin
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import ParametersBaseModel, PydanticBaseModel
 from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.generic import HomeAppliance
 from akkudoktoreos.devices.inverter import Inverter
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
 from akkudoktoreos.utils.utils import NumpyEncoder
-
-logger = get_logger(__name__)
 
 
 class EnergyManagementParameters(ParametersBaseModel):
@@ -283,6 +281,8 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         self.prediction.update_data(force_enable=force_enable, force_update=force_update)
         # TODO: Create optimisation problem that calls into devices.update_data() for simulations.
 
+        logger.info("Energy management run (crippled version - prediction update only)")
+
     def manage_energy(self) -> None:
         """Repeating task for managing energy.
 
@@ -302,6 +302,7 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         Note: The task maintains the interval even if some intervals are missed.
         """
         current_datetime = to_datetime()
+        interval = self.config.ems.interval  # interval maybe changed in between
 
         if EnergyManagement._last_datetime is None:
             # Never run before
@@ -316,13 +317,13 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
                 logger.error(message)
             return
 
-        if self.config.ems.interval is None or self.config.ems.interval == float("nan"):
+        if interval is None or interval == float("nan"):
             # No Repetition
             return
 
         if (
-            compare_datetimes(current_datetime, self._last_datetime).time_diff
-            < self.config.ems.interval
+            compare_datetimes(current_datetime, EnergyManagement._last_datetime).time_diff
+            < interval
         ):
             # Wait for next run
             return
@@ -337,9 +338,9 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         # Remember the energy management run - keep on interval even if we missed some intervals
         while (
             compare_datetimes(current_datetime, EnergyManagement._last_datetime).time_diff
-            >= self.config.ems.interval
+            >= interval
         ):
-            EnergyManagement._last_datetime.add(seconds=self.config.ems.interval)
+            EnergyManagement._last_datetime = EnergyManagement._last_datetime.add(seconds=interval)
 
     def set_start_hour(self, start_hour: Optional[int] = None) -> None:
         """Sets start datetime to given hour.

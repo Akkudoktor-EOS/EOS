@@ -1,6 +1,6 @@
 from typing import List, Sequence
 
-from akkudoktoreos.core.logging import get_logger
+from loguru import logger
 
 
 class Heatpump:
@@ -22,7 +22,6 @@ class Heatpump:
     def __init__(self, max_heat_output: int, hours: int):
         self.max_heat_output = max_heat_output
         self.hours = hours
-        self.log = get_logger(__name__)
 
     def __check_outside_temperature_range__(self, temp_celsius: float) -> bool:
         """Check if temperature is in valid range between -100 and 100 degree Celsius.
@@ -59,7 +58,7 @@ class Heatpump:
                 f"Outside temperature '{outside_temperature_celsius}' not in range "
                 "(min: -100 Celsius, max: 100 Celsius)"
             )
-            self.log.error(err_msg)
+            logger.error(err_msg)
             raise ValueError(err_msg)
 
     def calculate_heating_output(self, outside_temperature_celsius: float) -> float:
@@ -87,7 +86,7 @@ class Heatpump:
                 f"Outside temperature '{outside_temperature_celsius}' not in range "
                 "(min: -100 Celsius, max: 100 Celsius)"
             )
-            self.log.error(err_msg)
+            logger.error(err_msg)
             raise ValueError(err_msg)
 
     def calculate_heat_power(self, outside_temperature_celsius: float) -> float:
@@ -111,7 +110,7 @@ class Heatpump:
                 f"Outside temperature '{outside_temperature_celsius}' not in range "
                 "(min: -100 Celsius, max: 100 Celsius)"
             )
-            self.log.error(err_msg)
+            logger.error(err_msg)
             raise ValueError(err_msg)
 
     def simulate_24h(self, temperatures: Sequence[float]) -> List[float]:

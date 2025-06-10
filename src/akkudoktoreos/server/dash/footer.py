@@ -1,14 +1,13 @@
 from typing import Optional, Union
 
 import requests
+from loguru import logger
 from monsterui.daisy import Loading, LoadingT
 from monsterui.franken import A, ButtonT, DivFullySpaced, P
 from requests.exceptions import RequestException
 
 from akkudoktoreos.config.config import get_config
-from akkudoktoreos.core.logging import get_logger
 
-logger = get_logger(__name__)
 config_eos = get_config()
 
 

@@ -35,6 +35,8 @@ def get_model_structure_from_examples(
     example_data: list[dict[str, Any]] = [{} for _ in range(example_max_length)]
 
     for field_name, field_info in model_class.model_fields.items():
+        if field_info.deprecated:
+            continue
         for example_ix in range(example_max_length):
             example_data[example_ix][field_name] = get_example_or_default(
                 field_name, field_info, example_ix

@@ -78,18 +78,16 @@ Methods:
 from typing import Any, List, Optional, Union
 
 import requests
+from loguru import logger
 from pydantic import Field, ValidationError, computed_field, field_validator
 
 from akkudoktoreos.core.cache import cache_in_file
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.pvforecastabc import (
     PVForecastDataRecord,
     PVForecastProvider,
 )
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
-
-logger = get_logger(__name__)
 
 
 class AkkudoktorForecastHorizon(PydanticBaseModel):

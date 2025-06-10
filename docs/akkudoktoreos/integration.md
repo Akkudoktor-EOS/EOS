@@ -20,8 +20,8 @@ Andreas Schmitz uses [Node-RED](https://nodered.org/) as part of his home automa
 
 ### Node-Red Resources
 
-- [Installation Guide (German)](https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/)
-  \— A detailed guide on integrating an early version of EOS with `Node-RED`.
+- [Installation Guide (German)](https://www.youtube.com/playlist?list=PL8_vk9A-s7zLD865Oou6y3EeQLlNtu-Hn)
+  \— A detailed guide on integrating EOS with `Node-RED`.
 
 ## Home Assistant
 
@@ -34,3 +34,8 @@ emphasizes local control and user privacy.
 
 - Duetting's [EOS Home Assistant Addon](https://github.com/Duetting/ha_eos_addon) — Additional
   details can be found in this [discussion thread](https://github.com/Akkudoktor-EOS/EOS/discussions/294).
+
+## EOS Connect
+
+[EOS connect](https://github.com/ohAnd/EOS_connect) uses `EOS` for energy management and optimization,
+and connects to smart home platforms to monitor, forecast, and control energy flows.

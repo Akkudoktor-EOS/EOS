@@ -9,10 +9,7 @@ from typing import List, Optional
 
 from pydantic import Field, computed_field
 
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.predictionabc import PredictionProvider, PredictionRecord
-
-logger = get_logger(__name__)
 
 
 class ElecPriceDataRecord(PredictionRecord):

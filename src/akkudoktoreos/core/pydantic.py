@@ -12,20 +12,35 @@ Key Features:
   pandas DataFrames and Series with datetime indexes.
 """
 
+import inspect
 import json
 import re
+import uuid
+import weakref
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Type, Union, get_args, get_origin
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Type,
+    Union,
+    get_args,
+    get_origin,
+)
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 import pendulum
+from loguru import logger
 from pandas.api.types import is_datetime64_any_dtype
 from pydantic import (
     AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
+    PrivateAttr,
     RootModel,
     TypeAdapter,
     ValidationError,
@@ -34,6 +49,10 @@ from pydantic import (
 )
 
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
+
+# Global weakref dictionary to hold external state per model instance
+# Used as a workaround for PrivateAttr not working in e.g. Mixin Classes
+_model_private_state: "weakref.WeakKeyDictionary[Union[PydanticBaseModel, PydanticModelNestedValueMixin], Dict[str, Any]]" = weakref.WeakKeyDictionary()
 
 
 def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, Any]:
@@ -83,12 +102,163 @@ class PydanticTypeAdapterDateTime(TypeAdapter[pendulum.DateTime]):
 
 
 class PydanticModelNestedValueMixin:
-    """A mixin providing methods to get and set nested values within a Pydantic model.
+    """A mixin providing methods to get, set and track nested values within a Pydantic model.
 
     The methods use a '/'-separated path to denote the nested values.
     Supports handling `Optional`, `List`, and `Dict` types, ensuring correct initialization of
     missing attributes.
+
+
+    Example:
+        class Address(PydanticBaseModel):
+            city: str
+
+        class User(PydanticBaseModel):
+            name: str
+            address: Address
+
+        def on_city_change(old, new, path):
+            print(f"{path}: {old} -> {new}")
+
+        user = User(name="Alice", address=Address(city="NY"))
+        user.track_nested_value("address/city", on_city_change)
+        user.set_nested_value("address/city", "LA")  # triggers callback
+
     """
+
+    def track_nested_value(self, path: str, callback: Callable[[Any, str, Any, Any], None]) -> None:
+        """Register a callback for a specific path (or subtree).
+
+        Callback triggers if set path is equal or deeper.
+
+        Args:
+            path (str): '/'-separated path to track.
+            callback (callable): Function called as callback(model_instance, set_path, old_value, new_value).
+        """
+        try:
+            self._validate_path_structure(path)
+            pass
+        except:
+            raise ValueError(f"Path '{path}' is invalid")
+        path = path.strip("/")
+        # Use private data workaround
+        # Should be:
+        #  _nested_value_callbacks: dict[str, list[Callable[[str, Any, Any], None]]]
+        #   = PrivateAttr(default_factory=dict)
+        nested_value_callbacks = get_private_attr(self, "nested_value_callbacks", dict())
+        if path not in nested_value_callbacks:
+            nested_value_callbacks[path] = []
+        nested_value_callbacks[path].append(callback)
+        set_private_attr(self, "nested_value_callbacks", nested_value_callbacks)
+
+        logger.debug("Nested value callbacks {}", nested_value_callbacks)
+
+    def _validate_path_structure(self, path: str) -> None:
+        """Validate that a '/'-separated path is structurally valid for this model.
+
+        Checks that each segment of the path corresponds to a field or index in the model's type structure,
+        without requiring that all intermediate values are currently initialized. This method is intended
+        to ensure that the path could be valid for nested access or assignment, according to the model's
+        class definition.
+
+        Args:
+            path (str): The '/'-separated attribute/index path to validate (e.g., "address/city" or "items/0/value").
+
+        Raises:
+            ValueError: If any segment of the path does not correspond to a valid field in the model,
+                or an invalid transition is made (such as an attribute on a non-model).
+
+        Example:
+            class Address(PydanticBaseModel):
+                city: str
+
+            class User(PydanticBaseModel):
+                name: str
+                address: Address
+
+            user = User(name="Alice", address=Address(city="NY"))
+            user._validate_path_structure("address/city")  # OK
+            user._validate_path_structure("address/zipcode")  # Raises ValueError
+        """
+        path_elements = path.strip("/").split("/")
+        # The model we are currently working on
+        model: Any = self
+        # The model we get the type information from. It is a pydantic BaseModel
+        parent: BaseModel = model
+        # The field that provides type information for the current key
+        # Fields may have nested types that translates to a sequence of keys, not just one
+        # - my_field: Optional[list[OtherModel]] -> e.g. "myfield/0" for index 0
+        #   parent_key = ["myfield",] ... ["myfield", "0"]
+        #   parent_key_types = [list, OtherModel]
+        parent_key: list[str] = []
+        parent_key_types: list = []
+
+        for i, key in enumerate(path_elements):
+            is_final_key = i == len(path_elements) - 1
+            # Add current key to parent key to enable nested type tracking
+            parent_key.append(key)
+
+            # Get next value
+            next_value = None
+            if isinstance(model, BaseModel):
+                # Track parent and key for possible assignment later
+                parent = model
+                parent_key = [
+                    key,
+                ]
+                parent_key_types = self._get_key_types(model.__class__, key)
+
+                # If this is the final key, set the value
+                if is_final_key:
+                    return
+
+                # Attempt to access the next attribute, handling None values
+                next_value = getattr(model, key, None)
+
+                # Handle missing values (initialize dict/list/model if necessary)
+                if next_value is None:
+                    next_type = parent_key_types[len(parent_key) - 1]
+                    next_value = self._initialize_value(next_type)
+
+            elif isinstance(model, list):
+                # Handle lists
+                try:
+                    idx = int(key)
+                except Exception as e:
+                    raise IndexError(
+                        f"Invalid list index '{key}' at '{path}': key = '{key}'; parent = '{parent}', parent_key = '{parent_key}'; model = '{model}'; {e}"
+                    )
+
+                # Get next type from parent key type information
+                next_type = parent_key_types[len(parent_key) - 1]
+
+                if len(model) > idx:
+                    next_value = model[idx]
+                else:
+                    return
+
+                if is_final_key:
+                    return
+
+            elif isinstance(model, dict):
+                # Handle dictionaries (auto-create missing keys)
+
+                # Get next type from parent key type information
+                next_type = parent_key_types[len(parent_key) - 1]
+
+                if is_final_key:
+                    return
+
+                if key not in model:
+                    return
+                else:
+                    next_value = model[key]
+
+            else:
+                raise KeyError(f"Key '{key}' not found in model.")
+
+            # Move deeper
+            model = next_value
 
     def get_nested_value(self, path: str) -> Any:
         """Retrieve a nested value from the model using a '/'-separated path.
@@ -128,6 +298,11 @@ class PydanticModelNestedValueMixin:
                     model = model[int(key)]
                 except (ValueError, IndexError) as e:
                     raise IndexError(f"Invalid list index at '{path}': {key}; {e}")
+            elif isinstance(model, dict):
+                try:
+                    model = model[key]
+                except Exception as e:
+                    raise KeyError(f"Invalid dict key at '{path}': {key}; {e}")
             elif isinstance(model, BaseModel):
                 model = getattr(model, key)
             else:
@@ -141,6 +316,8 @@ class PydanticModelNestedValueMixin:
         Supports modifying nested attributes and list indices while preserving Pydantic validation.
         Automatically initializes missing `Optional`, `Union`, `dict`, and `list` fields if necessary.
         If a missing field cannot be initialized, raises an exception.
+
+        Triggers the callbacks registered by track_nested_value().
 
         Args:
             path (str): A '/'-separated path to the nested attribute (e.g., "key1/key2/0").
@@ -170,6 +347,44 @@ class PydanticModelNestedValueMixin:
             print(user.settings)  # Output: {'theme': 'dark'}
             ```
         """
+        path = path.strip("/")
+        # Store old value (if possible)
+        try:
+            old_value = self.get_nested_value(path)
+        except Exception as e:
+            # We can not get the old value
+            # raise ValueError(f"Can not get old (current) value of '{path}': {e}") from e
+            old_value = None
+
+        # Proceed with core logic
+        self._set_nested_value(path, value)
+
+        # Trigger all callbacks whose path is a prefix of set path
+        triggered = set()
+        nested_value_callbacks = get_private_attr(self, "nested_value_callbacks", dict())
+        for cb_path, callbacks in nested_value_callbacks.items():
+            # Match: cb_path == path, or cb_path is a prefix (parent) of path
+            pass
+            if path == cb_path or path.startswith(cb_path + "/"):
+                for cb in callbacks:
+                    # Prevent duplicate calls
+                    if (cb_path, id(cb)) not in triggered:
+                        cb(self, path, old_value, value)
+                        triggered.add((cb_path, id(cb)))
+
+    def _set_nested_value(self, path: str, value: Any) -> None:
+        """Set a nested value core logic.
+
+        Args:
+            path (str): A '/'-separated path to the nested attribute (e.g., "key1/key2/0").
+            value (Any): The new value to set.
+
+        Raises:
+            KeyError: If a key is not found in the model.
+            IndexError: If a list index is out of bounds or invalid.
+            ValueError: If a validation error occurs.
+            TypeError: If a missing field cannot be initialized.
+        """
         path_elements = path.strip("/").split("/")
         # The model we are currently working on
         model: Any = self
@@ -191,6 +406,13 @@ class PydanticModelNestedValueMixin:
             # Get next value
             next_value = None
             if isinstance(model, BaseModel):
+                # Track parent and key for possible assignment later
+                parent = model
+                parent_key = [
+                    key,
+                ]
+                parent_key_types = self._get_key_types(model.__class__, key)
+
                 # If this is the final key, set the value
                 if is_final_key:
                     try:
@@ -198,13 +420,6 @@ class PydanticModelNestedValueMixin:
                     except ValidationError as e:
                         raise ValueError(f"Error updating model: {e}") from e
                     return
-
-                # Track parent and key for possible assignment later
-                parent = model
-                parent_key = [
-                    key,
-                ]
-                parent_key_types = self._get_key_types(model, key)
 
                 # Attempt to access the next attribute, handling None values
                 next_value = getattr(model, key, None)
@@ -227,7 +442,7 @@ class PydanticModelNestedValueMixin:
                     idx = int(key)
                 except Exception as e:
                     raise IndexError(
-                        f"Invalid list index '{key}' at '{path}': key = {key}; parent = {parent}, parent_key = {parent_key}; model = {model}; {e}"
+                        f"Invalid list index '{key}' at '{path}': key = '{key}'; parent = '{parent}', parent_key = '{parent_key}'; model = '{model}'; {e}"
                     )
 
                 # Get next type from parent key type information
@@ -309,6 +524,9 @@ class PydanticModelNestedValueMixin:
         Raises:
             TypeError: If the key does not exist or lacks a valid type annotation.
         """
+        if not inspect.isclass(model):
+            raise TypeError(f"Model '{model}' is not of class type.")
+
         if key not in model.model_fields:
             raise TypeError(f"Field '{key}' does not exist in model '{model.__name__}'.")
 
@@ -408,11 +626,13 @@ class PydanticModelNestedValueMixin:
         raise TypeError(f"Unsupported type hint '{type_hint}' for initialization.")
 
 
-class PydanticBaseModel(BaseModel, PydanticModelNestedValueMixin):
-    """Base model class with automatic serialization and deserialization of `pendulum.DateTime` fields.
+class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
+    """Base model with pendulum datetime support, nested value utilities, and stable hashing.
 
-    This model serializes pendulum.DateTime objects to ISO 8601 strings and
-    deserializes ISO 8601 strings to pendulum.DateTime objects.
+    This class provides:
+    - ISO 8601 serialization/deserialization of `pendulum.DateTime` fields.
+    - Nested attribute access and mutation via `PydanticModelNestedValueMixin`.
+    - A consistent hash using a UUID for use in sets and as dictionary keys
     """
 
     # Enable custom serialization globally in config
@@ -421,6 +641,17 @@ class PydanticBaseModel(BaseModel, PydanticModelNestedValueMixin):
         use_enum_values=True,
         validate_assignment=True,
     )
+
+    _uuid: str = PrivateAttr(default_factory=lambda: str(uuid.uuid4()))
+    """str: A private UUID string generated on instantiation, used for hashing."""
+
+    def __hash__(self) -> int:
+        """Returns a stable hash based on the instance's UUID.
+
+        Returns:
+            int: Hash value derived from the model's UUID.
+        """
+        return hash(self._uuid)
 
     @field_validator("*", mode="before")
     def validate_and_convert_pendulum(cls, value: Any, info: ValidationInfo) -> Any:
@@ -839,3 +1070,27 @@ class PydanticDateTimeSeries(PydanticBaseModel):
 
 class ParametersBaseModel(PydanticBaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+def set_private_attr(
+    model: Union[PydanticBaseModel, PydanticModelNestedValueMixin], key: str, value: Any
+) -> None:
+    """Set a private attribute for a model instance (not stored in model itself)."""
+    if model not in _model_private_state:
+        _model_private_state[model] = {}
+    _model_private_state[model][key] = value
+
+
+def get_private_attr(
+    model: Union[PydanticBaseModel, PydanticModelNestedValueMixin], key: str, default: Any = None
+) -> Any:
+    """Get a private attribute or return default."""
+    return _model_private_state.get(model, {}).get(key, default)
+
+
+def del_private_attr(
+    model: Union[PydanticBaseModel, PydanticModelNestedValueMixin], key: str
+) -> None:
+    """Delete a private attribute."""
+    if model in _model_private_state and key in _model_private_state[model]:
+        del _model_private_state[model][key]

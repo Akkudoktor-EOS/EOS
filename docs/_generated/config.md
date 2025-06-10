@@ -15,10 +15,6 @@ Properties:
     timezone (Optional[str]): Computed time zone string based on the specified latitude
         and longitude.
 
-Validators:
-    validate_latitude (float): Ensures `latitude` is within the range -90 to 90.
-    validate_longitude (float): Ensures `longitude` is within the range -180 to 180.
-
 :::{table} general
 :widths: 10 20 10 5 5 30
 :align: left
@@ -127,8 +123,10 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| level | `EOS_LOGGING__LEVEL` | `Optional[str]` | `rw` | `None` | EOS default logging level. |
-| root_level | | `str` | `ro` | `N/A` | Root logger logging level. |
+| level | `EOS_LOGGING__LEVEL` | `Optional[str]` | `rw` | `None` | This is deprecated. Use console_level and file_level instead. |
+| console_level | `EOS_LOGGING__CONSOLE_LEVEL` | `Optional[str]` | `rw` | `None` | Logging level when logging to console. |
+| file_level | `EOS_LOGGING__FILE_LEVEL` | `Optional[str]` | `rw` | `None` | Logging level when logging to file. |
+| file_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Computed log file path based on data output path. |
 :::
 
 ### Example Input
@@ -138,7 +136,9 @@ Validators:
 
    {
        "logging": {
-           "level": "INFO"
+           "level": null,
+           "console_level": "TRACE",
+           "file_level": "TRACE"
        }
    }
 ```
@@ -150,8 +150,10 @@ Validators:
 
    {
        "logging": {
-           "level": "INFO",
-           "root_level": "INFO"
+           "level": null,
+           "console_level": "TRACE",
+           "file_level": "TRACE",
+           "file_path": "/home/user/.local/share/net.akkudoktoreos.net/output/eos.log"
        }
    }
 ```
@@ -946,7 +948,9 @@ Validators:
            "interval": 300.0
        },
        "logging": {
-           "level": "INFO"
+           "level": null,
+           "console_level": "TRACE",
+           "file_level": "TRACE"
        },
        "devices": {
            "batteries": [

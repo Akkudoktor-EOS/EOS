@@ -1,14 +1,11 @@
 from typing import Optional
 
 from akkudoktoreos.core.coreabc import SingletonMixin
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.devices.battery import Battery
 from akkudoktoreos.devices.devicesabc import DevicesBase
 from akkudoktoreos.devices.generic import HomeAppliance
 from akkudoktoreos.devices.inverter import Inverter
 from akkudoktoreos.devices.settings import DevicesCommonSettings
-
-logger = get_logger(__name__)
 
 
 class Devices(SingletonMixin, DevicesBase):

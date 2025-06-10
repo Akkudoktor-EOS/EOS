@@ -4,21 +4,19 @@
 import argparse
 import json
 import os
+import re
 import sys
 import textwrap
 from pathlib import Path
 from typing import Any, Union
 
+from loguru import logger
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
 from akkudoktoreos.config.config import ConfigEOS, GeneralSettings, get_config
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.utils.docs import get_model_structure_from_examples
-
-logger = get_logger(__name__)
-
 
 documented_types: set[PydanticBaseModel] = set()
 undocumented_types: dict[PydanticBaseModel, tuple[str, list[str]]] = dict()
@@ -145,6 +143,7 @@ def generate_config_table_md(
         field_type = field_info.annotation if regular_field else field_info.return_type
         default_value = get_default_value(field_info, regular_field)
         description = field_info.description if field_info.description else "-"
+        deprecated = field_info.deprecated if field_info.deprecated else None
         read_only = "rw" if regular_field else "ro"
         type_name = get_type_name(field_type)
 
@@ -154,6 +153,11 @@ def generate_config_table_md(
                 env_entry = f"| `{prefix}{config_name}` "
             else:
                 env_entry = "| "
+        if deprecated:
+            if isinstance(deprecated, bool):
+                description = "Deprecated!"
+            else:
+                description = deprecated
         table += f"| {field_name} {env_entry}| `{type_name}` | `{read_only}` | `{default_value}` | {description} |\n"
 
         inner_types: dict[PydanticBaseModel, tuple[str, list[str]]] = dict()
@@ -259,7 +263,7 @@ def generate_config_md(config_eos: ConfigEOS) -> str:
     markdown = "# Configuration Table\n\n"
 
     # Generate tables for each top level config
-    for field_name, field_info in config_eos.model_fields.items():
+    for field_name, field_info in config_eos.__class__.model_fields.items():
         field_type = field_info.annotation
         markdown += generate_config_table_md(
             field_type, [field_name], f"EOS_{field_name.upper()}__", True
@@ -278,6 +282,13 @@ def generate_config_md(config_eos: ConfigEOS) -> str:
     # Assure there is no double \n at end of file
     markdown = markdown.rstrip("\n")
     markdown += "\n"
+
+    # Assure log path does not leak to documentation
+    markdown = re.sub(
+        r'(?<=["\'])/[^"\']*/output/eos\.log(?=["\'])',
+        '/home/user/.local/share/net.akkudoktoreos.net/output/eos.log',
+        markdown
+    )
 
     return markdown
 

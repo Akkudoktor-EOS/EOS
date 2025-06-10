@@ -11,16 +11,14 @@ from typing import Any, List, Optional, Union
 import numpy as np
 import pandas as pd
 import requests
+from loguru import logger
 from pydantic import ValidationError
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from akkudoktoreos.core.cache import cache_in_file
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
-
-logger = get_logger(__name__)
 
 
 class AkkudoktorElecPriceMeta(PydanticBaseModel):

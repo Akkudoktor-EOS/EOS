@@ -100,6 +100,7 @@ def ConfigCard(
     value: str,
     default: str,
     description: str,
+    deprecated: Optional[Union[str, bool]],
     update_error: Optional[str],
     update_value: Optional[str],
     update_open: Optional[bool],
@@ -118,6 +119,7 @@ def ConfigCard(
         value (str): The current value of the configuration.
         default (str): The default value of the configuration.
         description (str): A description of the configuration.
+        deprecated (Optional[Union[str, bool]]): The deprecated marker of the configuration.
         update_error (Optional[str]): The error message, if any, during the update process.
         update_value (Optional[str]): The value to be updated, if different from the current value.
         update_open (Optional[bool]): A flag indicating whether the update section of the card
@@ -131,6 +133,9 @@ def ConfigCard(
         update_value = value
     if not update_open:
         update_open = False
+    if deprecated:
+        if isinstance(deprecated, bool):
+            deprecated = "Deprecated"
     return Card(
         Details(
             Summary(
@@ -151,13 +156,21 @@ def ConfigCard(
             Grid(
                 P(description),
                 P(config_type),
-            ),
+            )
+            if not deprecated
+            else None,
+            Grid(
+                P(deprecated),
+                P("DEPRECATED!"),
+            )
+            if deprecated
+            else None,
             # Default
             Grid(
                 DivRAligned(P("default")),
                 P(default),
             )
-            if read_only == "rw"
+            if read_only == "rw" and not deprecated
             else None,
             # Set value
             Grid(
@@ -172,7 +185,7 @@ def ConfigCard(
                     ),
                 ),
             )
-            if read_only == "rw"
+            if read_only == "rw" and not deprecated
             else None,
             # Last error
             Grid(

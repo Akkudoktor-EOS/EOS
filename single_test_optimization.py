@@ -12,14 +12,11 @@ import numpy as np
 
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.optimization.genetic import (
     OptimizationParameters,
     optimization_problem,
 )
 from akkudoktoreos.prediction.prediction import get_prediction
-
-get_logger(__name__, logging_level="DEBUG")
 
 
 def prepare_optimization_real_parameters() -> OptimizationParameters:

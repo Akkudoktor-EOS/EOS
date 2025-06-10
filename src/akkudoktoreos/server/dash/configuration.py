@@ -2,6 +2,7 @@ import json
 from typing import Any, Dict, List, Optional, Sequence, TypeVar, Union
 
 import requests
+from loguru import logger
 from monsterui.franken import (
     H3,
     H4,
@@ -22,12 +23,9 @@ from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
 from akkudoktoreos.config.config import ConfigEOS
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.pvforecast import PVForecastPlaneSetting
 from akkudoktoreos.server.dash.components import ConfigCard
-
-logger = get_logger(__name__)
 
 T = TypeVar("T")
 
@@ -166,7 +164,7 @@ def configuration(
                     if found_basic:
                         continue
 
-                    config = {}
+                    config: dict[str, Optional[Any]] = {}
                     config["name"] = ".".join(values_prefix + parent_types)
                     config["value"] = json.dumps(
                         get_nested_value(values, values_prefix + parent_types, "<unknown>")
@@ -174,6 +172,9 @@ def configuration(
                     config["default"] = json.dumps(get_default_value(subfield_info, regular_field))
                     config["description"] = (
                         subfield_info.description if subfield_info.description else ""
+                    )
+                    config["deprecated"] = (
+                        subfield_info.deprecated if subfield_info.deprecated else None
                     )
                     if isinstance(subfield_info, ComputedFieldInfo):
                         config["read-only"] = "ro"
@@ -319,6 +320,7 @@ def ConfigPlanesCard(
                     config["value"],
                     config["default"],
                     config["description"],
+                    config["deprecated"],
                     update_error,
                     update_value,
                     update_open,
@@ -457,6 +459,7 @@ def Configuration(
         if (
             config["type"]
             == "Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]"
+            and not config["deprecated"]
         ):
             # Special configuration for PV planes
             rows.append(
@@ -482,6 +485,7 @@ def Configuration(
                     config["value"],
                     config["default"],
                     config["description"],
+                    config["deprecated"],
                     update_error,
                     update_value,
                     update_open,

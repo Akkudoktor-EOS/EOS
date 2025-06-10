@@ -464,6 +464,55 @@ Health check endpoint to verify that the EOS server is alive.
 
 ---
 
+## GET /v1/logging/log
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_logging_get_log_v1_logging_log_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_logging_get_log_v1_logging_log_get)
+
+Fastapi Logging Get Log
+
+```
+Get structured log entries from the EOS log file.
+
+Filters and returns log entries based on the specified query parameters. The log
+file is expected to contain newline-delimited JSON entries.
+
+Args:
+    limit (int): Maximum number of entries to return.
+    level (Optional[str]): Filter logs by severity level (e.g., DEBUG, INFO).
+    contains (Optional[str]): Return only logs that include this string in the message.
+    regex (Optional[str]): Return logs that match this regular expression in the message.
+    from_time (Optional[str]): ISO 8601 timestamp to filter logs not older than this.
+    to_time (Optional[str]): ISO 8601 timestamp to filter logs not newer than this.
+    tail (bool): If True, fetch the most recent log entries (like `tail`).
+
+Returns:
+    JSONResponse: A JSON list of log entries.
+```
+
+**Parameters**:
+
+- `limit` (query, optional): Maximum number of log entries to return.
+
+- `level` (query, optional): Filter by log level (e.g., INFO, ERROR).
+
+- `contains` (query, optional): Filter logs containing this substring.
+
+- `regex` (query, optional): Filter logs by matching regex in message.
+
+- `from_time` (query, optional): Start time (ISO format) for filtering logs.
+
+- `to_time` (query, optional): End time (ISO format) for filtering logs.
+
+- `tail` (query, optional): If True, returns the most recent lines (tail mode).
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
 ## PUT /v1/measurement/data
 
 **Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_data_put_v1_measurement_data_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_data_put_v1_measurement_data_put)

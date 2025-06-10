@@ -28,7 +28,7 @@ management.
 Energy management is the overall process to provide planning data for scheduling the different
 devices in your system in an optimal way. Energy management cares for the update of predictions and
 the optimization of the planning based on the simulated behavior of the devices. The planning is on
-the hour. Sub-hour energy management is left
+the hour.
 
 ### Optimization
 

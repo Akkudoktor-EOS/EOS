@@ -14,10 +14,7 @@ import pandas as pd
 import pvlib
 from pydantic import Field
 
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.prediction.predictionabc import PredictionProvider, PredictionRecord
-
-logger = get_logger(__name__)
 
 
 class WeatherDataRecord(PredictionRecord):

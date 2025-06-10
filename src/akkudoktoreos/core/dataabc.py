@@ -19,6 +19,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, Union, over
 import numpy as np
 import pandas as pd
 import pendulum
+from loguru import logger
 from numpydantic import NDArray, Shape
 from pendulum import DateTime, Duration
 from pydantic import (
@@ -31,15 +32,12 @@ from pydantic import (
 )
 
 from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin, StartMixin
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeData,
     PydanticDateTimeDataFrame,
 )
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
-
-logger = get_logger(__name__)
 
 
 class DataBase(ConfigMixin, StartMixin, PydanticBaseModel):
