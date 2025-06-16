@@ -11,16 +11,14 @@ from typing import Any, List, Optional, Union
 import numpy as np
 import pandas as pd
 import requests
+from loguru import logger
 from pydantic import ValidationError
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from akkudoktoreos.core.cache import cache_in_file
-from akkudoktoreos.core.logging import get_logger
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
-
-logger = get_logger(__name__)
 
 
 class EnergyChartsElecPrice(PydanticBaseModel):
@@ -90,12 +88,14 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             - add the file cache again.
         """
         source = "https://api.energy-charts.info"
-        assert self.start_datetime  # mypy fix
+        if not self.start_datetime:
+            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
+
         # Try to take data from 5 weeks back for prediction
         date = to_datetime(self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
         url = f"{source}/price?bzn=DE-LU&start={date}&end={last_date}"
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         logger.debug(f"Response from {url}: {response}")
         response.raise_for_status()  # Raise an error for bad responses
         energy_charts_data = self._validate_data(response.content)
@@ -134,7 +134,8 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         """
         # Get Energy-Charts electricity price data
         energy_charts_data = self._request_forecast(force_update=force_update)  # type: ignore
-        assert self.start_datetime  # mypy fix
+        if not self.start_datetime:
+            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
 
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
@@ -142,18 +143,24 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         # Get charges_kwh in wh
         charges_wh = (self.config.elecprice.charges_kwh or 0) / 1000
 
+        # Initialize
         highest_orig_datetime = None  # newest datetime from the api after that we want to update.
         series_data = pd.Series(dtype=float)  # Initialize an empty series
-        
-        for i in range(0, len(energy_charts_data.unix_seconds)):
-            orig_datetime = to_datetime(energy_charts_data.unix_seconds[i], in_timezone=self.config.general.timezone)
+
+        # Iterate over timestamps and prices together
+        for unix_sec, price_eur_per_mwh in zip(
+            energy_charts_data.unix_seconds, energy_charts_data.price
+        ):
+            orig_datetime = to_datetime(unix_sec, in_timezone=self.config.general.timezone)
+
+            # Track the latest datetime
             if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
                 highest_orig_datetime = orig_datetime
 
-            # price_wh = value.marketpriceEurocentPerKWh / (100 * 1000) + charges_wh
-            price_wh = ((energy_charts_data.price[i] / (1000 * 1000)) + charges_wh) * 1.19
+            # Convert EUR/MWh to EUR/Wh, apply charges and VAT
+            price_wh = ((price_eur_per_mwh / 1_000_000) + charges_wh) * 1.19
 
-            # Collect all values into the Pandas Series
+            # Store in series
             series_data.at[orig_datetime] = price_wh
 
         # Update values using key_from_series
@@ -165,7 +172,10 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         )
 
         amount_datasets = len(self.records)
-        assert highest_orig_datetime  # mypy fix
+        if not highest_orig_datetime:  # mypy fix
+            error_msg = f"Highest original datetime not available: {highest_orig_datetime}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
         needed_hours = int(
