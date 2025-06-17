@@ -119,6 +119,7 @@ Configuration options:
   - `provider`: Electricity price provider id of provider to be used.
 
     - `ElecPriceAkkudoktor`: Retrieves from Akkudoktor.net.
+    - `ElecPriceEnergyCharts`: Retrieves from Energy-Charts.info.
     - `ElecPriceImport`: Imports from a file or JSON string.
 
   - `charges_kwh`: Electricity price charges (€/kWh).
@@ -132,6 +133,14 @@ which supplies price data for the next 24 hours. For periods beyond 24 hours, th
 prices by extrapolating historical price data combined with the most recent actual prices obtained
 from Akkudoktor.net. Electricity price charges given in the `charges_kwh` configuration
 option are added.
+
+### ElecPriceEnergyCharts Provider
+
+The `ElecPriceEnergyCharts` provider retrieves electricity prices directly from **Energy-Charts.info**,
+which supplies price data for the next 24 hours. For periods beyond 24 hours, the provider generates
+prices by extrapolating historical price data combined with the most recent actual prices obtained
+from Energy-Charts.info. Electricity price charges specified in the `charges_kwh` configuration option
+are included in the calculation as `(market price + charges_kwh) * 1.19 VAT`.
 
 ### ElecPriceImport Provider
 
