@@ -14,9 +14,10 @@ Please report flaws or vulnerabilities in the [GitHub Issue Tracker](https://git
 
 ## Ideas & Features
 
-Please first discuss the idea in a [GitHub Discussion](https://github.com/Akkudoktor-EOS/EOS/discussions) or the [Akkudoktor Forum](https://www.akkudoktor.net/forum/diy-energie-optimierungssystem-opensource-projekt/) before opening an issue.
+Issues in the [GitHub Issue Tracker](https://github.com/Akkudoktor-EOS/EOS/issues) are also fine
+to discuss ideas and features.
 
-There are just too many possibilities and the project would drown in tickets otherwise.
+You may first discuss the idea in the [Akkudoktor Forum](https://www.akkudoktor.net/forum/diy-energie-optimierungssystem-opensource-projekt/) before opening an issue.
 
 ## Code Contributions
 

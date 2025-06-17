@@ -162,7 +162,7 @@ def test_update_data(mock_get, provider, sample_clearout_1_html, sample_clearout
     # Check for correct prediction time window
     assert provider.config.prediction.hours == 48
     assert provider.config.prediction.historic_hours == 48
-    assert compare_datetimes(provider.start_datetime, expected_start).equal
+    assert compare_datetimes(provider.ems_start_datetime, expected_start).equal
     assert compare_datetimes(provider.end_datetime, expected_end).equal
     assert compare_datetimes(provider.keep_datetime, expected_keep).equal
 

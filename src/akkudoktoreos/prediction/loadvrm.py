@@ -4,13 +4,12 @@ from typing import Any, Optional, Union
 
 import requests
 from loguru import logger
-from pendulum import DateTime
 from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.loadabc import LoadProvider
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 
 class VrmForecastRecords(PydanticBaseModel):
@@ -80,8 +79,8 @@ class LoadVrm(LoadProvider):
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Fetch and store VRM load forecast as load_mean and related values."""
-        start_date = self.start_datetime.start_of("day")
-        end_date = self.start_datetime.add(hours=self.config.prediction.hours)
+        start_date = self.ems_start_datetime.start_of("day")
+        end_date = self.ems_start_datetime.add(hours=self.config.prediction.hours)
         start_ts = int(start_date.timestamp())
         end_ts = int(end_date.timestamp())
 
