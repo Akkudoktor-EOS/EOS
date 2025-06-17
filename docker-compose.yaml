@@ -5,6 +5,7 @@ networks:
 services:
   eos:
     image: "akkudoktor/eos:${EOS_VERSION}"
+    container_name: "akkudoktoreos"
     read_only: true
     build:
       context: .
@@ -14,12 +15,23 @@ services:
     env_file:
       - .env
     environment:
+      - OPENBLAS_NUM_THREADS=1
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+      - PIP_PROGRESS_BAR=off
+      - PIP_NO_COLOR=1
       - EOS_CONFIG_DIR=config
       - EOS_SERVER__EOSDASH_SESSKEY=s3cr3t
-      - EOS_PREDICTION__LATITUDE=52.2
-      - EOS_PREDICTION__LONGITUDE=13.4
-      - EOS_ELECPRICE__PROVIDER=ElecPriceAkkudoktor
-      - EOS_ELECPRICE__CHARGES_KWH=0.21
+      - EOS_SERVER__HOST=0.0.0.0
+      - EOS_SERVER__PORT=8503
+      - EOS_SERVER__EOSDASH_HOST=0.0.0.0
+      - EOS_SERVER__EOSDASH_PORT=8504
+    ulimits:
+      nproc: 65535
+      nofile: 65535
+    security_opt:
+      - seccomp:unconfined
+    restart: unless-stopped
     ports:
       # Configure what ports to expose on host
       - "${EOS_SERVER__PORT}:8503"

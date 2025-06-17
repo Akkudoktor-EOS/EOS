@@ -20,9 +20,11 @@ def provider(config_eos):
         "load": {
             "provider": "LoadAkkudoktor",
             "provider_settings": {
-                "load_name": "Akkudoktor Profile",
                 "loadakkudoktor_year_energy": "1000",
             },
+        },
+        "measurement": {
+            "load_emr_keys": ["load0_mr", "load1_mr"]
         }
     }
     config_eos.merge_settings_from_dict(settings)
