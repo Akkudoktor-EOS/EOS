@@ -36,7 +36,8 @@ develop/CONTRIBUTING.md
 
 akkudoktoreos/architecture.md
 akkudoktoreos/configuration.md
-akkudoktoreos/optimization.md
+akkudoktoreos/optimpost.md
+akkudoktoreos/optimauto.md
 akkudoktoreos/prediction.md
 akkudoktoreos/measurement.md
 akkudoktoreos/integration.md

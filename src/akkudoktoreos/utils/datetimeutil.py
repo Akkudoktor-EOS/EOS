@@ -1,25 +1,41 @@
-"""Utility functions for date-time conversion tasks.
+"""Utility module for date, time, and timezone conversion.
+
+This module provides a unified interface for working with dates, times, durations, and timezones.
+It leverages the `pendulum` library to simplify conversions between string representations,
+native `datetime`/`date`/`timedelta` types, Unix timestamps, and timezone-aware types.
+
+Features:
+---------
+- Parse and normalize various date or timestamp formats into a `pendulum.DateTime`.
+- Convert durations from strings or numerics into `pendulum.Duration`.
+- Infer timezone from UTC offset or geolocation.
+- Support for custom output formats (ISO 8601, UTC normalized, or user-specified formats).
+- Makes pendulum types usable in pydantic models using `pydantic_extra_types.pendulum_dt`.
+
+Types:
+------
+- `DateTime`: Pendulum's timezone-aware datetime type.
+- `Date`: Pendulum's date type.
+- `Duration`: Pendulum's representation of a time delta.
 
 Functions:
 ----------
-- to_datetime: Converts various date or time inputs to a timezone-aware or naive `datetime`
-  object or formatted string.
-- to_duration: Converts various time delta inputs to a `timedelta`object.
-- to_timezone: Converts utc offset or location latitude and longitude to a `timezone` object.
+- `to_datetime`: Convert diverse date/time inputs into a `DateTime` or formatted string.
+- `to_duration`: Convert strings or numerics into a `Duration`.
+- `to_timezone`: Convert a UTC offset or geographic coordinate into a `Timezone` or its name.
 
-Example usage:
---------------
+Usage Examples:
+---------------
+    >>> to_datetime("2024-10-13T15:30:00", in_timezone="Europe/Berlin")
+    DateTime(2024, 10, 13, 17, 30, 0, tzinfo=Timezone('Europe/Berlin'))
 
-    # Date-time conversion
-    >>> date_str = "2024-10-15"
-    >>> date_obj = to_datetime(date_str)
-    >>> print(date_obj)  # Output: datetime object for '2024-10-15'
-
-    # Time delta conversion
     >>> to_duration("2 days 5 hours")
+    Duration(days=2, hours=5)
 
-    # Timezone detection
-    >>> to_timezone(location=(40.7128, -74.0060))
+    >>> to_timezone(location=(40.7128, -74.0060), as_string=True)
+    'America/New_York'
+
+See each function's docstring for detailed argument options and examples.
 """
 
 import re
@@ -28,8 +44,12 @@ from typing import Any, List, Literal, Optional, Tuple, Union, overload
 
 import pendulum
 from loguru import logger
-from pendulum import Date, DateTime, Duration
 from pendulum.tz.timezone import Timezone
+from pydantic_extra_types.pendulum_dt import (  # make pendulum types pydantic
+    Date,
+    DateTime,
+    Duration,
+)
 from timezonefinder import TimezoneFinder
 
 MAX_DURATION_STRING_LENGTH = 350
