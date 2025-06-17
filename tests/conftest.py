@@ -130,25 +130,6 @@ def prediction_eos():
     return get_prediction()
 
 
-@pytest.fixture
-def devices_eos(config_mixin):
-    from akkudoktoreos.devices.devices import get_devices
-
-    devices = get_devices()
-    print("devices_eos reset!")
-    devices.reset()
-    return devices
-
-
-@pytest.fixture
-def devices_mixin(devices_eos):
-    with patch(
-        "akkudoktoreos.core.coreabc.DevicesMixin.devices", new_callable=PropertyMock
-    ) as devices_mixin_patch:
-        devices_mixin_patch.return_value = devices_eos
-        yield devices_mixin_patch
-
-
 # Test if test has side effect of writing to system (user) config file
 # Before activating, make sure that no user config file exists (e.g. ~/.config/net.akkudoktoreos.eos/EOS.config.json)
 @pytest.fixture(autouse=True)

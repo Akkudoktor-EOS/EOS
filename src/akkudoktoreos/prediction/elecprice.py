@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import Field, field_validator
 
@@ -26,10 +26,12 @@ class ElecPriceCommonSettings(SettingsBaseModel):
         examples=["ElecPriceAkkudoktor"],
     )
     charges_kwh: Optional[float] = Field(
-        default=None, ge=0, description="Electricity price charges (€/kWh).", examples=[0.21]
+        default=None,
+        ge=0,
+        description="Electricity price charges [€/kWh]. Will be added to variable market price.",
+        examples=[0.21],
     )
-
-    provider_settings: Optional[ElecPriceImportCommonSettings] = Field(
+    provider_settings: Optional[Union[ElecPriceImportCommonSettings]] = Field(
         default=None, description="Provider settings", examples=[None]
     )
 
