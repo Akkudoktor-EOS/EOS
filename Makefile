@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip install dist test test-full docker-run docker-build docs read-docs clean format gitlint mypy run run-dev
+.PHONY: help venv pip install dist test test-full test-system test-ci docker-run docker-build docs read-docs clean format gitlint mypy run run-dev run-dash run-dash-dev bumps
 
 # Default target
 all: help
@@ -26,9 +26,11 @@ help:
 	@echo "  run-dash-dev - Run EOSdash development server in virtual environment (automatically reloads)."
 	@echo "  test         - Run tests."
 	@echo "  test-full    - Run tests with full optimization."
+	@echo "  test-system  - Run tests with system tests enabled."
 	@echo "  test-ci      - Run tests as CI does. No user config file allowed."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
+	@echo "  bump         - Bump version to next release version."
 
 # Target to set up a Python 3 virtual environment
 venv:
@@ -47,7 +49,7 @@ pip-dev: pip
 	@echo "Dependencies installed from requirements-dev.txt."
 
 # Target to install EOS in editable form (development mode) into virtual environment.
-install: pip
+install: pip-dev
 	.venv/bin/pip install build
 	.venv/bin/pip install -e .
 	@echo "EOS installed in editable form (development mode)."
@@ -100,7 +102,7 @@ run:
 
 run-dev:
 	@echo "Starting EOS development server, please wait..."
-	.venv/bin/python -m akkudoktoreos.server.eos --host localhost --port 8503 --reload true
+	.venv/bin/python -m akkudoktoreos.server.eos --host localhost --port 8503 --log_level DEBUG --startup_eosdash false --reload true
 
 run-dash:
 	@echo "Starting EOSdash production server, please wait..."
@@ -108,7 +110,7 @@ run-dash:
 
 run-dash-dev:
 	@echo "Starting EOSdash development server, please wait..."
-	.venv/bin/python -m akkudoktoreos.server.eosdash --host localhost --port 8504 --reload true
+	.venv/bin/python -m akkudoktoreos.server.eosdash --host localhost --port 8504 --log_level DEBUG --reload true
 
 # Target to setup tests.
 test-setup: pip-dev
@@ -124,6 +126,11 @@ test-ci:
 	@echo "Running tests as CI..."
 	.venv/bin/pytest --full-run --check-config-side-effect -vs --cov src --cov-report term-missing
 
+# Target to run tests including the system tests.
+test-system:
+	@echo "Running tests incl. system tests..."
+	.venv/bin/pytest --system-test -vs --cov src --cov-report term-missing
+
 # Target to run all tests.
 test-full:
 	@echo "Running all tests..."
@@ -133,9 +140,9 @@ test-full:
 format:
 	.venv/bin/pre-commit run --all-files
 
-# Target to trigger gitlint using pre-commit for the last commit message
+# Target to trigger gitlint using pre-commit for the latest commit messages
 gitlint:
-	.venv/bin/pre-commit run gitlint --hook-stage commit-msg --commit-msg-filename .git/COMMIT_EDITMSG
+	.venv/bin/cz check --rev-range main..HEAD
 
 # Target to format code.
 mypy:
@@ -147,3 +154,9 @@ docker-run:
 
 docker-build:
 	@docker compose build --pull
+
+# Bump Akkudoktoreos version
+bump: pip-dev
+	@echo "Bumping akkudoktoreos version to release version"
+	.venv/bin/python scripts/convert_lightweight_tags.py
+	.venv/bin/cz bump

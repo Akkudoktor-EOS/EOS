@@ -4,13 +4,12 @@ from typing import Any, Optional, Union
 
 import requests
 from loguru import logger
-from pendulum import DateTime
 from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.loadabc import LoadProvider
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 
 class VrmForecastRecords(PydanticBaseModel):
@@ -57,8 +56,8 @@ class LoadVrm(LoadProvider):
     def _request_forecast(self, start_ts: int, end_ts: int) -> VrmForecastResponse:
         """Fetch forecast data from Victron VRM API."""
         base_url = "https://vrmapi.victronenergy.com/v2/installations"
-        installation_id = self.config.load.provider_settings.load_vrm_idsite
-        api_token = self.config.load.provider_settings.load_vrm_token
+        installation_id = self.config.load.provider_settings.LoadVrm.load_vrm_idsite
+        api_token = self.config.load.provider_settings.LoadVrm.load_vrm_token
 
         url = f"{base_url}/{installation_id}/stats?type=forecast&start={start_ts}&end={end_ts}&interval=hours"
         headers = {"X-Authorization": f"Token {api_token}", "Content-Type": "application/json"}
@@ -80,8 +79,8 @@ class LoadVrm(LoadProvider):
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Fetch and store VRM load forecast as load_mean and related values."""
-        start_date = self.start_datetime.start_of("day")
-        end_date = self.start_datetime.add(hours=self.config.prediction.hours)
+        start_date = self.ems_start_datetime.start_of("day")
+        end_date = self.ems_start_datetime.add(hours=self.config.prediction.hours)
         start_ts = int(start_date.timestamp())
         end_ts = int(end_date.timestamp())
 

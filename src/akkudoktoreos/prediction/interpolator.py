@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 import pickle
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
+from akkudoktoreos.core.cache import cachemethod_energy_management
 from akkudoktoreos.core.coreabc import SingletonMixin
 
 
@@ -16,8 +16,7 @@ class SelfConsumptionProbabilityInterpolator:
         with open(self.filepath, "rb") as file:
             self.interpolator: RegularGridInterpolator = pickle.load(file)  # noqa: S301
 
-    @lru_cache(maxsize=128)
-    def generate_points(
+    def _generate_points(
         self, load_1h_power: float, pv_power: float
     ) -> tuple[np.ndarray, np.ndarray]:
         """Generate the grid points for interpolation."""
@@ -25,8 +24,20 @@ class SelfConsumptionProbabilityInterpolator:
         points = np.array([np.full_like(partial_loads, load_1h_power), partial_loads]).T
         return points, partial_loads
 
+    @cachemethod_energy_management
     def calculate_self_consumption(self, load_1h_power: float, pv_power: float) -> float:
-        points, partial_loads = self.generate_points(load_1h_power, pv_power)
+        """Calculate the PV self-consumption rate using RegularGridInterpolator.
+
+        The results are cached until the start of the next energy management run/ optimization.
+
+        Args:
+         - last_1h_power: 1h power levels (W).
+         - pv_power: Current PV power output (W).
+
+        Returns:
+         - Self-consumption rate as a float.
+        """
+        points, partial_loads = self._generate_points(load_1h_power, pv_power)
         probabilities = self.interpolator(points)
         return probabilities.sum()
 

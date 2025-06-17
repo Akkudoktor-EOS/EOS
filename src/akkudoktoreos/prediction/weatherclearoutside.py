@@ -301,7 +301,8 @@ class WeatherClearOutside(WeatherProvider):
 
             # Converting the cloud cover into Irradiance (GHI, DNI, DHI)
             cloud_cover = pd.Series(
-                data=clearout_data["Total Clouds (% Sky Obscured)"], index=clearout_data["DateTime"]
+                data=clearout_data["Total Clouds (% Sky Obscured)"],
+                index=pd.to_datetime(clearout_data["DateTime"]),
             )
             ghi, dni, dhi = self.estimate_irradiance_from_cloud_cover(
                 self.config.general.latitude, self.config.general.longitude, cloud_cover

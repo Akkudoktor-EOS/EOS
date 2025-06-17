@@ -14,28 +14,28 @@ import shutil
 from pathlib import Path
 from typing import Any, ClassVar, Optional, Type
 
+import pydantic_settings
 from loguru import logger
 from platformdirs import user_config_dir, user_data_dir
-from pydantic import Field, computed_field
-from pydantic_settings import (
-    BaseSettings,
-    JsonConfigSettingsSource,
-    PydanticBaseSettingsSource,
-    SettingsConfigDict,
-)
+from pydantic import Field, computed_field, field_validator
 
 # settings
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.config.configmigrate import migrate_config_file
 from akkudoktoreos.core.cachesettings import CacheCommonSettings
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.decorators import classproperty
-from akkudoktoreos.core.emsettings import EnergyManagementCommonSettings
+from akkudoktoreos.core.emsettings import (
+    EnergyManagementCommonSettings,
+)
 from akkudoktoreos.core.logsettings import LoggingCommonSettings
 from akkudoktoreos.core.pydantic import PydanticModelNestedValueMixin, merge_models
-from akkudoktoreos.devices.settings import DevicesCommonSettings
+from akkudoktoreos.core.version import __version__
+from akkudoktoreos.devices.devices import DevicesCommonSettings
 from akkudoktoreos.measurement.measurement import MeasurementCommonSettings
 from akkudoktoreos.optimization.optimization import OptimizationCommonSettings
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
+from akkudoktoreos.prediction.feedintariff import FeedInTariffCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
@@ -82,6 +82,10 @@ class GeneralSettings(SettingsBaseModel):
 
     _config_folder_path: ClassVar[Optional[Path]] = None
     _config_file_path: ClassVar[Optional[Path]] = None
+
+    version: str = Field(
+        default=__version__, description="Configuration file version. Used to check compatibility."
+    )
 
     data_folder_path: Optional[Path] = Field(
         default=None, description="Path to EOS data directory.", examples=[None, "/home/eos/data"]
@@ -131,11 +135,25 @@ class GeneralSettings(SettingsBaseModel):
         """Path to EOS configuration file."""
         return self._config_file_path
 
+    compatible_versions: ClassVar[list[str]] = [__version__]
 
-class SettingsEOS(BaseSettings, PydanticModelNestedValueMixin):
+    @field_validator("version")
+    @classmethod
+    def check_version(cls, v: str) -> str:
+        if v not in cls.compatible_versions:
+            error = (
+                f"Incompatible configuration version '{v}'. "
+                f"Expected one of: {', '.join(cls.compatible_versions)}."
+            )
+            logger.error(error)
+            raise ValueError(error)
+        return v
+
+
+class SettingsEOS(pydantic_settings.BaseSettings, PydanticModelNestedValueMixin):
     """Settings for all EOS.
 
-    Used by updating the configuration with specific settings only.
+    Only used to update the configuration with specific settings.
     """
 
     general: Optional[GeneralSettings] = Field(
@@ -174,6 +192,10 @@ class SettingsEOS(BaseSettings, PydanticModelNestedValueMixin):
         default=None,
         description="Electricity Price Settings",
     )
+    feedintariff: Optional[FeedInTariffCommonSettings] = Field(
+        default=None,
+        description="Feed In Tariff Settings",
+    )
     load: Optional[LoadCommonSettings] = Field(
         default=None,
         description="Load Settings",
@@ -195,7 +217,7 @@ class SettingsEOS(BaseSettings, PydanticModelNestedValueMixin):
         description="Utilities Settings",
     )
 
-    model_config = SettingsConfigDict(
+    model_config = pydantic_settings.SettingsConfigDict(
         env_nested_delimiter="__",
         nested_model_default_partial_update=True,
         env_prefix="EOS_",
@@ -218,11 +240,17 @@ class SettingsEOSDefaults(SettingsEOS):
     optimization: OptimizationCommonSettings = OptimizationCommonSettings()
     prediction: PredictionCommonSettings = PredictionCommonSettings()
     elecprice: ElecPriceCommonSettings = ElecPriceCommonSettings()
+    feedintariff: FeedInTariffCommonSettings = FeedInTariffCommonSettings()
     load: LoadCommonSettings = LoadCommonSettings()
     pvforecast: PVForecastCommonSettings = PVForecastCommonSettings()
     weather: WeatherCommonSettings = WeatherCommonSettings()
     server: ServerCommonSettings = ServerCommonSettings()
     utils: UtilsCommonSettings = UtilsCommonSettings()
+
+    def __hash__(self) -> int:
+        # Just for usage in configmigrate, finally overwritten when used by ConfigEOS.
+        # This is mutable, so pydantic does not set a hash.
+        return id(self)
 
 
 class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
@@ -290,33 +318,34 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: Type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Customizes the order and handling of settings sources for a Pydantic BaseSettings subclass.
+        settings_cls: Type[pydantic_settings.BaseSettings],
+        init_settings: pydantic_settings.PydanticBaseSettingsSource,
+        env_settings: pydantic_settings.PydanticBaseSettingsSource,
+        dotenv_settings: pydantic_settings.PydanticBaseSettingsSource,
+        file_secret_settings: pydantic_settings.PydanticBaseSettingsSource,
+    ) -> tuple[pydantic_settings.PydanticBaseSettingsSource, ...]:
+        """Customizes the order and handling of settings sources for a pydantic_settings.BaseSettings subclass.
 
         This method determines the sources for application configuration settings, including
         environment variables, dotenv files and JSON configuration files.
         It ensures that a default configuration file exists and creates one if necessary.
 
         Args:
-            settings_cls (Type[BaseSettings]): The Pydantic BaseSettings class for which sources are customized.
-            init_settings (PydanticBaseSettingsSource): The initial settings source, typically passed at runtime.
-            env_settings (PydanticBaseSettingsSource): Settings sourced from environment variables.
-            dotenv_settings (PydanticBaseSettingsSource): Settings sourced from a dotenv file.
-            file_secret_settings (PydanticBaseSettingsSource): Unused (needed for parent class interface).
+            settings_cls (Type[pydantic_settings.BaseSettings]): The Pydantic BaseSettings class for
+                which sources are customized.
+            init_settings (pydantic_settings.PydanticBaseSettingsSource): The initial settings source, typically passed at runtime.
+            env_settings (pydantic_settings.PydanticBaseSettingsSource): Settings sourced from environment variables.
+            dotenv_settings (pydantic_settings.PydanticBaseSettingsSource): Settings sourced from a dotenv file.
+            file_secret_settings (pydantic_settings.PydanticBaseSettingsSource): Unused (needed for parent class interface).
 
         Returns:
-            tuple[PydanticBaseSettingsSource, ...]: A tuple of settings sources in the order they should be applied.
+            tuple[pydantic_settings.PydanticBaseSettingsSource, ...]: A tuple of settings sources in the order they should be applied.
 
         Behavior:
             1. Checks for the existence of a JSON configuration file in the expected location.
             2. If the configuration file does not exist, creates the directory (if needed) and attempts to copy a
                default configuration file to the location. If the copy fails, uses the default configuration file directly.
-            3. Creates a `JsonConfigSettingsSource` for both the configuration file and the default configuration file.
+            3. Creates a `pydantic_settings.JsonConfigSettingsSource` for both the configuration file and the default configuration file.
             4. Updates class attributes `GeneralSettings._config_folder_path` and
                `GeneralSettings._config_file_path` to reflect the determined paths.
             5. Returns a tuple containing all provided and newly created settings sources in the desired order.
@@ -325,13 +354,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             - This method logs a warning if the default configuration file cannot be copied.
             - It ensures that a fallback to the default configuration file is always possible.
         """
-        setting_sources = [
-            init_settings,
-            env_settings,
-            dotenv_settings,
-        ]
-
-        file_settings: Optional[JsonConfigSettingsSource] = None
+        # Ensure we know and have the config folder path and the config file
         config_file, exists = cls._get_config_file_path()
         config_dir = config_file.parent
         if not exists:
@@ -342,20 +365,38 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 logger.warning(f"Could not copy default config: {exc}. Using default config...")
                 config_file = cls.config_default_file_path
                 config_dir = config_file.parent
-        try:
-            file_settings = JsonConfigSettingsSource(settings_cls, json_file=config_file)
-            setting_sources.append(file_settings)
-        except Exception as e:
-            logger.error(
-                f"Error reading config file '{config_file}' (falling back to default config): {e}"
-            )
-        default_settings = JsonConfigSettingsSource(
-            settings_cls, json_file=cls.config_default_file_path
-        )
+        # Remember config_dir and config file
         GeneralSettings._config_folder_path = config_dir
         GeneralSettings._config_file_path = config_file
 
+        # All the settings sources in priority sequence
+        setting_sources = [
+            init_settings,
+            env_settings,
+            dotenv_settings,
+        ]
+
+        # Apend file settings to sources
+        file_settings: Optional[pydantic_settings.JsonConfigSettingsSource] = None
+        try:
+            backup_file = config_file.with_suffix(".bak")
+            if migrate_config_file(config_file, backup_file):
+                # If correct version add it as settings source
+                file_settings = pydantic_settings.JsonConfigSettingsSource(
+                    settings_cls, json_file=config_file
+                )
+                setting_sources.append(file_settings)
+        except Exception as ex:
+            logger.error(
+                f"Error reading config file '{config_file}' (falling back to default config): {ex}"
+            )
+
+        # Append default settings to sources
+        default_settings = pydantic_settings.JsonConfigSettingsSource(
+            settings_cls, json_file=cls.config_default_file_path
+        )
         setting_sources.append(default_settings)
+
         return tuple(setting_sources)
 
     @classproperty
@@ -374,28 +415,24 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         Configuration data is loaded from a configuration file or a default one is created if none
         exists.
         """
+        logger.debug("Config init with parameters {} {}", args, kwargs)
+        # Check for singleton guard
         if hasattr(self, "_initialized"):
             return
         self._setup(self, *args, **kwargs)
 
     def _setup(self, *args: Any, **kwargs: Any) -> None:
         """Re-initialize global settings."""
-        # Check for config file content/ version type
-        config_file, exists = self._get_config_file_path()
-        if exists:
-            with config_file.open("r", encoding="utf-8", newline=None) as f_config:
-                config_txt = f_config.read()
-                if '"directories": {' in config_txt or '"server_eos_host": ' in config_txt:
-                    error_msg = f"Configuration file '{config_file}' is outdated. Please remove or update  manually."
-                    logger.error(error_msg)
-                    raise ValueError(error_msg)
-        # Assure settings base knows EOS configuration
+        logger.debug("Config setup with parameters {} {}", args, kwargs)
+        # Assure settings base knows the singleton EOS configuration
         SettingsBaseModel.config = self
-        # (Re-)load settings
+        # (Re-)load settings - call base class init
         SettingsEOSDefaults.__init__(self, *args, **kwargs)
         # Init config file and data folder pathes
         self._create_initial_config_file()
         self._update_data_folder_path()
+        self._initialized = True
+        logger.debug("Config setup:\n{}", self)
 
     def merge_settings(self, settings: SettingsEOS) -> None:
         """Merges the provided settings into the global settings for EOS, with optional overwrite.
@@ -487,6 +524,11 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     @classmethod
     def _get_config_file_path(cls) -> tuple[Path, bool]:
         """Find a valid configuration file or return the desired path for a new config file.
+
+        Searches:
+            1. environment variable directory
+            2. user configuration directory
+            3. current working directory
 
         Returns:
             tuple[Path, bool]: The path to the configuration file and if there is already a config file there

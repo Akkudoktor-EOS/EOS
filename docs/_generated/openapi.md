@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `0.0.1`
+**Version**: `v0.1.0+dev`
 
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
 
@@ -26,8 +26,10 @@ filled with the first available prediction value.
 Note:
     Use '/v1/prediction/list?key=load_mean_adjusted' instead.
     Load energy meter readings to be added to EOS measurement by:
-    '/v1/measurement/load-mr/value/by-name' or
-    '/v1/measurement/value'
+    '/v1/measurement/value' or
+    '/v1/measurement/series' or
+    '/v1/measurement/dataframe' or
+    '/v1/measurement/data'
 ```
 
 **Request Body**:
@@ -87,16 +89,25 @@ Note:
 
 Fastapi Optimize
 
+```
+Deprecated: Optimize.
+
+Endpoint to handle optimization.
+
+Note:
+    Use automatic optimization instead.
+```
+
 **Parameters**:
 
 - `start_hour` (query, optional): Defaults to current hour of the day.
 
-- `ngen` (query, optional): No description provided.
+- `ngen` (query, optional): Number of indivuals to generate for genetic algorithm.
 
 **Request Body**:
 
 - `application/json`: {
-  "$ref": "#/components/schemas/OptimizationParameters"
+  "$ref": "#/components/schemas/GeneticOptimizationParameters"
 }
 
 **Responses**:
@@ -192,26 +203,38 @@ Returns:
 Fastapi Admin Cache Clear Post
 
 ```
-Clear the cache from expired data.
+Clear the cache.
 
-Deletes expired cache files.
-
-Args:
-    clear_all (Optional[bool]): Delete all cached files. Default is False.
+Deletes all cache files.
 
 Returns:
     data (dict): The management data after cleanup.
 ```
 
-**Parameters**:
-
-- `clear_all` (query, optional): No description provided.
-
 **Responses**:
 
 - **200**: Successful Response
 
-- **422**: Validation Error
+---
+
+## POST /v1/admin/cache/clear-expired
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_admin_cache_clear_expired_post_v1_admin_cache_clear-expired_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_admin_cache_clear_expired_post_v1_admin_cache_clear-expired_post)
+
+Fastapi Admin Cache Clear Expired Post
+
+```
+Clear the cache from expired data.
+
+Deletes expired cache files.
+
+Returns:
+    data (dict): The management data after cleanup.
+```
+
+**Responses**:
+
+- **200**: Successful Response
 
 ---
 
@@ -448,6 +471,38 @@ Returns:
 
 ---
 
+## GET /v1/energy-management/optimization/solution
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_optimization_solution_get_v1_energy-management_optimization_solution_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_optimization_solution_get_v1_energy-management_optimization_solution_get)
+
+Fastapi Energy Management Optimization Solution Get
+
+```
+Get the latest solution of the optimization.
+```
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## GET /v1/energy-management/plan
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_plan_get_v1_energy-management_plan_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_plan_get_v1_energy-management_plan_get)
+
+Fastapi Energy Management Plan Get
+
+```
+Get the latest energy management plan.
+```
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
 ## GET /v1/health
 
 **Links**: [local](http://localhost:8503/docs#/default/fastapi_health_get_v1_health_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_health_get_v1_health_get)
@@ -577,82 +632,6 @@ Get a list of available measurement keys.
 
 ---
 
-## GET /v1/measurement/load-mr/series/by-name
-
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_load_mr_series_by_name_get_v1_measurement_load-mr_series_by-name_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_load_mr_series_by_name_get_v1_measurement_load-mr_series_by-name_get)
-
-Fastapi Measurement Load Mr Series By Name Get
-
-```
-Get the meter reading of given load name as series.
-```
-
-**Parameters**:
-
-- `name` (query, required): Load name.
-
-**Responses**:
-
-- **200**: Successful Response
-
-- **422**: Validation Error
-
----
-
-## PUT /v1/measurement/load-mr/series/by-name
-
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_load_mr_series_by_name_put_v1_measurement_load-mr_series_by-name_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_load_mr_series_by_name_put_v1_measurement_load-mr_series_by-name_put)
-
-Fastapi Measurement Load Mr Series By Name Put
-
-```
-Merge the meter readings series of given load name into EOS measurements at given datetime.
-```
-
-**Parameters**:
-
-- `name` (query, required): Load name.
-
-**Request Body**:
-
-- `application/json`: {
-  "$ref": "#/components/schemas/PydanticDateTimeSeries"
-}
-
-**Responses**:
-
-- **200**: Successful Response
-
-- **422**: Validation Error
-
----
-
-## PUT /v1/measurement/load-mr/value/by-name
-
-**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_load_mr_value_by_name_put_v1_measurement_load-mr_value_by-name_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_load_mr_value_by_name_put_v1_measurement_load-mr_value_by-name_put)
-
-Fastapi Measurement Load Mr Value By Name Put
-
-```
-Merge the meter reading of given load name and value into EOS measurements at given datetime.
-```
-
-**Parameters**:
-
-- `datetime` (query, required): Datetime.
-
-- `name` (query, required): Load name.
-
-- `value` (query, required): No description provided.
-
-**Responses**:
-
-- **200**: Successful Response
-
-- **422**: Validation Error
-
----
-
 ## GET /v1/measurement/series
 
 **Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_series_get_v1_measurement_series_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_series_get_v1_measurement_series_get)
@@ -665,7 +644,7 @@ Get the measurements of given key as series.
 
 **Parameters**:
 
-- `key` (query, required): Prediction key.
+- `key` (query, required): Measurement key.
 
 **Responses**:
 
@@ -687,7 +666,7 @@ Merge measurement given as series into given key.
 
 **Parameters**:
 
-- `key` (query, required): Prediction key.
+- `key` (query, required): Measurement key.
 
 **Request Body**:
 
@@ -717,7 +696,7 @@ Merge the measurement of given key and value into EOS measurements at given date
 
 - `datetime` (query, required): Datetime.
 
-- `key` (query, required): Prediction key.
+- `key` (query, required): Measurement key.
 
 - `value` (query, required): No description provided.
 
@@ -981,6 +960,96 @@ Args:
 - `force_update` (query, optional): No description provided.
 
 - `force_enable` (query, optional): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## GET /v1/resource/status
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_devices_status_get_v1_resource_status_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_devices_status_get_v1_resource_status_get)
+
+Fastapi Devices Status Get
+
+```
+Get the latest status of a resource/ device.
+
+Return:
+    latest_status: The latest status of a resource/ device.
+```
+
+**Parameters**:
+
+- `resource_id` (query, required): Resource ID.
+
+- `actuator_id` (query, optional): Actuator ID.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## PUT /v1/resource/status
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_devices_status_put_v1_resource_status_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_devices_status_put_v1_resource_status_put)
+
+Fastapi Devices Status Put
+
+```
+Update the status of a resource/ device.
+
+Return:
+    latest_status: The latest status of a resource/ device.
+```
+
+**Parameters**:
+
+- `resource_id` (query, required): Resource ID.
+
+- `actuator_id` (query, optional): Actuator ID.
+
+**Request Body**:
+
+- `application/json`: {
+  "anyOf": [
+    {
+      "$ref": "#/components/schemas/PowerMeasurement-Input"
+    },
+    {
+      "$ref": "#/components/schemas/EnergyMeasurement-Input"
+    },
+    {
+      "$ref": "#/components/schemas/PPBCPowerProfileStatus-Input"
+    },
+    {
+      "$ref": "#/components/schemas/OMBCStatus"
+    },
+    {
+      "$ref": "#/components/schemas/FRBCActuatorStatus"
+    },
+    {
+      "$ref": "#/components/schemas/FRBCEnergyStatus-Input"
+    },
+    {
+      "$ref": "#/components/schemas/FRBCStorageStatus"
+    },
+    {
+      "$ref": "#/components/schemas/FRBCTimerStatus"
+    },
+    {
+      "$ref": "#/components/schemas/DDBCActuatorStatus"
+    }
+  ],
+  "description": "Resource Status.",
+  "title": "Status"
+}
 
 **Responses**:
 

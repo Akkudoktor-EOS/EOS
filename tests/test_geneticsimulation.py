@@ -1,32 +1,41 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.core.ems import (
-    EnergyManagement,
-    EnergyManagementParameters,
-    SimulationResult,
-    get_ems,
-)
-from akkudoktoreos.devices.battery import (
-    Battery,
+from akkudoktoreos.devices.genetic.battery import Battery
+from akkudoktoreos.devices.genetic.homeappliance import HomeAppliance
+from akkudoktoreos.devices.genetic.inverter import Inverter
+from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
+from akkudoktoreos.optimization.genetic.geneticdevices import (
     ElectricVehicleParameters,
+    HomeApplianceParameters,
+    InverterParameters,
     SolarPanelBatteryParameters,
 )
-from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
-from akkudoktoreos.devices.inverter import Inverter, InverterParameters
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticEnergyManagementParameters,
+    GeneticOptimizationParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSimulationResult
+from akkudoktoreos.utils.datetimeutil import (
+    TimeWindow,
+    TimeWindowSequence,
+    to_duration,
+    to_time,
+)
 
 start_hour = 1
 
 
 # Example initialization of necessary components
 @pytest.fixture
-def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
+def genetic_simulation(config_eos) -> GeneticSimulation:
     """Fixture to create an EnergyManagement instance with given test parameters."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
         {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
     )
     assert config_eos.prediction.hours == 48
+    assert config_eos.optimization.horizon_hours == 24
 
     # Initialize the battery and the inverter
     akku = Battery(
@@ -35,15 +44,15 @@ def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
             capacity_wh=5000,
             initial_soc_percentage=80,
             min_soc_percentage=10,
-        )
+        ),
+        prediction_hours = config_eos.prediction.hours,
     )
     akku.reset()
-    devices_eos.add_device(akku)
 
     inverter = Inverter(
-        InverterParameters(device_id="inverter1", max_power_wh=10000, battery_id=akku.device_id)
+        InverterParameters(device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id),
+        battery = akku,
     )
-    devices_eos.add_device(inverter)
 
     # Household device (currently not used, set to None)
     home_appliance = HomeAppliance(
@@ -51,21 +60,21 @@ def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
             device_id="dishwasher1",
             consumption_wh=2000,
             duration_h=2,
+            time_windows=None,
         ),
+        optimization_hours = config_eos.optimization.horizon_hours,
+        prediction_hours = config_eos.prediction.hours,
     )
     home_appliance.set_starting_time(2)
-    devices_eos.add_device(home_appliance)
 
     # Example initialization of electric car battery
     eauto = Battery(
         ElectricVehicleParameters(
             device_id="ev1", capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
         ),
+        prediction_hours = config_eos.prediction.hours,
     )
     eauto.set_charge_per_hour(np.full(config_eos.prediction.hours, 1))
-    devices_eos.add_device(eauto)
-
-    devices_eos.post_setup()
 
     # Parameters based on previous example data
     pv_prognose_wh = [
@@ -225,39 +234,41 @@ def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
     ]
 
     # Initialize the energy management system with the respective parameters
-    ems = get_ems()
-    ems.set_parameters(
-        EnergyManagementParameters(
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
             preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
             gesamtlast=gesamtlast,
         ),
+        optimization_hours = config_eos.optimization.horizon_hours,
+        prediction_hours = config_eos.prediction.hours,
         inverter=inverter,
         ev=eauto,
         home_appliance=home_appliance,
     )
 
-    return ems
+    return simulation
 
 
-def test_simulation(create_ems_instance):
+def test_simulation(genetic_simulation):
     """Test the EnergyManagement simulation method."""
-    ems = create_ems_instance
+    simulation = genetic_simulation
 
     # Simulate starting from hour 1 (this value can be adjusted)
 
-    result = ems.simulate(start_hour=start_hour)
+    result = simulation.simulate(start_hour=start_hour)
 
     # visualisiere_ergebnisse(
-    #     ems.gesamtlast,
-    #     ems.pv_prognose_wh,
-    #     ems.strompreis_euro_pro_wh,
+    #     simulation.gesamtlast,
+    #     simulation.pv_prognose_wh,
+    #     simulation.strompreis_euro_pro_wh,
     #     result,
-    #     ems.akku.discharge_array+ems.akku.charge_array,
+    #     simulation.akku.discharge_array+simulation.akku.charge_array,
     #     None,
-    #     ems.pv_prognose_wh,
+    #     simulation.pv_prognose_wh,
     #     start_hour,
     #     48,
     #     np.full(48, 0.0),
@@ -278,7 +289,7 @@ def test_simulation(create_ems_instance):
 
     # Check that the result is a dictionary
     assert isinstance(result, dict), "Result should be a dictionary."
-    assert SimulationResult(**result) is not None
+    assert GeneticSimulationResult(**result) is not None
 
     # Check the length of the main arrays
     assert len(result["Last_Wh_pro_Stunde"]) == 47, (
@@ -341,8 +352,8 @@ def test_simulation(create_ems_instance):
     )
 
     # Check home appliances
-    assert sum(ems.home_appliance.get_load_curve()) == 2000, (
-        "The sum of 'ems.home_appliance.get_load_curve()' should be 2000."
+    assert sum(simulation.home_appliance.get_load_curve()) == 2000, (
+        "The sum of 'simulation.home_appliance.get_load_curve()' should be 2000."
     )
 
     assert (

@@ -17,6 +17,14 @@ elecprice_providers = [
 ]
 
 
+class ElecPriceCommonProviderSettings(SettingsBaseModel):
+    """Electricity Price Prediction Provider Configuration."""
+
+    ElecPriceImport: Optional[ElecPriceImportCommonSettings] = Field(
+        default=None, description="ElecPriceImport settings", examples=[None]
+    )
+
+
 class ElecPriceCommonSettings(SettingsBaseModel):
     """Electricity Price Prediction Configuration."""
 
@@ -26,7 +34,10 @@ class ElecPriceCommonSettings(SettingsBaseModel):
         examples=["ElecPriceAkkudoktor"],
     )
     charges_kwh: Optional[float] = Field(
-        default=None, ge=0, description="Electricity price charges (€/kWh).", examples=[0.21]
+        default=None,
+        ge=0,
+        description="Electricity price charges [€/kWh]. Will be added to variable market price.",
+        examples=[0.21],
     )
     vat_rate: Optional[float] = Field(
         default=1.19,
@@ -35,8 +46,15 @@ class ElecPriceCommonSettings(SettingsBaseModel):
         examples=[1.19],
     )
 
-    provider_settings: Optional[ElecPriceImportCommonSettings] = Field(
-        default=None, description="Provider settings", examples=[None]
+    provider_settings: ElecPriceCommonProviderSettings = Field(
+        default_factory=ElecPriceCommonProviderSettings,
+        description="Provider settings",
+        examples=[
+            # Example 1: Empty/default settings (all providers None)
+            {
+                "ElecPriceImport": None,
+            },
+        ],
     )
 
     # Validators

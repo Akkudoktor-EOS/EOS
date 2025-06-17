@@ -61,15 +61,16 @@ class ElecPriceImport(ElecPriceProvider, PredictionImportProvider):
         return "ElecPriceImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.elecprice.provider_settings is None:
+        if self.config.elecprice.provider_settings.ElecPriceImport is None:
             logger.debug(f"{self.provider_id()} data update without provider settings.")
             return
-        if self.config.elecprice.provider_settings.import_file_path:
+        if self.config.elecprice.provider_settings.ElecPriceImport.import_file_path:
             self.import_from_file(
-                self.config.elecprice.provider_settings.import_file_path,
+                self.config.elecprice.provider_settings.ElecPriceImport.import_file_path,
                 key_prefix="elecprice",
             )
-        if self.config.elecprice.provider_settings.import_json:
+        if self.config.elecprice.provider_settings.ElecPriceImport.import_json:
             self.import_from_json(
-                self.config.elecprice.provider_settings.import_json, key_prefix="elecprice"
+                self.config.elecprice.provider_settings.ElecPriceImport.import_json,
+                key_prefix="elecprice",
             )

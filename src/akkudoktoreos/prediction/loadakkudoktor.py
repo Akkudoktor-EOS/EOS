@@ -90,7 +90,9 @@ class LoadAkkudoktor(LoadProvider):
             )
             # Calculate values in W by relative profile data and yearly consumption given in kWh
             data_year_energy = (
-                profile_data * self.config.load.provider_settings.loadakkudoktor_year_energy * 1000
+                profile_data
+                * self.config.load.provider_settings.LoadAkkudoktor.loadakkudoktor_year_energy
+                * 1000
             )
         except FileNotFoundError:
             error_msg = f"Error: File {load_file} not found."
@@ -108,8 +110,8 @@ class LoadAkkudoktor(LoadProvider):
         weekday_adjust, weekend_adjust = self._calculate_adjustment(data_year_energy)
         # We provide prediction starting at start of day, to be compatible to old system.
         # End date for prediction is prediction hours from now.
-        date = self.start_datetime.start_of("day")
-        end_date = self.start_datetime.add(hours=self.config.prediction.hours)
+        date = self.ems_start_datetime.start_of("day")
+        end_date = self.ems_start_datetime.add(hours=self.config.prediction.hours)
         while compare_datetimes(date, end_date).lt:
             # Extract mean (index 0) and standard deviation (index 1) for the given day and hour
             # Day indexing starts at 0, -1 because of that

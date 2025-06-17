@@ -3,7 +3,7 @@
   "info": {
     "title": "Akkudoktor-EOS",
     "description": "This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.",
-    "version": "0.0.1"
+    "version": "v0.1.0+dev"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -12,45 +12,41 @@
           "admin"
         ],
         "summary": "Fastapi Admin Cache Clear Post",
-        "description": "Clear the cache from expired data.\n\nDeletes expired cache files.\n\nArgs:\n    clear_all (Optional[bool]): Delete all cached files. Default is False.\n\nReturns:\n    data (dict): The management data after cleanup.",
+        "description": "Clear the cache.\n\nDeletes all cache files.\n\nReturns:\n    data (dict): The management data after cleanup.",
         "operationId": "fastapi_admin_cache_clear_post_v1_admin_cache_clear_post",
-        "parameters": [
-          {
-            "name": "clear_all",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Clear All"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
                   "additionalProperties": true,
+                  "type": "object",
                   "title": "Response Fastapi Admin Cache Clear Post V1 Admin Cache Clear Post"
                 }
               }
             }
-          },
-          "422": {
-            "description": "Validation Error",
+          }
+        }
+      }
+    },
+    "/v1/admin/cache/clear-expired": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Fastapi Admin Cache Clear Expired Post",
+        "description": "Clear the cache from expired data.\n\nDeletes expired cache files.\n\nReturns:\n    data (dict): The management data after cleanup.",
+        "operationId": "fastapi_admin_cache_clear_expired_post_v1_admin_cache_clear_expired_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Fastapi Admin Cache Clear Expired Post V1 Admin Cache Clear Expired Post"
                 }
               }
             }
@@ -549,6 +545,256 @@
         }
       }
     },
+    "/v1/resource/status": {
+      "get": {
+        "tags": [
+          "resource"
+        ],
+        "summary": "Fastapi Devices Status Get",
+        "description": "Get the latest status of a resource/ device.\n\nReturn:\n    latest_status: The latest status of a resource/ device.",
+        "operationId": "fastapi_devices_status_get_v1_resource_status_get",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Resource ID.",
+              "title": "Resource Id"
+            },
+            "description": "Resource ID."
+          },
+          {
+            "name": "actuator_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Actuator ID.",
+              "title": "Actuator Id"
+            },
+            "description": "Actuator ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PowerMeasurement-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EnergyMeasurement-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PPBCPowerProfileStatus-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/OMBCStatus"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FRBCActuatorStatus"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FRBCEnergyStatus-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FRBCStorageStatus"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FRBCTimerStatus"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DDBCActuatorStatus"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "type",
+                    "mapping": {
+                      "PowerMeasurement": "#/components/schemas/PowerMeasurement-Output",
+                      "EnergyMeasurement": "#/components/schemas/EnergyMeasurement-Output",
+                      "PPBCPowerProfileStatus": "#/components/schemas/PPBCPowerProfileStatus-Output",
+                      "OMBCStatus": "#/components/schemas/OMBCStatus",
+                      "FRBCActuatorStatus": "#/components/schemas/FRBCActuatorStatus",
+                      "FRBCEnergyStatus": "#/components/schemas/FRBCEnergyStatus-Output",
+                      "FRBCStorageStatus": "#/components/schemas/FRBCStorageStatus",
+                      "FRBCTimerStatus": "#/components/schemas/FRBCTimerStatus",
+                      "DDBCActuatorStatus": "#/components/schemas/DDBCActuatorStatus"
+                    }
+                  },
+                  "title": "Response Fastapi Devices Status Get V1 Resource Status Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "resource"
+        ],
+        "summary": "Fastapi Devices Status Put",
+        "description": "Update the status of a resource/ device.\n\nReturn:\n    latest_status: The latest status of a resource/ device.",
+        "operationId": "fastapi_devices_status_put_v1_resource_status_put",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Resource ID.",
+              "title": "Resource Id"
+            },
+            "description": "Resource ID."
+          },
+          {
+            "name": "actuator_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Actuator ID.",
+              "title": "Actuator Id"
+            },
+            "description": "Actuator ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PowerMeasurement-Input"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EnergyMeasurement-Input"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PPBCPowerProfileStatus-Input"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OMBCStatus"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FRBCActuatorStatus"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FRBCEnergyStatus-Input"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FRBCStorageStatus"
+                  },
+                  {
+                    "$ref": "#/components/schemas/FRBCTimerStatus"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DDBCActuatorStatus"
+                  }
+                ],
+                "description": "Resource Status.",
+                "title": "Status"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PowerMeasurement-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EnergyMeasurement-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PPBCPowerProfileStatus-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/OMBCStatus"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FRBCActuatorStatus"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FRBCEnergyStatus-Output"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FRBCStorageStatus"
+                    },
+                    {
+                      "$ref": "#/components/schemas/FRBCTimerStatus"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DDBCActuatorStatus"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "type",
+                    "mapping": {
+                      "PowerMeasurement": "#/components/schemas/PowerMeasurement-Output",
+                      "EnergyMeasurement": "#/components/schemas/EnergyMeasurement-Output",
+                      "PPBCPowerProfileStatus": "#/components/schemas/PPBCPowerProfileStatus-Output",
+                      "OMBCStatus": "#/components/schemas/OMBCStatus",
+                      "FRBCActuatorStatus": "#/components/schemas/FRBCActuatorStatus",
+                      "FRBCEnergyStatus": "#/components/schemas/FRBCEnergyStatus-Output",
+                      "FRBCStorageStatus": "#/components/schemas/FRBCStorageStatus",
+                      "FRBCTimerStatus": "#/components/schemas/FRBCTimerStatus",
+                      "DDBCActuatorStatus": "#/components/schemas/DDBCActuatorStatus"
+                    }
+                  },
+                  "title": "Response Fastapi Devices Status Put V1 Resource Status Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/measurement/keys": {
       "get": {
         "tags": [
@@ -575,176 +821,6 @@
         }
       }
     },
-    "/v1/measurement/load-mr/series/by-name": {
-      "get": {
-        "tags": [
-          "measurement"
-        ],
-        "summary": "Fastapi Measurement Load Mr Series By Name Get",
-        "description": "Get the meter reading of given load name as series.",
-        "operationId": "fastapi_measurement_load_mr_series_by_name_get_v1_measurement_load_mr_series_by_name_get",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Load name.",
-              "title": "Name"
-            },
-            "description": "Load name."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PydanticDateTimeSeries"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "measurement"
-        ],
-        "summary": "Fastapi Measurement Load Mr Series By Name Put",
-        "description": "Merge the meter readings series of given load name into EOS measurements at given datetime.",
-        "operationId": "fastapi_measurement_load_mr_series_by_name_put_v1_measurement_load_mr_series_by_name_put",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Load name.",
-              "title": "Name"
-            },
-            "description": "Load name."
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PydanticDateTimeSeries"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PydanticDateTimeSeries"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/measurement/load-mr/value/by-name": {
-      "put": {
-        "tags": [
-          "measurement"
-        ],
-        "summary": "Fastapi Measurement Load Mr Value By Name Put",
-        "description": "Merge the meter reading of given load name and value into EOS measurements at given datetime.",
-        "operationId": "fastapi_measurement_load_mr_value_by_name_put_v1_measurement_load_mr_value_by_name_put",
-        "parameters": [
-          {
-            "name": "datetime",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Datetime.",
-              "title": "Datetime"
-            },
-            "description": "Datetime."
-          },
-          {
-            "name": "name",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Load name.",
-              "title": "Name"
-            },
-            "description": "Load name."
-          },
-          {
-            "name": "value",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "string"
-                }
-              ],
-              "title": "Value"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PydanticDateTimeSeries"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/measurement/series": {
       "get": {
         "tags": [
@@ -760,10 +836,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Prediction key.",
+              "description": "Measurement key.",
               "title": "Key"
             },
-            "description": "Prediction key."
+            "description": "Measurement key."
           }
         ],
         "responses": {
@@ -803,10 +879,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Prediction key.",
+              "description": "Measurement key.",
               "title": "Key"
             },
-            "description": "Prediction key."
+            "description": "Measurement key."
           }
         ],
         "requestBody": {
@@ -869,10 +945,10 @@
             "required": true,
             "schema": {
               "type": "string",
-              "description": "Prediction key.",
+              "description": "Measurement key.",
               "title": "Key"
             },
-            "description": "Prediction key."
+            "description": "Measurement key."
           },
           {
             "name": "value",
@@ -1583,6 +1659,50 @@
         }
       }
     },
+    "/v1/energy-management/optimization/solution": {
+      "get": {
+        "tags": [
+          "energy-management"
+        ],
+        "summary": "Fastapi Energy Management Optimization Solution Get",
+        "description": "Get the latest solution of the optimization.",
+        "operationId": "fastapi_energy_management_optimization_solution_get_v1_energy_management_optimization_solution_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizationSolution"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/energy-management/plan": {
+      "get": {
+        "tags": [
+          "energy-management"
+        ],
+        "summary": "Fastapi Energy Management Plan Get",
+        "description": "Get the latest energy management plan.",
+        "operationId": "fastapi_energy_management_plan_get_v1_energy_management_plan_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnergyManagementPlan"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/strompreis": {
       "get": {
         "tags": [
@@ -1615,7 +1735,7 @@
           "prediction"
         ],
         "summary": "Fastapi Gesamtlast",
-        "description": "Deprecated: Total Load Prediction with adjustment.\n\nEndpoint to handle total load prediction adjusted by latest measured data.\n\nTotal load prediction starts at 00.00.00 today and is provided for 48 hours.\nIf no prediction values are available the missing ones at the start of the series are\nfilled with the first available prediction value.\n\nNote:\n    Use '/v1/prediction/list?key=load_mean_adjusted' instead.\n    Load energy meter readings to be added to EOS measurement by:\n    '/v1/measurement/load-mr/value/by-name' or\n    '/v1/measurement/value'",
+        "description": "Deprecated: Total Load Prediction with adjustment.\n\nEndpoint to handle total load prediction adjusted by latest measured data.\n\nTotal load prediction starts at 00.00.00 today and is provided for 48 hours.\nIf no prediction values are available the missing ones at the start of the series are\nfilled with the first available prediction value.\n\nNote:\n    Use '/v1/prediction/list?key=load_mean_adjusted' instead.\n    Load energy meter readings to be added to EOS measurement by:\n    '/v1/measurement/value' or\n    '/v1/measurement/series' or\n    '/v1/measurement/dataframe' or\n    '/v1/measurement/data'",
         "operationId": "fastapi_gesamtlast_gesamtlast_post",
         "requestBody": {
           "content": {
@@ -1730,6 +1850,7 @@
           "optimize"
         ],
         "summary": "Fastapi Optimize",
+        "description": "Deprecated: Optimize.\n\nEndpoint to handle optimization.\n\nNote:\n    Use automatic optimization instead.",
         "operationId": "fastapi_optimize_optimize_post",
         "parameters": [
           {
@@ -1763,8 +1884,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Number of indivuals to generate for genetic algorithm.",
               "title": "Ngen"
-            }
+            },
+            "description": "Number of indivuals to generate for genetic algorithm."
           }
         ],
         "requestBody": {
@@ -1772,7 +1895,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OptimizationParameters"
+                "$ref": "#/components/schemas/GeneticOptimizationParameters"
               }
             }
           }
@@ -1783,7 +1906,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/OptimizeResponse"
+                  "$ref": "#/components/schemas/GeneticSolution"
                 }
               }
             }
@@ -1825,37 +1948,26 @@
   },
   "components": {
     "schemas": {
-      "BaseBatteryParameters": {
+      "BatteriesCommonSettings-Input": {
         "properties": {
           "device_id": {
             "type": "string",
             "title": "Device Id",
-            "description": "ID of battery",
+            "description": "ID of device",
+            "default": "<unknown>",
             "examples": [
-              "battery1"
-            ]
-          },
-          "hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
-            "examples": [
-              null
+              "battery1",
+              "ev1",
+              "inverter1",
+              "dishwasher"
             ]
           },
           "capacity_wh": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Capacity Wh",
-            "description": "An integer representing the capacity of the battery in watt-hours.",
+            "description": "Capacity [Wh].",
+            "default": 8000,
             "examples": [
               8000
             ]
@@ -1865,16 +1977,31 @@
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
             "title": "Charging Efficiency",
-            "description": "A float representing the charging efficiency of the battery.",
-            "default": 0.88
+            "description": "Charging efficiency [0.01 ... 1.00].",
+            "default": 0.88,
+            "examples": [
+              0.88
+            ]
           },
           "discharging_efficiency": {
             "type": "number",
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
             "title": "Discharging Efficiency",
-            "description": "A float representing the discharge efficiency of the battery.",
-            "default": 0.88
+            "description": "Discharge efficiency [0.01 ... 1.00].",
+            "default": 0.88,
+            "examples": [
+              0.88
+            ]
+          },
+          "levelized_cost_of_storage_kwh": {
+            "type": "number",
+            "title": "Levelized Cost Of Storage Kwh",
+            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
+            "default": 0.0,
+            "examples": [
+              0.12
+            ]
           },
           "max_charge_power_w": {
             "anyOf": [
@@ -1887,18 +2014,52 @@
               }
             ],
             "title": "Max Charge Power W",
-            "description": "Maximum charging power in watts.",
-            "default": 5000
-          },
-          "initial_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Initial Soc Percentage",
-            "description": "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state).",
-            "default": 0,
+            "description": "Maximum charging power [W].",
+            "default": 5000,
             "examples": [
-              42
+              5000
+            ]
+          },
+          "min_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Charge Power W",
+            "description": "Minimum charging power [W].",
+            "default": 50,
+            "examples": [
+              50
+            ]
+          },
+          "charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Rates",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [
+              [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              null
             ]
           },
           "min_soc_percentage": {
@@ -1906,7 +2067,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "description": "Minimum state of charge (SOC) as percentage of capacity [%].",
             "default": 0,
             "examples": [
               10
@@ -1917,18 +2078,211 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Max Soc Percentage",
-            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
-            "default": 100
+            "description": "Maximum state of charge (SOC) as percentage of capacity [%].",
+            "default": 100,
+            "examples": [
+              100
+            ]
           }
         },
-        "additionalProperties": false,
+        "type": "object",
+        "title": "BatteriesCommonSettings",
+        "description": "Battery devices base settings."
+      },
+      "BatteriesCommonSettings-Output": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of device",
+            "default": "<unknown>",
+            "examples": [
+              "battery1",
+              "ev1",
+              "inverter1",
+              "dishwasher"
+            ]
+          },
+          "capacity_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacity Wh",
+            "description": "Capacity [Wh].",
+            "default": 8000,
+            "examples": [
+              8000
+            ]
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Charging Efficiency",
+            "description": "Charging efficiency [0.01 ... 1.00].",
+            "default": 0.88,
+            "examples": [
+              0.88
+            ]
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Discharging Efficiency",
+            "description": "Discharge efficiency [0.01 ... 1.00].",
+            "default": 0.88,
+            "examples": [
+              0.88
+            ]
+          },
+          "levelized_cost_of_storage_kwh": {
+            "type": "number",
+            "title": "Levelized Cost Of Storage Kwh",
+            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
+            "default": 0.0,
+            "examples": [
+              0.12
+            ]
+          },
+          "max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Charge Power W",
+            "description": "Maximum charging power [W].",
+            "default": 5000,
+            "examples": [
+              5000
+            ]
+          },
+          "min_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Charge Power W",
+            "description": "Minimum charging power [W].",
+            "default": 50,
+            "examples": [
+              50
+            ]
+          },
+          "charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Rates",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [
+              [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              null
+            ]
+          },
+          "min_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Min Soc Percentage",
+            "description": "Minimum state of charge (SOC) as percentage of capacity [%].",
+            "default": 0,
+            "examples": [
+              10
+            ]
+          },
+          "max_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Soc Percentage",
+            "description": "Maximum state of charge (SOC) as percentage of capacity [%].",
+            "default": 100,
+            "examples": [
+              100
+            ]
+          },
+          "measurement_key_soc_factor": {
+            "type": "string",
+            "title": "Measurement Key Soc Factor",
+            "description": "Measurement key for the battery state of charge (SoC) as factor of total capacity [0.0 ... 1.0].",
+            "readOnly": true
+          },
+          "measurement_key_power_l1_w": {
+            "type": "string",
+            "title": "Measurement Key Power L1 W",
+            "description": "Measurement key for the L1 power the battery is charged or discharged with [W].",
+            "readOnly": true
+          },
+          "measurement_key_power_l2_w": {
+            "type": "string",
+            "title": "Measurement Key Power L2 W",
+            "description": "Measurement key for the L2 power the battery is charged or discharged with [W].",
+            "readOnly": true
+          },
+          "measurement_key_power_l3_w": {
+            "type": "string",
+            "title": "Measurement Key Power L3 W",
+            "description": "Measurement key for the L3 power the battery is charged or discharged with [W].",
+            "readOnly": true
+          },
+          "measurement_key_power_3_phase_sym_w": {
+            "type": "string",
+            "title": "Measurement Key Power 3 Phase Sym W",
+            "description": "Measurement key for the symmetric 3 phase power the battery is charged or discharged with [W].",
+            "readOnly": true
+          },
+          "measurement_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Keys",
+            "description": "Measurement keys for the battery stati that are measurements.\n\nBattery SoC, power.",
+            "readOnly": true
+          }
+        },
         "type": "object",
         "required": [
-          "device_id",
-          "capacity_wh"
+          "measurement_key_soc_factor",
+          "measurement_key_power_l1_w",
+          "measurement_key_power_l2_w",
+          "measurement_key_power_l3_w",
+          "measurement_key_power_3_phase_sym_w",
+          "measurement_keys"
         ],
-        "title": "BaseBatteryParameters",
-        "description": "Battery Device Simulation Configuration."
+        "title": "BatteriesCommonSettings",
+        "description": "Battery devices base settings."
       },
       "CacheCommonSettings": {
         "properties": {
@@ -1957,11 +2311,30 @@
         "title": "CacheCommonSettings",
         "description": "Cache Configuration."
       },
+      "CommodityQuantity": {
+        "type": "string",
+        "enum": [
+          "ELECTRIC.POWER.L1",
+          "ELECTRIC.POWER.L2",
+          "ELECTRIC.POWER.L3",
+          "ELECTRIC.POWER.3_PHASE_SYM",
+          "NATURAL_GAS.FLOW_RATE",
+          "HYDROGEN.FLOW_RATE",
+          "HEAT.TEMPERATURE",
+          "HEAT.FLOW_RATE",
+          "HEAT.THERMAL_POWER",
+          "OIL.FLOW_RATE",
+          "CURRENCY"
+        ],
+        "title": "CommodityQuantity",
+        "description": "Enumeration of specific commodity quantities and measurement types."
+      },
       "ConfigEOS": {
         "properties": {
           "general": {
             "$ref": "#/components/schemas/GeneralSettings-Output",
             "default": {
+              "version": "0.1.0+dev",
               "data_output_subpath": "output",
               "latitude": 52.52,
               "longitude": 13.405,
@@ -1990,27 +2363,22 @@
             }
           },
           "devices": {
-            "$ref": "#/components/schemas/DevicesCommonSettings",
-            "default": {}
+            "$ref": "#/components/schemas/DevicesCommonSettings-Output",
+            "default": {
+              "measurement_keys": []
+            }
           },
           "measurement": {
-            "$ref": "#/components/schemas/MeasurementCommonSettings",
-            "default": {}
+            "$ref": "#/components/schemas/MeasurementCommonSettings-Output",
+            "default": {
+              "keys": []
+            }
           },
           "optimization": {
             "$ref": "#/components/schemas/OptimizationCommonSettings",
             "default": {
-              "hours": 48,
-              "penalty": 10,
-              "ev_available_charge_rates_percent": [
-                0.0,
-                0.375,
-                0.5,
-                0.625,
-                0.75,
-                0.875,
-                1.0
-              ]
+              "horizon_hours": 24,
+              "interval": 3600
             }
           },
           "prediction": {
@@ -2021,18 +2389,28 @@
             }
           },
           "elecprice": {
-            "$ref": "#/components/schemas/ElecPriceCommonSettings",
+            "$ref": "#/components/schemas/ElecPriceCommonSettings-Output",
             "default": {
-              "vat_rate": 1.19
+              "vat_rate": 1.19,
+              "provider_settings": {}
+            }
+          },
+          "feedintariff": {
+            "$ref": "#/components/schemas/FeedInTariffCommonSettings-Output",
+            "default": {
+              "provider_settings": {}
             }
           },
           "load": {
-            "$ref": "#/components/schemas/LoadCommonSettings",
-            "default": {}
+            "$ref": "#/components/schemas/LoadCommonSettings-Output",
+            "default": {
+              "provider_settings": {}
+            }
           },
           "pvforecast": {
             "$ref": "#/components/schemas/PVForecastCommonSettings-Output",
             "default": {
+              "provider_settings": {},
               "max_planes": 0,
               "planes_peakpower": [],
               "planes_azimuth": [],
@@ -2042,8 +2420,10 @@
             }
           },
           "weather": {
-            "$ref": "#/components/schemas/WeatherCommonSettings",
-            "default": {}
+            "$ref": "#/components/schemas/WeatherCommonSettings-Output",
+            "default": {
+              "provider_settings": {}
+            }
           },
           "server": {
             "$ref": "#/components/schemas/ServerCommonSettings",
@@ -2051,9 +2431,7 @@
               "host": "127.0.0.1",
               "port": 8503,
               "verbose": false,
-              "startup_eosdash": true,
-              "eosdash_host": "127.0.0.1",
-              "eosdash_port": 8504
+              "startup_eosdash": true
             }
           },
           "utils": {
@@ -2066,13 +2444,134 @@
         "title": "ConfigEOS",
         "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_CONFIG_DIR` environment variable\n    2. The directory specified by the `EOS_DIR` environment variable.\n    3. A platform specific default directory for EOS.\n    4. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nAttributes:\n    config_folder_path (Optional[Path]): Path to the configuration directory.\n    config_file_path (Optional[Path]): Path to the configuration file.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    ```python\n    config_eos = ConfigEOS()  # Always returns the same instance\n    print(config_eos.prediction.hours)  # Access a setting from the loaded configuration\n    ```"
       },
-      "DevicesCommonSettings": {
+      "DDBCActuatorStatus": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "DDBCActuatorStatus",
+            "title": "Type",
+            "default": "DDBCActuatorStatus"
+          },
+          "active_operation_mode_id": {
+            "type": "string",
+            "title": "Active Operation Mode Id",
+            "description": "Currently active operation mode ID."
+          },
+          "operation_mode_factor": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Operation Mode Factor",
+            "description": "Factor with which the operation mode is configured (0 to 1)."
+          },
+          "previous_operation_mode_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Operation Mode Id",
+            "description": "Previously active operation mode ID. Required unless this is the first mode."
+          },
+          "transition_timestamp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transition Timestamp",
+            "description": "Timestamp of transition to the active operation mode."
+          }
+        },
+        "type": "object",
+        "required": [
+          "active_operation_mode_id",
+          "operation_mode_factor"
+        ],
+        "title": "DDBCActuatorStatus",
+        "description": "Current status of a DDBC Actuator.\n\nProvides information about the currently active operation mode and transition history.\nUsed to track the current state of the actuator."
+      },
+      "DDBCInstruction": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Unique identifier of the instruction in the ResourceManager scope. If not provided and a `resource_id` is passed at instantiation, this will be auto-generated as `{resource_id}@{UUID}`."
+          },
+          "execution_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Execution Time",
+            "description": "Start time of the instruction execution."
+          },
+          "abnormal_condition": {
+            "type": "boolean",
+            "title": "Abnormal Condition",
+            "description": "Indicates if this is an instruction for abnormal conditions. Defaults to False.",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "DDBCInstruction",
+            "title": "Type",
+            "default": "DDBCInstruction"
+          },
+          "actuator_id": {
+            "type": "string",
+            "title": "Actuator Id",
+            "description": "ID of the actuator this instruction belongs to."
+          },
+          "operation_mode_id": {
+            "type": "string",
+            "title": "Operation Mode Id",
+            "description": "ID of the DDBC.OperationMode to apply."
+          },
+          "operation_mode_factor": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Operation Mode Factor",
+            "description": "Factor with which the operation mode should be applied (0 to 1)."
+          },
+          "resource_id": {
+            "type": "string",
+            "title": "Resource Id",
+            "description": "Get the resource identifier component from the instruction's `id`.\n\nAssumes the `id` follows the format `{resource_id}@{UUID}`. Extracts the resource_id part\nof the id by splitting at the last @.\n\nReturns:\n    str: The resource identifier prefix of `id`, or an empty string if `id` is None.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_time",
+          "actuator_id",
+          "operation_mode_id",
+          "operation_mode_factor",
+          "resource_id"
+        ],
+        "title": "DDBCInstruction",
+        "description": "Instruction for Demand Driven Based Control (DDBC).\n\nContains information about when and how to activate a specific operation mode\nfor an actuator. Used to command resources to change their operation at a specified time."
+      },
+      "DevicesCommonSettings-Input": {
         "properties": {
           "batteries": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/BaseBatteryParameters"
+                  "$ref": "#/components/schemas/BatteriesCommonSettings-Input"
                 },
                 "type": "array"
               },
@@ -2081,7 +2580,7 @@
               }
             ],
             "title": "Batteries",
-            "description": "List of battery/ev devices",
+            "description": "List of battery devices",
             "examples": [
               [
                 {
@@ -2091,11 +2590,68 @@
               ]
             ]
           },
+          "max_batteries": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Batteries",
+            "description": "Maximum number of batteries that can be set",
+            "examples": [
+              1,
+              2
+            ]
+          },
+          "electric_vehicles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BatteriesCommonSettings-Input"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electric Vehicles",
+            "description": "List of electric vehicle devices",
+            "examples": [
+              [
+                {
+                  "capacity_wh": 8000,
+                  "device_id": "battery1"
+                }
+              ]
+            ]
+          },
+          "max_electric_vehicles": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Electric Vehicles",
+            "description": "Maximum number of electric vehicles that can be set",
+            "examples": [
+              1,
+              2
+            ]
+          },
           "inverters": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/InverterParameters"
+                  "$ref": "#/components/schemas/InverterCommonSettings-Input"
                 },
                 "type": "array"
               },
@@ -2109,11 +2665,28 @@
               []
             ]
           },
+          "max_inverters": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Inverters",
+            "description": "Maximum number of inverters that can be set",
+            "examples": [
+              1,
+              2
+            ]
+          },
           "home_appliances": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/HomeApplianceParameters"
+                  "$ref": "#/components/schemas/HomeApplianceCommonSettings-Input"
                 },
                 "type": "array"
               },
@@ -2126,13 +2699,227 @@
             "examples": [
               []
             ]
+          },
+          "max_home_appliances": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Home Appliances",
+            "description": "Maximum number of home_appliances that can be set",
+            "examples": [
+              1,
+              2
+            ]
           }
         },
         "type": "object",
         "title": "DevicesCommonSettings",
         "description": "Base configuration for devices simulation settings."
       },
-      "ElecPriceCommonSettings": {
+      "DevicesCommonSettings-Output": {
+        "properties": {
+          "batteries": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BatteriesCommonSettings-Output"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batteries",
+            "description": "List of battery devices",
+            "examples": [
+              [
+                {
+                  "capacity_wh": 8000,
+                  "device_id": "battery1"
+                }
+              ]
+            ]
+          },
+          "max_batteries": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Batteries",
+            "description": "Maximum number of batteries that can be set",
+            "examples": [
+              1,
+              2
+            ]
+          },
+          "electric_vehicles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BatteriesCommonSettings-Output"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electric Vehicles",
+            "description": "List of electric vehicle devices",
+            "examples": [
+              [
+                {
+                  "capacity_wh": 8000,
+                  "device_id": "battery1"
+                }
+              ]
+            ]
+          },
+          "max_electric_vehicles": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Electric Vehicles",
+            "description": "Maximum number of electric vehicles that can be set",
+            "examples": [
+              1,
+              2
+            ]
+          },
+          "inverters": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/InverterCommonSettings-Output"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inverters",
+            "description": "List of inverters",
+            "examples": [
+              []
+            ]
+          },
+          "max_inverters": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Inverters",
+            "description": "Maximum number of inverters that can be set",
+            "examples": [
+              1,
+              2
+            ]
+          },
+          "home_appliances": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HomeApplianceCommonSettings-Output"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Appliances",
+            "description": "List of home appliances",
+            "examples": [
+              []
+            ]
+          },
+          "max_home_appliances": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Home Appliances",
+            "description": "Maximum number of home_appliances that can be set",
+            "examples": [
+              1,
+              2
+            ]
+          },
+          "measurement_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Keys",
+            "description": "Return the measurement keys for the resource/ device stati that are measurements.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "measurement_keys"
+        ],
+        "title": "DevicesCommonSettings",
+        "description": "Base configuration for devices simulation settings."
+      },
+      "ElecPriceCommonProviderSettings": {
+        "properties": {
+          "ElecPriceImport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ElecPriceImportCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ElecPriceImport settings",
+            "examples": [
+              null
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecPriceCommonProviderSettings",
+        "description": "Electricity Price Prediction Provider Configuration."
+      },
+      "ElecPriceCommonSettings-Input": {
         "properties": {
           "provider": {
             "anyOf": [
@@ -2160,7 +2947,7 @@
               }
             ],
             "title": "Charges Kwh",
-            "description": "Electricity price charges (\u20ac/kWh).",
+            "description": "Electricity price charges [\u20ac/kWh]. Will be added to variable market price.",
             "examples": [
               0.21
             ]
@@ -2183,17 +2970,72 @@
             ]
           },
           "provider_settings": {
+            "$ref": "#/components/schemas/ElecPriceCommonProviderSettings",
+            "description": "Provider settings",
+            "examples": [
+              {}
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecPriceCommonSettings",
+        "description": "Electricity Price Prediction Configuration."
+      },
+      "ElecPriceCommonSettings-Output": {
+        "properties": {
+          "provider": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ElecPriceImportCommonSettings"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
+            "title": "Provider",
+            "description": "Electricity price provider id of provider to be used.",
+            "examples": [
+              "ElecPriceAkkudoktor"
+            ]
+          },
+          "charges_kwh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charges Kwh",
+            "description": "Electricity price charges [\u20ac/kWh]. Will be added to variable market price.",
+            "examples": [
+              0.21
+            ]
+          },
+          "vat_rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vat Rate",
+            "description": "VAT rate factor applied to electricity price when charges are used.",
+            "default": 1.19,
+            "examples": [
+              1.19
+            ]
+          },
+          "provider_settings": {
+            "$ref": "#/components/schemas/ElecPriceCommonProviderSettings",
             "description": "Provider settings",
             "examples": [
-              null
+              {}
             ]
           }
         },
@@ -2454,69 +3296,632 @@
             "examples": [
               "300"
             ]
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnergyManagementMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Energy management mode [OPTIMIZATION | PREDICTION].",
+            "examples": [
+              "OPTIMIZATION",
+              "PREDICTION"
+            ]
           }
         },
         "type": "object",
         "title": "EnergyManagementCommonSettings",
         "description": "Energy Management Configuration."
       },
-      "EnergyManagementParameters": {
+      "EnergyManagementMode": {
+        "type": "string",
+        "enum": [
+          "PREDICTION",
+          "OPTIMIZATION"
+        ],
+        "title": "EnergyManagementMode",
+        "description": "Energy management mode."
+      },
+      "EnergyManagementPlan": {
         "properties": {
-          "pv_prognose_wh": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Pv Prognose Wh",
-            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique ID for the energy management plan."
           },
-          "strompreis_euro_pro_wh": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Strompreis Euro Pro Wh",
-            "description": "An array of floats representing the electricity price in euros per watt-hour for different time intervals."
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At",
+            "description": "Timestamp when the plan was generated."
           },
-          "einspeiseverguetung_euro_pro_wh": {
+          "valid_from": {
             "anyOf": [
               {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
+                "type": "string",
+                "format": "date-time"
               },
               {
-                "type": "number"
+                "type": "null"
               }
             ],
-            "title": "Einspeiseverguetung Euro Pro Wh",
-            "description": "A float or array of floats representing the feed-in compensation in euros per watt-hour."
+            "title": "Valid From",
+            "description": "Earliest start time of any instruction."
           },
-          "preis_euro_pro_wh_akku": {
-            "type": "number",
-            "title": "Preis Euro Pro Wh Akku",
-            "description": "A float representing the cost of battery energy per watt-hour."
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until",
+            "description": "Latest end time across all instructions with finite duration; None if all instructions have infinite duration."
           },
-          "gesamtlast": {
+          "instructions": {
             "items": {
-              "type": "number"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/PEBCInstruction"
+                },
+                {
+                  "$ref": "#/components/schemas/PPBCScheduleInstruction"
+                },
+                {
+                  "$ref": "#/components/schemas/PPBCStartInterruptionInstruction"
+                },
+                {
+                  "$ref": "#/components/schemas/PPBCEndInterruptionInstruction"
+                },
+                {
+                  "$ref": "#/components/schemas/OMBCInstruction"
+                },
+                {
+                  "$ref": "#/components/schemas/FRBCInstruction"
+                },
+                {
+                  "$ref": "#/components/schemas/DDBCInstruction"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "DDBCInstruction": "#/components/schemas/DDBCInstruction",
+                  "FRBCInstruction": "#/components/schemas/FRBCInstruction",
+                  "OMBCInstruction": "#/components/schemas/OMBCInstruction",
+                  "PEBCInstruction": "#/components/schemas/PEBCInstruction",
+                  "PPBCEndInterruptionInstruction": "#/components/schemas/PPBCEndInterruptionInstruction",
+                  "PPBCScheduleInstruction": "#/components/schemas/PPBCScheduleInstruction",
+                  "PPBCStartInterruptionInstruction": "#/components/schemas/PPBCStartInterruptionInstruction"
+                }
+              }
             },
             "type": "array",
-            "title": "Gesamtlast",
-            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
+            "title": "Instructions",
+            "description": "List of control instructions for the plan."
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment",
+            "description": "Optional comment or annotation for the plan."
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
-          "pv_prognose_wh",
-          "strompreis_euro_pro_wh",
-          "einspeiseverguetung_euro_pro_wh",
-          "preis_euro_pro_wh_akku",
-          "gesamtlast"
+          "id",
+          "generated_at",
+          "instructions"
         ],
-        "title": "EnergyManagementParameters"
+        "title": "EnergyManagementPlan",
+        "description": "A coordinated energy management plan composed of device control instructions.\n\nAttributes:\n    plan_id (ID): Unique identifier for this energy management plan.\n    generated_at (DateTime): Timestamp when the plan was generated.\n    valid_from (Optional[DateTime]): Earliest start time of any instruction.\n    valid_until (Optional[DateTime]): Latest end time across all instructions\n        with finite duration; None if all instructions have infinite duration.\n    instructions (list[BaseInstruction]): List of control instructions for the plan.\n    comment (Optional[str]): Optional comment or annotation for the plan."
+      },
+      "EnergyMeasurement-Input": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "EnergyMeasurement",
+            "title": "Type",
+            "default": "EnergyMeasurement"
+          },
+          "measurement_timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Measurement Timestamp",
+            "description": "Timestamp when energy values were measured."
+          },
+          "last_reset": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reset",
+            "description": "Timestamp when the energy meter's cumulative counter was last reset."
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/PowerValue"
+            },
+            "type": "array",
+            "title": "Values",
+            "description": "Array of measured energy values. Shall contain at least one item and at most one item per 'commodity_quantity' (defined inside the PowerValue)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "measurement_timestamp",
+          "values"
+        ],
+        "title": "EnergyMeasurement",
+        "description": "Captures a set of energy meter readouts taken at a specific point in time.\n\nEnergy is defined as the cummulative power per hour as provided by an energy meter.\n\nThis model records multiple energy values (for different commodity quantities)\nalong with the timestamp when the meter readouts were taken, enabling time-series\nanalysis and monitoring of energy consumption or production.\n\nNote: This is an extension to the S2 standard."
+      },
+      "EnergyMeasurement-Output": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "EnergyMeasurement",
+            "title": "Type",
+            "default": "EnergyMeasurement"
+          },
+          "measurement_timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Measurement Timestamp",
+            "description": "Timestamp when energy values were measured."
+          },
+          "last_reset": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reset",
+            "description": "Timestamp when the energy meter's cumulative counter was last reset."
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/PowerValue"
+            },
+            "type": "array",
+            "title": "Values",
+            "description": "Array of measured energy values. Shall contain at least one item and at most one item per 'commodity_quantity' (defined inside the PowerValue)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "measurement_timestamp",
+          "values"
+        ],
+        "title": "EnergyMeasurement",
+        "description": "Captures a set of energy meter readouts taken at a specific point in time.\n\nEnergy is defined as the cummulative power per hour as provided by an energy meter.\n\nThis model records multiple energy values (for different commodity quantities)\nalong with the timestamp when the meter readouts were taken, enabling time-series\nanalysis and monitoring of energy consumption or production.\n\nNote: This is an extension to the S2 standard."
+      },
+      "FRBCActuatorStatus": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "FRBCActuatorStatus",
+            "title": "Type",
+            "default": "FRBCActuatorStatus"
+          },
+          "active_operation_mode_id": {
+            "type": "string",
+            "title": "Active Operation Mode Id",
+            "description": "Currently active operation mode ID."
+          },
+          "operation_mode_factor": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Operation Mode Factor",
+            "description": "Factor with which the mode is configured (0 to 1)."
+          },
+          "previous_operation_mode_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Operation Mode Id",
+            "description": "Previously active operation mode ID."
+          },
+          "transition_timestamp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transition Timestamp",
+            "description": "Timestamp of the last transition between modes."
+          }
+        },
+        "type": "object",
+        "required": [
+          "active_operation_mode_id",
+          "operation_mode_factor"
+        ],
+        "title": "FRBCActuatorStatus",
+        "description": "Current status of an FRBC Actuator.\n\nProvides information about the currently active operation mode and transition history.\nUsed to track the current state of the actuator."
+      },
+      "FRBCEnergyStatus-Input": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "FRBCEnergyStatus",
+            "title": "Type",
+            "default": "FRBCEnergyStatus"
+          },
+          "import_total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnergyMeasurement-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total cumulative imported energy from the energy meter start."
+          },
+          "export_total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnergyMeasurement-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total cumulative exported energy from the energy meter start."
+          }
+        },
+        "type": "object",
+        "title": "FRBCEnergyStatus",
+        "description": "Energy status of an FRBC storage.\n\nNote: This is an extension to the S2 standard."
+      },
+      "FRBCEnergyStatus-Output": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "FRBCEnergyStatus",
+            "title": "Type",
+            "default": "FRBCEnergyStatus"
+          },
+          "import_total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnergyMeasurement-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total cumulative imported energy from the energy meter start."
+          },
+          "export_total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnergyMeasurement-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total cumulative exported energy from the energy meter start."
+          }
+        },
+        "type": "object",
+        "title": "FRBCEnergyStatus",
+        "description": "Energy status of an FRBC storage.\n\nNote: This is an extension to the S2 standard."
+      },
+      "FRBCInstruction": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Unique identifier of the instruction in the ResourceManager scope. If not provided and a `resource_id` is passed at instantiation, this will be auto-generated as `{resource_id}@{UUID}`."
+          },
+          "execution_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Execution Time",
+            "description": "Start time of the instruction execution."
+          },
+          "abnormal_condition": {
+            "type": "boolean",
+            "title": "Abnormal Condition",
+            "description": "Indicates if this is an instruction for abnormal conditions. Defaults to False.",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "FRBCInstruction",
+            "title": "Type",
+            "default": "FRBCInstruction"
+          },
+          "actuator_id": {
+            "type": "string",
+            "title": "Actuator Id",
+            "description": "ID of the actuator this instruction belongs to."
+          },
+          "operation_mode_id": {
+            "type": "string",
+            "title": "Operation Mode Id",
+            "description": "ID of the operation mode to activate."
+          },
+          "operation_mode_factor": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Operation Mode Factor",
+            "description": "Factor for the operation mode configuration (0 to 1)."
+          },
+          "resource_id": {
+            "type": "string",
+            "title": "Resource Id",
+            "description": "Get the resource identifier component from the instruction's `id`.\n\nAssumes the `id` follows the format `{resource_id}@{UUID}`. Extracts the resource_id part\nof the id by splitting at the last @.\n\nReturns:\n    str: The resource identifier prefix of `id`, or an empty string if `id` is None.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_time",
+          "actuator_id",
+          "operation_mode_id",
+          "operation_mode_factor",
+          "resource_id"
+        ],
+        "title": "FRBCInstruction",
+        "description": "Instruction for Fill Rate Based Control (FRBC).\n\nContains information about when and how to activate a specific operation mode\nfor an actuator. Used to command resources to change their operation at a specified time."
+      },
+      "FRBCStorageStatus": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "FRBCStorageStatus",
+            "title": "Type",
+            "default": "FRBCStorageStatus"
+          },
+          "present_fill_level": {
+            "type": "number",
+            "title": "Present Fill Level",
+            "description": "Current fill level of the storage."
+          }
+        },
+        "type": "object",
+        "required": [
+          "present_fill_level"
+        ],
+        "title": "FRBCStorageStatus",
+        "description": "Current status of an FRBC Storage.\n\nIndicates the current fill level of the storage, which is essential\nfor determining applicable operation modes and control decisions."
+      },
+      "FRBCTimerStatus": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "FRBCTimerStatus",
+            "title": "Type",
+            "default": "FRBCTimerStatus"
+          },
+          "actuator_id": {
+            "type": "string",
+            "title": "Actuator Id",
+            "description": "ID of the actuator the timer belongs to."
+          },
+          "timer_id": {
+            "type": "string",
+            "title": "Timer Id",
+            "description": "ID of the timer this status refers to."
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Finished At",
+            "description": "Indicates when the Timer will be finished. If the DateTime is in the future, the timer is not yet finished. If the DateTime is in the past, the timer is finished. If the timer was never started, the value can be an arbitrary DateTimeStamp in the past."
+          }
+        },
+        "type": "object",
+        "required": [
+          "actuator_id",
+          "timer_id",
+          "finished_at"
+        ],
+        "title": "FRBCTimerStatus",
+        "description": "Current status of an FRBC Timer.\n\nIndicates when the Timer will be finished."
+      },
+      "FeedInTariffCommonProviderSettings": {
+        "properties": {
+          "FeedInTariffFixed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedInTariffFixedCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "FeedInTariffFixed settings",
+            "examples": [
+              null
+            ]
+          },
+          "FeedInTariffImport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedInTariffImportCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "FeedInTariffImport settings",
+            "examples": [
+              null
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffCommonProviderSettings",
+        "description": "Feed In Tariff Prediction Provider Configuration."
+      },
+      "FeedInTariffCommonSettings-Input": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "Feed in tariff provider id of provider to be used.",
+            "examples": [
+              "FeedInTariffFixed",
+              "FeedInTarifImport"
+            ]
+          },
+          "provider_settings": {
+            "$ref": "#/components/schemas/FeedInTariffCommonProviderSettings",
+            "description": "Provider settings",
+            "examples": [
+              {}
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffCommonSettings",
+        "description": "Feed In Tariff Prediction Configuration."
+      },
+      "FeedInTariffCommonSettings-Output": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "Feed in tariff provider id of provider to be used.",
+            "examples": [
+              "FeedInTariffFixed",
+              "FeedInTarifImport"
+            ]
+          },
+          "provider_settings": {
+            "$ref": "#/components/schemas/FeedInTariffCommonProviderSettings",
+            "description": "Provider settings",
+            "examples": [
+              {}
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffCommonSettings",
+        "description": "Feed In Tariff Prediction Configuration."
+      },
+      "FeedInTariffFixedCommonSettings": {
+        "properties": {
+          "feed_in_tariff_kwh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feed In Tariff Kwh",
+            "description": "Electricity price feed in tariff [\u20ac/kWH].",
+            "examples": [
+              0.078
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffFixedCommonSettings",
+        "description": "Common settings for elecprice fixed price."
+      },
+      "FeedInTariffImportCommonSettings": {
+        "properties": {
+          "import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import File Path",
+            "description": "Path to the file to import feed in tariff data from.",
+            "examples": [
+              null,
+              "/path/to/feedintariff.json"
+            ]
+          },
+          "import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Json",
+            "description": "JSON string, dictionary of feed in tariff forecast value lists.",
+            "examples": [
+              "{\"fead_in_tariff_wh\": [0.000078, 0.000078, 0.000023]}"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffImportCommonSettings",
+        "description": "Common settings for feed in tariff data import from file or JSON string."
       },
       "ForecastResponse": {
         "properties": {
@@ -2551,6 +3956,12 @@
       },
       "GeneralSettings-Input": {
         "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Configuration file version. Used to check compatibility.",
+            "default": "0.1.0+dev"
+          },
           "data_folder_path": {
             "anyOf": [
               {
@@ -2619,6 +4030,12 @@
       },
       "GeneralSettings-Output": {
         "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Configuration file version. Used to check compatibility.",
+            "default": "0.1.0+dev"
+          },
           "data_folder_path": {
             "anyOf": [
               {
@@ -2746,514 +4163,43 @@
         "title": "GeneralSettings",
         "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude."
       },
-      "GesamtlastRequest": {
+      "GeneticCommonSettings": {
         "properties": {
-          "year_energy": {
-            "type": "number",
-            "title": "Year Energy"
-          },
-          "measured_data": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Measured Data"
-          },
-          "hours": {
-            "type": "integer",
-            "title": "Hours"
-          }
-        },
-        "type": "object",
-        "required": [
-          "year_energy",
-          "measured_data",
-          "hours"
-        ],
-        "title": "GesamtlastRequest"
-      },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
-      },
-      "HomeApplianceParameters": {
-        "properties": {
-          "device_id": {
-            "type": "string",
-            "title": "Device Id",
-            "description": "ID of home appliance",
-            "examples": [
-              "dishwasher"
-            ]
-          },
-          "hours": {
+          "individuals": {
             "anyOf": [
               {
                 "type": "integer",
-                "exclusiveMinimum": 0.0
+                "minimum": 10.0
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "title": "Individuals",
+            "description": "Number of individuals (solutions) to generate for the (initial) generation [>= 10]. Defaults to 300.",
+            "default": 300,
             "examples": [
-              null
+              300
             ]
           },
-          "consumption_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Consumption Wh",
-            "description": "An integer representing the energy consumption of a household device in watt-hours.",
-            "examples": [
-              2000
-            ]
-          },
-          "duration_h": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Duration H",
-            "description": "An integer representing the usage duration of a household device in hours.",
-            "examples": [
-              3
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "device_id",
-          "consumption_wh",
-          "duration_h"
-        ],
-        "title": "HomeApplianceParameters",
-        "description": "Home Appliance Device Simulation Configuration."
-      },
-      "InverterParameters": {
-        "properties": {
-          "device_id": {
-            "type": "string",
-            "title": "Device Id",
-            "description": "ID of inverter",
-            "examples": [
-              "inverter1"
-            ]
-          },
-          "hours": {
+          "generations": {
             "anyOf": [
               {
                 "type": "integer",
-                "exclusiveMinimum": 0.0
+                "minimum": 10.0
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "title": "Generations",
+            "description": "Number of generations to evaluate the optimal solution [>= 10]. Defaults to 400.",
+            "default": 400,
             "examples": [
-              null
+              400
             ]
           },
-          "max_power_wh": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Max Power Wh",
-            "examples": [
-              10000
-            ]
-          },
-          "battery_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Battery Id",
-            "description": "ID of battery",
-            "examples": [
-              null,
-              "battery1"
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "device_id",
-          "max_power_wh"
-        ],
-        "title": "InverterParameters",
-        "description": "Inverter Device Simulation Configuration."
-      },
-      "LoadAkkudoktorCommonSettings": {
-        "properties": {
-          "loadakkudoktor_year_energy": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Loadakkudoktor Year Energy",
-            "description": "Yearly energy consumption (kWh).",
-            "examples": [
-              40421
-            ]
-          }
-        },
-        "type": "object",
-        "title": "LoadAkkudoktorCommonSettings",
-        "description": "Common settings for load data import from file."
-      },
-      "LoadCommonSettings": {
-        "properties": {
-          "provider": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Provider",
-            "description": "Load provider id of provider to be used.",
-            "examples": [
-              "LoadAkkudoktor"
-            ]
-          },
-          "provider_settings": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LoadAkkudoktorCommonSettings"
-              },
-              {
-                "$ref": "#/components/schemas/LoadVrmCommonSettings"
-              },
-              {
-                "$ref": "#/components/schemas/LoadImportCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Provider Settings",
-            "description": "Provider settings",
-            "examples": [
-              null
-            ]
-          }
-        },
-        "type": "object",
-        "title": "LoadCommonSettings",
-        "description": "Load Prediction Configuration."
-      },
-      "LoadImportCommonSettings": {
-        "properties": {
-          "import_file_path": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "string",
-                "format": "path"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Import File Path",
-            "description": "Path to the file to import load data from.",
-            "examples": [
-              null,
-              "/path/to/yearly_load.json"
-            ]
-          },
-          "import_json": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Import Json",
-            "description": "JSON string, dictionary of load forecast value lists.",
-            "examples": [
-              "{\"load0_mean\": [676.71, 876.19, 527.13]}"
-            ]
-          }
-        },
-        "type": "object",
-        "title": "LoadImportCommonSettings",
-        "description": "Common settings for load data import from file or JSON string."
-      },
-      "LoadVrmCommonSettings": {
-        "properties": {
-          "load_vrm_token": {
-            "type": "string",
-            "title": "Load Vrm Token",
-            "description": "Token for Connecting VRM API",
-            "default": "your-token",
-            "examples": [
-              "your-token"
-            ]
-          },
-          "load_vrm_idsite": {
-            "type": "integer",
-            "title": "Load Vrm Idsite",
-            "description": "VRM-Installation-ID",
-            "default": 12345,
-            "examples": [
-              12345
-            ]
-          }
-        },
-        "type": "object",
-        "title": "LoadVrmCommonSettings",
-        "description": "Common settings for VRM API."
-      },
-      "LoggingCommonSettings-Input": {
-        "properties": {
-          "level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Level",
-            "deprecated": true
-          },
-          "console_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Console Level",
-            "description": "Logging level when logging to console.",
-            "examples": [
-              "TRACE",
-              "DEBUG",
-              "INFO",
-              "WARNING",
-              "ERROR",
-              "CRITICAL"
-            ]
-          },
-          "file_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "File Level",
-            "description": "Logging level when logging to file.",
-            "examples": [
-              "TRACE",
-              "DEBUG",
-              "INFO",
-              "WARNING",
-              "ERROR",
-              "CRITICAL"
-            ]
-          }
-        },
-        "type": "object",
-        "title": "LoggingCommonSettings",
-        "description": "Logging Configuration."
-      },
-      "LoggingCommonSettings-Output": {
-        "properties": {
-          "level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Level",
-            "deprecated": true
-          },
-          "console_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Console Level",
-            "description": "Logging level when logging to console.",
-            "examples": [
-              "TRACE",
-              "DEBUG",
-              "INFO",
-              "WARNING",
-              "ERROR",
-              "CRITICAL"
-            ]
-          },
-          "file_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "File Level",
-            "description": "Logging level when logging to file.",
-            "examples": [
-              "TRACE",
-              "DEBUG",
-              "INFO",
-              "WARNING",
-              "ERROR",
-              "CRITICAL"
-            ]
-          },
-          "file_path": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "path"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "File Path",
-            "description": "Computed log file path based on data output path.",
-            "readOnly": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "file_path"
-        ],
-        "title": "LoggingCommonSettings",
-        "description": "Logging Configuration."
-      },
-      "MeasurementCommonSettings": {
-        "properties": {
-          "load0_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load0 Name",
-            "description": "Name of the load0 source",
-            "examples": [
-              "Household",
-              "Heat Pump"
-            ]
-          },
-          "load1_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load1 Name",
-            "description": "Name of the load1 source",
-            "examples": [
-              null
-            ]
-          },
-          "load2_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load2 Name",
-            "description": "Name of the load2 source",
-            "examples": [
-              null
-            ]
-          },
-          "load3_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load3 Name",
-            "description": "Name of the load3 source",
-            "examples": [
-              null
-            ]
-          },
-          "load4_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Load4 Name",
-            "description": "Name of the load4 source",
-            "examples": [
-              null
-            ]
-          }
-        },
-        "type": "object",
-        "title": "MeasurementCommonSettings",
-        "description": "Measurement Configuration."
-      },
-      "OptimizationCommonSettings": {
-        "properties": {
-          "hours": {
+          "seed": {
             "anyOf": [
               {
                 "type": "integer",
@@ -3263,24 +4209,66 @@
                 "type": "null"
               }
             ],
-            "title": "Hours",
-            "description": "Number of hours into the future for optimizations.",
-            "default": 48
+            "title": "Seed",
+            "description": "Fixed seed for genetic algorithm. Defaults to 'None' which means random seed.",
+            "examples": [
+              null
+            ]
           },
-          "penalty": {
+          "penalties": {
             "anyOf": [
               {
-                "type": "integer"
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "type": "object"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Penalty",
-            "description": "Penalty factor used in optimization.",
-            "default": 10
+            "title": "Penalties",
+            "description": "A dictionary of penalty function parameters consisting of a penalty function parameter name and the associated value.",
+            "examples": [
+              {
+                "ev_soc_miss": 10
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "GeneticCommonSettings",
+        "description": "General Genetic Optimization Algorithm Configuration."
+      },
+      "GeneticEnergyManagementParameters": {
+        "properties": {
+          "pv_prognose_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pv Prognose Wh",
+            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
           },
-          "ev_available_charge_rates_percent": {
+          "strompreis_euro_pro_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Strompreis Euro Pro Wh",
+            "description": "An array of floats representing the electricity price in euros per watt-hour for different time intervals."
+          },
+          "einspeiseverguetung_euro_pro_wh": {
             "anyOf": [
               {
                 "items": {
@@ -3289,30 +4277,42 @@
                 "type": "array"
               },
               {
-                "type": "null"
+                "type": "number"
               }
             ],
-            "title": "Ev Available Charge Rates Percent",
-            "description": "Charge rates available for the EV in percent of maximum charge.",
-            "default": [
-              0.0,
-              0.375,
-              0.5,
-              0.625,
-              0.75,
-              0.875,
-              1.0
-            ]
+            "title": "Einspeiseverguetung Euro Pro Wh",
+            "description": "A float or array of floats representing the feed-in compensation in euros per watt-hour."
+          },
+          "preis_euro_pro_wh_akku": {
+            "type": "number",
+            "title": "Preis Euro Pro Wh Akku",
+            "description": "A float representing the cost of battery energy per watt-hour."
+          },
+          "gesamtlast": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Gesamtlast",
+            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
           }
         },
+        "additionalProperties": false,
         "type": "object",
-        "title": "OptimizationCommonSettings",
-        "description": "General Optimization Configuration.\n\nAttributes:\n    hours (int): Number of hours for optimizations."
+        "required": [
+          "pv_prognose_wh",
+          "strompreis_euro_pro_wh",
+          "einspeiseverguetung_euro_pro_wh",
+          "preis_euro_pro_wh_akku",
+          "gesamtlast"
+        ],
+        "title": "GeneticEnergyManagementParameters",
+        "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
       },
-      "OptimizationParameters": {
+      "GeneticOptimizationParameters": {
         "properties": {
           "ems": {
-            "$ref": "#/components/schemas/EnergyManagementParameters"
+            "$ref": "#/components/schemas/GeneticEnergyManagementParameters"
           },
           "pv_akku": {
             "anyOf": [
@@ -3400,9 +4400,141 @@
           "inverter",
           "eauto"
         ],
-        "title": "OptimizationParameters"
+        "title": "GeneticOptimizationParameters",
+        "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
       },
-      "OptimizeResponse": {
+      "GeneticSimulationResult": {
+        "properties": {
+          "Last_Wh_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Last Wh Pro Stunde",
+            "description": "TBD"
+          },
+          "EAuto_SoC_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Eauto Soc Pro Stunde",
+            "description": "The state of charge of the EV for each hour."
+          },
+          "Einnahmen_Euro_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Einnahmen Euro Pro Stunde",
+            "description": "The revenue from grid feed-in or other sources in euros per hour."
+          },
+          "Gesamt_Verluste": {
+            "type": "number",
+            "title": "Gesamt Verluste",
+            "description": "The total losses in watt-hours over the entire period."
+          },
+          "Gesamtbilanz_Euro": {
+            "type": "number",
+            "title": "Gesamtbilanz Euro",
+            "description": "The total balance of revenues minus costs in euros."
+          },
+          "Gesamteinnahmen_Euro": {
+            "type": "number",
+            "title": "Gesamteinnahmen Euro",
+            "description": "The total revenues in euros."
+          },
+          "Gesamtkosten_Euro": {
+            "type": "number",
+            "title": "Gesamtkosten Euro",
+            "description": "The total costs in euros."
+          },
+          "Home_appliance_wh_per_hour": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Home Appliance Wh Per Hour",
+            "description": "The energy consumption of a household appliance in watt-hours per hour."
+          },
+          "Kosten_Euro_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Kosten Euro Pro Stunde",
+            "description": "The costs in euros per hour."
+          },
+          "Netzbezug_Wh_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Netzbezug Wh Pro Stunde",
+            "description": "The grid energy drawn in watt-hours per hour."
+          },
+          "Netzeinspeisung_Wh_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Netzeinspeisung Wh Pro Stunde",
+            "description": "The energy fed into the grid in watt-hours per hour."
+          },
+          "Verluste_Pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Verluste Pro Stunde",
+            "description": "The losses in watt-hours per hour."
+          },
+          "akku_soc_pro_stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Akku Soc Pro Stunde",
+            "description": "The state of charge of the battery (not the EV) in percentage per hour."
+          },
+          "Electricity_price": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Electricity Price",
+            "description": "Used Electricity Price, including predictions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "Last_Wh_pro_Stunde",
+          "EAuto_SoC_pro_Stunde",
+          "Einnahmen_Euro_pro_Stunde",
+          "Gesamt_Verluste",
+          "Gesamtbilanz_Euro",
+          "Gesamteinnahmen_Euro",
+          "Gesamtkosten_Euro",
+          "Home_appliance_wh_per_hour",
+          "Kosten_Euro_pro_Stunde",
+          "Netzbezug_Wh_pro_Stunde",
+          "Netzeinspeisung_Wh_pro_Stunde",
+          "Verluste_Pro_Stunde",
+          "akku_soc_pro_stunde",
+          "Electricity_price"
+        ],
+        "title": "GeneticSimulationResult",
+        "description": "This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."
+      },
+      "GeneticSolution": {
         "properties": {
           "ac_charge": {
             "items": {
@@ -3410,7 +4542,7 @@
             },
             "type": "array",
             "title": "Ac Charge",
-            "description": "Array with AC charging values as relative power (0-1), other values set to 0."
+            "description": "Array with AC charging values as relative power (0.0-1.0), other values set to 0."
           },
           "dc_charge": {
             "items": {
@@ -3444,7 +4576,7 @@
             "description": "TBD"
           },
           "result": {
-            "$ref": "#/components/schemas/SimulationResult"
+            "$ref": "#/components/schemas/GeneticSimulationResult"
           },
           "eauto_obj": {
             "anyOf": [
@@ -3494,8 +4626,1662 @@
           "result",
           "eauto_obj"
         ],
-        "title": "OptimizeResponse",
+        "title": "GeneticSolution",
         "description": "**Note**: The first value of \"Last_Wh_per_hour\", \"Netzeinspeisung_Wh_per_hour\", and \"Netzbezug_Wh_per_hour\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
+      },
+      "GesamtlastRequest": {
+        "properties": {
+          "year_energy": {
+            "type": "number",
+            "title": "Year Energy"
+          },
+          "measured_data": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Measured Data"
+          },
+          "hours": {
+            "type": "integer",
+            "title": "Hours"
+          }
+        },
+        "type": "object",
+        "required": [
+          "year_energy",
+          "measured_data",
+          "hours"
+        ],
+        "title": "GesamtlastRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HomeApplianceCommonSettings-Input": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of device",
+            "default": "<unknown>",
+            "examples": [
+              "battery1",
+              "ev1",
+              "inverter1",
+              "dishwasher"
+            ]
+          },
+          "consumption_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Consumption Wh",
+            "description": "Energy consumption [Wh].",
+            "examples": [
+              2000
+            ]
+          },
+          "duration_h": {
+            "type": "integer",
+            "maximum": 24.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Duration H",
+            "description": "Usage duration in hours [0 ... 24].",
+            "examples": [
+              1
+            ]
+          },
+          "time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sequence of allowed time windows. Defaults to optimization general time window.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "2 hours",
+                    "start_time": "10:00"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "consumption_wh",
+          "duration_h"
+        ],
+        "title": "HomeApplianceCommonSettings",
+        "description": "Home Appliance devices base settings."
+      },
+      "HomeApplianceCommonSettings-Output": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of device",
+            "default": "<unknown>",
+            "examples": [
+              "battery1",
+              "ev1",
+              "inverter1",
+              "dishwasher"
+            ]
+          },
+          "consumption_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Consumption Wh",
+            "description": "Energy consumption [Wh].",
+            "examples": [
+              2000
+            ]
+          },
+          "duration_h": {
+            "type": "integer",
+            "maximum": 24.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Duration H",
+            "description": "Usage duration in hours [0 ... 24].",
+            "examples": [
+              1
+            ]
+          },
+          "time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sequence of allowed time windows. Defaults to optimization general time window.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "2 hours",
+                    "start_time": "10:00"
+                  }
+                ]
+              }
+            ]
+          },
+          "measurement_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Keys",
+            "description": "Measurement keys for the home appliance stati that are measurements.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "consumption_wh",
+          "duration_h",
+          "measurement_keys"
+        ],
+        "title": "HomeApplianceCommonSettings",
+        "description": "Home Appliance devices base settings."
+      },
+      "HomeApplianceParameters": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of home appliance",
+            "examples": [
+              "dishwasher"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "consumption_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Consumption Wh",
+            "description": "An integer representing the energy consumption of a household device in watt-hours.",
+            "examples": [
+              2000
+            ]
+          },
+          "duration_h": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Duration H",
+            "description": "An integer representing the usage duration of a household device in hours.",
+            "examples": [
+              3
+            ]
+          },
+          "time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "List of allowed time windows. Defaults to optimization general time window.",
+            "examples": [
+              [
+                {
+                  "duration": "2 hours",
+                  "start_time": "10:00"
+                }
+              ]
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "consumption_wh",
+          "duration_h"
+        ],
+        "title": "HomeApplianceParameters",
+        "description": "Home Appliance Device Simulation Configuration."
+      },
+      "InverterCommonSettings-Input": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of device",
+            "default": "<unknown>",
+            "examples": [
+              "battery1",
+              "ev1",
+              "inverter1",
+              "dishwasher"
+            ]
+          },
+          "max_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Power W",
+            "description": "Maximum power [W].",
+            "examples": [
+              10000
+            ]
+          },
+          "battery_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Id",
+            "description": "ID of battery controlled by this inverter.",
+            "examples": [
+              null,
+              "battery1"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "InverterCommonSettings",
+        "description": "Inverter devices base settings."
+      },
+      "InverterCommonSettings-Output": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of device",
+            "default": "<unknown>",
+            "examples": [
+              "battery1",
+              "ev1",
+              "inverter1",
+              "dishwasher"
+            ]
+          },
+          "max_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Power W",
+            "description": "Maximum power [W].",
+            "examples": [
+              10000
+            ]
+          },
+          "battery_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Id",
+            "description": "ID of battery controlled by this inverter.",
+            "examples": [
+              null,
+              "battery1"
+            ]
+          },
+          "measurement_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Keys",
+            "description": "Measurement keys for the inverter stati that are measurements.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "measurement_keys"
+        ],
+        "title": "InverterCommonSettings",
+        "description": "Inverter devices base settings."
+      },
+      "InverterParameters": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of inverter",
+            "examples": [
+              "inverter1"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "max_power_wh": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Power Wh",
+            "examples": [
+              10000
+            ]
+          },
+          "battery_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Id",
+            "description": "ID of battery",
+            "examples": [
+              null,
+              "battery1"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "max_power_wh"
+        ],
+        "title": "InverterParameters",
+        "description": "Inverter Device Simulation Configuration."
+      },
+      "LoadAkkudoktorCommonSettings": {
+        "properties": {
+          "loadakkudoktor_year_energy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loadakkudoktor Year Energy",
+            "description": "Yearly energy consumption (kWh).",
+            "examples": [
+              40421
+            ]
+          }
+        },
+        "type": "object",
+        "title": "LoadAkkudoktorCommonSettings",
+        "description": "Common settings for load data import from file."
+      },
+      "LoadCommonProviderSettings": {
+        "properties": {
+          "LoadAkkudoktor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoadAkkudoktorCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "LoadAkkudoktor settings",
+            "examples": [
+              null
+            ]
+          },
+          "LoadVrm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoadVrmCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "LoadVrm settings",
+            "examples": [
+              null
+            ]
+          },
+          "LoadImport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoadImportCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "LoadImport settings",
+            "examples": [
+              null
+            ]
+          }
+        },
+        "type": "object",
+        "title": "LoadCommonProviderSettings",
+        "description": "Load Prediction Provider Configuration."
+      },
+      "LoadCommonSettings-Input": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "Load provider id of provider to be used.",
+            "examples": [
+              "LoadAkkudoktor"
+            ]
+          },
+          "provider_settings": {
+            "$ref": "#/components/schemas/LoadCommonProviderSettings",
+            "description": "Provider settings",
+            "examples": [
+              {}
+            ]
+          }
+        },
+        "type": "object",
+        "title": "LoadCommonSettings",
+        "description": "Load Prediction Configuration."
+      },
+      "LoadCommonSettings-Output": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "Load provider id of provider to be used.",
+            "examples": [
+              "LoadAkkudoktor"
+            ]
+          },
+          "provider_settings": {
+            "$ref": "#/components/schemas/LoadCommonProviderSettings",
+            "description": "Provider settings",
+            "examples": [
+              {}
+            ]
+          }
+        },
+        "type": "object",
+        "title": "LoadCommonSettings",
+        "description": "Load Prediction Configuration."
+      },
+      "LoadImportCommonSettings": {
+        "properties": {
+          "import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import File Path",
+            "description": "Path to the file to import load data from.",
+            "examples": [
+              null,
+              "/path/to/yearly_load.json"
+            ]
+          },
+          "import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Json",
+            "description": "JSON string, dictionary of load forecast value lists.",
+            "examples": [
+              "{\"load0_mean\": [676.71, 876.19, 527.13]}"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "LoadImportCommonSettings",
+        "description": "Common settings for load data import from file or JSON string."
+      },
+      "LoadVrmCommonSettings": {
+        "properties": {
+          "load_vrm_token": {
+            "type": "string",
+            "title": "Load Vrm Token",
+            "description": "Token for Connecting VRM API",
+            "default": "your-token",
+            "examples": [
+              "your-token"
+            ]
+          },
+          "load_vrm_idsite": {
+            "type": "integer",
+            "title": "Load Vrm Idsite",
+            "description": "VRM-Installation-ID",
+            "default": 12345,
+            "examples": [
+              12345
+            ]
+          }
+        },
+        "type": "object",
+        "title": "LoadVrmCommonSettings",
+        "description": "Common settings for VRM API."
+      },
+      "LoggingCommonSettings-Input": {
+        "properties": {
+          "console_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Console Level",
+            "description": "Logging level when logging to console.",
+            "examples": [
+              "TRACE",
+              "DEBUG",
+              "INFO",
+              "WARNING",
+              "ERROR",
+              "CRITICAL"
+            ]
+          },
+          "file_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Level",
+            "description": "Logging level when logging to file.",
+            "examples": [
+              "TRACE",
+              "DEBUG",
+              "INFO",
+              "WARNING",
+              "ERROR",
+              "CRITICAL"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "LoggingCommonSettings",
+        "description": "Logging Configuration."
+      },
+      "LoggingCommonSettings-Output": {
+        "properties": {
+          "console_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Console Level",
+            "description": "Logging level when logging to console.",
+            "examples": [
+              "TRACE",
+              "DEBUG",
+              "INFO",
+              "WARNING",
+              "ERROR",
+              "CRITICAL"
+            ]
+          },
+          "file_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Level",
+            "description": "Logging level when logging to file.",
+            "examples": [
+              "TRACE",
+              "DEBUG",
+              "INFO",
+              "WARNING",
+              "ERROR",
+              "CRITICAL"
+            ]
+          },
+          "file_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Path",
+            "description": "Computed log file path based on data output path.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_path"
+        ],
+        "title": "LoggingCommonSettings",
+        "description": "Logging Configuration."
+      },
+      "MeasurementCommonSettings-Input": {
+        "properties": {
+          "load_emr_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Emr Keys",
+            "description": "The keys of the measurements that are energy meter readings of a load [kWh].",
+            "examples": [
+              [
+                "load0_emr"
+              ]
+            ]
+          },
+          "grid_export_emr_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Emr Keys",
+            "description": "The keys of the measurements that are energy meter readings of energy export to grid [kWh].",
+            "examples": [
+              [
+                "grid_export_emr"
+              ]
+            ]
+          },
+          "grid_import_emr_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Import Emr Keys",
+            "description": "The keys of the measurements that are energy meter readings of energy import from grid [kWh].",
+            "examples": [
+              [
+                "grid_import_emr"
+              ]
+            ]
+          },
+          "pv_production_emr_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Production Emr Keys",
+            "description": "The keys of the measurements that are PV production energy meter readings [kWh].",
+            "examples": [
+              [
+                "pv1_emr"
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "title": "MeasurementCommonSettings",
+        "description": "Measurement Configuration."
+      },
+      "MeasurementCommonSettings-Output": {
+        "properties": {
+          "load_emr_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Emr Keys",
+            "description": "The keys of the measurements that are energy meter readings of a load [kWh].",
+            "examples": [
+              [
+                "load0_emr"
+              ]
+            ]
+          },
+          "grid_export_emr_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Emr Keys",
+            "description": "The keys of the measurements that are energy meter readings of energy export to grid [kWh].",
+            "examples": [
+              [
+                "grid_export_emr"
+              ]
+            ]
+          },
+          "grid_import_emr_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Import Emr Keys",
+            "description": "The keys of the measurements that are energy meter readings of energy import from grid [kWh].",
+            "examples": [
+              [
+                "grid_import_emr"
+              ]
+            ]
+          },
+          "pv_production_emr_keys": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Production Emr Keys",
+            "description": "The keys of the measurements that are PV production energy meter readings [kWh].",
+            "examples": [
+              [
+                "pv1_emr"
+              ]
+            ]
+          },
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keys",
+            "description": "The keys of the measurements that can be stored.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "keys"
+        ],
+        "title": "MeasurementCommonSettings",
+        "description": "Measurement Configuration."
+      },
+      "OMBCInstruction": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Unique identifier of the instruction in the ResourceManager scope. If not provided and a `resource_id` is passed at instantiation, this will be auto-generated as `{resource_id}@{UUID}`."
+          },
+          "execution_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Execution Time",
+            "description": "Start time of the instruction execution."
+          },
+          "abnormal_condition": {
+            "type": "boolean",
+            "title": "Abnormal Condition",
+            "description": "Indicates if this is an instruction for abnormal conditions. Defaults to False.",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "OMBCInstruction",
+            "title": "Type",
+            "default": "OMBCInstruction"
+          },
+          "operation_mode_id": {
+            "type": "string",
+            "title": "Operation Mode Id",
+            "description": "ID of the OMBC.OperationMode to activate."
+          },
+          "operation_mode_factor": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Operation Mode Factor",
+            "description": "Factor with which the operation mode is configured (0 to 1)."
+          },
+          "resource_id": {
+            "type": "string",
+            "title": "Resource Id",
+            "description": "Get the resource identifier component from the instruction's `id`.\n\nAssumes the `id` follows the format `{resource_id}@{UUID}`. Extracts the resource_id part\nof the id by splitting at the last @.\n\nReturns:\n    str: The resource identifier prefix of `id`, or an empty string if `id` is None.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_time",
+          "operation_mode_id",
+          "operation_mode_factor",
+          "resource_id"
+        ],
+        "title": "OMBCInstruction",
+        "description": "Instruction for Operation Mode Based Control (OMBC).\n\nContains information about when and how to activate a specific operation mode.\nUsed to command resources to change their operation at a specified time."
+      },
+      "OMBCStatus": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "OMBCStatus",
+            "title": "Type",
+            "default": "OMBCStatus"
+          },
+          "active_operation_mode_id": {
+            "type": "string",
+            "title": "Active Operation Mode Id",
+            "description": "ID of the currently active operation mode."
+          },
+          "operation_mode_factor": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Operation Mode Factor",
+            "description": "Factor with which the operation mode is configured (between 0 and 1)."
+          },
+          "previous_operation_mode_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Operation Mode Id",
+            "description": "ID of the previously active operation mode, if known."
+          },
+          "transition_timestamp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transition Timestamp",
+            "description": "Timestamp of transition to the active operation mode, if applicable."
+          }
+        },
+        "type": "object",
+        "required": [
+          "active_operation_mode_id",
+          "operation_mode_factor"
+        ],
+        "title": "OMBCStatus",
+        "description": "Reports the current operational status of an Operation Mode Based Control system.\n\nThis model provides real-time status information about an OMBC-controlled device,\nincluding which operation mode is currently active, how it is configured,\nand information about recent mode transitions. It enables monitoring of the\ndevice's operational state and tracking mode transition history."
+      },
+      "OptimizationCommonSettings": {
+        "properties": {
+          "horizon_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Hours",
+            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
+            ]
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3600.0,
+                "minimum": 900.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval",
+            "description": "The optimization interval [sec].",
+            "default": 3600,
+            "examples": [
+              3600,
+              900
+            ]
+          },
+          "genetic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeneticCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Genetic optimization algorithm configuration.",
+            "examples": [
+              {
+                "individuals": 400,
+                "penalties": {
+                  "ev_soc_miss": 10
+                }
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "OptimizationCommonSettings",
+        "description": "General Optimization Configuration."
+      },
+      "OptimizationSolution": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique ID for the optimization solution."
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At",
+            "description": "Timestamp when the solution was generated."
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment",
+            "description": "Optional comment or annotation for the solution."
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From",
+            "description": "Start time of the optimization solution."
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until",
+            "description": "End time of the optimization solution."
+          },
+          "total_losses_energy_wh": {
+            "type": "number",
+            "title": "Total Losses Energy Wh",
+            "description": "The total losses in watt-hours over the entire period."
+          },
+          "total_revenues_amt": {
+            "type": "number",
+            "title": "Total Revenues Amt",
+            "description": "The total revenues [money amount]."
+          },
+          "total_costs_amt": {
+            "type": "number",
+            "title": "Total Costs Amt",
+            "description": "The total costs [money amount]."
+          },
+          "data": {
+            "$ref": "#/components/schemas/PydanticDateTimeDataFrame",
+            "description": "Datetime data frame with time series optimization data per optimization interval:- load_energy_wh: Load of all energy consumers in wh- grid_energy_wh: Grid energy feed in (negative) or consumption (positive) in wh- pv_prediction_energy_wh: PV energy prediction (positive) in wh- elec_price_prediction_amt_kwh: Electricity price prediction in money per kwh- costs_amt: Costs in money amount- revenue_amt: Revenue in money amount- losses_energy_wh: Energy losses in wh- <device-id>_operation_mode_id: Operation mode id of the device.- <device-id>_operation_mode_factor: Operation mode factor of the device.- <device-id>_soc_factor: State of charge of a battery/ electric vehicle device as factor of total capacity.- <device-id>_energy_wh: Energy consumption (positive) of a device in wh."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "generated_at",
+          "total_losses_energy_wh",
+          "total_revenues_amt",
+          "total_costs_amt",
+          "data"
+        ],
+        "title": "OptimizationSolution",
+        "description": "General Optimization Solution."
+      },
+      "PEBCInstruction": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Unique identifier of the instruction in the ResourceManager scope. If not provided and a `resource_id` is passed at instantiation, this will be auto-generated as `{resource_id}@{UUID}`."
+          },
+          "execution_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Execution Time",
+            "description": "Start time of the instruction execution."
+          },
+          "abnormal_condition": {
+            "type": "boolean",
+            "title": "Abnormal Condition",
+            "description": "Indicates if this is an instruction for abnormal conditions. Defaults to False.",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "PEBCInstruction",
+            "title": "Type",
+            "default": "PEBCInstruction"
+          },
+          "power_constraints_id": {
+            "type": "string",
+            "title": "Power Constraints Id",
+            "description": "ID of the associated PEBC.PowerConstraints."
+          },
+          "power_envelopes": {
+            "items": {
+              "$ref": "#/components/schemas/PEBCPowerEnvelope"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Power Envelopes",
+            "description": "List of PowerEnvelopes to follow. One per CommodityQuantity, max one per type."
+          },
+          "resource_id": {
+            "type": "string",
+            "title": "Resource Id",
+            "description": "Get the resource identifier component from the instruction's `id`.\n\nAssumes the `id` follows the format `{resource_id}@{UUID}`. Extracts the resource_id part\nof the id by splitting at the last @.\n\nReturns:\n    str: The resource identifier prefix of `id`, or an empty string if `id` is None.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_time",
+          "power_constraints_id",
+          "power_envelopes",
+          "resource_id"
+        ],
+        "title": "PEBCInstruction",
+        "description": "Represents a control instruction for Power Envelope Based Control.\n\nThis model defines a complete instruction for controlling a device using power\nenvelopes. It specifies when the instruction should be executed, which power\nconstraints apply, and the specific power envelopes to follow. It supports\nmultiple power envelopes for different commodity quantities."
+      },
+      "PEBCPowerEnvelope": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique identifier of this PEBC.PowerEnvelope, scoped to the ResourceManager."
+          },
+          "commodity_quantity": {
+            "$ref": "#/components/schemas/CommodityQuantity",
+            "description": "Type of power quantity the envelope applies to."
+          },
+          "power_envelope_elements": {
+            "items": {
+              "$ref": "#/components/schemas/PEBCPowerEnvelopeElement"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Power Envelope Elements",
+            "description": "Chronologically ordered list of PowerEnvelopeElements. Defines how power should be constrained over time."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "commodity_quantity",
+          "power_envelope_elements"
+        ],
+        "title": "PEBCPowerEnvelope",
+        "description": "Defines a complete power envelope constraint for a specific commodity quantity.\n\nThis model specifies a time-series of power limits (upper and lower bounds) that\na device must operate within. The power envelope consists of sequential elements,\neach defining constraints for a specific duration, creating a complete time-varying\noperational boundary for the device."
+      },
+      "PEBCPowerEnvelopeElement": {
+        "properties": {
+          "duration": {
+            "type": "string",
+            "format": "duration",
+            "title": "Duration",
+            "description": "Duration of this power envelope element."
+          },
+          "upper_limit": {
+            "type": "number",
+            "title": "Upper Limit",
+            "description": "Upper power limit for the given commodity_quantity. Shall match PEBC.AllowedLimitRange with limit_type UPPER_LIMIT."
+          },
+          "lower_limit": {
+            "type": "number",
+            "title": "Lower Limit",
+            "description": "Lower power limit for the given commodity_quantity. Shall match PEBC.AllowedLimitRange with limit_type LOWER_LIMIT."
+          }
+        },
+        "type": "object",
+        "required": [
+          "duration",
+          "upper_limit",
+          "lower_limit"
+        ],
+        "title": "PEBCPowerEnvelopeElement",
+        "description": "Defines a segment of a power envelope for a specific duration.\n\nThis model specifies the upper and lower power limits for a specific time duration,\nforming part of a complete power envelope. A sequence of these elements creates\na time-varying power envelope that constrains device power consumption or production."
+      },
+      "PPBCEndInterruptionInstruction": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Unique identifier of the instruction in the ResourceManager scope. If not provided and a `resource_id` is passed at instantiation, this will be auto-generated as `{resource_id}@{UUID}`."
+          },
+          "execution_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Execution Time",
+            "description": "Start time of the instruction execution."
+          },
+          "abnormal_condition": {
+            "type": "boolean",
+            "title": "Abnormal Condition",
+            "description": "Indicates if this is an instruction for abnormal conditions. Defaults to False.",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "PPBCEndInterruptionInstruction",
+            "title": "Type",
+            "default": "PPBCEndInterruptionInstruction"
+          },
+          "power_profile_id": {
+            "type": "string",
+            "title": "Power Profile Id",
+            "description": "ID of the PowerProfileDefinition related to the ended interruption."
+          },
+          "sequence_container_id": {
+            "type": "string",
+            "title": "Sequence Container Id",
+            "description": "ID of the container containing the sequence."
+          },
+          "power_sequence_id": {
+            "type": "string",
+            "title": "Power Sequence Id",
+            "description": "ID of the PowerSequence for which the interruption ends."
+          },
+          "resource_id": {
+            "type": "string",
+            "title": "Resource Id",
+            "description": "Get the resource identifier component from the instruction's `id`.\n\nAssumes the `id` follows the format `{resource_id}@{UUID}`. Extracts the resource_id part\nof the id by splitting at the last @.\n\nReturns:\n    str: The resource identifier prefix of `id`, or an empty string if `id` is None.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_time",
+          "power_profile_id",
+          "sequence_container_id",
+          "power_sequence_id",
+          "resource_id"
+        ],
+        "title": "PPBCEndInterruptionInstruction",
+        "description": "Represents an instruction to resume execution of a previously interrupted power sequence.\n\nThis model defines a control instruction that ends an interruption and resumes\nexecution of a previously interrupted power sequence. It complements the start\ninterruption instruction, enabling the complete interruption-resumption cycle\nfor flexible sequence execution control."
+      },
+      "PPBCPowerProfileStatus-Input": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "PPBCPowerProfileStatus",
+            "title": "Type",
+            "default": "PPBCPowerProfileStatus"
+          },
+          "sequence_container_status": {
+            "items": {
+              "$ref": "#/components/schemas/PPBCPowerSequenceContainerStatus"
+            },
+            "type": "array",
+            "title": "Sequence Container Status",
+            "description": "Status list for all sequence containers in the PowerProfileDefinition."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sequence_container_status"
+        ],
+        "title": "PPBCPowerProfileStatus",
+        "description": "Reports the current status of a power profile execution.\n\nThis model provides comprehensive status information for all sequence containers\nin a power profile definition, enabling monitoring of profile execution progress.\nIt tracks which sequences have been selected and their current execution status."
+      },
+      "PPBCPowerProfileStatus-Output": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "PPBCPowerProfileStatus",
+            "title": "Type",
+            "default": "PPBCPowerProfileStatus"
+          },
+          "sequence_container_status": {
+            "items": {
+              "$ref": "#/components/schemas/PPBCPowerSequenceContainerStatus"
+            },
+            "type": "array",
+            "title": "Sequence Container Status",
+            "description": "Status list for all sequence containers in the PowerProfileDefinition."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sequence_container_status"
+        ],
+        "title": "PPBCPowerProfileStatus",
+        "description": "Reports the current status of a power profile execution.\n\nThis model provides comprehensive status information for all sequence containers\nin a power profile definition, enabling monitoring of profile execution progress.\nIt tracks which sequences have been selected and their current execution status."
+      },
+      "PPBCPowerSequenceContainerStatus": {
+        "properties": {
+          "power_profile_id": {
+            "type": "string",
+            "title": "Power Profile Id",
+            "description": "ID of the related PowerProfileDefinition."
+          },
+          "sequence_container_id": {
+            "type": "string",
+            "title": "Sequence Container Id",
+            "description": "ID of the PowerSequenceContainer being reported on."
+          },
+          "selected_sequence_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Sequence Id",
+            "description": "ID of the selected PowerSequence, if any."
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "duration"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress",
+            "description": "Elapsed time since the selected sequence started, if applicable."
+          },
+          "status": {
+            "$ref": "#/components/schemas/PPBCPowerSequenceStatus",
+            "description": "Status of the selected PowerSequence."
+          }
+        },
+        "type": "object",
+        "required": [
+          "power_profile_id",
+          "sequence_container_id",
+          "status"
+        ],
+        "title": "PPBCPowerSequenceContainerStatus",
+        "description": "Reports the status of a specific power sequence container execution.\n\nThis model provides detailed status information for a single sequence container,\nincluding which sequence was selected, the current execution progress, and the\noperational status. It enables fine-grained monitoring of sequence execution\nwithin the broader power profile."
+      },
+      "PPBCPowerSequenceStatus": {
+        "type": "string",
+        "enum": [
+          "NOT_SCHEDULED",
+          "SCHEDULED",
+          "EXECUTING",
+          "INTERRUPTED",
+          "FINISHED",
+          "ABORTED"
+        ],
+        "title": "PPBCPowerSequenceStatus",
+        "description": "Enumeration of status values for Power Profile Based Control sequences."
+      },
+      "PPBCScheduleInstruction": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Unique identifier of the instruction in the ResourceManager scope. If not provided and a `resource_id` is passed at instantiation, this will be auto-generated as `{resource_id}@{UUID}`."
+          },
+          "execution_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Execution Time",
+            "description": "Start time of the instruction execution."
+          },
+          "abnormal_condition": {
+            "type": "boolean",
+            "title": "Abnormal Condition",
+            "description": "Indicates if this is an instruction for abnormal conditions. Defaults to False.",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "PPBCScheduleInstruction",
+            "title": "Type",
+            "default": "PPBCScheduleInstruction"
+          },
+          "power_profile_id": {
+            "type": "string",
+            "title": "Power Profile Id",
+            "description": "ID of the PowerProfileDefinition being scheduled."
+          },
+          "sequence_container_id": {
+            "type": "string",
+            "title": "Sequence Container Id",
+            "description": "ID of the container with the selected sequence."
+          },
+          "power_sequence_id": {
+            "type": "string",
+            "title": "Power Sequence Id",
+            "description": "ID of the selected PowerSequence."
+          },
+          "resource_id": {
+            "type": "string",
+            "title": "Resource Id",
+            "description": "Get the resource identifier component from the instruction's `id`.\n\nAssumes the `id` follows the format `{resource_id}@{UUID}`. Extracts the resource_id part\nof the id by splitting at the last @.\n\nReturns:\n    str: The resource identifier prefix of `id`, or an empty string if `id` is None.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_time",
+          "power_profile_id",
+          "sequence_container_id",
+          "power_sequence_id",
+          "resource_id"
+        ],
+        "title": "PPBCScheduleInstruction",
+        "description": "Represents an instruction to schedule execution of a specific power sequence.\n\nThis model defines a control instruction that schedules the execution of a\nselected power sequence from a power profile. It specifies which sequence\nhas been selected and when it should begin execution, enabling precise control\nof device power behavior according to the predefined sequence."
+      },
+      "PPBCStartInterruptionInstruction": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Unique identifier of the instruction in the ResourceManager scope. If not provided and a `resource_id` is passed at instantiation, this will be auto-generated as `{resource_id}@{UUID}`."
+          },
+          "execution_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Execution Time",
+            "description": "Start time of the instruction execution."
+          },
+          "abnormal_condition": {
+            "type": "boolean",
+            "title": "Abnormal Condition",
+            "description": "Indicates if this is an instruction for abnormal conditions. Defaults to False.",
+            "default": false
+          },
+          "type": {
+            "type": "string",
+            "const": "PPBCStartInterruptionInstruction",
+            "title": "Type",
+            "default": "PPBCStartInterruptionInstruction"
+          },
+          "power_profile_id": {
+            "type": "string",
+            "title": "Power Profile Id",
+            "description": "ID of the PowerProfileDefinition whose sequence is being interrupted."
+          },
+          "sequence_container_id": {
+            "type": "string",
+            "title": "Sequence Container Id",
+            "description": "ID of the container containing the sequence."
+          },
+          "power_sequence_id": {
+            "type": "string",
+            "title": "Power Sequence Id",
+            "description": "ID of the PowerSequence to be interrupted."
+          },
+          "resource_id": {
+            "type": "string",
+            "title": "Resource Id",
+            "description": "Get the resource identifier component from the instruction's `id`.\n\nAssumes the `id` follows the format `{resource_id}@{UUID}`. Extracts the resource_id part\nof the id by splitting at the last @.\n\nReturns:\n    str: The resource identifier prefix of `id`, or an empty string if `id` is None.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "execution_time",
+          "power_profile_id",
+          "sequence_container_id",
+          "power_sequence_id",
+          "resource_id"
+        ],
+        "title": "PPBCStartInterruptionInstruction",
+        "description": "Represents an instruction to interrupt execution of a running power sequence.\n\nThis model defines a control instruction that interrupts the execution of an\nactive power sequence. It enables dynamic control over sequence execution,\nallowing temporary suspension of a sequence in response to changing system conditions\nor requirements, particularly for sequences marked as interruptible."
+      },
+      "PVForecastCommonProviderSettings": {
+        "properties": {
+          "PVForecastImport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PVForecastImportCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PVForecastImport settings",
+            "examples": [
+              null
+            ]
+          },
+          "PVForecastVrm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PVForecastVrmCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PVForecastVrm settings",
+            "examples": [
+              null
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PVForecastCommonProviderSettings",
+        "description": "PV Forecast Provider Configuration."
       },
       "PVForecastCommonSettings-Input": {
         "properties": {
@@ -3515,21 +6301,10 @@
             ]
           },
           "provider_settings": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PVForecastImportCommonSettings"
-              },
-              {
-                "$ref": "#/components/schemas/PVforecastVrmCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Provider Settings",
+            "$ref": "#/components/schemas/PVForecastCommonProviderSettings",
             "description": "Provider settings",
             "examples": [
-              null
+              {}
             ]
           },
           "planes": {
@@ -3601,7 +6376,11 @@
             ],
             "title": "Max Planes",
             "description": "Maximum number of planes that can be set",
-            "default": 0
+            "default": 0,
+            "examples": [
+              1,
+              2
+            ]
           }
         },
         "type": "object",
@@ -3626,21 +6405,10 @@
             ]
           },
           "provider_settings": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PVForecastImportCommonSettings"
-              },
-              {
-                "$ref": "#/components/schemas/PVforecastVrmCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Provider Settings",
+            "$ref": "#/components/schemas/PVForecastCommonProviderSettings",
             "description": "Provider settings",
             "examples": [
-              null
+              {}
             ]
           },
           "planes": {
@@ -3712,7 +6480,11 @@
             ],
             "title": "Max Planes",
             "description": "Maximum number of planes that can be set",
-            "default": 0
+            "default": 0,
+            "examples": [
+              1,
+              2
+            ]
           },
           "planes_peakpower": {
             "items": {
@@ -4077,7 +6849,7 @@
         "title": "PVForecastPlaneSetting",
         "description": "PV Forecast Plane Configuration."
       },
-      "PVforecastVrmCommonSettings": {
+      "PVForecastVrmCommonSettings": {
         "properties": {
           "pvforecast_vrm_token": {
             "type": "string",
@@ -4099,8 +6871,90 @@
           }
         },
         "type": "object",
-        "title": "PVforecastVrmCommonSettings",
+        "title": "PVForecastVrmCommonSettings",
         "description": "Common settings for VRM API."
+      },
+      "PowerMeasurement-Input": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "PowerMeasurement",
+            "title": "Type",
+            "default": "PowerMeasurement"
+          },
+          "measurement_timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Measurement Timestamp",
+            "description": "Timestamp when PowerValues were measured."
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/PowerValue"
+            },
+            "type": "array",
+            "title": "Values",
+            "description": "Array of measured PowerValues. Shall contain at least one item and at most one item per 'commodity_quantity' (defined inside the PowerValue)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "measurement_timestamp",
+          "values"
+        ],
+        "title": "PowerMeasurement",
+        "description": "Captures a set of power measurements taken at a specific point in time.\n\nThis model records multiple power values (for different commodity quantities)\nalong with the timestamp when the measurements were taken, enabling time-series\nanalysis and monitoring of power consumption or production."
+      },
+      "PowerMeasurement-Output": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "PowerMeasurement",
+            "title": "Type",
+            "default": "PowerMeasurement"
+          },
+          "measurement_timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Measurement Timestamp",
+            "description": "Timestamp when PowerValues were measured."
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/PowerValue"
+            },
+            "type": "array",
+            "title": "Values",
+            "description": "Array of measured PowerValues. Shall contain at least one item and at most one item per 'commodity_quantity' (defined inside the PowerValue)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "measurement_timestamp",
+          "values"
+        ],
+        "title": "PowerMeasurement",
+        "description": "Captures a set of power measurements taken at a specific point in time.\n\nThis model records multiple power values (for different commodity quantities)\nalong with the timestamp when the measurements were taken, enabling time-series\nanalysis and monitoring of power consumption or production."
+      },
+      "PowerValue": {
+        "properties": {
+          "commodity_quantity": {
+            "$ref": "#/components/schemas/CommodityQuantity",
+            "description": "The power quantity the value refers to."
+          },
+          "value": {
+            "type": "number",
+            "title": "Value",
+            "description": "Power value expressed in the unit associated with the CommodityQuantity."
+          }
+        },
+        "type": "object",
+        "required": [
+          "commodity_quantity",
+          "value"
+        ],
+        "title": "PowerValue",
+        "description": "Represents a specific power value measurement with its associated commodity quantity.\n\nThis class links a numerical power value to a specific type of power quantity (such as\nactive power, reactive power, etc.) and its unit of measurement."
       },
       "PredictionCommonSettings": {
         "properties": {
@@ -4249,16 +7103,19 @@
           "host": {
             "anyOf": [
               {
-                "type": "string",
-                "format": "ipvanyaddress"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Host",
-            "description": "EOS server IP address.",
-            "default": "127.0.0.1"
+            "description": "EOS server IP address. Defaults to 127.0.0.1.",
+            "default": "127.0.0.1",
+            "examples": [
+              "127.0.0.1",
+              "localhost"
+            ]
           },
           "port": {
             "anyOf": [
@@ -4270,8 +7127,11 @@
               }
             ],
             "title": "Port",
-            "description": "EOS server IP port number.",
-            "default": 8503
+            "description": "EOS server IP port number. Defaults to 8503.",
+            "default": 8503,
+            "examples": [
+              8503
+            ]
           },
           "verbose": {
             "anyOf": [
@@ -4296,22 +7156,24 @@
               }
             ],
             "title": "Startup Eosdash",
-            "description": "EOS server to start EOSdash server.",
+            "description": "EOS server to start EOSdash server. Defaults to True.",
             "default": true
           },
           "eosdash_host": {
             "anyOf": [
               {
-                "type": "string",
-                "format": "ipvanyaddress"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Eosdash Host",
-            "description": "EOSdash server IP address.",
-            "default": "127.0.0.1"
+            "description": "EOSdash server IP address. Defaults to EOS server IP address.",
+            "examples": [
+              "127.0.0.1",
+              "localhost"
+            ]
           },
           "eosdash_port": {
             "anyOf": [
@@ -4323,8 +7185,10 @@
               }
             ],
             "title": "Eosdash Port",
-            "description": "EOSdash server IP port number.",
-            "default": 8504
+            "description": "EOSdash server IP port number. Defaults to EOS server IP port number + 1.",
+            "examples": [
+              8504
+            ]
           }
         },
         "type": "object",
@@ -4380,7 +7244,7 @@
           "devices": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/DevicesCommonSettings"
+                "$ref": "#/components/schemas/DevicesCommonSettings-Input"
               },
               {
                 "type": "null"
@@ -4391,7 +7255,7 @@
           "measurement": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/MeasurementCommonSettings"
+                "$ref": "#/components/schemas/MeasurementCommonSettings-Input"
               },
               {
                 "type": "null"
@@ -4424,7 +7288,7 @@
           "elecprice": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ElecPriceCommonSettings"
+                "$ref": "#/components/schemas/ElecPriceCommonSettings-Input"
               },
               {
                 "type": "null"
@@ -4432,10 +7296,21 @@
             ],
             "description": "Electricity Price Settings"
           },
+          "feedintariff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedInTariffCommonSettings-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Feed In Tariff Settings"
+          },
           "load": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/LoadCommonSettings"
+                "$ref": "#/components/schemas/LoadCommonSettings-Input"
               },
               {
                 "type": "null"
@@ -4457,7 +7332,7 @@
           "weather": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/WeatherCommonSettings"
+                "$ref": "#/components/schemas/WeatherCommonSettings-Input"
               },
               {
                 "type": "null"
@@ -4491,201 +7366,7 @@
         "additionalProperties": false,
         "type": "object",
         "title": "SettingsEOS",
-        "description": "Settings for all EOS.\n\nUsed by updating the configuration with specific settings only."
-      },
-      "SimulationResult": {
-        "properties": {
-          "Last_Wh_pro_Stunde": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Last Wh Pro Stunde",
-            "description": "TBD"
-          },
-          "EAuto_SoC_pro_Stunde": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Eauto Soc Pro Stunde",
-            "description": "The state of charge of the EV for each hour."
-          },
-          "Einnahmen_Euro_pro_Stunde": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Einnahmen Euro Pro Stunde",
-            "description": "The revenue from grid feed-in or other sources in euros per hour."
-          },
-          "Gesamt_Verluste": {
-            "type": "number",
-            "title": "Gesamt Verluste",
-            "description": "The total losses in watt-hours over the entire period."
-          },
-          "Gesamtbilanz_Euro": {
-            "type": "number",
-            "title": "Gesamtbilanz Euro",
-            "description": "The total balance of revenues minus costs in euros."
-          },
-          "Gesamteinnahmen_Euro": {
-            "type": "number",
-            "title": "Gesamteinnahmen Euro",
-            "description": "The total revenues in euros."
-          },
-          "Gesamtkosten_Euro": {
-            "type": "number",
-            "title": "Gesamtkosten Euro",
-            "description": "The total costs in euros."
-          },
-          "Home_appliance_wh_per_hour": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Home Appliance Wh Per Hour",
-            "description": "The energy consumption of a household appliance in watt-hours per hour."
-          },
-          "Kosten_Euro_pro_Stunde": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Kosten Euro Pro Stunde",
-            "description": "The costs in euros per hour."
-          },
-          "Netzbezug_Wh_pro_Stunde": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Netzbezug Wh Pro Stunde",
-            "description": "The grid energy drawn in watt-hours per hour."
-          },
-          "Netzeinspeisung_Wh_pro_Stunde": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Netzeinspeisung Wh Pro Stunde",
-            "description": "The energy fed into the grid in watt-hours per hour."
-          },
-          "Verluste_Pro_Stunde": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Verluste Pro Stunde",
-            "description": "The losses in watt-hours per hour."
-          },
-          "akku_soc_pro_stunde": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Akku Soc Pro Stunde",
-            "description": "The state of charge of the battery (not the EV) in percentage per hour."
-          },
-          "Electricity_price": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Electricity Price",
-            "description": "Used Electricity Price, including predictions"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "Last_Wh_pro_Stunde",
-          "EAuto_SoC_pro_Stunde",
-          "Einnahmen_Euro_pro_Stunde",
-          "Gesamt_Verluste",
-          "Gesamtbilanz_Euro",
-          "Gesamteinnahmen_Euro",
-          "Gesamtkosten_Euro",
-          "Home_appliance_wh_per_hour",
-          "Kosten_Euro_pro_Stunde",
-          "Netzbezug_Wh_pro_Stunde",
-          "Netzeinspeisung_Wh_pro_Stunde",
-          "Verluste_Pro_Stunde",
-          "akku_soc_pro_stunde",
-          "Electricity_price"
-        ],
-        "title": "SimulationResult",
-        "description": "This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."
+        "description": "Settings for all EOS.\n\nOnly used to update the configuration with specific settings."
       },
       "SolarPanelBatteryParameters": {
         "properties": {
@@ -4789,7 +7470,174 @@
           "device_id",
           "capacity_wh"
         ],
-        "title": "SolarPanelBatteryParameters"
+        "title": "SolarPanelBatteryParameters",
+        "description": "PV battery device simulation configuration."
+      },
+      "TimeWindow-Input": {
+        "properties": {
+          "start_time": {
+            "title": "Start Time",
+            "description": "Start time of the time window (time of day)."
+          },
+          "duration": {
+            "type": "string",
+            "format": "duration",
+            "title": "Duration",
+            "description": "Duration of the time window starting from `start_time`."
+          },
+          "day_of_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Of Week",
+            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set."
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date",
+            "description": "Optional specific calendar date for the time window. Overrides `day_of_week` if set."
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale",
+            "description": "Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc."
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_time",
+          "duration"
+        ],
+        "title": "TimeWindow",
+        "description": "Model defining a daily or specific date time window with optional localization support.\n\nRepresents a time interval starting at `start_time` and lasting for `duration`.\nCan restrict applicability to a specific day of the week or a specific calendar date.\nSupports day names in multiple languages via locale-aware parsing."
+      },
+      "TimeWindow-Output": {
+        "properties": {
+          "start_time": {
+            "type": "string",
+            "title": "Start Time",
+            "description": "Start time of the time window (time of day)."
+          },
+          "duration": {
+            "type": "string",
+            "title": "Duration",
+            "description": "Duration of the time window starting from `start_time`."
+          },
+          "day_of_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Of Week",
+            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set."
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date",
+            "description": "Optional specific calendar date for the time window. Overrides `day_of_week` if set."
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale",
+            "description": "Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc."
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_time",
+          "duration"
+        ],
+        "title": "TimeWindow",
+        "description": "Model defining a daily or specific date time window with optional localization support.\n\nRepresents a time interval starting at `start_time` and lasting for `duration`.\nCan restrict applicability to a specific day of the week or a specific calendar date.\nSupports day names in multiple languages via locale-aware parsing."
+      },
+      "TimeWindowSequence-Input": {
+        "properties": {
+          "windows": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TimeWindow-Input"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Windows",
+            "description": "List of TimeWindow objects that make up this sequence."
+          }
+        },
+        "type": "object",
+        "title": "TimeWindowSequence",
+        "description": "Model representing a sequence of time windows with collective operations.\n\nManages multiple TimeWindow objects and provides methods to work with them\nas a cohesive unit for scheduling and availability checking."
+      },
+      "TimeWindowSequence-Output": {
+        "properties": {
+          "windows": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TimeWindow-Output"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Windows",
+            "description": "List of TimeWindow objects that make up this sequence."
+          }
+        },
+        "type": "object",
+        "title": "TimeWindowSequence",
+        "description": "Model representing a sequence of time windows with collective operations.\n\nManages multiple TimeWindow objects and provides methods to work with them\nas a cohesive unit for scheduling and availability checking."
       },
       "UtilsCommonSettings": {
         "properties": {},
@@ -4830,7 +7678,28 @@
         ],
         "title": "ValidationError"
       },
-      "WeatherCommonSettings": {
+      "WeatherCommonProviderSettings": {
+        "properties": {
+          "WeatherImport": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WeatherImportCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "WeatherImport settings",
+            "examples": [
+              null
+            ]
+          }
+        },
+        "type": "object",
+        "title": "WeatherCommonProviderSettings",
+        "description": "Weather Forecast Provider Configuration."
+      },
+      "WeatherCommonSettings-Input": {
         "properties": {
           "provider": {
             "anyOf": [
@@ -4848,17 +7717,39 @@
             ]
           },
           "provider_settings": {
+            "$ref": "#/components/schemas/WeatherCommonProviderSettings",
+            "description": "Provider settings",
+            "examples": [
+              {}
+            ]
+          }
+        },
+        "type": "object",
+        "title": "WeatherCommonSettings",
+        "description": "Weather Forecast Configuration."
+      },
+      "WeatherCommonSettings-Output": {
+        "properties": {
+          "provider": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/WeatherImportCommonSettings"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
+            "title": "Provider",
+            "description": "Weather provider id of provider to be used.",
+            "examples": [
+              "WeatherImport"
+            ]
+          },
+          "provider_settings": {
+            "$ref": "#/components/schemas/WeatherCommonProviderSettings",
             "description": "Provider settings",
             "examples": [
-              null
+              {}
             ]
           }
         },

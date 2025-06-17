@@ -91,7 +91,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         if start_date is None:
             # Try to take data from 5 weeks back for prediction
             start_date = to_datetime(
-                self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD"
+                self.ems_start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD"
             )
 
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
@@ -172,17 +172,17 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         hours_ahead = 23 if now.time() < pd.Timestamp("14:00").time() else 47
         end = midnight + pd.Timedelta(hours=hours_ahead)
 
-        if not self.start_datetime:
-            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
+        if not self.ems_start_datetime:
+            raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
 
         # Determine if update is needed and how many days
         past_days = 35
         if self.highest_orig_datetime:
             history_series = self.key_to_series(
-                key="elecprice_marketprice_wh", start_datetime=self.start_datetime
+                key="elecprice_marketprice_wh", start_datetime=self.ems_start_datetime
             )
             # If history lower, then start_datetime
-            if history_series.index.min() <= self.start_datetime:
+            if history_series.index.min() <= self.ems_start_datetime:
                 past_days = 0
 
             needs_update = end > self.highest_orig_datetime
@@ -195,7 +195,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             )
             # Set start_date try to take data from 5 weeks back for prediction
             start_date = to_datetime(
-                self.start_datetime - to_duration(f"{past_days} days"), as_string="YYYY-MM-DD"
+                self.ems_start_datetime - to_duration(f"{past_days} days"), as_string="YYYY-MM-DD"
             )
             # Get Energy-Charts electricity price data
             energy_charts_data = self._request_forecast(
@@ -227,13 +227,13 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
         needed_hours = int(
             self.config.prediction.hours
-            - ((self.highest_orig_datetime - self.start_datetime).total_seconds() // 3600)
+            - ((self.highest_orig_datetime - self.ems_start_datetime).total_seconds() // 3600)
         )
 
         if needed_hours <= 0:
             logger.warning(
-                f"No prediction needed. needed_hours={needed_hours}, hours={self.config.prediction.hours},highest_orig_datetime {self.highest_orig_datetime}, start_datetime {self.start_datetime}"
-            )  # this might keep data longer than self.start_datetime + self.config.prediction.hours in the records
+                f"No prediction needed. needed_hours={needed_hours}, hours={self.config.prediction.hours},highest_orig_datetime {self.highest_orig_datetime}, start_datetime {self.ems_start_datetime}"
+            )  # this might keep data longer than self.ems_start_datetime + self.config.prediction.hours in the records
             return
 
         if amount_datasets > 800:  # we do the full ets with seasons of 1 week

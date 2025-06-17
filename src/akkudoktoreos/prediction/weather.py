@@ -19,6 +19,14 @@ weather_providers = [
 ]
 
 
+class WeatherCommonProviderSettings(SettingsBaseModel):
+    """Weather Forecast Provider Configuration."""
+
+    WeatherImport: Optional[WeatherImportCommonSettings] = Field(
+        default=None, description="WeatherImport settings", examples=[None]
+    )
+
+
 class WeatherCommonSettings(SettingsBaseModel):
     """Weather Forecast Configuration."""
 
@@ -28,8 +36,15 @@ class WeatherCommonSettings(SettingsBaseModel):
         examples=["WeatherImport"],
     )
 
-    provider_settings: Optional[WeatherImportCommonSettings] = Field(
-        default=None, description="Provider settings", examples=[None]
+    provider_settings: WeatherCommonProviderSettings = Field(
+        default_factory=WeatherCommonProviderSettings,
+        description="Provider settings",
+        examples=[
+            # Example 1: Empty/default settings (all providers None)
+            {
+                "WeatherImport": None,
+            },
+        ],
     )
 
     # Validators

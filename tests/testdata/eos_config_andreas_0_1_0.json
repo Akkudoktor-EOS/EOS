@@ -1,0 +1,101 @@
+{
+  "general": {
+    "data_folder_path": null,
+    "data_output_subpath": "output",
+    "latitude": 52.5,
+    "longitude": 13.4
+  },
+  "cache": {
+    "subpath": "cache",
+    "cleanup_interval": 300.0
+  },
+  "ems": {
+     "startup_delay": 5.0,
+     "interval": 300.0
+  },
+  "logging": {
+    "level": "INFO"
+  },
+  "devices": {
+    "batteries": [
+      {
+        "device_id": "pv_akku",
+        "hours": null,
+        "capacity_wh": 30000,
+        "charging_efficiency": 0.88,
+        "discharging_efficiency": 0.88,
+        "max_charge_power_w": 5000,
+        "initial_soc_percentage": 0,
+        "min_soc_percentage": 0,
+        "max_soc_percentage": 100
+      }
+    ],
+    "inverters": [],
+    "home_appliances": []
+  },
+  "measurement": {
+    "load0_name": "Household",
+    "load1_name": null,
+    "load2_name": null,
+    "load3_name": null,
+    "load4_name": null
+  },
+  "optimization": {
+    "hours": 48,
+    "penalty": 10,
+    "ev_available_charge_rates_percent": [
+      0.0, 37.5, 50.0, 62.5, 75.0, 87.5, 100.0
+    ]
+  },
+  "prediction": {
+    "hours": 48,
+    "historic_hours": 48
+  },
+  "elecprice": {
+    "provider": "ElecPriceAkkudoktor",
+    "charges_kwh": 0.21,
+    "provider_settings": null
+  },
+  "load": {
+    "provider_settings": {
+      "loadakkudoktor_year_energy": 13000
+    }
+  },
+  "pvforecast": {
+    "provider": "PVForecastAkkudoktor",
+    "planes": [
+      {
+        "surface_tilt": 87.907,
+        "surface_azimuth": 175.0,
+        "userhorizon": [28.0, 34.0, 32.0, 60.0],
+        "peakpower": 13.110,
+        "pvtechchoice": "crystSi",
+        "mountingplace": "free",
+        "loss": 18.6,
+        "trackingtype": 0,
+        "optimal_surface_tilt": false,
+        "optimalangles": false,
+        "albedo": 0.25,
+        "module_model": null,
+        "inverter_model": null,
+        "inverter_paco": 15000,
+        "modules_per_string": 20,
+        "strings_per_inverter": 2
+      }
+    ],
+    "provider_settings": null
+  },
+  "weather": {
+    "provider": "WeatherImport",
+    "provider_settings": null
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8503,
+    "verbose": true,
+    "startup_eosdash": true,
+    "eosdash_host": "0.0.0.0",
+    "eosdash_port": 8504
+  },
+  "utils": {}
+}

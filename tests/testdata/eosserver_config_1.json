@@ -14,11 +14,13 @@
   "load": {
     "provider": "LoadImport",
     "provider_settings": {
-      "loadakkudoktor_year_energy": 20000
+      "LoadAkkudoktor": {
+        "loadakkudoktor_year_energy": 20000
+      }
     }
   },
   "optimization": {
-    "hours": 48
+    "horizon_hours": 48
   },
   "pvforecast": {
     "planes": [

@@ -130,25 +130,6 @@ def prediction_eos():
     return get_prediction()
 
 
-@pytest.fixture
-def devices_eos(config_mixin):
-    from akkudoktoreos.devices.devices import get_devices
-
-    devices = get_devices()
-    print("devices_eos reset!")
-    devices.reset()
-    return devices
-
-
-@pytest.fixture
-def devices_mixin(devices_eos):
-    with patch(
-        "akkudoktoreos.core.coreabc.DevicesMixin.devices", new_callable=PropertyMock
-    ) as devices_mixin_patch:
-        devices_mixin_patch.return_value = devices_eos
-        yield devices_mixin_patch
-
-
 # Test if test has side effect of writing to system (user) config file
 # Before activating, make sure that no user config file exists (e.g. ~/.config/net.akkudoktoreos.eos/EOS.config.json)
 @pytest.fixture(autouse=True)
@@ -273,12 +254,144 @@ def config_default_dirs(tmpdir):
     )
 
 
+# ------------------------------------
+# Provide pytest EOS server management
+# ------------------------------------
+
+
+def cleanup_eos_eosdash(
+    host: str,
+    port: int,
+    eosdash_host: str,
+    eosdash_port: int,
+    server_timeout: float = 10.0,
+) -> None:
+    """Clean up any running EOS and EOSdash processes.
+
+    Args:
+        host (str): EOS server host (e.g., "127.0.0.1").
+        port (int): Port number used by the EOS process.
+        eosdash_hostr (str): EOSdash server host.
+        eosdash_port (int): Port used by EOSdash.
+        server_timeout (float): Timeout in seconds before giving up.
+    """
+    server = f"http://{host}:{port}"
+    eosdash_server = f"http://{eosdash_host}:{eosdash_port}"
+
+    sigkill = signal.SIGTERM if os.name == "nt" else signal.SIGKILL
+
+    # Attempt to shut down EOS via health endpoint
+    try:
+        result = requests.get(f"{server}/v1/health", timeout=2)
+        if result.status_code == HTTPStatus.OK:
+            pid = result.json()["pid"]
+            os.kill(pid, sigkill)
+            time.sleep(1)
+            result = requests.get(f"{server}/v1/health", timeout=2)
+            assert result.status_code != HTTPStatus.OK
+    except Exception:
+        pass
+
+    # Fallback: kill processes bound to the EOS port
+    pids: list[int] = []
+    for _ in range(int(server_timeout / 3)):
+        for conn in psutil.net_connections(kind="inet"):
+            if conn.laddr.port == port and conn.pid is not None:
+                try:
+                    process = psutil.Process(conn.pid)
+                    cmdline = process.as_dict(attrs=["cmdline"])["cmdline"]
+                    if "akkudoktoreos.server.eos" in " ".join(cmdline):
+                        pids.append(conn.pid)
+                except Exception:
+                    pass
+        for pid in pids:
+            os.kill(pid, sigkill)
+        running = False
+        for pid in pids:
+            try:
+                proc = psutil.Process(pid)
+                status = proc.status()
+                if status != psutil.STATUS_ZOMBIE:
+                    running = True
+                    break
+            except psutil.NoSuchProcess:
+                continue
+        if not running:
+            break
+        time.sleep(3)
+
+    # Check for processes still running (maybe zombies).
+    for pid in pids:
+        try:
+            proc = psutil.Process(pid)
+            status = proc.status()
+            assert status == psutil.STATUS_ZOMBIE, f"Cleanup EOS expected zombie, got {status} for PID {pid}"
+        except psutil.NoSuchProcess:
+            # Process already reaped (possibly by init/systemd)
+            continue
+
+    # Attempt to shut down EOSdash via health endpoint
+    for srv in (eosdash_server, "http://127.0.0.1:8504", "http://127.0.0.1:8555"):
+        try:
+            result = requests.get(f"{srv}/eosdash/health", timeout=2)
+            if result.status_code == HTTPStatus.OK:
+                pid = result.json()["pid"]
+                os.kill(pid, sigkill)
+                time.sleep(1)
+                result = requests.get(f"{srv}/eosdash/health", timeout=2)
+                assert result.status_code != HTTPStatus.OK
+        except Exception:
+            pass
+
+    # Fallback: kill EOSdash processes bound to known ports
+    pids = []
+    for _ in range(int(server_timeout / 3)):
+        for conn in psutil.net_connections(kind="inet"):
+            if conn.laddr.port in (eosdash_port, 8504, 8555) and conn.pid is not None:
+                try:
+                    process = psutil.Process(conn.pid)
+                    cmdline = process.as_dict(attrs=["cmdline"])["cmdline"]
+                    if "akkudoktoreos.server.eosdash" in " ".join(cmdline):
+                        pids.append(conn.pid)
+                except Exception:
+                    pass
+        for pid in pids:
+            os.kill(pid, sigkill)
+        running = False
+        for pid in pids:
+            try:
+                proc = psutil.Process(pid)
+                status = proc.status()
+                if status != psutil.STATUS_ZOMBIE:
+                    running = True
+                    break
+            except psutil.NoSuchProcess:
+                continue
+        if not running:
+            break
+        time.sleep(3)
+
+    # Check for processes still running (maybe zombies).
+    for pid in pids:
+        try:
+            proc = psutil.Process(pid)
+            status = proc.status()
+            assert status == psutil.STATUS_ZOMBIE, f"Cleanup EOSdash expected zombie, got {status} for PID {pid}"
+        except psutil.NoSuchProcess:
+            # Process already reaped (possibly by init/systemd)
+            continue
+
+
 @contextmanager
-def server_base(xprocess: XProcess) -> Generator[dict[str, Union[str, int]], None, None]:
+def server_base(
+    xprocess: XProcess,
+    extra_env: Optional[dict[str, str]] = None
+) -> Generator[dict[str, Union[str, int]], None, None]:
     """Fixture to start the server with temporary EOS_DIR and default config.
 
     Args:
         xprocess (XProcess): The pytest-xprocess fixture to manage the server process.
+        extra_env (Optional[dict[str, str]]): Environment variables to set before server startup.
 
     Yields:
         dict[str, str]: A dictionary containing:
@@ -287,14 +400,22 @@ def server_base(xprocess: XProcess) -> Generator[dict[str, Union[str, int]], Non
     """
     host = get_default_host()
     port = 8503
-    eosdash_port = 8504
+    server = f"http://{host}:{port}"
 
     # Port of server may be still blocked by a server usage despite the other server already
     # shut down. CLOSE_WAIT, TIME_WAIT may typically take up to 120 seconds.
     server_timeout = 120
 
-    server = f"http://{host}:{port}"
-    eosdash_server = f"http://{host}:{eosdash_port}"
+    if extra_env and extra_env.get("EOS_SERVER__EOSDASH_HOST", None):
+        eosdash_host = extra_env["EOS_SERVER__EOSDASH_HOST"]
+    else:
+        eosdash_host = host
+    if extra_env and extra_env.get("EOS_SERVER__EOSDASH_PORT", None):
+        eosdash_port: int = int(extra_env["EOS_SERVER__EOSDASH_PORT"])
+    else:
+        eosdash_port = 8504
+    eosdash_server = f"http://{eosdash_host}:{eosdash_port}"
+
     eos_tmp_dir = tempfile.TemporaryDirectory()
     eos_dir = str(eos_tmp_dir.name)
 
@@ -324,8 +445,10 @@ def server_base(xprocess: XProcess) -> Generator[dict[str, Union[str, int]], Non
         env = os.environ.copy()
         env["EOS_DIR"] = eos_dir
         env["EOS_CONFIG_DIR"] = eos_dir
+        if extra_env:
+            env.update(extra_env)
 
-        # command to start server process
+        # Set command to start server process
         args = [
             sys.executable,
             "-m",
@@ -345,88 +468,17 @@ def server_base(xprocess: XProcess) -> Generator[dict[str, Union[str, int]], Non
         # checks if our server is ready
         def startup_check(self):
             try:
-                result = requests.get(f"{server}/v1/health", timeout=2)
-                if result.status_code == 200:
+                response = requests.get(f"{server}/v1/health", timeout=10)
+                logger.debug(f"[xprocess] Health check: {response.status_code}")
+                if response.status_code == 200:
                     return True
-            except:
-                pass
+                logger.debug(f"[xprocess] Health check: {response}")
+            except Exception as e:
+                logger.debug(f"[xprocess] Exception during health check: {e}")
             return False
 
-    def cleanup_eos_eosdash():
-        # Cleanup any EOS process left.
-        if os.name == "nt":
-            # Windows does not provide SIGKILL
-            sigkill = signal.SIGTERM
-        else:
-            sigkill = signal.SIGKILL  # type: ignore
-        # - Use pid on EOS health endpoint
-        try:
-            result = requests.get(f"{server}/v1/health", timeout=2)
-            if result.status_code == HTTPStatus.OK:
-                pid = result.json()["pid"]
-                os.kill(pid, sigkill)
-                time.sleep(1)
-                result = requests.get(f"{server}/v1/health", timeout=2)
-                assert result.status_code != HTTPStatus.OK
-        except:
-            pass
-        # - Use pids from processes on EOS port
-        for retries in range(int(server_timeout / 3)):
-            pids: list[int] = []
-            for conn in psutil.net_connections(kind="inet"):
-                if conn.laddr.port == port:
-                    if conn.pid not in pids:
-                        # Get fresh process info
-                        try:
-                            process = psutil.Process(conn.pid)
-                            process_info = process.as_dict(attrs=["pid", "cmdline"])
-                            if "akkudoktoreos.server.eos" in process_info["cmdline"]:
-                                pids.append(conn.pid)
-                        except:
-                            # PID may already be dead
-                            pass
-                for pid in pids:
-                    os.kill(pid, sigkill)
-            if len(pids) == 0:
-                break
-            time.sleep(3)
-        assert len(pids) == 0
-        # Cleanup any EOSdash processes left.
-        # - Use pid on EOSdash health endpoint
-        try:
-            result = requests.get(f"{eosdash_server}/eosdash/health", timeout=2)
-            if result.status_code == HTTPStatus.OK:
-                pid = result.json()["pid"]
-                os.kill(pid, sigkill)
-                time.sleep(1)
-                result = requests.get(f"{eosdash_server}/eosdash/health", timeout=2)
-                assert result.status_code != HTTPStatus.OK
-        except:
-            pass
-        # - Use pids from processes on EOSdash port
-        for retries in range(int(server_timeout / 3)):
-            pids = []
-            for conn in psutil.net_connections(kind="inet"):
-                if conn.laddr.port == eosdash_port:
-                    if conn.pid not in pids:
-                        # Get fresh process info
-                        try:
-                            process = psutil.Process(conn.pid)
-                            process_info = process.as_dict(attrs=["pid", "cmdline"])
-                            if "akkudoktoreos.server.eosdash" in process_info["cmdline"]:
-                                pids.append(conn.pid)
-                        except:
-                            # PID may already be dead
-                            pass
-            for pid in pids:
-                os.kill(pid, sigkill)
-            if len(pids) == 0:
-                break
-            time.sleep(3)
-        assert len(pids) == 0
-
     # Kill all running eos and eosdash process - just to be sure
-    cleanup_eos_eosdash()
+    cleanup_eos_eosdash(host, port, eosdash_host, eosdash_port, server_timeout)
 
     # Ensure there is an empty config file in the temporary EOS directory
     config_file_path = Path(eos_dir).joinpath(ConfigEOS.CONFIG_FILE_NAME)
@@ -440,7 +492,9 @@ def server_base(xprocess: XProcess) -> Generator[dict[str, Union[str, int]], Non
 
     yield {
         "server": server,
+        "port": port,
         "eosdash_server": eosdash_server,
+        "eosdash_port": eosdash_port,
         "eos_dir": eos_dir,
         "timeout": server_timeout,
     }
@@ -449,16 +503,21 @@ def server_base(xprocess: XProcess) -> Generator[dict[str, Union[str, int]], Non
     xprocess.getinfo("eos").terminate()
 
     # Cleanup any EOS process left.
-    cleanup_eos_eosdash()
+    cleanup_eos_eosdash(host, port, eosdash_host, eosdash_port, server_timeout)
 
     # Remove temporary EOS_DIR
     eos_tmp_dir.cleanup()
 
 
 @pytest.fixture(scope="class")
-def server_setup_for_class(xprocess) -> Generator[dict[str, Union[str, int]], None, None]:
-    """A fixture to start the server for a test class."""
-    with server_base(xprocess) as result:
+def server_setup_for_class(request, xprocess) -> Generator[dict[str, Union[str, int]], None, None]:
+    """A fixture to start the server for a test class.
+
+    Get env vars from the test class attribute `eos_env`, if defined
+    """
+    extra_env = getattr(request.cls, "eos_env", None)
+
+    with server_base(xprocess, extra_env=extra_env) as result:
         yield result
 
 
@@ -469,66 +528,9 @@ def server_setup_for_function(xprocess) -> Generator[dict[str, Union[str, int]],
         yield result
 
 
-@pytest.fixture
-def server(xprocess, config_eos, config_default_dirs) -> Generator[str, None, None]:
-    """Fixture to start the server.
-
-    Provides URL of the server.
-    """
-    # create url/port info to the server
-    url = "http://127.0.0.1:8503"
-
-    class Starter(ProcessStarter):
-        # Set environment before any subprocess run, to keep custom config dir
-        env = os.environ.copy()
-        env["EOS_DIR"] = str(config_default_dirs[-1])
-        project_dir = config_eos.package_root_path.parent.parent
-
-        # assure server to be installed
-        try:
-            subprocess.run(
-                [sys.executable, "-c", "import", "akkudoktoreos.server.eos"],
-                check=True,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=project_dir,
-            )
-        except subprocess.CalledProcessError:
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", "-e", str(project_dir)],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-        # command to start server process
-        args = [sys.executable, "-m", "akkudoktoreos.server.eos"]
-
-        # will wait for xx seconds before timing out
-        timeout = 10
-
-        # xprocess will now attempt to clean up upon interruptions
-        terminate_on_interrupt = True
-
-        # checks if our server is ready
-        def startup_check(self):
-            try:
-                result = requests.get(f"{url}/v1/health")
-                if result.status_code == 200:
-                    return True
-            except:
-                pass
-            return False
-
-    # ensure process is running and return its logfile
-    pid, logfile = xprocess.ensure("eos", Starter)
-    print(f"View xprocess logfile at: {logfile}")
-
-    yield url
-
-    # clean up whole process tree afterwards
-    xprocess.getinfo("eos").terminate()
+# ------------------------------
+# Provide pytest timezone change
+# ------------------------------
 
 
 @pytest.fixture

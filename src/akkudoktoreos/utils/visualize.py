@@ -12,9 +12,9 @@ import pendulum
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.core.coreabc import ConfigMixin
-from akkudoktoreos.core.ems import EnergyManagement
-from akkudoktoreos.optimization.genetic import OptimizationParameters
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.optimization.genetic.genetic import GeneticOptimizationParameters
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 matplotlib.use(
     "Agg"
@@ -137,7 +137,7 @@ class VisualizationReport(ConfigMixin):
 
     def create_line_chart_date(
         self,
-        start_date: pendulum.DateTime,
+        start_date: DateTime,
         y_list: list[Union[np.ndarray, list[Optional[float]], list[float]]],
         ylabel: str,
         xlabel: Optional[str] = None,
@@ -436,7 +436,7 @@ class VisualizationReport(ConfigMixin):
 
 
 def prepare_visualize(
-    parameters: OptimizationParameters,
+    parameters: GeneticOptimizationParameters,
     results: dict,
     filename: str = "visualization_results.pdf",
     start_hour: int = 0,
@@ -444,7 +444,7 @@ def prepare_visualize(
     global debug_visualize
 
     report = VisualizationReport(filename)
-    next_full_hour_date = EnergyManagement.set_start_datetime()
+    next_full_hour_date = get_ems().start_datetime
     # Group 1:
     report.create_line_chart_date(
         next_full_hour_date,

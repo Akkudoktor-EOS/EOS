@@ -16,7 +16,7 @@ from pydantic_core import PydanticUndefined
 
 from akkudoktoreos.config.config import ConfigEOS, GeneralSettings, get_config
 from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.utils.docs import get_model_structure_from_examples
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 documented_types: set[PydanticBaseModel] = set()
 undocumented_types: dict[PydanticBaseModel, tuple[str, list[str]]] = dict()
@@ -50,6 +50,45 @@ def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple
         resolved_types.append((field_type, parent_types))
 
     return resolved_types
+
+
+def get_example_or_default(field_name: str, field_info: FieldInfo, example_ix: int) -> Any:
+    """Generate a default value for a field, considering constraints."""
+    if field_info.examples is not None:
+        try:
+            return field_info.examples[example_ix]
+        except IndexError:
+            return field_info.examples[-1]
+
+    if field_info.default is not None:
+        return field_info.default
+
+    raise NotImplementedError(f"No default or example provided '{field_name}': {field_info}")
+
+
+def get_model_structure_from_examples(
+    model_class: type[PydanticBaseModel], multiple: bool
+) -> list[dict[str, Any]]:
+    """Create a model instance with default or example values, respecting constraints."""
+    example_max_length = 1
+
+    # Get first field with examples (non-default) to get example_max_length
+    if multiple:
+        for _, field_info in model_class.model_fields.items():
+            if field_info.examples is not None:
+                example_max_length = len(field_info.examples)
+                break
+
+    example_data: list[dict[str, Any]] = [{} for _ in range(example_max_length)]
+
+    for field_name, field_info in model_class.model_fields.items():
+        if field_info.deprecated:
+            continue
+        for example_ix in range(example_max_length):
+            example_data[example_ix][field_name] = get_example_or_default(
+                field_name, field_info, example_ix
+            )
+    return example_data
 
 
 def create_model_from_examples(
@@ -163,6 +202,7 @@ def generate_config_table_md(
         inner_types: dict[PydanticBaseModel, tuple[str, list[str]]] = dict()
 
         def extract_nested_models(subtype: Any, subprefix: str, parent_types: list[str]):
+            """Extract nested models."""
             if subtype in inner_types.keys():
                 return
             nested_types = resolve_nested_types(subtype, [])
@@ -174,9 +214,9 @@ def generate_config_table_md(
                     else:
                         new_prefix = f"{subprefix}"
                     inner_types.setdefault(nested_type, (new_prefix, new_parent_types))
-                    for nested_field_name, nested_field_info in list(
-                        nested_type.model_fields.items()
-                    ) + list(nested_type.model_computed_fields.items()):
+
+                    # Handle normal fields
+                    for nested_field_name, nested_field_info in nested_type.model_fields.items():
                         nested_field_type = nested_field_info.annotation
                         if new_prefix:
                             new_prefix += f"{nested_field_name.upper()}__"
@@ -185,6 +225,8 @@ def generate_config_table_md(
                             new_prefix,
                             new_parent_types + [nested_field_name],
                         )
+
+                    # Do not extract computed fields
 
         extract_nested_models(field_type, f"{prefix}{config_name}__", toplevel_keys + [field_name])
 
@@ -289,6 +331,13 @@ def generate_config_md(config_eos: ConfigEOS) -> str:
         '/home/user/.local/share/net.akkudoktoreos.net/output/eos.log',
         markdown
     )
+
+    # Assure timezone name does not leak to documentation
+    tz_name = to_datetime().timezone_name
+    markdown = re.sub(re.escape(tz_name), "Europe/Berlin", markdown, flags=re.IGNORECASE)
+    # Also replace UTC, as GitHub CI always is on UTC
+    markdown = re.sub(re.escape("UTC"), "Europe/Berlin", markdown, flags=re.IGNORECASE)
+
 
     return markdown
 

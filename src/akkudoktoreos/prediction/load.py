@@ -1,6 +1,6 @@
 """Load forecast module for load predictions."""
 
-from typing import Optional, Union
+from typing import Optional
 
 from pydantic import Field, field_validator
 
@@ -21,6 +21,20 @@ load_providers = [
 ]
 
 
+class LoadCommonProviderSettings(SettingsBaseModel):
+    """Load Prediction Provider Configuration."""
+
+    LoadAkkudoktor: Optional[LoadAkkudoktorCommonSettings] = Field(
+        default=None, description="LoadAkkudoktor settings", examples=[None]
+    )
+    LoadVrm: Optional[LoadVrmCommonSettings] = Field(
+        default=None, description="LoadVrm settings", examples=[None]
+    )
+    LoadImport: Optional[LoadImportCommonSettings] = Field(
+        default=None, description="LoadImport settings", examples=[None]
+    )
+
+
 class LoadCommonSettings(SettingsBaseModel):
     """Load Prediction Configuration."""
 
@@ -30,9 +44,18 @@ class LoadCommonSettings(SettingsBaseModel):
         examples=["LoadAkkudoktor"],
     )
 
-    provider_settings: Optional[
-        Union[LoadAkkudoktorCommonSettings, LoadVrmCommonSettings, LoadImportCommonSettings]
-    ] = Field(default=None, description="Provider settings", examples=[None])
+    provider_settings: LoadCommonProviderSettings = Field(
+        default_factory=LoadCommonProviderSettings,
+        description="Provider settings",
+        examples=[
+            # Example 1: Empty/default settings (all providers None)
+            {
+                "LoadAkkudoktor": None,
+                "LoadVrm": None,
+                "LoadImport": None,
+            },
+        ],
+    )
 
     # Validators
     @field_validator("provider", mode="after")

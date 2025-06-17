@@ -73,3 +73,9 @@ You can also control the log level by setting the `EOS_LOGGING__CONSOLE_LEVEL` a
 If the `file_level` configuration is set, log records are written to a rotating log file. The log
 file is in the data output directory and named `eos.log`. You may directly read the file or use
 the `/v1/logging/log` endpoint to access the file log.
+
+:::{admonition} Note
+:class: note
+The `/v1/logging/log` endpoint needs file logging to be enabled. Otherwise old or no logging
+information is provided.
+:::

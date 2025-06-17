@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.devices.battery import Battery, SolarPanelBatteryParameters
+from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
 
 
 @pytest.fixture
@@ -15,7 +15,10 @@ def setup_pv_battery():
         max_charge_power_w=8000,
         hours=24,
     )
-    battery = Battery(params)
+    battery = Battery(
+        params,
+        prediction_hours=48,
+    )
     battery.reset()
     return battery
 
@@ -150,7 +153,7 @@ def test_charge_energy_not_allowed_hour(setup_pv_battery):
     battery = setup_pv_battery
 
     # Disable charging for all hours
-    battery.set_charge_per_hour(np.zeros(battery.hours))
+    battery.set_charge_per_hour(np.zeros(battery.prediction_hours))
 
     charged_wh, losses_wh = battery.charge_energy(wh=4000, hour=3)
 
@@ -177,7 +180,9 @@ def test_charge_energy_relative_power(setup_pv_battery):
 
 @pytest.fixture
 def setup_car_battery():
-    from akkudoktoreos.devices.battery import ElectricVehicleParameters
+    from akkudoktoreos.optimization.genetic.geneticparams import (
+        ElectricVehicleParameters,
+    )
 
     params = ElectricVehicleParameters(
         device_id="ev1",
@@ -188,7 +193,10 @@ def setup_car_battery():
         max_charge_power_w=7000,
         hours=24,
     )
-    battery = Battery(params)
+    battery = Battery(
+        params,
+        prediction_hours=48,
+    )
     battery.reset()
     return battery
 
