@@ -182,7 +182,6 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             self.config.prediction.hours
             - ((highest_orig_datetime - self.start_datetime).total_seconds() // 3600)
         )
-        print(f"EOS CONFIG {self.config.prediction.hours}")
 
         if needed_hours <= 0:
             logger.warning(
