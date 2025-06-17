@@ -56,6 +56,101 @@ def AdminButton(*c: Any, cls: Optional[Union[str, tuple]] = None, **kwargs: Any)
     return Button(*c, submit=False, **kwargs)
 
 
+def AdminCache(
+    eos_host: str, eos_port: Union[str, int], data: Optional[dict], config: Optional[dict[str, Any]]
+) -> tuple[str, Union[Card, list[Card]]]:
+    """Creates a cache management card.
+
+    Args:
+        eos_host (str): The hostname of the EOS server.
+        eos_port (Union[str, int]): The port of the EOS server.
+        data (Optional[dict]): Incoming data containing action and category for processing.
+
+    Returns:
+        tuple[str, Union[Card, list[Card]]]: A tuple containing the cache category label and the `Card` UI component.
+    """
+    server = f"http://{eos_host}:{eos_port}"
+    eos_hostname = "EOS server"
+    eosdash_hostname = "EOSdash server"
+
+    category = "cache"
+
+    if data and data.get("category", None) == category:
+        # This data is for us
+        if data["action"] == "clear":
+            # Clear all cache files
+            try:
+                result = requests.post(f"{server}/v1/admin/cache/clear", timeout=10)
+                result.raise_for_status()
+                status = Success(f"Cleared all cache files on '{eos_hostname}'")
+            except requests.exceptions.HTTPError as e:
+                detail = result.json()["detail"]
+                status = Error(f"Can not clear all cache files on '{eos_hostname}': {e}, {detail}")
+            except Exception as e:
+                status = Error(f"Can not clear all cache files on '{eos_hostname}': {e}")
+        elif data["action"] == "clear-expired":
+            # Clear expired cache files
+            try:
+                result = requests.post(f"{server}/v1/admin/cache/clear-expired", timeout=10)
+                result.raise_for_status()
+                status = Success(f"Cleared expired cache files on '{eos_hostname}'")
+            except requests.exceptions.HTTPError as e:
+                detail = result.json()["detail"]
+                status = Error(
+                    f"Can not clear expired cache files on '{eos_hostname}': {e}, {detail}"
+                )
+            except Exception as e:
+                status = Error(f"Can not clear expired cache files on '{eos_hostname}': {e}")
+
+    return (
+        category,
+        [
+            Card(
+                Details(
+                    Summary(
+                        Grid(
+                            DivHStacked(
+                                UkIcon(icon="play"),
+                                AdminButton(
+                                    "Clear all",
+                                    hx_post="/eosdash/admin",
+                                    hx_target="#page-content",
+                                    hx_swap="innerHTML",
+                                    hx_vals='{"category": "cache", "action": "clear"}',
+                                ),
+                                P(f"cache files on '{eos_hostname}'"),
+                            ),
+                        ),
+                        cls="list-none",
+                    ),
+                    P(f"Clear all cache files on '{eos_hostname}'."),
+                ),
+            ),
+            Card(
+                Details(
+                    Summary(
+                        Grid(
+                            DivHStacked(
+                                UkIcon(icon="play"),
+                                AdminButton(
+                                    "Clear expired",
+                                    hx_post="/eosdash/admin",
+                                    hx_target="#page-content",
+                                    hx_swap="innerHTML",
+                                    hx_vals='{"category": "cache", "action": "clear-expired"}',
+                                ),
+                                P(f"cache files on '{eos_hostname}'"),
+                            ),
+                        ),
+                        cls="list-none",
+                    ),
+                    P(f"Clear expired cache files on '{eos_hostname}'."),
+                ),
+            ),
+        ],
+    )
+
+
 def AdminConfig(
     eos_host: str, eos_port: Union[str, int], data: Optional[dict], config: Optional[dict[str, Any]]
 ) -> tuple[str, Union[Card, list[Card]]]:
@@ -282,6 +377,7 @@ def Admin(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = None)
     rows = []
     last_category = ""
     for category, admin in [
+        AdminCache(eos_host, eos_port, data, config),
         AdminConfig(eos_host, eos_port, data, config),
     ]:
         if category != last_category:
