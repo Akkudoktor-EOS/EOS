@@ -100,6 +100,7 @@ Properties:
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | startup_delay | `EOS_EMS__STARTUP_DELAY` | `float` | `rw` | `5` | Startup delay in seconds for EOS energy management runs. |
 | interval | `EOS_EMS__INTERVAL` | `Optional[float]` | `rw` | `None` | Intervall in seconds between EOS energy management runs. |
+| mode | `EOS_EMS__MODE` | `Optional[akkudoktoreos.core.emsettings.EnergyManagementMode]` | `rw` | `None` | Energy management mode [OPTIMIZATION | PREDICTION]. |
 :::
 
 ### Example Input/Output
@@ -110,7 +111,8 @@ Properties:
    {
        "ems": {
            "startup_delay": 5.0,
-           "interval": 300.0
+           "interval": 300.0,
+           "mode": "OPTIMIZATION"
        }
    }
 ```
@@ -166,9 +168,14 @@ Properties:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| batteries | `EOS_DEVICES__BATTERIES` | `Optional[list[akkudoktoreos.devices.battery.BaseBatteryParameters]]` | `rw` | `None` | List of battery/ev devices |
-| inverters | `EOS_DEVICES__INVERTERS` | `Optional[list[akkudoktoreos.devices.inverter.InverterParameters]]` | `rw` | `None` | List of inverters |
-| home_appliances | `EOS_DEVICES__HOME_APPLIANCES` | `Optional[list[akkudoktoreos.devices.generic.HomeApplianceParameters]]` | `rw` | `None` | List of home appliances |
+| batteries | `EOS_DEVICES__BATTERIES` | `Optional[list[akkudoktoreos.devices.devices.BatteriesCommonSettings]]` | `rw` | `None` | List of battery devices |
+| max_batteries | `EOS_DEVICES__MAX_BATTERIES` | `Optional[int]` | `rw` | `0` | Maximum number of batteries that can be set |
+| electric_vehicles | `EOS_DEVICES__ELECTRIC_VEHICLES` | `Optional[list[akkudoktoreos.devices.devices.BatteriesCommonSettings]]` | `rw` | `None` | List of electric vehicle devices |
+| max_electric_vehicles | `EOS_DEVICES__MAX_ELECTRIC_VEHICLES` | `Optional[int]` | `rw` | `0` | Maximum number of electric vehicles that can be set |
+| inverters | `EOS_DEVICES__INVERTERS` | `Optional[list[akkudoktoreos.devices.devices.InverterCommonSettings]]` | `rw` | `None` | List of inverters |
+| max_inverters | `EOS_DEVICES__MAX_INVERTERS` | `Optional[int]` | `rw` | `0` | Maximum number of inverters that can be set |
+| home_appliances | `EOS_DEVICES__HOME_APPLIANCES` | `Optional[list[akkudoktoreos.devices.devices.HomeApplianceCommonSettings]]` | `rw` | `None` | List of home appliances |
+| max_home_appliances | `EOS_DEVICES__MAX_HOME_APPLIANCES` | `Optional[int]` | `rw` | `0` | Maximum number of home_appliances that can be set |
 :::
 
 ### Example Input/Output
@@ -181,23 +188,42 @@ Properties:
            "batteries": [
                {
                    "device_id": "battery1",
-                   "hours": null,
                    "capacity_wh": 8000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
+                   "levelized_cost_of_storage_kwh": 0.0,
                    "max_charge_power_w": 5000,
-                   "initial_soc_percentage": 0,
+                   "min_charge_power_w": 50,
+                   "charge_rates": null,
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100
                }
            ],
+           "max_batteries": 1,
+           "electric_vehicles": [
+               {
+                   "device_id": "battery1",
+                   "capacity_wh": 8000,
+                   "charging_efficiency": 0.88,
+                   "discharging_efficiency": 0.88,
+                   "levelized_cost_of_storage_kwh": 0.0,
+                   "max_charge_power_w": 5000,
+                   "min_charge_power_w": 50,
+                   "charge_rates": null,
+                   "min_soc_percentage": 0,
+                   "max_soc_percentage": 100
+               }
+           ],
+           "max_electric_vehicles": 1,
            "inverters": [],
-           "home_appliances": []
+           "max_inverters": 1,
+           "home_appliances": [],
+           "max_home_appliances": 1
        }
    }
 ```
 
-### Home Appliance Device Simulation Configuration
+### Home Appliance devices base settings
 
 :::{table} devices::home_appliances::list
 :widths: 10 10 5 5 30
@@ -205,10 +231,9 @@ Properties:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| device_id | `str` | `rw` | `required` | ID of home appliance |
-| hours | `Optional[int]` | `rw` | `None` | Number of prediction hours. Defaults to global config prediction hours. |
-| consumption_wh | `int` | `rw` | `required` | An integer representing the energy consumption of a household device in watt-hours. |
-| duration_h | `int` | `rw` | `required` | An integer representing the usage duration of a household device in hours. |
+| device_id | `str` | `rw` | `<unknown>` | ID of device |
+| consumption_wh | `int` | `rw` | `required` | Energy consumption [Wh]. |
+| duration_h | `int` | `rw` | `required` | Usage duration in hours [0 ... 24]. |
 :::
 
 #### Example Input/Output
@@ -220,8 +245,22 @@ Properties:
        "devices": {
            "home_appliances": [
                {
+                   "device_id": "battery1",
+                   "consumption_wh": 2000,
+                   "duration_h": 3
+               },
+               {
+                   "device_id": "ev1",
+                   "consumption_wh": 2000,
+                   "duration_h": 3
+               },
+               {
+                   "device_id": "inverter1",
+                   "consumption_wh": 2000,
+                   "duration_h": 3
+               },
+               {
                    "device_id": "dishwasher",
-                   "hours": null,
                    "consumption_wh": 2000,
                    "duration_h": 3
                }
@@ -230,7 +269,7 @@ Properties:
    }
 ```
 
-### Inverter Device Simulation Configuration
+### Inverter devices base settings
 
 :::{table} devices::inverters::list
 :widths: 10 10 5 5 30
@@ -238,10 +277,9 @@ Properties:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| device_id | `str` | `rw` | `required` | ID of inverter |
-| hours | `Optional[int]` | `rw` | `None` | Number of prediction hours. Defaults to global config prediction hours. |
-| max_power_wh | `float` | `rw` | `required` | - |
-| battery_id | `Optional[str]` | `rw` | `None` | ID of battery |
+| device_id | `str` | `rw` | `<unknown>` | ID of device |
+| max_power_w | `Optional[float]` | `rw` | `None` | Maximum power [W]. |
+| battery_id | `Optional[str]` | `rw` | `None` | ID of battery controlled by this inverter. |
 :::
 
 #### Example Input/Output
@@ -253,17 +291,31 @@ Properties:
        "devices": {
            "inverters": [
                {
-                   "device_id": "inverter1",
-                   "hours": null,
-                   "max_power_wh": 10000.0,
+                   "device_id": "battery1",
+                   "max_power_w": 10000.0,
                    "battery_id": null
+               },
+               {
+                   "device_id": "ev1",
+                   "max_power_w": 10000.0,
+                   "battery_id": "battery1"
+               },
+               {
+                   "device_id": "inverter1",
+                   "max_power_w": 10000.0,
+                   "battery_id": "battery1"
+               },
+               {
+                   "device_id": "dishwasher",
+                   "max_power_w": 10000.0,
+                   "battery_id": "battery1"
                }
            ]
        }
    }
 ```
 
-### Battery Device Simulation Configuration
+### Battery devices base settings
 
 :::{table} devices::batteries::list
 :widths: 10 10 5 5 30
@@ -271,15 +323,16 @@ Properties:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| device_id | `str` | `rw` | `required` | ID of battery |
-| hours | `Optional[int]` | `rw` | `None` | Number of prediction hours. Defaults to global config prediction hours. |
-| capacity_wh | `int` | `rw` | `required` | An integer representing the capacity of the battery in watt-hours. |
-| charging_efficiency | `float` | `rw` | `0.88` | A float representing the charging efficiency of the battery. |
-| discharging_efficiency | `float` | `rw` | `0.88` | A float representing the discharge efficiency of the battery. |
-| max_charge_power_w | `Optional[float]` | `rw` | `5000` | Maximum charging power in watts. |
-| initial_soc_percentage | `int` | `rw` | `0` | An integer representing the state of charge of the battery at the **start** of the current hour (not the current state). |
-| min_soc_percentage | `int` | `rw` | `0` | An integer representing the minimum state of charge (SOC) of the battery in percentage. |
-| max_soc_percentage | `int` | `rw` | `100` | An integer representing the maximum state of charge (SOC) of the battery in percentage. |
+| device_id | `str` | `rw` | `<unknown>` | ID of device |
+| capacity_wh | `int` | `rw` | `8000` | Capacity [Wh]. |
+| charging_efficiency | `float` | `rw` | `0.88` | Charging efficiency [0.01 ... 1.00]. |
+| discharging_efficiency | `float` | `rw` | `0.88` | Discharge efficiency [0.01 ... 1.00]. |
+| levelized_cost_of_storage_kwh | `float` | `rw` | `0.0` | Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [€/kWh]. |
+| max_charge_power_w | `Optional[float]` | `rw` | `5000` | Maximum charging power [W]. |
+| min_charge_power_w | `Optional[float]` | `rw` | `50` | Minimum charging power [W]. |
+| charge_rates | `Optional[list[float]]` | `rw` | `None` | Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available. |
+| min_soc_percentage | `int` | `rw` | `0` | Minimum state of charge (SOC) as percentage of capacity [%]. |
+| max_soc_percentage | `int` | `rw` | `100` | Maximum state of charge (SOC) as percentage of capacity [%]. |
 :::
 
 #### Example Input/Output
@@ -292,12 +345,55 @@ Properties:
            "batteries": [
                {
                    "device_id": "battery1",
-                   "hours": null,
                    "capacity_wh": 8000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
+                   "levelized_cost_of_storage_kwh": 0.12,
                    "max_charge_power_w": 5000.0,
-                   "initial_soc_percentage": 42,
+                   "min_charge_power_w": 50.0,
+                   "charge_rates": [
+                       0.0,
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ],
+                   "min_soc_percentage": 10,
+                   "max_soc_percentage": 100
+               },
+               {
+                   "device_id": "ev1",
+                   "capacity_wh": 8000,
+                   "charging_efficiency": 0.88,
+                   "discharging_efficiency": 0.88,
+                   "levelized_cost_of_storage_kwh": 0.12,
+                   "max_charge_power_w": 5000.0,
+                   "min_charge_power_w": 50.0,
+                   "charge_rates": null,
+                   "min_soc_percentage": 10,
+                   "max_soc_percentage": 100
+               },
+               {
+                   "device_id": "inverter1",
+                   "capacity_wh": 8000,
+                   "charging_efficiency": 0.88,
+                   "discharging_efficiency": 0.88,
+                   "levelized_cost_of_storage_kwh": 0.12,
+                   "max_charge_power_w": 5000.0,
+                   "min_charge_power_w": 50.0,
+                   "charge_rates": null,
+                   "min_soc_percentage": 10,
+                   "max_soc_percentage": 100
+               },
+               {
+                   "device_id": "dishwasher",
+                   "capacity_wh": 8000,
+                   "charging_efficiency": 0.88,
+                   "discharging_efficiency": 0.88,
+                   "levelized_cost_of_storage_kwh": 0.12,
+                   "max_charge_power_w": 5000.0,
+                   "min_charge_power_w": 50.0,
+                   "charge_rates": null,
                    "min_soc_percentage": 10,
                    "max_soc_percentage": 100
                }
@@ -339,18 +435,15 @@ Properties:
 
 ## General Optimization Configuration
 
-Attributes:
-    hours (int): Number of hours for optimizations.
-
 :::{table} optimization
 :widths: 10 20 10 5 5 30
 :align: left
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| hours | `EOS_OPTIMIZATION__HOURS` | `Optional[int]` | `rw` | `48` | Number of hours into the future for optimizations. |
-| penalty | `EOS_OPTIMIZATION__PENALTY` | `Optional[int]` | `rw` | `10` | Penalty factor used in optimization. |
-| ev_available_charge_rates_percent | `EOS_OPTIMIZATION__EV_AVAILABLE_CHARGE_RATES_PERCENT` | `Optional[List[float]]` | `rw` | `[0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]` | Charge rates available for the EV in percent of maximum charge. |
+| hours | `EOS_OPTIMIZATION__HOURS` | `Optional[int]` | `rw` | `24` | Number of hours into the future for optimizations. |
+| interval | `EOS_OPTIMIZATION__INTERVAL` | `Optional[int]` | `rw` | `3600` | The optimization interval [sec]. |
+| genetic | `EOS_OPTIMIZATION__GENETIC` | `Optional[akkudoktoreos.optimization.optimization.GeneticCommonSettings]` | `rw` | `None` | Genetic optimization algorithm configuration. |
 :::
 
 ### Example Input/Output
@@ -360,17 +453,49 @@ Attributes:
 
    {
        "optimization": {
-           "hours": 48,
-           "penalty": 10,
-           "ev_available_charge_rates_percent": [
-               0.0,
-               0.375,
-               0.5,
-               0.625,
-               0.75,
-               0.875,
-               1.0
-           ]
+           "hours": 24,
+           "interval": 3600,
+           "genetic": {
+               "individuals": 400,
+               "generations": 400,
+               "seed": null,
+               "penalties": {
+                   "ev_soc_miss": 10
+               }
+           }
+       }
+   }
+```
+
+### General Genetic Optimization Algorithm Configuration
+
+:::{table} optimization::genetic
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| individuals | `Optional[int]` | `rw` | `300` | Number of individuals (solutions) to generate for the (initial) generation [>= 10]. Defaults to 300. |
+| generations | `Optional[int]` | `rw` | `400` | Number of generations to evaluate the optimal solution [>= 10]. Defaults to 400. |
+| seed | `Optional[int]` | `rw` | `None` | Fixed seed for genetic algorithm. Defaults to 'None' which means random seed. |
+| penalties | `Optional[dict[str, Union[float, int, str]]]` | `rw` | `None` | A dictionary of penalty function parameters consisting of a penalty function parameter name and the associated value. |
+:::
+
+#### Example Input/Output
+
+```{eval-rst}
+.. code-block:: json
+
+   {
+       "optimization": {
+           "genetic": {
+               "individuals": 300,
+               "generations": 400,
+               "seed": null,
+               "penalties": {
+                   "ev_soc_miss": 10
+               }
+           }
        }
    }
 ```
@@ -423,7 +548,7 @@ Validators:
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | provider | `EOS_ELECPRICE__PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
-| charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `Optional[float]` | `rw` | `None` | Electricity price charges (€/kWh). |
+| charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `Optional[float]` | `rw` | `None` | Electricity price charges [€/kWh]. Will be added to variable market price. |
 | provider_settings | `EOS_ELECPRICE__PROVIDER_SETTINGS` | `Optional[akkudoktoreos.prediction.elecpriceimport.ElecPriceImportCommonSettings]` | `rw` | `None` | Provider settings |
 :::
 
@@ -463,6 +588,83 @@ Validators:
            "provider_settings": {
                "import_file_path": null,
                "import_json": "{\"elecprice_marketprice_wh\": [0.0003384, 0.0003318, 0.0003284]}"
+           }
+       }
+   }
+```
+
+## Electricity Price Prediction Configuration
+
+:::{table} feedintariff
+:widths: 10 20 10 5 5 30
+:align: left
+
+| Name | Environment Variable | Type | Read-Only | Default | Description |
+| ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| provider | `EOS_FEEDINTARIFF__PROVIDER` | `Optional[str]` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
+| provider_settings | `EOS_FEEDINTARIFF__PROVIDER_SETTINGS` | `Union[akkudoktoreos.prediction.feedintarifffixed.FeedInTariffFixedCommonSettings, akkudoktoreos.prediction.feedintariffimport.FeedInTariffImportCommonSettings, NoneType]` | `rw` | `None` | Provider settings |
+:::
+
+### Example Input/Output
+
+```{eval-rst}
+.. code-block:: json
+
+   {
+       "feedintariff": {
+           "provider": "FeedInTariffFixed",
+           "provider_settings": null
+       }
+   }
+```
+
+### Common settings for feed in tariff data import from file or JSON string
+
+:::{table} feedintariff::provider_settings
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import feed in tariff data from. |
+| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of feed in tariff forecast value lists. |
+:::
+
+#### Example Input/Output
+
+```{eval-rst}
+.. code-block:: json
+
+   {
+       "feedintariff": {
+           "provider_settings": {
+               "import_file_path": null,
+               "import_json": "{\"fead_in_tariff_wh\": [0.000078, 0.000078, 0.000023]}"
+           }
+       }
+   }
+```
+
+### Common settings for elecprice fixed price
+
+:::{table} feedintariff::provider_settings
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| feed_in_tariff_kwh | `Optional[float]` | `rw` | `None` | Electricity price feed in tariff [€/kWH]. |
+:::
+
+#### Example Input/Output
+
+```{eval-rst}
+.. code-block:: json
+
+   {
+       "feedintariff": {
+           "provider_settings": {
+               "feed_in_tariff_kwh": 0.078
            }
        }
    }
@@ -619,7 +821,7 @@ Validators:
                    "strings_per_inverter": 2
                }
            ],
-           "max_planes": 0
+           "max_planes": 1
        }
    }
 ```
@@ -679,7 +881,7 @@ Validators:
                    "strings_per_inverter": 2
                }
            ],
-           "max_planes": 0,
+           "max_planes": 1,
            "planes_peakpower": [
                5.0,
                3.5
@@ -945,7 +1147,8 @@ Validators:
        },
        "ems": {
            "startup_delay": 5.0,
-           "interval": 300.0
+           "interval": 300.0,
+           "mode": "OPTIMIZATION"
        },
        "logging": {
            "level": null,
@@ -956,18 +1159,37 @@ Validators:
            "batteries": [
                {
                    "device_id": "battery1",
-                   "hours": null,
                    "capacity_wh": 8000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
+                   "levelized_cost_of_storage_kwh": 0.0,
                    "max_charge_power_w": 5000,
-                   "initial_soc_percentage": 0,
+                   "min_charge_power_w": 50,
+                   "charge_rates": null,
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100
                }
            ],
+           "max_batteries": 1,
+           "electric_vehicles": [
+               {
+                   "device_id": "battery1",
+                   "capacity_wh": 8000,
+                   "charging_efficiency": 0.88,
+                   "discharging_efficiency": 0.88,
+                   "levelized_cost_of_storage_kwh": 0.0,
+                   "max_charge_power_w": 5000,
+                   "min_charge_power_w": 50,
+                   "charge_rates": null,
+                   "min_soc_percentage": 0,
+                   "max_soc_percentage": 100
+               }
+           ],
+           "max_electric_vehicles": 1,
            "inverters": [],
-           "home_appliances": []
+           "max_inverters": 1,
+           "home_appliances": [],
+           "max_home_appliances": 1
        },
        "measurement": {
            "load0_name": "Household",
@@ -977,17 +1199,16 @@ Validators:
            "load4_name": null
        },
        "optimization": {
-           "hours": 48,
-           "penalty": 10,
-           "ev_available_charge_rates_percent": [
-               0.0,
-               0.375,
-               0.5,
-               0.625,
-               0.75,
-               0.875,
-               1.0
-           ]
+           "hours": 24,
+           "interval": 3600,
+           "genetic": {
+               "individuals": 400,
+               "generations": 400,
+               "seed": null,
+               "penalties": {
+                   "ev_soc_miss": 10
+               }
+           }
        },
        "prediction": {
            "hours": 48,
@@ -996,6 +1217,10 @@ Validators:
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
            "charges_kwh": 0.21,
+           "provider_settings": null
+       },
+       "feedintariff": {
+           "provider": "FeedInTariffFixed",
            "provider_settings": null
        },
        "load": {
@@ -1051,7 +1276,7 @@ Validators:
                    "strings_per_inverter": 2
                }
            ],
-           "max_planes": 0
+           "max_planes": 1
        },
        "weather": {
            "provider": "WeatherImport",

@@ -11,13 +11,12 @@ from typing import Any, ClassVar, List, Optional
 import numpy as np
 from loguru import logger
 from numpydantic import NDArray, Shape
-from pendulum import DateTime, Duration
 from pydantic import Field, computed_field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.dataabc import DataImportMixin, DataRecord, DataSequence
-from akkudoktoreos.utils.datetimeutil import to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_duration
 
 
 class MeasurementCommonSettings(SettingsBaseModel):

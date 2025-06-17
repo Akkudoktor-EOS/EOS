@@ -14,14 +14,23 @@ from abc import abstractmethod
 from collections.abc import MutableMapping, MutableSequence
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, Union, overload
+from typing import (
+    Any,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    overload,
+)
 
 import numpy as np
 import pandas as pd
 import pendulum
 from loguru import logger
 from numpydantic import NDArray, Shape
-from pendulum import DateTime, Duration
 from pydantic import (
     AwareDatetime,
     ConfigDict,
@@ -37,7 +46,13 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeData,
     PydanticDateTimeDataFrame,
 )
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import (
+    DateTime,
+    Duration,
+    compare_datetimes,
+    to_datetime,
+    to_duration,
+)
 
 
 class DataBase(ConfigMixin, StartMixin, PydanticBaseModel):
@@ -116,7 +131,7 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             KeyError: If the specified key does not exist.
         """
-        if key in self.model_fields:
+        if key in self.__class__.model_fields:
             return getattr(self, key)
         raise KeyError(f"'{key}' not found in the record fields.")
 
@@ -130,7 +145,7 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             KeyError: If the specified key does not exist in the fields.
         """
-        if key in self.model_fields:
+        if key in self.__class__.model_fields:
             setattr(self, key, value)
         else:
             raise KeyError(f"'{key}' is not a recognized field.")
@@ -144,7 +159,7 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             KeyError: If the specified key does not exist in the fields.
         """
-        if key in self.model_fields:
+        if key in self.__class__.model_fields:
             setattr(self, key, None)  # Optional: set to None instead of deleting
         else:
             raise KeyError(f"'{key}' is not a recognized field.")
@@ -155,7 +170,7 @@ class DataRecord(DataBase, MutableMapping):
         Returns:
             Iterator[str]: An iterator over field names.
         """
-        return iter(self.model_fields)
+        return iter(self.__class__.model_fields)
 
     def __len__(self) -> int:
         """Return the number of fields in the data record.
@@ -163,7 +178,7 @@ class DataRecord(DataBase, MutableMapping):
         Returns:
             int: The number of defined fields.
         """
-        return len(self.model_fields)
+        return len(self.__class__.model_fields)
 
     def __repr__(self) -> str:
         """Provide a string representation of the data record.
@@ -171,7 +186,7 @@ class DataRecord(DataBase, MutableMapping):
         Returns:
             str: A string representation showing field names and their values.
         """
-        field_values = {field: getattr(self, field) for field in self.model_fields}
+        field_values = {field: getattr(self, field) for field in self.__class__.model_fields}
         return f"{self.__class__.__name__}({field_values})"
 
     def __getattr__(self, key: str) -> Any:
@@ -186,7 +201,7 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             AttributeError: If the field does not exist.
         """
-        if key in self.model_fields:
+        if key in self.__class__.model_fields:
             return getattr(self, key)
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
 
@@ -200,7 +215,7 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             AttributeError: If the attribute/field does not exist.
         """
-        if key in self.model_fields:
+        if key in self.__class__.model_fields:
             super().__setattr__(key, value)
         else:
             raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
@@ -214,7 +229,7 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             AttributeError: If the attribute/field does not exist.
         """
-        if key in self.model_fields:
+        if key in self.__class__.model_fields:
             setattr(self, key, None)  # Optional: set to None instead of deleting
         else:
             super().__delattr__(key)
@@ -868,6 +883,11 @@ class DataSequence(DataBase, MutableSequence):
             KeyError: If the specified key is not found in any of the DataRecords.
         """
         self._validate_key(key)
+
+        # General check on fill_method
+        if fill_method not in ("ffill", "bfill", "linear", "none", None):
+            raise ValueError(f"Unsupported fill method: {fill_method}")
+
         # Ensure datetime objects are normalized
         start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
         end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
@@ -880,7 +900,7 @@ class DataSequence(DataBase, MutableSequence):
         values_len = len(values)
 
         if values_len < 1:
-            # No values, assume at at least one value set to None
+            # No values, assume at least one value set to None
             if start_datetime is not None:
                 dates.append(start_datetime - interval)
             else:
@@ -902,6 +922,11 @@ class DataSequence(DataBase, MutableSequence):
                 # Truncate all values before latest value before start_datetime
                 dates = dates[start_index - 1 :]
                 values = values[start_index - 1 :]
+            # We have a start_datetime, align to start datetime
+            resample_origin = start_datetime
+        else:
+            # We do not have a start_datetime, align resample buckets to midnight of first day
+            resample_origin = "start_day"
 
         if end_datetime is not None:
             if compare_datetimes(dates[-1], end_datetime).lt:
@@ -922,7 +947,7 @@ class DataSequence(DataBase, MutableSequence):
             if fill_method is None:
                 fill_method = "linear"
             # Resample the series to the specified interval
-            resampled = series.resample(interval, origin="start").first()
+            resampled = series.resample(interval, origin=resample_origin).first()
             if fill_method == "linear":
                 resampled = resampled.interpolate(method="linear")
             elif fill_method == "ffill":
@@ -936,7 +961,7 @@ class DataSequence(DataBase, MutableSequence):
             if fill_method is None:
                 fill_method = "ffill"
             # Resample the series to the specified interval
-            resampled = series.resample(interval, origin="start").first()
+            resampled = series.resample(interval, origin=resample_origin).first()
             if fill_method == "ffill":
                 resampled = resampled.ffill()
             elif fill_method == "bfill":
@@ -944,12 +969,24 @@ class DataSequence(DataBase, MutableSequence):
             elif fill_method != "none":
                 raise ValueError(f"Unsupported fill method for non-numeric data: {fill_method}")
 
+        logger.debug(
+            "Resampled for '{}' with length {}: {}...{}",
+            key,
+            len(resampled),
+            resampled[:10],
+            resampled[-10:],
+        )
+
         # Convert the resampled series to a NumPy array
         if start_datetime is not None and len(resampled) > 0:
             resampled = resampled.truncate(before=start_datetime)
         if end_datetime is not None and len(resampled) > 0:
             resampled = resampled.truncate(after=end_datetime.subtract(seconds=1))
         array = resampled.values
+        logger.debug(
+            "Array for '{}' with length {}: {}...{}", key, len(array), array[:10], array[-10:]
+        )
+
         return array
 
     def to_dataframe(
