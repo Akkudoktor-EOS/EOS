@@ -9,14 +9,19 @@ import time
 from typing import Any
 
 import numpy as np
+from loguru import logger
 
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.optimization.genetic import (
+    GeneticOptimization,
     OptimizationParameters,
-    optimization_problem,
 )
 from akkudoktoreos.prediction.prediction import get_prediction
+
+config_eos = get_config()
+prediction_eos = get_prediction()
+ems_eos = get_ems()
 
 
 def prepare_optimization_real_parameters() -> OptimizationParameters:
@@ -85,10 +90,24 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
             },
         },
         # -- Simulations --
+        # Assure we have charge rates for the EV
+        "devices": {
+            "max_electric_vehicles": 1,
+            "electric_vehicles": [
+                {
+                    "charge_rates": [
+                        0.0,
+                        6.0 / 16.0,
+                        8.0 / 16.0,
+                        10.0 / 16.0,
+                        12.0 / 16.0,
+                        14.0 / 16.0,
+                        1.0,
+                    ],
+                },
+            ],
+        },
     }
-    config_eos = get_config()
-    prediction_eos = get_prediction()
-    ems_eos = get_ems()
 
     # Update/ set configuration
     config_eos.merge_settings_from_dict(settings)
@@ -147,14 +166,18 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
                 "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
             },
             "pv_akku": {
-                "device_id": "battery1",
+                "device_id": "battery 1",
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
                 "min_soc_percentage": 15,
             },
-            "inverter": {"device_id": "iv1", "max_power_wh": 10000, "battery_id": "battery1"},
+            "inverter": {
+                "device_id": "inverter 1",
+                "max_power_wh": 10000,
+                "battery_id": "battery 1",
+            },
             "eauto": {
-                "device_id": "ev1",
+                "device_id": "electric vehicle 1",
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,
                 "charging_efficiency": 0.95,
@@ -173,6 +196,32 @@ def prepare_optimization_parameters() -> OptimizationParameters:
     Returns:
         OptimizationParameters: Configured optimization parameters
     """
+    # Initialize the optimization problem using the default configuration
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"hours": 48},
+            # Assure we have charge rates for the EV
+            "devices": {
+                "max_electric_vehicles": 1,
+                "electric_vehicles": [
+                    {
+                        "device_id": "Default EV",
+                        "charge_rates": [
+                            0.0,
+                            6.0 / 16.0,
+                            8.0 / 16.0,
+                            10.0 / 16.0,
+                            12.0 / 16.0,
+                            14.0 / 16.0,
+                            1.0,
+                        ],
+                    },
+                ],
+            },
+        }
+    )
+
     # PV Forecast (in W)
     pv_forecast = np.zeros(48)
     pv_forecast[12] = 5000
@@ -301,14 +350,18 @@ def prepare_optimization_parameters() -> OptimizationParameters:
                 "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
             },
             "pv_akku": {
-                "device_id": "battery1",
+                "device_id": "battery 1",
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
                 "min_soc_percentage": 15,
             },
-            "inverter": {"device_id": "iv1", "max_power_wh": 10000, "battery_id": "battery1"},
+            "inverter": {
+                "device_id": "inverter 1",
+                "max_power_wh": 10000,
+                "battery_id": "battery 1",
+            },
             "eauto": {
-                "device_id": "ev1",
+                "device_id": "electric vehicle 1",
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,
                 "charging_efficiency": 0.95,
@@ -343,18 +396,15 @@ def run_optimization(
         parameters = prepare_optimization_parameters()
 
     if verbose:
-        print("\nOptimization Parameters:")
-        print(parameters.model_dump_json(indent=4))
+        logger.info("Optimization Parameters:")
+        logger.info(parameters.model_dump_json(indent=4))
 
-    # Initialize the optimization problem using the default configuration
-    config_eos = get_config()
-    config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 48}, "optimization": {"hours": 48}}
-    )
-    opt_class = optimization_problem(verbose=verbose, fixed_seed=seed)
+    genetic_optimization = GeneticOptimization(verbose=verbose, fixed_seed=seed)
 
     # Perform the optimisation based on the provided parameters and start hour
-    result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour, ngen=ngen)
+    result = genetic_optimization.optimierung_ems(
+        parameters=parameters, start_hour=start_hour, ngen=ngen
+    )
 
     return result.model_dump_json()
 

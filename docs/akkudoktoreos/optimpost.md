@@ -1,11 +1,21 @@
 % SPDX-License-Identifier: Apache-2.0
 
-# Optimization
+# `POST /optimize` Optimization
 
 ## Introduction
 
 The `POST /optimize` API endpoint optimizes your energy management system based on various inputs
 including electricity prices, battery storage capacity, PV forecast, and temperature data.
+
+The `POST /optimize` optimization interface is the "classical" interface developed by Andreas at the
+start of the projects and used and described in his videos. It allows and requires to define all the
+optimization paramters on the endpoint request.
+
+:::{admonition} Note
+:class: note
+The `POST /optimize` endpoint interface does not regard configurations set for the parameters
+passed to the request. You have to set the parameters even if given in the configuration.
+:::
 
 ## Input Payload
 
@@ -32,8 +42,8 @@ including electricity prices, battery storage capacity, PV forecast, and tempera
     },
     "inverter": {
         "device_id": "inverter1",
-        "max_power_wh": 15500
-        "battery_id": "battery1",
+        "max_power_wh": 15500,
+        "battery_id": "battery1"
     },
     "eauto": {
         "device_id": "auto1",

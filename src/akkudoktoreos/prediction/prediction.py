@@ -33,6 +33,8 @@ from pydantic import Field
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
+from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
+from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktor
 from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
@@ -64,6 +66,7 @@ class PredictionCommonSettings(SettingsBaseModel):
     hours: Optional[int] = Field(
         default=48, ge=0, description="Number of hours into the future for predictions"
     )
+
     historic_hours: Optional[int] = Field(
         default=48,
         ge=0,
@@ -84,6 +87,8 @@ class Prediction(PredictionContainer):
         Union[
             ElecPriceAkkudoktor,
             ElecPriceImport,
+            FeedInTariffFixed,
+            FeedInTariffImport,
             LoadAkkudoktor,
             LoadImport,
             PVForecastAkkudoktor,
@@ -98,6 +103,8 @@ class Prediction(PredictionContainer):
 # Initialize forecast providers, all are singletons.
 elecprice_akkudoktor = ElecPriceAkkudoktor()
 elecprice_import = ElecPriceImport()
+feedintariff_fixed = FeedInTariffFixed()
+feedintariff_import = FeedInTariffImport()
 load_akkudoktor = LoadAkkudoktor()
 load_import = LoadImport()
 pvforecast_akkudoktor = PVForecastAkkudoktor()
@@ -115,6 +122,8 @@ def get_prediction() -> Prediction:
         providers=[
             elecprice_akkudoktor,
             elecprice_import,
+            feedintariff_fixed,
+            feedintariff_import,
             load_akkudoktor,
             load_import,
             pvforecast_akkudoktor,

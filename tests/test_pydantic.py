@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 import pendulum
@@ -11,6 +11,7 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeDataFrame,
     PydanticDateTimeSeries,
     PydanticModelNestedValueMixin,
+    merge_models,
 )
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
 
@@ -31,6 +32,108 @@ class User(PydanticBaseModel):
     name: str
     addresses: Optional[list[Address]] = None
     settings: Optional[dict[str, str]] = None
+
+
+class SampleNestedModel(PydanticBaseModel):
+    threshold: int
+    enabled: bool = True
+
+
+class SampleModel(PydanticBaseModel):
+    name: str
+    count: int
+    config: SampleNestedModel
+    optional: str | None = None
+
+
+class TestMergeModels:
+    """Test suite for the merge_models utility function with None overriding."""
+
+    def test_flat_override(self):
+        """Top-level fields in update_dict override those in source, including None."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5})
+        update = {"name": "Updated"}
+        result = merge_models(source, update)
+
+        assert result["name"] == "Updated"
+        assert result["count"] == 10
+        assert result["config"]["threshold"] == 5
+
+    def test_flat_override_with_none(self):
+        """Update with None value should override source value."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5}, optional="keep me")
+        update = {"optional": None}
+        result = merge_models(source, update)
+
+        assert result["optional"] is None
+
+    def test_nested_override(self):
+        """Nested fields in update_dict override nested fields in source, including None."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5, "enabled": True})
+        update = {"config": {"threshold": 99, "enabled": False}}
+        result = merge_models(source, update)
+
+        assert result["config"]["threshold"] == 99
+        assert result["config"]["enabled"] is False
+
+    def test_nested_override_with_none(self):
+        """Nested update with None should override nested source values."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5, "enabled": True})
+        update = {"config": {"threshold": None}}
+        result = merge_models(source, update)
+
+        assert result["config"]["threshold"] is None
+        assert result["config"]["enabled"] is True  # untouched because not in update
+
+    def test_preserve_source_values(self):
+        """Source values are preserved if not overridden in update_dict."""
+        source = SampleModel(name="Source", count=7, config={"threshold": 1})
+        update: dict[str, Any] = {}
+        result = merge_models(source, update)
+
+        assert result["name"] == "Source"
+        assert result["count"] == 7
+        assert result["config"]["threshold"] == 1
+
+    def test_update_extends_source(self):
+        """Optional fields in update_dict are added to result."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5})
+        update = {"optional": "new value"}
+        result = merge_models(source, update)
+
+        assert result["optional"] == "new value"
+
+    def test_update_extends_source_with_none(self):
+        """Optional field with None in update_dict is added and overrides source."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5}, optional="value")
+        update = {"optional": None}
+        result = merge_models(source, update)
+
+        assert result["optional"] is None
+
+    def test_deep_merge_behavior(self):
+        """Nested updates merge with source, overriding only specified subkeys."""
+        source = SampleModel(name="Model", count=3, config={"threshold": 1, "enabled": False})
+        update = {"config": {"enabled": True}}
+        result = merge_models(source, update)
+
+        assert result["config"]["enabled"] is True
+        assert result["config"]["threshold"] == 1
+
+    def test_override_all(self):
+        """All fields in update_dict override all fields in source, including None."""
+        source = SampleModel(name="Orig", count=1, config={"threshold": 10, "enabled": True})
+        update = {
+            "name": "New",
+            "count": None,
+            "config": {"threshold": 50, "enabled": None}
+        }
+        result = merge_models(source, update)
+
+        assert result["name"] == "New"
+        assert result["count"] is None
+        assert result["config"]["threshold"] == 50
+        assert result["config"]["enabled"] is None
 
 
 class TestPydanticModelNestedValueMixin:

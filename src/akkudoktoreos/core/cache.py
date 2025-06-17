@@ -435,7 +435,7 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                     )
 
                 logger.debug(
-                    f"Search: ttl:{ttl_duration}, until:{until_datetime}, at:{at_datetime}, before:{before_datetime} -> hit: {generated_key == cache_file_key}, item: {cache_item.cache_file.seek(0), cache_item.cache_file.read()}"
+                    f"Search: ttl:{ttl_duration}, until:{until_datetime}, at:{at_datetime}, before:{before_datetime} -> hit: {generated_key == cache_file_key}, item: {cache_item.cache_file.seek(0), cache_item.cache_file.read()[:10]}..."
                 )
 
                 if generated_key == cache_file_key:

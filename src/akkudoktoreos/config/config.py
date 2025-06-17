@@ -32,10 +32,11 @@ from akkudoktoreos.core.decorators import classproperty
 from akkudoktoreos.core.emsettings import EnergyManagementCommonSettings
 from akkudoktoreos.core.logsettings import LoggingCommonSettings
 from akkudoktoreos.core.pydantic import PydanticModelNestedValueMixin, merge_models
-from akkudoktoreos.devices.settings import DevicesCommonSettings
+from akkudoktoreos.devices.devices import DevicesCommonSettings
 from akkudoktoreos.measurement.measurement import MeasurementCommonSettings
 from akkudoktoreos.optimization.optimization import OptimizationCommonSettings
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
+from akkudoktoreos.prediction.feedintariff import FeedInTariffCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
@@ -135,7 +136,7 @@ class GeneralSettings(SettingsBaseModel):
 class SettingsEOS(BaseSettings, PydanticModelNestedValueMixin):
     """Settings for all EOS.
 
-    Used by updating the configuration with specific settings only.
+    Only used to update the configuration with specific settings.
     """
 
     general: Optional[GeneralSettings] = Field(
@@ -173,6 +174,10 @@ class SettingsEOS(BaseSettings, PydanticModelNestedValueMixin):
     elecprice: Optional[ElecPriceCommonSettings] = Field(
         default=None,
         description="Electricity Price Settings",
+    )
+    feedintariff: Optional[FeedInTariffCommonSettings] = Field(
+        default=None,
+        description="Feed In Tariff Settings",
     )
     load: Optional[LoadCommonSettings] = Field(
         default=None,
@@ -218,6 +223,7 @@ class SettingsEOSDefaults(SettingsEOS):
     optimization: OptimizationCommonSettings = OptimizationCommonSettings()
     prediction: PredictionCommonSettings = PredictionCommonSettings()
     elecprice: ElecPriceCommonSettings = ElecPriceCommonSettings()
+    feedintariff: FeedInTariffCommonSettings = FeedInTariffCommonSettings()
     load: LoadCommonSettings = LoadCommonSettings()
     pvforecast: PVForecastCommonSettings = PVForecastCommonSettings()
     weather: WeatherCommonSettings = WeatherCommonSettings()
@@ -374,12 +380,15 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         Configuration data is loaded from a configuration file or a default one is created if none
         exists.
         """
+        logger.debug("Config init with parameters {} {}", args, kwargs)
+        # Check for singleton guard
         if hasattr(self, "_initialized"):
             return
         self._setup(self, *args, **kwargs)
 
     def _setup(self, *args: Any, **kwargs: Any) -> None:
         """Re-initialize global settings."""
+        logger.debug("Config setup with parameters {} {}", args, kwargs)
         # Check for config file content/ version type
         config_file, exists = self._get_config_file_path()
         if exists:
@@ -396,6 +405,8 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         # Init config file and data folder pathes
         self._create_initial_config_file()
         self._update_data_folder_path()
+        self._initialized = True
+        logger.debug("Config setup:\n{}", self)
 
     def merge_settings(self, settings: SettingsEOS) -> None:
         """Merges the provided settings into the global settings for EOS, with optional overwrite.
@@ -487,6 +498,11 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     @classmethod
     def _get_config_file_path(cls) -> tuple[Path, bool]:
         """Find a valid configuration file or return the desired path for a new config file.
+
+        Searches:
+            1. environment variable directory
+            2. user configuration directory
+            3. current working directory
 
         Returns:
             tuple[Path, bool]: The path to the configuration file and if there is already a config file there

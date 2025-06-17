@@ -14,8 +14,7 @@ optimization is executed. In EOS, a standard set of predictions is managed, incl
 ## Storing Predictions
 
 EOS stores predictions in a **key-value store**, where the term `prediction key` refers to the
-unique key used to retrieve specific prediction data. The key-value store is in memory. Stored
-data is lost on re-start of the EOS REST server.
+unique key used to retrieve specific prediction data.
 
 ## Prediction Providers
 
@@ -149,6 +148,26 @@ The electricity proce forecast data must be provided in one of the formats descr
 
 The data may additionally or solely be provided by the
 **PUT** `/v1/prediction/import/ElecPriceImport` endpoint.
+
+## Feed In Tariff Prediction
+
+Prediction keys:
+
+- `feed_in_tarif_wh`: Feed in tarif per Wh (€/Wh).
+- `feed_in_tarif_kwh`: Feed in tarif per kWh (€/kWh)..
+
+Configuration options:
+
+- `feedintarif`: Electricity price configuration.
+
+  - `provider`: Electricity price provider id of provider to be used.
+
+    - `ElecPriceAkkudoktor`: Retrieves from Akkudoktor.net.
+    - `ElecPriceImport`: Imports from a file or JSON string.
+
+  - `charges_kwh`: Electricity price charges (€/kWh).
+  - `provider_settings.import_file_path`: Path to the file to import electricity price forecast data from.
+  - `provider_settings.import_json`: JSON string, dictionary of electricity price forecast value lists.
 
 ## Load Prediction
 

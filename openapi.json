@@ -1825,37 +1825,26 @@
   },
   "components": {
     "schemas": {
-      "BaseBatteryParameters": {
+      "BatteriesCommonSettings": {
         "properties": {
           "device_id": {
             "type": "string",
             "title": "Device Id",
-            "description": "ID of battery",
+            "description": "ID of device",
+            "default": "<unknown>",
             "examples": [
-              "battery1"
-            ]
-          },
-          "hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
-            "examples": [
-              null
+              "battery1",
+              "ev1",
+              "inverter1",
+              "dishwasher"
             ]
           },
           "capacity_wh": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
             "title": "Capacity Wh",
-            "description": "An integer representing the capacity of the battery in watt-hours.",
+            "description": "Capacity [Wh].",
+            "default": 8000,
             "examples": [
               8000
             ]
@@ -1865,16 +1854,31 @@
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
             "title": "Charging Efficiency",
-            "description": "A float representing the charging efficiency of the battery.",
-            "default": 0.88
+            "description": "Charging efficiency [0.01 ... 1.00].",
+            "default": 0.88,
+            "examples": [
+              0.88
+            ]
           },
           "discharging_efficiency": {
             "type": "number",
             "maximum": 1.0,
             "exclusiveMinimum": 0.0,
             "title": "Discharging Efficiency",
-            "description": "A float representing the discharge efficiency of the battery.",
-            "default": 0.88
+            "description": "Discharge efficiency [0.01 ... 1.00].",
+            "default": 0.88,
+            "examples": [
+              0.88
+            ]
+          },
+          "levelized_cost_of_storage_kwh": {
+            "type": "number",
+            "title": "Levelized Cost Of Storage Kwh",
+            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
+            "default": 0.0,
+            "examples": [
+              0.12
+            ]
           },
           "max_charge_power_w": {
             "anyOf": [
@@ -1887,18 +1891,52 @@
               }
             ],
             "title": "Max Charge Power W",
-            "description": "Maximum charging power in watts.",
-            "default": 5000
-          },
-          "initial_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Initial Soc Percentage",
-            "description": "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state).",
-            "default": 0,
+            "description": "Maximum charging power [W].",
+            "default": 5000,
             "examples": [
-              42
+              5000
+            ]
+          },
+          "min_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Charge Power W",
+            "description": "Minimum charging power [W].",
+            "default": 50,
+            "examples": [
+              50
+            ]
+          },
+          "charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Rates",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [
+              [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              null
             ]
           },
           "min_soc_percentage": {
@@ -1906,7 +1944,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "description": "Minimum state of charge (SOC) as percentage of capacity [%].",
             "default": 0,
             "examples": [
               10
@@ -1917,18 +1955,16 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Max Soc Percentage",
-            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
-            "default": 100
+            "description": "Maximum state of charge (SOC) as percentage of capacity [%].",
+            "default": 100,
+            "examples": [
+              100
+            ]
           }
         },
-        "additionalProperties": false,
         "type": "object",
-        "required": [
-          "device_id",
-          "capacity_wh"
-        ],
-        "title": "BaseBatteryParameters",
-        "description": "Battery Device Simulation Configuration."
+        "title": "BatteriesCommonSettings",
+        "description": "Battery devices base settings."
       },
       "CacheCommonSettings": {
         "properties": {
@@ -1991,7 +2027,12 @@
           },
           "devices": {
             "$ref": "#/components/schemas/DevicesCommonSettings",
-            "default": {}
+            "default": {
+              "max_batteries": 0,
+              "max_electric_vehicles": 0,
+              "max_inverters": 0,
+              "max_home_appliances": 0
+            }
           },
           "measurement": {
             "$ref": "#/components/schemas/MeasurementCommonSettings",
@@ -2000,17 +2041,9 @@
           "optimization": {
             "$ref": "#/components/schemas/OptimizationCommonSettings",
             "default": {
-              "hours": 48,
-              "penalty": 10,
-              "ev_available_charge_rates_percent": [
-                0.0,
-                0.375,
-                0.5,
-                0.625,
-                0.75,
-                0.875,
-                1.0
-              ]
+              "hours": 24,
+              "interval": 3600,
+              "penalty": 10
             }
           },
           "prediction": {
@@ -2022,6 +2055,10 @@
           },
           "elecprice": {
             "$ref": "#/components/schemas/ElecPriceCommonSettings",
+            "default": {}
+          },
+          "feedintariff": {
+            "$ref": "#/components/schemas/FeedInTariffCommonSettings",
             "default": {}
           },
           "load": {
@@ -2070,7 +2107,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/BaseBatteryParameters"
+                  "$ref": "#/components/schemas/BatteriesCommonSettings"
                 },
                 "type": "array"
               },
@@ -2079,7 +2116,7 @@
               }
             ],
             "title": "Batteries",
-            "description": "List of battery/ev devices",
+            "description": "List of battery devices",
             "examples": [
               [
                 {
@@ -2089,11 +2126,70 @@
               ]
             ]
           },
+          "max_batteries": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Batteries",
+            "description": "Maximum number of batteries that can be set",
+            "default": 0,
+            "examples": [
+              1,
+              2
+            ]
+          },
+          "electric_vehicles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BatteriesCommonSettings"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Electric Vehicles",
+            "description": "List of electric vehicle devices",
+            "examples": [
+              [
+                {
+                  "capacity_wh": 8000,
+                  "device_id": "battery1"
+                }
+              ]
+            ]
+          },
+          "max_electric_vehicles": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Electric Vehicles",
+            "description": "Maximum number of electric vehicles that can be set",
+            "default": 0,
+            "examples": [
+              1,
+              2
+            ]
+          },
           "inverters": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/InverterParameters"
+                  "$ref": "#/components/schemas/InverterCommonSettings"
                 },
                 "type": "array"
               },
@@ -2107,11 +2203,29 @@
               []
             ]
           },
+          "max_inverters": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Inverters",
+            "description": "Maximum number of inverters that can be set",
+            "default": 0,
+            "examples": [
+              1,
+              2
+            ]
+          },
           "home_appliances": {
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/HomeApplianceParameters"
+                  "$ref": "#/components/schemas/HomeApplianceCommonSettings"
                 },
                 "type": "array"
               },
@@ -2123,6 +2237,24 @@
             "description": "List of home appliances",
             "examples": [
               []
+            ]
+          },
+          "max_home_appliances": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Home Appliances",
+            "description": "Maximum number of home_appliances that can be set",
+            "default": 0,
+            "examples": [
+              1,
+              2
             ]
           }
         },
@@ -2158,7 +2290,7 @@
               }
             ],
             "title": "Charges Kwh",
-            "description": "Electricity price charges (\u20ac/kWh).",
+            "description": "Electricity price charges [\u20ac/kWh]. Will be added to variable market price.",
             "examples": [
               0.21
             ]
@@ -2435,11 +2567,35 @@
             "examples": [
               "300"
             ]
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnergyManagementMode"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Energy management mode [OPTIMIZATION | PREDICTION].",
+            "examples": [
+              "OPTIMIZATION",
+              "PREDICTION"
+            ]
           }
         },
         "type": "object",
         "title": "EnergyManagementCommonSettings",
         "description": "Energy Management Configuration."
+      },
+      "EnergyManagementMode": {
+        "type": "string",
+        "enum": [
+          "PREDICTION",
+          "OPTIMIZATION"
+        ],
+        "title": "EnergyManagementMode",
+        "description": "Energy management mode."
       },
       "EnergyManagementParameters": {
         "properties": {
@@ -2497,7 +2653,114 @@
           "preis_euro_pro_wh_akku",
           "gesamtlast"
         ],
-        "title": "EnergyManagementParameters"
+        "title": "EnergyManagementParameters",
+        "description": "Encapsulates energy-related forecasts and costs used in optimization."
+      },
+      "FeedInTariffCommonSettings": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "Feed in tariff provider id of provider to be used.",
+            "examples": [
+              "FeedInTariffFixed",
+              "FeedInTarifImport"
+            ]
+          },
+          "provider_settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedInTariffFixedCommonSettings"
+              },
+              {
+                "$ref": "#/components/schemas/FeedInTariffImportCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Settings",
+            "description": "Provider settings",
+            "examples": [
+              null
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffCommonSettings",
+        "description": "Electricity Price Prediction Configuration."
+      },
+      "FeedInTariffFixedCommonSettings": {
+        "properties": {
+          "feed_in_tariff_kwh": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feed In Tariff Kwh",
+            "description": "Electricity price feed in tariff [\u20ac/kWH].",
+            "examples": [
+              0.078
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffFixedCommonSettings",
+        "description": "Common settings for elecprice fixed price."
+      },
+      "FeedInTariffImportCommonSettings": {
+        "properties": {
+          "import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import File Path",
+            "description": "Path to the file to import feed in tariff data from.",
+            "examples": [
+              null,
+              "/path/to/feedintariff.json"
+            ]
+          },
+          "import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Json",
+            "description": "JSON string, dictionary of feed in tariff forecast value lists.",
+            "examples": [
+              "{\"fead_in_tariff_wh\": [0.000078, 0.000078, 0.000023]}"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffImportCommonSettings",
+        "description": "Common settings for feed in tariff data import from file or JSON string."
       },
       "ForecastResponse": {
         "properties": {
@@ -2767,6 +3030,48 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HomeApplianceCommonSettings": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of device",
+            "default": "<unknown>",
+            "examples": [
+              "battery1",
+              "ev1",
+              "inverter1",
+              "dishwasher"
+            ]
+          },
+          "consumption_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Consumption Wh",
+            "description": "Energy consumption [Wh].",
+            "examples": [
+              2000
+            ]
+          },
+          "duration_h": {
+            "type": "integer",
+            "maximum": 24.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Duration H",
+            "description": "Usage duration in hours [0 ... 24].",
+            "examples": [
+              3
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "consumption_wh",
+          "duration_h"
+        ],
+        "title": "HomeApplianceCommonSettings",
+        "description": "Home Appliance devices base settings."
+      },
       "HomeApplianceParameters": {
         "properties": {
           "device_id": {
@@ -2821,6 +3126,57 @@
         ],
         "title": "HomeApplianceParameters",
         "description": "Home Appliance Device Simulation Configuration."
+      },
+      "InverterCommonSettings": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of device",
+            "default": "<unknown>",
+            "examples": [
+              "battery1",
+              "ev1",
+              "inverter1",
+              "dishwasher"
+            ]
+          },
+          "max_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Power W",
+            "description": "Maximum power [W].",
+            "examples": [
+              10000
+            ]
+          },
+          "battery_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Id",
+            "description": "ID of battery controlled by this inverter.",
+            "examples": [
+              null,
+              "battery1"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "InverterCommonSettings",
+        "description": "Inverter devices base settings."
       },
       "InverterParameters": {
         "properties": {
@@ -3218,7 +3574,26 @@
             ],
             "title": "Hours",
             "description": "Number of hours into the future for optimizations.",
-            "default": 48
+            "default": 24
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3600.0,
+                "minimum": 900.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval",
+            "description": "The optimization interval [sec].",
+            "default": 3600,
+            "examples": [
+              3600,
+              900
+            ]
           },
           "penalty": {
             "anyOf": [
@@ -3232,30 +3607,6 @@
             "title": "Penalty",
             "description": "Penalty factor used in optimization.",
             "default": 10
-          },
-          "ev_available_charge_rates_percent": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ev Available Charge Rates Percent",
-            "description": "Charge rates available for the EV in percent of maximum charge.",
-            "default": [
-              0.0,
-              0.375,
-              0.5,
-              0.625,
-              0.75,
-              0.875,
-              1.0
-            ]
           }
         },
         "type": "object",
@@ -3353,7 +3704,8 @@
           "inverter",
           "eauto"
         ],
-        "title": "OptimizationParameters"
+        "title": "OptimizationParameters",
+        "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
       },
       "OptimizeResponse": {
         "properties": {
@@ -3550,7 +3902,11 @@
             ],
             "title": "Max Planes",
             "description": "Maximum number of planes that can be set",
-            "default": 0
+            "default": 0,
+            "examples": [
+              1,
+              2
+            ]
           }
         },
         "type": "object",
@@ -3657,7 +4013,11 @@
             ],
             "title": "Max Planes",
             "description": "Maximum number of planes that can be set",
-            "default": 0
+            "default": 0,
+            "examples": [
+              1,
+              2
+            ]
           },
           "planes_peakpower": {
             "items": {
@@ -4352,6 +4712,17 @@
             ],
             "description": "Electricity Price Settings"
           },
+          "feedintariff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedInTariffCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Feed In Tariff Settings"
+          },
           "load": {
             "anyOf": [
               {
@@ -4709,7 +5080,8 @@
           "device_id",
           "capacity_wh"
         ],
-        "title": "SolarPanelBatteryParameters"
+        "title": "SolarPanelBatteryParameters",
+        "description": "PV battery device simulation configuration."
       },
       "UtilsCommonSettings": {
         "properties": {},

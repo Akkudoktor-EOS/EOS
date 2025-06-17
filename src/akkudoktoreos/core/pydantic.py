@@ -56,18 +56,40 @@ _model_private_state: "weakref.WeakKeyDictionary[Union[PydanticBaseModel, Pydant
 
 
 def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, Any]:
-    def deep_update(source_dict: dict[str, Any], update_dict: dict[str, Any]) -> dict[str, Any]:
-        for key, value in source_dict.items():
-            if isinstance(value, dict) and isinstance(update_dict.get(key), dict):
-                update_dict[key] = deep_update(update_dict[key], value)
-            else:
-                update_dict[key] = value
-        return update_dict
+    """Merge a Pydantic model instance with an update dictionary.
+
+    Values in update_dict (including None) override source values.
+    Nested dictionaries are merged recursively.
+    Lists in update_dict replace source lists entirely.
+
+    Args:
+        source (BaseModel): Pydantic model instance serving as the source.
+        update_dict (dict[str, Any]): Dictionary with updates to apply.
+
+    Returns:
+        dict[str, Any]: Merged dictionary representing combined model data.
+    """
+
+    def deep_merge(source_data: Any, update_data: Any) -> Any:
+        if isinstance(source_data, dict) and isinstance(update_data, dict):
+            merged = dict(source_data)
+            for key, update_value in update_data.items():
+                if key in merged:
+                    merged[key] = deep_merge(merged[key], update_value)
+                else:
+                    merged[key] = update_value
+            return merged
+
+        # If both are lists, replace source list with update list
+        if isinstance(source_data, list) and isinstance(update_data, list):
+            return update_data
+
+        # For other types or if update_data is None, override source_data
+        return update_data
 
     source_dict = source.model_dump(exclude_unset=True)
-    merged_dict = deep_update(source_dict, deepcopy(update_dict))
-
-    return merged_dict
+    merged_result = deep_merge(source_dict, deepcopy(update_dict))
+    return merged_result
 
 
 class PydanticTypeAdapterDateTime(TypeAdapter[pendulum.DateTime]):

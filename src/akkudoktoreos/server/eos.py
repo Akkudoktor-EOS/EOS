@@ -39,11 +39,9 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeSeries,
 )
 from akkudoktoreos.measurement.measurement import get_measurement
-from akkudoktoreos.optimization.genetic import (
-    OptimizationParameters,
-    OptimizeResponse,
-    optimization_problem,
-)
+from akkudoktoreos.optimization.genetic import GeneticOptimization
+from akkudoktoreos.optimization.geneticparams import OptimizationParameters
+from akkudoktoreos.optimization.geneticsolution import OptimizeResponse
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
@@ -1225,7 +1223,7 @@ def fastapi_optimize(
     prediction_eos.update_data()
 
     # Perform optimization simulation
-    opt_class = optimization_problem(verbose=bool(config_eos.server.verbose))
+    opt_class = GeneticOptimization(verbose=bool(config_eos.server.verbose))
     try:
         result = opt_class.optimierung_ems(
             parameters=parameters, start_hour=start_hour, **extra_args
