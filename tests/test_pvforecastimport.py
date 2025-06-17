@@ -97,9 +97,9 @@ def test_import(provider, sample_import_1_json, start_datetime, from_file, confi
     provider.update_data()
 
     # Assert: Verify the result is as expected
-    assert provider.start_datetime is not None
+    assert provider.ems_start_datetime is not None
     assert provider.total_hours is not None
-    assert compare_datetimes(provider.start_datetime, ems_eos.start_datetime).equal
+    assert compare_datetimes(provider.ems_start_datetime, ems_eos.start_datetime).equal
     values = sample_import_1_json["pvforecast_ac_power"]
     value_datetime_mapping = provider.import_datetimes(ems_eos.start_datetime, len(values))
     for i, mapping in enumerate(value_datetime_mapping):

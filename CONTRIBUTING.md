@@ -14,9 +14,10 @@ Please report flaws or vulnerabilities in the [GitHub Issue Tracker](https://git
 
 ## Ideas & Features
 
-Please first discuss the idea in a [GitHub Discussion](https://github.com/Akkudoktor-EOS/EOS/discussions) or the [Akkudoktor Forum](https://www.akkudoktor.net/forum/diy-energie-optimierungssystem-opensource-projekt/) before opening an issue.
+Issues in the [GitHub Issue Tracker](https://github.com/Akkudoktor-EOS/EOS/issues) are also fine
+to discuss ideas and features.
 
-There are just too many possibilities and the project would drown in tickets otherwise.
+You may first discuss the idea in the [Akkudoktor Forum](https://www.akkudoktor.net/forum/diy-energie-optimierungssystem-opensource-projekt/) before opening an issue.
 
 ## Code Contributions
 
@@ -27,7 +28,6 @@ message style checks.
 ### Setup development environment
 
 Setup virtual environment, then activate virtual environment and install development dependencies.
-See also [README.md](README.md).
 
 ```bash
 python -m venv .venv
@@ -60,7 +60,7 @@ To run formatting automatically before every commit:
 
 ```bash
 pre-commit install
-pre-commit install --hook-type commit-msg
+pre-commit install --hook-type commit-msg --hook-type pre-push
 ```
 
 Or run them manually:
@@ -79,5 +79,15 @@ python -m pytest -vs --cov src --cov-report term-missing tests/
 
 ### Commit message style
 
-Our commit message checks use [`gitlint`](https://github.com/jorisroovers/gitlint). The checks
+Our commit message checks use
+[`commitizen`](https://commitizen-tools.github.io/commitizen/#pre-commit-integration). The checks
 enforce the [`Conventional Commits`](https://www.conventionalcommits.org) commit message style.
+
+You may use [`commitizen`](https://commitizen-tools.github.io/commitizen) also to create a
+commit message and commit your change.
+
+## Thank you!
+
+And last but not least thanks to all our contributors
+
+[![Contributors](https://contrib.rocks/image?repo=Akkudoktor-EOS/EOS)](https://github.com/Akkudoktor-EOS/EOS/graphs/contributors)
