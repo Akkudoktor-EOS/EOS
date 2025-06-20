@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="6e49d33e-7954-45f3-8dc1-a7d1293b957b" name="Changes" comment="test(elecpriceforecast): add test for energycharts">
+      <change afterPath="$PROJECT_DIR$/.idea/EOS_main.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/akkudoktoreos/prediction/elecpriceenergycharts.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/akkudoktoreos/prediction/elecpriceenergycharts.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/akkudoktoreos/server/eos.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/akkudoktoreos/server/eos.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="patch3" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RESET_MODE" value="HARD" />
+    <option name="SIGN_OFF_COMMIT" value="true" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;redmoon2711&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/redmoon2711/EOS.git&quot;,
+    &quot;accountId&quot;: &quot;021e997f-359f-42e0-b245-81e7e6fe00c0&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 6
+}</component>
+  <component name="ProjectId" id="2qJm9Akvwef12IyuA0010tjk07Q" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;Python tests.pytest in test_class_optimize.py.executor&quot;: &quot;Run&quot;,
+    &quot;Python.elecpriceabc.executor&quot;: &quot;Run&quot;,
+    &quot;Python.elecpriceenergycharts.executor&quot;: &quot;Run&quot;,
+    &quot;Python.eos.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;redmoon2711-energycharts&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.intellij.pycharm.community.ide.impl.configuration.PythonContentEntriesConfigurable&quot;
+  }
+}</component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-d7ad00fb9fc3-c546a90a8094-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-242.23726.102" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="6e49d33e-7954-45f3-8dc1-a7d1293b957b" name="Changes" comment="" />
+      <created>1734388898547</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1734388898547</updated>
+    </task>
+    <task id="LOCAL-00001" summary="optimize speed and set eauto to None as default&#10;pre-commit">
+      <option name="closed" value="true" />
+      <created>1734390574516</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1734390574516</updated>
+    </task>
+    <task id="LOCAL-00002" summary="forcing discharging if not increase costs">
+      <option name="closed" value="true" />
+      <created>1734553217979</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1734553217979</updated>
+    </task>
+    <task id="LOCAL-00003" summary="save battery_solutions in memory to prevent random states after start_hour with no impact">
+      <option name="closed" value="true" />
+      <created>1734560102438</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1734560102438</updated>
+    </task>
+    <task id="LOCAL-00004" summary="first fix for discharge_hour bug">
+      <option name="closed" value="true" />
+      <created>1734688294507</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1734688294507</updated>
+    </task>
+    <task id="LOCAL-00005" summary="pre-commit fixes">
+      <option name="closed" value="true" />
+      <created>1735258526975</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1735258526975</updated>
+    </task>
+    <task id="LOCAL-00006" summary="fix array.array type and visualization_results_new.pdf">
+      <option name="closed" value="true" />
+      <created>1735263006234</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1735263006234</updated>
+    </task>
+    <task id="LOCAL-00007" summary="make ngen configurable">
+      <option name="closed" value="true" />
+      <created>1735338078576</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1735338078576</updated>
+    </task>
+    <task id="LOCAL-00008" summary="make ngen configurable">
+      <option name="closed" value="true" />
+      <created>1735338437229</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1735338437229</updated>
+    </task>
+    <task id="LOCAL-00009" summary="addon dwd weather_forecast">
+      <option name="closed" value="true" />
+      <created>1735339146233</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1735339146233</updated>
+    </task>
+    <task id="LOCAL-00010" summary="better performance self consumption #272">
+      <option name="closed" value="true" />
+      <created>1735341220605</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1735341220605</updated>
+    </task>
+    <task id="LOCAL-00011" summary="make ngen configurable #275">
+      <option name="closed" value="true" />
+      <created>1735342322143</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1735342322143</updated>
+    </task>
+    <task id="LOCAL-00012" summary="dwd_weather, calc_prices, calc_scr">
+      <option name="closed" value="true" />
+      <created>1741900643823</created>
+      <option name="number" value="00012" />
+      <option name="presentableId" value="LOCAL-00012" />
+      <option name="project" value="LOCAL" />
+      <updated>1741900643823</updated>
+    </task>
+    <task id="LOCAL-00013" summary="dwd_weather, calc_prices, calc_scr">
+      <option name="closed" value="true" />
+      <created>1741901866113</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1741901866113</updated>
+    </task>
+    <task id="LOCAL-00014" summary="test(elecpriceforecast): add test for energycharts">
+      <option name="closed" value="true" />
+      <created>1750143628627</created>
+      <option name="number" value="00014" />
+      <option name="presentableId" value="LOCAL-00014" />
+      <option name="project" value="LOCAL" />
+      <updated>1750143628627</updated>
+    </task>
+    <option name="localTasksCounter" value="15" />
+    <servers />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="origin/main" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+            </State>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="optimize speed and set eauto to None as default&#10;pre-commit" />
+    <MESSAGE value="forcing discharging if not increase costs" />
+    <MESSAGE value="save battery_solutions in memory to prevent random states after start_hour with no impact" />
+    <MESSAGE value="first fix for discharge_hour bug" />
+    <MESSAGE value="pre-commit fixes" />
+    <MESSAGE value="fix array.array type and visualization_results_new.pdf" />
+    <MESSAGE value="make ngen configurable" />
+    <MESSAGE value="addon dwd weather_forecast" />
+    <MESSAGE value="better performance self consumption #272" />
+    <MESSAGE value="make ngen configurable #275" />
+    <MESSAGE value="dwd_weather, calc_prices, calc_scr" />
+    <MESSAGE value="fix for mypy" />
+    <MESSAGE value="Add test for elecpriceforecast_energycharts" />
+    <MESSAGE value="test(elecpriceforecast): add test for energycharts" />
+    <option name="LAST_COMMIT_MESSAGE" value="test(elecpriceforecast): add test for energycharts" />
+  </component>
+</project>

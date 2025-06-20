@@ -6,6 +6,7 @@ humidity, cloud cover, and solar irradiance. The data is mapped to the `ElecPric
 format, enabling consistent access to forecasted and historical electricity price attributes.
 """
 
+from datetime import datetime
 from typing import Any, List, Optional, Union
 
 import numpy as np
@@ -50,6 +51,8 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         _update_data(): Processes and updates forecast data from Energy-Charts in ElecPriceDataRecord format.
     """
 
+    last_datetime: Optional[datetime] = None
+
     @classmethod
     def provider_id(cls) -> str:
         """Return the unique identifier for the Energy-Charts provider."""
@@ -72,7 +75,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         return energy_charts_data
 
     @cache_in_file(with_ttl="1 hour")
-    def _request_forecast(self) -> EnergyChartsElecPrice:
+    def _request_forecast(self, past_days: int = 35) -> EnergyChartsElecPrice:
         """Fetch electricity price forecast data from Energy-Charts API.
 
         This method sends a request to Energy-Charts API to retrieve forecast data for a specified
@@ -83,16 +86,15 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
 
         Raises:
             ValueError: If the API response does not include expected `electricity price` data.
-
-        Todo:
-            - add the file cache again.
         """
         source = "https://api.energy-charts.info"
         if not self.start_datetime:
             raise ValueError(f"Start DateTime not set: {self.start_datetime}")
 
         # Try to take data from 5 weeks back for prediction
-        date = to_datetime(self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
+        date = to_datetime(
+            self.start_datetime - to_duration(f"{past_days} days"), as_string="YYYY-MM-DD"
+        )
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
         url = f"{source}/price?bzn=DE-LU&start={date}&end={last_date}"
         response = requests.get(url, timeout=10)
@@ -102,6 +104,38 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         # We are working on fresh data (no cache), report update time
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return energy_charts_data
+
+    def _parse_data(self, energy_charts_data: EnergyChartsElecPrice) -> pd.Series:
+        # Assumption that all lists are the same length and are ordered chronologically
+        # in ascending order and have the same timestamps.
+
+        # Get charges_kwh in wh
+        charges_wh = (self.config.elecprice.charges_kwh or 0) / 1000
+
+        # Initialize
+        highest_orig_datetime = None  # newest datetime from the api after that we want to update.
+        series_data = pd.Series(dtype=float)  # Initialize an empty series
+
+        # Iterate over timestamps and prices together
+        for unix_sec, price_eur_per_mwh in zip(
+            energy_charts_data.unix_seconds, energy_charts_data.price
+        ):
+            orig_datetime = to_datetime(unix_sec, in_timezone=self.config.general.timezone)
+
+            # Track the latest datetime
+            if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
+                highest_orig_datetime = orig_datetime
+
+            # Convert EUR/MWh to EUR/Wh, apply charges and VAT if charges > 0
+            if charges_wh > 0:
+                price_wh = ((price_eur_per_mwh / 1_000_000) + charges_wh) * 1.19
+            else:
+                price_wh = price_eur_per_mwh / 1_000_000
+
+            # Store in series
+            series_data.at[orig_datetime] = price_wh
+
+        return series_data
 
     def _cap_outliers(self, data: np.ndarray, sigma: int = 2) -> np.ndarray:
         mean = data.mean()
@@ -132,41 +166,38 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
 
         The final mapped and processed data is inserted into the sequence as `ElecPriceDataRecord`.
         """
-        # Get Energy-Charts electricity price data
-        energy_charts_data = self._request_forecast(force_update=force_update)  # type: ignore
-        if not self.start_datetime:
-            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
+        # New prices are available every day at 14:00
+        now = pd.Timestamp.now(tz=self.config.general.timezone)
+        midnight = now.normalize()
+        hours_ahead = 23 if now.time() < pd.Timestamp("14:00").time() else 47
+        end = midnight + pd.Timedelta(hours=hours_ahead)
 
-        # Assumption that all lists are the same length and are ordered chronologically
-        # in ascending order and have the same timestamps.
+        # Determine if update is needed and how many days
+        if self.last_datetime:
+            past_days = 1
+            needs_update = end > self.last_datetime
+        else:
+            needs_update = True
+            past_days = 35
 
-        # Get charges_kwh in wh
-        charges_wh = (self.config.elecprice.charges_kwh or 0) / 1000
+        if needs_update:
+            logger.info(f"Update ElecPriceEnergyCharts is needed, last update:{self.last_datetime}")
+            # Get Energy-Charts electricity price data
+            energy_charts_data = self._request_forecast(
+                past_days=past_days, force_update=force_update
+            )  # type: ignore
 
-        # Initialize
-        highest_orig_datetime = None  # newest datetime from the api after that we want to update.
-        series_data = pd.Series(dtype=float)  # Initialize an empty series
-
-        # Iterate over timestamps and prices together
-        for unix_sec, price_eur_per_mwh in zip(
-            energy_charts_data.unix_seconds, energy_charts_data.price
-        ):
-            orig_datetime = to_datetime(unix_sec, in_timezone=self.config.general.timezone)
-
-            # Track the latest datetime
-            if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
-                highest_orig_datetime = orig_datetime
-
-            # Convert EUR/MWh to EUR/Wh, apply charges and VAT
-            price_wh = ((price_eur_per_mwh / 1_000_000) + charges_wh) * 1.19
-
-            # Store in series
-            series_data.at[orig_datetime] = price_wh
-
-        # Update values using key_from_series
-        self.key_from_series("elecprice_marketprice_wh", series_data)
+            # Parse and store data
+            series_data = self._parse_data(energy_charts_data)
+            self.last_datetime = series_data.index.max()
+            self.key_from_series("elecprice_marketprice_wh", series_data)
+        else:
+            logger.info(
+                f"No update ElecPriceEnergyCharts is needed last update:{self.last_datetime}"
+            )
 
         # Generate history array for prediction
+        highest_orig_datetime = self.last_datetime
         history = self.key_to_array(
             key="elecprice_marketprice_wh", end_datetime=highest_orig_datetime, fill_method="linear"
         )
