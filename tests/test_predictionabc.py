@@ -416,7 +416,7 @@ class TestPredictionContainer:
             del container_with_providers["non_existent_key"]
 
     def test_len(self, container_with_providers):
-        assert len(container_with_providers) == 3
+        assert len(container_with_providers) == 2
 
     def test_repr(self, container_with_providers):
         representation = repr(container_with_providers)

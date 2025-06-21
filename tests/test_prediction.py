@@ -3,6 +3,8 @@ from pydantic import ValidationError
 
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
+from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
+from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktor
 from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.prediction import (
@@ -29,6 +31,8 @@ def forecast_providers():
     return [
         ElecPriceAkkudoktor(),
         ElecPriceImport(),
+        FeedInTariffFixed(),
+        FeedInTariffImport(),
         LoadAkkudoktor(),
         LoadImport(),
         PVForecastAkkudoktor(),
@@ -69,13 +73,15 @@ def test_provider_sequence(prediction):
     """Test the provider sequence is maintained in the Prediction instance."""
     assert isinstance(prediction.providers[0], ElecPriceAkkudoktor)
     assert isinstance(prediction.providers[1], ElecPriceImport)
-    assert isinstance(prediction.providers[2], LoadAkkudoktor)
-    assert isinstance(prediction.providers[3], LoadImport)
-    assert isinstance(prediction.providers[4], PVForecastAkkudoktor)
-    assert isinstance(prediction.providers[5], PVForecastImport)
-    assert isinstance(prediction.providers[6], WeatherBrightSky)
-    assert isinstance(prediction.providers[7], WeatherClearOutside)
-    assert isinstance(prediction.providers[8], WeatherImport)
+    assert isinstance(prediction.providers[2], FeedInTariffFixed)
+    assert isinstance(prediction.providers[3], FeedInTariffImport)
+    assert isinstance(prediction.providers[4], LoadAkkudoktor)
+    assert isinstance(prediction.providers[5], LoadImport)
+    assert isinstance(prediction.providers[6], PVForecastAkkudoktor)
+    assert isinstance(prediction.providers[7], PVForecastImport)
+    assert isinstance(prediction.providers[8], WeatherBrightSky)
+    assert isinstance(prediction.providers[9], WeatherClearOutside)
+    assert isinstance(prediction.providers[10], WeatherImport)
 
 
 def test_provider_by_id(prediction, forecast_providers):
@@ -90,6 +96,8 @@ def test_prediction_repr(prediction):
     assert "Prediction([" in result
     assert "ElecPriceAkkudoktor" in result
     assert "ElecPriceImport" in result
+    assert "FeedInTariffFixed" in result
+    assert "FeedInTariffImport" in result
     assert "LoadAkkudoktor" in result
     assert "LoadImport" in result
     assert "PVForecastAkkudoktor" in result

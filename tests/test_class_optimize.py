@@ -6,11 +6,9 @@ from unittest.mock import patch
 import pytest
 
 from akkudoktoreos.config.config import ConfigEOS
-from akkudoktoreos.optimization.genetic import (
-    OptimizationParameters,
-    OptimizeResponse,
-    optimization_problem,
-)
+from akkudoktoreos.optimization.genetic import GeneticOptimization
+from akkudoktoreos.optimization.geneticparams import OptimizationParameters
+from akkudoktoreos.optimization.geneticsolution import OptimizeResponse
 from akkudoktoreos.utils.visualize import (
     prepare_visualize,  # Import the new prepare_visualize
 )
@@ -50,7 +48,18 @@ def test_optimize(
     """Test optimierung_ems."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 48}, "optimization": {"hours": 48}}
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"hours": 48},
+            "devices": {
+                "max_electric_vehicles": 1,
+                "electric_vehicles": [
+                    {
+                        "charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                    }
+                ],
+             }
+         }
     )
 
     # Load input and output data
@@ -66,7 +75,7 @@ def test_optimize(
     except FileNotFoundError:
         pass
 
-    opt_class = optimization_problem(fixed_seed=42)
+    genetic_optimization = GeneticOptimization(fixed_seed=42)
     start_hour = 10
 
     # Activate with pytest --full-run
@@ -82,7 +91,7 @@ def test_optimize(
         ),
     ) as prepare_visualize_patch:
         # Call the optimization function
-        ergebnis = opt_class.optimierung_ems(
+        ergebnis = genetic_optimization.optimierung_ems(
             parameters=input_data, start_hour=start_hour, ngen=ngen
         )
         # Write test output to file, so we can take it as new data on intended change
