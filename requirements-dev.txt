@@ -10,6 +10,6 @@ pytest==8.4.0
 pytest-cov==6.2.1
 pytest-xprocess==1.0.2
 pre-commit
-mypy==1.16.0
+mypy==1.16.1
 types-requests==2.32.4.20250611
 pandas-stubs==2.2.3.250527
