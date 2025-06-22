@@ -134,7 +134,7 @@ def test_update_data(mock_get, provider, sample_energycharts_json, cache_store):
 @patch("requests.get")
 def test_update_data_with_incomplete_forecast(mock_get, provider):
     """Test `_update_data` with incomplete or missing forecast data."""
-    incomplete_data: dict = {"meta": {}, "values": []}
+    incomplete_data: dict = {"license_info": "", "unix_seconds": [], "price": [], "unit": "", "deprecated": False}
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.content = json.dumps(incomplete_data)

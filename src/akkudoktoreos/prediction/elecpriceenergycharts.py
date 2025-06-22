@@ -51,7 +51,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         _update_data(): Processes and updates forecast data from Energy-Charts in ElecPriceDataRecord format.
     """
 
-    last_datetime: Optional[datetime] = None
+    highest_orig_datetime: Optional[datetime] = None
 
     @classmethod
     def provider_id(cls) -> str:
@@ -75,7 +75,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         return energy_charts_data
 
     @cache_in_file(with_ttl="1 hour")
-    def _request_forecast(self, past_days: int = 35) -> EnergyChartsElecPrice:
+    def _request_forecast(self, start_date: Optional[str] = None) -> EnergyChartsElecPrice:
         """Fetch electricity price forecast data from Energy-Charts API.
 
         This method sends a request to Energy-Charts API to retrieve forecast data for a specified
@@ -88,16 +88,15 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             ValueError: If the API response does not include expected `electricity price` data.
         """
         source = "https://api.energy-charts.info"
-        if not self.start_datetime:
-            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
+        if start_date is None:
+            # Try to take data from 5 weeks back for prediction
+            start_date = to_datetime(
+                self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD"
+            )
 
-        # Try to take data from 5 weeks back for prediction
-        date = to_datetime(
-            self.start_datetime - to_duration(f"{past_days} days"), as_string="YYYY-MM-DD"
-        )
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
-        url = f"{source}/price?bzn=DE-LU&start={date}&end={last_date}"
-        response = requests.get(url, timeout=10)
+        url = f"{source}/price?bzn=DE-LU&start={start_date}&end={last_date}"
+        response = requests.get(url, timeout=30)
         logger.debug(f"Response from {url}: {response}")
         response.raise_for_status()  # Raise an error for bad responses
         energy_charts_data = self._validate_data(response.content)
@@ -172,51 +171,73 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         hours_ahead = 23 if now.time() < pd.Timestamp("14:00").time() else 47
         end = midnight + pd.Timedelta(hours=hours_ahead)
 
+        if not self.start_datetime:
+            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
+
         # Determine if update is needed and how many days
-        if self.last_datetime:
-            past_days = 1
-            needs_update = end > self.last_datetime
+        past_days = 35
+        if self.highest_orig_datetime:
+            # Try to get lowest datetime in history
+            try:
+                history = self.key_to_array(
+                    key="elecprice_marketprice_wh",
+                    start_datetime=self.start_datetime,
+                    fill_method="linear",
+                )
+                # If start_datetime lower then history
+                if history.index.min() <= self.start_datetime:
+                    past_days = 1
+            except AttributeError as e:
+                logger.error(f"Energy-Charts no Index in history: {e}")
+
+            needs_update = end > self.highest_orig_datetime
         else:
             needs_update = True
-            past_days = 35
 
         if needs_update:
-            logger.info(f"Update ElecPriceEnergyCharts is needed, last update:{self.last_datetime}")
+            logger.info(
+                f"Update ElecPriceEnergyCharts is needed, last update:{self.highest_orig_datetime}"
+            )
+            # Set Start_date try to take data from 5 weeks back for prediction
+            start_date = to_datetime(
+                self.start_datetime - to_duration(f"{past_days} days"), as_string="YYYY-MM-DD"
+            )
             # Get Energy-Charts electricity price data
             energy_charts_data = self._request_forecast(
-                past_days=past_days, force_update=force_update
+                start_date=start_date, force_update=force_update
             )  # type: ignore
 
             # Parse and store data
             series_data = self._parse_data(energy_charts_data)
-            self.last_datetime = series_data.index.max()
+            self.highest_orig_datetime = series_data.index.max()
             self.key_from_series("elecprice_marketprice_wh", series_data)
         else:
             logger.info(
-                f"No update ElecPriceEnergyCharts is needed last update:{self.last_datetime}"
+                f"No update ElecPriceEnergyCharts is needed last update:{self.highest_orig_datetime}"
             )
 
         # Generate history array for prediction
-        highest_orig_datetime = self.last_datetime
         history = self.key_to_array(
-            key="elecprice_marketprice_wh", end_datetime=highest_orig_datetime, fill_method="linear"
+            key="elecprice_marketprice_wh",
+            end_datetime=self.highest_orig_datetime,
+            fill_method="linear",
         )
 
         amount_datasets = len(self.records)
-        if not highest_orig_datetime:  # mypy fix
-            error_msg = f"Highest original datetime not available: {highest_orig_datetime}"
+        if not self.highest_orig_datetime:  # mypy fix
+            error_msg = f"Highest original datetime not available: {self.highest_orig_datetime}"
             logger.error(error_msg)
             raise ValueError(error_msg)
 
         # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
         needed_hours = int(
             self.config.prediction.hours
-            - ((highest_orig_datetime - self.start_datetime).total_seconds() // 3600)
+            - ((self.highest_orig_datetime - self.start_datetime).total_seconds() // 3600)
         )
 
         if needed_hours <= 0:
             logger.warning(
-                f"No prediction needed. needed_hours={needed_hours}, hours={self.config.prediction.hours},highest_orig_datetime {highest_orig_datetime}, start_datetime {self.start_datetime}"
+                f"No prediction needed. needed_hours={needed_hours}, hours={self.config.prediction.hours},highest_orig_datetime {self.highest_orig_datetime}, start_datetime {self.start_datetime}"
             )  # this might keep data longer than self.start_datetime + self.config.prediction.hours in the records
             return
 
@@ -234,7 +255,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         prediction_series = pd.Series(
             data=prediction,
             index=[
-                highest_orig_datetime + to_duration(f"{i + 1} hours")
+                self.highest_orig_datetime + to_duration(f"{i + 1} hours")
                 for i in range(len(prediction))
             ],
         )
