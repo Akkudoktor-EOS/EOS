@@ -32,6 +32,7 @@ from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
+from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktor
 from akkudoktoreos.prediction.loadimport import LoadImport
@@ -83,6 +84,7 @@ class Prediction(PredictionContainer):
     providers: List[
         Union[
             ElecPriceAkkudoktor,
+            ElecPriceEnergyCharts,
             ElecPriceImport,
             LoadAkkudoktor,
             LoadImport,
@@ -97,6 +99,7 @@ class Prediction(PredictionContainer):
 
 # Initialize forecast providers, all are singletons.
 elecprice_akkudoktor = ElecPriceAkkudoktor()
+elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_import = ElecPriceImport()
 load_akkudoktor = LoadAkkudoktor()
 load_import = LoadImport()
@@ -114,6 +117,7 @@ def get_prediction() -> Prediction:
     prediction = Prediction(
         providers=[
             elecprice_akkudoktor,
+            elecprice_energy_charts,
             elecprice_import,
             load_akkudoktor,
             load_import,
