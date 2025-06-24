@@ -136,11 +136,21 @@ option are added.
 
 ### ElecPriceEnergyCharts Provider
 
-The `ElecPriceEnergyCharts` provider retrieves electricity prices directly from **Energy-Charts.info**,
-which supplies price data for the next 24 hours. For periods beyond 24 hours, the provider generates
-prices by extrapolating historical price data combined with the most recent actual prices obtained
-from Energy-Charts.info. Electricity price charges specified in the `charges_kwh` configuration option
-are included in the calculation as `(market price + charges_kwh) * 1.19 VAT`.
+The `ElecPriceEnergyCharts` provider retrieves day-ahead electricity market prices from
+[Energy-Charts.info](https://www.Energy-Charts.info). It supports both short-term and extended forecasting by combining
+real-time market data with historical price trends.
+
+- For the next 24 hours, market prices are fetched directly from Energy-Charts.info.
+- For periods beyond 24 hours, prices are estimated using extrapolation based on historical data and the latest
+  available market values.
+
+Charges and VAT
+
+- If `charges_kwh` configuration option is greater than 0, the electricity price is calculated as:
+  `(market price + charges_kwh) * 1.19 VAT` (including 19% VAT).
+- If `charges_kwh` is set to 0, the electricity price is simply: `market_price` (no VAT applied).
+
+**Note:** For the most accurate forecasts, it is recommended to set the `historic_hours` parameter to 840.
 
 ### ElecPriceImport Provider
 

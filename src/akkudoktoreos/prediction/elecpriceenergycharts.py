@@ -177,18 +177,12 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         # Determine if update is needed and how many days
         past_days = 35
         if self.highest_orig_datetime:
-            # Try to get lowest datetime in history
-            try:
-                history = self.key_to_array(
-                    key="elecprice_marketprice_wh",
-                    start_datetime=self.start_datetime,
-                    fill_method="linear",
-                )
-                # If start_datetime lower then history
-                if history.index.min() <= self.start_datetime:
-                    past_days = 1
-            except AttributeError as e:
-                logger.error(f"Energy-Charts no Index in history: {e}")
+            history_series = self.key_to_series(
+                key="elecprice_marketprice_wh", start_datetime=self.start_datetime
+            )
+            # If history lower, then start_datetime
+            if history_series.index.min() <= self.start_datetime:
+                past_days = 0
 
             needs_update = end > self.highest_orig_datetime
         else:
@@ -196,9 +190,9 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
 
         if needs_update:
             logger.info(
-                f"Update ElecPriceEnergyCharts is needed, last update:{self.highest_orig_datetime}"
+                f"Update ElecPriceEnergyCharts is needed, last in history: {self.highest_orig_datetime}"
             )
-            # Set Start_date try to take data from 5 weeks back for prediction
+            # Set start_date try to take data from 5 weeks back for prediction
             start_date = to_datetime(
                 self.start_datetime - to_duration(f"{past_days} days"), as_string="YYYY-MM-DD"
             )
@@ -213,7 +207,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             self.key_from_series("elecprice_marketprice_wh", series_data)
         else:
             logger.info(
-                f"No update ElecPriceEnergyCharts is needed last update:{self.highest_orig_datetime}"
+                f"No Update ElecPriceEnergyCharts is needed, last in history: {self.highest_orig_datetime}"
             )
 
         # Generate history array for prediction
