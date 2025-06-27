@@ -87,16 +87,25 @@ Note:
 
 Fastapi Optimize
 
+```
+Deprecated: Optimize.
+
+Endpoint to handle optimization.
+
+Note:
+    Use automatic optimization instead.
+```
+
 **Parameters**:
 
 - `start_hour` (query, optional): Defaults to current hour of the day.
 
-- `ngen` (query, optional): No description provided.
+- `ngen` (query, optional): Number of indivuals to generate for genetic algorithm.
 
 **Request Body**:
 
 - `application/json`: {
-  "$ref": "#/components/schemas/OptimizationParameters"
+  "$ref": "#/components/schemas/GeneticOptimizationParameters"
 }
 
 **Responses**:
@@ -445,6 +454,38 @@ Returns:
 - **200**: Successful Response
 
 - **422**: Validation Error
+
+---
+
+## GET /v1/energy-management/genetic/solution
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_genetic_solution_get_v1_energy-management_genetic_solution_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_genetic_solution_get_v1_energy-management_genetic_solution_get)
+
+Fastapi Energy Management Genetic Solution Get
+
+```
+Get the latest solution of the genetic algorithm.
+```
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## GET /v1/energy-management/plan
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_plan_get_v1_energy-management_plan_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_plan_get_v1_energy-management_plan_get)
+
+Fastapi Energy Management Plan Get
+
+```
+Get the latest energy management plan.
+```
+
+**Responses**:
+
+- **200**: Successful Response
 
 ---
 

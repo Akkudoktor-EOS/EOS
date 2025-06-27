@@ -34,6 +34,8 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
+from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
+from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktor
 from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
@@ -65,6 +67,7 @@ class PredictionCommonSettings(SettingsBaseModel):
     hours: Optional[int] = Field(
         default=48, ge=0, description="Number of hours into the future for predictions"
     )
+
     historic_hours: Optional[int] = Field(
         default=48,
         ge=0,
@@ -86,6 +89,8 @@ class Prediction(PredictionContainer):
             ElecPriceAkkudoktor,
             ElecPriceEnergyCharts,
             ElecPriceImport,
+            FeedInTariffFixed,
+            FeedInTariffImport,
             LoadAkkudoktor,
             LoadImport,
             PVForecastAkkudoktor,
@@ -101,6 +106,8 @@ class Prediction(PredictionContainer):
 elecprice_akkudoktor = ElecPriceAkkudoktor()
 elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_import = ElecPriceImport()
+feedintariff_fixed = FeedInTariffFixed()
+feedintariff_import = FeedInTariffImport()
 load_akkudoktor = LoadAkkudoktor()
 load_import = LoadImport()
 pvforecast_akkudoktor = PVForecastAkkudoktor()
@@ -119,6 +126,8 @@ def get_prediction() -> Prediction:
             elecprice_akkudoktor,
             elecprice_energy_charts,
             elecprice_import,
+            feedintariff_fixed,
+            feedintariff_import,
             load_akkudoktor,
             load_import,
             pvforecast_akkudoktor,

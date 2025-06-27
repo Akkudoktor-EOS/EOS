@@ -385,6 +385,25 @@ class TestDataSequence:
         assert array[1] == 0.8  # Forward-filled value
         assert array[2] == 1.0
 
+    def test_key_to_array_ffill_one_value(self, sequence):
+        """Test key_to_array with forward filling for missing values and only one value at end available."""
+        interval = to_duration("1 hour")
+        record1 = self.create_test_record(pendulum.datetime(2023, 11, 6, 2), 1.0)
+        sequence.insert_by_datetime(record1)
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6),
+            end_datetime=pendulum.datetime(2023, 11, 6, 4),
+            interval=interval,
+            fill_method="ffill",
+        )
+        assert len(array) == 4
+        assert array[0] == 1.0  # Backward-filled value
+        assert array[1] == 1.0  # Backward-filled value
+        assert array[2] == 1.0
+        assert array[2] == 1.0  # Forward-filled value
+
     def test_key_to_array_bfill(self, sequence):
         """Test key_to_array with backward filling for missing values."""
         interval = to_duration("1 hour")
@@ -857,7 +876,7 @@ class TestDataContainer:
             del container_with_providers["non_existent_key"]
 
     def test_len(self, container_with_providers):
-        assert len(container_with_providers) == 3
+        assert len(container_with_providers) == 2
 
     def test_repr(self, container_with_providers):
         representation = repr(container_with_providers)

@@ -29,7 +29,9 @@ from loguru import logger
 
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
 from akkudoktoreos.core.cache import CacheFileStore
+from akkudoktoreos.core.emplan import EnergyManagementPlan
 from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.core.logabc import LOGGING_LEVELS
 from akkudoktoreos.core.logging import read_file_log, track_logging_config
 from akkudoktoreos.core.pydantic import (
@@ -39,11 +41,8 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeSeries,
 )
 from akkudoktoreos.measurement.measurement import get_measurement
-from akkudoktoreos.optimization.genetic import (
-    OptimizationParameters,
-    OptimizeResponse,
-    optimization_problem,
-)
+from akkudoktoreos.optimization.geneticparams import GeneticOptimizationParameters
+from akkudoktoreos.optimization.geneticsolution import GeneticSolution
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
@@ -209,10 +208,10 @@ def energy_management_on_exception(e: Exception) -> None:
     wait_first=config_eos.ems.startup_delay,
     on_exception=energy_management_on_exception,
 )
-def energy_management_task() -> None:
+async def energy_management_task() -> None:
     """Repeating task for energy management."""
     logger.debug("Check EMS run")
-    ems_eos.manage_energy()
+    await ems_eos.manage_energy()
 
 
 async def server_shutdown_task() -> None:
@@ -912,7 +911,7 @@ def fastapi_prediction_import_provider(
 
 
 @app.post("/v1/prediction/update", tags=["prediction"])
-def fastapi_prediction_update(
+async def fastapi_prediction_update(
     force_update: Optional[bool] = False, force_enable: Optional[bool] = False
 ) -> Response:
     """Update predictions for all providers.
@@ -923,19 +922,25 @@ def fastapi_prediction_update(
         force_enable: Update data even if provider is disabled.
             Defaults to False.
     """
+    # Ensure there is only one optimization/ energy management run at a time
     try:
-        prediction_eos.update_data(force_update=force_update, force_enable=force_enable)
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=force_update,
+            force_enable=force_enable,
+        )
     except Exception as e:
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         raise HTTPException(
             status_code=400,
             detail=f"Error on prediction update: {e}\n{trace}",
         )
+
     return Response()
 
 
 @app.post("/v1/prediction/update/{provider_id}", tags=["prediction"])
-def fastapi_prediction_update_provider(
+async def fastapi_prediction_update_provider(
     provider_id: str, force_update: Optional[bool] = False, force_enable: Optional[bool] = False
 ) -> Response:
     """Update predictions for given provider ID.
@@ -951,17 +956,50 @@ def fastapi_prediction_update_provider(
         provider = prediction_eos.provider_by_id(provider_id)
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not found.")
+
+    # Ensure there is only one optimization/ energy management run at a time
     try:
-        provider.update_data(force_update=force_update, force_enable=force_enable)
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Error on update of provider '{provider_id}': {e}"
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=force_update,
+            force_enable=force_enable,
         )
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error on prediction update: {e}\n{trace}",
+        )
+
     return Response()
 
 
+@app.get("/v1/energy-management/genetic/solution", tags=["energy-management"])
+def fastapi_energy_management_genetic_solution_get() -> GeneticSolution:
+    """Get the latest solution of the genetic algorithm."""
+    solution = ems_eos.genetic_solution()
+    if solution is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Can not get the genetic solution. Did you configure automatic optimization?",
+        )
+    return solution
+
+
+@app.get("/v1/energy-management/plan", tags=["energy-management"])
+def fastapi_energy_management_plan_get() -> EnergyManagementPlan:
+    """Get the latest energy management plan."""
+    plan = ems_eos.plan()
+    if plan is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Can not get the energy management plan. Did you configure automatic optimization?",
+        )
+    return plan
+
+
 @app.get("/strompreis", tags=["prediction"])
-def fastapi_strompreis() -> list[float]:
+async def fastapi_strompreis() -> list[float]:
     """Deprecated: Electricity Market Price Prediction per Wh (€/Wh).
 
     Electricity prices start at 00.00.00 today and are provided for 48 hours.
@@ -984,11 +1022,18 @@ def fastapi_strompreis() -> list[float]:
         )
     )
     config_eos.merge_settings(settings=settings)
-    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
 
-    # Create electricity price forecast
-    prediction_eos.update_data(force_update=True)
-
+    # Ensure there is only one optimization/ energy management run at a time
+    try:
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=True,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not update predictions: {e}",
+        )
     # Get the current date and the end date based on prediction hours
     # Fetch prices for the specified date range
     start_datetime = to_datetime().start_of("day")
@@ -1015,7 +1060,7 @@ class GesamtlastRequest(PydanticBaseModel):
 
 
 @app.post("/gesamtlast", tags=["prediction"])
-def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
+async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     """Deprecated: Total Load Prediction with adjustment.
 
     Endpoint to handle total load prediction adjusted by latest measured data.
@@ -1042,7 +1087,6 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
         ),
     )
     config_eos.merge_settings(settings=settings)
-    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
 
     # Insert measured data into EOS measurement
     # Convert from energy per interval to dummy energy meter readings
@@ -1074,8 +1118,17 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
         energy_mr_values.append(energy_mr)
     measurement_eos.key_from_lists(measurement_key, energy_mr_dates, energy_mr_values)
 
-    # Create load forecast
-    prediction_eos.update_data(force_update=True)
+    # Ensure there is only one optimization/ energy management run at a time
+    try:
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=True,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not update predictions: {e}",
+        )
 
     # Get the forcast starting at start of day
     start_datetime = to_datetime().start_of("day")
@@ -1096,7 +1149,7 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
 
 
 @app.get("/gesamtlast_simple", tags=["prediction"])
-def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
+async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     """Deprecated: Total Load Prediction.
 
     Endpoint to handle total load prediction.
@@ -1123,10 +1176,18 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
         )
     )
     config_eos.merge_settings(settings=settings)
-    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
 
-    # Create load forecast
-    prediction_eos.update_data(force_update=True)
+    # Ensure there is only one optimization/ energy management run at a time
+    try:
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=True,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not update predictions: {e}",
+        )
 
     # Get the forcast starting at start of day
     start_datetime = to_datetime().start_of("day")
@@ -1152,7 +1213,7 @@ class ForecastResponse(PydanticBaseModel):
 
 
 @app.get("/pvforecast", tags=["prediction"])
-def fastapi_pvforecast() -> ForecastResponse:
+async def fastapi_pvforecast() -> ForecastResponse:
     """Deprecated: PV Forecast Prediction.
 
     Endpoint to handle PV forecast prediction.
@@ -1171,15 +1232,16 @@ def fastapi_pvforecast() -> ForecastResponse:
     settings = SettingsEOS(pvforecast=PVForecastCommonSettings(provider="PVForecastAkkudoktor"))
     config_eos.merge_settings(settings=settings)
 
-    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
-
-    # Create PV forecast
+    # Ensure there is only one optimization/ energy management run at a time
     try:
-        prediction_eos.update_data(force_update=True)
-    except ValueError as e:
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=True,
+        )
+    except Exception as e:
         raise HTTPException(
             status_code=404,
-            detail=f"Can not get the PV forecast: {e}",
+            detail=f"Can not update predictions: {e}",
         )
 
     # Get the forcast starting at start of day
@@ -1207,33 +1269,43 @@ def fastapi_pvforecast() -> ForecastResponse:
 
 
 @app.post("/optimize", tags=["optimize"])
-def fastapi_optimize(
-    parameters: OptimizationParameters,
+async def fastapi_optimize(
+    parameters: GeneticOptimizationParameters,
     start_hour: Annotated[
         Optional[int], Query(description="Defaults to current hour of the day.")
     ] = None,
-    ngen: Optional[int] = None,
-) -> OptimizeResponse:
+    ngen: Annotated[
+        Optional[int], Query(description="Number of indivuals to generate for genetic algorithm.")
+    ] = None,
+) -> GeneticSolution:
+    """Deprecated: Optimize.
+
+    Endpoint to handle optimization.
+
+    Note:
+        Use automatic optimization instead.
+    """
     if start_hour is None:
-        start_hour = to_datetime().hour
-    extra_args: dict[str, Any] = dict()
-    if ngen is not None:
-        extra_args["ngen"] = ngen
+        start_datetime = None
+    else:
+        start_datetime = to_datetime().set(hour=start_hour)
 
-    # TODO: Remove when config and prediction update is done by EMS.
-    config_eos.update()
-    prediction_eos.update_data()
-
-    # Perform optimization simulation
-    opt_class = optimization_problem(verbose=bool(config_eos.server.verbose))
+    # Ensure there is only one optimization/ energy management run at a time
     try:
-        result = opt_class.optimierung_ems(
-            parameters=parameters, start_hour=start_hour, **extra_args
+        await ems_eos.run(
+            start_datetime=start_datetime,
+            mode=EnergyManagementMode.OPTIMIZATION,
+            genetic_parameters=parameters,
+            genetic_individuals=ngen,
         )
-        # print(result)
-        return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Optimize error: {e}.")
+
+    solution = ems_eos.genetic_solution()
+    if solution is None:
+        raise HTTPException(status_code=400, detail="Optimize error: no solution stored by run.")
+
+    return solution
 
 
 @app.get("/visualization_results.pdf", response_class=PdfResponse, tags=["optimize"])

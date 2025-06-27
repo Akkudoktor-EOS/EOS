@@ -1,39 +1,19 @@
-from typing import Optional
-
 import numpy as np
-from pydantic import Field
 
-from akkudoktoreos.devices.devicesabc import DeviceBase, DeviceParameters
-
-
-class HomeApplianceParameters(DeviceParameters):
-    """Home Appliance Device Simulation Configuration."""
-
-    device_id: str = Field(description="ID of home appliance", examples=["dishwasher"])
-    consumption_wh: int = Field(
-        gt=0,
-        description="An integer representing the energy consumption of a household device in watt-hours.",
-        examples=[2000],
-    )
-    duration_h: int = Field(
-        gt=0,
-        description="An integer representing the usage duration of a household device in hours.",
-        examples=[3],
-    )
+from akkudoktoreos.optimization.geneticdevices import HomeApplianceParameters
 
 
-class HomeAppliance(DeviceBase):
+class HomeAppliance:
     def __init__(
-        self,
-        parameters: Optional[HomeApplianceParameters] = None,
+        self, parameters: HomeApplianceParameters, optimization_hours: int, prediction_hours: int
     ):
-        self.parameters: Optional[HomeApplianceParameters] = None
-        super().__init__(parameters)
+        self.parameters: HomeApplianceParameters = parameters
+        self.optimization_hours = optimization_hours
+        self.prediction_hours = prediction_hours
+        self._setup()
 
     def _setup(self) -> None:
-        if self.parameters is None:
-            raise ValueError(f"Parameters not set: {self.parameters}")
-        self.load_curve = np.zeros(self.hours)  # Initialize the load curve with zeros
+        self.load_curve = np.zeros(self.prediction_hours)  # Initialize the load curve with zeros
         self.duration_h = self.parameters.duration_h
         self.consumption_wh = self.parameters.consumption_wh
 
@@ -44,7 +24,7 @@ class HomeAppliance(DeviceBase):
         """
         self.reset_load_curve()
         # Check if the duration of use is within the available time frame
-        if start_hour + self.duration_h > self.hours:
+        if start_hour + self.duration_h > self.optimization_hours:
             raise ValueError("The duration of use exceeds the available time frame.")
         if start_hour < global_start_hour:
             raise ValueError("The start time is earlier than the available time frame.")
@@ -57,7 +37,7 @@ class HomeAppliance(DeviceBase):
 
     def reset_load_curve(self) -> None:
         """Resets the load curve."""
-        self.load_curve = np.zeros(self.hours)
+        self.load_curve = np.zeros(self.prediction_hours)
 
     def get_load_curve(self) -> np.ndarray:
         """Returns the current load curve."""
@@ -69,11 +49,13 @@ class HomeAppliance(DeviceBase):
         :param hour: The hour for which the load is queried.
         :return: The load in watts for the specified hour.
         """
-        if hour < 0 or hour >= self.hours:
-            raise ValueError("The specified hour is outside the available time frame.")
+        if hour < 0 or hour >= self.prediction_hours:
+            raise ValueError(
+                f"The specified hour {hour} is outside the available time frame {self.prediction_hours}."
+            )
 
         return self.load_curve[hour]
 
     def get_latest_starting_point(self) -> int:
-        """Returns the latest possible start time at which the device can still run completely."""
-        return self.hours - self.duration_h
+        """Returns the latest possible start hour at which the device can still run completely."""
+        return self.optimization_hours - self.duration_h
