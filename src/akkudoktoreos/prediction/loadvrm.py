@@ -27,7 +27,7 @@ class LoadVrmCommonSettings(SettingsBaseModel):
     """Common settings for VRM API."""
 
     load_vrm_api_token: str = Field(description="Token for Connecting VRM API")
-    load_vrm_idSite: int = Field(description="Site ID for installeration")
+    load_vrm_installation_id: int = Field(description="VRM-Installation-ID")
 
 
 class LoadVrm(LoadProvider):
@@ -67,7 +67,7 @@ class LoadVrm(LoadProvider):
             ValueError: If the API response does not include expected `forecast` data.
         """
         source = "https://vrmapi.victronenergy.com/v2/installations"
-        idSite = self.config.load.provider_settings.load_vrm_idSite
+        idSite = self.config.load.provider_settings.load_vrm_installation_id
         api_token = self.config.load.provider_settings.load_vrm_api_token
         headers = {"X-Authorization": f"Token {api_token}", "Content-Type": "application/json"}
         url = f"{source}/{idSite}/stats?type=forecast&start={start_ts}&end={end_ts}&interval=hours"
