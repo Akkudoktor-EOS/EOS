@@ -28,6 +28,7 @@ Attributes:
 
 from typing import List, Optional, Union
 
+from prediction.loadvrm import LoadVrm
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
@@ -87,6 +88,7 @@ class Prediction(PredictionContainer):
             ElecPriceEnergyCharts,
             ElecPriceImport,
             LoadAkkudoktor,
+            LoadVrm,
             LoadImport,
             PVForecastAkkudoktor,
             PVForecastImport,
@@ -102,6 +104,7 @@ elecprice_akkudoktor = ElecPriceAkkudoktor()
 elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_import = ElecPriceImport()
 load_akkudoktor = LoadAkkudoktor()
+load_vrm = LoadVrm()
 load_import = LoadImport()
 pvforecast_akkudoktor = PVForecastAkkudoktor()
 pvforecast_import = PVForecastImport()
@@ -120,6 +123,7 @@ def get_prediction() -> Prediction:
             elecprice_energy_charts,
             elecprice_import,
             load_akkudoktor,
+            load_vrm,
             load_import,
             pvforecast_akkudoktor,
             pvforecast_import,

@@ -8,6 +8,7 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.loadabc import LoadProvider
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.loadimport import LoadImportCommonSettings
+from akkudoktoreos.prediction.loadvrm import LoadVrmCommonSettings
 from akkudoktoreos.prediction.prediction import get_prediction
 
 prediction_eos = get_prediction()
@@ -29,9 +30,9 @@ class LoadCommonSettings(SettingsBaseModel):
         examples=["LoadAkkudoktor"],
     )
 
-    provider_settings: Optional[Union[LoadAkkudoktorCommonSettings, LoadImportCommonSettings]] = (
-        Field(default=None, description="Provider settings", examples=[None])
-    )
+    provider_settings: Optional[
+        Union[LoadAkkudoktorCommonSettings, LoadVrmCommonSettings, LoadImportCommonSettings]
+    ] = Field(default=None, description="Provider settings", examples=[None])
 
     # Validators
     @field_validator("provider", mode="after")
