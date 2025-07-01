@@ -35,7 +35,7 @@ class PVForecastVrm(PVForecastProvider):
 
     @classmethod
     def provider_id(cls) -> str:
-        """Return the unique identifier for the Akkudoktor provider."""
+        """Return the unique identifier for the PV-Forecast-Provider."""
         return "PVForecastVrm"
 
     @classmethod
@@ -79,6 +79,13 @@ class PVForecastVrm(PVForecastProvider):
         return vrm_forecast_data
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
+        """Update forecast data in the PVForecastDataRecord format.
+
+        Retrieves data from VRM API. The processed data is inserted into the sequence as
+        `PVForecastDataRecord`:
+        - pvforecast_dc_power and
+        - pvforecast_ac_power = pvforecast_dc_power * 0.96
+        """
         """Get pv forecast from VRM and store into pvforecast."""
         # We provide prediction starting at start of day, to be compatible to old system.
         # End date for prediction is prediction hours from now.
@@ -103,6 +110,7 @@ class PVForecastVrm(PVForecastProvider):
         for timestamp, value in vrm_forecast_data.records.solar_yield_forecast:
             date = to_datetime(timestamp / 1000, in_timezone=self.config.general.timezone)
             self.update_value(date, {"pvforecast_dc_power": round(value, 2)})
+            self.update_value(date, {"pvforecast_ac_power": round(value * 0.96, 2)})
             pv_forecast.append((date, round(value, 2)))
         logger.debug(f"Update pvforecast_dc_power from VRM with: {pv_forecast}")
 
@@ -110,7 +118,7 @@ class PVForecastVrm(PVForecastProvider):
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
 
 
-# Example of how to use the PVForecastAkkudoktor class
+# Example of how to use the PVForecastVrm class
 if __name__ == "__main__":
     pv = PVForecastVrm()
     pv._update_data()

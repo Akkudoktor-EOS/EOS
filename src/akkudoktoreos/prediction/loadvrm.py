@@ -97,6 +97,8 @@ class LoadVrm(LoadProvider):
         for timestamp, value in vrm_forecast_data.records.vrm_consumption_fc:
             date = to_datetime(timestamp / 1000, in_timezone=self.config.general.timezone)
             self.update_value(date, {"load_mean": round(value, 2)})
+            self.update_value(date, {"load_std": 0.0})
+            self.update_value(date, {"load_mean_adjusted": round(value, 2)})
             load_mean.append((date, round(value, 2)))
 
         logger.debug(f"Update load_mean from VRM with: {load_mean}")
