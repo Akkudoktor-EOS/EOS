@@ -67,10 +67,10 @@ class LoadVrm(LoadProvider):
             ValueError: If the API response does not include expected `forecast` data.
         """
         source = "https://vrmapi.victronenergy.com/v2/installations"
-        idSite = self.config.load.provider_settings.load_vrm_installation_id
+        id_site = self.config.load.provider_settings.load_vrm_installation_id
         api_token = self.config.load.provider_settings.load_vrm_api_token
         headers = {"X-Authorization": f"Token {api_token}", "Content-Type": "application/json"}
-        url = f"{source}/{idSite}/stats?type=forecast&start={start_ts}&end={end_ts}&interval=hours"
+        url = f"{source}/{id_site}/stats?type=forecast&start={start_ts}&end={end_ts}&interval=hours"
         logger.debug(f"Request {url}")
         response = requests.get(url, headers=headers, timeout=30)
         vrm_forecast_data = self._validate_data(response.content)
@@ -87,7 +87,7 @@ class LoadVrm(LoadProvider):
         start_ts = int(start_date.timestamp())
         end_ts = int(end_date.timestamp())
 
-        logger.info(f"Udate Load-Forcast from VRM start:{start_date}, end:{end_date}")
+        logger.info(f"Update Load-Forcast from VRM start:{start_date}, end:{end_date}")
         # Request and validate
         vrm_forecast_data = self._request_forecast(start_ts, end_ts)
 
