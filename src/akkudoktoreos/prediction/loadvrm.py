@@ -3,10 +3,10 @@
 from typing import Any, Optional, Union
 
 import requests
-from config.configabc import SettingsBaseModel
 from loguru import logger
 from pydantic import Field, ValidationError
 
+from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.loadabc import LoadProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime
