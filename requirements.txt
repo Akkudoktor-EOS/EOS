@@ -20,6 +20,6 @@ psutil==7.0.0
 pvlib==0.13.0
 pydantic==2.11.7
 statsmodels==0.14.4
-pydantic-settings==2.10.0
+pydantic-settings==2.10.1
 linkify-it-py==2.0.3
 loguru==0.7.3
