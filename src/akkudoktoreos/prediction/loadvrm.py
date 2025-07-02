@@ -4,6 +4,7 @@ from typing import Any, Optional, Union
 
 import requests
 from loguru import logger
+from pendulum import DateTime
 from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
@@ -35,79 +36,69 @@ class LoadVrm(LoadProvider):
 
     @classmethod
     def provider_id(cls) -> str:
-        """Return the unique identifier for the LoadVrm provider."""
         return "LoadVrm"
 
     @classmethod
     def _validate_data(cls, json_str: Union[bytes, Any]) -> VrmForecastResponse:
-        """Validate Energy-Charts Electricity Price forecast data."""
+        """Validate the VRM API load forecast response."""
         try:
-            vrm_forecast_data = VrmForecastResponse.model_validate_json(json_str)
+            return VrmForecastResponse.model_validate_json(json_str)
         except ValidationError as e:
-            error_msg = ""
-            for error in e.errors():
-                field = " -> ".join(str(x) for x in error["loc"])
-                message = error["msg"]
-                error_type = error["type"]
-                error_msg += f"Field: {field}\nError: {message}\nType: {error_type}\n"
-            logger.error(f"VRM-API schema change: {error_msg}")
+            error_msg = "\n".join(
+                f"Field: {' -> '.join(str(x) for x in err['loc'])}\n"
+                f"Error: {err['msg']}\nType: {err['type']}"
+                for err in e.errors()
+            )
+            logger.error(f"VRM-API schema validation failed:\n{error_msg}")
             raise ValueError(error_msg)
-        return vrm_forecast_data
 
     def _request_forecast(self, start_ts: int, end_ts: int) -> VrmForecastResponse:
-        """Fetch forecast data from Victron VRM API.
-
-        This method sends a request to VRM API to retrieve forecast data for a specified
-        date range. The response data is parsed and returned as JSON for further processing.
-
-        Returns:
-            dict: The parsed JSON response from Victron VRM API containing forecast data.
-
-        Raises:
-            ValueError: If the API response does not include expected `forecast` data.
-        """
-        source = "https://vrmapi.victronenergy.com/v2/installations"
-        id_site = self.config.load.provider_settings.load_vrm_installation_id
+        """Fetch forecast data from Victron VRM API."""
+        base_url = "https://vrmapi.victronenergy.com/v2/installations"
+        installation_id = self.config.load.provider_settings.load_vrm_installation_id
         api_token = self.config.load.provider_settings.load_vrm_api_token
+
+        url = f"{base_url}/{installation_id}/stats?type=forecast&start={start_ts}&end={end_ts}&interval=hours"
         headers = {"X-Authorization": f"Token {api_token}", "Content-Type": "application/json"}
-        url = f"{source}/{id_site}/stats?type=forecast&start={start_ts}&end={end_ts}&interval=hours"
-        logger.debug(f"Request {url}")
-        response = requests.get(url, headers=headers, timeout=30)
-        vrm_forecast_data = self._validate_data(response.content)
-        # We are working on fresh data (no cache), report update time
+
+        logger.debug(f"Requesting VRM load forecast: {url}")
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            logger.error(f"Error during VRM API request: {e}")
+            raise RuntimeError("Failed to fetch load forecast from VRM API") from e
+
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
-        return vrm_forecast_data
+        return self._validate_data(response.content)
+
+    def _ts_to_datetime(self, timestamp: int) -> DateTime:
+        """Convert UNIX ms timestamp to timezone-aware datetime."""
+        return to_datetime(timestamp / 1000, in_timezone=self.config.general.timezone)
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        """Get load forecast from VRM and store into load_mean."""
-        # We provide prediction starting at start of day, to be compatible to old system.
-        # End date for prediction is prediction hours from now.
+        """Fetch and store VRM load forecast as load_mean and related values."""
         start_date = self.start_datetime.start_of("day")
         end_date = self.start_datetime.add(hours=self.config.prediction.hours)
         start_ts = int(start_date.timestamp())
         end_ts = int(end_date.timestamp())
 
-        logger.info(f"Update Load-Forcast from VRM start:{start_date}, end:{end_date}")
-        # Request and validate
+        logger.info(f"Updating Load forecast from VRM: {start_date} to {end_date}")
         vrm_forecast_data = self._request_forecast(start_ts, end_ts)
 
-        # Parse data and store
-        load_mean = []
-        # Iterate over timestamps and vrm_consumption_fc
+        load_mean_data = []
         for timestamp, value in vrm_forecast_data.records.vrm_consumption_fc:
-            date = to_datetime(timestamp / 1000, in_timezone=self.config.general.timezone)
-            self.update_value(date, {"load_mean": round(value, 2)})
-            self.update_value(date, {"load_std": 0.0})
-            self.update_value(date, {"load_mean_adjusted": round(value, 2)})
-            load_mean.append((date, round(value, 2)))
+            date = self._ts_to_datetime(timestamp)
+            rounded_value = round(value, 2)
 
-        logger.debug(f"Update load_mean from VRM with: {load_mean}")
-        # for timestamp, value in vrm_forecast_data.records.solar_yield_forecast:
-        #    date = to_datetime(timestamp / 1000, in_timezone=self.config.general.timezone)
-        #    self.update_value(date, {"pvforecast": value})
-        #    print(f"{date} {value}")
+            self.update_value(
+                date,
+                {"load_mean": rounded_value, "load_std": 0.0, "load_mean_adjusted": rounded_value},
+            )
 
-        # We are working on fresh data (no cache), report update time
+            load_mean_data.append((date, rounded_value))
+
+        logger.debug(f"Updated load_mean with {len(load_mean_data)} entries.")
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
 
 
