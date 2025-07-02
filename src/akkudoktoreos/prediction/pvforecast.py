@@ -6,9 +6,9 @@ from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.prediction.pvforecast_vrm import PVforecastVrmCommonSettings
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
-from akkudoktoreos.prediction.pvforecastvrm import PVforecastVrmCommonSettings
 from akkudoktoreos.utils.docs import get_model_structure_from_examples
 
 prediction_eos = get_prediction()

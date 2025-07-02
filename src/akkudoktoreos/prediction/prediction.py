@@ -34,13 +34,13 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
+from akkudoktoreos.prediction.load_vrm import LoadVrm
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktor
 from akkudoktoreos.prediction.loadimport import LoadImport
-from akkudoktoreos.prediction.loadvrm import LoadVrm
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
+from akkudoktoreos.prediction.pvforecast_vrm import PVForecastVrm
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
-from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
 from akkudoktoreos.prediction.weatherbrightsky import WeatherBrightSky
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
 from akkudoktoreos.prediction.weatherimport import WeatherImport

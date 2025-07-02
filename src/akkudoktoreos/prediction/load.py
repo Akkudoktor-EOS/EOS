@@ -5,10 +5,10 @@ from typing import Optional, Union
 from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.prediction.load_vrm import LoadVrmCommonSettings
 from akkudoktoreos.prediction.loadabc import LoadProvider
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.loadimport import LoadImportCommonSettings
-from akkudoktoreos.prediction.loadvrm import LoadVrmCommonSettings
 from akkudoktoreos.prediction.prediction import get_prediction
 
 prediction_eos = get_prediction()

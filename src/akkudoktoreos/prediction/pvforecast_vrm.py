@@ -66,8 +66,8 @@ class PVForecastVrm(PVForecastProvider):
             response = requests.get(url, headers=headers, timeout=30)
             response.raise_for_status()
         except requests.RequestException as e:
-            logger.error(f"Error fetching VRM forecast: {e}")
-            raise RuntimeError("VRM-API request failed") from e
+            logger.error(f"Failed to fetch pvforecast: {e}")
+            raise RuntimeError("Failed to fetch pvforecast from VRM API") from e
 
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return self._validate_data(response.content)
