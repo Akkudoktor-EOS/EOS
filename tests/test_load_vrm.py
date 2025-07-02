@@ -1,0 +1,122 @@
+import json
+from datetime import datetime
+
+import pendulum
+import pytest
+import requests
+
+from akkudoktoreos.prediction.load_vrm import (
+    LoadVrm,
+    VrmForecastRecords,
+    VrmForecastResponse,
+)
+
+
+@pytest.fixture
+def load_vrm_instance(config_eos):
+    # Settings für LoadVrm setzen
+    settings = {
+        "load": {
+            "provider": "LoadVrm",
+            "provider_settings": {
+                "load_vrm_api_token": "dummy-token",
+                "load_vrm_installation_id": 12345,
+            },
+        }
+    }
+    config_eos.merge_settings_from_dict(settings)
+    # start_datetime initialisieren
+    start_dt = pendulum.datetime(2025, 1, 1, tz='Europe/Berlin')
+
+    # LoadVrm-Instanz mit config und start_datetime erzeugen
+    lv = LoadVrm(config=config_eos.load, start_datetime=start_dt)
+
+    return lv
+
+
+def mock_forecast_response():
+    """Return a fake VrmForecastResponse with sample data."""
+    return VrmForecastResponse(
+        success=True,
+        records=VrmForecastRecords(
+            vrm_consumption_fc=[
+                (int(datetime(2025, 1, 1, 0, 0).timestamp() * 1000), 100.5),
+                (int(datetime(2025, 1, 1, 1, 0).timestamp() * 1000), 101.2)
+            ],
+            solar_yield_forecast=[]
+        ),
+        totals={}
+    )
+
+
+def test_update_data_calls_update_value(load_vrm_instance, mocker):
+    # Mock _request_forecast to return fake data
+    mocker.patch.object(load_vrm_instance, "_request_forecast", return_value=mock_forecast_response())
+
+    # update_value auf der Klasse patchen
+    mock_update = mocker.patch.object(LoadVrm, "update_value")
+
+    load_vrm_instance._update_data()
+
+    # Check that update_value was called correctly
+    assert mock_update.call_count == 2  # Once per timestamp
+
+    expected_calls = [
+        mocker.call(
+            pendulum.datetime(2025, 1, 1, 0, 0, 0, tz='Europe/Berlin'),
+            {"load_mean": 100.5, "load_std": 0.0, "load_mean_adjusted": 100.5}
+        ),
+        mocker.call(
+            pendulum.datetime(2025, 1, 1, 1, 0, 0, tz='Europe/Berlin'),
+            {"load_mean": 101.2, "load_std": 0.0, "load_mean_adjusted": 101.2}
+        ),
+    ]
+    mock_update.assert_has_calls(expected_calls, any_order=False)
+
+
+def test_validate_data_accepts_valid_json():
+    """Test that _validate_data doesn't raise with valid input."""
+    response = mock_forecast_response()
+    json_data = response.model_dump_json()
+
+    validated = LoadVrm._validate_data(json_data)
+    assert validated.success
+    assert len(validated.records.vrm_consumption_fc) == 2
+
+
+def test_validate_data_raises_on_invalid_json():
+    """_validate_data should raise ValueError on schema mismatch."""
+    # Fehlendes Feld 'records'
+    invalid_json = json.dumps({"success": True})
+
+    with pytest.raises(ValueError) as exc_info:
+        LoadVrm._validate_data(invalid_json)
+
+    assert "Field:" in str(exc_info.value)
+    assert "records" in str(exc_info.value)
+
+
+def test_request_forecast_raises_on_http_error(load_vrm_instance, mocker):
+    """Ensure _request_forecast raises RuntimeError on HTTP failure."""
+    mock_get = mocker.patch("requests.get", side_effect=requests.Timeout("Request timed out"))
+
+    with pytest.raises(RuntimeError) as exc_info:
+        load_vrm_instance._request_forecast(0, 1)
+
+    assert "Failed to fetch load forecast" in str(exc_info.value)
+    mock_get.assert_called_once()
+
+
+def test_update_data_does_nothing_on_empty_forecast(load_vrm_instance, mocker):
+    """Ensure no update_value calls are made if no forecast data is present."""
+    empty_response = VrmForecastResponse(
+        success=True,
+        records=VrmForecastRecords(vrm_consumption_fc=[], solar_yield_forecast=[]),
+        totals={}
+    )
+    mocker.patch.object(load_vrm_instance, "_request_forecast", return_value=empty_response)
+    mock_update = mocker.patch.object(LoadVrm, "update_value")
+
+    load_vrm_instance._update_data()
+
+    mock_update.assert_not_called()
