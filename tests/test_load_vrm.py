@@ -14,7 +14,7 @@ from akkudoktoreos.prediction.load_vrm import (
 
 @pytest.fixture
 def load_vrm_instance(config_eos):
-    # Settings für LoadVrm setzen
+    # Settings für LoadVrm
     settings = {
         "load": {
             "provider": "LoadVrm",
@@ -25,10 +25,10 @@ def load_vrm_instance(config_eos):
         }
     }
     config_eos.merge_settings_from_dict(settings)
-    # start_datetime initialisieren
+    # start_datetime initialize
     start_dt = pendulum.datetime(2025, 1, 1, tz='Europe/Berlin')
 
-    # LoadVrm-Instanz mit config und start_datetime erzeugen
+    # create LoadVrm-instance with config and start_datetime
     lv = LoadVrm(config=config_eos.load, start_datetime=start_dt)
 
     return lv
@@ -53,7 +53,7 @@ def test_update_data_calls_update_value(load_vrm_instance, mocker):
     # Mock _request_forecast to return fake data
     mocker.patch.object(load_vrm_instance, "_request_forecast", return_value=mock_forecast_response())
 
-    # update_value auf der Klasse patchen
+    # patch update_value on Class
     mock_update = mocker.patch.object(LoadVrm, "update_value")
 
     load_vrm_instance._update_data()
@@ -86,8 +86,7 @@ def test_validate_data_accepts_valid_json():
 
 def test_validate_data_raises_on_invalid_json():
     """_validate_data should raise ValueError on schema mismatch."""
-    # Fehlendes Feld 'records'
-    invalid_json = json.dumps({"success": True})
+    invalid_json = json.dumps({"success": True}) # missing 'records'
 
     with pytest.raises(ValueError) as exc_info:
         LoadVrm._validate_data(invalid_json)

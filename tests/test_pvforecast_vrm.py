@@ -14,7 +14,7 @@ from akkudoktoreos.prediction.pvforecast_vrm import (
 
 @pytest.fixture
 def pvforecast_instance(config_eos):
-    # Settings für PVForecastVrm setzen
+    # Settings for PVForecastVrm
     settings = {
         "pvforecast": {
             "provider": "PVForecastVrm",
@@ -25,10 +25,10 @@ def pvforecast_instance(config_eos):
         }
     }
     config_eos.merge_settings_from_dict(settings)
-    # start_datetime initialisieren
+    # start_datetime initialize
     start_dt = pendulum.datetime(2025, 1, 1, tz='Europe/Berlin')
 
-    # LoadVrm-Instanz mit config und start_datetime erzeugen
+    # create PVForecastVrm-instance with config and start_datetime
     pv = PVForecastVrm(config=config_eos.load, start_datetime=start_dt)
 
     return pv
@@ -53,13 +53,13 @@ def test_update_data_updates_dc_and_ac_power(pvforecast_instance, mocker):
     # Mock _request_forecast to return fake data
     mocker.patch.object(pvforecast_instance, "_request_forecast", return_value=mock_forecast_response())
 
-    # update_value auf der Klasse patchen
+    # patch update_value on Class
     mock_update = mocker.patch.object(PVForecastVrm, "update_value")
 
     pvforecast_instance._update_data()
 
     # Check that update_value was called correctly
-    assert mock_update.call_count == 2  # 2x dc + 2x ac
+    assert mock_update.call_count == 2
 
     expected_calls = [
         mocker.call(
@@ -115,7 +115,7 @@ def test_update_data_skips_on_empty_forecast(pvforecast_instance, mocker):
     )
     mocker.patch.object(pvforecast_instance, "_request_forecast", return_value=empty_response)
 
-    # update_value auf der Klasse patchen
+    # patch update_value on Class
     mock_update = mocker.patch.object(PVForecastVrm, "update_value")
 
     pvforecast_instance._update_data()
