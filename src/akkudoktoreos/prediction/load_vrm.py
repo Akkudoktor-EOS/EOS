@@ -27,8 +27,12 @@ class VrmForecastResponse(PydanticBaseModel):
 class LoadVrmCommonSettings(SettingsBaseModel):
     """Common settings for VRM API."""
 
-    load_vrm_api_token: str = Field(description="Token for Connecting VRM API")
-    load_vrm_installation_id: int = Field(description="VRM-Installation-ID")
+    load_vrm_api_token: str = Field(
+        default="your-token", description="Token for Connecting VRM API", examples=["your-token"]
+    )
+    load_vrm_installation_id: int = Field(
+        default=12345, description="VRM-Installation-ID", examples=[12345]
+    )
 
 
 class LoadVrm(LoadProvider):
