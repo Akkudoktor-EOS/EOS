@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from unittest.mock import call, patch
 
 import pendulum
 import pytest
@@ -49,29 +50,26 @@ def mock_forecast_response():
     )
 
 
-def test_update_data_calls_update_value(load_vrm_instance, mocker):
-    # Mock _request_forecast to return fake data
-    mocker.patch.object(load_vrm_instance, "_request_forecast", return_value=mock_forecast_response())
+def test_update_data_calls_update_value(load_vrm_instance):
+    with patch.object(load_vrm_instance, "_request_forecast", return_value=mock_forecast_response()), \
+         patch.object(LoadVrm, "update_value") as mock_update:
 
-    # patch update_value on Class
-    mock_update = mocker.patch.object(LoadVrm, "update_value")
+        load_vrm_instance._update_data()
 
-    load_vrm_instance._update_data()
+        assert mock_update.call_count == 2
 
-    # Check that update_value was called correctly
-    assert mock_update.call_count == 2  # Once per timestamp
+        expected_calls = [
+            call(
+                pendulum.datetime(2025, 1, 1, 0, 0, 0, tz='Europe/Berlin'),
+                {"load_mean": 100.5, "load_std": 0.0, "load_mean_adjusted": 100.5}
+            ),
+            call(
+                pendulum.datetime(2025, 1, 1, 1, 0, 0, tz='Europe/Berlin'),
+                {"load_mean": 101.2, "load_std": 0.0, "load_mean_adjusted": 101.2}
+            ),
+        ]
 
-    expected_calls = [
-        mocker.call(
-            pendulum.datetime(2025, 1, 1, 0, 0, 0, tz='Europe/Berlin'),
-            {"load_mean": 100.5, "load_std": 0.0, "load_mean_adjusted": 100.5}
-        ),
-        mocker.call(
-            pendulum.datetime(2025, 1, 1, 1, 0, 0, tz='Europe/Berlin'),
-            {"load_mean": 101.2, "load_std": 0.0, "load_mean_adjusted": 101.2}
-        ),
-    ]
-    mock_update.assert_has_calls(expected_calls, any_order=False)
+        mock_update.assert_has_calls(expected_calls, any_order=False)
 
 
 def test_validate_data_accepts_valid_json():
@@ -86,7 +84,7 @@ def test_validate_data_accepts_valid_json():
 
 def test_validate_data_raises_on_invalid_json():
     """_validate_data should raise ValueError on schema mismatch."""
-    invalid_json = json.dumps({"success": True}) # missing 'records'
+    invalid_json = json.dumps({"success": True})  # missing 'records'
 
     with pytest.raises(ValueError) as exc_info:
         LoadVrm._validate_data(invalid_json)
@@ -95,27 +93,25 @@ def test_validate_data_raises_on_invalid_json():
     assert "records" in str(exc_info.value)
 
 
-def test_request_forecast_raises_on_http_error(load_vrm_instance, mocker):
-    """Ensure _request_forecast raises RuntimeError on HTTP failure."""
-    mock_get = mocker.patch("requests.get", side_effect=requests.Timeout("Request timed out"))
+def test_request_forecast_raises_on_http_error(load_vrm_instance):
+    with patch("requests.get", side_effect=requests.Timeout("Request timed out")) as mock_get:
+        with pytest.raises(RuntimeError) as exc_info:
+            load_vrm_instance._request_forecast(0, 1)
 
-    with pytest.raises(RuntimeError) as exc_info:
-        load_vrm_instance._request_forecast(0, 1)
-
-    assert "Failed to fetch load forecast" in str(exc_info.value)
-    mock_get.assert_called_once()
+        assert "Failed to fetch load forecast" in str(exc_info.value)
+        mock_get.assert_called_once()
 
 
-def test_update_data_does_nothing_on_empty_forecast(load_vrm_instance, mocker):
-    """Ensure no update_value calls are made if no forecast data is present."""
+def test_update_data_does_nothing_on_empty_forecast(load_vrm_instance):
     empty_response = VrmForecastResponse(
         success=True,
         records=VrmForecastRecords(vrm_consumption_fc=[], solar_yield_forecast=[]),
         totals={}
     )
-    mocker.patch.object(load_vrm_instance, "_request_forecast", return_value=empty_response)
-    mock_update = mocker.patch.object(LoadVrm, "update_value")
 
-    load_vrm_instance._update_data()
+    with patch.object(load_vrm_instance, "_request_forecast", return_value=empty_response), \
+         patch.object(LoadVrm, "update_value") as mock_update:
 
-    mock_update.assert_not_called()
+        load_vrm_instance._update_data()
+
+        mock_update.assert_not_called()

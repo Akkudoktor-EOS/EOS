@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from unittest.mock import call, patch
 
 import pendulum
 import pytest
@@ -49,31 +50,27 @@ def mock_forecast_response():
     )
 
 
-def test_update_data_updates_dc_and_ac_power(pvforecast_instance, mocker):
-    # Mock _request_forecast to return fake data
-    mocker.patch.object(pvforecast_instance, "_request_forecast", return_value=mock_forecast_response())
+def test_update_data_updates_dc_and_ac_power(pvforecast_instance):
+    with patch.object(pvforecast_instance, "_request_forecast", return_value=mock_forecast_response()), \
+         patch.object(PVForecastVrm, "update_value") as mock_update:
 
-    # patch update_value on Class
-    mock_update = mocker.patch.object(PVForecastVrm, "update_value")
+        pvforecast_instance._update_data()
 
-    pvforecast_instance._update_data()
+        # Check that update_value was called correctly
+        assert mock_update.call_count == 2
 
-    # Check that update_value was called correctly
-    assert mock_update.call_count == 2
+        expected_calls = [
+            call(
+                pendulum.datetime(2025, 1, 1, 8, 0, tz='Europe/Berlin'),
+                {"pvforecast_dc_power": 120.0, "pvforecast_ac_power": 115.2}
+            ),
+            call(
+                pendulum.datetime(2025, 1, 1, 9, 0, tz='Europe/Berlin'),
+                {"pvforecast_dc_power": 130.0, "pvforecast_ac_power": 124.8}
+            ),
+        ]
 
-    expected_calls = [
-        mocker.call(
-            pendulum.datetime(2025, 1, 1, 8, 0, tz='Europe/Berlin'),
-            {"pvforecast_dc_power": 120.0, "pvforecast_ac_power": 115.2}
-        ),
-        mocker.call(
-            pendulum.datetime(2025, 1, 1, 9, 0, tz='Europe/Berlin'),
-            {"pvforecast_dc_power": 130.0, "pvforecast_ac_power": 124.8}
-        ),
-    ]
-
-    # print(f"mock_update.call_args_list = {mock_update.call_args_list}")
-    mock_update.assert_has_calls(expected_calls, any_order=False)
+        mock_update.assert_has_calls(expected_calls, any_order=False)
 
 
 def test_validate_data_accepts_valid_json():
@@ -87,7 +84,7 @@ def test_validate_data_accepts_valid_json():
 
 
 def test_validate_data_invalid_json_raises():
-    """Test that _validate_data doesn't raise with valid input."""
+    """Test that _validate_data raises with invalid input."""
     invalid_json = json.dumps({"success": True})  # missing 'records'
     with pytest.raises(ValueError) as exc_info:
         PVForecastVrm._validate_data(invalid_json)
@@ -95,28 +92,26 @@ def test_validate_data_invalid_json_raises():
     assert "records" in str(exc_info.value)
 
 
-def test_request_forecast_raises_on_http_error(pvforecast_instance, mocker):
+def test_request_forecast_raises_on_http_error(pvforecast_instance):
     """Ensure _request_forecast raises RuntimeError on HTTP failure."""
-    mock_get = mocker.patch("requests.get", side_effect=requests.Timeout("Request timed out"))
+    with patch("requests.get", side_effect=requests.Timeout("Request timed out")) as mock_get:
+        with pytest.raises(RuntimeError) as exc_info:
+            pvforecast_instance._request_forecast(0, 1)
 
-    with pytest.raises(RuntimeError) as exc_info:
-        pvforecast_instance._request_forecast(0, 1)
-
-    assert "Failed to fetch pvforecast" in str(exc_info.value)
-    mock_get.assert_called_once()
+        assert "Failed to fetch pvforecast" in str(exc_info.value)
+        mock_get.assert_called_once()
 
 
-def test_update_data_skips_on_empty_forecast(pvforecast_instance, mocker):
+def test_update_data_skips_on_empty_forecast(pvforecast_instance):
     """Ensure no update_value calls are made if no forecast data is present."""
     empty_response = VrmForecastResponse(
         success=True,
         records=VrmForecastRecords(vrm_consumption_fc=[], solar_yield_forecast=[]),
         totals={}
     )
-    mocker.patch.object(pvforecast_instance, "_request_forecast", return_value=empty_response)
 
-    # patch update_value on Class
-    mock_update = mocker.patch.object(PVForecastVrm, "update_value")
+    with patch.object(pvforecast_instance, "_request_forecast", return_value=empty_response), \
+         patch.object(PVForecastVrm, "update_value") as mock_update:
 
-    pvforecast_instance._update_data()
-    mock_update.assert_not_called()
+        pvforecast_instance._update_data()
+        mock_update.assert_not_called()
