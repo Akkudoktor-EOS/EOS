@@ -20,8 +20,8 @@ def load_vrm_instance(config_eos):
             "provider": "LoadVrm",
             "provider_settings": {
                 "load_vrm_api_token": "dummy-token",
-                "load_vrm_installation_id": 12345,
-            },
+                "load_vrm_installation_id": 12345
+            }
         }
     }
     config_eos.merge_settings_from_dict(settings)

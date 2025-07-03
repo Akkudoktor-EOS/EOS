@@ -20,8 +20,8 @@ def pvforecast_instance(config_eos):
             "provider": "PVForecastVrm",
             "provider_settings": {
                 "pv_vrm_api_token": "dummy-token",
-                "pv_vrm_installation_id": 12345,
-            },
+                "pv_vrm_installation_id": 12345
+            }
         }
     }
     config_eos.merge_settings_from_dict(settings)

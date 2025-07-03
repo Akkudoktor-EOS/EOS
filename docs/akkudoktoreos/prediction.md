@@ -458,8 +458,8 @@ This token must be stored in the EOS configuration along with the VRM-Installati
             "provider": "PVForecastVrm",
             "provider_settings": {
                 "pv_vrm_api_token": "dummy-token",
-                "pv_vrm_installation_id": 12345,
-            },
+                "pv_vrm_installation_id": 12345
+            }
     }
 ```
 
