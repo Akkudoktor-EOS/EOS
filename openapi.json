@@ -2927,6 +2927,9 @@
                 "$ref": "#/components/schemas/LoadAkkudoktorCommonSettings"
               },
               {
+                "$ref": "#/components/schemas/LoadVrmCommonSettings"
+              },
+              {
                 "$ref": "#/components/schemas/LoadImportCommonSettings"
               },
               {
@@ -2985,6 +2988,31 @@
         "type": "object",
         "title": "LoadImportCommonSettings",
         "description": "Common settings for load data import from file or JSON string."
+      },
+      "LoadVrmCommonSettings": {
+        "properties": {
+          "load_vrm_api_token": {
+            "type": "string",
+            "title": "Load Vrm Api Token",
+            "description": "Token for Connecting VRM API",
+            "default": "your-token",
+            "examples": [
+              "your-token"
+            ]
+          },
+          "load_vrm_installation_id": {
+            "type": "integer",
+            "title": "Load Vrm Installation Id",
+            "description": "VRM-Installation-ID",
+            "default": 12345,
+            "examples": [
+              12345
+            ]
+          }
+        },
+        "type": "object",
+        "title": "LoadVrmCommonSettings",
+        "description": "Common settings for VRM API."
       },
       "LoggingCommonSettings-Input": {
         "properties": {
@@ -3350,8 +3378,7 @@
         "required": [
           "ems",
           "pv_akku",
-          "inverter",
-          "eauto"
+          "inverter"
         ],
         "title": "OptimizationParameters"
       },
@@ -3473,9 +3500,13 @@
                 "$ref": "#/components/schemas/PVForecastImportCommonSettings"
               },
               {
+                "$ref": "#/components/schemas/PVforecastVrmCommonSettings"
+              },
+              {
                 "type": "null"
               }
             ],
+            "title": "Provider Settings",
             "description": "Provider settings",
             "examples": [
               null
@@ -3580,9 +3611,13 @@
                 "$ref": "#/components/schemas/PVForecastImportCommonSettings"
               },
               {
+                "$ref": "#/components/schemas/PVforecastVrmCommonSettings"
+              },
+              {
                 "type": "null"
               }
             ],
+            "title": "Provider Settings",
             "description": "Provider settings",
             "examples": [
               null
@@ -4021,6 +4056,31 @@
         "type": "object",
         "title": "PVForecastPlaneSetting",
         "description": "PV Forecast Plane Configuration."
+      },
+      "PVforecastVrmCommonSettings": {
+        "properties": {
+          "pv_vrm_api_token": {
+            "type": "string",
+            "title": "Pv Vrm Api Token",
+            "description": "Token for Connecting VRM API",
+            "default": "your-token",
+            "examples": [
+              "your-token"
+            ]
+          },
+          "pv_vrm_installation_id": {
+            "type": "integer",
+            "title": "Pv Vrm Installation Id",
+            "description": "VRM-Installation-ID",
+            "default": 12345,
+            "examples": [
+              12345
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PVforecastVrmCommonSettings",
+        "description": "Common settings for VRM API."
       },
       "PredictionCommonSettings": {
         "properties": {
