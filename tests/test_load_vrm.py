@@ -41,8 +41,8 @@ def mock_forecast_response():
         success=True,
         records=VrmForecastRecords(
             vrm_consumption_fc=[
-                (int(datetime(2025, 1, 1, 0, 0).timestamp() * 1000), 100.5),
-                (int(datetime(2025, 1, 1, 1, 0).timestamp() * 1000), 101.2)
+                (pendulum.datetime(2025, 1, 1, 0, 0, tz='Europe/Berlin').int_timestamp * 1000, 100.5),
+                (pendulum.datetime(2025, 1, 1, 1, 0, tz='Europe/Berlin').int_timestamp * 1000, 101.2)
             ],
             solar_yield_forecast=[]
         ),

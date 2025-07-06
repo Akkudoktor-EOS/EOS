@@ -42,8 +42,8 @@ def mock_forecast_response():
         records=VrmForecastRecords(
             vrm_consumption_fc=[],
             solar_yield_forecast=[
-                (int(datetime(2025, 1, 1, 8, 0).timestamp() * 1000), 120.0),
-                (int(datetime(2025, 1, 1, 9, 0).timestamp() * 1000), 130.0)
+                (pendulum.datetime(2025, 1, 1, 0, 0, tz='Europe/Berlin').int_timestamp * 1000, 120.0),
+                (pendulum.datetime(2025, 1, 1, 1, 0, tz='Europe/Berlin').int_timestamp * 1000, 130.0)
             ]
         ),
         totals={}
@@ -61,11 +61,11 @@ def test_update_data_updates_dc_and_ac_power(pvforecast_instance):
 
         expected_calls = [
             call(
-                pendulum.datetime(2025, 1, 1, 8, 0, tz='Europe/Berlin'),
+                pendulum.datetime(2025, 1, 1, 0, 0, tz='Europe/Berlin'),
                 {"pvforecast_dc_power": 120.0, "pvforecast_ac_power": 115.2}
             ),
             call(
-                pendulum.datetime(2025, 1, 1, 9, 0, tz='Europe/Berlin'),
+                pendulum.datetime(2025, 1, 1, 1, 0, tz='Europe/Berlin'),
                 {"pvforecast_dc_power": 130.0, "pvforecast_ac_power": 124.8}
             ),
         ]
