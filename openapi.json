@@ -3378,7 +3378,8 @@
         "required": [
           "ems",
           "pv_akku",
-          "inverter"
+          "inverter",
+          "eauto"
         ],
         "title": "OptimizationParameters"
       },
