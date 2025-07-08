@@ -34,9 +34,11 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
+from akkudoktoreos.prediction.load_vrm import LoadVrm
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktor
 from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
+from akkudoktoreos.prediction.pvforecast_vrm import PVForecastVrm
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
 from akkudoktoreos.prediction.weatherbrightsky import WeatherBrightSky
@@ -87,8 +89,10 @@ class Prediction(PredictionContainer):
             ElecPriceEnergyCharts,
             ElecPriceImport,
             LoadAkkudoktor,
+            LoadVrm,
             LoadImport,
             PVForecastAkkudoktor,
+            PVForecastVrm,
             PVForecastImport,
             WeatherBrightSky,
             WeatherClearOutside,
@@ -102,8 +106,10 @@ elecprice_akkudoktor = ElecPriceAkkudoktor()
 elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_import = ElecPriceImport()
 load_akkudoktor = LoadAkkudoktor()
+load_vrm = LoadVrm()
 load_import = LoadImport()
 pvforecast_akkudoktor = PVForecastAkkudoktor()
+pvforecast_vrm = PVForecastVrm()
 pvforecast_import = PVForecastImport()
 weather_brightsky = WeatherBrightSky()
 weather_clearoutside = WeatherClearOutside()
@@ -120,8 +126,10 @@ def get_prediction() -> Prediction:
             elecprice_energy_charts,
             elecprice_import,
             load_akkudoktor,
+            load_vrm,
             load_import,
             pvforecast_akkudoktor,
+            pvforecast_vrm,
             pvforecast_import,
             weather_brightsky,
             weather_clearoutside,

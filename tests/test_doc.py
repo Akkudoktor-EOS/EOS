@@ -26,13 +26,13 @@ def test_openapi_spec_current(config_eos):
         from scripts import generate_openapi
 
         spec = generate_openapi.generate_openapi()
-        spec_str = json.dumps(spec, indent=4, sort_keys=True)
+        spec_str = json.dumps(spec, indent=2)
 
     with new_spec_path.open("w", encoding="utf-8", newline="\n") as f_new:
         f_new.write(spec_str)
 
     # Serialize to ensure comparison is consistent
-    expected_spec_str = json.dumps(expected_spec, indent=4, sort_keys=True)
+    expected_spec_str = json.dumps(expected_spec, indent=2)
 
     try:
         assert spec_str == expected_spec_str

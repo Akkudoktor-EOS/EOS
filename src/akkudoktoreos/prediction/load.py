@@ -5,6 +5,7 @@ from typing import Optional, Union
 from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.prediction.load_vrm import LoadVrmCommonSettings
 from akkudoktoreos.prediction.loadabc import LoadProvider
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.loadimport import LoadImportCommonSettings
@@ -29,9 +30,9 @@ class LoadCommonSettings(SettingsBaseModel):
         examples=["LoadAkkudoktor"],
     )
 
-    provider_settings: Optional[Union[LoadAkkudoktorCommonSettings, LoadImportCommonSettings]] = (
-        Field(default=None, description="Provider settings", examples=[None])
-    )
+    provider_settings: Optional[
+        Union[LoadAkkudoktorCommonSettings, LoadVrmCommonSettings, LoadImportCommonSettings]
+    ] = Field(default=None, description="Provider settings", examples=[None])
 
     # Validators
     @field_validator("provider", mode="after")
