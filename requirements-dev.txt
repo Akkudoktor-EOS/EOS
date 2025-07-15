@@ -5,7 +5,7 @@ myst-parser==4.0.1
 sphinx==8.2.3
 sphinx_rtd_theme==3.0.2
 sphinx-tabs==3.4.7
-pymarkdownlnt==0.9.30
+pymarkdownlnt==0.9.31
 pytest==8.4.1
 pytest-cov==6.2.1
 pytest-xprocess==1.0.2
