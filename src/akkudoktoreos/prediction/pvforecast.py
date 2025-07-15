@@ -1,6 +1,6 @@
 """PV forecast module for PV power predictions."""
 
-from typing import Any, List, Optional, Self
+from typing import Any, List, Optional, Self, Union
 
 from pydantic import Field, computed_field, field_validator, model_validator
 
@@ -8,6 +8,7 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
+from akkudoktoreos.prediction.pvforecastvrm import PVforecastVrmCommonSettings
 from akkudoktoreos.utils.docs import get_model_structure_from_examples
 
 prediction_eos = get_prediction()
@@ -134,9 +135,9 @@ class PVForecastCommonSettings(SettingsBaseModel):
         examples=["PVForecastAkkudoktor"],
     )
 
-    provider_settings: Optional[PVForecastImportCommonSettings] = Field(
-        default=None, description="Provider settings", examples=[None]
-    )
+    provider_settings: Optional[
+        Union[PVForecastImportCommonSettings, PVforecastVrmCommonSettings]
+    ] = Field(default=None, description="Provider settings", examples=[None])
 
     planes: Optional[list[PVForecastPlaneSetting]] = Field(
         default=None,

@@ -477,7 +477,7 @@ Validators:
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | provider | `EOS_LOAD__PROVIDER` | `Optional[str]` | `rw` | `None` | Load provider id of provider to be used. |
-| provider_settings | `EOS_LOAD__PROVIDER_SETTINGS` | `Union[akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktorCommonSettings, akkudoktoreos.prediction.loadimport.LoadImportCommonSettings, NoneType]` | `rw` | `None` | Provider settings |
+| provider_settings | `EOS_LOAD__PROVIDER_SETTINGS` | `Union[akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktorCommonSettings, akkudoktoreos.prediction.loadvrm.LoadVrmCommonSettings, akkudoktoreos.prediction.loadimport.LoadImportCommonSettings, NoneType]` | `rw` | `None` | Provider settings |
 :::
 
 ### Example Input/Output
@@ -520,6 +520,33 @@ Validators:
    }
 ```
 
+### Common settings for VRM API
+
+:::{table} load::provider_settings
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| load_vrm_token | `str` | `rw` | `your-token` | Token for Connecting VRM API |
+| load_vrm_idsite | `int` | `rw` | `12345` | VRM-Installation-ID |
+:::
+
+#### Example Input/Output
+
+```{eval-rst}
+.. code-block:: json
+
+   {
+       "load": {
+           "provider_settings": {
+               "load_vrm_token": "your-token",
+               "load_vrm_idsite": 12345
+           }
+       }
+   }
+```
+
 ### Common settings for load data import from file
 
 :::{table} load::provider_settings
@@ -554,7 +581,7 @@ Validators:
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | provider | `EOS_PVFORECAST__PROVIDER` | `Optional[str]` | `rw` | `None` | PVForecast provider id of provider to be used. |
-| provider_settings | `EOS_PVFORECAST__PROVIDER_SETTINGS` | `Optional[akkudoktoreos.prediction.pvforecastimport.PVForecastImportCommonSettings]` | `rw` | `None` | Provider settings |
+| provider_settings | `EOS_PVFORECAST__PROVIDER_SETTINGS` | `Union[akkudoktoreos.prediction.pvforecastimport.PVForecastImportCommonSettings, akkudoktoreos.prediction.pvforecastvrm.PVforecastVrmCommonSettings, NoneType]` | `rw` | `None` | Provider settings |
 | planes | `EOS_PVFORECAST__PLANES` | `Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]` | `rw` | `None` | Plane configuration. |
 | max_planes | `EOS_PVFORECAST__MAX_PLANES` | `Optional[int]` | `rw` | `0` | Maximum number of planes that can be set |
 | planes_peakpower | | `List[float]` | `ro` | `N/A` | Compute a list of the peak power per active planes. |
@@ -791,6 +818,33 @@ Validators:
                    "strings_per_inverter": 2
                }
            ]
+       }
+   }
+```
+
+### Common settings for VRM API
+
+:::{table} pvforecast::provider_settings
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| pvforecast_vrm_token | `str` | `rw` | `your-token` | Token for Connecting VRM API |
+| pvforecast_vrm_idsite | `int` | `rw` | `12345` | VRM-Installation-ID |
+:::
+
+#### Example Input/Output
+
+```{eval-rst}
+.. code-block:: json
+
+   {
+       "pvforecast": {
+           "provider_settings": {
+               "pvforecast_vrm_token": "your-token",
+               "pvforecast_vrm_idsite": 12345
+           }
        }
    }
 ```

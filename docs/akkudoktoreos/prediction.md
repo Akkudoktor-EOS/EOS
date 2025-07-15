@@ -184,6 +184,7 @@ Configuration options:
   - `provider`: Load provider id of provider to be used.
 
     - `LoadAkkudoktor`: Retrieves from local database.
+    - `LoadVrm`: Retrieves data from the VRM API by Victron Energy.
     - `LoadImport`: Imports from a file or JSON string.
 
   - `provider_settings.loadakkudoktor_year_energy`: Yearly energy consumption (kWh).
@@ -195,6 +196,27 @@ Configuration options:
 The `LoadAkkudoktor` provider retrieves generic load data from a local database and tailors it to
 align with the annual energy consumption specified in the `loadakkudoktor_year_energy` configuration
 option.
+
+### LoadVrm Provider
+
+The `LoadVrm` provider retrieves load forecast data from the VRM API by Victron Energy.
+To receive forecasts, the system data must be configured under Dynamic ESS in the VRM portal.
+To query the forecasts, an API token is required, which can also be created in the VRM portal under Preferences.
+This token must be stored in the EOS configuration along with the VRM-Installations-ID.
+
+```python
+    {
+        "load": {
+            "provider": "LoadVrm",
+            "provider_settings": {
+                "load_vrm_token": "dummy-token",
+                "load_vrm_idsite": 12345
+    }
+```
+
+The prediction keys for the load forecast data are:
+
+- `load_mean`: Predicted load mean value (W).
 
 ### LoadImport Provider
 
@@ -234,6 +256,7 @@ Configuration options:
   - `provider`: PVForecast provider id of provider to be used.
 
     - `PVForecastAkkudoktor`: Retrieves from Akkudoktor.net.
+    - `PVForecastVrm`: Retrieves data from the VRM API by Victron Energy.
     - `PVForecastImport`: Imports from a file or JSON string.
 
   - `planes[].surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
@@ -422,6 +445,28 @@ Example:
 }
 ```
 
+### PVForecastVrm Provider
+
+The `PVForecastVrm` provider retrieves pv power forecast data from the VRM API by Victron Energy.
+To receive forecasts, the system data must be configured under Dynamic ESS in the VRM portal.
+To query the forecasts, an API token is required, which can also be created in the VRM portal under Preferences.
+This token must be stored in the EOS configuration along with the VRM-Installations-ID.
+
+```python
+    {
+        "pvforecast": {
+            "provider": "PVForecastVrm",
+            "provider_settings": {
+                "pvforecast_vrm_token": "dummy-token",
+                "pvforecast_vrm_idsite": 12345
+            }
+    }
+```
+
+The prediction keys for the PV forecast data are:
+
+- `pvforecast_dc_power`: Total DC power (W).
+
 ### PVForecastImport Provider
 
 The `PVForecastImport` provider is designed to import PV forecast data from a file or a JSON
@@ -430,8 +475,8 @@ becomes available.
 
 The prediction keys for the PV forecast data are:
 
-- `pvforecast_ac_power`: Total DC power (W).
-- `pvforecast_dc_power`: Total AC power (W).
+- `pvforecast_ac_power`: Total AC power (W).
+- `pvforecast_dc_power`: Total DC power (W).
 
 The PV forecast data must be provided in one of the formats described in
 <project:#prediction-import-providers>. The data source can be given in the
