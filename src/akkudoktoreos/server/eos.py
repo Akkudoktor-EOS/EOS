@@ -29,7 +29,9 @@ from loguru import logger
 
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
 from akkudoktoreos.core.cache import CacheFileStore
+from akkudoktoreos.core.emplan import EnergyManagementPlan
 from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.core.logabc import LOGGING_LEVELS
 from akkudoktoreos.core.logging import read_file_log, track_logging_config
 from akkudoktoreos.core.pydantic import (
@@ -39,15 +41,12 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeSeries,
 )
 from akkudoktoreos.measurement.measurement import get_measurement
-from akkudoktoreos.optimization.genetic import (
-    OptimizationParameters,
-    OptimizeResponse,
-    optimization_problem,
-)
+from akkudoktoreos.optimization.geneticparams import GeneticOptimizationParameters
+from akkudoktoreos.optimization.geneticsolution import GeneticSolution
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
-from akkudoktoreos.prediction.prediction import PredictionCommonSettings, get_prediction
+from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.server.rest.error import create_error_page
 from akkudoktoreos.server.rest.tasks import repeat_every
@@ -209,10 +208,10 @@ def energy_management_on_exception(e: Exception) -> None:
     wait_first=config_eos.ems.startup_delay,
     on_exception=energy_management_on_exception,
 )
-def energy_management_task() -> None:
+async def energy_management_task() -> None:
     """Repeating task for energy management."""
     logger.debug("Check EMS run")
-    ems_eos.manage_energy()
+    await ems_eos.manage_energy()
 
 
 async def server_shutdown_task() -> None:
@@ -445,6 +444,9 @@ def fastapi_health_get():  # type: ignore
         {
             "status": "alive",
             "pid": psutil.Process().pid,
+            "energy-management": {
+                "start_datetime": to_datetime(ems_eos.start_datetime, as_string=True),
+            },
         }
     )
 
@@ -620,62 +622,9 @@ def fastapi_measurement_keys_get() -> list[str]:
     return sorted(measurement_eos.record_keys)
 
 
-@app.get("/v1/measurement/load-mr/series/by-name", tags=["measurement"])
-def fastapi_measurement_load_mr_series_by_name_get(
-    name: Annotated[str, Query(description="Load name.")],
-) -> PydanticDateTimeSeries:
-    """Get the meter reading of given load name as series."""
-    key = measurement_eos.name_to_key(name=name, topic="measurement_load")
-    if key is None:
-        raise HTTPException(
-            status_code=404, detail=f"Measurement load with name '{name}' is not available."
-        )
-    if key not in measurement_eos.record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-    pdseries = measurement_eos.key_to_series(key=key)
-    return PydanticDateTimeSeries.from_series(pdseries)
-
-
-@app.put("/v1/measurement/load-mr/value/by-name", tags=["measurement"])
-def fastapi_measurement_load_mr_value_by_name_put(
-    datetime: Annotated[str, Query(description="Datetime.")],
-    name: Annotated[str, Query(description="Load name.")],
-    value: Union[float | str],
-) -> PydanticDateTimeSeries:
-    """Merge the meter reading of given load name and value into EOS measurements at given datetime."""
-    key = measurement_eos.name_to_key(name=name, topic="measurement_load")
-    if key is None:
-        raise HTTPException(
-            status_code=404, detail=f"Measurement load with name '{name}' is not available."
-        )
-    if key not in measurement_eos.record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-    measurement_eos.update_value(datetime, key, value)
-    pdseries = measurement_eos.key_to_series(key=key)
-    return PydanticDateTimeSeries.from_series(pdseries)
-
-
-@app.put("/v1/measurement/load-mr/series/by-name", tags=["measurement"])
-def fastapi_measurement_load_mr_series_by_name_put(
-    name: Annotated[str, Query(description="Load name.")], series: PydanticDateTimeSeries
-) -> PydanticDateTimeSeries:
-    """Merge the meter readings series of given load name into EOS measurements at given datetime."""
-    key = measurement_eos.name_to_key(name=name, topic="measurement_load")
-    if key is None:
-        raise HTTPException(
-            status_code=404, detail=f"Measurement load with name '{name}' is not available."
-        )
-    if key not in measurement_eos.record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-    pdseries = series.to_series()  # make pandas series from PydanticDateTimeSeries
-    measurement_eos.key_from_series(key=key, series=pdseries)
-    pdseries = measurement_eos.key_to_series(key=key)
-    return PydanticDateTimeSeries.from_series(pdseries)
-
-
 @app.get("/v1/measurement/series", tags=["measurement"])
 def fastapi_measurement_series_get(
-    key: Annotated[str, Query(description="Prediction key.")],
+    key: Annotated[str, Query(description="Measurement key.")],
 ) -> PydanticDateTimeSeries:
     """Get the measurements of given key as series."""
     if key not in measurement_eos.record_keys:
@@ -687,7 +636,7 @@ def fastapi_measurement_series_get(
 @app.put("/v1/measurement/value", tags=["measurement"])
 def fastapi_measurement_value_put(
     datetime: Annotated[str, Query(description="Datetime.")],
-    key: Annotated[str, Query(description="Prediction key.")],
+    key: Annotated[str, Query(description="Measurement key.")],
     value: Union[float | str],
 ) -> PydanticDateTimeSeries:
     """Merge the measurement of given key and value into EOS measurements at given datetime."""
@@ -700,7 +649,7 @@ def fastapi_measurement_value_put(
 
 @app.put("/v1/measurement/series", tags=["measurement"])
 def fastapi_measurement_series_put(
-    key: Annotated[str, Query(description="Prediction key.")], series: PydanticDateTimeSeries
+    key: Annotated[str, Query(description="Measurement key.")], series: PydanticDateTimeSeries
 ) -> PydanticDateTimeSeries:
     """Merge measurement given as series into given key."""
     if key not in measurement_eos.record_keys:
@@ -912,7 +861,7 @@ def fastapi_prediction_import_provider(
 
 
 @app.post("/v1/prediction/update", tags=["prediction"])
-def fastapi_prediction_update(
+async def fastapi_prediction_update(
     force_update: Optional[bool] = False, force_enable: Optional[bool] = False
 ) -> Response:
     """Update predictions for all providers.
@@ -923,19 +872,25 @@ def fastapi_prediction_update(
         force_enable: Update data even if provider is disabled.
             Defaults to False.
     """
+    # Ensure there is only one optimization/ energy management run at a time
     try:
-        prediction_eos.update_data(force_update=force_update, force_enable=force_enable)
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=force_update,
+            force_enable=force_enable,
+        )
     except Exception as e:
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         raise HTTPException(
             status_code=400,
             detail=f"Error on prediction update: {e}\n{trace}",
         )
+
     return Response()
 
 
 @app.post("/v1/prediction/update/{provider_id}", tags=["prediction"])
-def fastapi_prediction_update_provider(
+async def fastapi_prediction_update_provider(
     provider_id: str, force_update: Optional[bool] = False, force_enable: Optional[bool] = False
 ) -> Response:
     """Update predictions for given provider ID.
@@ -951,17 +906,50 @@ def fastapi_prediction_update_provider(
         provider = prediction_eos.provider_by_id(provider_id)
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not found.")
+
+    # Ensure there is only one optimization/ energy management run at a time
     try:
-        provider.update_data(force_update=force_update, force_enable=force_enable)
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Error on update of provider '{provider_id}': {e}"
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=force_update,
+            force_enable=force_enable,
         )
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error on prediction update: {e}\n{trace}",
+        )
+
     return Response()
 
 
+@app.get("/v1/energy-management/genetic/solution", tags=["energy-management"])
+def fastapi_energy_management_genetic_solution_get() -> GeneticSolution:
+    """Get the latest solution of the genetic algorithm."""
+    solution = ems_eos.genetic_solution()
+    if solution is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Can not get the genetic solution. Did you configure automatic optimization?",
+        )
+    return solution
+
+
+@app.get("/v1/energy-management/plan", tags=["energy-management"])
+def fastapi_energy_management_plan_get() -> EnergyManagementPlan:
+    """Get the latest energy management plan."""
+    plan = ems_eos.plan()
+    if plan is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Can not get the energy management plan. Did you configure automatic optimization?",
+        )
+    return plan
+
+
 @app.get("/strompreis", tags=["prediction"])
-def fastapi_strompreis() -> list[float]:
+async def fastapi_strompreis() -> list[float]:
     """Deprecated: Electricity Market Price Prediction per Wh (€/Wh).
 
     Electricity prices start at 00.00.00 today and are provided for 48 hours.
@@ -984,11 +972,18 @@ def fastapi_strompreis() -> list[float]:
         )
     )
     config_eos.merge_settings(settings=settings)
-    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
 
-    # Create electricity price forecast
-    prediction_eos.update_data(force_update=True)
-
+    # Ensure there is only one optimization/ energy management run at a time
+    try:
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=True,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not update predictions: {e}",
+        )
     # Get the current date and the end date based on prediction hours
     # Fetch prices for the specified date range
     start_datetime = to_datetime().start_of("day")
@@ -1015,7 +1010,7 @@ class GesamtlastRequest(PydanticBaseModel):
 
 
 @app.post("/gesamtlast", tags=["prediction"])
-def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
+async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     """Deprecated: Total Load Prediction with adjustment.
 
     Endpoint to handle total load prediction adjusted by latest measured data.
@@ -1027,27 +1022,33 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     Note:
         Use '/v1/prediction/list?key=load_mean_adjusted' instead.
         Load energy meter readings to be added to EOS measurement by:
-        '/v1/measurement/load-mr/value/by-name' or
-        '/v1/measurement/value'
+        '/v1/measurement/value' or
+        '/v1/measurement/series' or
+        '/v1/measurement/dataframe' or
+        '/v1/measurement/data'
     """
-    settings = SettingsEOS(
-        prediction=PredictionCommonSettings(
-            hours=request.hours,
-        ),
-        load=LoadCommonSettings(
-            provider="LoadAkkudoktor",
-            provider_settings=LoadAkkudoktorCommonSettings(
-                loadakkudoktor_year_energy=request.year_energy,
-            ),
-        ),
-    )
-    config_eos.merge_settings(settings=settings)
-    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
+    settings = {
+        "prediction": {
+            "hours": request.hours,
+        },
+        "load": {
+            "provider": "LoadAkkudoktor",
+            "provider_settings": {
+                "loadakkudoktor_year_energy": request.year_energy,
+            },
+        },
+        "measurement": {
+            "load_emr_keys": ["gesamtlast_emr"],
+        },
+    }
+    config_eos.merge_settings_from_dict(settings)
 
     # Insert measured data into EOS measurement
     # Convert from energy per interval to dummy energy meter readings
-    measurement_key = "load0_mr"
-    measurement_eos.key_delete_by_datetime(key=measurement_key)  # delete all load0_mr measurements
+    measurement_key = "gesamtlast_emr"
+    measurement_eos.key_delete_by_datetime(
+        key=measurement_key
+    )  # delete all gesamtlast_emr measurements
     energy = {}
     try:
         for data_dict in request.measured_data:
@@ -1074,8 +1075,17 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
         energy_mr_values.append(energy_mr)
     measurement_eos.key_from_lists(measurement_key, energy_mr_dates, energy_mr_values)
 
-    # Create load forecast
-    prediction_eos.update_data(force_update=True)
+    # Ensure there is only one optimization/ energy management run at a time
+    try:
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=True,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not update predictions: {e}",
+        )
 
     # Get the forcast starting at start of day
     start_datetime = to_datetime().start_of("day")
@@ -1096,7 +1106,7 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
 
 
 @app.get("/gesamtlast_simple", tags=["prediction"])
-def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
+async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     """Deprecated: Total Load Prediction.
 
     Endpoint to handle total load prediction.
@@ -1123,10 +1133,18 @@ def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
         )
     )
     config_eos.merge_settings(settings=settings)
-    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
 
-    # Create load forecast
-    prediction_eos.update_data(force_update=True)
+    # Ensure there is only one optimization/ energy management run at a time
+    try:
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=True,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not update predictions: {e}",
+        )
 
     # Get the forcast starting at start of day
     start_datetime = to_datetime().start_of("day")
@@ -1152,7 +1170,7 @@ class ForecastResponse(PydanticBaseModel):
 
 
 @app.get("/pvforecast", tags=["prediction"])
-def fastapi_pvforecast() -> ForecastResponse:
+async def fastapi_pvforecast() -> ForecastResponse:
     """Deprecated: PV Forecast Prediction.
 
     Endpoint to handle PV forecast prediction.
@@ -1171,15 +1189,16 @@ def fastapi_pvforecast() -> ForecastResponse:
     settings = SettingsEOS(pvforecast=PVForecastCommonSettings(provider="PVForecastAkkudoktor"))
     config_eos.merge_settings(settings=settings)
 
-    ems_eos.set_start_datetime()  # Set energy management start datetime to current hour.
-
-    # Create PV forecast
+    # Ensure there is only one optimization/ energy management run at a time
     try:
-        prediction_eos.update_data(force_update=True)
-    except ValueError as e:
+        await ems_eos.run(
+            mode=EnergyManagementMode.PREDICTION,
+            force_update=True,
+        )
+    except Exception as e:
         raise HTTPException(
             status_code=404,
-            detail=f"Can not get the PV forecast: {e}",
+            detail=f"Can not update predictions: {e}",
         )
 
     # Get the forcast starting at start of day
@@ -1207,33 +1226,43 @@ def fastapi_pvforecast() -> ForecastResponse:
 
 
 @app.post("/optimize", tags=["optimize"])
-def fastapi_optimize(
-    parameters: OptimizationParameters,
+async def fastapi_optimize(
+    parameters: GeneticOptimizationParameters,
     start_hour: Annotated[
         Optional[int], Query(description="Defaults to current hour of the day.")
     ] = None,
-    ngen: Optional[int] = None,
-) -> OptimizeResponse:
+    ngen: Annotated[
+        Optional[int], Query(description="Number of indivuals to generate for genetic algorithm.")
+    ] = None,
+) -> GeneticSolution:
+    """Deprecated: Optimize.
+
+    Endpoint to handle optimization.
+
+    Note:
+        Use automatic optimization instead.
+    """
     if start_hour is None:
-        start_hour = to_datetime().hour
-    extra_args: dict[str, Any] = dict()
-    if ngen is not None:
-        extra_args["ngen"] = ngen
+        start_datetime = None
+    else:
+        start_datetime = to_datetime().set(hour=start_hour)
 
-    # TODO: Remove when config and prediction update is done by EMS.
-    config_eos.update()
-    prediction_eos.update_data()
-
-    # Perform optimization simulation
-    opt_class = optimization_problem(verbose=bool(config_eos.server.verbose))
+    # Ensure there is only one optimization/ energy management run at a time
     try:
-        result = opt_class.optimierung_ems(
-            parameters=parameters, start_hour=start_hour, **extra_args
+        await ems_eos.run(
+            start_datetime=start_datetime,
+            mode=EnergyManagementMode.OPTIMIZATION,
+            genetic_parameters=parameters,
+            genetic_individuals=ngen,
         )
-        # print(result)
-        return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Optimize error: {e}.")
+
+    solution = ems_eos.genetic_solution()
+    if solution is None:
+        raise HTTPException(status_code=400, detail="Optimize error: no solution stored by run.")
+
+    return solution
 
 
 @app.get("/visualization_results.pdf", response_class=PdfResponse, tags=["optimize"])

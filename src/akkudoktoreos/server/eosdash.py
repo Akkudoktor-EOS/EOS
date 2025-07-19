@@ -21,6 +21,8 @@ from akkudoktoreos.server.dash.configuration import ConfigKeyUpdate, Configurati
 from akkudoktoreos.server.dash.demo import Demo
 from akkudoktoreos.server.dash.footer import Footer
 from akkudoktoreos.server.dash.hello import Hello
+from akkudoktoreos.server.dash.plan import Plan
+from akkudoktoreos.server.dash.prediction import Prediction
 from akkudoktoreos.server.server import get_default_host, wait_for_port_free
 
 config_eos = get_config()
@@ -90,6 +92,8 @@ def get_eosdash():  # type: ignore
         {
             "EOSdash": "/eosdash/hello",
             "Config": "/eosdash/configuration",
+            "Plan": "/eosdash/plan",
+            "Prediction": "/eosdash/prediction",
             "Demo": "/eosdash/demo",
             "Admin": "/eosdash/admin",
         },
@@ -157,6 +161,26 @@ def get_eosdash_demo():  # type: ignore
         Demo: The Demo page component.
     """
     return Demo(*eos_server())
+
+
+@app.get("/eosdash/plan")
+def get_eosdash_plan():  # type: ignore
+    """Serves the EOSdash Plan page.
+
+    Returns:
+        Plan: The Plan page component.
+    """
+    return Plan(*eos_server())
+
+
+@app.get("/eosdash/prediction")
+def get_eosdash_prediction():  # type: ignore
+    """Serves the EOSdash Prediction page.
+
+    Returns:
+        Prediction: The Prediction page component.
+    """
+    return Prediction(*eos_server())
 
 
 @app.get("/eosdash/health")
