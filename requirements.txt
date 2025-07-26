@@ -10,7 +10,7 @@ mdit-py-plugins==0.4.2
 bokeh==3.7.3
 uvicorn==0.35.0
 scikit-learn==1.7.1
-timezonefinder==6.6.2
+timezonefinder==7.0.1
 deap==1.4.3
 requests==2.32.4
 pandas==2.3.1
