@@ -149,6 +149,7 @@ class PVForecastCommonSettings(SettingsBaseModel):
         default=0,
         ge=0,
         description="Maximum number of planes that can be set",
+        examples=[1, 2],
     )
 
     # Validators
