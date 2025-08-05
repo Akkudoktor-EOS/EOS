@@ -2,7 +2,7 @@ cachebox==5.0.1
 numpy==2.3.2
 numpydantic==1.6.9
 matplotlib==3.10.5
-fastapi[standard]==0.115.14
+fastapi[standard]==0.116.1
 python-fasthtml==0.12.23
 MonsterUI==1.0.23
 markdown-it-py==3.0.0
