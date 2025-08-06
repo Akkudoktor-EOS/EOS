@@ -5,6 +5,7 @@ import requests
 
 
 class TestEOSDash:
+
     def test_eosdash_started(self, server_setup_for_class, is_system_test):
         """Test the EOSdash server is started by EOS server."""
         server = server_setup_for_class["server"]
@@ -21,7 +22,7 @@ class TestEOSDash:
                 if result.status_code == HTTPStatus.OK:
                     startup = True
                     break
-                error = f"{result.status_code}, {str(result.content)}"
+                    error = f"{result.status_code}, {str(result.content)}"
             except Exception as ex:
                 error = str(ex)
             time.sleep(3)

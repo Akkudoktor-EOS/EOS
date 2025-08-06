@@ -6,14 +6,17 @@ from unittest.mock import patch
 import pytest
 
 from akkudoktoreos.config.config import ConfigEOS
-from akkudoktoreos.optimization.genetic import (
-    OptimizationParameters,
-    OptimizeResponse,
-    optimization_problem,
-)
+from akkudoktoreos.core.cache import CacheEnergyManagementStore
+from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.optimization.genetic import GeneticOptimization
+from akkudoktoreos.optimization.geneticparams import GeneticOptimizationParameters
+from akkudoktoreos.optimization.geneticsolution import GeneticSolution
+from akkudoktoreos.utils.datetimeutil import to_datetime
 from akkudoktoreos.utils.visualize import (
     prepare_visualize,  # Import the new prepare_visualize
 )
+
+ems_eos = get_ems()
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 
@@ -50,24 +53,44 @@ def test_optimize(
     """Test optimierung_ems."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 48}, "optimization": {"hours": 48}}
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"hours": 48},
+            "devices": {
+                "max_electric_vehicles": 1,
+                "electric_vehicles": [
+                    {
+                        "charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                    }
+                ],
+             }
+         }
     )
 
     # Load input and output data
     file = DIR_TESTDATA / fn_in
     with file.open("r") as f_in:
-        input_data = OptimizationParameters(**json.load(f_in))
+        input_data = GeneticOptimizationParameters(**json.load(f_in))
 
     file = DIR_TESTDATA / fn_out
     # In case a new test case is added, we don't want to fail here, so the new output is written to disk before
     try:
         with file.open("r") as f_out:
-            expected_result = OptimizeResponse(**json.load(f_out))
+            expected_result = GeneticSolution(**json.load(f_out))
     except FileNotFoundError:
         pass
 
-    opt_class = optimization_problem(fixed_seed=42)
-    start_hour = 10
+    # Test parameters
+    fixed_start_hour = 10
+    fixed_seed = 42
+
+    # Fake energy management run start datetime
+    ems_eos.set_start_datetime(to_datetime().set(hour=fixed_start_hour))
+
+    # Throw away any cached results of the last energy management run.
+    CacheEnergyManagementStore().clear()
+
+    genetic_optimization = GeneticOptimization(fixed_seed=fixed_seed)
 
     # Activate with pytest --full-run
     if ngen > 10 and not is_full_run:
@@ -82,8 +105,8 @@ def test_optimize(
         ),
     ) as prepare_visualize_patch:
         # Call the optimization function
-        ergebnis = opt_class.optimierung_ems(
-            parameters=input_data, start_hour=start_hour, ngen=ngen
+        ergebnis = genetic_optimization.optimierung_ems(
+            parameters=input_data, start_hour=fixed_start_hour, ngen=ngen
         )
         # Write test output to file, so we can take it as new data on intended change
         TESTDATA_FILE = DIR_TESTDATA / f"new_{fn_out}"
