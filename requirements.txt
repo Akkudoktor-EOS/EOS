@@ -1,6 +1,6 @@
 cachebox==5.0.1
 numpy==2.3.2
-numpydantic==1.6.9
+numpydantic==1.6.10
 matplotlib==3.10.5
 fastapi[standard]==0.115.14
 python-fasthtml==0.12.24
