@@ -6,7 +6,7 @@ fastapi[standard]==0.115.14
 python-fasthtml==0.12.23
 MonsterUI==1.0.23
 markdown-it-py==3.0.0
-mdit-py-plugins==0.4.2
+mdit-py-plugins==0.5.0
 bokeh==3.7.3
 uvicorn==0.35.0
 scikit-learn==1.7.1
