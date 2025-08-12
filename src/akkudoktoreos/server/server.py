@@ -2,12 +2,13 @@
 
 import ipaddress
 import re
+import socket
 import time
-from typing import Optional, Union
+from typing import Optional
 
 import psutil
 from loguru import logger
-from pydantic import Field, IPvAnyAddress, field_validator
+from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 
@@ -17,7 +18,7 @@ def get_default_host() -> str:
     return "127.0.0.1"
 
 
-def is_valid_ip_or_hostname(value: str) -> bool:
+def validate_ip_or_hostname(value: str) -> str:
     """Validate whether a string is a valid IP address (IPv4 or IPv6) or hostname.
 
     This function first attempts to interpret the input as an IP address using the
@@ -29,23 +30,30 @@ def is_valid_ip_or_hostname(value: str) -> bool:
         value (str): The input string to validate.
 
     Returns:
-        bool: True if the input is a valid IP address or hostname, False otherwise.
+        IP address: Valid IP address or hostname.
     """
     try:
         ipaddress.ip_address(value)
-        return True
+        return value
     except ValueError:
         pass
 
     if len(value) > 253:
-        return False
+        raise ValueError(f"Not a valid hostname: {value}")
 
     hostname_regex = re.compile(
         r"^(?=.{1,253}$)(?!-)[A-Z\d-]{1,63}(?<!-)"
         r"(?:\.(?!-)[A-Z\d-]{1,63}(?<!-))*\.?$",
         re.IGNORECASE,
     )
-    return bool(hostname_regex.fullmatch(value))
+    if not bool(hostname_regex.fullmatch(value)):
+        raise ValueError(f"Not a valid hostname: {value}")
+
+    ip = socket.gethostbyname(value)
+    if ip is None:
+        raise ValueError(f"Unknown host: {value}")
+
+    return value
 
 
 def wait_for_port_free(port: int, timeout: int = 0, waiting_app_name: str = "App") -> bool:
@@ -121,28 +129,39 @@ def wait_for_port_free(port: int, timeout: int = 0, waiting_app_name: str = "App
 class ServerCommonSettings(SettingsBaseModel):
     """Server Configuration."""
 
-    host: Optional[IPvAnyAddress] = Field(
-        default=get_default_host(), description="EOS server IP address."
+    host: Optional[str] = Field(
+        default=get_default_host(),
+        description="EOS server IP address. Defaults to 127.0.0.1.",
+        examples=["127.0.0.1", "localhost"],
     )
-    port: Optional[int] = Field(default=8503, description="EOS server IP port number.")
+    port: Optional[int] = Field(
+        default=8503,
+        description="EOS server IP port number. Defaults to 8503.",
+        examples=[
+            8503,
+        ],
+    )
     verbose: Optional[bool] = Field(default=False, description="Enable debug output")
     startup_eosdash: Optional[bool] = Field(
-        default=True, description="EOS server to start EOSdash server."
+        default=True, description="EOS server to start EOSdash server. Defaults to True."
     )
-    eosdash_host: Optional[IPvAnyAddress] = Field(
-        default=get_default_host(), description="EOSdash server IP address."
+    eosdash_host: Optional[str] = Field(
+        default=None,
+        description="EOSdash server IP address. Defaults to EOS server IP address.",
+        examples=["127.0.0.1", "localhost"],
     )
-    eosdash_port: Optional[int] = Field(default=8504, description="EOSdash server IP port number.")
+    eosdash_port: Optional[int] = Field(
+        default=None,
+        description="EOSdash server IP port number. Defaults to EOS server IP port number + 1.",
+        examples=[
+            8504,
+        ],
+    )
 
     @field_validator("host", "eosdash_host", mode="before")
-    def validate_server_host(
-        cls, value: Optional[Union[str, IPvAnyAddress]]
-    ) -> Optional[Union[str, IPvAnyAddress]]:
+    def validate_server_host(cls, value: Optional[str]) -> Optional[str]:
         if isinstance(value, str):
-            if not is_valid_ip_or_hostname(value):
-                raise ValueError(f"Invalid host: {value}")
-            if value.lower() in ("localhost", "loopback"):
-                value = "127.0.0.1"
+            value = validate_ip_or_hostname(value)
         return value
 
     @field_validator("port", "eosdash_port")
