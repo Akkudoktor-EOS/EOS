@@ -35,6 +35,19 @@ RUN mkdir -p src && pip install -e .
 
 COPY src src
 
+# Create minimal default configuration for Docker to fix EOSDash accessibility (#629)
+# This ensures EOSDash binds to 0.0.0.0 instead of 127.0.0.1 in containers
+RUN echo '{\n\
+  "server": {\n\
+    "host": "0.0.0.0",\n\
+    "port": 8503,\n\
+    "startup_eosdash": true,\n\
+    "eosdash_host": "0.0.0.0",\n\
+    "eosdash_port": 8504\n\
+  }\n\
+}' > "${EOS_CONFIG_DIR}/EOS.config.json" \
+    && chown eos:eos "${EOS_CONFIG_DIR}/EOS.config.json"
+
 USER eos
 ENTRYPOINT []
 
