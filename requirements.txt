@@ -3,7 +3,7 @@ numpy==2.3.2
 numpydantic==1.6.11
 matplotlib==3.10.5
 fastapi[standard]==0.115.14
-python-fasthtml==0.12.24
+python-fasthtml==0.12.25
 MonsterUI==1.0.25
 markdown-it-py==3.0.0
 mdit-py-plugins==0.5.0
