@@ -2,11 +2,14 @@
 
 from pydantic import ConfigDict
 
-from akkudoktoreos.core.coreabc import ConfigMixin, PredictionMixin
-from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.core.coreabc import (
+    ConfigMixin,
+    EnergyManagementSystemMixin,
+    PredictionMixin,
+)
 
 
-class OptimizationBase(ConfigMixin, PredictionMixin, PydanticBaseModel):
+class OptimizationBase(ConfigMixin, PredictionMixin, EnergyManagementSystemMixin):
     """Base class for handling optimization data.
 
     Enables access to EOS configuration data (attribute `config`) and EOS prediction data (attribute

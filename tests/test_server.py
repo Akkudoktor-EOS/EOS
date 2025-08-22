@@ -403,7 +403,7 @@ class TestServerStartStop:
         # Assure EOS is up again
         startup = False
         error = ""
-        for retries in range(int(timeout / 3)):
+        for retries in range(int(timeout / 5)):
             try:
                 result = requests.get(f"{server}/v1/health", timeout=2)
                 if result.status_code == HTTPStatus.OK:
@@ -412,7 +412,7 @@ class TestServerStartStop:
                 error = f"{result.status_code}, {str(result.content)}"
             except Exception as ex:
                 error = str(ex)
-            time.sleep(3)
+            time.sleep(5)
 
         assert startup, f"Connection to {server}/v1/health failed: {error}"
         assert result.json()["status"] == "alive"
@@ -442,3 +442,24 @@ class TestServerStartStop:
         assert result.status_code == HTTPStatus.OK
         assert "Stopping EOS.." in result.json()["message"]
         new_pid = result.json()["pid"]
+
+
+class TestServerWithEnv:
+    eos_env = {
+        "EOS_SERVER__EOSDASH_PORT": "8555",
+    }
+
+    def test_server_setup_for_class(self, server_setup_for_class):
+        """Ensure server is started with environment passed to configuration."""
+        server = server_setup_for_class["server"]
+
+        assert server_setup_for_class["eosdash_port"] == int(self.eos_env["EOS_SERVER__EOSDASH_PORT"])
+
+        result = requests.get(f"{server}/v1/config")
+        assert result.status_code == HTTPStatus.OK
+
+        # Get testing config
+        config_json = result.json()
+
+        # Assure config got configuration from environment
+        assert config_json["server"]["eosdash_port"] == int(self.eos_env["EOS_SERVER__EOSDASH_PORT"])
