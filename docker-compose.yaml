@@ -24,3 +24,22 @@ services:
       # Configure what ports to expose on host
       - "${EOS_SERVER__PORT}:8503"
       - "${EOS_SERVER__EOSDASH_PORT}:8504"
+
+    # Volume mount configuration (optional)
+    # IMPORTANT: When mounting local directories, the default config won't be available.
+    # You must create an EOS.config.json file in your local config directory with:
+    # {
+    #   "server": {
+    #     "host": "0.0.0.0",        # Required for Docker container accessibility
+    #     "port": 8503,
+    #     "startup_eosdash": true,
+    #     "eosdash_host": "0.0.0.0", # Required for Docker container accessibility
+    #     "eosdash_port": 8504
+    #   }
+    # }
+    #
+    # Example volume mounts (uncomment to use):
+    # volumes:
+    #   - ./config:/opt/eos/config     # Mount local config directory
+    #   - ./cache:/opt/eos/cache       # Mount local cache directory
+    #   - ./output:/opt/eos/output     # Mount local output directory
