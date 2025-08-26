@@ -13,7 +13,7 @@ scikit-learn==1.7.1
 timezonefinder==7.0.1
 deap==1.4.3
 requests==2.32.5
-pandas==2.3.1
+pandas==2.3.2
 pendulum==3.1.0
 platformdirs==4.3.8
 psutil==7.0.0
