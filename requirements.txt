@@ -15,7 +15,7 @@ deap==1.4.3
 requests==2.32.5
 pandas==2.3.2
 pendulum==3.1.0
-platformdirs==4.3.8
+platformdirs==4.4.0
 psutil==7.0.0
 pvlib==0.13.0
 pydantic==2.11.7
