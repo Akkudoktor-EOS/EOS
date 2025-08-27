@@ -254,7 +254,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
                 f"powerInverter={int(self.config.pvforecast.planes_inverter_paco[i])}"
             )
             horizon_values = ",".join(
-                str(int(h)) for h in self.config.pvforecast.planes_userhorizon[i]
+                str(round(h)) for h in self.config.pvforecast.planes_userhorizon[i]
             )
             query_params.append(f"horizont={horizon_values}")
 
