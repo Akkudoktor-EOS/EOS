@@ -12,4 +12,4 @@ pytest-xprocess==1.0.2
 pre-commit
 mypy==1.17.1
 types-requests==2.32.4.20250809
-pandas-stubs==2.3.0.250703
+pandas-stubs==2.3.2.250827
