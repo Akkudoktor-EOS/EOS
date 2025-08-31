@@ -4,13 +4,12 @@ from typing import Any, Optional, Union
 
 import requests
 from loguru import logger
-from pendulum import DateTime
 from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.loadabc import LoadProvider
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 
 class VrmForecastRecords(PydanticBaseModel):

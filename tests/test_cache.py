@@ -11,12 +11,12 @@ import cachebox
 import pytest
 
 from akkudoktoreos.core.cache import (
+    CacheEnergyManagementStore,
     CacheFileRecord,
     CacheFileStore,
-    CacheUntilUpdateStore,
+    cache_energy_management,
     cache_in_file,
-    cache_until_update,
-    cachemethod_until_update,
+    cachemethod_energy_management,
 )
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
@@ -27,103 +27,103 @@ from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_
 
 # Fixtures for testing
 @pytest.fixture
-def cache_until_update_store():
-    """Ensures CacheUntilUpdateStore is reset between tests."""
-    cache = CacheUntilUpdateStore()
-    CacheUntilUpdateStore().clear()
+def cache_energy_management_store():
+    """Ensures CacheEnergyManagementStore is reset between tests."""
+    cache = CacheEnergyManagementStore()
+    CacheEnergyManagementStore().clear()
     assert len(cache) == 0
     return cache
 
 
-class TestCacheUntilUpdateStore:
-    def test_cache_initialization(self, cache_until_update_store):
-        """Test that CacheUntilUpdateStore initializes with the correct properties."""
-        cache = CacheUntilUpdateStore()
+class TestCacheEnergyManagementStore:
+    def test_cache_initialization(self, cache_energy_management_store):
+        """Test that CacheEnergyManagementStore initializes with the correct properties."""
+        cache = CacheEnergyManagementStore()
         assert isinstance(cache.cache, cachebox.LRUCache)
         assert cache.maxsize == 100
         assert len(cache) == 0
 
-    def test_singleton_behavior(self, cache_until_update_store):
-        """Test that CacheUntilUpdateStore is a singleton."""
-        cache1 = CacheUntilUpdateStore()
-        cache2 = CacheUntilUpdateStore()
+    def test_singleton_behavior(self, cache_energy_management_store):
+        """Test that CacheEnergyManagementStore is a singleton."""
+        cache1 = CacheEnergyManagementStore()
+        cache2 = CacheEnergyManagementStore()
         assert cache1 is cache2
 
-    def test_cache_storage(self, cache_until_update_store):
+    def test_cache_storage(self, cache_energy_management_store):
         """Test that items can be added and retrieved from the cache."""
-        cache = CacheUntilUpdateStore()
+        cache = CacheEnergyManagementStore()
         cache["key1"] = "value1"
         assert cache["key1"] == "value1"
         assert len(cache) == 1
 
-    def test_cache_getattr_invalid_method(self, cache_until_update_store):
+    def test_cache_getattr_invalid_method(self, cache_energy_management_store):
         """Test that accessing an invalid method raises an AttributeError."""
         with pytest.raises(AttributeError):
-            CacheUntilUpdateStore().non_existent_method()  # This should raise AttributeError
+            CacheEnergyManagementStore().non_existent_method()  # This should raise AttributeError
 
 
 class TestCacheUntilUpdateDecorators:
-    def test_cachemethod_until_update(self, cache_until_update_store):
-        """Test that cachemethod_until_update caches method results."""
+    def test_cachemethod_energy_management(self, cache_energy_management_store):
+        """Test that cachemethod_energy_management caches method results."""
 
         class MyClass:
-            @cachemethod_until_update
+            @cachemethod_energy_management
             def compute(self, value: int) -> int:
                 return value * 2
 
         obj = MyClass()
 
         # Call method and assert caching
-        assert CacheUntilUpdateStore.miss_count == 0
-        assert CacheUntilUpdateStore.hit_count == 0
+        assert CacheEnergyManagementStore.miss_count == 0
+        assert CacheEnergyManagementStore.hit_count == 0
         result1 = obj.compute(5)
-        assert CacheUntilUpdateStore.miss_count == 1
-        assert CacheUntilUpdateStore.hit_count == 0
+        assert CacheEnergyManagementStore.miss_count == 1
+        assert CacheEnergyManagementStore.hit_count == 0
         result2 = obj.compute(5)
-        assert CacheUntilUpdateStore.miss_count == 1
-        assert CacheUntilUpdateStore.hit_count == 1
+        assert CacheEnergyManagementStore.miss_count == 1
+        assert CacheEnergyManagementStore.hit_count == 1
         assert result1 == result2
 
-    def test_cache_until_update(self, cache_until_update_store):
-        """Test that cache_until_update caches function results."""
+    def test_cache_energy_management(self, cache_energy_management_store):
+        """Test that cache_energy_management caches function results."""
 
-        @cache_until_update
+        @cache_energy_management
         def compute(value: int) -> int:
             return value * 3
 
         # Call function and assert caching
         result1 = compute(4)
-        assert CacheUntilUpdateStore.last_event == cachebox.EVENT_MISS
+        assert CacheEnergyManagementStore.last_event == cachebox.EVENT_MISS
         result2 = compute(4)
-        assert CacheUntilUpdateStore.last_event == cachebox.EVENT_HIT
+        assert CacheEnergyManagementStore.last_event == cachebox.EVENT_HIT
         assert result1 == result2
 
-    def test_cache_with_different_arguments(self, cache_until_update_store):
+    def test_cache_with_different_arguments(self, cache_energy_management_store):
         """Test that caching works for different arguments."""
 
         class MyClass:
-            @cachemethod_until_update
+            @cachemethod_energy_management
             def compute(self, value: int) -> int:
                 return value * 2
 
         obj = MyClass()
 
-        assert CacheUntilUpdateStore.miss_count == 0
+        assert CacheEnergyManagementStore.miss_count == 0
         result1 = obj.compute(3)
-        assert CacheUntilUpdateStore.last_event == cachebox.EVENT_MISS
-        assert CacheUntilUpdateStore.miss_count == 1
+        assert CacheEnergyManagementStore.last_event == cachebox.EVENT_MISS
+        assert CacheEnergyManagementStore.miss_count == 1
         result2 = obj.compute(5)
-        assert CacheUntilUpdateStore.last_event == cachebox.EVENT_MISS
-        assert CacheUntilUpdateStore.miss_count == 2
+        assert CacheEnergyManagementStore.last_event == cachebox.EVENT_MISS
+        assert CacheEnergyManagementStore.miss_count == 2
 
         assert result1 == 6
         assert result2 == 10
 
-    def test_cache_clearing(self, cache_until_update_store):
+    def test_cache_clearing(self, cache_energy_management_store):
         """Test that cache is cleared between EMS update cycles."""
 
         class MyClass:
-            @cachemethod_until_update
+            @cachemethod_energy_management
             def compute(self, value: int) -> int:
                 return value * 2
 
@@ -131,26 +131,26 @@ class TestCacheUntilUpdateDecorators:
         obj.compute(5)
 
         # Clear cache
-        CacheUntilUpdateStore().clear()
+        CacheEnergyManagementStore().clear()
 
         with pytest.raises(KeyError):
-            _ = CacheUntilUpdateStore()["<invalid>"]
+            _ = CacheEnergyManagementStore()["<invalid>"]
 
-    def test_decorator_works_for_standalone_function(self, cache_until_update_store):
-        """Test that cache_until_update works with standalone functions."""
+    def test_decorator_works_for_standalone_function(self, cache_energy_management_store):
+        """Test that cache_energy_management works with standalone functions."""
 
-        @cache_until_update
+        @cache_energy_management
         def add(a: int, b: int) -> int:
             return a + b
 
-        assert CacheUntilUpdateStore.miss_count == 0
-        assert CacheUntilUpdateStore.hit_count == 0
+        assert CacheEnergyManagementStore.miss_count == 0
+        assert CacheEnergyManagementStore.hit_count == 0
         result1 = add(1, 2)
-        assert CacheUntilUpdateStore.miss_count == 1
-        assert CacheUntilUpdateStore.hit_count == 0
+        assert CacheEnergyManagementStore.miss_count == 1
+        assert CacheEnergyManagementStore.hit_count == 0
         result2 = add(1, 2)
-        assert CacheUntilUpdateStore.miss_count == 1
-        assert CacheUntilUpdateStore.hit_count == 1
+        assert CacheEnergyManagementStore.miss_count == 1
+        assert CacheEnergyManagementStore.hit_count == 1
 
         assert result1 == result2
 
