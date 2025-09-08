@@ -1,13 +1,13 @@
 cachebox==5.0.1
 numpy==2.3.2
 numpydantic==1.6.11
-matplotlib==3.10.5
+matplotlib==3.10.6
 fastapi[standard]==0.115.14
 python-fasthtml==0.12.25
-MonsterUI==1.0.25
+MonsterUI==1.0.26
 markdown-it-py==3.0.0
 mdit-py-plugins==0.5.0
-bokeh==3.7.3
+bokeh==3.8.0
 uvicorn==0.35.0
 scikit-learn==1.7.1
 timezonefinder==7.0.1
