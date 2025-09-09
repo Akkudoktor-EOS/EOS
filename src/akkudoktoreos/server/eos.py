@@ -960,8 +960,9 @@ def fastapi_prediction_update_provider(
     return Response()
 
 
-@app.get("/strompreis", tags=["prediction"])
-def fastapi_strompreis() -> list[float]:
+@app.get("/electricity_price", tags=["prediction"])
+@app.get("/strompreis", tags=["prediction"], deprecated=True)  # Keep for backward compatibility
+def fastapi_electricity_price() -> list[float]:
     """Deprecated: Electricity Market Price Prediction per Wh (€/Wh).
 
     Electricity prices start at 00.00.00 today and are provided for 48 hours.
@@ -1008,14 +1009,19 @@ def fastapi_strompreis() -> list[float]:
     return elecprice
 
 
-class GesamtlastRequest(PydanticBaseModel):
+class TotalLoadRequest(PydanticBaseModel):
     year_energy: float
     measured_data: List[Dict[str, Any]]
     hours: int
 
 
-@app.post("/gesamtlast", tags=["prediction"])
-def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
+# Backward compatibility alias
+GesamtlastRequest = TotalLoadRequest
+
+
+@app.post("/total_load", tags=["prediction"])
+@app.post("/gesamtlast", tags=["prediction"], deprecated=True)  # Keep for backward compatibility
+def fastapi_total_load(request: TotalLoadRequest) -> list[float]:
     """Deprecated: Total Load Prediction with adjustment.
 
     Endpoint to handle total load prediction adjusted by latest measured data.
@@ -1095,8 +1101,11 @@ def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     return prediction_list
 
 
-@app.get("/gesamtlast_simple", tags=["prediction"])
-def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
+@app.get("/total_load_simple", tags=["prediction"])
+@app.get(
+    "/gesamtlast_simple", tags=["prediction"], deprecated=True
+)  # Keep for backward compatibility
+def fastapi_total_load_simple(year_energy: float) -> list[float]:
     """Deprecated: Total Load Prediction.
 
     Endpoint to handle total load prediction.
