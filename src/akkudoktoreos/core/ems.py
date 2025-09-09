@@ -5,7 +5,14 @@ import numpy as np
 from loguru import logger
 from numpydantic import NDArray, Shape
 from pendulum import DateTime
-from pydantic import ConfigDict, Field, computed_field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 from typing_extensions import Self
 
 from akkudoktoreos.core.cache import CacheUntilUpdateStore
@@ -22,34 +29,40 @@ class EnergyManagementParameters(ParametersBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     pv_forecast_wh: list[float] = Field(
         description="An array of floats representing the forecasted photovoltaic output in watts for different time intervals.",
-        alias="pv_prognose_wh"
+        alias="pv_prognose_wh",
     )
-    electricity_price_euro_per_wh: list[float] = Field(
-        description="An array of floats representing the electricity price in euros per watt-hour for different time intervals.",
-        alias="strompreis_euro_pro_wh"
+    electricity_price_per_wh: list[float] = Field(
+        description="An array of floats representing the electricity price per watt-hour for different time intervals.",
+        validation_alias=AliasChoices(
+            "electricity_price_per_wh", "electricity_price_euro_per_wh", "strompreis_euro_pro_wh"
+        ),
     )
-    feed_in_tariff_euro_per_wh: list[float] | float = Field(
-        description="A float or array of floats representing the feed-in compensation in euros per watt-hour.",
-        alias="einspeiseverguetung_euro_pro_wh"
+    feed_in_tariff_per_wh: list[float] | float = Field(
+        description="A float or array of floats representing the feed-in compensation per watt-hour.",
+        validation_alias=AliasChoices(
+            "feed_in_tariff_per_wh", "feed_in_tariff_euro_per_wh", "einspeiseverguetung_euro_pro_wh"
+        ),
     )
-    price_euro_per_wh_battery: float = Field(
+    price_per_wh_battery: float = Field(
         description="A float representing the cost of battery energy per watt-hour.",
-        alias="preis_euro_pro_wh_akku"
+        validation_alias=AliasChoices(
+            "price_per_wh_battery", "price_euro_per_wh_battery", "preis_euro_pro_wh_akku"
+        ),
     )
     total_load: list[float] = Field(
         description="An array of floats representing the total load (consumption) in watts for different time intervals.",
-        alias="gesamtlast"
+        alias="gesamtlast",
     )
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
         pv_forecast_length = len(self.pv_forecast_wh)
         if (
-            pv_forecast_length != len(self.electricity_price_euro_per_wh)
+            pv_forecast_length != len(self.electricity_price_per_wh)
             or pv_forecast_length != len(self.total_load)
             or (
-                isinstance(self.feed_in_tariff_euro_per_wh, list)
-                and pv_forecast_length != len(self.feed_in_tariff_euro_per_wh)
+                isinstance(self.feed_in_tariff_per_wh, list)
+                and pv_forecast_length != len(self.feed_in_tariff_per_wh)
             )
         ):
             raise ValueError("Input lists have different lengths")
@@ -58,59 +71,59 @@ class EnergyManagementParameters(ParametersBaseModel):
 
 class SimulationResult(ParametersBaseModel):
     """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
-    
+
     model_config = ConfigDict(populate_by_name=True)
 
-    load_wh_per_hour: list[Optional[float]] = Field(
-        description="TBD",
-        alias="Last_Wh_pro_Stunde"
-    )
+    load_wh_per_hour: list[Optional[float]] = Field(description="TBD", alias="Last_Wh_pro_Stunde")
     ev_soc_per_hour: list[Optional[float]] = Field(
-        description="The state of charge of the EV for each hour.",
-        alias="EAuto_SoC_pro_Stunde"
+        description="The state of charge of the EV for each hour.", alias="EAuto_SoC_pro_Stunde"
     )
-    revenue_euro_per_hour: list[Optional[float]] = Field(
-        description="The revenue from grid feed-in or other sources in euros per hour.",
-        alias="Einnahmen_Euro_pro_Stunde"
+    revenue_per_hour: list[Optional[float]] = Field(
+        description="The revenue from grid feed-in or other sources per hour.",
+        validation_alias=AliasChoices(
+            "revenue_per_hour", "revenue_euro_per_hour", "Einnahmen_Euro_pro_Stunde"
+        ),
     )
     total_losses: float = Field(
         description="The total losses in watt-hours over the entire period.",
-        alias="Gesamt_Verluste"
+        alias="Gesamt_Verluste",
     )
-    total_balance_euro: float = Field(
-        description="The total balance of revenues minus costs in euros.",
-        alias="Gesamtbilanz_Euro"
+    total_balance: float = Field(
+        description="The total balance of revenues minus costs.",
+        validation_alias=AliasChoices("total_balance", "total_balance_euro", "Gesamtbilanz_Euro"),
     )
-    total_revenue_euro: float = Field(
-        description="The total revenues in euros.",
-        alias="Gesamteinnahmen_Euro"
+    total_revenue: float = Field(
+        description="The total revenues.",
+        validation_alias=AliasChoices(
+            "total_revenue", "total_revenue_euro", "Gesamteinnahmen_Euro"
+        ),
     )
-    total_costs_euro: float = Field(
-        description="The total costs in euros.",
-        alias="Gesamtkosten_Euro"
+    total_costs: float = Field(
+        description="The total costs.",
+        validation_alias=AliasChoices("total_costs", "total_costs_euro", "Gesamtkosten_Euro"),
     )
     Home_appliance_wh_per_hour: list[Optional[float]] = Field(
         description="The energy consumption of a household appliance in watt-hours per hour."
     )
-    costs_euro_per_hour: list[Optional[float]] = Field(
-        description="The costs in euros per hour.",
-        alias="Kosten_Euro_pro_Stunde"
+    costs_per_hour: list[Optional[float]] = Field(
+        description="The costs per hour.",
+        validation_alias=AliasChoices(
+            "costs_per_hour", "costs_euro_per_hour", "Kosten_Euro_pro_Stunde"
+        ),
     )
     grid_consumption_wh_per_hour: list[Optional[float]] = Field(
-        description="The grid energy drawn in watt-hours per hour.",
-        alias="Netzbezug_Wh_pro_Stunde"
+        description="The grid energy drawn in watt-hours per hour.", alias="Netzbezug_Wh_pro_Stunde"
     )
     grid_feed_in_wh_per_hour: list[Optional[float]] = Field(
         description="The energy fed into the grid in watt-hours per hour.",
-        alias="Netzeinspeisung_Wh_pro_Stunde"
+        alias="Netzeinspeisung_Wh_pro_Stunde",
     )
     losses_per_hour: list[Optional[float]] = Field(
-        description="The losses in watt-hours per hour.",
-        alias="Verluste_Pro_Stunde"
+        description="The losses in watt-hours per hour.", alias="Verluste_Pro_Stunde"
     )
     battery_soc_per_hour: list[Optional[float]] = Field(
         description="The state of charge of the battery (not the EV) in percentage per hour.",
-        alias="akku_soc_pro_stunde"
+        alias="akku_soc_pro_stunde",
     )
     Electricity_price: list[Optional[float]] = Field(
         description="Used Electricity Price, including predictions"
@@ -121,8 +134,8 @@ class SimulationResult(ParametersBaseModel):
         "grid_feed_in_wh_per_hour",
         "battery_soc_per_hour",
         "grid_consumption_wh_per_hour",
-        "costs_euro_per_hour",
-        "revenue_euro_per_hour",
+        "costs_per_hour",
+        "revenue_per_hour",
         "ev_soc_per_hour",
         "losses_per_hour",
         "Home_appliance_wh_per_hour",
@@ -131,6 +144,28 @@ class SimulationResult(ParametersBaseModel):
     )
     def convert_numpy(cls, field: Any) -> Any:
         return NumpyEncoder.convert_numpy(field)[0]
+
+    def __getattribute__(self, name: str) -> Any:
+        """Provide backward compatibility for German field names."""
+        # Map old German field names to new field names
+        field_mapping = {
+            "Gesamtbilanz_Euro": "total_balance",
+            "Gesamteinnahmen_Euro": "total_revenue",
+            "Gesamtkosten_Euro": "total_costs",
+            "Kosten_Euro_pro_Stunde": "costs_per_hour",
+            "Einnahmen_Euro_pro_Stunde": "revenue_per_hour",
+            "Last_Wh_pro_Stunde": "load_wh_per_hour",
+            "EAuto_SoC_pro_Stunde": "ev_soc_per_hour",
+            "Netzbezug_Wh_pro_Stunde": "grid_consumption_wh_per_hour",
+            "Netzeinspeisung_Wh_pro_Stunde": "grid_feed_in_wh_per_hour",
+            "Verluste_Pro_Stunde": "losses_per_hour",
+            "akku_soc_pro_stunde": "battery_soc_per_hour",
+            "Gesamt_Verluste": "total_losses",
+        }
+
+        if name in field_mapping:
+            return super().__getattribute__(field_mapping[name])
+        return super().__getattribute__(name)
 
 
 class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBaseModel):
@@ -226,13 +261,11 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
     ) -> None:
         self.load_energy_array = np.array(parameters.total_load, float)
         self.pv_prediction_wh = np.array(parameters.pv_forecast_wh, float)
-        self.elect_price_hourly = np.array(parameters.electricity_price_euro_per_wh, float)
+        self.elect_price_hourly = np.array(parameters.electricity_price_per_wh, float)
         self.elect_revenue_per_hour_arr = (
-            parameters.feed_in_tariff_euro_per_wh
-            if isinstance(parameters.feed_in_tariff_euro_per_wh, list)
-            else np.full(
-                len(self.load_energy_array), parameters.feed_in_tariff_euro_per_wh, float
-            )
+            parameters.feed_in_tariff_per_wh
+            if isinstance(parameters.feed_in_tariff_per_wh, list)
+            else np.full(len(self.load_energy_array), parameters.feed_in_tariff_per_wh, float)
         )
         if inverter:
             self.battery = inverter.battery
@@ -479,9 +512,9 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
                 losses_wh_per_hour[hour_idx] += ev_losses
 
             # Process inverter logic
-            energy_feedin_grid_actual = energy_consumption_grid_actual = losses = self_consumption = (
-                0.0
-            )
+            energy_feedin_grid_actual = energy_consumption_grid_actual = losses = (
+                self_consumption
+            ) = 0.0
 
             hour_ac_charge = ac_charge_hours[hour]
             hour_dc_charge = dc_charge_hours[hour]
@@ -531,13 +564,13 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
             "load_wh_per_hour": loads_energy_per_hour,
             "grid_feed_in_wh_per_hour": feedin_energy_per_hour,
             "grid_consumption_wh_per_hour": consumption_energy_per_hour,
-            "costs_euro_per_hour": costs_per_hour,
+            "costs_per_hour": costs_per_hour,
             "battery_soc_per_hour": soc_per_hour,
-            "revenue_euro_per_hour": revenue_per_hour,
-            "total_balance_euro": total_cost - total_revenue,
+            "revenue_per_hour": revenue_per_hour,
+            "total_balance": total_cost - total_revenue,
             "ev_soc_per_hour": soc_ev_per_hour,
-            "total_revenue_euro": total_revenue,
-            "total_costs_euro": total_cost,
+            "total_revenue": total_revenue,
+            "total_costs": total_cost,
             "losses_per_hour": losses_wh_per_hour,
             "total_losses": total_losses,
             "Home_appliance_wh_per_hour": home_appliance_wh_per_hour,

@@ -42,7 +42,7 @@ class OptimizationParameters(ParametersBaseModel):
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
-        arr_length = len(self.ems.pv_prognose_wh)
+        arr_length = len(self.ems.pv_forecast_wh)
         if self.temperature_forecast is not None and arr_length != len(self.temperature_forecast):
             raise ValueError("Input lists have different lengths")
         return self
@@ -485,7 +485,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # Adjust total balance with battery value and penalties for unmet SOC
         restwert_akku = (
-            self.ems.battery.current_energy_content() * parameters.ems.preis_euro_pro_wh_akku
+            self.ems.battery.current_energy_content() * parameters.ems.price_per_wh_battery
         )
         gesamtbilanz += -restwert_akku
 
@@ -565,7 +565,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             start_hour = self.ems.start_datetime.hour
 
         einspeiseverguetung_euro_pro_wh = np.full(
-            self.config.prediction.hours, parameters.ems.einspeiseverguetung_euro_pro_wh
+            self.config.prediction.hours, parameters.ems.feed_in_tariff_per_wh
         )
 
         # TODO: Refactor device setup phase out

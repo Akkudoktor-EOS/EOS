@@ -449,7 +449,7 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,
         [
-            parameters.ems.gesamtlast[start_hour:],
+            parameters.ems.total_load[start_hour:],
         ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
@@ -459,7 +459,7 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,
         [
-            parameters.ems.pv_prognose_wh[start_hour:],
+            parameters.ems.pv_forecast_wh[start_hour:],
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
@@ -470,10 +470,10 @@ def prepare_visualize(
         next_full_hour_date,
         [
             np.full(
-                len(parameters.ems.gesamtlast) - start_hour,
-                parameters.ems.einspeiseverguetung_euro_pro_wh[start_hour:]
-                if isinstance(parameters.ems.einspeiseverguetung_euro_pro_wh, list)
-                else parameters.ems.einspeiseverguetung_euro_pro_wh,
+                len(parameters.ems.total_load) - start_hour,
+                parameters.ems.feed_in_tariff_per_wh[start_hour:]
+                if isinstance(parameters.ems.feed_in_tariff_per_wh, list)
+                else parameters.ems.feed_in_tariff_per_wh,
             )
         ],
         title="Remuneration",
@@ -534,7 +534,7 @@ def prepare_visualize(
     )
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
-        [parameters.ems.strompreis_euro_pro_wh[start_hour:]],
+        [parameters.ems.electricity_price_per_wh[start_hour:]],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (€/Wh)",
