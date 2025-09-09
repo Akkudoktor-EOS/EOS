@@ -92,8 +92,8 @@ from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
 
 class AkkudoktorForecastHorizon(PydanticBaseModel):
     altitude: int
-    azimuthFrom: int
-    azimuthTo: int
+    azimuthFrom: float
+    azimuthTo: float
 
 
 class AkkudoktorForecastMeta(PydanticBaseModel):
