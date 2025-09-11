@@ -227,6 +227,7 @@ def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
     # Initialize the energy management system with the respective parameters
     ems = get_ems()
     ems.set_parameters(
+        # Test using old field names for backward compatibility
         EnergyManagementParameters(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
