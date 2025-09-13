@@ -127,7 +127,8 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
 
             # Convert EUR/MWh to EUR/Wh, apply charges and VAT if charges > 0
             if charges_wh > 0:
-                price_wh = ((price_eur_per_mwh / 1_000_000) + charges_wh) * 1.19
+                vat_rate = self.config.elecprice.vat_rate or 1.19
+                price_wh = ((price_eur_per_mwh / 1_000_000) + charges_wh) * vat_rate
             else:
                 price_wh = price_eur_per_mwh / 1_000_000
 

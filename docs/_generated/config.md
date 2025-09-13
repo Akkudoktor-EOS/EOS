@@ -424,6 +424,7 @@ Validators:
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | provider | `EOS_ELECPRICE__PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
 | charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `Optional[float]` | `rw` | `None` | Electricity price charges (€/kWh). |
+| vat_rate | `EOS_ELECPRICE__VAT_RATE` | `Optional[float]` | `rw` | `1.19` | VAT rate factor applied to electricity price when charges are used. |
 | provider_settings | `EOS_ELECPRICE__PROVIDER_SETTINGS` | `Optional[akkudoktoreos.prediction.elecpriceimport.ElecPriceImportCommonSettings]` | `rw` | `None` | Provider settings |
 :::
 
@@ -436,6 +437,7 @@ Validators:
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
            "charges_kwh": 0.21,
+           "vat_rate": 1.19,
            "provider_settings": null
        }
    }
@@ -1050,6 +1052,7 @@ Validators:
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
            "charges_kwh": 0.21,
+           "vat_rate": 1.19,
            "provider_settings": null
        },
        "load": {
