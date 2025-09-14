@@ -123,6 +123,7 @@ Configuration options:
     - `ElecPriceImport`: Imports from a file or JSON string.
 
   - `charges_kwh`: Electricity price charges (€/kWh).
+  - `vat_rate`: VAT rate factor applied to electricity price when charges are used (default: 1.19).
   - `provider_settings.import_file_path`: Path to the file to import electricity price forecast data from.
   - `provider_settings.import_json`: JSON string, dictionary of electricity price forecast value lists.
 
@@ -147,7 +148,7 @@ real-time market data with historical price trends.
 Charges and VAT
 
 - If `charges_kwh` configuration option is greater than 0, the electricity price is calculated as:
-  `(market price + charges_kwh) * 1.19 VAT` (including 19% VAT).
+  `(market price + charges_kwh) * vat_rate` where `vat_rate` is configurable (default: 1.19 for 19% VAT).
 - If `charges_kwh` is set to 0, the electricity price is simply: `market_price` (no VAT applied).
 
 **Note:** For the most accurate forecasts, it is recommended to set the `historic_hours` parameter to 840.
