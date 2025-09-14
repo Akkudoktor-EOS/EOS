@@ -29,7 +29,10 @@ class ElecPriceCommonSettings(SettingsBaseModel):
         default=None, ge=0, description="Electricity price charges (€/kWh).", examples=[0.21]
     )
     vat_rate: Optional[float] = Field(
-        default=1.19, ge=0, description="VAT rate factor applied to electricity price when charges are used.", examples=[1.19]
+        default=1.19,
+        ge=0,
+        description="VAT rate factor applied to electricity price when charges are used.",
+        examples=[1.19],
     )
 
     provider_settings: Optional[ElecPriceImportCommonSettings] = Field(
