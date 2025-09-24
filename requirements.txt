@@ -17,7 +17,7 @@ pandas==2.3.2
 pendulum==3.1.0
 platformdirs==4.4.0
 psutil==7.1.0
-pvlib==0.13.0
+pvlib==0.13.1
 pydantic==2.11.9
 statsmodels==0.14.5
 pydantic-settings==2.10.1
