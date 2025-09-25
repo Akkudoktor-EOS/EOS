@@ -328,17 +328,21 @@ class PdfResponse(FileResponse):
 
 @app.post("/v1/admin/cache/clear", tags=["admin"])
 def fastapi_admin_cache_clear_post(clear_all: Optional[bool] = None) -> dict:
-    """Clear the cache from expired data.
+    """Clear the cache.
 
-    Deletes expired cache files.
+    Deletes cache files. By default, clears all cache files to ensure fresh data
+    on next request. Set clear_all=false to only clear expired cache files.
 
     Args:
-        clear_all (Optional[bool]): Delete all cached files. Default is False.
+        clear_all (Optional[bool]): Delete all cached files. Default is True when not specified.
 
     Returns:
         data (dict): The management data after cleanup.
     """
     try:
+        # Default to clearing all cache when parameter is not specified
+        if clear_all is None:
+            clear_all = True
         cache_clear(clear_all=clear_all)
         data = CacheFileStore().current_store()
     except Exception as e:
