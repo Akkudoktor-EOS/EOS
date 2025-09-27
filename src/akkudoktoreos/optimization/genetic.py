@@ -42,7 +42,7 @@ class OptimizationParameters(ParametersBaseModel):
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
-        arr_length = len(self.ems.pv_prognose_wh)
+        arr_length = len(self.ems.pv_forecast_wh)
         if self.temperature_forecast is not None and arr_length != len(self.temperature_forecast):
             raise ValueError("Input lists have different lengths")
         return self
@@ -403,7 +403,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
         except Exception as e:
             return (100000.0,)  # Return a high penalty in case of an exception
 
-        gesamtbilanz = o["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
+        gesamtbilanz = o["total_balance"] * (-1.0 if worst_case else 1.0)
 
         discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
             individual
@@ -411,7 +411,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # EV 100% & charge not allowed
         if self.optimize_ev:
-            eauto_soc_per_hour = np.array(o.get("EAuto_SoC_pro_Stunde", []))  # Beispielkey
+            eauto_soc_per_hour = np.array(o.get("ev_soc_per_hour", []))  # Beispielkey
 
             if eauto_soc_per_hour is None or eautocharge_hours_index is None:
                 raise ValueError("eauto_soc_per_hour or eautocharge_hours_index is None")
@@ -476,8 +476,8 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # More metrics
         individual.extra_data = (  # type: ignore[attr-defined]
-            o["Gesamtbilanz_Euro"],
-            o["Gesamt_Verluste"],
+            o["total_balance"],
+            o["total_losses"],
             parameters.eauto.min_soc_percentage - self.ems.ev.current_soc_percentage()
             if parameters.eauto and self.ems.ev
             else 0,
@@ -485,7 +485,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
 
         # Adjust total balance with battery value and penalties for unmet SOC
         restwert_akku = (
-            self.ems.battery.current_energy_content() * parameters.ems.preis_euro_pro_wh_akku
+            self.ems.battery.current_energy_content() * parameters.ems.price_per_wh_battery
         )
         gesamtbilanz += -restwert_akku
 
@@ -565,7 +565,7 @@ class optimization_problem(ConfigMixin, DevicesMixin, EnergyManagementSystemMixi
             start_hour = self.ems.start_datetime.hour
 
         einspeiseverguetung_euro_pro_wh = np.full(
-            self.config.prediction.hours, parameters.ems.einspeiseverguetung_euro_pro_wh
+            self.config.prediction.hours, parameters.ems.feed_in_tariff_per_wh
         )
 
         # TODO: Refactor device setup phase out
