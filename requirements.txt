@@ -8,7 +8,7 @@ MonsterUI==1.0.29
 markdown-it-py==3.0.0
 mdit-py-plugins==0.5.0
 bokeh==3.8.0
-uvicorn==0.36.0
+uvicorn==0.37.0
 scikit-learn==1.7.2
 timezonefinder==7.0.2
 deap==1.4.3
