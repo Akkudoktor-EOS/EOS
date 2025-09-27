@@ -21,6 +21,8 @@ from akkudoktoreos.server.dash.configuration import ConfigKeyUpdate, Configurati
 from akkudoktoreos.server.dash.demo import Demo
 from akkudoktoreos.server.dash.footer import Footer
 from akkudoktoreos.server.dash.hello import Hello
+from akkudoktoreos.server.dash.plan import Plan
+from akkudoktoreos.server.dash.prediction import Prediction
 from akkudoktoreos.server.server import get_default_host, wait_for_port_free
 
 config_eos = get_config()
@@ -29,10 +31,6 @@ config_eos = get_config()
 favicon_filepath = Path(__file__).parent.joinpath("dash/assets/favicon/favicon.ico")
 if not favicon_filepath.exists():
     raise ValueError(f"Does not exist {favicon_filepath}")
-
-# Command line arguments
-args: Optional[argparse.Namespace] = None
-
 
 # Get frankenui and tailwind headers via CDN using Theme.green.headers()
 # Add Bokeh headers
@@ -52,20 +50,16 @@ app: FastHTML = FastHTML(
 def eos_server() -> tuple[str, int]:
     """Retrieves the EOS server host and port configuration.
 
-    If `args` is provided, it uses the `eos_host` and `eos_port` from `args`.
-    Otherwise, it falls back to the values from `config_eos.server`.
+    Takes values from `config_eos.server` or default.
 
     Returns:
         tuple[str, int]: A tuple containing:
             - `eos_host` (str): The EOS server hostname or IP.
             - `eos_port` (int): The EOS server port.
     """
-    if args is None:
-        eos_host = str(config_eos.server.host)
-        eos_port = config_eos.server.port
-    else:
-        eos_host = args.eos_host
-        eos_port = args.eos_port
+    eos_host = str(config_eos.server.host)
+    eos_port = config_eos.server.port
+
     eos_host = eos_host if eos_host else get_default_host()
     eos_port = eos_port if eos_port else 8503
 
@@ -90,6 +84,8 @@ def get_eosdash():  # type: ignore
         {
             "EOSdash": "/eosdash/hello",
             "Config": "/eosdash/configuration",
+            "Plan": "/eosdash/plan",
+            "Prediction": "/eosdash/prediction",
             "Demo": "/eosdash/demo",
             "Admin": "/eosdash/admin",
         },
@@ -159,6 +155,26 @@ def get_eosdash_demo():  # type: ignore
     return Demo(*eos_server())
 
 
+@app.get("/eosdash/plan")
+def get_eosdash_plan():  # type: ignore
+    """Serves the EOSdash Plan page.
+
+    Returns:
+        Plan: The Plan page component.
+    """
+    return Plan(*eos_server())
+
+
+@app.get("/eosdash/prediction")
+def get_eosdash_prediction():  # type: ignore
+    """Serves the EOSdash Prediction page.
+
+    Returns:
+        Prediction: The Prediction page component.
+    """
+    return Prediction(*eos_server())
+
+
 @app.get("/eosdash/health")
 def get_eosdash_health():  # type: ignore
     """Health check endpoint to verify that the EOSdash server is alive."""
@@ -177,7 +193,7 @@ def get_eosdash_assets(fname: str, ext: str):  # type: ignore
     return FileResponse(path=asset_filepath)
 
 
-def run_eosdash() -> None:
+def run_eosdash(args: Optional[argparse.Namespace] = None) -> None:
     """Run the EOSdash server with the specified configurations.
 
     This function starts the EOSdash server using the Uvicorn ASGI server. It accepts
@@ -187,12 +203,19 @@ def run_eosdash() -> None:
     server to the specified host and port, an error message is logged and the
     application exits.
 
+    Args:
+        args (Optional[argsparse.Namespace]): command line arguments.
+
     Returns:
         None
     """
+    # Set config to actual environment variable & config file content
+    config_eos.reset_settings()
+
     # Setup parameters from args, config_eos and default
-    # Remember parameters that are also in config
-    # - EOS host
+    # Remember parameters in config
+
+    # Setup EOS server host
     if args and args.eos_host:
         eos_host = args.eos_host
     elif config_eos.server.host:
@@ -200,7 +223,8 @@ def run_eosdash() -> None:
     else:
         eos_host = get_default_host()
     config_eos.server.host = eos_host
-    # - EOS port
+
+    # Setup EOS server port
     if args and args.eos_port:
         eos_port = args.eos_port
     elif config_eos.server.port:
@@ -208,10 +232,11 @@ def run_eosdash() -> None:
     else:
         eos_port = 8503
     config_eos.server.port = eos_port
+
     # - EOSdash host
     if args and args.host:
         eosdash_host = args.host
-    elif config_eos.server.eosdash.host:
+    elif config_eos.server.eosdash_host:
         eosdash_host = config_eos.server.eosdash_host
     else:
         eosdash_host = get_default_host()
@@ -239,10 +264,6 @@ def run_eosdash() -> None:
         reload = args.reload
     else:
         reload = False
-
-    # Make hostname Windows friendly
-    if eosdash_host == "0.0.0.0" and os.name == "nt":  # noqa: S104
-        eosdash_host = "localhost"
 
     # Wait for EOSdash port to be free - e.g. in case of restart
     wait_for_port_free(eosdash_port, timeout=120, waiting_app_name="EOSdash")
@@ -283,51 +304,44 @@ def main() -> None:
     parser.add_argument(
         "--host",
         type=str,
-        default=str(config_eos.server.eosdash_host),
         help="Host for the EOSdash server (default: value from config)",
     )
     parser.add_argument(
         "--port",
         type=int,
-        default=config_eos.server.eosdash_port,
         help="Port for the EOSdash server (default: value from config)",
     )
     parser.add_argument(
         "--eos-host",
         type=str,
-        default=str(config_eos.server.host),
         help="Host of the EOS server (default: value from config)",
     )
     parser.add_argument(
         "--eos-port",
         type=int,
-        default=config_eos.server.port,
         help="Port of the EOS server (default: value from config)",
     )
     parser.add_argument(
         "--log_level",
         type=str,
-        default="info",
         help='Log level for the server. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "info")',
     )
     parser.add_argument(
         "--access_log",
         type=bool,
-        default=False,
-        help="Enable or disable access log. Options: True or False (default: False)",
+        help="Enable or disable access logging. Options: True or False (default: False)",
     )
     parser.add_argument(
         "--reload",
         type=bool,
-        default=False,
         help="Enable or disable auto-reload. Useful for development. Options: True or False (default: False)",
     )
 
-    global args
-    args = parser.parse_args()
+    # Command line arguments
+    args: argparse.Namespace = parser.parse_args()
 
     try:
-        run_eosdash()
+        run_eosdash(args)
     except Exception as ex:
         error_msg = f"Failed to run EOSdash: {ex}"
         logger.error(error_msg)

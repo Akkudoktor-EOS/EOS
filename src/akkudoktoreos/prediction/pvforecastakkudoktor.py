@@ -330,8 +330,8 @@ class PVForecastAkkudoktor(PVForecastProvider):
             logger.error(f"Akkudoktor schema change: {error_msg}")
             raise ValueError(error_msg)
 
-        if not self.start_datetime:
-            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
+        if not self.ems_start_datetime:
+            raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
 
         # Iterate over forecast data points
         for forecast_values in zip(*akkudoktor_data.values):
@@ -339,7 +339,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
             dt = to_datetime(original_datetime, in_timezone=self.config.general.timezone)
 
             # Skip outdated forecast data
-            if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
+            if compare_datetimes(dt, self.ems_start_datetime.start_of("day")).lt:
                 continue
 
             sum_dc_power = sum(values.dcPower for values in forecast_values)
@@ -357,7 +357,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
         if len(self) < self.config.prediction.hours:
             raise ValueError(
                 f"The forecast must cover at least {self.config.prediction.hours} hours, "
-                f"but only {len(self)} hours starting from {self.start_datetime} "
+                f"but only {len(self)} hours starting from {self.ems_start_datetime} "
                 f"were predicted."
             )
 
