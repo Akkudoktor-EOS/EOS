@@ -8,21 +8,21 @@ optimization is executed. In EOS, a standard set of predictions is managed, incl
 
 - Household Load Prediction
 - Electricity Price Prediction
+- Feed In Tariff Prediction
 - PV Power Prediction
 - Weather Prediction
 
 ## Storing Predictions
 
 EOS stores predictions in a **key-value store**, where the term `prediction key` refers to the
-unique key used to retrieve specific prediction data. The key-value store is in memory. Stored
-data is lost on re-start of the EOS REST server.
+unique key used to retrieve specific prediction data.
 
 ## Prediction Providers
 
 Most predictions can be sourced from various providers. The specific provider to use is configured
 in the EOS configuration and can be set by prediction type. For example:
 
-```python
+```json
 {
   "weather": {
     "provider": "ClearOutside"
@@ -48,7 +48,7 @@ The prediction data must be provided in one of the following formats:
 
 A dictionary with the following structure:
 
-```python
+```json
     {
         "start_datetime": "2024-01-01 00:00:00",
         "interval": "1 Hour",
@@ -169,6 +169,26 @@ The electricity proce forecast data must be provided in one of the formats descr
 
 The data may additionally or solely be provided by the
 **PUT** `/v1/prediction/import/ElecPriceImport` endpoint.
+
+## Feed In Tariff Prediction
+
+Prediction keys:
+
+- `feed_in_tarif_wh`: Feed in tarif per Wh (€/Wh).
+- `feed_in_tarif_kwh`: Feed in tarif per kWh (€/kWh)
+
+Configuration options:
+
+- `feedintarif`: Feed in tariff configuration.
+
+  - `provider`: Feed in tariff provider id of provider to be used.
+
+    - `FeedInTariffFixed`: Provides fixed feed in tariff values.
+    - `FeedInTariffImport`: Imports from a file or JSON string.
+
+  - `provider_settings.feed_in_tariff_kwh`: Fixed feed in tariff (€/kWh).
+  - `provider_settings.import_file_path`: Path to the file to import feed in tariff forecast data from.
+  - `provider_settings.import_json`: JSON string, dictionary of feed in tariff value lists.
 
 ## Load Prediction
 

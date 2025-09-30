@@ -1,11 +1,21 @@
 % SPDX-License-Identifier: Apache-2.0
 
-# Optimization
+# `POST /optimize` Optimization
 
 ## Introduction
 
 The `POST /optimize` API endpoint optimizes your energy management system based on various inputs
 including electricity prices, battery storage capacity, PV forecast, and temperature data.
+
+The `POST /optimize` optimization interface is the "classical" interface developed by Andreas at the
+start of the projects and used and described in his videos. It allows and requires to define all the
+optimization paramters on the endpoint request.
+
+:::{admonition} Warning
+:class: warning
+The `POST /optimize` endpoint interface does not regard configurations set for the parameters
+passed to the request. You have to set the parameters even if given in the configuration.
+:::
 
 ## Input Payload
 
@@ -14,38 +24,70 @@ including electricity prices, battery storage capacity, PV forecast, and tempera
 ```json
 {
     "ems": {
-        "preis_euro_pro_wh_akku": 0.0007,
-        "einspeiseverguetung_euro_pro_wh": 0.00007,
-        "gesamtlast": [500, 500, ..., 500, 500],
-        "pv_prognose_wh": [300, 0, 0, ..., 2160, 1840],
-        "strompreis_euro_pro_wh": [0.0003784, 0.0003868, ..., 0.00034102, 0.00033709]
+        "preis_euro_pro_wh_akku": 0.0001,
+        "einspeiseverguetung_euro_pro_wh": [
+          0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007,
+          0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007,
+          0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007,
+          0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007,
+          0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007,
+          0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007,
+          0.00007, 0.00007, 0.00007, 0.00007, 0.00007, 0.00007
+        ],
+        "gesamtlast": [
+          676.71, 876.19, 527.13, 468.88, 531.38, 517.95, 483.15, 472.28,
+          1011.68, 995.00, 1053.07, 1063.91, 1320.56, 1132.03, 1163.67,
+          1176.82, 1216.22, 1103.78, 1129.12, 1178.71, 1050.98, 988.56, 912.38,
+          704.61, 516.37, 868.05, 694.34, 608.79, 556.31, 488.89, 506.91,
+          804.89, 1141.98, 1056.97, 992.46, 1155.99, 827.01, 1257.98, 1232.67,
+          871.26, 860.88, 1158.03, 1222.72, 1221.04, 949.99, 987.01, 733.99,
+          592.97
+        ],
+        "pv_prognose_wh": [
+          0, 0, 0, 0, 0, 0, 0, 8.05, 352.91, 728.51, 930.28, 1043.25, 1106.74,
+          1161.69, 6018.82, 5519.07, 3969.88, 3017.96, 1943.07, 1007.17,
+          319.67, 7.88, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5.04, 335.59, 705.32,
+          1121.12, 1604.79, 2157.38, 1433.25, 5718.49, 4553.96, 3027.55,
+          2574.46, 1720.4, 963.4, 383.3, 0, 0, 0
+        ],
+        "strompreis_euro_pro_wh": [
+          0.0003384, 0.0003318, 0.0003284, 0.0003283, 0.0003289, 0.0003334,
+          0.0003290, 0.0003302, 0.0003042, 0.0002430, 0.0002280, 0.0002212,
+          0.0002093, 0.0001879, 0.0001838, 0.0002004, 0.0002198, 0.0002270,
+          0.0002997, 0.0003195, 0.0003081, 0.0002969, 0.0002921, 0.0002780,
+          0.0003384, 0.0003318, 0.0003284, 0.0003283, 0.0003289, 0.0003334,
+          0.0003290, 0.0003302, 0.0003042, 0.0002430, 0.0002280, 0.0002212,
+          0.0002093, 0.0001879, 0.0001838, 0.0002004, 0.0002198, 0.0002270,
+          0.0002997, 0.0003195, 0.0003081, 0.0002969, 0.0002921, 0.0002780
+        ]
     },
     "pv_akku": {
         "device_id": "battery1",
-        "capacity_wh": 12000,
-        "charging_efficiency": 0.92,
-        "discharging_efficiency": 0.92,
-        "max_charge_power_w": 5700,
-        "initial_soc_percentage": 66,
-        "min_soc_percentage": 5,
-        "max_soc_percentage": 100
+        "capacity_wh": 26400,
+        "max_charge_power_w": 5000,
+        "initial_soc_percentage": 80,
+        "min_soc_percentage": 15
     },
     "inverter": {
         "device_id": "inverter1",
-        "max_power_wh": 15500
-        "battery_id": "battery1",
+        "max_power_wh": 10000,
+        "battery_id": "battery1"
     },
     "eauto": {
-        "device_id": "auto1",
-        "capacity_wh": 64000,
-        "charging_efficiency": 0.88,
-        "discharging_efficiency": 0.88,
+        "device_id": "ev1",
+        "capacity_wh": 60000,
+        "charging_efficiency": 0.95,
+        "discharging_efficiency": 1.0,
         "max_charge_power_w": 11040,
-        "initial_soc_percentage": 98,
-        "min_soc_percentage": 60,
-        "max_soc_percentage": 100
+        "initial_soc_percentage": 54,
+        "min_soc_percentage": 0
     },
-    "temperature_forecast": [18.3, 18, ..., 20.16, 19.84],
+    "temperature_forecast": [
+      18.3, 17.8, 16.9, 16.2, 15.6, 15.1, 14.6, 14.2, 14.3, 14.8, 15.7, 16.7, 17.4,
+      18.0, 18.6, 19.2, 19.1, 18.7, 18.5, 17.7, 16.2, 14.6, 13.6, 13.0, 12.6, 12.2,
+      11.7, 11.6, 11.3, 11.0, 10.7, 10.2, 11.4, 14.4, 16.4, 18.3, 19.5, 20.7, 21.9,
+      22.7, 23.1, 23.1, 22.8, 21.8, 20.2, 19.1, 18.0, 17.4
+    ],
     "start_solution": null
 }
 ```
@@ -58,7 +100,8 @@ including electricity prices, battery storage capacity, PV forecast, and tempera
 
 - Unit: €/Wh
 - Purpose: Represents the residual value of energy stored in the battery
-- Impact: Lower values encourage battery depletion, higher values preserve charge at the end of the simulation.
+- Impact: Lower values encourage battery depletion, higher values preserve charge at the end of the
+  simulation.
 
 #### Feed-in Tariff (`einspeiseverguetung_euro_pro_wh`)
 
@@ -162,23 +205,24 @@ Verify prices against your local tariffs.
 
 #### Battery Control
 
-- `ac_charge`: Grid charging schedule (0-1)
+- `ac_charge`: Grid charging schedule (0.0-1.0)
 - `dc_charge`: DC charging schedule (0-1)
 - `discharge_allowed`: Discharge permission (0 or 1)
 
 0 (no charge)
 1 (charge with full load)
 
-`ac_charge` multiplied by the maximum charge power of the battery results in the planned charging power.
+`ac_charge` multiplied by the maximum charge power of the battery results in the planned charging
+power.
 
 #### EV Charging
 
-- `eautocharge_hours_float`: EV charging schedule (0-1)
+- `eautocharge_hours_float`: EV charging schedule (0.0-1.0)
 
 #### Results
 
-The `result` object contains detailed information about the optimization outcome.
-The length of the array is between 25 and 48 and starts at the current hour and ends at 23:00 tomorrow.
+The `result` object contains detailed information about the optimization outcome. The length of the
+array is between 25 and 48 and starts at the current hour and ends at 23:00 tomorrow.
 
 - `Last_Wh_pro_Stunde`: Array of hourly load values in Wh
   - Shows the total energy consumption per hour

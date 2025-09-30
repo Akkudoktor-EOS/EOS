@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip install dist test test-full docker-run docker-build docs read-docs clean format gitlint mypy run run-dev
+.PHONY: help venv pip install dist test test-full docker-run docker-build docs read-docs clean format gitlint mypy run run-dev bump bump-dev
 
 # Default target
 all: help
@@ -29,6 +29,7 @@ help:
 	@echo "  test-ci      - Run tests as CI does. No user config file allowed."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
+	@echo "  bump         - Bump version to next release version."
 
 # Target to set up a Python 3 virtual environment
 venv:
@@ -133,9 +134,9 @@ test-full:
 format:
 	.venv/bin/pre-commit run --all-files
 
-# Target to trigger gitlint using pre-commit for the last commit message
+# Target to trigger gitlint using pre-commit for the latest commit messages
 gitlint:
-	.venv/bin/pre-commit run gitlint --hook-stage commit-msg --commit-msg-filename .git/COMMIT_EDITMSG
+	.venv/bin/cz check --rev-range main..HEAD
 
 # Target to format code.
 mypy:
@@ -147,3 +148,9 @@ docker-run:
 
 docker-build:
 	@docker compose build --pull
+
+# Bump Akkudoktoreos version
+bump: pip-dev
+	@echo "Bumping akkudoktoreos version to release version"
+	.venv/bin/python scripts/convert_lightweight_tags.py
+	.venv/bin/cz bump
