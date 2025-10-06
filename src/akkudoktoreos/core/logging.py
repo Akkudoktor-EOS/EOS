@@ -42,6 +42,10 @@ class InterceptHandler(pylogging.Handler):
         Args:
             record (logging.LogRecord): A record object containing log message and metadata.
         """
+        # Skip DEBUG logs from matplotlib - very noisy
+        if record.name.startswith("matplotlib") and record.levelno <= pylogging.DEBUG:
+            return
+
         try:
             level = logger.level(record.levelname).name
         except AttributeError:
