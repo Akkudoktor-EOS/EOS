@@ -4,13 +4,12 @@ from typing import Any, Optional, Union
 
 import requests
 from loguru import logger
-from pendulum import DateTime
 from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 
 class VrmForecastRecords(PydanticBaseModel):
@@ -82,8 +81,8 @@ class PVForecastVrm(PVForecastProvider):
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update forecast data in the PVForecastDataRecord format."""
-        start_date = self.start_datetime.start_of("day")
-        end_date = self.start_datetime.add(hours=self.config.prediction.hours)
+        start_date = self.ems_start_datetime.start_of("day")
+        end_date = self.ems_start_datetime.add(hours=self.config.prediction.hours)
         start_ts = int(start_date.timestamp())
         end_ts = int(end_date.timestamp())
 

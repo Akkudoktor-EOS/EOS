@@ -1,125 +1,23 @@
 from typing import Any, Optional
 
 import numpy as np
-from pydantic import Field, field_validator
 
-from akkudoktoreos.devices.devicesabc import (
-    DeviceBase,
-    DeviceOptimizeResult,
-    DeviceParameters,
+from akkudoktoreos.optimization.genetic.geneticdevices import (
+    BaseBatteryParameters,
+    SolarPanelBatteryParameters,
 )
-from akkudoktoreos.utils.utils import NumpyEncoder
 
 
-def max_charging_power_field(description: Optional[str] = None) -> float:
-    if description is None:
-        description = "Maximum charging power in watts."
-    return Field(
-        default=5000,
-        gt=0,
-        description=description,
-    )
-
-
-def initial_soc_percentage_field(description: str) -> int:
-    return Field(default=0, ge=0, le=100, description=description, examples=[42])
-
-
-def discharging_efficiency_field(default_value: float) -> float:
-    return Field(
-        default=default_value,
-        gt=0,
-        le=1,
-        description="A float representing the discharge efficiency of the battery.",
-    )
-
-
-class BaseBatteryParameters(DeviceParameters):
-    """Battery Device Simulation Configuration."""
-
-    device_id: str = Field(description="ID of battery", examples=["battery1"])
-    capacity_wh: int = Field(
-        gt=0,
-        description="An integer representing the capacity of the battery in watt-hours.",
-        examples=[8000],
-    )
-    charging_efficiency: float = Field(
-        default=0.88,
-        gt=0,
-        le=1,
-        description="A float representing the charging efficiency of the battery.",
-    )
-    discharging_efficiency: float = discharging_efficiency_field(0.88)
-    max_charge_power_w: Optional[float] = max_charging_power_field()
-    initial_soc_percentage: int = initial_soc_percentage_field(
-        "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
-    )
-    min_soc_percentage: int = Field(
-        default=0,
-        ge=0,
-        le=100,
-        description="An integer representing the minimum state of charge (SOC) of the battery in percentage.",
-        examples=[10],
-    )
-    max_soc_percentage: int = Field(
-        default=100,
-        ge=0,
-        le=100,
-        description="An integer representing the maximum state of charge (SOC) of the battery in percentage.",
-    )
-
-
-class SolarPanelBatteryParameters(BaseBatteryParameters):
-    max_charge_power_w: Optional[float] = max_charging_power_field()
-
-
-class ElectricVehicleParameters(BaseBatteryParameters):
-    """Battery Electric Vehicle Device Simulation Configuration."""
-
-    device_id: str = Field(description="ID of electric vehicle", examples=["ev1"])
-    discharging_efficiency: float = discharging_efficiency_field(1.0)
-    initial_soc_percentage: int = initial_soc_percentage_field(
-        "An integer representing the current state of charge (SOC) of the battery in percentage."
-    )
-
-
-class ElectricVehicleResult(DeviceOptimizeResult):
-    """Result class containing information related to the electric vehicle's charging and discharging behavior."""
-
-    device_id: str = Field(description="ID of electric vehicle", examples=["ev1"])
-    charge_array: list[float] = Field(
-        description="Hourly charging status (0 for no charging, 1 for charging)."
-    )
-    discharge_array: list[int] = Field(
-        description="Hourly discharging status (0 for no discharging, 1 for discharging)."
-    )
-    discharging_efficiency: float = Field(description="The discharge efficiency as a float..")
-    capacity_wh: int = Field(description="Capacity of the EV’s battery in watt-hours.")
-    charging_efficiency: float = Field(description="Charging efficiency as a float..")
-    max_charge_power_w: int = Field(description="Maximum charging power in watts.")
-    soc_wh: float = Field(
-        description="State of charge of the battery in watt-hours at the start of the simulation."
-    )
-    initial_soc_percentage: int = Field(
-        description="State of charge at the start of the simulation in percentage."
-    )
-
-    @field_validator("discharge_array", "charge_array", mode="before")
-    def convert_numpy(cls, field: Any) -> Any:
-        return NumpyEncoder.convert_numpy(field)[0]
-
-
-class Battery(DeviceBase):
+class Battery:
     """Represents a battery device with methods to simulate energy charging and discharging."""
 
-    def __init__(self, parameters: Optional[BaseBatteryParameters] = None):
-        self.parameters: Optional[BaseBatteryParameters] = None
-        super().__init__(parameters)
+    def __init__(self, parameters: BaseBatteryParameters, prediction_hours: int):
+        self.parameters = parameters
+        self.prediction_hours = prediction_hours
+        self._setup()
 
     def _setup(self) -> None:
         """Sets up the battery parameters based on configuration or provided parameters."""
-        if self.parameters is None:
-            raise ValueError(f"Parameters not set: {self.parameters}")
         self.capacity_wh = self.parameters.capacity_wh
         self.initial_soc_percentage = self.parameters.initial_soc_percentage
         self.charging_efficiency = self.parameters.charging_efficiency
@@ -138,8 +36,8 @@ class Battery(DeviceBase):
             self.max_charge_power_w = self.parameters.max_charge_power_w
         else:
             self.max_charge_power_w = self.capacity_wh  # TODO this should not be equal capacity_wh
-        self.discharge_array = np.full(self.hours, 1)
-        self.charge_array = np.full(self.hours, 1)
+        self.discharge_array = np.full(self.prediction_hours, 1)
+        self.charge_array = np.full(self.prediction_hours, 1)
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
         self.min_soc_wh = (self.min_soc_percentage / 100) * self.capacity_wh
         self.max_soc_wh = (self.max_soc_percentage / 100) * self.capacity_wh
@@ -147,11 +45,11 @@ class Battery(DeviceBase):
     def to_dict(self) -> dict[str, Any]:
         """Converts the object to a dictionary representation."""
         return {
-            "device_id": self.device_id,
+            "device_id": self.parameters.device_id,
             "capacity_wh": self.capacity_wh,
             "initial_soc_percentage": self.initial_soc_percentage,
             "soc_wh": self.soc_wh,
-            "hours": self.hours,
+            "hours": self.prediction_hours,
             "discharge_array": self.discharge_array,
             "charge_array": self.charge_array,
             "charging_efficiency": self.charging_efficiency,
@@ -163,25 +61,31 @@ class Battery(DeviceBase):
         """Resets the battery state to its initial values."""
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
         self.soc_wh = min(max(self.soc_wh, self.min_soc_wh), self.max_soc_wh)
-        self.discharge_array = np.full(self.hours, 1)
-        self.charge_array = np.full(self.hours, 1)
+        self.discharge_array = np.full(self.prediction_hours, 1)
+        self.charge_array = np.full(self.prediction_hours, 1)
 
     def set_discharge_per_hour(self, discharge_array: np.ndarray) -> None:
         """Sets the discharge values for each hour."""
-        if len(discharge_array) != self.hours:
-            raise ValueError(f"Discharge array must have exactly {self.hours} elements.")
+        if len(discharge_array) != self.prediction_hours:
+            raise ValueError(
+                f"Discharge array must have exactly {self.prediction_hours} elements. Got {len(discharge_array)} elements."
+            )
         self.discharge_array = np.array(discharge_array)
 
     def set_charge_per_hour(self, charge_array: np.ndarray) -> None:
         """Sets the charge values for each hour."""
-        if len(charge_array) != self.hours:
-            raise ValueError(f"Charge array must have exactly {self.hours} elements.")
+        if len(charge_array) != self.prediction_hours:
+            raise ValueError(
+                f"Charge array must have exactly {self.prediction_hours} elements. Got {len(charge_array)} elements."
+            )
         self.charge_array = np.array(charge_array)
 
     def set_charge_allowed_for_hour(self, charge: float, hour: int) -> None:
         """Sets the charge for a specific hour."""
-        if hour >= self.hours:
-            raise ValueError(f"Hour {hour} is out of range. Must be less than {self.hours}.")
+        if hour >= self.prediction_hours:
+            raise ValueError(
+                f"Hour {hour} is out of range. Must be less than {self.prediction_hours}."
+            )
         self.charge_array[hour] = charge
 
     def current_soc_percentage(self) -> float:

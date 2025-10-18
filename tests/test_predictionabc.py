@@ -101,7 +101,7 @@ class TestPredictionBase:
         assert base.config.prediction.hours == 2
 
     def test_config_value_from_field_default(self, base, monkeypatch):
-        assert base.config.prediction.model_fields["historic_hours"].default == 48
+        assert base.config.prediction.__class__.model_fields["historic_hours"].default == 48
         assert base.config.prediction.historic_hours == 48
         monkeypatch.setenv("EOS_PREDICTION__HISTORIC_HOURS", "128")
         base.config.reset_settings()
@@ -192,7 +192,7 @@ class TestPredictionProvider:
 
         assert provider.config.prediction.hours == config_eos.prediction.hours
         assert provider.config.prediction.historic_hours == 2
-        assert provider.start_datetime == sample_start_datetime
+        assert provider.ems_start_datetime == sample_start_datetime
         assert provider.end_datetime == sample_start_datetime + to_duration(
             f"{provider.config.prediction.hours} hours"
         )
@@ -416,7 +416,7 @@ class TestPredictionContainer:
             del container_with_providers["non_existent_key"]
 
     def test_len(self, container_with_providers):
-        assert len(container_with_providers) == 3
+        assert len(container_with_providers) == 2
 
     def test_repr(self, container_with_providers):
         representation = repr(container_with_providers)

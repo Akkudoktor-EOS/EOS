@@ -9,7 +9,6 @@ from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
 from akkudoktoreos.prediction.pvforecastvrm import PVforecastVrmCommonSettings
-from akkudoktoreos.utils.docs import get_model_structure_from_examples
 
 prediction_eos = get_prediction()
 
@@ -142,13 +141,53 @@ class PVForecastCommonSettings(SettingsBaseModel):
     planes: Optional[list[PVForecastPlaneSetting]] = Field(
         default=None,
         description="Plane configuration.",
-        examples=[get_model_structure_from_examples(PVForecastPlaneSetting, True)],
+        examples=[
+            [
+                {
+                    "surface_tilt": 10.0,
+                    "surface_azimuth": 180.0,
+                    "userhorizon": [10.0, 20.0, 30.0],
+                    "peakpower": 5.0,
+                    "pvtechchoice": "crystSi",
+                    "mountingplace": "free",
+                    "loss": 14.0,
+                    "trackingtype": 0,
+                    "optimal_surface_tilt": False,
+                    "optimalangles": False,
+                    "albedo": None,
+                    "module_model": None,
+                    "inverter_model": None,
+                    "inverter_paco": 6000,
+                    "modules_per_string": 20,
+                    "strings_per_inverter": 2,
+                },
+                {
+                    "surface_tilt": 20.0,
+                    "surface_azimuth": 90.0,
+                    "userhorizon": [5.0, 15.0, 25.0],
+                    "peakpower": 3.5,
+                    "pvtechchoice": "crystSi",
+                    "mountingplace": "free",
+                    "loss": 14.0,
+                    "trackingtype": 1,
+                    "optimal_surface_tilt": False,
+                    "optimalangles": False,
+                    "albedo": None,
+                    "module_model": None,
+                    "inverter_model": None,
+                    "inverter_paco": 4000,
+                    "modules_per_string": 20,
+                    "strings_per_inverter": 2,
+                },
+            ]
+        ],
     )
 
     max_planes: Optional[int] = Field(
         default=0,
         ge=0,
         description="Maximum number of planes that can be set",
+        examples=[1, 2],
     )
 
     # Validators

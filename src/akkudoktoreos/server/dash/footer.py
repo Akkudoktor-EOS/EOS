@@ -6,6 +6,7 @@ from monsterui.daisy import Loading, LoadingT
 from monsterui.franken import A, ButtonT, DivFullySpaced, P
 from requests.exceptions import RequestException
 
+import akkudoktoreos.server.dash.eosstatus as eosstatus
 from akkudoktoreos.config.config import get_config
 
 config_eos = get_config()
@@ -21,13 +22,17 @@ def get_alive(eos_host: str, eos_port: Union[str, int]) -> str:
     Returns:
         str: Alive data.
     """
+    global eos_health
     result = requests.Response()
     try:
         result = requests.get(f"http://{eos_host}:{eos_port}/v1/health", timeout=10)
         if result.status_code == 200:
-            alive = result.json()["status"]
+            eosstatus.eos_health = result.json()
+            alive = eosstatus.eos_health["status"]
         else:
+            eosstatus.eos_health = None
             alive = f"Server responded with status code: {result.status_code}"
+        print("Footer:", eosstatus.eos_health)
     except RequestException as e:
         warning_msg = f"{e}"
         logger.warning(warning_msg)
