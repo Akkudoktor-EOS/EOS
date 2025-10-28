@@ -102,10 +102,10 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             - add the file cache again.
         """
         source = "https://api.akkudoktor.net"
-        if not self.start_datetime:
-            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
+        if not self.ems_start_datetime:
+            raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
         # Try to take data from 5 weeks back for prediction
-        date = to_datetime(self.start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
+        date = to_datetime(self.ems_start_datetime - to_duration("35 days"), as_string="YYYY-MM-DD")
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
         url = f"{source}/prices?start={date}&end={last_date}&tz={self.config.general.timezone}"
         response = requests.get(url, timeout=10)
@@ -147,8 +147,8 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         """
         # Get Akkudoktor electricity price data
         akkudoktor_data = self._request_forecast(force_update=force_update)  # type: ignore
-        if not self.start_datetime:
-            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
+        if not self.ems_start_datetime:
+            raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
 
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
@@ -186,13 +186,13 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
         needed_hours = int(
             self.config.prediction.hours
-            - ((highest_orig_datetime - self.start_datetime).total_seconds() // 3600)
+            - ((highest_orig_datetime - self.ems_start_datetime).total_seconds() // 3600)
         )
 
         if needed_hours <= 0:
             logger.warning(
-                f"No prediction needed. needed_hours={needed_hours}, hours={self.config.prediction.hours},highest_orig_datetime {highest_orig_datetime}, start_datetime {self.start_datetime}"
-            )  # this might keep data longer than self.start_datetime + self.config.prediction.hours in the records
+                f"No prediction needed. needed_hours={needed_hours}, hours={self.config.prediction.hours},highest_orig_datetime {highest_orig_datetime}, start_datetime {self.ems_start_datetime}"
+            )  # this might keep data longer than self.ems_start_datetime + self.config.prediction.hours in the records
             return
 
         if amount_datasets > 800:  # we do the full ets with seasons of 1 week

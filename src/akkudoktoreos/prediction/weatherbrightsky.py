@@ -94,7 +94,7 @@ class WeatherBrightSky(WeatherProvider):
             ValueError: If the API response does not include expected `weather` data.
         """
         source = "https://api.brightsky.dev"
-        date = to_datetime(self.start_datetime, as_string=True)
+        date = to_datetime(self.ems_start_datetime, as_string=True)
         last_date = to_datetime(self.end_datetime, as_string=True)
         response = requests.get(
             f"{source}/weather?lat={self.config.general.latitude}&lon={self.config.general.longitude}&date={date}&last_date={last_date}&tz={self.config.general.timezone}",
@@ -223,7 +223,7 @@ class WeatherBrightSky(WeatherProvider):
         assert key  # noqa: S101
         temperature = self.key_to_array(
             key=key,
-            start_datetime=self.start_datetime,
+            start_datetime=self.ems_start_datetime,
             end_datetime=self.end_datetime,
             interval=to_duration("1 hour"),
         )
@@ -236,7 +236,7 @@ class WeatherBrightSky(WeatherProvider):
         assert key  # noqa: S101
         humidity = self.key_to_array(
             key=key,
-            start_datetime=self.start_datetime,
+            start_datetime=self.ems_start_datetime,
             end_datetime=self.end_datetime,
             interval=to_duration("1 hour"),
         )
@@ -250,7 +250,10 @@ class WeatherBrightSky(WeatherProvider):
             data=data,
             index=pd.DatetimeIndex(
                 pd.date_range(
-                    start=self.start_datetime, end=self.end_datetime, freq="1h", inclusive="left"
+                    start=self.ems_start_datetime,
+                    end=self.end_datetime,
+                    freq="1h",
+                    inclusive="left",
                 )
             ),
         )

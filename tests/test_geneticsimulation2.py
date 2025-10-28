@@ -1,46 +1,58 @@
 import numpy as np
 import pytest
 
-from akkudoktoreos.core.ems import (
-    EnergyManagement,
-    EnergyManagementParameters,
-    SimulationResult,
-    get_ems,
-)
-from akkudoktoreos.devices.battery import (
-    Battery,
+from akkudoktoreos.devices.genetic.battery import Battery
+from akkudoktoreos.devices.genetic.homeappliance import HomeAppliance
+from akkudoktoreos.devices.genetic.inverter import Inverter
+from akkudoktoreos.optimization.genetic.genetic import GeneticSimulation
+from akkudoktoreos.optimization.genetic.geneticdevices import (
     ElectricVehicleParameters,
+    HomeApplianceParameters,
+    InverterParameters,
     SolarPanelBatteryParameters,
 )
-from akkudoktoreos.devices.generic import HomeAppliance, HomeApplianceParameters
-from akkudoktoreos.devices.inverter import Inverter, InverterParameters
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticEnergyManagementParameters,
+    GeneticOptimizationParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSimulationResult
+from akkudoktoreos.utils.datetimeutil import (
+    TimeWindow,
+    TimeWindowSequence,
+    to_duration,
+    to_time,
+)
 
 start_hour = 0
 
 
 # Example initialization of necessary components
 @pytest.fixture
-def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
+def genetic_simulation_2(config_eos) -> GeneticSimulation:
     """Fixture to create an EnergyManagement instance with given test parameters."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
         {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
     )
     assert config_eos.prediction.hours == 48
+    assert config_eos.optimization.horizon_hours == 24
 
     # Initialize the battery and the inverter
     akku = Battery(
         SolarPanelBatteryParameters(
-            device_id="pv1", capacity_wh=5000, initial_soc_percentage=80, min_soc_percentage=10
-        )
+            device_id="battery1",
+            capacity_wh=5000,
+            initial_soc_percentage=80,
+            min_soc_percentage=10,
+        ),
+        prediction_hours = config_eos.prediction.hours,
     )
     akku.reset()
-    devices_eos.add_device(akku)
 
     inverter = Inverter(
-        InverterParameters(device_id="iv1", max_power_wh=10000, battery_id=akku.device_id)
+        InverterParameters(device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id),
+        battery = akku,
     )
-    devices_eos.add_device(inverter)
 
     # Household device (currently not used, set to None)
     home_appliance = HomeAppliance(
@@ -48,20 +60,20 @@ def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
             device_id="dishwasher1",
             consumption_wh=2000,
             duration_h=2,
-        )
+            time_windows=None,
+        ),
+        optimization_hours = config_eos.optimization.horizon_hours,
+        prediction_hours = config_eos.prediction.hours,
     )
     home_appliance.set_starting_time(2)
-    devices_eos.add_device(home_appliance)
 
     # Example initialization of electric car battery
     eauto = Battery(
         ElectricVehicleParameters(
-            device_id="ev1", capacity_wh=26400, initial_soc_percentage=100, min_soc_percentage=100
+            device_id="ev1", capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
         ),
+        prediction_hours = config_eos.prediction.hours,
     )
-    devices_eos.add_device(eauto)
-
-    devices_eos.post_setup()
 
     # Parameters based on previous example data
     pv_prognose_wh = [0.0] * config_eos.prediction.hours
@@ -128,15 +140,17 @@ def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
     ]
 
     # Initialize the energy management system with the respective parameters
-    ems = get_ems()
-    ems.set_parameters(
-        EnergyManagementParameters(
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
             preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
             gesamtlast=gesamtlast,
         ),
+        optimization_hours = config_eos.optimization.horizon_hours,
+        prediction_hours = config_eos.prediction.hours,
         inverter=inverter,
         ev=eauto,
         home_appliance=home_appliance,
@@ -144,30 +158,30 @@ def create_ems_instance(devices_eos, config_eos) -> EnergyManagement:
 
     ac = np.full(config_eos.prediction.hours, 0.0)
     ac[20] = 1
-    ems.set_akku_ac_charge_hours(ac)
+    simulation.set_akku_ac_charge_hours(ac)
     dc = np.full(config_eos.prediction.hours, 0.0)
     dc[11] = 1
-    ems.set_akku_dc_charge_hours(dc)
+    simulation.set_akku_dc_charge_hours(dc)
 
-    return ems
+    return simulation
 
 
-def test_simulation(create_ems_instance):
+def test_simulation(genetic_simulation_2):
     """Test the EnergyManagement simulation method."""
-    ems = create_ems_instance
+    simulation = genetic_simulation_2
 
     # Simulate starting from hour 0 (this value can be adjusted)
-    result = ems.simulate(start_hour=start_hour)
+    result = simulation.simulate(start_hour=start_hour)
 
     # --- Pls do not remove! ---
     # visualisiere_ergebnisse(
-    #     ems.gesamtlast,
-    #     ems.pv_prognose_wh,
-    #     ems.strompreis_euro_pro_wh,
+    #     simulation.gesamtlast,
+    #     simulation.pv_prognose_wh,
+    #     simulation.strompreis_euro_pro_wh,
     #     result,
-    #     ems.akku.discharge_array+ems.akku.charge_array,
+    #     simulation.akku.discharge_array+simulation.akku.charge_array,
     #     None,
-    #     ems.pv_prognose_wh,
+    #     simulation.pv_prognose_wh,
     #     start_hour,
     #     48,
     #     np.full(48, 0.0),
@@ -178,7 +192,7 @@ def test_simulation(create_ems_instance):
     # Assertions to validate results
     assert result is not None, "Result should not be None"
     assert isinstance(result, dict), "Result should be a dictionary"
-    assert SimulationResult(**result) is not None
+    assert GeneticSimulationResult(**result) is not None
     assert "Last_Wh_pro_Stunde" in result, "Result should contain 'Last_Wh_pro_Stunde'"
 
     """
@@ -253,73 +267,64 @@ def test_simulation(create_ems_instance):
     print("All tests passed successfully.")
 
 
-def test_set_parameters(create_ems_instance):
+def test_set_parameters(genetic_simulation_2):
     """Test the set_parameters method of EnergyManagement."""
-    ems = create_ems_instance
+    simulation = genetic_simulation_2
 
     # Check if parameters are set correctly
-    assert ems.load_energy_array is not None, "load_energy_array should not be None"
-    assert ems.pv_prediction_wh is not None, "pv_prediction_wh should not be None"
-    assert ems.elect_price_hourly is not None, "elect_price_hourly should not be None"
-    assert ems.elect_revenue_per_hour_arr is not None, (
+    assert simulation.load_energy_array is not None, "load_energy_array should not be None"
+    assert simulation.pv_prediction_wh is not None, "pv_prediction_wh should not be None"
+    assert simulation.elect_price_hourly is not None, "elect_price_hourly should not be None"
+    assert simulation.elect_revenue_per_hour_arr is not None, (
         "elect_revenue_per_hour_arr should not be None"
     )
 
 
-def test_set_akku_discharge_hours(create_ems_instance):
+def test_set_akku_discharge_hours(genetic_simulation_2):
     """Test the set_akku_discharge_hours method of EnergyManagement."""
-    ems = create_ems_instance
-    discharge_hours = np.full(ems.config.prediction.hours, 1.0)
-    ems.set_akku_discharge_hours(discharge_hours)
-    assert np.array_equal(ems.battery.discharge_array, discharge_hours), (
+    simulation = genetic_simulation_2
+    discharge_hours = np.full(simulation.prediction_hours, 1.0)
+    simulation.set_akku_discharge_hours(discharge_hours)
+    assert np.array_equal(simulation.battery.discharge_array, discharge_hours), (
         "Discharge hours should be set correctly"
     )
 
 
-def test_set_akku_ac_charge_hours(create_ems_instance):
+def test_set_akku_ac_charge_hours(genetic_simulation_2):
     """Test the set_akku_ac_charge_hours method of EnergyManagement."""
-    ems = create_ems_instance
-    ac_charge_hours = np.full(ems.config.prediction.hours, 1.0)
-    ems.set_akku_ac_charge_hours(ac_charge_hours)
-    assert np.array_equal(ems.ac_charge_hours, ac_charge_hours), (
+    simulation = genetic_simulation_2
+    ac_charge_hours = np.full(simulation.prediction_hours, 1.0)
+    simulation.set_akku_ac_charge_hours(ac_charge_hours)
+    assert np.array_equal(simulation.ac_charge_hours, ac_charge_hours), (
         "AC charge hours should be set correctly"
     )
 
 
-def test_set_akku_dc_charge_hours(create_ems_instance):
+def test_set_akku_dc_charge_hours(genetic_simulation_2):
     """Test the set_akku_dc_charge_hours method of EnergyManagement."""
-    ems = create_ems_instance
-    dc_charge_hours = np.full(ems.config.prediction.hours, 1.0)
-    ems.set_akku_dc_charge_hours(dc_charge_hours)
-    assert np.array_equal(ems.dc_charge_hours, dc_charge_hours), (
+    simulation = genetic_simulation_2
+    dc_charge_hours = np.full(simulation.prediction_hours, 1.0)
+    simulation.set_akku_dc_charge_hours(dc_charge_hours)
+    assert np.array_equal(simulation.dc_charge_hours, dc_charge_hours), (
         "DC charge hours should be set correctly"
     )
 
 
-def test_set_ev_charge_hours(create_ems_instance):
+def test_set_ev_charge_hours(genetic_simulation_2):
     """Test the set_ev_charge_hours method of EnergyManagement."""
-    ems = create_ems_instance
-    ev_charge_hours = np.full(ems.config.prediction.hours, 1.0)
-    ems.set_ev_charge_hours(ev_charge_hours)
-    assert np.array_equal(ems.ev_charge_hours, ev_charge_hours), (
+    simulation = genetic_simulation_2
+    ev_charge_hours = np.full(simulation.prediction_hours, 1.0)
+    simulation.set_ev_charge_hours(ev_charge_hours)
+    assert np.array_equal(simulation.ev_charge_hours, ev_charge_hours), (
         "EV charge hours should be set correctly"
     )
 
 
-def test_reset(create_ems_instance):
+def test_reset(genetic_simulation_2):
     """Test the reset method of EnergyManagement."""
-    ems = create_ems_instance
-    ems.reset()
-    assert ems.ev.current_soc_percentage() == 100, "EV SOC should be reset to initial value"
-    assert ems.battery.current_soc_percentage() == 80, (
+    simulation = genetic_simulation_2
+    simulation.reset()
+    assert simulation.ev.current_soc_percentage() == simulation.ev.parameters.initial_soc_percentage, "EV SOC should be reset to initial value"
+    assert simulation.battery.current_soc_percentage() == simulation.battery.parameters.initial_soc_percentage, (
         "Battery SOC should be reset to initial value"
     )
-
-
-def test_simulate_start_now(create_ems_instance):
-    """Test the simulate_start_now method of EnergyManagement."""
-    ems = create_ems_instance
-    result = ems.simulate_start_now()
-    assert result is not None, "Result should not be None"
-    assert isinstance(result, dict), "Result should be a dictionary"
-    assert "Last_Wh_pro_Stunde" in result, "Result should contain 'Last_Wh_pro_Stunde'"

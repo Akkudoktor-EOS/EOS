@@ -1,6 +1,6 @@
 """PV forecast module for PV power predictions."""
 
-from typing import Any, List, Optional, Self, Union
+from typing import Any, List, Optional, Self
 
 from pydantic import Field, computed_field, field_validator, model_validator
 
@@ -8,8 +8,7 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
-from akkudoktoreos.prediction.pvforecastvrm import PVforecastVrmCommonSettings
-from akkudoktoreos.utils.docs import get_model_structure_from_examples
+from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrmCommonSettings
 
 prediction_eos = get_prediction()
 
@@ -121,6 +120,17 @@ class PVForecastPlaneSetting(SettingsBaseModel):
         return pvtechchoice
 
 
+class PVForecastCommonProviderSettings(SettingsBaseModel):
+    """PV Forecast Provider Configuration."""
+
+    PVForecastImport: Optional[PVForecastImportCommonSettings] = Field(
+        default=None, description="PVForecastImport settings", examples=[None]
+    )
+    PVForecastVrm: Optional[PVForecastVrmCommonSettings] = Field(
+        default=None, description="PVForecastVrm settings", examples=[None]
+    )
+
+
 class PVForecastCommonSettings(SettingsBaseModel):
     """PV Forecast Configuration."""
 
@@ -135,20 +145,68 @@ class PVForecastCommonSettings(SettingsBaseModel):
         examples=["PVForecastAkkudoktor"],
     )
 
-    provider_settings: Optional[
-        Union[PVForecastImportCommonSettings, PVforecastVrmCommonSettings]
-    ] = Field(default=None, description="Provider settings", examples=[None])
+    provider_settings: PVForecastCommonProviderSettings = Field(
+        default_factory=PVForecastCommonProviderSettings,
+        description="Provider settings",
+        examples=[
+            # Example 1: Empty/default settings (all providers None)
+            {
+                "PVForecastImport": None,
+                "PVForecastVrm": None,
+            },
+        ],
+    )
 
     planes: Optional[list[PVForecastPlaneSetting]] = Field(
         default=None,
         description="Plane configuration.",
-        examples=[get_model_structure_from_examples(PVForecastPlaneSetting, True)],
+        examples=[
+            [
+                {
+                    "surface_tilt": 10.0,
+                    "surface_azimuth": 180.0,
+                    "userhorizon": [10.0, 20.0, 30.0],
+                    "peakpower": 5.0,
+                    "pvtechchoice": "crystSi",
+                    "mountingplace": "free",
+                    "loss": 14.0,
+                    "trackingtype": 0,
+                    "optimal_surface_tilt": False,
+                    "optimalangles": False,
+                    "albedo": None,
+                    "module_model": None,
+                    "inverter_model": None,
+                    "inverter_paco": 6000,
+                    "modules_per_string": 20,
+                    "strings_per_inverter": 2,
+                },
+                {
+                    "surface_tilt": 20.0,
+                    "surface_azimuth": 90.0,
+                    "userhorizon": [5.0, 15.0, 25.0],
+                    "peakpower": 3.5,
+                    "pvtechchoice": "crystSi",
+                    "mountingplace": "free",
+                    "loss": 14.0,
+                    "trackingtype": 1,
+                    "optimal_surface_tilt": False,
+                    "optimalangles": False,
+                    "albedo": None,
+                    "module_model": None,
+                    "inverter_model": None,
+                    "inverter_paco": 4000,
+                    "modules_per_string": 20,
+                    "strings_per_inverter": 2,
+                },
+            ]
+        ],
     )
 
     max_planes: Optional[int] = Field(
         default=0,
         ge=0,
         description="Maximum number of planes that can be set",
+        examples=[1, 2],
     )
 
     # Validators

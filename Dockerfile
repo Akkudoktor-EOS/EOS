@@ -13,6 +13,13 @@ ENV EOS_CONFIG_DIR="${EOS_DIR}/config"
 # Overwrite when starting the container in a production environment
 ENV EOS_SERVER__EOSDASH_SESSKEY=s3cr3t
 
+# Set environment variables to reduce threading needs
+ENV OPENBLAS_NUM_THREADS=1
+ENV OMP_NUM_THREADS=1
+ENV MKL_NUM_THREADS=1
+ENV PIP_PROGRESS_BAR=off
+ENV PIP_NO_COLOR=1
+
 WORKDIR ${EOS_DIR}
 
 RUN adduser --system --group --no-create-home eos \
@@ -28,10 +35,10 @@ RUN adduser --system --group --no-create-home eos \
 COPY requirements.txt .
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt
 
 COPY pyproject.toml .
-RUN mkdir -p src && pip install -e .
+RUN mkdir -p src && pip install --no-cache-dir -e .
 
 COPY src src
 

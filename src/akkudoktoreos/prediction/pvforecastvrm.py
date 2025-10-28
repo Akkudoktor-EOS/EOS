@@ -4,13 +4,12 @@ from typing import Any, Optional, Union
 
 import requests
 from loguru import logger
-from pendulum import DateTime
 from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 
 class VrmForecastRecords(PydanticBaseModel):
@@ -24,7 +23,7 @@ class VrmForecastResponse(PydanticBaseModel):
     totals: dict
 
 
-class PVforecastVrmCommonSettings(SettingsBaseModel):
+class PVForecastVrmCommonSettings(SettingsBaseModel):
     """Common settings for VRM API."""
 
     pvforecast_vrm_token: str = Field(
@@ -60,8 +59,8 @@ class PVForecastVrm(PVForecastProvider):
     def _request_forecast(self, start_ts: int, end_ts: int) -> VrmForecastResponse:
         """Fetch forecast data from Victron VRM API."""
         source = "https://vrmapi.victronenergy.com/v2/installations"
-        id_site = self.config.pvforecast.provider_settings.pvforecast_vrm_idsite
-        api_token = self.config.pvforecast.provider_settings.pvforecast_vrm_token
+        id_site = self.config.pvforecast.provider_settings.PVForecastVrm.pvforecast_vrm_idsite
+        api_token = self.config.pvforecast.provider_settings.PVForecastVrm.pvforecast_vrm_token
         headers = {"X-Authorization": f"Token {api_token}", "Content-Type": "application/json"}
         url = f"{source}/{id_site}/stats?type=forecast&start={start_ts}&end={end_ts}&interval=hours"
         logger.debug(f"Requesting VRM forecast: {url}")
@@ -82,8 +81,8 @@ class PVForecastVrm(PVForecastProvider):
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update forecast data in the PVForecastDataRecord format."""
-        start_date = self.start_datetime.start_of("day")
-        end_date = self.start_datetime.add(hours=self.config.prediction.hours)
+        start_date = self.ems_start_datetime.start_of("day")
+        end_date = self.ems_start_datetime.add(hours=self.config.prediction.hours)
         start_ts = int(start_date.timestamp())
         end_ts = int(end_date.timestamp())
 

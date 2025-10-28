@@ -128,7 +128,7 @@ def test_update_data(mock_get, provider, sample_akkudoktor_1_json, cache_store):
     # Assert we get hours prioce values by resampling
     np_price_array = provider.key_to_array(
         key="elecprice_marketprice_wh",
-        start_datetime=provider.start_datetime,
+        start_datetime=provider.ems_start_datetime,
         end_datetime=provider.end_datetime,
     )
     assert len(np_price_array) == provider.total_hours
@@ -188,7 +188,7 @@ def test_key_to_array_resampling(provider):
     provider.update_data(force_update=True)
     array = provider.key_to_array(
         key="elecprice_marketprice_wh",
-        start_datetime=provider.start_datetime,
+        start_datetime=provider.ems_start_datetime,
         end_datetime=provider.end_datetime,
     )
     assert isinstance(array, np.ndarray)
@@ -204,7 +204,7 @@ def test_key_to_array_resampling(provider):
 def test_akkudoktor_development_forecast_data(provider):
     """Fetch data from real Akkudoktor server."""
     # Preset, as this is usually done by update_data()
-    provider.start_datetime = to_datetime("2024-10-26 00:00:00")
+    provider.ems_start_datetime = to_datetime("2024-10-26 00:00:00")
 
     akkudoktor_data = provider._request_forecast()
 

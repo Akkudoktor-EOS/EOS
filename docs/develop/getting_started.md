@@ -1,127 +1,86 @@
+% SPDX-License-Identifier: Apache-2.0
+(getting-started-page)=
+
 # Getting Started
 
-## Installation
+## Installation and Running
 
-The project requires Python 3.10 or newer. Currently there are no official packages or images published.
+AkkudoktorEOS can be installed and run using several different methods:
 
-Following sections describe how to locally start the EOS server on `http://localhost:8503`.
+- **Release package** (for stable versions)
+- **Docker image** (for easy deployment)
+- **From source** (for developers)
 
-### Run from source
+See the [installation guideline](#install-page) for detailed instructions on each method.
 
-Install the dependencies in a virtual environment:
+### Where to Find AkkudoktorEOS
 
-```{eval-rst}
-.. tabs::
-
-  .. tab:: Windows
-
-     .. code-block:: powershell
-
-        python -m venv .venv
-        .venv\Scripts\pip install -r requirements.txt
-        .venv\Scripts\pip install -e .
-
-  .. tab:: Linux
-
-     .. code-block:: bash
-
-        python -m venv .venv
-        .venv/bin/pip install -r requirements.txt
-        .venv/bin/pip install -e .
-
-```
-
-Start the EOS fastapi server:
-
-```{eval-rst}
-.. tabs::
-
-  .. tab:: Windows
-
-     .. code-block:: powershell
-
-        .venv\Scripts\python src/akkudoktoreos/server/eos.py
-
-  .. tab:: Linux
-
-     .. code-block:: bash
-
-        .venv/bin/python src/akkudoktoreos/server/eos.py
-
-```
-
-### Docker
-
-```{eval-rst}
-.. tabs::
-
-  .. tab:: Windows
-
-     .. code-block:: powershell
-
-        docker compose up --build
-
-  .. tab:: Linux
-
-     .. code-block:: bash
-
-        docker compose up --build
-
-```
+- **Release Packages**: [GitHub Releases](https://github.com/Akkudoktor-EOS/EOS/releases)
+- **Docker Images**: [Docker Hub](https://hub.docker.com/r/akkudoktor/eos)
+- **Source Code**: [GitHub Repository](https://github.com/Akkudoktor-EOS/EOS)
 
 ## Configuration
 
-This project uses the `EOS.config.json` file to manage configuration settings.
+AkkudoktorEOS uses the `EOS.config.json` file to manage all configuration settings.
 
 ### Default Configuration
 
-A default configuration file `default.config.json` is provided. This file contains all the necessary
-configuration keys with their default values.
+If essential configuration settings are missing, the application automatically uses a default
+configuration to get you started quickly.
 
-### Custom Configuration
+### Custom Configuration Directory
 
-Users can specify a custom configuration directory by setting the environment variable `EOS_DIR`.
+You can specify a custom location for your configuration by setting the `EOS_DIR` environment
+variable:
 
-- If the directory specified by `EOS_DIR` contains an existing `EOS.config.json` file, the
-  application will use this configuration file.
-- If the `EOS.config.json` file does not exist in the specified directory, the `default.config.json`
-  file will be copied to the directory as `EOS.config.json`.
+```bash
+export EOS_DIR=/path/to/your/config
+```
 
-### Configuration Updates
+**How it works:**
 
-If the configuration keys in the `EOS.config.json` file are missing or different from those in
-`default.config.json`, they will be automatically updated to match the default settings, ensuring
-that all required keys are present.
+- **If `EOS.config.json` exists** in the `EOS_DIR` directory → the application uses this
+  configuration
+- **If `EOS.config.json` doesn't exist** → the application copies `default.config.json` to `EOS_DIR`
+  as `EOS.config.json`
 
-## Classes and Functionalities
+### Creating Your Configuration
 
-This project uses various classes to simulate and optimize the components of an energy system. Each
-class represents a specific aspect of the system, as described below:
+There are three ways to configure AkkudoktorEOS:
 
-- `Battery`: Simulates a battery storage system, including capacity, state of charge, and now
-             charge and discharge losses.
+1. **EOSdash (Recommended)** - The easiest method is to use the web-based dashboard at
+   [http://localhost:8504](http://localhost:8504)
 
-- `PVForecast`: Provides forecast data for photovoltaic generation, based on weather data and
-                historical generation data.
+2. **Manual editing** - Create or edit the `EOS.config.json` file directly in your preferred text
+   editor
 
-- `Load`: Models the load requirements of a household or business, enabling the prediction of future
-          energy demand.
+3. **Server API** - Programmatically change configuration through the [server API](#server-api-page)
 
-- `Heatpump`: Simulates a heat pump, including its energy consumption and efficiency under various
-              operating conditions.
+For a complete reference of all available configuration options, see the [configuration guideline](#configuration-page).
 
-- `Strompreis`: Provides information on electricity prices, enabling optimization of energy
-                consumption and generation based on tariff information.
+## Quick Start Example
 
-- `EMS`: The Energy Management System (EMS) coordinates the interaction between the various
-         components, performs optimization, and simulates the operation of the entire energy system.
+```bash
+# Pull the latest docker image
+docker pull akkudoktor/eos:latest
 
-These classes work together to enable a detailed simulation and optimization of the energy system.
-For each class, specific parameters and settings can be adjusted to test different scenarios and
-strategies.
+# Run the application
+docker run -d \
+  --name akkudoktoreos \
+  -p 8503:8503 \
+  -p 8504:8504 \
+  -e OPENBLAS_NUM_THREADS=1 \
+  -e OMP_NUM_THREADS=1 \
+  -e MKL_NUM_THREADS=1 \
+  -e EOS_SERVER__HOST=0.0.0.0 \
+  -e EOS_SERVER__PORT=8503 \
+  -e EOS_SERVER__EOSDASH_HOST=0.0.0.0 \
+  -e EOS_SERVER__EOSDASH_PORT=8504 \
+  --ulimit nproc=65535:65535 \
+  --ulimit nofile=65535:65535 \
+  --security-opt seccomp=unconfined \
+  akkudoktor/eos:latest
 
-### Customization and Extension
-
-Each class is designed to be easily customized and extended to integrate additional functions or
-improvements. For example, new methods can be added for more accurate modeling of PV system or
-battery behavior. Developers are invited to modify and extend the system according to their needs.
+# Access the dashboard
+open http://localhost:8504
+```

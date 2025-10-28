@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import asyncio
 import cProfile
 import json
 import pstats
@@ -9,21 +10,27 @@ import time
 from typing import Any
 
 import numpy as np
+from loguru import logger
 
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.optimization.genetic import (
-    OptimizationParameters,
-    optimization_problem,
+    GeneticOptimizationParameters,
 )
 from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.utils.datetimeutil import to_datetime
+
+config_eos = get_config()
+prediction_eos = get_prediction()
+ems_eos = get_ems()
 
 
-def prepare_optimization_real_parameters() -> OptimizationParameters:
+def prepare_optimization_real_parameters() -> GeneticOptimizationParameters:
     """Prepare and return optimization parameters with real world data.
 
     Returns:
-        OptimizationParameters: Configured optimization parameters
+        GeneticOptimizationParameters: Configured optimization parameters
     """
     # Make a config
     settings = {
@@ -34,6 +41,18 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
         "prediction": {
             "hours": 48,
             "historic_hours": 24,
+        },
+        "optimization": {
+            "horizon_hours": 24,
+            "interval": 3600,
+            "genetic": {
+                "individuals": 300,
+                "generations": 400,
+                "seed": None,
+                "penalties": {
+                    "ev_soc_miss": 10,
+                },
+            },
         },
         # PV Forecast
         "pvforecast": {
@@ -81,14 +100,30 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
         "load": {
             "provider": "LoadAkkudoktor",
             "provider_settings": {
-                "loadakkudoktor_year_energy": 5000,  # Energy consumption per year in kWh
+                "LoadAkkudoktor": {
+                    "loadakkudoktor_year_energy": 5000,  # Energy consumption per year in kWh
+                },
             },
         },
         # -- Simulations --
+        # Assure we have charge rates for the EV
+        "devices": {
+            "max_electric_vehicles": 1,
+            "electric_vehicles": [
+                {
+                    "charge_rates": [
+                        0.0,
+                        6.0 / 16.0,
+                        8.0 / 16.0,
+                        10.0 / 16.0,
+                        12.0 / 16.0,
+                        14.0 / 16.0,
+                        1.0,
+                    ],
+                },
+            ],
+        },
     }
-    config_eos = get_config()
-    prediction_eos = get_prediction()
-    ems_eos = get_ems()
 
     # Update/ set configuration
     config_eos.merge_settings_from_dict(settings)
@@ -96,14 +131,14 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     # Get current prediction data for optimization run
     ems_eos.set_start_datetime()
     print(
-        f"Real data prediction from {prediction_eos.start_datetime} to {prediction_eos.end_datetime}"
+        f"Real data prediction from {prediction_eos.ems_start_datetime} to {prediction_eos.end_datetime}"
     )
     prediction_eos.update_data()
 
     # PV Forecast (in W)
     pv_forecast = prediction_eos.key_to_array(
         key="pvforecast_ac_power",
-        start_datetime=prediction_eos.start_datetime,
+        start_datetime=prediction_eos.ems_start_datetime,
         end_datetime=prediction_eos.end_datetime,
     )
     print(f"pv_forecast: {pv_forecast}")
@@ -111,7 +146,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     # Temperature Forecast (in degree C)
     temperature_forecast = prediction_eos.key_to_array(
         key="weather_temp_air",
-        start_datetime=prediction_eos.start_datetime,
+        start_datetime=prediction_eos.ems_start_datetime,
         end_datetime=prediction_eos.end_datetime,
     )
     print(f"temperature_forecast: {temperature_forecast}")
@@ -119,7 +154,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     # Electricity Price (in Euro per Wh)
     strompreis_euro_pro_wh = prediction_eos.key_to_array(
         key="elecprice_marketprice_wh",
-        start_datetime=prediction_eos.start_datetime,
+        start_datetime=prediction_eos.ems_start_datetime,
         end_datetime=prediction_eos.end_datetime,
     )
     print(f"strompreis_euro_pro_wh: {strompreis_euro_pro_wh}")
@@ -127,7 +162,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     # Overall System Load (in W)
     gesamtlast = prediction_eos.key_to_array(
         key="load_mean",
-        start_datetime=prediction_eos.start_datetime,
+        start_datetime=prediction_eos.ems_start_datetime,
         end_datetime=prediction_eos.end_datetime,
     )
     print(f"gesamtlast: {gesamtlast}")
@@ -137,7 +172,7 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     print(f"start_solution: {start_solution}")
 
     # Define parameters for the optimization problem
-    return OptimizationParameters(
+    return GeneticOptimizationParameters(
         **{
             "ems": {
                 "preis_euro_pro_wh_akku": 0e-05,
@@ -147,14 +182,18 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
                 "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
             },
             "pv_akku": {
-                "device_id": "battery1",
+                "device_id": "battery 1",
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
                 "min_soc_percentage": 15,
             },
-            "inverter": {"device_id": "iv1", "max_power_wh": 10000, "battery_id": "battery1"},
+            "inverter": {
+                "device_id": "inverter 1",
+                "max_power_wh": 10000,
+                "battery_id": "battery 1",
+            },
             "eauto": {
-                "device_id": "ev1",
+                "device_id": "electric vehicle 1",
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,
                 "charging_efficiency": 0.95,
@@ -167,12 +206,49 @@ def prepare_optimization_real_parameters() -> OptimizationParameters:
     )
 
 
-def prepare_optimization_parameters() -> OptimizationParameters:
+def prepare_optimization_parameters() -> GeneticOptimizationParameters:
     """Prepare and return optimization parameters with predefined data.
 
     Returns:
-        OptimizationParameters: Configured optimization parameters
+        GeneticOptimizationParameters: Configured optimization parameters
     """
+    # Initialize the optimization problem using the default configuration
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {
+                "horizon_hours": 48,
+                "interval": 3600,
+                "genetic": {
+                    "individuals": 300,
+                    "generations": 400,
+                    "seed": None,
+                    "penalties": {
+                        "ev_soc_miss": 10,
+                    },
+                },
+            },
+            # Assure we have charge rates for the EV
+            "devices": {
+                "max_electric_vehicles": 1,
+                "electric_vehicles": [
+                    {
+                        "device_id": "Default EV",
+                        "charge_rates": [
+                            0.0,
+                            6.0 / 16.0,
+                            8.0 / 16.0,
+                            10.0 / 16.0,
+                            12.0 / 16.0,
+                            14.0 / 16.0,
+                            1.0,
+                        ],
+                    },
+                ],
+            },
+        }
+    )
+
     # PV Forecast (in W)
     pv_forecast = np.zeros(48)
     pv_forecast[12] = 5000
@@ -291,7 +367,7 @@ def prepare_optimization_parameters() -> OptimizationParameters:
     start_solution = None
 
     # Define parameters for the optimization problem
-    return OptimizationParameters(
+    return GeneticOptimizationParameters(
         **{
             "ems": {
                 "preis_euro_pro_wh_akku": 0e-05,
@@ -301,14 +377,18 @@ def prepare_optimization_parameters() -> OptimizationParameters:
                 "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
             },
             "pv_akku": {
-                "device_id": "battery1",
+                "device_id": "battery 1",
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
                 "min_soc_percentage": 15,
             },
-            "inverter": {"device_id": "iv1", "max_power_wh": 10000, "battery_id": "battery1"},
+            "inverter": {
+                "device_id": "inverter 1",
+                "max_power_wh": 10000,
+                "battery_id": "battery 1",
+            },
             "eauto": {
-                "device_id": "ev1",
+                "device_id": "electric vehicle 1",
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,
                 "charging_efficiency": 0.95,
@@ -336,27 +416,30 @@ def run_optimization(
     # Prepare parameters
     if parameters_file:
         with open(parameters_file, "r") as f:
-            parameters = OptimizationParameters(**json.load(f))
+            parameters = GeneticOptimizationParameters(**json.load(f))
     elif real_world:
         parameters = prepare_optimization_real_parameters()
     else:
         parameters = prepare_optimization_parameters()
+    logger.info("Optimization Parameters:")
+    logger.info(parameters.model_dump_json(indent=4))
 
-    if verbose:
-        print("\nOptimization Parameters:")
-        print(parameters.model_dump_json(indent=4))
+    if start_hour is None:
+        start_datetime = None
+    else:
+        start_datetime = to_datetime().set(hour=start_hour)
 
-    # Initialize the optimization problem using the default configuration
-    config_eos = get_config()
-    config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 48}, "optimization": {"hours": 48}}
+    asyncio.run(
+        ems_eos.run(
+            start_datetime=start_datetime,
+            mode=EnergyManagementMode.OPTIMIZATION,
+            genetic_parameters=parameters,
+            genetic_individuals=ngen,
+            genetic_seed=seed,
+        )
     )
-    opt_class = optimization_problem(verbose=verbose, fixed_seed=seed)
 
-    # Perform the optimisation based on the provided parameters and start hour
-    result = opt_class.optimierung_ems(parameters=parameters, start_hour=start_hour, ngen=ngen)
-
-    return result.model_dump_json()
+    return ems_eos.genetic_solution().model_dump_json()
 
 
 def main():

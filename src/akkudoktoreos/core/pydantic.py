@@ -14,7 +14,6 @@ Key Features:
 
 import inspect
 import json
-import re
 import uuid
 import weakref
 from copy import deepcopy
@@ -32,23 +31,20 @@ from typing import (
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import pendulum
 from loguru import logger
 from pandas.api.types import is_datetime64_any_dtype
 from pydantic import (
-    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
     PrivateAttr,
     RootModel,
-    TypeAdapter,
     ValidationError,
     ValidationInfo,
     field_validator,
 )
 
-from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
 
 # Global weakref dictionary to hold external state per model instance
 # Used as a workaround for PrivateAttr not working in e.g. Mixin Classes
@@ -56,49 +52,40 @@ _model_private_state: "weakref.WeakKeyDictionary[Union[PydanticBaseModel, Pydant
 
 
 def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, Any]:
-    def deep_update(source_dict: dict[str, Any], update_dict: dict[str, Any]) -> dict[str, Any]:
-        for key, value in source_dict.items():
-            if isinstance(value, dict) and isinstance(update_dict.get(key), dict):
-                update_dict[key] = deep_update(update_dict[key], value)
-            else:
-                update_dict[key] = value
-        return update_dict
+    """Merge a Pydantic model instance with an update dictionary.
+
+    Values in update_dict (including None) override source values.
+    Nested dictionaries are merged recursively.
+    Lists in update_dict replace source lists entirely.
+
+    Args:
+        source (BaseModel): Pydantic model instance serving as the source.
+        update_dict (dict[str, Any]): Dictionary with updates to apply.
+
+    Returns:
+        dict[str, Any]: Merged dictionary representing combined model data.
+    """
+
+    def deep_merge(source_data: Any, update_data: Any) -> Any:
+        if isinstance(source_data, dict) and isinstance(update_data, dict):
+            merged = dict(source_data)
+            for key, update_value in update_data.items():
+                if key in merged:
+                    merged[key] = deep_merge(merged[key], update_value)
+                else:
+                    merged[key] = update_value
+            return merged
+
+        # If both are lists, replace source list with update list
+        if isinstance(source_data, list) and isinstance(update_data, list):
+            return update_data
+
+        # For other types or if update_data is None, override source_data
+        return update_data
 
     source_dict = source.model_dump(exclude_unset=True)
-    merged_dict = deep_update(source_dict, deepcopy(update_dict))
-
-    return merged_dict
-
-
-class PydanticTypeAdapterDateTime(TypeAdapter[pendulum.DateTime]):
-    """Custom type adapter for Pendulum DateTime fields."""
-
-    @classmethod
-    def serialize(cls, value: Any) -> str:
-        """Convert pendulum.DateTime to ISO 8601 string."""
-        if isinstance(value, pendulum.DateTime):
-            return value.to_iso8601_string()
-        raise ValueError(f"Expected pendulum.DateTime, got {type(value)}")
-
-    @classmethod
-    def deserialize(cls, value: Any) -> pendulum.DateTime:
-        """Convert ISO 8601 string to pendulum.DateTime."""
-        if isinstance(value, str) and cls.is_iso8601(value):
-            try:
-                return pendulum.parse(value)
-            except pendulum.parsing.exceptions.ParserError as e:
-                raise ValueError(f"Invalid date format: {value}") from e
-        elif isinstance(value, pendulum.DateTime):
-            return value
-        raise ValueError(f"Expected ISO 8601 string or pendulum.DateTime, got {type(value)}")
-
-    @staticmethod
-    def is_iso8601(value: str) -> bool:
-        """Check if the string is a valid ISO 8601 date string."""
-        iso8601_pattern = (
-            r"^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})?)$"
-        )
-        return bool(re.match(iso8601_pattern, value))
+    merged_result = deep_merge(source_dict, deepcopy(update_dict))
+    return merged_result
 
 
 class PydanticModelNestedValueMixin:
@@ -653,67 +640,9 @@ class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
         """
         return hash(self._uuid)
 
-    @field_validator("*", mode="before")
-    def validate_and_convert_pendulum(cls, value: Any, info: ValidationInfo) -> Any:
-        """Validator to convert fields of type `pendulum.DateTime`.
-
-        Converts fields to proper `pendulum.DateTime` objects, ensuring correct input types.
-
-        This method is invoked for every field before the field value is set. If the field's type
-        is `pendulum.DateTime`, it tries to convert string or timestamp values to `pendulum.DateTime`
-        objects. If the value cannot be converted, a validation error is raised.
-
-        Args:
-            value: The value to be assigned to the field.
-            info: Validation information for the field.
-
-        Returns:
-            The converted value, if successful.
-
-        Raises:
-            ValidationError: If the value cannot be converted to `pendulum.DateTime`.
-        """
-        # Get the field name and expected type
-        field_name = info.field_name
-        expected_type = cls.model_fields[field_name].annotation
-
-        # Convert
-        if expected_type is pendulum.DateTime or expected_type is AwareDatetime:
-            try:
-                value = to_datetime(value)
-            except Exception as e:
-                raise ValueError(f"Cannot convert {value!r} to datetime: {e}")
-        return value
-
-    # Override Pydantic’s serialization for all DateTime fields
-    def model_dump(
-        self, *args: Any, include_computed_fields: bool = True, **kwargs: Any
-    ) -> dict[str, Any]:
-        """Custom dump method to handle serialization for DateTime fields."""
-        result = super().model_dump(*args, **kwargs)
-
-        if not include_computed_fields:
-            for computed_field_name in self.model_computed_fields:
-                result.pop(computed_field_name, None)
-
-        for key, value in result.items():
-            if isinstance(value, pendulum.DateTime):
-                result[key] = PydanticTypeAdapterDateTime.serialize(value)
-        return result
-
-    @classmethod
-    def model_construct(
-        cls, _fields_set: set[str] | None = None, **values: Any
-    ) -> "PydanticBaseModel":
-        """Custom constructor to handle deserialization for DateTime fields."""
-        for key, value in values.items():
-            if isinstance(value, str) and PydanticTypeAdapterDateTime.is_iso8601(value):
-                values[key] = PydanticTypeAdapterDateTime.deserialize(value)
-        return super().model_construct(_fields_set, **values)
-
     def reset_to_defaults(self) -> "PydanticBaseModel":
         """Resets the fields to their default values."""
-        for field_name, field_info in self.model_fields.items():
+        for field_name, field_info in self.__class__.model_fields.items():
             if field_info.default_factory is not None:  # Handle fields with default_factory
                 default_value = field_info.default_factory()
             else:
@@ -724,6 +653,19 @@ class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
                 # Skip fields that are read-only or dynamically computed or can not be set to default
                 pass
         return self
+
+    # Override Pydantic’s serialization to include computed fields by default
+    def model_dump(
+        self, *args: Any, include_computed_fields: bool = True, **kwargs: Any
+    ) -> dict[str, Any]:
+        """Custom dump method to serialize computed fields by default."""
+        result = super().model_dump(*args, **kwargs)
+
+        if not include_computed_fields:
+            for computed_field_name in self.__class__.model_computed_fields:
+                result.pop(computed_field_name, None)
+
+        return result
 
     def to_dict(self) -> dict:
         """Convert this PredictionRecord instance to a dictionary representation.
@@ -910,16 +852,27 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
         if not v:
             return v
 
-        valid_dtypes = {"int64", "float64", "bool", "datetime64[ns]", "object", "string"}
-        invalid_dtypes = set(v.values()) - valid_dtypes
-        if invalid_dtypes:
-            raise ValueError(f"Unsupported dtypes: {invalid_dtypes}")
+        # Allowed exact dtypes
+        valid_base_dtypes = {"int64", "float64", "bool", "object", "string"}
 
+        def is_valid_dtype(dtype: str) -> bool:
+            # Allow timezone-aware or naive datetime64
+            if dtype.startswith("datetime64[ns"):
+                return True
+            return dtype in valid_base_dtypes
+
+        invalid_dtypes = [dtype for dtype in v.values() if not is_valid_dtype(dtype)]
+        if invalid_dtypes:
+            raise ValueError(f"Unsupported dtypes: {set(invalid_dtypes)}")
+
+        # Cross-check with data column existence
         data = info.data.get("data", {})
         if data:
             columns = set(next(iter(data.values())).keys())
-            if not all(col in columns for col in v.keys()):
-                raise ValueError("dtype columns must exist in data columns")
+            missing_columns = set(v.keys()) - columns
+            if missing_columns:
+                raise ValueError(f"dtype columns must exist in data columns: {missing_columns}")
+
         return v
 
     def to_dataframe(self) -> pd.DataFrame:
@@ -927,7 +880,8 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
         df = pd.DataFrame.from_dict(self.data, orient="index")
 
         # Convert index to datetime
-        index = pd.Index([to_datetime(dt, in_timezone=self.tz) for dt in df.index])
+        # index = pd.Index([to_datetime(dt, in_timezone=self.tz) for dt in df.index])
+        index = [to_datetime(dt, in_timezone=self.tz) for dt in df.index]
         df.index = index
 
         # Check if 'date_time' column exists, if not, create it
@@ -943,8 +897,8 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
 
         # Apply dtypes
         for col, dtype in self.dtypes.items():
-            if dtype == "datetime64[ns]":
-                df[col] = pd.to_datetime(to_datetime(df[col], in_timezone=self.tz))
+            if dtype.startswith("datetime64[ns"):
+                df[col] = pd.to_datetime(df[col], utc=True)
             elif dtype in dtype_mapping.keys():
                 df[col] = df[col].astype(dtype_mapping[dtype])
             else:
@@ -968,6 +922,132 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
             tz=tz,
             datetime_columns=datetime_columns,
         )
+
+    # --- Direct Manipulation Methods ---
+
+    def _normalize_index(self, index: str | DateTime) -> str:
+        """Normalize index into timezone-aware datetime string.
+
+        Args:
+            index (str | DateTime): A datetime-like value.
+
+        Returns:
+            str: Normalized datetime string based on model timezone.
+        """
+        return to_datetime(index, as_string=True, in_timezone=self.tz)
+
+    def add_row(self, index: str | DateTime, row: Dict[str, Any]) -> None:
+        """Add a new row to the dataset.
+
+        Args:
+            index (str | DateTime): Timestamp of the new row.
+            row (Dict[str, Any]): Dictionary of column values. Must match existing columns.
+
+        Raises:
+            ValueError: If row does not contain the exact same columns as existing rows.
+        """
+        idx = self._normalize_index(index)
+
+        if self.data:
+            existing_cols = set(next(iter(self.data.values())).keys())
+            if set(row.keys()) != existing_cols:
+                raise ValueError(f"Row must have exactly these columns: {existing_cols}")
+        self.data[idx] = row
+
+    def update_row(self, index: str | DateTime, updates: Dict[str, Any]) -> None:
+        """Update values for an existing row.
+
+        Args:
+            index (str | DateTime): Timestamp of the row to modify.
+            updates (Dict[str, Any]): Key/value pairs of columns to update.
+
+        Raises:
+            KeyError: If row or column does not exist.
+        """
+        idx = self._normalize_index(index)
+        if idx not in self.data:
+            raise KeyError(f"Row {idx} not found")
+        for col, value in updates.items():
+            if col not in self.data[idx]:
+                raise KeyError(f"Column {col} does not exist")
+            self.data[idx][col] = value
+
+    def delete_row(self, index: str | DateTime) -> None:
+        """Delete a row from the dataset.
+
+        Args:
+            index (str | DateTime): Timestamp of the row to delete.
+        """
+        idx = self._normalize_index(index)
+        if idx in self.data:
+            del self.data[idx]
+
+    def set_value(self, index: str | DateTime, column: str, value: Any) -> None:
+        """Set a single cell value.
+
+        Args:
+            index (str | datetime): Timestamp of the row.
+            column (str): Column name.
+            value (Any): New value.
+        """
+        self.update_row(index, {column: value})
+
+    def get_value(self, index: str | DateTime, column: str) -> Any:
+        """Retrieve a single cell value.
+
+        Args:
+            index (str | DateTime): Timestamp of the row.
+            column (str): Column name.
+
+        Returns:
+            Any: Value stored at the given location.
+        """
+        idx = self._normalize_index(index)
+        return self.data[idx][column]
+
+    def add_column(self, name: str, default: Any = None, dtype: Optional[str] = None) -> None:
+        """Add a new column to all rows.
+
+        Args:
+            name (str): Name of the column to add.
+            default (Any, optional): Default value for all rows. Defaults to None.
+            dtype (Optional[str], optional): Declared data type. Defaults to None.
+        """
+        for row in self.data.values():
+            row[name] = default
+        if dtype:
+            self.dtypes[name] = dtype
+
+    def rename_column(self, old: str, new: str) -> None:
+        """Rename a column across all rows.
+
+        Args:
+            old (str): Existing column name.
+            new (str): New column name.
+
+        Raises:
+            KeyError: If column does not exist.
+        """
+        for row in self.data.values():
+            if old not in row:
+                raise KeyError(f"Column {old} does not exist")
+            row[new] = row.pop(old)
+        if old in self.dtypes:
+            self.dtypes[new] = self.dtypes.pop(old)
+        if old in self.datetime_columns:
+            self.datetime_columns = [new if c == old else c for c in self.datetime_columns]
+
+    def drop_column(self, name: str) -> None:
+        """Remove a column from all rows.
+
+        Args:
+            name (str): Column to remove.
+        """
+        for row in self.data.values():
+            if name in row:
+                del row[name]
+        self.dtypes.pop(name, None)
+        self.datetime_columns = [c for c in self.datetime_columns if c != name]
 
 
 class PydanticDateTimeSeries(PydanticBaseModel):
@@ -1066,10 +1146,6 @@ class PydanticDateTimeSeries(PydanticBaseModel):
             dtype=str(series.dtype),
             tz=tz,
         )
-
-
-class ParametersBaseModel(PydanticBaseModel):
-    model_config = ConfigDict(extra="forbid")
 
 
 def set_private_attr(

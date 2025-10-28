@@ -2,9 +2,10 @@ from typing import Any
 
 from fasthtml.common import Div
 
+from akkudoktoreos.core.version import __version__
 from akkudoktoreos.server.dash.markdown import Markdown
 
-hello_md = """![Logo](/eosdash/assets/logo.png)
+about_md = f"""![Logo](/eosdash/assets/logo.png)
 
 # Akkudoktor EOSdash
 
@@ -17,8 +18,15 @@ electricity price data, this system enables forecasting and optimization of ener
 over a specified period.
 
 Documentation can be found at [Akkudoktor-EOS](https://akkudoktor-eos.readthedocs.io/en/latest/).
+
+## Version Information
+
+**Current Version:** {__version__}
+
+**License:** Apache License
+
 """
 
 
-def Hello(**kwargs: Any) -> Div:
-    return Markdown(hello_md, **kwargs)
+def About(**kwargs: Any) -> Div:
+    return Markdown(about_md, **kwargs)

@@ -1,8 +1,9 @@
 # Exclude some file types from automatic code style
 exclude: \.(json|csv)$
 repos:
+  # --- Basic sanity checks ---
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: check-merge-conflict
       - id: check-toml
@@ -10,31 +11,38 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: check-merge-conflict
-        exclude: '\.rst$'  # Exclude .rst files
+        exclude: '\.rst$'  # Exclude .rst files from whitespace cleanup
+
+  # --- Import sorting ---
   - repo: https://github.com/PyCQA/isort
-    rev: 6.0.0
+    rev: 7.0.0
     hooks:
       - id: isort
-        name: isort
+
+  # --- Linting + Formatting via Ruff ---
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.6
+    rev: v0.14.1
     hooks:
-      # Run the linter and fix simple issues automatically
+      # Run the linter and fix simple isssues automatically
       - id: ruff
         args: [--fix]
-      # Run the formatter.
+      # Run the formatter
       - id: ruff-format
+
+  # --- Static type checking ---
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: 'v1.15.0'
+    rev: v1.18.2
     hooks:
       - id: mypy
         additional_dependencies:
-          - "types-requests==2.32.0.20241016"
-          - "pandas-stubs==2.2.3.241009"
-          - "numpy==2.1.3"
+          - types-requests==2.32.4.20250913
+          - pandas-stubs==2.3.2.250926
+          - tokenize-rt==3.2.0
         pass_filenames: false
+
+  # --- Markdown linter ---
   - repo: https://github.com/jackdewinter/pymarkdown
-    rev: v0.9.29
+    rev: v0.9.32
     hooks:
       - id: pymarkdown
         files: ^docs/
@@ -42,7 +50,31 @@ repos:
         args:
           - --config=docs/pymarkdown.json
           - scan
-  - repo: https://github.com/jorisroovers/gitlint
-    rev:  v0.19.1
+
+  # --- Commit message linting ---
+  # - Local cross-platform hooks
+  - repo: local
     hooks:
-      - id: gitlint
+      # Validate commit messages (using Python wrapper)
+      - id: commitizen-commit
+        name: Commitizen (venv-aware)
+        entry: python3 scripts/cz_check_commit_message.py
+        language: system
+        stages: [commit-msg]
+        pass_filenames: false
+
+      # Branch name check on push (using Python wrapper)
+      - id: commitizen-branch
+        name: Commitizen branch check
+        entry: python3 scripts/cz_check_branch.py
+        language: system
+        stages: [pre-push]
+        pass_filenames: false
+
+      # Validate new commit messages before push (using Python wrapper)
+      - id: commitizen-new-commits
+        name: Commitizen (check new commits only, .venv aware)
+        entry: python3 -m scripts.cz_check_new_commits
+        language: system
+        stages: [pre-push]
+        pass_filenames: false

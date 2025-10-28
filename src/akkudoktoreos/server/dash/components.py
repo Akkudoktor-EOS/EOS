@@ -1,15 +1,13 @@
 from typing import Any, Optional, Union
 
-from fasthtml.common import H1, Div, Li
+from fasthtml.common import H1, Button, Div, Li
 from monsterui.daisy import (
     Alert,
     AlertT,
 )
 from monsterui.foundations import stringify
-from monsterui.franken import (
+from monsterui.franken import (  # Button, Does not pass hx_vals
     H3,
-    Button,
-    ButtonT,
     Card,
     Container,
     ContainerT,
@@ -246,7 +244,8 @@ def DashboardTrigger(*c: Any, cls: Optional[Union[str, tuple]] = None, **kwargs:
     Returns:
         Button: A styled `Button` component.
     """
-    new_cls = f"{ButtonT.primary}"
+    #   new_cls = f"{ButtonT.primary} uk-border-rounded uk-padding-small"
+    new_cls = "uk-btn uk-btn-primary uk-border-rounded uk-padding-medium"
     if cls:
         new_cls += f" {stringify(cls)}"
     kwargs["cls"] = new_cls
@@ -270,6 +269,7 @@ def DashboardTabs(dashboard_items: dict[str, str]) -> Card:
                 hx_get=f"{path}",
                 hx_target="#page-content",
                 hx_swap="innerHTML",
+                hx_vals='js:{ "dark": window.matchMedia("(prefers-color-scheme: dark)").matches }',
             ),
         )
         for menu, path in dashboard_items.items()
@@ -286,7 +286,9 @@ def DashboardContent(content: Any) -> Card:
     Returns:
         Card: A styled `Card` element containing the content.
     """
-    return Card(ScrollArea(Container(content, id="page-content"), cls="h-[75vh] w-full rounded-md"))
+    return Card(
+        ScrollArea(Container(content, id="page-content"), cls="h-[75vh] w-full rounded-md"),
+    )
 
 
 def Page(

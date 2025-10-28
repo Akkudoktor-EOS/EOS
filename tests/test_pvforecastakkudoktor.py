@@ -276,7 +276,7 @@ def test_pvforecast_akkudoktor_update_with_sample_forecast(
     ems_eos = get_ems()
     ems_eos.set_start_datetime(sample_forecast_start)
     provider.update_data(force_enable=True, force_update=True)
-    assert compare_datetimes(provider.start_datetime, sample_forecast_start).equal
+    assert compare_datetimes(provider.ems_start_datetime, sample_forecast_start).equal
     assert compare_datetimes(provider[0].date_time, to_datetime(sample_forecast_start)).equal
 
 
@@ -328,7 +328,7 @@ def test_timezone_behaviour(
     ems_eos = get_ems()
     ems_eos.set_start_datetime(other_start_datetime)
     provider.update_data(force_update=True)
-    assert compare_datetimes(provider.start_datetime, other_start_datetime).equal
+    assert compare_datetimes(provider.ems_start_datetime, other_start_datetime).equal
     # Check wether first record starts at requested sample start time
     assert compare_datetimes(provider[0].date_time, sample_forecast_start).equal
 

@@ -2,6 +2,7 @@
     "records": [
         {
             "date_time": "2024-10-26 00:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -23,11 +24,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 01:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -49,11 +50,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 02:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -75,11 +76,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 03:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -101,11 +102,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 04:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -127,11 +128,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 05:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 87.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -153,11 +154,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 06:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -179,11 +180,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 07:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -205,11 +206,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 08:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -231,11 +232,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 09:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -257,11 +258,11 @@
             "weather_ozone": null,
             "weather_ghi": 22.22705922303379,
             "weather_dni": 0.0,
-            "weather_dhi": 22.22705922303379,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 22.22705922303379
         },
         {
             "date_time": "2024-10-26 10:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -283,11 +284,11 @@
             "weather_ozone": null,
             "weather_ghi": 68.16265202099999,
             "weather_dni": 0.0,
-            "weather_dhi": 68.16265202099999,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 68.16265202099999
         },
         {
             "date_time": "2024-10-26 11:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -309,11 +310,11 @@
             "weather_ozone": null,
             "weather_ghi": 108.0100746278567,
             "weather_dni": 0.0,
-            "weather_dhi": 108.0100746278567,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 108.0100746278567
         },
         {
             "date_time": "2024-10-26 12:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -335,11 +336,11 @@
             "weather_ozone": null,
             "weather_ghi": 134.2816493853918,
             "weather_dni": 0.0,
-            "weather_dhi": 134.2816493853918,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 134.2816493853918
         },
         {
             "date_time": "2024-10-26 13:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -361,11 +362,11 @@
             "weather_ozone": null,
             "weather_ghi": 144.04237088707308,
             "weather_dni": 0.0,
-            "weather_dhi": 144.04237088707308,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 144.04237088707308
         },
         {
             "date_time": "2024-10-26 14:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -387,11 +388,11 @@
             "weather_ozone": null,
             "weather_ghi": 136.35519419190516,
             "weather_dni": 0.0,
-            "weather_dhi": 136.35519419190516,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 136.35519419190516
         },
         {
             "date_time": "2024-10-26 15:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -413,11 +414,11 @@
             "weather_ozone": null,
             "weather_ghi": 111.94730962791996,
             "weather_dni": 0.0,
-            "weather_dhi": 111.94730962791996,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 111.94730962791996
         },
         {
             "date_time": "2024-10-26 16:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -439,11 +440,11 @@
             "weather_ozone": null,
             "weather_ghi": 73.45834328182735,
             "weather_dni": 0.0,
-            "weather_dhi": 73.45834328182735,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 73.45834328182735
         },
         {
             "date_time": "2024-10-26 17:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 87.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -465,11 +466,11 @@
             "weather_ozone": null,
             "weather_ghi": 34.07062080450064,
             "weather_dni": 0.0,
-            "weather_dhi": 34.07062080450064,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 34.07062080450064
         },
         {
             "date_time": "2024-10-26 18:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 62.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -491,11 +492,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.11256372587508819,
             "weather_dni": 0.0,
-            "weather_dhi": 0.11256372587508819,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.11256372587508819
         },
         {
             "date_time": "2024-10-26 19:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -517,11 +518,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 20:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -543,11 +544,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 21:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 87.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -569,11 +570,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 22:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 87.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -595,11 +596,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-26 23:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 87.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -621,11 +622,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 00:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -647,11 +648,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 01:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -673,11 +674,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 02:00:00+02:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -699,11 +700,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 02:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -725,11 +726,11 @@
             "weather_ozone": null,
             "weather_ghi": null,
             "weather_dni": null,
-            "weather_dhi": null,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": null
         },
         {
             "date_time": "2024-10-27 03:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -751,11 +752,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 04:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -777,11 +778,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 05:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -803,11 +804,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 06:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -829,11 +830,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 07:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -855,11 +856,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 08:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -881,11 +882,11 @@
             "weather_ozone": null,
             "weather_ghi": 20.901591088639343,
             "weather_dni": 0.0,
-            "weather_dhi": 20.901591088639343,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 20.901591088639343
         },
         {
             "date_time": "2024-10-27 09:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -907,11 +908,11 @@
             "weather_ozone": null,
             "weather_ghi": 66.41841804602629,
             "weather_dni": 0.0,
-            "weather_dhi": 66.41841804602629,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 66.41841804602629
         },
         {
             "date_time": "2024-10-27 10:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -933,11 +934,11 @@
             "weather_ozone": null,
             "weather_ghi": 106.12345605852113,
             "weather_dni": 0.0,
-            "weather_dhi": 106.12345605852113,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 106.12345605852113
         },
         {
             "date_time": "2024-10-27 11:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -959,11 +960,11 @@
             "weather_ozone": null,
             "weather_ghi": 132.31929512932624,
             "weather_dni": 0.0,
-            "weather_dhi": 132.31929512932624,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 132.31929512932624
         },
         {
             "date_time": "2024-10-27 12:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -985,11 +986,11 @@
             "weather_ozone": null,
             "weather_ghi": 142.03807516868267,
             "weather_dni": 0.0,
-            "weather_dhi": 142.03807516868267,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 142.03807516868267
         },
         {
             "date_time": "2024-10-27 13:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1011,11 +1012,11 @@
             "weather_ozone": null,
             "weather_ghi": 134.33853283469773,
             "weather_dni": 0.0,
-            "weather_dhi": 134.33853283469773,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 134.33853283469773
         },
         {
             "date_time": "2024-10-27 14:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1037,11 +1038,11 @@
             "weather_ozone": null,
             "weather_ghi": 109.95561941571053,
             "weather_dni": 0.0,
-            "weather_dhi": 109.95561941571053,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 109.95561941571053
         },
         {
             "date_time": "2024-10-27 15:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 87.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1063,11 +1064,11 @@
             "weather_ozone": null,
             "weather_ghi": 88.84019629738314,
             "weather_dni": 0.0,
-            "weather_dhi": 88.84019629738314,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 88.84019629738314
         },
         {
             "date_time": "2024-10-27 16:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1089,11 +1090,11 @@
             "weather_ozone": null,
             "weather_ghi": 25.90303659201319,
             "weather_dni": 0.0,
-            "weather_dhi": 25.90303659201319,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 25.90303659201319
         },
         {
             "date_time": "2024-10-27 17:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1115,11 +1116,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.027781191847857583,
             "weather_dni": 0.0,
-            "weather_dhi": 0.027781191847857583,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.027781191847857583
         },
         {
             "date_time": "2024-10-27 18:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1141,11 +1142,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 19:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1167,11 +1168,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 20:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1193,11 +1194,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 21:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1219,11 +1220,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 22:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1245,11 +1246,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-27 23:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1271,11 +1272,11 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         },
         {
             "date_time": "2024-10-28 00:00:00+01:00",
+            "configured_data": {},
             "weather_total_clouds": 100.0,
             "weather_low_clouds": null,
             "weather_medium_clouds": null,
@@ -1285,7 +1286,7 @@
             "weather_precip_type": null,
             "weather_precip_prob": null,
             "weather_precip_amt": 0.0,
-            "weather_preciptable_water": 2.174201406952952,
+            "weather_preciptable_water": null,
             "weather_wind_speed": 11.9,
             "weather_wind_direction": 180.0,
             "weather_frost_chance": null,
@@ -1297,14 +1298,12 @@
             "weather_ozone": null,
             "weather_ghi": 0.0,
             "weather_dni": 0.0,
-            "weather_dhi": 0.0,
-            "start_datetime": "2024-10-26 00:00:00+02:00"
+            "weather_dhi": 0.0
         }
     ],
-    "update_datetime": "2025-02-15T08:48:36.218971+01:00",
-    "start_datetime": "2024-10-26T00:00:00+02:00",
-    "min_datetime": "2024-10-26T00:00:00+02:00",
-    "max_datetime": "2024-10-28T00:00:00+01:00",
+    "update_datetime": "2025-10-23 17:16:44.461593+02:00",
+    "min_datetime": "2024-10-26 00:00:00+02:00",
+    "max_datetime": "2024-10-28 00:00:00+01:00",
     "record_keys": [
         "date_time",
         "weather_total_clouds",
@@ -1328,8 +1327,7 @@
         "weather_ozone",
         "weather_ghi",
         "weather_dni",
-        "weather_dhi",
-        "start_datetime"
+        "weather_dhi"
     ],
     "record_keys_writable": [
         "date_time",
@@ -1356,8 +1354,8 @@
         "weather_dni",
         "weather_dhi"
     ],
-    "end_datetime": "2024-10-28T00:00:00+01:00",
-    "keep_datetime": "2024-10-24T00:00:00+02:00",
+    "end_datetime": "2024-10-28 00:00:00+01:00",
+    "keep_datetime": "2024-10-24 00:00:00+02:00",
     "total_hours": 49,
     "keep_hours": 48
 }

@@ -36,13 +36,28 @@ develop/CONTRIBUTING.md
 
 akkudoktoreos/architecture.md
 akkudoktoreos/configuration.md
-akkudoktoreos/optimization.md
+akkudoktoreos/configtimewindow.md
+akkudoktoreos/optimpost.md
+akkudoktoreos/optimauto.md
+akkudoktoreos/resource.md
 akkudoktoreos/prediction.md
 akkudoktoreos/measurement.md
 akkudoktoreos/integration.md
 akkudoktoreos/logging.md
 akkudoktoreos/serverapi.md
 akkudoktoreos/api.rst
+
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Development
+
+develop/CONTRIBUTING.md
+develop/install.md
+develop/develop.md
+develop/release.md
+develop/CHANGELOG.md
 
 ```
 

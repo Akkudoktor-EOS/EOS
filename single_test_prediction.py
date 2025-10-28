@@ -93,6 +93,22 @@ def config_elecprice() -> dict:
     return settings
 
 
+def config_feedintarifffixed() -> dict:
+    """Configure settings for feed in tariff forecast."""
+    settings = {
+        "general": {
+            "latitude": 52.52,
+            "longitude": 13.405,
+        },
+        "prediction": {
+            "hours": 48,
+            "historic_hours": 24,
+        },
+        "feedintariff": dict(),
+    }
+    return settings
+
+
 def config_load() -> dict:
     """Configure settings for load forecast."""
     settings = {
@@ -130,6 +146,9 @@ def run_prediction(provider_id: str, verbose: bool = False) -> str:
     elif provider_id in ("ElecPriceAkkudoktor",):
         settings = config_elecprice()
         forecast = "elecprice"
+    elif provider_id in ("FeedInTariffFixed",):
+        settings = config_feedintarifffixed()
+        forecast = "elecprice"
     elif provider_id in ("LoadAkkudoktor",):
         settings = config_elecprice()
         forecast = "load"
@@ -151,6 +170,7 @@ def run_prediction(provider_id: str, verbose: bool = False) -> str:
         print(settings)
         print("\nProvider\n----------")
         print(f"elecprice.provider: {config_eos.elecprice.provider}")
+        print(f"feedintariff.provider: {config_eos.feedintariff.provider}")
         print(f"load.provider: {config_eos.load.provider}")
         print(f"pvforecast.provider: {config_eos.pvforecast.provider}")
         print(f"weather.provider: {config_eos.weather.provider}")
