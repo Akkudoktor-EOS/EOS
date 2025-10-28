@@ -165,10 +165,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def measurement_keys(self) -> Optional[list[str]]:
-        """Measurement keys for the battery stati that are measurements.
-
-        Battery SoC, power.
-        """
+        """Measurement keys for the battery stati that are measurements."""
         keys: list[str] = [
             self.measurement_key_soc_factor,
             self.measurement_key_power_l1_w,
