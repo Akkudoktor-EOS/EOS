@@ -25,5 +25,5 @@ myst-parser==4.0.1
 # Pytest
 pytest==8.4.2
 pytest-cov==7.0.0
-coverage==7.10.7
+coverage==7.11.0
 pytest-xprocess==1.0.2
