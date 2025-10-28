@@ -1,6 +1,6 @@
 babel==2.17.0
 beautifulsoup4==4.14.2
-cachebox==5.0.2
+cachebox==5.0.4
 numpy==2.3.3
 numpydantic==1.6.11
 matplotlib==3.10.6
