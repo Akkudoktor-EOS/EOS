@@ -8,7 +8,7 @@ import re
 import sys
 import textwrap
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, Type, Union
 
 from loguru import logger
 from pydantic.fields import ComputedFieldInfo, FieldInfo
@@ -199,7 +199,8 @@ def generate_config_table_md(
                 description = deprecated
         table += f"| {field_name} {env_entry}| `{type_name}` | `{read_only}` | `{default_value}` | {description} |\n"
 
-        inner_types: dict[PydanticBaseModel, tuple[str, list[str]]] = dict()
+        # inner_types: dict[type[PydanticBaseModel], tuple[str, list[str]]] = dict()
+        inner_types: dict[Any, tuple[str, list[str]]] = dict()
 
         def extract_nested_models(subtype: Any, subprefix: str, parent_types: list[str]):
             """Extract nested models."""
@@ -207,7 +208,9 @@ def generate_config_table_md(
                 return
             nested_types = resolve_nested_types(subtype, [])
             for nested_type, nested_parent_types in nested_types:
-                if issubclass(nested_type, PydanticBaseModel):
+                # Nested type may be of type class, enum, typing.Any
+                if isinstance(nested_type, type) and issubclass(nested_type, PydanticBaseModel):
+                    # Nested type is a subclass of PydanticBaseModel
                     new_parent_types = parent_types + nested_parent_types
                     if "list" in parent_types:
                         new_prefix = ""
