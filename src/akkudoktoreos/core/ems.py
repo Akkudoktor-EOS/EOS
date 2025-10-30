@@ -1,6 +1,7 @@
 import traceback
 from asyncio import Lock, get_running_loop
 from concurrent.futures import ThreadPoolExecutor
+from enum import Enum
 from functools import partial
 from typing import ClassVar, Optional
 
@@ -24,6 +25,20 @@ from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_dat
 executor = ThreadPoolExecutor(max_workers=1)
 
 
+class EnergyManagementStage(Enum):
+    """Enumeration of the main stages in the energy management lifecycle."""
+
+    IDLE = "IDLE"
+    DATA_ACQUISITION = "DATA_AQUISITION"
+    FORECAST_RETRIEVAL = "FORECAST_RETRIEVAL"
+    OPTIMIZATION = "OPTIMIZATION"
+    CONTROL_DISPATCH = "CONTROL_DISPATCH"
+
+    def __str__(self) -> str:
+        """Return the string representation of the stage."""
+        return self.value
+
+
 class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBaseModel):
     """Energy management."""
 
@@ -32,6 +47,9 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
 
     # last run datetime. Used by energy management task
     _last_run_datetime: ClassVar[Optional[DateTime]] = None
+
+    # Current energy management stage
+    _stage: ClassVar[EnergyManagementStage] = EnergyManagementStage.IDLE
 
     # energy management plan of latest energy management run with optimization
     _plan: ClassVar[Optional[EnergyManagementPlan]] = None
@@ -80,6 +98,15 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
             start_datetime = to_datetime()
         cls._start_datetime = start_datetime.set(minute=0, second=0, microsecond=0)
         return cls._start_datetime
+
+    @classmethod
+    def stage(cls) -> EnergyManagementStage:
+        """Get the the stage of the energy management.
+
+        Returns:
+            EnergyManagementStage: The current stage of energy management.
+        """
+        return cls._stage
 
     @classmethod
     def plan(cls) -> Optional[EnergyManagementPlan]:
@@ -157,6 +184,8 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
 
         logger.info("Starting energy management run.")
 
+        cls._stage = EnergyManagementStage.DATA_ACQUISITION
+
         # Remember/ set the start datetime of this energy management run.
         # None leads
         cls.set_start_datetime(start_datetime)
@@ -164,12 +193,17 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         # Throw away any memory cached results of the last energy management run.
         CacheEnergyManagementStore().clear()
 
+        # TODO: Do data aquisition by adapters
+
+        cls._stage = EnergyManagementStage.FORECAST_RETRIEVAL
+
         if mode is None:
             mode = cls.config.ems.mode
         if mode is None or mode == "PREDICTION":
             # Update the predictions
             cls.prediction.update_data(force_enable=force_enable, force_update=force_update)
             logger.info("Energy management run done (predictions updated)")
+            cls._stage = EnergyManagementStage.IDLE
             return
 
         # Prepare optimization parameters
@@ -184,7 +218,11 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
             logger.error(
                 "Energy management run canceled. Could not prepare optimisation parameters."
             )
+            cls._stage = EnergyManagementStage.IDLE
             return
+
+        cls._stage = EnergyManagementStage.OPTIMIZATION
+        logger.info("Starting energy management optimization.")
 
         # Take values from config if not given
         if genetic_individuals is None:
@@ -195,7 +233,6 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         if cls._start_datetime is None:  # Make mypy happy - already set by us
             raise RuntimeError("Start datetime not set.")
 
-        logger.info("Starting energy management optimization.")
         try:
             optimization = GeneticOptimization(
                 verbose=bool(cls.config.server.verbose),
@@ -208,7 +245,10 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
             )
         except:
             logger.exception("Energy management optimization failed.")
+            cls._stage = EnergyManagementStage.IDLE
             return
+
+        cls._stage = EnergyManagementStage.CONTROL_DISPATCH
 
         # Make genetic solution public
         cls._genetic_solution = solution
@@ -223,6 +263,11 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         logger.debug("Energy management optimization solution:\n{}", cls._optimization_solution)
         logger.debug("Energy management plan:\n{}", cls._plan)
         logger.info("Energy management run done (optimization updated)")
+
+        # TODO: Do control dispatch by adapters
+
+        # energy management run finished
+        cls._stage = EnergyManagementStage.IDLE
 
     async def run(
         self,
