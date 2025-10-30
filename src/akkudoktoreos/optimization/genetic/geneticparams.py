@@ -462,6 +462,7 @@ class GeneticOptimizationParameters(
                         capacity_wh=electric_vehicle_config.capacity_wh,
                         charging_efficiency=electric_vehicle_config.charging_efficiency,
                         discharging_efficiency=electric_vehicle_config.discharging_efficiency,
+                        charge_rates=electric_vehicle_config.charge_rates,
                         max_charge_power_w=electric_vehicle_config.max_charge_power_w,
                         min_soc_percentage=electric_vehicle_config.min_soc_percentage,
                         max_soc_percentage=electric_vehicle_config.max_soc_percentage,

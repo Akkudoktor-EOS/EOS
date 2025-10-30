@@ -2067,7 +2067,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "Minimum state of charge (SOC) as percentage of capacity [%].",
+            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging",
             "default": 0,
             "examples": [
               10
@@ -2208,7 +2208,7 @@
             "maximum": 100.0,
             "minimum": 0.0,
             "title": "Min Soc Percentage",
-            "description": "Minimum state of charge (SOC) as percentage of capacity [%].",
+            "description": "Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging",
             "default": 0,
             "examples": [
               10
@@ -3184,6 +3184,31 @@
             "title": "Max Soc Percentage",
             "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
             "default": 100
+          },
+          "charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Rates",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [
+              [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              null
+            ]
           }
         },
         "additionalProperties": false,

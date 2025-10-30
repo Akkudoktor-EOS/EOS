@@ -837,15 +837,33 @@ class GeneticOptimization(OptimizationBase):
             self.optimize_ev = (
                 parameters.eauto.min_soc_percentage - parameters.eauto.initial_soc_percentage >= 0
             )
-            try:
-                charge_rates = self.config.devices.electric_vehicles[0].charge_rates
-                if charge_rates is None:
-                    raise
-            except:
-                error_msg = "No charge rates provided for electric vehicle."
-                logger.exception(error_msg)
-                raise ValueError(error_msg)
-            self.ev_possible_charge_values = charge_rates
+            # electrical vehicle charge rates
+            if parameters.eauto.charge_rates is not None:
+                self.ev_possible_charge_values = parameters.eauto.charge_rates
+            elif (
+                self.config.devices.electric_vehicles
+                and self.config.devices.electric_vehicles[0]
+                and self.config.devices.electric_vehicles[0].charge_rates is not None
+            ):
+                self.ev_possible_charge_values = self.config.devices.electric_vehicles[
+                    0
+                ].charge_rates
+            else:
+                warning_msg = "No charge rates provided for electric vehicle - using default."
+                logger.warning(warning_msg)
+                self.ev_possible_charge_values = [
+                    0.0,
+                    0.1,
+                    0.2,
+                    0.3,
+                    0.4,
+                    0.5,
+                    0.6,
+                    0.7,
+                    0.8,
+                    0.9,
+                    1.0,
+                ]
         else:
             self.optimize_ev = False
 

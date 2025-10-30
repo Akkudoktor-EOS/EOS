@@ -77,6 +77,7 @@ passed to the request. You have to set the parameters even if given in the confi
         "device_id": "ev1",
         "capacity_wh": 60000,
         "charging_efficiency": 0.95,
+        "charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
         "discharging_efficiency": 1.0,
         "max_charge_power_w": 11040,
         "initial_soc_percentage": 54,

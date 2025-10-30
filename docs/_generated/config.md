@@ -602,7 +602,7 @@ Properties:
 | max_charge_power_w | `Optional[float]` | `rw` | `5000` | Maximum charging power [W]. |
 | min_charge_power_w | `Optional[float]` | `rw` | `50` | Minimum charging power [W]. |
 | charge_rates | `Optional[list[float]]` | `rw` | `None` | Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available. |
-| min_soc_percentage | `int` | `rw` | `0` | Minimum state of charge (SOC) as percentage of capacity [%]. |
+| min_soc_percentage | `int` | `rw` | `0` | Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging |
 | max_soc_percentage | `int` | `rw` | `100` | Maximum state of charge (SOC) as percentage of capacity [%]. |
 | measurement_key_soc_factor | `str` | `ro` | `N/A` | Measurement key for the battery state of charge (SoC) as factor of total capacity [0.0 ... 1.0]. |
 | measurement_key_power_l1_w | `str` | `ro` | `N/A` | Measurement key for the L1 power the battery is charged or discharged with [W]. |

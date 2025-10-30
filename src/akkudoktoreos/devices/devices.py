@@ -71,7 +71,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         default=0,
         ge=0,
         le=100,
-        description="Minimum state of charge (SOC) as percentage of capacity [%].",
+        description="Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging",
         examples=[10],
     )
 
