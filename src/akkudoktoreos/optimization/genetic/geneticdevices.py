@@ -90,6 +90,11 @@ class ElectricVehicleParameters(BaseBatteryParameters):
     initial_soc_percentage: int = initial_soc_percentage_field(
         "An integer representing the current state of charge (SOC) of the battery in percentage."
     )
+    charge_rates: Optional[list[float]] = Field(
+        default=None,
+        description="Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+        examples=[[0.0, 0.25, 0.5, 0.75, 1.0], None],
+    )
 
 
 class HomeApplianceParameters(DeviceParameters):
