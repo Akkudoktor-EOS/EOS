@@ -8,7 +8,12 @@
     "hours": 48
   },
   "optimization": {
-    "horizon_hours": 48
+    "horizon_hours": 48,
+    "algorithm": "GENETIC",
+    "genetic": {
+      "individuals": 300,
+      "generations": 400
+    }
   },
   "general": {
     "latitude": 52.5,
