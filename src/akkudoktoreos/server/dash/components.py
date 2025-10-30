@@ -23,6 +23,8 @@ from monsterui.franken import (  # Button, Does not pass hx_vals
     UkIcon,
 )
 
+from akkudoktoreos.server.dash.context import request_url_for
+
 scrollbar_viewport_styles = (
     "scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch;"
 )
@@ -177,7 +179,7 @@ def ConfigCard(
                     Form(
                         Input(value=config_name, type="hidden", id="key"),
                         Input(value=update_value, type="text", id="value"),
-                        hx_put="/eosdash/configuration",
+                        hx_put=request_url_for("/eosdash/configuration"),
                         hx_target="#page-content",
                         hx_swap="innerHTML",
                     ),
@@ -226,7 +228,7 @@ def DashboardFooter(*c: Any, path: str) -> Card:
     """
     return Card(
         Container(*c, id="footer-content"),
-        hx_get=f"{path}",
+        hx_get=request_url_for(path),
         hx_trigger="every 5s",
         hx_target="#footer-content",
         hx_swap="innerHTML",
@@ -266,7 +268,7 @@ def DashboardTabs(dashboard_items: dict[str, str]) -> Card:
         Li(
             DashboardTrigger(
                 H3(menu),
-                hx_get=f"{path}",
+                hx_get=request_url_for(path),
                 hx_target="#page-content",
                 hx_swap="innerHTML",
                 hx_vals='js:{ "dark": window.matchMedia("(prefers-color-scheme: dark)").matches }',

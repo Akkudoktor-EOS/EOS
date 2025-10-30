@@ -416,9 +416,35 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     solution[key] = operation[key]
 
         # Add home appliance data
-        if self.washingstart:
+        if self.config.devices.max_home_appliances and self.config.devices.max_home_appliances > 0:
+            # Use config and not self.washingstart as washingstart may be None (no start)
+            # even if configured to be started.
+
             # result starts at start_day_hour
             solution["homeappliance1_energy_wh"] = self.result.Home_appliance_wh_per_hour[:n_points]
+            operation = {
+                "homeappliance1_run_op_mode": [],
+                "homeappliance1_run_op_factor": [],
+                "homeappliance1_off_op_mode": [],
+                "homeappliance1_off_op_factor": [],
+            }
+            for hour_idx, energy in enumerate(solution["homeappliance1_energy_wh"]):
+                if energy > 0.0:
+                    operation["homeappliance1_run_op_mode"].append(1.0)
+                    operation["homeappliance1_run_op_factor"].append(1.0)
+                    operation["homeappliance1_off_op_mode"].append(0.0)
+                    operation["homeappliance1_off_op_factor"].append(0.0)
+                else:
+                    operation["homeappliance1_run_op_mode"].append(0.0)
+                    operation["homeappliance1_run_op_factor"].append(0.0)
+                    operation["homeappliance1_off_op_mode"].append(1.0)
+                    operation["homeappliance1_off_op_factor"].append(1.0)
+            for key in operation.keys():
+                if len(operation[key]) != n_points:
+                    error_msg = f"instruction {key} has invalid length {len(operation[key])} - expected {n_points}"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+                solution[key] = operation[key]
 
         # Fill prediction into dataframe with correct column names
         # - pvforecast_ac_energy_wh_energy_wh: PV energy prediction (positive) in wh
@@ -633,19 +659,33 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     )
 
         # Add home appliance instructions (demand driven based control)
-        if self.washingstart:
+        if self.config.devices.max_home_appliances and self.config.devices.max_home_appliances > 0:
+            # Use config and not self.washingstart as washingstart may be None (no start)
+            # even if configured to be started.
             resource_id = "homeappliance1"
-            operation_mode = ApplianceOperationMode.RUN  # type: ignore[assignment]
-            operation_mode_factor = 1.0
-            execution_time = start_datetime.add(hours=self.washingstart - start_day_hour)
-            plan.add_instruction(
-                DDBCInstruction(
-                    resource_id=resource_id,
-                    execution_time=execution_time,
-                    actuator_id=resource_id,
-                    operation_mode_id=operation_mode,
-                    operation_mode_factor=operation_mode_factor,
-                )
-            )
+            last_energy: Optional[float] = None
+            for hours, energy in enumerate(self.result.Home_appliance_wh_per_hour):
+                # hours starts at start_datetime with 0
+                if energy is None:
+                    raise ValueError(
+                        f"Unexpected value {energy} in {self.result.Home_appliance_wh_per_hour}"
+                    )
+                if last_energy is None or energy != last_energy:
+                    if energy > 0.0:
+                        operation_mode = ApplianceOperationMode.RUN  # type: ignore[assignment]
+                    else:
+                        operation_mode = ApplianceOperationMode.OFF  # type: ignore[assignment]
+                    operation_mode_factor = 1.0
+                    execution_time = start_datetime.add(hours=hours)
+                    plan.add_instruction(
+                        DDBCInstruction(
+                            resource_id=resource_id,
+                            execution_time=execution_time,
+                            actuator_id=resource_id,
+                            operation_mode_id=operation_mode,
+                            operation_mode_factor=operation_mode_factor,
+                        )
+                    )
+                    last_energy = energy
 
         return plan

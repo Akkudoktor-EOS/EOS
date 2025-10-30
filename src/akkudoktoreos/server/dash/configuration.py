@@ -26,6 +26,7 @@ from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.pvforecast import PVForecastPlaneSetting
 from akkudoktoreos.server.dash.components import ConfigCard
+from akkudoktoreos.server.dash.context import request_url_for
 
 T = TypeVar("T")
 
@@ -284,7 +285,138 @@ def get_configuration(eos_host: str, eos_port: Union[str, int]) -> list[dict]:
         warning_msg = f"Can not retrieve configuration from {server}: {e}, {detail}"
         logger.warning(warning_msg)
 
-    return configuration(ConfigEOS, config)
+    config_details = configuration(ConfigEOS, config)
+    return config_details
+
+
+def ConfigHomeAssistantEntityIdMappingCard(
+    config_name: str,
+    config_type: str,
+    read_only: str,
+    value: str,
+    default: str,
+    description: str,
+    deprecated: Optional[Union[str, bool]],
+    update_error: Optional[str],
+    update_value: Optional[str],
+    update_open: Optional[bool],
+) -> Card:
+    """Creates a styled configuration card for home assistant entity mapping details.
+
+    This function generates a configuration card that is displayed in the UI with
+    various sections such as configuration name, type, description, default value,
+    current value, and error details. It supports both read-only and editable modes.
+
+    Args:
+        config_name (str): The name of the configuration.
+        config_type (str): The type of the configuration.
+        read_only (str): Indicates if the configuration is read-only ("rw" for read-write,
+                         any other value indicates read-only).
+        value (str): The current value of the configuration.
+        default (str): The default value of the configuration.
+        description (str): A description of the configuration.
+        deprecated (Optional[Union[str, bool]]): The deprecated marker of the configuration.
+        update_error (Optional[str]): The error message, if any, during the update process.
+        update_value (Optional[str]): The value to be updated, if different from the current value.
+        update_open (Optional[bool]): A flag indicating whether the update section of the card
+                                      should be initially expanded.
+
+    Returns:
+        Card: A styled Card component containing the configuration details.
+    """
+    config_id = config_name.replace(".", "-")
+    if not update_value:
+        update_value = value
+    if not update_open:
+        update_open = False
+    if deprecated:
+        if isinstance(deprecated, bool):
+            deprecated = "Deprecated"
+    mapping = json.loads(value)
+
+    # Create cards for all mappings
+    rows = []
+    for key in mapping.keys():
+        rows.append(
+            ConfigCard(
+                config_name + f".{key}",
+                "Optional[str]",
+                read_only,
+                str(mapping[key]),
+                "null",
+                f"Home Assistant entity ID for '{key}'.",
+                deprecated,
+                update_error,
+                str(mapping[key]),
+                update_open,
+            )
+        )
+
+    return Card(
+        Details(
+            Summary(
+                Grid(
+                    Grid(
+                        DivLAligned(
+                            UkIcon(icon="play"),
+                            P(config_name),
+                        ),
+                        DivRAligned(
+                            P(read_only),
+                        ),
+                    ),
+                    P(value),
+                ),
+                cls="list-none",
+            ),
+            Grid(
+                P(description),
+                P(config_type),
+            )
+            if not deprecated
+            else None,
+            Grid(
+                P(deprecated),
+                P("DEPRECATED!"),
+            )
+            if deprecated
+            else None,
+            # Default
+            Grid(
+                DivRAligned(P("default")),
+                P(default),
+            )
+            if False and read_only == "rw" and not deprecated
+            else None,
+            # Set value
+            Grid(
+                DivRAligned(P("update")),
+                Grid(
+                    Form(
+                        Input(value=config_name, type="hidden", id="key"),
+                        Input(value=update_value, type="text", id="value"),
+                        hx_put=request_url_for("/eosdash/configuration"),
+                        hx_target="#page-content",
+                        hx_swap="innerHTML",
+                    ),
+                ),
+            )
+            if False and read_only == "rw" and not deprecated
+            else None,
+            # Last error
+            Grid(
+                DivRAligned(P("update error")),
+                P(update_error),
+            )
+            if update_error
+            else None,
+            # Now come the single element configs
+            *rows,
+            cls="space-y-4 gap-4",
+            open=update_open,
+        ),
+        cls="w-full",
+    )
 
 
 def ConfigPlanesCard(
@@ -443,7 +575,7 @@ def ConfigPlanesCard(
                     Form(
                         Input(value=config_name, type="hidden", id="key"),
                         Input(value=planes_update_value, type="text", id="value"),
-                        hx_put="/eosdash/configuration",
+                        hx_put=request_url_for("/eosdash/configuration"),
                         hx_target="#page-content",
                         hx_swap="innerHTML",
                     ),
@@ -483,6 +615,8 @@ def Configuration(
     """
     if not configuration:
         configuration = get_configuration(eos_host, eos_port)
+    logger.debug(f"Configuration details: {configuration}")
+
     rows = []
     last_category = ""
     # find some special configuration values
@@ -527,6 +661,26 @@ def Configuration(
                     config["default"],
                     config["description"],
                     max_planes,
+                    update_error,
+                    update_value,
+                    update_open,
+                )
+            )
+        elif (
+            config["type"]
+            == "<class 'akkudoktoreos.adapter.homeassistant.HomeAssistantEntityIdMapping'>"
+            and not config["deprecated"]
+        ):
+            # Special configuration for Home Assistant Entity Id mapping
+            rows.append(
+                ConfigHomeAssistantEntityIdMappingCard(
+                    config["name"],
+                    config["type"],
+                    config["read-only"],
+                    config["value"],
+                    config["default"],
+                    config["description"],
+                    config["deprecated"],
                     update_error,
                     update_value,
                     update_open,

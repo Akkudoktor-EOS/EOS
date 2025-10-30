@@ -39,11 +39,11 @@ class LoadImportCommonSettings(SettingsBaseModel):
     @field_validator("import_file_path", mode="after")
     @classmethod
     def validate_loadimport_file_path(cls, value: Optional[Union[str, Path]]) -> Optional[Path]:
+        """Ensure file is available."""
         if value is None:
             return None
         if isinstance(value, str):
             value = Path(value)
-        """Ensure file is available."""
         value.resolve()
         if not value.is_file():
             raise ValueError(f"Import file path '{value}' is not a file.")

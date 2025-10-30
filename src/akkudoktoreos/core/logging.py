@@ -65,7 +65,7 @@ console_handler_id = None
 file_handler_id = None
 
 
-def track_logging_config(config_eos: Any, path: str, old_value: Any, value: Any) -> None:
+def logging_track_config(config_eos: Any, path: str, old_value: Any, value: Any) -> None:
     """Track logging config changes."""
     global console_handler_id, file_handler_id
 

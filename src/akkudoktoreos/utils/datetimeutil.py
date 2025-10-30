@@ -665,11 +665,14 @@ def to_time(
             - int (e.g. 14 → 14:00)
             - float (e.g. 14.5 → 14:30)
             - tuple like (14,), (14, 30), (14, 30, 15)
+
         in_timezone: Optional timezone name or object (e.g., "Europe/Berlin").
             Defaults to the local timezone.
+
         to_naive: If True, return a timezone-naive Time object.
+
         as_string: If True, return time as "HH:mm:ss ZZ".
-                   If a format string is provided, it's passed to `pendulum.Time.format()`.
+            If a format string is provided, it's passed to `pendulum.Time.format()`.
 
     Returns:
         Time or str: A time object or its formatted string.
