@@ -110,13 +110,24 @@ class OptimizationSolution(PydanticBaseModel):
 
     total_costs_amt: float = Field(description="The total costs [money amount].")
 
-    data: PydanticDateTimeDataFrame = Field(
+    prediction: PydanticDateTimeDataFrame = Field(
         description=(
-            "Datetime data frame with time series optimization data per optimization interval:"
+            "Datetime data frame with time series prediction data per optimization interval:"
+            "- pv_energy_wh: PV energy prediction (positive) in wh"
+            "- elec_price_amt_kwh: Electricity price prediction in money per kwh"
+            "- feed_in_tariff_amt_kwh: Feed in tariff prediction in money per kwh"
+            "- weather_temp_air_celcius: Temperature in °C"
+            "- load_mean_energy_wh: Load mean energy prediction in wh"
+            "- load_std_energy_wh: Load energy standard deviation prediction in wh"
+            "- load_mean_adjusted_energy_w: Adjusted load mean energy prediction in wh"
+        )
+    )
+
+    solution: PydanticDateTimeDataFrame = Field(
+        description=(
+            "Datetime data frame with time series solution data per optimization interval:"
             "- load_energy_wh: Load of all energy consumers in wh"
             "- grid_energy_wh: Grid energy feed in (negative) or consumption (positive) in wh"
-            "- pv_prediction_energy_wh: PV energy prediction (positive) in wh"
-            "- elec_price_prediction_amt_kwh: Electricity price prediction in money per kwh"
             "- costs_amt: Costs in money amount"
             "- revenue_amt: Revenue in money amount"
             "- losses_energy_wh: Energy losses in wh"

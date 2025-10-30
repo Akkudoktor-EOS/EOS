@@ -319,7 +319,7 @@ class GeneticOptimizationParameters(
                             "provider": "LoadAkkudoktor",
                             "provider_settings": {
                                 "LoadAkkudoktor": {
-                                    "loadakkudoktor_year_energy": "1000",
+                                    "loadakkudoktor_year_energy": "3000",
                                 },
                             },
                         },

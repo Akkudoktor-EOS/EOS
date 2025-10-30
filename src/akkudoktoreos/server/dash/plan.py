@@ -7,6 +7,7 @@ from bokeh.plotting import figure
 from loguru import logger
 from monsterui.franken import (
     Card,
+    CardTitle,
     Details,
     Div,
     DivLAligned,
@@ -33,10 +34,33 @@ from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
 # bar width for 1 hour bars (time given in millseconds)
 BAR_WIDTH_1HOUR = 1000 * 60 * 60
 
+
+# Tailwind compatible color palette
+color_palette = {
+    "red-500": "#EF4444",  # red-500
+    "orange-500": "#F97316",  # orange-500
+    "amber-500": "#F59E0B",  # amber-500
+    "yellow-500": "#EAB308",  # yellow-500
+    "lime-500": "#84CC16",  # lime-500
+    "green-500": "#22C55E",  # green-500
+    "emerald-500": "#10B981",  # emerald-500
+    "teal-500": "#14B8A6",  # teal-500
+    "cyan-500": "#06B6D4",  # cyan-500
+    "sky-500": "#0EA5E9",  # sky-500
+    "blue-500": "#3B82F6",  # blue-500
+    "indigo-500": "#6366F1",  # indigo-500
+    "violet-500": "#8B5CF6",  # violet-500
+    "purple-500": "#A855F7",  # purple-500
+    "pink-500": "#EC4899",  # pink-500
+    "rose-500": "#F43F5E",  # rose-500
+}
+colors = list(color_palette.keys())
+
 # Current state of solution displayed
 solution_visible: dict[str, bool] = {
-    "pv_prediction_energy_wh": True,
-    "elec_price_prediction_amt_kwh": True,
+    "pv_energy_wh": True,
+    "elec_price_amt_kwh": True,
+    "feed_in_tariff_amt_kwh": True,
 }
 solution_color: dict[str, str] = {}
 
@@ -75,6 +99,7 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
     Args:
         data (Optional[dict]): Incoming data containing action and category for processing.
     """
+    global colors, color_palette
     category = "solution"
     dark = False
     if data and data.get("category", None) == category:
@@ -86,11 +111,34 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
     if data and data.get("dark", None) == "true":
         dark = True
 
-    df = solution.data.to_dataframe()
+    df = solution.solution.to_dataframe()
     if df.empty or len(df.columns) <= 1:
-        raise ValueError(f"DataFrame is empty or missing plottable columns: {list(df.columns)}")
+        raise ValueError(
+            f"Solution DataFrame is empty or missing plottable columns: {list(df.columns)}"
+        )
     if "date_time" not in df.columns:
-        raise ValueError(f"DataFrame is missing column 'date_time': {list(df.columns)}")
+        raise ValueError(f"Solution DataFrame is missing column 'date_time': {list(df.columns)}")
+    solution_columns = list(df.columns)
+    instruction_columns = [
+        instruction
+        for instruction in solution_columns
+        if instruction.endswith("op_mode") or instruction.endswith("op_factor")
+    ]
+    solution_columns = [x for x in solution_columns if x not in instruction_columns]
+
+    prediction_df = solution.prediction.to_dataframe()
+    if prediction_df.empty or len(prediction_df.columns) <= 1:
+        raise ValueError(
+            f"Prediction DataFrame is empty or missing plottable columns: {list(prediction_df.columns)}"
+        )
+    if "date_time" not in prediction_df.columns:
+        raise ValueError(
+            f"Prediction DataFrame is missing column 'date_time': {list(prediction_df.columns)}"
+        )
+    prediction_columns = list(prediction_df.columns)
+
+    prediction_columns_to_join = prediction_df.columns.difference(df.columns)
+    df = df.join(prediction_df[prediction_columns_to_join], how="inner")
 
     # Remove time offset from UTC to get naive local time and make bokey plot in local time
     dst_offsets = df.index.map(lambda x: x.dst().total_seconds() / 3600)
@@ -192,7 +240,6 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
 
     # Create line renderers for each column
     renderers = {}
-    colors = ["black", "blue", "cyan", "green", "orange", "pink", "purple"]
 
     for i, col in enumerate(sorted(df.columns)):
         # Exclude some columns that are currently not used or are covered by others
@@ -218,24 +265,24 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
             solution_visible[col] = visible
         if col in solution_color:
             color = solution_color[col]
-        elif col == "pv_prediction_energy_wh":
-            color = "yellow"
+        elif col == "pv_energy_wh":
+            color = "yellow-500"
             solution_color[col] = color
-        elif col == "elec_price_prediction_amt_kwh":
-            color = "red"
+        elif col == "elec_price_amt_kwh":
+            color = "red-500"
             solution_color[col] = color
         else:
             color = colors[i % len(colors)]
             solution_color[col] = color
         if visible:
-            if col == "pv_prediction_energy_wh":
+            if col == "pv_energy_wh":
                 r = plot.vbar(
                     x="date_time",
                     top=col,
                     source=source,
                     width=BAR_WIDTH_1HOUR * 0.8,
                     legend_label=col,
-                    color=color,
+                    color=color_palette[color],
                     level="underlay",
                 )
             elif col.endswith("energy_wh"):
@@ -245,7 +292,7 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
                     mode="before",
                     source=source,
                     legend_label=col,
-                    color=color,
+                    color=color_palette[color],
                 )
             elif col.endswith("factor"):
                 r = plot.step(
@@ -254,7 +301,7 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
                     mode="before",
                     source=source,
                     legend_label=col,
-                    color=color,
+                    color=color_palette[color],
                     y_range_name="factor",
                 )
             elif col.endswith("mode"):
@@ -264,7 +311,7 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
                     mode="before",
                     source=source,
                     legend_label=col,
-                    color=color,
+                    color=color_palette[color],
                     y_range_name="factor",
                 )
             elif col.endswith("amt_kwh"):
@@ -274,7 +321,7 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
                     mode="before",
                     source=source,
                     legend_label=col,
-                    color=color,
+                    color=color_palette[color],
                     y_range_name="amt_kwh",
                 )
             elif col.endswith("amt"):
@@ -284,7 +331,7 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
                     mode="before",
                     source=source,
                     legend_label=col,
-                    color=color,
+                    color=color_palette[color],
                     y_range_name="amt",
                 )
             else:
@@ -298,34 +345,93 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
 
     # --- CheckboxGroup to toggle datasets ---
     Checkbox = Grid(
-        *[
-            LabelCheckboxX(
-                label=renderer,
-                id=f"{renderer}-visible",
-                name=f"{renderer}-visible",
-                value="true",
-                checked=solution_visible[renderer],
-                hx_post="/eosdash/plan",
-                hx_target="#page-content",
-                hx_swap="innerHTML",
-                hx_vals='js:{ "category": "solution", "action": "visible", "renderer": '
-                + '"'
-                + f"{renderer}"
-                + '", '
-                + '"dark": window.matchMedia("(prefers-color-scheme: dark)").matches '
-                + "}",
-                lbl_cls=f"text-{solution_color[renderer]}-500",
-            )
-            for renderer in list(renderers.keys())
-        ],
-        cols=2,
+        Card(
+            Grid(
+                *[
+                    LabelCheckboxX(
+                        label=renderer,
+                        id=f"{renderer}-visible",
+                        name=f"{renderer}-visible",
+                        value="true",
+                        checked=solution_visible[renderer],
+                        hx_post="/eosdash/plan",
+                        hx_target="#page-content",
+                        hx_swap="innerHTML",
+                        hx_vals='js:{ "category": "solution", "action": "visible", "renderer": '
+                        + '"'
+                        + f"{renderer}"
+                        + '", '
+                        + '"dark": window.matchMedia("(prefers-color-scheme: dark)").matches '
+                        + "}",
+                        lbl_cls=f"text-{solution_color[renderer]}",
+                    )
+                    for renderer in list(renderers.keys())
+                    if renderer in prediction_columns
+                ],
+                cols=2,
+            ),
+            header=CardTitle("Prediction"),
+        ),
+        Card(
+            Grid(
+                *[
+                    LabelCheckboxX(
+                        label=renderer,
+                        id=f"{renderer}-visible",
+                        name=f"{renderer}-visible",
+                        value="true",
+                        checked=solution_visible[renderer],
+                        hx_post="/eosdash/plan",
+                        hx_target="#page-content",
+                        hx_swap="innerHTML",
+                        hx_vals='js:{ "category": "solution", "action": "visible", "renderer": '
+                        + '"'
+                        + f"{renderer}"
+                        + '", '
+                        + '"dark": window.matchMedia("(prefers-color-scheme: dark)").matches '
+                        + "}",
+                        lbl_cls=f"text-{solution_color[renderer]}",
+                    )
+                    for renderer in list(renderers.keys())
+                    if renderer in solution_columns
+                ],
+                cols=2,
+            ),
+            header=CardTitle("Solution"),
+        ),
+        Card(
+            Grid(
+                *[
+                    LabelCheckboxX(
+                        label=renderer,
+                        id=f"{renderer}-visible",
+                        name=f"{renderer}-visible",
+                        value="true",
+                        checked=solution_visible[renderer],
+                        hx_post="/eosdash/plan",
+                        hx_target="#page-content",
+                        hx_swap="innerHTML",
+                        hx_vals='js:{ "category": "solution", "action": "visible", "renderer": '
+                        + '"'
+                        + f"{renderer}"
+                        + '", '
+                        + '"dark": window.matchMedia("(prefers-color-scheme: dark)").matches '
+                        + "}",
+                        lbl_cls=f"text-{solution_color[renderer]}",
+                    )
+                    for renderer in list(renderers.keys())
+                    if renderer in instruction_columns
+                ],
+                cols=2,
+            ),
+            header=CardTitle("Instruction"),
+        ),
+        cols=1,
     )
 
     return Grid(
         Bokeh(plot),
-        Card(
-            Checkbox,
-        ),
+        Checkbox,
         cls="w-full space-y-3 space-x-3",
     )
 
