@@ -25,7 +25,7 @@ class Battery:
         self.discharging_efficiency = self.parameters.discharging_efficiency
 
         # Charge rates, in case of None use default
-        self.charge_rates = BATTERY_DEFAULT_CHARGE_RATES
+        self.charge_rates = np.array(BATTERY_DEFAULT_CHARGE_RATES, dtype=float)
         if self.parameters.charge_rates:
             charge_rates = np.array(self.parameters.charge_rates, dtype=float)
             charge_rates = np.unique(charge_rates)

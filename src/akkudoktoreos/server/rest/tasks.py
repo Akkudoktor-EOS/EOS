@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from functools import wraps
 from typing import Any, Callable, Coroutine, Union
 
+import loguru
 from starlette.concurrency import run_in_threadpool
 
 NoArgsNoReturnFuncT = Callable[[], None]
@@ -37,7 +37,7 @@ def repeat_every(
     *,
     seconds: float,
     wait_first: float | None = None,
-    logger: logging.Logger | None = None,
+    logger: loguru.logger | None = None,
     raise_exceptions: bool = False,
     max_repetitions: int | None = None,
     on_complete: NoArgsNoReturnAnyFuncT | None = None,

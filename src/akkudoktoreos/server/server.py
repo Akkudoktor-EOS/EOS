@@ -1,6 +1,9 @@
 """Server Module."""
 
+import grp
 import ipaddress
+import os
+import pwd
 import re
 import socket
 import time
@@ -146,6 +149,179 @@ def wait_for_port_free(port: int, timeout: int = 0, waiting_app_name: str = "App
         return False
 
     return True
+
+
+def drop_root_privileges(run_as_user: Optional[str] = None) -> bool:
+    """Drop root privileges and switch execution to a less privileged user.
+
+    This function transitions the running process from root (UID 0) to the
+    specified unprivileged user. It sets UID, GID, supplementary groups, and
+    updates environment variables to reflect the new user context.
+
+    If the process is not running as root, no privilege changes are made.
+
+    Args:
+        run_as_user (str | None):
+            The name of the target user to switch to.
+            If ``None`` (default), the current effective user is used and
+            no privilege change is attempted.
+
+    Returns:
+        bool:
+            ``True`` if privileges were successfully dropped OR the process is
+            already running as the target user.
+            ``False`` if privilege dropping failed.
+
+    Notes:
+        - This must be called very early during startup, before opening files,
+          creating sockets, or starting threads.
+        - Dropping privileges is irreversible within the same process.
+        - The target user must exist inside the container (valid entry in
+          ``/etc/passwd`` and ``/etc/group``).
+    """
+    # Determine current user
+    current_user = pwd.getpwuid(os.geteuid()).pw_name
+
+    # No action needed if already running as the desired user
+    if run_as_user is None or run_as_user == current_user:
+        return True
+
+    # Cannot switch users unless running as root
+    if os.geteuid() != 0:
+        logger.error(
+            f"Privilege switch requested to '{run_as_user}' "
+            f"but process is not root (running as '{current_user}')."
+        )
+        return False
+
+    # Resolve target user info
+    try:
+        pw_record = pwd.getpwnam(run_as_user)
+    except KeyError:
+        logger.error(f"Privilege switch failed: user '{run_as_user}' does not exist.")
+        return False
+
+    user_uid: int = pw_record.pw_uid
+    user_gid: int = pw_record.pw_gid
+
+    try:
+        # Get all groups where the user is listed as a member
+        supplementary_groups: list[int] = [
+            g.gr_gid for g in grp.getgrall() if run_as_user in g.gr_mem
+        ]
+
+        # Ensure the primary group is included (it usually is NOT in gr_mem)
+        if user_gid not in supplementary_groups:
+            supplementary_groups.append(user_gid)
+
+        # Apply groups, gid, uid (in that order)
+        os.setgroups(supplementary_groups)
+        os.setgid(user_gid)
+        os.setuid(user_uid)
+    except Exception as e:
+        logger.error(f"Privilege switch failed: {e}")
+        return False
+
+    # Update environment variables to reflect the new user identity
+    os.environ["HOME"] = pw_record.pw_dir
+    os.environ["LOGNAME"] = run_as_user
+    os.environ["USER"] = run_as_user
+
+    # Restrictive umask
+    os.umask(0o077)
+
+    # Verify that privilege drop was successful
+    if os.geteuid() != user_uid or os.getegid() != user_gid:
+        logger.error(
+            f"Privilege drop sanity check failed: now uid={os.geteuid()}, gid={os.getegid()}, "
+            f"expected uid={user_uid}, gid={user_gid}"
+        )
+        return False
+
+    logger.info(
+        f"Switched privileges to user '{run_as_user}' "
+        f"(uid={user_uid}, gid={user_gid}, groups={supplementary_groups})"
+    )
+    return True
+
+
+def fix_data_directories_permissions(run_as_user: Optional[str] = None) -> None:
+    """Ensure correct ownership for data directories.
+
+    This function recursively updates the owner and group of the data directories and all of its
+    subdirectories and files so that they belong to the given user.
+
+    The function may require root privileges to change file ownership. It logs an error message
+    if a path ownership can not be updated.
+
+    Args:
+        run_as_user (Optional[str]): The user who should own the data directories and files.
+            Defaults to current one.
+    """
+    from akkudoktoreos.config.config import get_config
+
+    config_eos = get_config()
+
+    base_dirs = [
+        config_eos.general.data_folder_path,
+        config_eos.general.data_output_path,
+        config_eos.general.config_folder_path,
+        config_eos.cache.path(),
+    ]
+
+    error_msg: Optional[str] = None
+
+    if run_as_user is None:
+        # Get current user - try to ensure current user can access the data directories
+        run_as_user = pwd.getpwuid(os.geteuid()).pw_name
+
+    try:
+        pw_record = pwd.getpwnam(run_as_user)
+    except KeyError as e:
+        error_msg = f"Data directories '{base_dirs}' permission fix failed: user '{run_as_user}' does not exist."
+        logger.error(error_msg)
+        return
+
+    uid = pw_record.pw_uid
+    gid = pw_record.pw_gid
+
+    # Walk directory tree and fix permissions
+    for base_dir in base_dirs:
+        if base_dir is None:
+            continue
+        # ensure base dir exists
+        try:
+            base_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.error(f"Could not setup data dir '{base_dir}': {e}")
+            continue
+        for root, dirs, files in os.walk(base_dir):
+            for name in dirs + files:
+                path = os.path.join(root, name)
+                try:
+                    os.chown(path, uid, gid)
+                except PermissionError as e:
+                    error_msg = f"Permission denied while updating ownership of '{path}' to user '{run_as_user}'"
+                    logger.error(error_msg)
+                except Exception as e:
+                    error_msg = (
+                        f"Updating ownership failed of '{path}' to user '{run_as_user}': {e}"
+                    )
+                    logger.error(error_msg)
+        # Also fix the base directory itself
+        try:
+            os.chown(base_dir, uid, gid)
+        except PermissionError as e:
+            error_msg = (
+                f"Permission denied while updating ownership of '{path}' to user '{run_as_user}'"
+            )
+            logger.error(error_msg)
+        except Exception as e:
+            error_msg = f"Updating ownership failed of '{path}' to user '{run_as_user}': {e}"
+            logger.error(error_msg)
+
+    if error_msg is None:
+        logger.info(f"Updated ownership of '{base_dirs}' recursively to user '{run_as_user}'.")
 
 
 class ServerCommonSettings(SettingsBaseModel):

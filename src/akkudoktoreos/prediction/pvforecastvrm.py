@@ -24,7 +24,7 @@ class VrmForecastResponse(PydanticBaseModel):
 
 
 class PVForecastVrmCommonSettings(SettingsBaseModel):
-    """Common settings for VRM API."""
+    """Common settings for PV forecast VRM API."""
 
     pvforecast_vrm_token: str = Field(
         default="your-token",

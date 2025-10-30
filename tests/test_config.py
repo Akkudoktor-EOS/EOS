@@ -52,7 +52,9 @@ def test_config_constants(config_eos):
 def test_computed_paths(config_eos):
     """Test computed paths for output and cache."""
     # Don't actually try to create the data folder
-    with patch("pathlib.Path.mkdir"):
+    with patch("pathlib.Path.mkdir"), \
+         patch("pathlib.Path.is_dir", return_value=True), \
+         patch("pathlib.Path.exists", return_value=True):
         config_eos.merge_settings_from_dict(
             {
                 "general": {
@@ -371,7 +373,7 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
                     BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
-            KeyError,
+            TypeError,
         ),
         # Invalid index (no number)
         (
@@ -383,7 +385,7 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
                     BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
-            KeyError,
+            IndexError,
         ),
         # Unset value (set None)
         (

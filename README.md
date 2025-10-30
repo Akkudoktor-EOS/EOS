@@ -107,6 +107,46 @@ python -m venv .venv
 .venv\Scripts\python -m akkudoktoreos.server.eos
 ```
 
+### Integrating the Add-on into Home Assistant
+
+![Supports aarch64 Architecture][aarch64-shield]
+![Supports amd64 Architecture][amd64-shield]
+
+[aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
+[amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
+
+
+To install the **Akkudoktor-EOS** add-on in Home Assistant:
+
+1. **Add the repository URL**:
+   In Home Assistant, go to:
+
+   ```
+   Settings → Add-ons → Add-on Store → ⋮ (top-right menu) → Repositories
+   ```
+
+   and enter the URL of this Git repository:
+
+   ```
+   https://github.com/Akkudoktor-EOS/EOS
+   ```
+
+2. **Install the add-on**:
+   After adding the repository, the add-on will appear in the Add-on Store. Click **Install**.
+
+3. **Start the add-on**:
+   Once installed, click **Start** in the add-on panel.
+
+4. **Access the Web UI**:
+   Open the dashboard at:
+
+   ```
+   http://<home_assistant_host>:8504
+   ```
+
+5. **Configuration** (optional):
+   Adjust options via the add-on configuration panel if needed. The default `config.yaml` provides the necessary defaults.
+
 ## Configuration
 
 EOS uses `EOS.config.json` for configuration. If the file doesn't exist, a default configuration is

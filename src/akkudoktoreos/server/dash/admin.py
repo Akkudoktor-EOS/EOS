@@ -5,7 +5,6 @@ for the EOS dashboard.
 """
 
 import json
-from pathlib import Path
 from typing import Any, Optional, Union
 
 import requests
@@ -28,14 +27,11 @@ from monsterui.franken import (  # Select, TODO: Select from FrankenUI does not 
     Summary,
     UkIcon,
 )
-from platformdirs import user_config_dir
 
 from akkudoktoreos.server.dash.components import Error, Success
 from akkudoktoreos.server.dash.configuration import get_nested_value
+from akkudoktoreos.server.dash.context import export_import_directory, request_url_for
 from akkudoktoreos.utils.datetimeutil import to_datetime
-
-# Directory to export files to, or to import files from
-export_import_directory = Path(user_config_dir("net.akkudoktor.eosdash", "akkudoktor"))
 
 
 def AdminButton(*c: Any, cls: Optional[Union[str, tuple]] = None, **kwargs: Any) -> Button:
@@ -113,7 +109,7 @@ def AdminCache(
                                 UkIcon(icon="play"),
                                 AdminButton(
                                     "Clear all",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='{"category": "cache", "action": "clear"}',
@@ -134,7 +130,7 @@ def AdminCache(
                                 UkIcon(icon="play"),
                                 AdminButton(
                                     "Clear expired",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='{"category": "cache", "action": "clear-expired"}',
@@ -321,7 +317,7 @@ def AdminConfig(
                                 UkIcon(icon="play"),
                                 AdminButton(
                                     "Save to file",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='{"category": "configuration", "action": "save_to_file"}',
@@ -343,7 +339,7 @@ def AdminConfig(
                                 UkIcon(icon="play"),
                                 AdminButton(
                                     "Revert to backup",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='js:{ "category": "configuration", "action": "revert_to_backup", "backup_metadata": document.querySelector("[name=\'selected_backup_metadata\']").value }',
@@ -370,7 +366,7 @@ def AdminConfig(
                                 UkIcon(icon="play"),
                                 AdminButton(
                                     "Export to file",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='js:{"category": "configuration", "action": "export_to_file", "export_to_file_tag": document.querySelector("[name=\'chosen_export_file_tag\']").value }',
@@ -400,7 +396,7 @@ def AdminConfig(
                                 UkIcon(icon="play"),
                                 AdminButton(
                                     "Import from file",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='js:{ "category": "configuration", "action": "import_from_file", "import_file_name": document.querySelector("[name=\'selected_import_file_name\']").value }',

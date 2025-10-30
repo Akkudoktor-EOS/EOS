@@ -26,6 +26,7 @@ from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.pvforecast import PVForecastPlaneSetting
 from akkudoktoreos.server.dash.components import ConfigCard
+from akkudoktoreos.server.dash.context import request_url_for
 
 T = TypeVar("T")
 
@@ -443,7 +444,7 @@ def ConfigPlanesCard(
                     Form(
                         Input(value=config_name, type="hidden", id="key"),
                         Input(value=planes_update_value, type="text", id="value"),
-                        hx_put="/eosdash/configuration",
+                        hx_put=request_url_for("/eosdash/configuration"),
                         hx_target="#page-content",
                         hx_swap="innerHTML",
                     ),
