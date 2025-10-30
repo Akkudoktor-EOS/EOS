@@ -873,6 +873,7 @@ Battery SoC, power. |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | horizon_hours | `EOS_OPTIMIZATION__HORIZON_HOURS` | `Optional[int]` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
 | interval | `EOS_OPTIMIZATION__INTERVAL` | `Optional[int]` | `rw` | `3600` | The optimization interval [sec]. |
+| algorithm | `EOS_OPTIMIZATION__ALGORITHM` | `Optional[str]` | `rw` | `GENETIC` | The optimization algorithm. |
 | genetic | `EOS_OPTIMIZATION__GENETIC` | `Optional[akkudoktoreos.optimization.optimization.GeneticCommonSettings]` | `rw` | `None` | Genetic optimization algorithm configuration. |
 :::
 
@@ -885,6 +886,7 @@ Battery SoC, power. |
        "optimization": {
            "horizon_hours": 24,
            "interval": 3600,
+           "algorithm": "GENETIC",
            "genetic": {
                "individuals": 400,
                "generations": 400,
@@ -1886,6 +1888,7 @@ Validators:
        "optimization": {
            "horizon_hours": 24,
            "interval": 3600,
+           "algorithm": "GENETIC",
            "genetic": {
                "individuals": 400,
                "generations": 400,

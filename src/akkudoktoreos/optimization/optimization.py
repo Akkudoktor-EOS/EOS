@@ -1,9 +1,12 @@
 from typing import Optional, Union
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.pydantic import PydanticBaseModel, PydanticDateTimeDataFrame
+from akkudoktoreos.core.pydantic import (
+    PydanticBaseModel,
+    PydanticDateTimeDataFrame,
+)
 from akkudoktoreos.utils.datetimeutil import DateTime
 
 
@@ -58,11 +61,25 @@ class OptimizationCommonSettings(SettingsBaseModel):
         examples=[60 * 60, 15 * 60],
     )
 
+    algorithm: Optional[str] = Field(
+        default="GENETIC",
+        description="The optimization algorithm.",
+        examples=["GENETIC"],
+    )
+
     genetic: Optional[GeneticCommonSettings] = Field(
         default=None,
         description="Genetic optimization algorithm configuration.",
         examples=[{"individuals": 400, "seed": None, "penalties": {"ev_soc_miss": 10}}],
     )
+
+    @model_validator(mode="after")
+    def _enforce_algorithm_configuration(self) -> "OptimizationCommonSettings":
+        """Ensure algorithm default configuration is set."""
+        if self.algorithm is not None:
+            if self.algorithm.lower() == "genetic" and self.genetic is None:
+                self.genetic = GeneticCommonSettings()
+        return self
 
 
 class OptimizationSolution(PydanticBaseModel):
