@@ -15,7 +15,7 @@
     "provider": "LoadImport",
     "provider_settings": {
       "LoadAkkudoktor": {
-        "loadakkudoktor_year_energy": 20000
+        "loadakkudoktor_year_energy_kwh": 20000
       }
     }
   },

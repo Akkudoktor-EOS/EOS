@@ -1243,7 +1243,7 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     filled with the first available prediction value.
 
     Note:
-        Use '/v1/prediction/list?key=load_mean_adjusted' instead.
+        Use '/v1/prediction/list?key=loadforecast_power_w' instead.
         Load energy meter readings to be added to EOS measurement by:
         '/v1/measurement/value' or
         '/v1/measurement/series' or
@@ -1255,10 +1255,10 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
             "hours": request.hours,
         },
         "load": {
-            "provider": "LoadAkkudoktor",
+            "provider": "LoadAkkudoktorAdjusted",
             "provider_settings": {
                 "LoadAkkudoktor": {
-                    "loadakkudoktor_year_energy": request.year_energy,
+                    "loadakkudoktor_year_energy_kwh": request.year_energy,
                 },
             },
         },
@@ -1317,7 +1317,7 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     end_datetime = start_datetime.add(days=2)
     try:
         prediction_list = prediction_eos.key_to_array(
-            key="load_mean_adjusted",
+            key="loadforecast_power_w",
             start_datetime=start_datetime,
             end_datetime=end_datetime,
         ).tolist()
@@ -1347,14 +1347,14 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
         Set LoadAkkudoktor as provider, then update data with
         '/v1/prediction/update'
         and then request data with
-        '/v1/prediction/list?key=load_mean' instead.
+        '/v1/prediction/list?key=loadforecast_power_w' instead.
     """
     settings = SettingsEOS(
         load=LoadCommonSettings(
             provider="LoadAkkudoktor",
             provider_settings=LoadCommonProviderSettings(
                 LoadAkkudoktor=LoadAkkudoktorCommonSettings(
-                    loadakkudoktor_year_energy=year_energy / 1000,  # Convert to kWh
+                    loadakkudoktor_year_energy_kwh=year_energy / 1000,  # Convert to kWh
                 ),
             ),
         )
@@ -1378,7 +1378,7 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     end_datetime = start_datetime.add(days=2)
     try:
         prediction_list = prediction_eos.key_to_array(
-            key="load_mean",
+            key="loadforecast_power_w",
             start_datetime=start_datetime,
             end_datetime=end_datetime,
         ).tolist()

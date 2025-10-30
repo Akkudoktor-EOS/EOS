@@ -24,7 +24,7 @@ If no prediction values are available the missing ones at the start of the serie
 filled with the first available prediction value.
 
 Note:
-    Use '/v1/prediction/list?key=load_mean_adjusted' instead.
+    Use '/v1/prediction/list?key=loadforecast_power_w' instead.
     Load energy meter readings to be added to EOS measurement by:
     '/v1/measurement/value' or
     '/v1/measurement/series' or
@@ -68,7 +68,7 @@ Note:
     Set LoadAkkudoktor as provider, then update data with
     '/v1/prediction/update'
     and then request data with
-    '/v1/prediction/list?key=load_mean' instead.
+    '/v1/prediction/list?key=loadforecast_power_w' instead.
 ```
 
 **Parameters**:

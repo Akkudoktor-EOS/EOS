@@ -194,7 +194,7 @@ Configuration options:
 
 Prediction keys:
 
-- `load_mean`: Predicted load mean value (W).
+- `loadforecast_power_w`: Predicted load mean value (W).
 - `load_std`: Predicted load standard deviation (W).
 - `load_mean_adjusted`: Predicted load mean value adjusted by load measurement (W).
 
@@ -208,15 +208,27 @@ Configuration options:
     - `LoadVrm`: Retrieves data from the VRM API by Victron Energy.
     - `LoadImport`: Imports from a file or JSON string.
 
-  - `provider_settings.loadakkudoktor_year_energy`: Yearly energy consumption (kWh).
-  - `provider_settings.loadimport_file_path`: Path to the file to import load forecast data from.
-  - `provider_settings.loadimport_json`: JSON string, dictionary of load forecast value lists.
+  - `provider_settings.LoadAkkudoktor.loadakkudoktor_year_energy_kwh`: Yearly energy consumption (kWh).
+  - `provider_settings.LoadVRM.load_vrm_token`: API token.
+  - `provider_settings.LoadVRM.load_vrm_idsite`: load_vrm_idsite.
+  - `provider_settings.LoadImport.loadimport_file_path`: Path to the file to import load forecast data from.
+  - `provider_settings.LoadImport.loadimport_json`: JSON string, dictionary of load forecast value lists.
 
 ### LoadAkkudoktor Provider
 
-The `LoadAkkudoktor` provider retrieves generic load data from a local database and tailors it to
-align with the annual energy consumption specified in the `loadakkudoktor_year_energy` configuration
-option.
+The `LoadAkkudoktor` provider retrieves generic load data from the local database and scales
+it to match the annual energy consumption specified in the
+`LoadAkkudoktor.loadakkudoktor_year_energy` configuration option.
+
+### LoadAkkudoktorAdjusted Provider
+
+The `LoadAkkudoktorAdjusted` provider retrieves generic load data from the local database and scales
+it to match the annual energy consumption specified in the
+`LoadAkkudoktor.loadakkudoktor_year_energy` configuration option. In addition, the provider refines
+the forecast by incorporating available measured load data, ensuring a more realistic and
+site-specific consumption profile.
+
+For details on how to supply load measurements, see the [Measurements](measurement-page) section.
 
 ### LoadVrm Provider
 
@@ -225,13 +237,17 @@ To receive forecasts, the system data must be configured under Dynamic ESS in th
 To query the forecasts, an API token is required, which can also be created in the VRM portal under Preferences.
 This token must be stored in the EOS configuration along with the VRM-Installations-ID.
 
-```python
+```json
     {
         "load": {
             "provider": "LoadVrm",
             "provider_settings": {
-                "load_vrm_token": "dummy-token",
-                "load_vrm_idsite": 12345
+                "LoadVRM": {
+                    "load_vrm_token": "dummy-token",
+                    "load_vrm_idsite": 12345
+                }
+             }
+        }
     }
 ```
 
@@ -530,7 +546,7 @@ Prediction keys:
 - `weather_temp_air`: Temperature (°C)
 - `weather_total_clouds`: Total Clouds (% Sky Obscured)
 - `weather_visibility`: Visibility (m)
-- `weather_wind_direction`: "Wind Direction (°)
+- `weather_wind_direction`: Wind Direction (°)
 - `weather_wind_speed`: Wind Speed (kmph)
 
 Configuration options:
@@ -562,7 +578,7 @@ The provider provides forecast data for the following prediction keys:
 - `weather_temp_air`: Temperature (°C)
 - `weather_total_clouds`: Total Clouds (% Sky Obscured)
 - `weather_visibility`: Visibility (m)
-- `weather_wind_direction`: "Wind Direction (°)
+- `weather_wind_direction`: Wind Direction (°)
 - `weather_wind_speed`: Wind Speed (kmph)
 
 ### ClearOutside Provider
@@ -592,7 +608,7 @@ The provider provides forecast data for the following prediction keys:
 - `weather_temp_air`: Temperature (°C)
 - `weather_total_clouds`: Total Clouds (% Sky Obscured)
 - `weather_visibility`: Visibility (m)
-- `weather_wind_direction`: "Wind Direction (°)
+- `weather_wind_direction`: Wind Direction (°)
 - `weather_wind_speed`: Wind Speed (kmph)
 
 ### WeatherImport Provider
@@ -623,7 +639,7 @@ The prediction keys for the weather forecast data are:
 - `weather_temp_air`: Temperature (°C)
 - `weather_total_clouds`: Total Clouds (% Sky Obscured)
 - `weather_visibility`: Visibility (m)
-- `weather_wind_direction`: "Wind Direction (°)
+- `weather_wind_direction`: Wind Direction (°)
 - `weather_wind_speed`: Wind Speed (kmph)
 
 The PV forecast data must be provided in one of the formats described in

@@ -1664,11 +1664,11 @@ class DataImportMixin:
             {
                 "start_datetime": "2024-11-10 00:00:00"
                 "interval": "30 minutes"
-                "load_mean": [20.5, 21.0, 22.1],
+                "loadforecast_power_w": [20.5, 21.0, 22.1],
                 "other_xyz: [10.5, 11.0, 12.1],
             }
             ```
-            and `key_prefix = "load"`, only the "load_mean" key will be processed even though
+            and `key_prefix = "load"`, only the "loadforecast_power_w" key will be processed even though
             both keys are in the record.
         """
         # Try pandas dataframe with orient="split"
@@ -1738,11 +1738,11 @@ class DataImportMixin:
             Given a JSON file with the following content:
             ```json
             {
-                "load_mean": [20.5, 21.0, 22.1],
+                "loadforecast_power_w": [20.5, 21.0, 22.1],
                 "other_xyz: [10.5, 11.0, 12.1],
             }
             ```
-            and `key_prefix = "load"`, only the "load_mean" key will be processed even though
+            and `key_prefix = "load"`, only the "loadforecast_power_w" key will be processed even though
             both keys are in the record.
         """
         with import_file_path.open("r", encoding="utf-8", newline=None) as import_file:

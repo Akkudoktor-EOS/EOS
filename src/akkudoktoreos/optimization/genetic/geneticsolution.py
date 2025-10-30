@@ -231,6 +231,7 @@ class GeneticSolution(GeneticParametersBaseModel):
         config = get_config()
         start_datetime = get_ems().start_datetime
         interval_hours = 1
+        power_to_energy_per_interval_factor = 1.0
 
         # --- Create index based on list length and interval ---
         n_points = len(self.result.Kosten_Euro_pro_Stunde)
@@ -241,11 +242,9 @@ class GeneticSolution(GeneticParametersBaseModel):
         )
         end_datetime = start_datetime.add(hours=n_points)
 
-        # Fill data into dataframe with correct column names
+        # Fill solution into dataframe with correct column names
         # - load_energy_wh: Load of all energy consumers in wh"
         # - grid_energy_wh: Grid energy feed in (negative) or consumption (positive) in wh"
-        # - pv_prediction_energy_wh: PV energy prediction (positive) in wh"
-        # - elec_price_prediction_amt_kwh: Electricity price prediction in money per kwh"
         # - costs_amt: Costs in money amount"
         # - revenue_amt: Revenue in money amount"
         # - losses_energy_wh: Energy losses in wh"
@@ -254,7 +253,7 @@ class GeneticSolution(GeneticParametersBaseModel):
         # - <device-id>_soc_factor: State of charge of a battery/ electric vehicle device as factor of total capacity."
         # - <device-id>_energy_wh: Energy consumption (positive) of a device in wh."
 
-        data = pd.DataFrame(
+        solution = pd.DataFrame(
             {
                 "date_time": time_index,
                 "load_energy_wh": self.result.Last_Wh_pro_Stunde,
@@ -269,7 +268,7 @@ class GeneticSolution(GeneticParametersBaseModel):
         )
 
         # Add battery data
-        data["battery1_soc_factor"] = [v / 100 for v in self.result.akku_soc_pro_stunde]
+        solution["battery1_soc_factor"] = [v / 100 for v in self.result.akku_soc_pro_stunde]
         operation: dict[str, list[float]] = {}
         for hour, rate in enumerate(self.ac_charge):
             if hour >= n_points:
@@ -290,13 +289,13 @@ class GeneticSolution(GeneticParametersBaseModel):
                     operation[mode_key].append(0.0)
                     operation[factor_key].append(0.0)
         for key in operation.keys():
-            data[key] = operation[key]
+            solution[key] = operation[key]
 
-        # Add EV battery data
+        # Add EV battery solution
         if self.eauto_obj:
             if self.eautocharge_hours_float is None:
                 # Electric vehicle is full enough. No load times.
-                data[f"{self.eauto_obj.device_id}_soc_factor"] = [
+                solution[f"{self.eauto_obj.device_id}_soc_factor"] = [
                     self.eauto_obj.initial_soc_percentage / 100.0
                 ] * n_points
                 # operation modes
@@ -305,13 +304,13 @@ class GeneticSolution(GeneticParametersBaseModel):
                     mode_key = f"{self.eauto_obj.device_id}_{mode.lower()}_op_mode"
                     factor_key = f"{self.eauto_obj.device_id}_{mode.lower()}_op_factor"
                     if mode == operation_mode:
-                        data[mode_key] = [1.0] * n_points
-                        data[factor_key] = [1.0] * n_points
+                        solution[mode_key] = [1.0] * n_points
+                        solution[factor_key] = [1.0] * n_points
                     else:
-                        data[mode_key] = [0.0] * n_points
-                        data[factor_key] = [0.0] * n_points
+                        solution[mode_key] = [0.0] * n_points
+                        solution[factor_key] = [0.0] * n_points
             else:
-                data[f"{self.eauto_obj.device_id}_soc_factor"] = [
+                solution[f"{self.eauto_obj.device_id}_soc_factor"] = [
                     v / 100 for v in self.result.EAuto_SoC_pro_Stunde
                 ]
                 operation = {}
@@ -334,18 +333,30 @@ class GeneticSolution(GeneticParametersBaseModel):
                             operation[mode_key].append(0.0)
                             operation[factor_key].append(0.0)
                 for key in operation.keys():
-                    data[key] = operation[key]
+                    solution[key] = operation[key]
 
         # Add home appliance data
         if self.washingstart:
-            data["homeappliance1_energy_wh"] = self.result.Home_appliance_wh_per_hour
+            solution["homeappliance1_energy_wh"] = self.result.Home_appliance_wh_per_hour
 
-        # Add important predictions that are not already available from the GenericSolution
-        prediction = get_prediction()
-        power_to_energy_per_interval_factor = 1.0
-        if "pvforecast_ac_power" in prediction.record_keys:
-            data["pv_prediction_energy_wh"] = (
-                prediction.key_to_array(
+        # Fill prediction into dataframe with correct column names
+        # - pvforecast_ac_energy_wh_energy_wh: PV energy prediction (positive) in wh
+        # - elec_price_amt_kwh: Electricity price prediction in money per kwh
+        # - weather_temp_air_celcius: Temperature in °C"
+        # - loadforecast_energy_wh: Load energy prediction in wh
+        # - loadakkudoktor_std_energy_wh: Load energy standard deviation prediction in wh
+        # - loadakkudoktor_mean_energy_wh: Load mean energy prediction in wh
+        prediction = pd.DataFrame(
+            {
+                "date_time": time_index,
+            },
+            index=time_index,
+        )
+        pred = get_prediction()
+
+        if "pvforecast_ac_power" in pred.record_keys:
+            prediction["pvforecast_ac_energy_wh"] = (
+                pred.key_to_array(
                     key="pvforecast_ac_power",
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
@@ -354,18 +365,82 @@ class GeneticSolution(GeneticParametersBaseModel):
                 )
                 * power_to_energy_per_interval_factor
             ).tolist()
-        if "weather_temp_air" in prediction.record_keys:
-            data["weather_temp_air"] = (
-                prediction.key_to_array(
-                    key="weather_temp_air",
+        if "pvforecast_dc_power" in pred.record_keys:
+            prediction["pvforecast_dc_energy_wh"] = (
+                pred.key_to_array(
+                    key="pvforecast_dc_power",
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
                     interval=to_duration(f"{interval_hours} hours"),
                     fill_method="linear",
                 )
+                * power_to_energy_per_interval_factor
+            ).tolist()
+        if "elecprice_marketprice_wh" in pred.record_keys:
+            prediction["elec_price_amt_kwh"] = (
+                pred.key_to_array(
+                    key="elecprice_marketprice_wh",
+                    start_datetime=start_datetime,
+                    end_datetime=end_datetime,
+                    interval=to_duration(f"{interval_hours} hours"),
+                    fill_method="ffill",
+                )
+                * 1000
+            ).tolist()
+        if "feed_in_tariff_wh" in pred.record_keys:
+            prediction["feed_in_tariff_amt_kwh"] = (
+                pred.key_to_array(
+                    key="feed_in_tariff_wh",
+                    start_datetime=start_datetime,
+                    end_datetime=end_datetime,
+                    interval=to_duration(f"{interval_hours} hours"),
+                    fill_method="linear",
+                )
+                * 1000
+            ).tolist()
+        if "weather_temp_air" in pred.record_keys:
+            prediction["weather_air_temp_celcius"] = pred.key_to_array(
+                key="weather_temp_air",
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval=to_duration(f"{interval_hours} hours"),
+                fill_method="linear",
+            ).tolist()
+        if "loadforecast_power_w" in pred.record_keys:
+            prediction["loadforecast_energy_wh"] = (
+                pred.key_to_array(
+                    key="loadforecast_power_w",
+                    start_datetime=start_datetime,
+                    end_datetime=end_datetime,
+                    interval=to_duration(f"{interval_hours} hours"),
+                    fill_method="linear",
+                )
+                * power_to_energy_per_interval_factor
+            ).tolist()
+        if "loadakkudoktor_std_power_w" in pred.record_keys:
+            prediction["loadakkudoktor_std_energy_wh"] = (
+                pred.key_to_array(
+                    key="loadakkudoktor_std_power_w",
+                    start_datetime=start_datetime,
+                    end_datetime=end_datetime,
+                    interval=to_duration(f"{interval_hours} hours"),
+                    fill_method="linear",
+                )
+                * power_to_energy_per_interval_factor
+            ).tolist()
+        if "loadakkudoktor_mean_power_w" in pred.record_keys:
+            prediction["loadakkudoktor_mean_energy_wh"] = (
+                pred.key_to_array(
+                    key="loadakkudoktor_mean_power_w",
+                    start_datetime=start_datetime,
+                    end_datetime=end_datetime,
+                    interval=to_duration(f"{interval_hours} hours"),
+                    fill_method="linear",
+                )
+                * power_to_energy_per_interval_factor
             ).tolist()
 
-        solution = OptimizationSolution(
+        optimization_solution = OptimizationSolution(
             id=f"optimization-genetic@{to_datetime(as_string=True)}",
             generated_at=to_datetime(),
             comment="Optimization solution derived from GeneticSolution.",
@@ -374,10 +449,11 @@ class GeneticSolution(GeneticParametersBaseModel):
             total_losses_energy_wh=self.result.Gesamt_Verluste,
             total_revenues_amt=self.result.Gesamteinnahmen_Euro,
             total_costs_amt=self.result.Gesamtkosten_Euro,
-            data=PydanticDateTimeDataFrame.from_dataframe(data),
+            prediction=PydanticDateTimeDataFrame.from_dataframe(prediction),
+            solution=PydanticDateTimeDataFrame.from_dataframe(solution),
         )
 
-        return solution
+        return optimization_solution
 
     def energy_management_plan(self) -> EnergyManagementPlan:
         """Provide the genetic solution as an energy management plan."""

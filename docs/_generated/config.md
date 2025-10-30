@@ -1262,7 +1262,7 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| loadakkudoktor_year_energy | `Optional[float]` | `rw` | `None` | Yearly energy consumption (kWh). |
+| loadakkudoktor_year_energy_kwh | `Optional[float]` | `rw` | `None` | Yearly energy consumption (kWh). |
 :::
 
 #### Example Input/Output
@@ -1274,7 +1274,7 @@ Validators:
        "load": {
            "provider_settings": {
                "LoadAkkudoktor": {
-                   "loadakkudoktor_year_energy": 40421.0
+                   "loadakkudoktor_year_energy_kwh": 40421.0
                }
            }
        }

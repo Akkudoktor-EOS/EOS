@@ -8,20 +8,39 @@ from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.measurement.measurement import MeasurementDataRecord, get_measurement
 from akkudoktoreos.prediction.loadakkudoktor import (
     LoadAkkudoktor,
+    LoadAkkudoktorAdjusted,
     LoadAkkudoktorCommonSettings,
 )
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
 
 @pytest.fixture
-def provider(config_eos):
+def loadakkudoktor(config_eos):
     """Fixture to initialise the LoadAkkudoktor instance."""
     settings = {
         "load": {
             "provider": "LoadAkkudoktor",
             "provider_settings": {
                 "LoadAkkudoktor": {
-                    "loadakkudoktor_year_energy": "1000",
+                    "loadakkudoktor_year_energy_kwh": "1000",
+                },
+            },
+        },
+    }
+    config_eos.merge_settings_from_dict(settings)
+    assert config_eos.load.provider == "LoadAkkudoktor"
+    assert config_eos.load.provider_settings.LoadAkkudoktor.loadakkudoktor_year_energy_kwh == 1000
+    return LoadAkkudoktor()
+
+@pytest.fixture
+def loadakkudoktoradjusted(config_eos):
+    """Fixture to initialise the LoadAkkudoktorAdjusted instance."""
+    settings = {
+        "load": {
+            "provider": "LoadAkkudoktorAdjusted",
+            "provider_settings": {
+                "LoadAkkudoktor": {
+                    "loadakkudoktor_year_energy_kwh": "1000",
                 },
             },
         },
@@ -30,10 +49,9 @@ def provider(config_eos):
         }
     }
     config_eos.merge_settings_from_dict(settings)
-    assert config_eos.load.provider == "LoadAkkudoktor"
-    assert config_eos.load.provider_settings.LoadAkkudoktor.loadakkudoktor_year_energy == 1000
-    return LoadAkkudoktor()
-
+    assert config_eos.load.provider == "LoadAkkudoktorAdjusted"
+    assert config_eos.load.provider_settings.LoadAkkudoktor.loadakkudoktor_year_energy_kwh == 1000
+    return LoadAkkudoktorAdjusted()
 
 @pytest.fixture
 def measurement_eos():
@@ -72,23 +90,23 @@ def mock_load_profiles_file(tmp_path):
 
 
 def test_loadakkudoktor_settings_validator():
-    """Test the field validator for `loadakkudoktor_year_energy`."""
-    settings = LoadAkkudoktorCommonSettings(loadakkudoktor_year_energy=1234)
-    assert isinstance(settings.loadakkudoktor_year_energy, float)
-    assert settings.loadakkudoktor_year_energy == 1234.0
+    """Test the field validator for `loadakkudoktor_year_energy_kwh`."""
+    settings = LoadAkkudoktorCommonSettings(loadakkudoktor_year_energy_kwh=1234)
+    assert isinstance(settings.loadakkudoktor_year_energy_kwh, float)
+    assert settings.loadakkudoktor_year_energy_kwh == 1234.0
 
-    settings = LoadAkkudoktorCommonSettings(loadakkudoktor_year_energy=1234.56)
-    assert isinstance(settings.loadakkudoktor_year_energy, float)
-    assert settings.loadakkudoktor_year_energy == 1234.56
+    settings = LoadAkkudoktorCommonSettings(loadakkudoktor_year_energy_kwh=1234.56)
+    assert isinstance(settings.loadakkudoktor_year_energy_kwh, float)
+    assert settings.loadakkudoktor_year_energy_kwh == 1234.56
 
 
-def test_loadakkudoktor_provider_id(provider):
+def test_loadakkudoktor_provider_id(loadakkudoktor):
     """Test the `provider_id` class method."""
-    assert provider.provider_id() == "LoadAkkudoktor"
+    assert loadakkudoktor.provider_id() == "LoadAkkudoktor"
 
 
 @patch("akkudoktoreos.prediction.loadakkudoktor.np.load")
-def test_load_data_from_mock(mock_np_load, mock_load_profiles_file, provider):
+def test_load_data_from_mock(mock_np_load, mock_load_profiles_file, loadakkudoktor):
     """Test the `load_data` method."""
     # Mock numpy load to return data similar to what would be in the file
     mock_np_load.return_value = {
@@ -97,19 +115,19 @@ def test_load_data_from_mock(mock_np_load, mock_load_profiles_file, provider):
     }
 
     # Test data loading
-    data_year_energy = provider.load_data()
+    data_year_energy = loadakkudoktor.load_data()
     assert data_year_energy is not None
     assert data_year_energy.shape == (365, 2, 24)
 
 
-def test_load_data_from_file(provider):
+def test_load_data_from_file(loadakkudoktor):
     """Test `load_data` loads data from the profiles file."""
-    data_year_energy = provider.load_data()
+    data_year_energy = loadakkudoktor.load_data()
     assert data_year_energy is not None
 
 
 @patch("akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktor.load_data")
-def test_update_data(mock_load_data, provider):
+def test_update_data(mock_load_data, loadakkudoktor):
     """Test the `_update` method."""
     mock_load_data.return_value = np.random.rand(365, 2, 24)
 
@@ -118,27 +136,27 @@ def test_update_data(mock_load_data, provider):
     ems_eos.set_start_datetime(pendulum.datetime(2024, 1, 1))
 
     # Assure there are no prediction records
-    provider.clear()
-    assert len(provider) == 0
+    loadakkudoktor.clear()
+    assert len(loadakkudoktor) == 0
 
     # Execute the method
-    provider._update_data()
+    loadakkudoktor._update_data()
 
     # Validate that update_value is called
-    assert len(provider) > 0
+    assert len(loadakkudoktor) > 0
 
 
-def test_calculate_adjustment(provider, measurement_eos):
+def test_calculate_adjustment(loadakkudoktoradjusted, measurement_eos):
     """Test `_calculate_adjustment` for various scenarios."""
     data_year_energy = np.random.rand(365, 2, 24)
 
     # Call the method and validate results
-    weekday_adjust, weekend_adjust = provider._calculate_adjustment(data_year_energy)
+    weekday_adjust, weekend_adjust = loadakkudoktoradjusted._calculate_adjustment(data_year_energy)
     assert weekday_adjust.shape == (24,)
     assert weekend_adjust.shape == (24,)
 
     data_year_energy = np.zeros((365, 2, 24))
-    weekday_adjust, weekend_adjust = provider._calculate_adjustment(data_year_energy)
+    weekday_adjust, weekend_adjust = loadakkudoktoradjusted._calculate_adjustment(data_year_energy)
 
     assert weekday_adjust.shape == (24,)
     expected = np.array(
@@ -203,13 +221,13 @@ def test_calculate_adjustment(provider, measurement_eos):
     np.testing.assert_array_equal(weekend_adjust, expected)
 
 
-def test_provider_adjustments_with_mock_data(provider):
+def test_provider_adjustments_with_mock_data(loadakkudoktoradjusted):
     """Test full integration of adjustments with mock data."""
     with patch(
-        "akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktor._calculate_adjustment"
+        "akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktorAdjusted._calculate_adjustment"
     ) as mock_adjust:
         mock_adjust.return_value = (np.zeros(24), np.zeros(24))
 
         # Test execution
-        provider._update_data()
+        loadakkudoktoradjusted._update_data()
         assert mock_adjust.called
