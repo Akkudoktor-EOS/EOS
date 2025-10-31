@@ -735,7 +735,7 @@ class PydanticDateTimeData(RootModel):
         {
             "start_datetime": "2024-01-01 00:00:00",  # optional
             "interval": "1 Hour",                     # optional
-            "load_mean": [20.5, 21.0, 22.1],
+            "loadforecast_power_w": [20.5, 21.0, 22.1],
             "load_min": [18.5, 19.0, 20.1]
         }
     """

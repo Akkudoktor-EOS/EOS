@@ -78,7 +78,7 @@ class LoadVrm(LoadProvider):
         return to_datetime(timestamp / 1000, in_timezone=self.config.general.timezone)
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        """Fetch and store VRM load forecast as load_mean and related values."""
+        """Fetch and store VRM load forecast as loadforecast_power_w and related values."""
         start_date = self.ems_start_datetime.start_of("day")
         end_date = self.ems_start_datetime.add(hours=self.config.prediction.hours)
         start_ts = int(start_date.timestamp())
@@ -87,19 +87,19 @@ class LoadVrm(LoadProvider):
         logger.info(f"Updating Load forecast from VRM: {start_date} to {end_date}")
         vrm_forecast_data = self._request_forecast(start_ts, end_ts)
 
-        load_mean_data = []
+        loadforecast_power_w_data = []
         for timestamp, value in vrm_forecast_data.records.vrm_consumption_fc:
             date = self._ts_to_datetime(timestamp)
             rounded_value = round(value, 2)
 
             self.update_value(
                 date,
-                {"load_mean": rounded_value, "load_std": 0.0, "load_mean_adjusted": rounded_value},
+                {"loadforecast_power_w": rounded_value},
             )
 
-            load_mean_data.append((date, rounded_value))
+            loadforecast_power_w_data.append((date, rounded_value))
 
-        logger.debug(f"Updated load_mean with {len(load_mean_data)} entries.")
+        logger.debug(f"Updated loadforecast_power_w with {len(loadforecast_power_w_data)} entries.")
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
 
 

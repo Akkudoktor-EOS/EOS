@@ -148,11 +148,11 @@ def run_prediction(provider_id: str, verbose: bool = False) -> str:
         forecast = "elecprice"
     elif provider_id in ("FeedInTariffFixed",):
         settings = config_feedintarifffixed()
-        forecast = "elecprice"
+        forecast = "feedintariff"
     elif provider_id in ("LoadAkkudoktor",):
-        settings = config_elecprice()
-        forecast = "load"
-        settings["load"]["loadakkudoktor_year_energy"] = 1000
+        settings = config_load()
+        forecast = "loadforecast"
+        settings["load"]["LoadAkkudoktor"]["loadakkudoktor_year_energy_wh"] = 1000
     else:
         raise ValueError(f"Unknown provider '{provider_id}'.")
     settings[forecast]["provider"] = provider_id

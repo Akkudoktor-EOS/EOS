@@ -24,7 +24,7 @@ MIGRATION_MAP: Dict[str, Union[str, Tuple[str, Callable[[Any], Any]], None]] = {
     "elecprice/provider_settings/import_json": "elecprice/provider_settings/ElecPriceImport/import_json",
     "load/provider_settings/import_file_path": "load/provider_settings/LoadImport/import_file_path",
     "load/provider_settings/import_json": "load/provider_settings/LoadImport/import_json",
-    "load/provider_settings/loadakkudoktor_year_energy": "load/provider_settings/LoadAkkudoktor/loadakkudoktor_year_energy",
+    "load/provider_settings/loadakkudoktor_year_energy": "load/provider_settings/LoadAkkudoktor/loadakkudoktor_year_energy_kwh",
     "load/provider_settings/load_vrm_idsite": "load/provider_settings/LoadVrm/load_vrm_idsite",
     "load/provider_settings/load_vrm_token": "load/provider_settings/LoadVrm/load_vrm_token",
     "logging/level": "logging/console_level",
@@ -123,6 +123,9 @@ def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
 
             old_value = _get_json_nested_value(config_data, old_path)
             if old_value is None:
+                migrated_source_paths.add(old_path.strip("/"))
+                mapped_count += 1
+                logger.debug(f"✅ Migrated mapped '{old_path}' → 'None'")
                 continue
 
             try:

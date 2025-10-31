@@ -157,7 +157,7 @@ class TestSystem:
             result = requests.post(f"{server}/v1/prediction/update/LoadAkkudoktor")
             assert result.status_code == HTTPStatus.OK
 
-            result = requests.get(f"{server}/v1/prediction/series?key=load_mean")
+            result = requests.get(f"{server}/v1/prediction/series?key=loadforecast_power_w")
             assert result.status_code == HTTPStatus.OK
 
             data = result.json()

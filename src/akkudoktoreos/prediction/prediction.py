@@ -36,7 +36,10 @@ from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
-from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktor
+from akkudoktoreos.prediction.loadakkudoktor import (
+    LoadAkkudoktor,
+    LoadAkkudoktorAdjusted,
+)
 from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.loadvrm import LoadVrm
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
@@ -94,6 +97,7 @@ class Prediction(PredictionContainer):
             FeedInTariffFixed,
             FeedInTariffImport,
             LoadAkkudoktor,
+            LoadAkkudoktorAdjusted,
             LoadVrm,
             LoadImport,
             PVForecastAkkudoktor,
@@ -112,9 +116,10 @@ elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_import = ElecPriceImport()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
-load_akkudoktor = LoadAkkudoktor()
-load_vrm = LoadVrm()
-load_import = LoadImport()
+loadforecast_akkudoktor = LoadAkkudoktor()
+loadforecast_akkudoktor_adjusted = LoadAkkudoktorAdjusted()
+loadforecast_vrm = LoadVrm()
+loadforecast_import = LoadImport()
 pvforecast_akkudoktor = PVForecastAkkudoktor()
 pvforecast_vrm = PVForecastVrm()
 pvforecast_import = PVForecastImport()
@@ -134,9 +139,10 @@ def get_prediction() -> Prediction:
             elecprice_import,
             feedintariff_fixed,
             feedintariff_import,
-            load_akkudoktor,
-            load_vrm,
-            load_import,
+            loadforecast_akkudoktor,
+            loadforecast_akkudoktor_adjusted,
+            loadforecast_vrm,
+            loadforecast_import,
             pvforecast_akkudoktor,
             pvforecast_vrm,
             pvforecast_import,

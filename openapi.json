@@ -1735,7 +1735,7 @@
           "prediction"
         ],
         "summary": "Fastapi Gesamtlast",
-        "description": "Deprecated: Total Load Prediction with adjustment.\n\nEndpoint to handle total load prediction adjusted by latest measured data.\n\nTotal load prediction starts at 00.00.00 today and is provided for 48 hours.\nIf no prediction values are available the missing ones at the start of the series are\nfilled with the first available prediction value.\n\nNote:\n    Use '/v1/prediction/list?key=load_mean_adjusted' instead.\n    Load energy meter readings to be added to EOS measurement by:\n    '/v1/measurement/value' or\n    '/v1/measurement/series' or\n    '/v1/measurement/dataframe' or\n    '/v1/measurement/data'",
+        "description": "Deprecated: Total Load Prediction with adjustment.\n\nEndpoint to handle total load prediction adjusted by latest measured data.\n\nTotal load prediction starts at 00.00.00 today and is provided for 48 hours.\nIf no prediction values are available the missing ones at the start of the series are\nfilled with the first available prediction value.\n\nNote:\n    Use '/v1/prediction/list?key=loadforecast_power_w' instead.\n    Load energy meter readings to be added to EOS measurement by:\n    '/v1/measurement/value' or\n    '/v1/measurement/series' or\n    '/v1/measurement/dataframe' or\n    '/v1/measurement/data'",
         "operationId": "fastapi_gesamtlast_gesamtlast_post",
         "requestBody": {
           "content": {
@@ -1781,7 +1781,7 @@
           "prediction"
         ],
         "summary": "Fastapi Gesamtlast Simple",
-        "description": "Deprecated: Total Load Prediction.\n\nEndpoint to handle total load prediction.\n\nTotal load prediction starts at 00.00.00 today and is provided for 48 hours.\nIf no prediction values are available the missing ones at the start of the series are\nfilled with the first available prediction value.\n\nArgs:\n    year_energy (float): Yearly energy consumption in Wh.\n\nNote:\n    Set LoadAkkudoktor as provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=load_mean' instead.",
+        "description": "Deprecated: Total Load Prediction.\n\nEndpoint to handle total load prediction.\n\nTotal load prediction starts at 00.00.00 today and is provided for 48 hours.\nIf no prediction values are available the missing ones at the start of the series are\nfilled with the first available prediction value.\n\nArgs:\n    year_energy (float): Yearly energy consumption in Wh.\n\nNote:\n    Set LoadAkkudoktor as provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=loadforecast_power_w' instead.",
         "operationId": "fastapi_gesamtlast_simple_gesamtlast_simple_get",
         "parameters": [
           {
@@ -5099,7 +5099,7 @@
       },
       "LoadAkkudoktorCommonSettings": {
         "properties": {
-          "loadakkudoktor_year_energy": {
+          "loadakkudoktor_year_energy_kwh": {
             "anyOf": [
               {
                 "type": "number"
@@ -5108,7 +5108,7 @@
                 "type": "null"
               }
             ],
-            "title": "Loadakkudoktor Year Energy",
+            "title": "Loadakkudoktor Year Energy Kwh",
             "description": "Yearly energy consumption (kWh).",
             "examples": [
               40421
@@ -5849,9 +5849,13 @@
             "title": "Total Costs Amt",
             "description": "The total costs [money amount]."
           },
-          "data": {
+          "prediction": {
             "$ref": "#/components/schemas/PydanticDateTimeDataFrame",
-            "description": "Datetime data frame with time series optimization data per optimization interval:- load_energy_wh: Load of all energy consumers in wh- grid_energy_wh: Grid energy feed in (negative) or consumption (positive) in wh- pv_prediction_energy_wh: PV energy prediction (positive) in wh- elec_price_prediction_amt_kwh: Electricity price prediction in money per kwh- costs_amt: Costs in money amount- revenue_amt: Revenue in money amount- losses_energy_wh: Energy losses in wh- <device-id>_operation_mode_id: Operation mode id of the device.- <device-id>_operation_mode_factor: Operation mode factor of the device.- <device-id>_soc_factor: State of charge of a battery/ electric vehicle device as factor of total capacity.- <device-id>_energy_wh: Energy consumption (positive) of a device in wh."
+            "description": "Datetime data frame with time series prediction data per optimization interval:- pv_energy_wh: PV energy prediction (positive) in wh- elec_price_amt_kwh: Electricity price prediction in money per kwh- feed_in_tariff_amt_kwh: Feed in tariff prediction in money per kwh- weather_temp_air_celcius: Temperature in \u00b0C- loadforecast_energy_wh: Load mean energy prediction in wh- loadakkudoktor_std_energy_wh: Load energy standard deviation prediction in wh- loadakkudoktor_mean_energy_wh: Load mean energy prediction in wh"
+          },
+          "solution": {
+            "$ref": "#/components/schemas/PydanticDateTimeDataFrame",
+            "description": "Datetime data frame with time series solution data per optimization interval:- load_energy_wh: Load of all energy consumers in wh- grid_energy_wh: Grid energy feed in (negative) or consumption (positive) in wh- costs_amt: Costs in money amount- revenue_amt: Revenue in money amount- losses_energy_wh: Energy losses in wh- <device-id>_operation_mode_id: Operation mode id of the device.- <device-id>_operation_mode_factor: Operation mode factor of the device.- <device-id>_soc_factor: State of charge of a battery/ electric vehicle device as factor of total capacity.- <device-id>_energy_wh: Energy consumption (positive) of a device in wh."
           }
         },
         "type": "object",
@@ -5861,7 +5865,8 @@
           "total_losses_energy_wh",
           "total_revenues_amt",
           "total_costs_amt",
-          "data"
+          "prediction",
+          "solution"
         ],
         "title": "OptimizationSolution",
         "description": "General Optimization Solution."
@@ -7066,7 +7071,7 @@
         },
         "type": "object",
         "title": "PydanticDateTimeData",
-        "description": "Pydantic model for time series data with consistent value lengths.\n\nThis model validates a dictionary where:\n- Keys are strings representing data series names\n- Values are lists of numeric or string values\n- Special keys 'start_datetime' and 'interval' can contain string values\nfor time series indexing\n- All value lists must have the same length\n\nExample:\n    {\n        \"start_datetime\": \"2024-01-01 00:00:00\",  # optional\n        \"interval\": \"1 Hour\",                     # optional\n        \"load_mean\": [20.5, 21.0, 22.1],\n        \"load_min\": [18.5, 19.0, 20.1]\n    }"
+        "description": "Pydantic model for time series data with consistent value lengths.\n\nThis model validates a dictionary where:\n- Keys are strings representing data series names\n- Values are lists of numeric or string values\n- Special keys 'start_datetime' and 'interval' can contain string values\nfor time series indexing\n- All value lists must have the same length\n\nExample:\n    {\n        \"start_datetime\": \"2024-01-01 00:00:00\",  # optional\n        \"interval\": \"1 Hour\",                     # optional\n        \"loadforecast_power_w\": [20.5, 21.0, 22.1],\n        \"load_min\": [18.5, 19.0, 20.1]\n    }"
       },
       "PydanticDateTimeDataFrame": {
         "properties": {

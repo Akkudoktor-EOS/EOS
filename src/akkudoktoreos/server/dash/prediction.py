@@ -153,9 +153,9 @@ def WeatherIrradianceForecast(
 def LoadForecast(predictions: pd.DataFrame, config: dict, date_time_tz: str, dark: bool) -> FT:
     source = ColumnDataSource(predictions)
     provider = config["load"]["provider"]
-    if provider == "LoadAkkudoktor":
+    if provider == "LoadAkkudoktorAdjusted":
         year_energy = config["load"]["provider_settings"]["LoadAkkudoktor"][
-            "loadakkudoktor_year_energy"
+            "loadakkudoktor_year_energy_kwh"
         ]
         provider = f"{provider}, {year_energy} kWh"
 
@@ -168,8 +168,8 @@ def LoadForecast(predictions: pd.DataFrame, config: dict, date_time_tz: str, dar
         height=400,
     )
     # Add secondary y-axis for stddev
-    stddev_min = predictions["load_std"].min()
-    stddev_max = predictions["load_std"].max()
+    stddev_min = predictions["loadakkudoktor_std_power_w"].min()
+    stddev_max = predictions["loadakkudoktor_std_power_w"].max()
     plot.extra_y_ranges["stddev"] = Range1d(start=stddev_min - 5, end=stddev_max + 5)
     y2_axis = LinearAxis(y_range_name="stddev", axis_label="Load Standard Deviation [W]")
     y2_axis.axis_label_text_color = "green"
@@ -177,21 +177,21 @@ def LoadForecast(predictions: pd.DataFrame, config: dict, date_time_tz: str, dar
 
     plot.line(
         "date_time",
-        "load_mean",
+        "loadforecast_power_w",
         source=source,
-        legend_label="Load mean value",
+        legend_label="Load forcast value (adjusted by measurement)",
         color="red",
     )
     plot.line(
         "date_time",
-        "load_mean_adjusted",
+        "loadakkudoktor_mean_power_w",
         source=source,
-        legend_label="Load adjusted by measurement",
+        legend_label="Load mean value",
         color="blue",
     )
     plot.line(
         "date_time",
-        "load_std",
+        "loadakkudoktor_std_power_w",
         source=source,
         legend_label="Load standard deviation",
         color="green",
@@ -233,9 +233,9 @@ def Prediction(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = 
                 "weather_ghi",
                 "weather_dni",
                 "weather_dhi",
-                "load_mean",
-                "load_std",
-                "load_mean_adjusted",
+                "loadforecast_power_w",
+                "loadakkudoktor_std_power_w",
+                "loadakkudoktor_mean_power_w",
             ],
         }
         result = requests.get(f"{server}/v1/prediction/dataframe", params=params, timeout=10)

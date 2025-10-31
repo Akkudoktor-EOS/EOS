@@ -58,7 +58,7 @@
   "load": {
     "provider_settings": {
       "LoadAkkudoktor": {
-        "loadakkudoktor_year_energy": 13000
+        "loadakkudoktor_year_energy_kwh": 13000
       }
     }
   },

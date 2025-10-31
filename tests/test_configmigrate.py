@@ -155,7 +155,7 @@ class TestConfigMigration:
             assert configmigrate.mapped_count >= 1, f"No mapped migrations for {old_file.name}"
             assert configmigrate.auto_count >= 1, f"No automatic migrations for {old_file.name}"
 
-            assert len(configmigrate.skipped_paths) <= 7, (
+            assert len(configmigrate.skipped_paths) <= 3, (
                 f"Too many skipped paths in {old_file.name}: {configmigrate.skipped_paths}"
             )
 
@@ -174,7 +174,7 @@ class TestConfigMigration:
             errors = _dict_contains(new_data, expected_data)
             assert not errors, (
                 f"Migrated config for {old_file.name} is missing or mismatched fields:\n" +
-                "\n".join(errors)
+                "\n".join(errors) + f"\n{new_data}"
             )
 
             # --- Compare migrated result with migration map ---

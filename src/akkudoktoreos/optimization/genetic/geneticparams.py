@@ -301,8 +301,8 @@ class GeneticOptimizationParameters(
                 # Retry
                 continue
             try:
-                load_mean_adjusted = cls.prediction.key_to_array(
-                    key="load_mean_adjusted",
+                loadforecast_power_w = cls.prediction.key_to_array(
+                    key="loadforecast_power_w",
                     start_datetime=parameter_start_datetime,
                     end_datetime=parameter_end_datetime,
                     interval=interval,
@@ -319,7 +319,7 @@ class GeneticOptimizationParameters(
                             "provider": "LoadAkkudoktor",
                             "provider_settings": {
                                 "LoadAkkudoktor": {
-                                    "loadakkudoktor_year_energy": "1000",
+                                    "loadakkudoktor_year_energy_kwh": "3000",
                                 },
                             },
                         },
@@ -607,7 +607,7 @@ class GeneticOptimizationParameters(
                         pv_prognose_wh=pvforecast_ac_power,
                         strompreis_euro_pro_wh=elecprice_marketprice_wh,
                         einspeiseverguetung_euro_pro_wh=feed_in_tariff_wh,
-                        gesamtlast=load_mean_adjusted,
+                        gesamtlast=loadforecast_power_w,
                         preis_euro_pro_wh_akku=battery_lcos_kwh / 1000,
                     ),
                     temperature_forecast=weather_temp_air,
