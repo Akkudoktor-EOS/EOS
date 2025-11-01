@@ -421,6 +421,30 @@ resources:
         make test-system
 ```
 
+To do profiling use:
+
+```{eval-rst}
+.. tabs::
+
+  .. tab:: Windows
+
+     .. code-block:: powershell
+
+        python tests/single_test_optimization.py --profile
+
+  .. tab:: Linux
+
+     .. code-block:: bash
+
+        python tests/single_test_optimization.py --profile
+
+  .. tab:: Linux Make
+
+     .. code-block:: bash
+
+        make test-profile
+```
+
 #### Step 4.5 - Commit the changes
 
 Add the changed and new files to the commit.

@@ -639,6 +639,42 @@ def fastapi_config_reset_post() -> ConfigEOS:
     return config_eos
 
 
+@app.get("/v1/config/backup", tags=["config"])
+def fastapi_config_backup_get() -> dict[str, dict[str, Any]]:
+    """Get the EOS configuration backup identifiers and backup metadata.
+
+    Returns:
+        dict[str, dict[str, Any]]: Mapping of backup identifiers to metadata.
+    """
+    try:
+        result = config_eos.list_backups()
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Can not list configuration backups: {e}",
+        )
+    return result
+
+
+@app.put("/v1/config/revert", tags=["config"])
+def fastapi_config_revert_put(
+    backup_id: str = Query(..., description="EOS configuration backup ID."),
+) -> ConfigEOS:
+    """Revert the configuration to a EOS configuration backup.
+
+    Returns:
+        configuration (ConfigEOS): The current configuration after revert.
+    """
+    try:
+        config_eos.revert_settings(backup_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error on reverting of configuration: {e}",
+        )
+    return config_eos
+
+
 @app.put("/v1/config/file", tags=["config"])
 def fastapi_config_file_put() -> ConfigEOS:
     """Save the current configuration to the EOS configuration file.

@@ -152,7 +152,11 @@ def AdminCache(
 
 
 def AdminConfig(
-    eos_host: str, eos_port: Union[str, int], data: Optional[dict], config: Optional[dict[str, Any]]
+    eos_host: str,
+    eos_port: Union[str, int],
+    data: Optional[dict],
+    config: Optional[dict[str, Any]],
+    config_backup: Optional[dict[str, dict[str, Any]]],
 ) -> tuple[str, Union[Card, list[Card]]]:
     """Creates a configuration management card with save-to-file functionality.
 
@@ -177,6 +181,8 @@ def AdminConfig(
             config_file_path = get_nested_value(config, ["general", "config_file_path"])
     except Exception as e:
         logger.debug(f"general.config_file_path: {e}")
+    # revert to backup
+    revert_to_backup_status = (None,)
     # export config file
     export_to_file_next_tag = to_datetime(as_string="YYYYMMDDHHmmss")
     export_to_file_status = (None,)
@@ -191,7 +197,7 @@ def AdminConfig(
                 result = requests.put(f"{server}/v1/config/file", timeout=10)
                 result.raise_for_status()
                 config_file_path = result.json()["general"]["config_file_path"]
-                status = Success(f"Saved to '{config_file_path}' on '{eos_hostname}'")
+                status = Success(f"Saved configuration to '{config_file_path}' on '{eos_hostname}'")
             except requests.exceptions.HTTPError as e:
                 detail = result.json()["detail"]
                 status = Error(
@@ -199,6 +205,45 @@ def AdminConfig(
                 )
             except Exception as e:
                 status = Error(f"Can not save actual config to file on '{eos_hostname}': {e}")
+        elif data["action"] == "revert_to_backup":
+            # Revert configuration to backup file
+            metadata = data.get("backup_metadata", None)
+            if metadata and config_backup:
+                date_time = metadata.split(" ")[0]
+                backup_id = None
+                for bkup_id, bkup_meta in config_backup.items():
+                    if bkup_meta.get("date_time") == date_time:
+                        backup_id = bkup_id
+                        break
+                if backup_id:
+                    try:
+                        result = requests.put(
+                            f"{server}/v1/config/revert",
+                            params={"backup_id": backup_id},
+                            timeout=10,
+                        )
+                        result.raise_for_status()
+                        config_file_path = result.json()["general"]["config_file_path"]
+                        revert_to_backup_status = Success(
+                            f"Reverted configuration to backup `{backup_id}` on '{eos_hostname}'"
+                        )
+                    except requests.exceptions.HTTPError as e:
+                        detail = result.json()["detail"]
+                        revert_to_backup_status = Error(
+                            f"Can not revert to backup `{backup_id}` on '{eos_hostname}': {e}, {detail}"
+                        )
+                    except Exception as e:
+                        revert_to_backup_status = Error(
+                            f"Can not revert to backup `{backup_id}` on '{eos_hostname}': {e}"
+                        )
+                else:
+                    revert_to_backup_status = Error(
+                        f"Can not revert to backup `{backup_id}` on '{eos_hostname}': Invalid backup datetime {date_time}"
+                    )
+            else:
+                revert_to_backup_status = Error(
+                    f"Can not revert to backup configuration on '{eos_hostname}': No backup selected"
+                )
         elif data["action"] == "export_to_file":
             # Export current configuration to file
             export_to_file_tag = data.get("export_to_file_tag", export_to_file_next_tag)
@@ -257,6 +302,13 @@ def AdminConfig(
 
     # Update for display, in case we added a new file before
     import_from_file_names = [f.name for f in list(export_import_directory.glob("*.json"))]
+    if config_backup is None:
+        revert_to_backup_metadata_list = ["Backup list not available"]
+    else:
+        revert_to_backup_metadata_list = [
+            f"{backup_meta['date_time']} {backup_meta['version']}"
+            for backup_id, backup_meta in config_backup.items()
+        ]
 
     return (
         category,
@@ -281,6 +333,33 @@ def AdminConfig(
                         cls="list-none",
                     ),
                     P(f"Safe actual configuration to '{config_file_path}' on '{eos_hostname}'."),
+                ),
+            ),
+            Card(
+                Details(
+                    Summary(
+                        Grid(
+                            DivHStacked(
+                                UkIcon(icon="play"),
+                                AdminButton(
+                                    "Revert to backup",
+                                    hx_post="/eosdash/admin",
+                                    hx_target="#page-content",
+                                    hx_swap="innerHTML",
+                                    hx_vals='js:{ "category": "configuration", "action": "revert_to_backup", "backup_metadata": document.querySelector("[name=\'selected_backup_metadata\']").value }',
+                                ),
+                                Select(
+                                    *Options(*revert_to_backup_metadata_list),
+                                    id="backup_metadata",
+                                    name="selected_backup_metadata",  # Name of hidden input field with selected value
+                                    placeholder="Select backup",
+                                ),
+                            ),
+                            revert_to_backup_status,
+                        ),
+                        cls="list-none",
+                    ),
+                    P(f"Revert configuration to backup on '{eosdash_hostname}'."),
                 ),
             ),
             Card(
@@ -364,7 +443,20 @@ def Admin(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = None)
         result.raise_for_status()
         config = result.json()
     except requests.exceptions.HTTPError as e:
-        config = {}
+        detail = result.json()["detail"]
+        warning_msg = f"Can not retrieve configuration from {server}: {e}, {detail}"
+        logger.warning(warning_msg)
+        return Error(warning_msg)
+    except Exception as e:
+        warning_msg = f"Can not retrieve configuration from {server}: {e}"
+        logger.warning(warning_msg)
+        return Error(warning_msg)
+    # Get current configuration backups from server
+    try:
+        result = requests.get(f"{server}/v1/config/backup", timeout=10)
+        result.raise_for_status()
+        config_backup = result.json()
+    except requests.exceptions.HTTPError as e:
         detail = result.json()["detail"]
         warning_msg = f"Can not retrieve configuration from {server}: {e}, {detail}"
         logger.warning(warning_msg)
@@ -378,7 +470,7 @@ def Admin(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = None)
     last_category = ""
     for category, admin in [
         AdminCache(eos_host, eos_port, data, config),
-        AdminConfig(eos_host, eos_port, data, config),
+        AdminConfig(eos_host, eos_port, data, config, config_backup),
     ]:
         if category != last_category:
             rows.append(H3(category))
