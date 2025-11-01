@@ -27,6 +27,8 @@ develop/getting_started.md
 :caption: How-To Guides
 
 develop/CONTRIBUTING.md
+develop/install.md
+develop/revert.md
 
 ```
 
@@ -53,8 +55,6 @@ akkudoktoreos/api.rst
 :maxdepth: 2
 :caption: Development
 
-develop/CONTRIBUTING.md
-develop/install.md
 develop/develop.md
 develop/release.md
 develop/CHANGELOG.md

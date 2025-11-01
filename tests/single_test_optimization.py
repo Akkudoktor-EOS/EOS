@@ -15,7 +15,7 @@ from loguru import logger
 from akkudoktoreos.config.config import get_config
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.core.emsettings import EnergyManagementMode
-from akkudoktoreos.optimization.genetic import (
+from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.prediction.prediction import get_prediction
@@ -439,7 +439,10 @@ def run_optimization(
         )
     )
 
-    return ems_eos.genetic_solution().model_dump_json()
+    solution = ems_eos.genetic_solution()
+    if solution is None:
+        return None
+    return solution.model_dump_json()
 
 
 def main():

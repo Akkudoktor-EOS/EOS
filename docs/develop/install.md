@@ -3,7 +3,7 @@
 
 # Installation Guide
 
-This guide provides four different methods to install AkkudoktorEOS. Choose the method that best
+This guide provides different methods to install AkkudoktorEOS. Choose the method that best
 suits your needs.
 
 ## Installation Prerequisites
@@ -113,9 +113,9 @@ stage of the installation provide appropriate IP addresses on startup.
 
 ### M1-Step 4: Configure EOS
 
-Use [EOSdash](http://localhost:8504) to configure EOS.
+Use EOSdash at [http://localhost:8504](http://localhost:8504) to configure EOS.
 
-### Updating from Source
+### M1-Step5: Update the source code
 
 To update to the latest version:
 
@@ -144,7 +144,7 @@ This method is recommended for users who want a stable, tested version.
 
 ### M2-Step 1: Download the Latest Release
 
-Visit the [Releases page](https://github.com/Akkudoktor-EOS/EOS/releases) and download the latest
+Visit the [Releases page](https://github.com/Akkudoktor-EOS/EOS/tags) and download the latest
 release package (e.g., `akkudoktoreos-v0.1.0.tar.gz` or `akkudoktoreos-v0.1.0.zip`).
 
 ### M2-Step 2: Extract the Package
@@ -157,9 +157,15 @@ unzip akkudoktoreos-v0.1.0.zip  # For .zip
 cd akkudoktoreos-v0.1.0
 ```
 
-### Follow Step 2, 3 and 4 of Method 1: Installation from source
+### M2-Step 3: Create a virtual environment and run and configure EOS
 
-Installation from release package now needs the exact same steps 2, 3, 4 of method 1.
+Follow Step 2, 3 and 4 of Method 1: Installation from source
+
+### M2-Step 4: Update the source code
+
+To extract a new release to a new directory just proceed with M2-Step 1 for the new release.
+
+You may remove the old release directory afterwards.
 
 ## Method 3: Installation with Docker (DockerHub)
 
@@ -211,42 +217,19 @@ should be available at [http://localhost:8504](http://localhost:8504).
 
 ### M3-Step 4: Configure EOS
 
-Use [EOSdash](http://localhost:8504) to configure EOS.
+Use EOSdash at [http://localhost:8504](http://localhost:8504) to configure EOS.
 
-### Docker Management Commands
+### M3-Step 5: Update EOS
 
-**View logs:**
-
-```bash
-docker logs -f akkudoktoreos
-```
-
-**Stop the container:**
+Pull the latest image and stop and delete the current container:
 
 ```bash
-docker stop akkudoktoreos
-```
-
-**Start the container:**
-
-```bash
-docker start akkudoktoreos
-```
-
-**Remove the container:**
-
-```bash
-docker rm -f akkudoktoreos
-```
-
-**Update to latest version:**
-
-```bash
-docker pull Akkudoktor-EOS/EOS:latest
+docker pull akkudoktor/eos:latest
 docker stop akkudoktoreos
 docker rm akkudoktoreos
-# Then run the container again with the run command
 ```
+
+Proceed with M3-Step 2: Run the Container
 
 ## Method 4: Installation with Docker (docker-compose)
 
@@ -285,4 +268,52 @@ should be available at [http://localhost:8504](http://localhost:8504).
 
 ### M4-Step 4: Configure EOS
 
-Use [EOSdash](http://localhost:8504) to configure EOS.
+Use EOSdash at [http://localhost:8504](http://localhost:8504) to configure EOS.
+
+### M4-Step 5: Update EOS
+
+Stop and delete the current container:
+
+```bash
+docker stop akkudoktoreos
+docker rm akkudoktoreos
+```
+
+See method 1 or method 2 on how to update the source code.
+
+Proceed with M4-Step 2: Build and run the Container
+
+## Docker Management Commands
+
+**View logs:**
+
+```bash
+docker logs -f akkudoktoreos
+```
+
+**Stop the container:**
+
+```bash
+docker stop akkudoktoreos
+```
+
+**Start the container:**
+
+```bash
+docker start akkudoktoreos
+```
+
+**Remove the container:**
+
+```bash
+docker rm -f akkudoktoreos
+```
+
+**Update to latest version:**
+
+```bash
+docker pull Akkudoktor-EOS/EOS:latest
+docker stop akkudoktoreos
+docker rm akkudoktoreos
+# Then run the container again with the run command
+```
