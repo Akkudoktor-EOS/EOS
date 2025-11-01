@@ -3,28 +3,42 @@
 
 # Installation Guide
 
-This guide provides four different methods to install AkkudoktorEOS. Choose the method that best
-suits your needs.
+This guide provides different methods to install AkkudoktorEOS:
+
+- Installation from Source (GitHub)
+- Installation from Release Package (GitHub)
+- Installation with Docker (DockerHub)
+- Installation with Docker (docker-compose)
+
+Choose the method that best suits your needs.
+
+:::{admonition} Tip
+:class: Note
+If you need to update instead, see the [Update Guideline](update-page). For reverting to a previous
+release see the [Revert Guideline](revert-page).
+:::
 
 ## Installation Prerequisites
 
 Before installing, ensure you have the following:
 
-- **For Source/Release Installation:**
-  - Python 3.10 or higher
-  - pip (Python package manager)
-  - Git (for source installation)
-  - Tar/Zip (for release package installation)
+### For Source / Release Installation
 
-- **For Docker Installation:**
-  - Docker Engine 20.10 or higher
-  - Docker Compose (optional, but recommended)
+- Python 3.10 or higher
+- pip
+- Git (only for source)
+- Tar/Zip (for release package)
 
-## Method 1: Installation from Source (GitHub)
+### For Docker Installation
 
-This method is recommended for developers or users who want the latest features.
+- Docker Engine 20.10 or higher
+- Docker Compose (optional, recommended)
 
-### M1-Step 1: Clone the Repository
+## Installation from Source (GitHub) (M1)
+
+Recommended for developers or users wanting the latest updates.
+
+### 1) Clone the Repository (M1)
 
 ```{eval-rst}
 .. tabs::
@@ -44,7 +58,7 @@ This method is recommended for developers or users who want the latest features.
         cd EOS
 ```
 
-### M1-Step 2: Create a Virtual Environment and install dependencies
+### 2) Create a Virtual Environment and install dependencies (M1)
 
 ```{eval-rst}
 .. tabs::
@@ -67,7 +81,7 @@ This method is recommended for developers or users who want the latest features.
 
 ```
 
-### M1-Step 3: Run EOS
+### 3) Run EOS (M1)
 
 ```{eval-rst}
 .. tabs::
@@ -86,8 +100,10 @@ This method is recommended for developers or users who want the latest features.
 
 ```
 
-EOS should now be accessible at [http://localhost:8503/docs](http://localhost:8503/docs) and EOSdash
-should be available at [http://localhost:8504](http://localhost:8504).
+EOS is now available at:
+
+- API: [http://localhost:8503/docs](http://localhost:8503/docs)
+- EOSdash: [http://localhost:8504](http://localhost:8504)
 
 If you want to make EOS and EOSdash accessible from outside of your machine or container at this
 stage of the installation provide appropriate IP addresses on startup.
@@ -111,43 +127,20 @@ stage of the installation provide appropriate IP addresses on startup.
 ```
 <!-- pyml enable line-length -->
 
-### M1-Step 4: Configure EOS
+### 4) Configure EOS (M1)
 
-Use [EOSdash](http://localhost:8504) to configure EOS.
+Use EOSdash at [http://localhost:8504](http://localhost:8504) to configure EOS.
 
-### Updating from Source
-
-To update to the latest version:
-
-```{eval-rst}
-.. tabs::
-
-  .. tab:: Windows
-
-     .. code-block:: powershell
-
-        git pull origin main
-        .venv\Scripts\pip install -r requirements.txt --upgrade
-
-  .. tab:: Linux
-
-     .. code-block:: bash
-
-        git pull origin main
-        .venv/bin/pip install -r requirements.txt --upgrade
-
-```
-
-## Method 2: Installation from Release Package (GitHub)
+## Installation from Release Package (GitHub) (M2)
 
 This method is recommended for users who want a stable, tested version.
 
-### M2-Step 1: Download the Latest Release
+### 1) Download the Latest Release (M2)
 
-Visit the [Releases page](https://github.com/Akkudoktor-EOS/EOS/releases) and download the latest
+Visit the [Releases page](https://github.com/Akkudoktor-EOS/EOS/tags) and download the latest
 release package (e.g., `akkudoktoreos-v0.1.0.tar.gz` or `akkudoktoreos-v0.1.0.zip`).
 
-### M2-Step 2: Extract the Package
+### 2) Extract the Package (M2)
 
 ```bash
 tar -xzf akkudoktoreos-v0.1.0.tar.gz  # For .tar.gz
@@ -157,15 +150,22 @@ unzip akkudoktoreos-v0.1.0.zip  # For .zip
 cd akkudoktoreos-v0.1.0
 ```
 
-### Follow Step 2, 3 and 4 of Method 1: Installation from source
+### 3) Create a virtual environment and run and configure EOS (M2)
 
-Installation from release package now needs the exact same steps 2, 3, 4 of method 1.
+Follow Step 2), 3) and 4) of method M1. Start at
+`2) Create a Virtual Environment and install dependencies`
 
-## Method 3: Installation with Docker (DockerHub)
+### 4) Update the source code (M2)
+
+To extract a new release to a new directory just proceed with method M2 step 1) for the new release.
+
+You may remove the old release directory afterwards.
+
+## Installation with Docker (DockerHub) (M3)
 
 This method is recommended for easy deployment and containerized environments.
 
-### M3-Step 1: Pull the Docker Image
+### 1) Pull the Docker Image (M3)
 
 ```bash
 docker pull akkudoktor/eos:latest
@@ -174,10 +174,10 @@ docker pull akkudoktor/eos:latest
 For a specific version:
 
 ```bash
-docker pull akkudoktor/eos:v0.1.0
+docker pull akkudoktor/eos:v<version>
 ```
 
-### M3-Step 2: Run the Container
+### 2) Run the Container (M3)
 
 **Basic run:**
 
@@ -199,7 +199,7 @@ docker run -d \
   akkudoktor/eos:latest
 ```
 
-### M3-Step 3: Verify the Container is Running
+### 3) Verify the Container is Running (M3)
 
 ```bash
 docker ps
@@ -209,11 +209,50 @@ docker logs akkudoktoreos
 EOS should now be accessible at [http://localhost:8503/docs](http://localhost:8503/docs) and EOSdash
 should be available at [http://localhost:8504](http://localhost:8504).
 
-### M3-Step 4: Configure EOS
+### 4) Configure EOS (M3)
 
-Use [EOSdash](http://localhost:8504) to configure EOS.
+Use EOSdash at [http://localhost:8504](http://localhost:8504) to configure EOS.
 
-### Docker Management Commands
+## Installation with Docker (docker-compose) (M4)
+
+### 1) Get the akkudoktoreos source code (M4)
+
+You may use either method M1 or method M2 to get the source code.
+
+### 2) Build and run the container (M4)
+
+```{eval-rst}
+.. tabs::
+
+  .. tab:: Windows
+
+     .. code-block:: powershell
+
+        docker compose up --build
+
+  .. tab:: Linux
+
+     .. code-block:: bash
+
+        docker compose up --build
+
+```
+
+### 3) Verify the Container is Running (M4)
+
+```bash
+docker ps
+docker logs akkudoktoreos
+```
+
+EOS should now be accessible at [http://localhost:8503/docs](http://localhost:8503/docs) and EOSdash
+should be available at [http://localhost:8504](http://localhost:8504).
+
+### 4) Configure EOS
+
+Use EOSdash at [http://localhost:8504](http://localhost:8504) to configure EOS.
+
+## Helpful Docker Commands
 
 **View logs:**
 
@@ -247,42 +286,3 @@ docker stop akkudoktoreos
 docker rm akkudoktoreos
 # Then run the container again with the run command
 ```
-
-## Method 4: Installation with Docker (docker-compose)
-
-### M4-Step 1: Get the akkudoktoreos source code
-
-You may use either method 1 or method 2 to get the source code.
-
-### M4-Step 2: Build and run the container
-
-```{eval-rst}
-.. tabs::
-
-  .. tab:: Windows
-
-     .. code-block:: powershell
-
-        docker compose up --build
-
-  .. tab:: Linux
-
-     .. code-block:: bash
-
-        docker compose up --build
-
-```
-
-### M4-Step 3: Verify the Container is Running
-
-```bash
-docker ps
-docker logs akkudoktoreos
-```
-
-EOS should now be accessible at [http://localhost:8503/docs](http://localhost:8503/docs) and EOSdash
-should be available at [http://localhost:8504](http://localhost:8504).
-
-### M4-Step 4: Configure EOS
-
-Use [EOSdash](http://localhost:8504) to configure EOS.

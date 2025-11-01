@@ -1,5 +1,5 @@
 # Define the targets
-.PHONY: help venv pip install dist test test-full test-system test-ci docker-run docker-build docs read-docs clean format gitlint mypy run run-dev run-dash run-dash-dev bumps
+.PHONY: help venv pip install dist test test-full test-system test-ci test-profile docker-run docker-build docs read-docs clean format gitlint mypy run run-dev run-dash run-dash-dev bumps
 
 # Default target
 all: help
@@ -28,6 +28,7 @@ help:
 	@echo "  test-full    - Run tests with full optimization."
 	@echo "  test-system  - Run tests with system tests enabled."
 	@echo "  test-ci      - Run tests as CI does. No user config file allowed."
+	@echo "  test-profile - Run single test optimization with profiling."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
 	@echo "  bump         - Bump version to next release version."
@@ -135,6 +136,11 @@ test-system:
 test-full:
 	@echo "Running all tests..."
 	.venv/bin/pytest --full-run
+
+# Target to run tests including the single test optimization with profiling.
+test-profile:
+	@echo "Running single test optimization with profiling..."
+	.venv/bin/python tests/single_test_optimization.py --profile
 
 # Target to format code.
 format:

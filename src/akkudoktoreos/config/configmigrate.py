@@ -3,11 +3,15 @@
 import json
 import shutil
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Set, Tuple, Union
 
 from loguru import logger
 
 from akkudoktoreos.core.version import __version__
+
+if TYPE_CHECKING:
+    # There are circular dependencies - only import here for type checking
+    from akkudoktoreos.config.config import SettingsEOSDefaults
 
 # -----------------------------
 # Global migration map constant
@@ -57,6 +61,79 @@ auto_count: int = 0
 skipped_paths: List[str] = []
 
 
+def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
+    """Migrate configuration data to the current version settings.
+
+    Returns:
+        SettingsEOSDefaults: The migrated settings.
+    """
+    global migrated_source_paths, mapped_count, auto_count, skipped_paths
+
+    # Reset globals at the start of each migration
+    migrated_source_paths = set()
+    mapped_count = 0
+    auto_count = 0
+    skipped_paths = []
+
+    from akkudoktoreos.config.config import SettingsEOSDefaults
+
+    new_config = SettingsEOSDefaults()
+
+    # 1) Apply explicit migration map
+    for old_path, mapping in MIGRATION_MAP.items():
+        new_path = None
+        transform = None
+        if mapping is None:
+            migrated_source_paths.add(old_path.strip("/"))
+            logger.debug(f"🗑️ Migration map: dropping '{old_path}'")
+            continue
+        if isinstance(mapping, tuple):
+            new_path, transform = mapping
+        else:
+            new_path = mapping
+
+        old_value = _get_json_nested_value(config_data, old_path)
+        if old_value is None:
+            migrated_source_paths.add(old_path.strip("/"))
+            mapped_count += 1
+            logger.debug(f"✅ Migrated mapped '{old_path}' → 'None'")
+            continue
+
+        try:
+            if transform:
+                old_value = transform(old_value)
+            new_config.set_nested_value(new_path, old_value)
+            migrated_source_paths.add(old_path.strip("/"))
+            mapped_count += 1
+            logger.debug(f"✅ Migrated mapped '{old_path}' → '{new_path}' = {old_value!r}")
+        except Exception as e:
+            logger.opt(exception=True).warning(
+                f"Failed mapped migration '{old_path}' -> '{new_path}': {e}"
+            )
+
+    # 2) Automatic migration for remaining fields
+    auto_count += _migrate_matching_fields(
+        config_data, new_config, migrated_source_paths, skipped_paths
+    )
+
+    # 3) Ensure version
+    try:
+        new_config.set_nested_value("general/version", __version__)
+    except Exception as e:
+        logger.warning(f"Could not set version on new configuration model: {e}")
+
+    # 4) Log final migration summary
+    logger.info(
+        f"Migration summary: "
+        f"mapped fields: {mapped_count}, automatically migrated: {auto_count}, skipped: {len(skipped_paths)}"
+    )
+    if skipped_paths:
+        logger.debug(f"Skipped paths: {', '.join(skipped_paths)}")
+
+    logger.success(f"Configuration successfully migrated to version {__version__}.")
+    return new_config
+
+
 def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
     """Migrate configuration file to the current version.
 
@@ -104,54 +181,10 @@ def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
                     f"Failed to backup existing config (replace: {e_replace}; copy: {e_copy}). Continuing without backup."
                 )
 
-        from akkudoktoreos.config.config import SettingsEOSDefaults
+        # Migrate config data
+        new_config = migrate_config_data(config_data)
 
-        new_config = SettingsEOSDefaults()
-
-        # 1) Apply explicit migration map
-        for old_path, mapping in MIGRATION_MAP.items():
-            new_path = None
-            transform = None
-            if mapping is None:
-                migrated_source_paths.add(old_path.strip("/"))
-                logger.debug(f"🗑️ Migration map: dropping '{old_path}'")
-                continue
-            if isinstance(mapping, tuple):
-                new_path, transform = mapping
-            else:
-                new_path = mapping
-
-            old_value = _get_json_nested_value(config_data, old_path)
-            if old_value is None:
-                migrated_source_paths.add(old_path.strip("/"))
-                mapped_count += 1
-                logger.debug(f"✅ Migrated mapped '{old_path}' → 'None'")
-                continue
-
-            try:
-                if transform:
-                    old_value = transform(old_value)
-                new_config.set_nested_value(new_path, old_value)
-                migrated_source_paths.add(old_path.strip("/"))
-                mapped_count += 1
-                logger.debug(f"✅ Migrated mapped '{old_path}' → '{new_path}' = {old_value!r}")
-            except Exception as e:
-                logger.opt(exception=True).warning(
-                    f"Failed mapped migration '{old_path}' -> '{new_path}': {e}", exc_info=True
-                )
-
-        # 2) Automatic migration for remaining fields
-        auto_count += _migrate_matching_fields(
-            config_data, new_config, migrated_source_paths, skipped_paths
-        )
-
-        # 3) Ensure version
-        try:
-            new_config.set_nested_value("general/version", __version__)
-        except Exception as e:
-            logger.warning(f"Could not set version on new configuration model: {e}")
-
-        # 4) Write migrated configuration
+        # Write migrated configuration
         try:
             with config_file.open("w", encoding="utf-8", newline=None) as f_out:
                 json_str = new_config.model_dump_json(indent=4)
@@ -160,15 +193,6 @@ def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
             logger.error(f"Failed to write migrated configuration to '{config_file}': {e_write}")
             return False
 
-        # 5) Log final migration summary
-        logger.info(
-            f"Migration summary for '{config_file}': "
-            f"mapped fields: {mapped_count}, automatically migrated: {auto_count}, skipped: {len(skipped_paths)}"
-        )
-        if skipped_paths:
-            logger.debug(f"Skipped paths: {', '.join(skipped_paths)}")
-
-        logger.success(f"Configuration successfully migrated to version {__version__}.")
         return True
 
     except Exception as e:

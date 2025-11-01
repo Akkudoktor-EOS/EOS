@@ -99,7 +99,7 @@ html_theme_options = {
     "logo_only": False,
     "titles_only": True,
 }
-html_css_files = ["eos.css"]
+html_css_files = ["eos.css"]  # Make body size wider
 
 # -- Options for autodoc -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html
