@@ -212,6 +212,12 @@ class GeneticOptimizationParameters(
             logger.error("ev_soc_miss penalty function parameter unknown - defaulting to 100.")
             cls.config.optimization.genetic.penalties["ev_soc_miss"] = 10
 
+        # Get start solution from last run
+        start_solution = None
+        last_solution = ems.genetic_solution()
+        if last_solution and last_solution.start_solution:
+            start_solution = last_solution.start_solution
+
         # Add forecast and device data
         interval = to_duration(cls.config.optimization.interval)
         power_to_energy_per_interval_factor = cls.config.optimization.interval / 3600
@@ -615,6 +621,7 @@ class GeneticOptimizationParameters(
                     eauto=electric_vehicle_params,
                     inverter=inverter_params,
                     dishwasher=home_appliance_params,
+                    start_solution=start_solution,
                 )
             except:
                 logger.exception(
