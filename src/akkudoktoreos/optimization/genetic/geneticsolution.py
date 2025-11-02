@@ -259,7 +259,6 @@ class GeneticSolution(GeneticParametersBaseModel):
                 "load_energy_wh": self.result.Last_Wh_pro_Stunde,
                 "grid_feedin_energy_wh": self.result.Netzeinspeisung_Wh_pro_Stunde,
                 "grid_consumption_energy_wh": self.result.Netzbezug_Wh_pro_Stunde,
-                "elec_price_prediction_amt_kwh": [v * 1000 for v in self.result.Electricity_price],
                 "costs_amt": self.result.Kosten_Euro_pro_Stunde,
                 "revenue_amt": self.result.Einnahmen_Euro_pro_Stunde,
                 "losses_energy_wh": self.result.Verluste_Pro_Stunde,
@@ -269,13 +268,20 @@ class GeneticSolution(GeneticParametersBaseModel):
 
         # Add battery data
         solution["battery1_soc_factor"] = [v / 100 for v in self.result.akku_soc_pro_stunde]
-        operation: dict[str, list[float]] = {}
+        operation: dict[str, list[float]] = {
+            "genetic_ac_charge_factor": [],
+            "genetic_dc_charge_factor": [],
+            "genetic_discharge_allowed_factor": [],
+        }
         for hour, rate in enumerate(self.ac_charge):
             if hour >= n_points:
                 break
             operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                 self.ac_charge[hour], self.dc_charge[hour], bool(self.discharge_allowed[hour])
             )
+            operation["genetic_ac_charge_factor"].append(self.ac_charge[hour])
+            operation["genetic_dc_charge_factor"].append(self.dc_charge[hour])
+            operation["genetic_discharge_allowed_factor"].append(self.discharge_allowed[hour])
             for mode in BatteryOperationMode:
                 mode_key = f"battery1_{mode.lower()}_op_mode"
                 factor_key = f"battery1_{mode.lower()}_op_factor"
@@ -298,6 +304,7 @@ class GeneticSolution(GeneticParametersBaseModel):
                 solution[f"{self.eauto_obj.device_id}_soc_factor"] = [
                     self.eauto_obj.initial_soc_percentage / 100.0
                 ] * n_points
+                solution["genetic_ev_charge_factor"] = [0.0] * n_points
                 # operation modes
                 operation_mode = BatteryOperationMode.IDLE
                 for mode in BatteryOperationMode:
@@ -313,10 +320,13 @@ class GeneticSolution(GeneticParametersBaseModel):
                 solution[f"{self.eauto_obj.device_id}_soc_factor"] = [
                     v / 100 for v in self.result.EAuto_SoC_pro_Stunde
                 ]
-                operation = {}
+                operation = {
+                    "genetic_ev_charge_factor": [],
+                }
                 for hour, rate in enumerate(self.eautocharge_hours_float):
                     if hour >= n_points:
                         break
+                    operation["genetic_ev_charge_factor"].append(rate)
                     operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                         rate, 0.0, False
                     )
