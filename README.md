@@ -20,8 +20,8 @@ get involved:
 - [GitHub Issue Tracker](https://github.com/Akkudoktor-EOS/EOS/issues): discuss ideas and features,
 and report bugs.
 
-- [Akkudoktor Forum](https://www.akkudoktor.net/forum/diy-energie-optimierungssystem-opensource-projekt/):
-get direct suppport from the cummunity.
+- [Akkudoktor Forum](https://www.akkudoktor.net/c/der-akkudoktor/eos): get direct suppport from the
+cummunity.
 
 ## What do people build with AkkudoktorEOS
 
