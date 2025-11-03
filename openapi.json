@@ -213,6 +213,78 @@
         }
       }
     },
+    "/v1/config/backup": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Fastapi Config Backup Get",
+        "description": "Get the EOS configuration backup identifiers and backup metadata.\n\nReturns:\n    dict[str, dict[str, Any]]: Mapping of backup identifiers to metadata.",
+        "operationId": "fastapi_config_backup_get_v1_config_backup_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "object",
+                  "title": "Response Fastapi Config Backup Get V1 Config Backup Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/config/revert": {
+      "put": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Fastapi Config Revert Put",
+        "description": "Revert the configuration to a EOS configuration backup.\n\nReturns:\n    configuration (ConfigEOS): The current configuration after revert.",
+        "operationId": "fastapi_config_revert_put_v1_config_revert_put",
+        "parameters": [
+          {
+            "name": "backup_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "EOS configuration backup ID.",
+              "title": "Backup Id"
+            },
+            "description": "EOS configuration backup ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigEOS"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/config/file": {
       "put": {
         "tags": [

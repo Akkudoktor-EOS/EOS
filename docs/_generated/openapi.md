@@ -363,6 +363,25 @@ Returns:
 
 ---
 
+## GET /v1/config/backup
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_backup_get_v1_config_backup_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_backup_get_v1_config_backup_get)
+
+Fastapi Config Backup Get
+
+```
+Get the EOS configuration backup identifiers and backup metadata.
+
+Returns:
+    dict[str, dict[str, Any]]: Mapping of backup identifiers to metadata.
+```
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
 ## PUT /v1/config/file
 
 **Links**: [local](http://localhost:8503/docs#/default/fastapi_config_file_put_v1_config_file_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_file_put_v1_config_file_put)
@@ -398,6 +417,31 @@ Returns:
 **Responses**:
 
 - **200**: Successful Response
+
+---
+
+## PUT /v1/config/revert
+
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_config_revert_put_v1_config_revert_put), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_config_revert_put_v1_config_revert_put)
+
+Fastapi Config Revert Put
+
+```
+Revert the configuration to a EOS configuration backup.
+
+Returns:
+    configuration (ConfigEOS): The current configuration after revert.
+```
+
+**Parameters**:
+
+- `backup_id` (query, required): EOS configuration backup ID.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
 
 ---
 

@@ -9,6 +9,7 @@ Key features:
 - Managing directory setups for the application
 """
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -21,7 +22,7 @@ from pydantic import Field, computed_field, field_validator
 
 # settings
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.config.configmigrate import migrate_config_file
+from akkudoktoreos.config.configmigrate import migrate_config_data, migrate_config_file
 from akkudoktoreos.core.cachesettings import CacheCommonSettings
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.decorators import classproperty
@@ -41,7 +42,7 @@ from akkudoktoreos.prediction.prediction import PredictionCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.prediction.weather import WeatherCommonSettings
 from akkudoktoreos.server.server import ServerCommonSettings
-from akkudoktoreos.utils.datetimeutil import to_timezone
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_timezone
 from akkudoktoreos.utils.utils import UtilsCommonSettings
 
 
@@ -379,9 +380,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         # Apend file settings to sources
         file_settings: Optional[pydantic_settings.JsonConfigSettingsSource] = None
         try:
-            backup_file = config_file.with_suffix(".bak")
+            backup_file = config_file.with_suffix(f".{to_datetime(as_string='YYYYMMDDHHmmss')}")
             if migrate_config_file(config_file, backup_file):
-                # If correct version add it as settings source
+                # If the config file does have the correct version add it as settings source
                 file_settings = pydantic_settings.JsonConfigSettingsSource(
                     settings_cls, json_file=config_file
                 )
@@ -477,6 +478,88 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         This functions basically deletes the settings provided before.
         """
         self._setup()
+
+    def revert_settings(self, backup_id: str) -> None:
+        """Revert application settings to a stored backup.
+
+        This method restores configuration values from a backup file identified
+        by `backup_id`. The backup is expected to exist alongside the main
+        configuration file, using the main config file's path but with the given
+        suffix. Any settings previously applied will be overwritten.
+
+        Args:
+            backup_id (str): The suffix used to locate the backup configuration
+                file. Example: ``".bak"`` or ``".backup"``.
+
+        Returns:
+            None: The method does not return a value.
+
+        Raises:
+            ValueError: If the backup file cannot be found at the constructed path.
+            json.JSONDecodeError: If the backup file exists but contains invalid JSON.
+            TypeError: If the unpacked backup data fails to match the signature
+                required by ``self._setup()``.
+            OSError: If reading the backup file fails due to I/O issues.
+        """
+        backup_file_path = self.general.config_file_path.with_suffix(f".{backup_id}")
+        if not backup_file_path.exists():
+            error_msg = f"Configuration backup `{backup_id}` not found."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        with backup_file_path.open("r", encoding="utf-8") as f:
+            backup_data: dict[str, Any] = json.load(f)
+        backup_settings = migrate_config_data(backup_data)
+
+        self._setup(**backup_settings.model_dump(exclude_none=True, exclude_unset=True))
+
+    def list_backups(self) -> dict[str, dict[str, Any]]:
+        """List available configuration backup files and extract metadata.
+
+        Backup files are identified by sharing the same stem as the main config
+        file but having a different suffix. Each backup file is assumed to contain
+        a JSON object.
+
+        The returned dictionary uses `backup_id` (suffix) as keys. The value for
+        each key is a dictionary including:
+        - ``storage_time``: The file modification timestamp in ISO-8601 format.
+        - ``version``: Version information found in the backup file
+            (defaults to ``"unknown"``).
+
+        Returns:
+            dict[str, dict[str, Any]]: Mapping of backup identifiers to metadata.
+
+        Raises:
+            OSError: If directory scanning or file reading fails.
+            json.JSONDecodeError: If a backup file cannot be parsed as JSON.
+        """
+        result: dict[str, dict[str, Any]] = {}
+
+        base_path: Path = self.general.config_file_path
+        parent = base_path.parent
+        stem = base_path.stem
+
+        # Iterate files next to config file
+        for file in parent.iterdir():
+            if file.is_file() and file.stem == stem and file != base_path:
+                backup_id = file.suffix[1:]
+
+                # Read version from file
+                with file.open("r", encoding="utf-8") as f:
+                    data: dict[str, Any] = json.load(f)
+
+                # Extract version safely
+                version = data.get("general", {}).get("version", "unknown")
+
+                # Read file modification time (OS-independent)
+                ts = file.stat().st_mtime
+                storage_time = to_datetime(ts, as_string=True)
+                result[backup_id] = {
+                    "date_time": storage_time,
+                    "version": version,
+                }
+
+        return result
 
     def _create_initial_config_file(self) -> None:
         if self.general.config_file_path and not self.general.config_file_path.exists():

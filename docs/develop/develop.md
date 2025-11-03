@@ -322,10 +322,7 @@ interfere with the EOS server trying to start EOSdash.
         docker rm -f akkudoktoreos
 ```
 
-For detailed Docker instructions, refer to
-**[Method 3 & 4: Installation with Docker](install.md#method-3-installation-with-docker-dockerhub)**
-and
-**[Method 4: Docker Compose](install.md#method-4-installation-with-docker-docker-compose)**.
+For detailed Docker instructions, refer to [Installation Guideline](install-page)
 
 ### Step 4 - Create the changes
 
@@ -419,6 +416,30 @@ resources:
      .. code-block:: bash
 
         make test-system
+```
+
+To do profiling use:
+
+```{eval-rst}
+.. tabs::
+
+  .. tab:: Windows
+
+     .. code-block:: powershell
+
+        python tests/single_test_optimization.py --profile
+
+  .. tab:: Linux
+
+     .. code-block:: bash
+
+        python tests/single_test_optimization.py --profile
+
+  .. tab:: Linux Make
+
+     .. code-block:: bash
+
+        make test-profile
 ```
 
 #### Step 4.5 - Commit the changes
