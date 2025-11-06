@@ -110,6 +110,8 @@ class OptimizationSolution(PydanticBaseModel):
 
     total_costs_amt: float = Field(description="The total costs [money amount].")
 
+    fitness_score: set[float] = Field(description="The fitness score as a set of fitness values.")
+
     prediction: PydanticDateTimeDataFrame = Field(
         description=(
             "Datetime data frame with time series prediction data per optimization interval:"

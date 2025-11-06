@@ -3,11 +3,24 @@ from pathlib import Path
 from typing import Any, Optional, Union
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 from loguru import logger
 from pydantic import IPvAnyAddress, ValidationError
 
 from akkudoktoreos.config.config import ConfigEOS, GeneralSettings
+from akkudoktoreos.devices.devices import BATTERY_DEFAULT_CHARGE_RATES
+
+
+def assert_values_equal(actual, expected):
+    """Compare values, handling lists and numpy arrays."""
+    if isinstance(actual, (list, np.ndarray)) or isinstance(expected, (list, np.ndarray)):
+        # Convert both to numpy arrays for comparison
+        actual_arr = np.array(actual)
+        expected_arr = np.array(expected)
+        assert np.array_equal(actual_arr, expected_arr), f"Expected {expected_arr}, but got {actual_arr}"
+    else:
+        assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
 # overwrite config_mixin fixture from conftest
@@ -352,7 +365,7 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
             [
                 (
                     "devices.electric_vehicles[0].charge_rates",
-                    [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                    BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
             ValueError,
@@ -364,10 +377,10 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
             [
                 (
                     "devices.electric_vehicles[0].charge_rates",
-                    [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                    BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
-            TypeError,
+            KeyError,
         ),
         # Invalid index (no number)
         (
@@ -376,10 +389,10 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
             [
                 (
                     "devices.electric_vehicles[0].charge_rates",
-                    [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                    BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
-            IndexError,
+            KeyError,
         ),
         # Unset value (set None)
         (
@@ -388,7 +401,7 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
             [
                 (
                     "devices.electric_vehicles[0].charge_rates",
-                    None,
+                    BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
             None,
@@ -400,17 +413,13 @@ def test_set_nested_key(path, value, expected, exception, config_eos):
         config_eos.set_nested_value(path, value)
         for expected_path, expected_value in expected:
             actual_value = eval(f"config_eos.{expected_path}")
-            assert actual_value == expected_value, (
-                f"Expected {expected_value} at {expected_path}, but got {actual_value}"
-            )
+            assert_values_equal(actual_value, expected_value)
     else:
         try:
             config_eos.set_nested_value(path, value)
             for expected_path, expected_value in expected:
                 actual_value = eval(f"config_eos.{expected_path}")
-                assert actual_value == expected_value, (
-                    f"Expected {expected_value} at {expected_path}, but got {actual_value}"
-                )
+                assert_values_equal(actual_value, expected_value)
             pytest.fail(
                 f"Expected exception {exception} but none was raised. Set '{expected_path}' to '{actual_value}'"
             )
@@ -508,19 +517,19 @@ def test_merge_settings_partial(config_eos):
     config_eos.merge_settings_from_dict(partial_settings)
     assert config_eos.devices.max_electric_vehicles == 1
     assert len(config_eos.devices.electric_vehicles) == 1
-    assert config_eos.devices.electric_vehicles[0].charge_rates == [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+    assert_values_equal(config_eos.devices.electric_vehicles[0].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
 
     # Assure re-apply generates the same config
     config_eos.merge_settings_from_dict(partial_settings)
     assert config_eos.devices.max_electric_vehicles == 1
     assert len(config_eos.devices.electric_vehicles) == 1
-    assert config_eos.devices.electric_vehicles[0].charge_rates == [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+    assert_values_equal(config_eos.devices.electric_vehicles[0].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
 
     # Assure update keeps same values
     config_eos.update()
     assert config_eos.devices.max_electric_vehicles == 1
     assert len(config_eos.devices.electric_vehicles) == 1
-    assert config_eos.devices.electric_vehicles[0].charge_rates == [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+    assert_values_equal(config_eos.devices.electric_vehicles[0].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
 
 
 def test_merge_settings_empty(config_eos):

@@ -1,10 +1,13 @@
 """General configuration settings for simulated devices for optimization."""
 
 import json
+import re
 from typing import Any, Optional, TextIO, cast
 
+import numpy as np
 from loguru import logger
-from pydantic import Field, computed_field, model_validator
+from numpydantic import NDArray, Shape
+from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.cache import CacheFileStore
@@ -13,6 +16,9 @@ from akkudoktoreos.core.emplan import ResourceStatus
 from akkudoktoreos.core.pydantic import ConfigDict, PydanticBaseModel
 from akkudoktoreos.devices.devicesabc import DevicesBaseSettings
 from akkudoktoreos.utils.datetimeutil import DateTime, TimeWindowSequence, to_datetime
+
+# Default charge rates for battery
+BATTERY_DEFAULT_CHARGE_RATES = np.linspace(0.0, 1.0, 11)  # 0.0, 0.1, ..., 1.0
 
 
 class BatteriesCommonSettings(DevicesBaseSettings):
@@ -61,9 +67,12 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         examples=[50],
     )
 
-    charge_rates: Optional[list[float]] = Field(
-        default=None,
-        description="Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+    charge_rates: Optional[NDArray[Shape["*"], float]] = Field(
+        default=BATTERY_DEFAULT_CHARGE_RATES,
+        description=(
+            "Charge rates as factor of maximum charging power [0.00 ... 1.00]. "
+            "None triggers fallback to default charge-rates."
+        ),
         examples=[[0.0, 0.25, 0.5, 0.75, 1.0], None],
     )
 
@@ -71,7 +80,10 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         default=0,
         ge=0,
         le=100,
-        description="Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging",
+        description=(
+            "Minimum state of charge (SOC) as percentage of capacity [%]. "
+            "This is the target SoC for charging"
+        ),
         examples=[10],
     )
 
@@ -82,6 +94,36 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         description="Maximum state of charge (SOC) as percentage of capacity [%].",
         examples=[100],
     )
+
+    @field_validator("charge_rates", mode="before")
+    def validate_and_sort_charge_rates(cls, v: Any) -> NDArray[Shape["*"], float]:
+        # None means fallback to default values
+        if v is None:
+            return BATTERY_DEFAULT_CHARGE_RATES.copy()
+
+        # Convert to numpy array
+        if isinstance(v, str):
+            # Remove brackets and split by comma or whitespace
+            numbers = re.split(r"[,\s]+", v.strip("[]"))
+
+            # Filter out any empty strings and convert to floats
+            arr = np.array([float(x) for x in numbers if x])
+        else:
+            arr = np.array(v, dtype=float)
+
+        # Must not be empty
+        if arr.size == 0:
+            raise ValueError("charge_rates must contain at least one value.")
+
+        # Enforce bounds: 0.0 ≤ x ≤ 1.0
+        if (arr < 0.0).any() or (arr > 1.0).any():
+            raise ValueError("charge_rates must be within [0.0, 1.0].")
+
+        # Remove duplicates + sort
+        arr = np.unique(arr)
+        arr.sort()
+
+        return arr
 
     @computed_field  # type: ignore[prop-decorator]
     @property
