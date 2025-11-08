@@ -1,4 +1,5 @@
-![AkkudoktorEOS](docs/_static/logo.png)
+![AkkudoktorEOS](./docs/_static/logo.png#gh-light-mode-only)
+![AkkudoktorEOS](./docs/_static/logo_dark.png#gh-dark-mode-only)
 
 **Build optimized energy management plans for your home automation**
 
