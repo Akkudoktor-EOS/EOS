@@ -195,7 +195,7 @@ Properties:
                    "levelized_cost_of_storage_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "battery1-soc-factor",
@@ -222,7 +222,7 @@ Properties:
                    "levelized_cost_of_storage_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "battery1-soc-factor",
@@ -264,7 +264,7 @@ Properties:
                    "levelized_cost_of_storage_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "battery1-soc-factor",
@@ -291,7 +291,7 @@ Properties:
                    "levelized_cost_of_storage_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "battery1-soc-factor",
@@ -601,7 +601,7 @@ Properties:
 | levelized_cost_of_storage_kwh | `float` | `rw` | `0.0` | Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [€/kWh]. |
 | max_charge_power_w | `Optional[float]` | `rw` | `5000` | Maximum charging power [W]. |
 | min_charge_power_w | `Optional[float]` | `rw` | `50` | Minimum charging power [W]. |
-| charge_rates | `Optional[list[float]]` | `rw` | `None` | Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available. |
+| charge_rates | `Optional[numpydantic.vendor.npbase_meta_classes.NDArray]` | `rw` | `[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]` | Charge rates as factor of maximum charging power [0.00 ... 1.00]. None triggers fallback to default charge-rates. |
 | min_soc_percentage | `int` | `rw` | `0` | Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging |
 | max_soc_percentage | `int` | `rw` | `100` | Maximum state of charge (SOC) as percentage of capacity [%]. |
 | measurement_key_soc_factor | `str` | `ro` | `N/A` | Measurement key for the battery state of charge (SoC) as factor of total capacity [0.0 ... 1.0]. |
@@ -630,13 +630,7 @@ Battery SoC, power. |
                    "levelized_cost_of_storage_kwh": 0.12,
                    "max_charge_power_w": 5000.0,
                    "min_charge_power_w": 50.0,
-                   "charge_rates": [
-                       0.0,
-                       0.25,
-                       0.5,
-                       0.75,
-                       1.0
-                   ],
+                   "charge_rates": "[0.   0.25 0.5  0.75 1.  ]",
                    "min_soc_percentage": 10,
                    "max_soc_percentage": 100
                },
@@ -648,7 +642,7 @@ Battery SoC, power. |
                    "levelized_cost_of_storage_kwh": 0.12,
                    "max_charge_power_w": 5000.0,
                    "min_charge_power_w": 50.0,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 10,
                    "max_soc_percentage": 100
                },
@@ -660,7 +654,7 @@ Battery SoC, power. |
                    "levelized_cost_of_storage_kwh": 0.12,
                    "max_charge_power_w": 5000.0,
                    "min_charge_power_w": 50.0,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 10,
                    "max_soc_percentage": 100
                },
@@ -672,7 +666,7 @@ Battery SoC, power. |
                    "levelized_cost_of_storage_kwh": 0.12,
                    "max_charge_power_w": 5000.0,
                    "min_charge_power_w": 50.0,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 10,
                    "max_soc_percentage": 100
                }
@@ -697,13 +691,7 @@ Battery SoC, power. |
                    "levelized_cost_of_storage_kwh": 0.12,
                    "max_charge_power_w": 5000.0,
                    "min_charge_power_w": 50.0,
-                   "charge_rates": [
-                       0.0,
-                       0.25,
-                       0.5,
-                       0.75,
-                       1.0
-                   ],
+                   "charge_rates": "[0.   0.25 0.5  0.75 1.  ]",
                    "min_soc_percentage": 10,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "battery1-soc-factor",
@@ -727,7 +715,7 @@ Battery SoC, power. |
                    "levelized_cost_of_storage_kwh": 0.12,
                    "max_charge_power_w": 5000.0,
                    "min_charge_power_w": 50.0,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 10,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "ev1-soc-factor",
@@ -751,7 +739,7 @@ Battery SoC, power. |
                    "levelized_cost_of_storage_kwh": 0.12,
                    "max_charge_power_w": 5000.0,
                    "min_charge_power_w": 50.0,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 10,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "inverter1-soc-factor",
@@ -775,7 +763,7 @@ Battery SoC, power. |
                    "levelized_cost_of_storage_kwh": 0.12,
                    "max_charge_power_w": 5000.0,
                    "min_charge_power_w": 50.0,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 10,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "dishwasher-soc-factor",
@@ -1821,7 +1809,7 @@ Validators:
                    "levelized_cost_of_storage_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "battery1-soc-factor",
@@ -1848,7 +1836,7 @@ Validators:
                    "levelized_cost_of_storage_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
-                   "charge_rates": null,
+                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "battery1-soc-factor",

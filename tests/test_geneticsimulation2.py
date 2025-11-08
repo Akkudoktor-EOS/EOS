@@ -65,7 +65,6 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
         optimization_hours = config_eos.optimization.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
     )
-    home_appliance.set_starting_time(2)
 
     # Example initialization of electric car battery
     eauto = Battery(
@@ -158,10 +157,11 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
 
     ac = np.full(config_eos.prediction.hours, 0.0)
     ac[20] = 1
-    simulation.set_akku_ac_charge_hours(ac)
+    simulation.ac_charge_hours = ac
     dc = np.full(config_eos.prediction.hours, 0.0)
     dc[11] = 1
-    simulation.set_akku_dc_charge_hours(dc)
+    simulation.dc_charge_hours = dc
+    simulation.home_appliance_start_hour = 2
 
     return simulation
 
@@ -242,26 +242,26 @@ def test_simulation(genetic_simulation_2):
     )
 
     # Verfify DC and AC Charge Bins
-    assert abs(result["akku_soc_pro_stunde"][2] - 44.70681818181818) < 1e-5, (
-        "'akku_soc_pro_stunde[2]' should be 44.70681818181818."
+    assert abs(result["akku_soc_pro_stunde"][2] - 80.0) < 1e-5, (
+        "'akku_soc_pro_stunde[2]' should be 80.0."
     )
-    assert abs(result["akku_soc_pro_stunde"][10] - 10.0) < 1e-5, (
-        "'akku_soc_pro_stunde[10]' should be 10."
+    assert abs(result["akku_soc_pro_stunde"][10] - 80.0) < 1e-5, (
+        "'akku_soc_pro_stunde[10]' should be 80."
     )
 
     assert abs(result["Netzeinspeisung_Wh_pro_Stunde"][10] - 3946.93) < 1e-3, (
         "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 3946.93."
     )
 
-    assert abs(result["Netzeinspeisung_Wh_pro_Stunde"][11] - 0.0) < 1e-3, (
-        "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 0.0."
+    assert abs(result["Netzeinspeisung_Wh_pro_Stunde"][11] - 2799.7263636361786) < 1e-3, (
+        "'Netzeinspeisung_Wh_pro_Stunde[11]' should be 2799.7263636361786."
     )
 
-    assert abs(result["akku_soc_pro_stunde"][20] - 10) < 1e-5, (
-        "'akku_soc_pro_stunde[20]' should be 10."
+    assert abs(result["akku_soc_pro_stunde"][20] - 100) < 1e-5, (
+        "'akku_soc_pro_stunde[20]' should be 100."
     )
-    assert abs(result["Last_Wh_pro_Stunde"][20] - 6050.98) < 1e-3, (
-        "'Last_Wh_pro_Stunde[20]' should be 6050.98."
+    assert abs(result["Last_Wh_pro_Stunde"][20] - 1050.98) < 1e-3, (
+        "'Last_Wh_pro_Stunde[20]' should be 1050.98."
     )
 
     print("All tests passed successfully.")
@@ -277,46 +277,6 @@ def test_set_parameters(genetic_simulation_2):
     assert simulation.elect_price_hourly is not None, "elect_price_hourly should not be None"
     assert simulation.elect_revenue_per_hour_arr is not None, (
         "elect_revenue_per_hour_arr should not be None"
-    )
-
-
-def test_set_akku_discharge_hours(genetic_simulation_2):
-    """Test the set_akku_discharge_hours method of EnergyManagement."""
-    simulation = genetic_simulation_2
-    discharge_hours = np.full(simulation.prediction_hours, 1.0)
-    simulation.set_akku_discharge_hours(discharge_hours)
-    assert np.array_equal(simulation.battery.discharge_array, discharge_hours), (
-        "Discharge hours should be set correctly"
-    )
-
-
-def test_set_akku_ac_charge_hours(genetic_simulation_2):
-    """Test the set_akku_ac_charge_hours method of EnergyManagement."""
-    simulation = genetic_simulation_2
-    ac_charge_hours = np.full(simulation.prediction_hours, 1.0)
-    simulation.set_akku_ac_charge_hours(ac_charge_hours)
-    assert np.array_equal(simulation.ac_charge_hours, ac_charge_hours), (
-        "AC charge hours should be set correctly"
-    )
-
-
-def test_set_akku_dc_charge_hours(genetic_simulation_2):
-    """Test the set_akku_dc_charge_hours method of EnergyManagement."""
-    simulation = genetic_simulation_2
-    dc_charge_hours = np.full(simulation.prediction_hours, 1.0)
-    simulation.set_akku_dc_charge_hours(dc_charge_hours)
-    assert np.array_equal(simulation.dc_charge_hours, dc_charge_hours), (
-        "DC charge hours should be set correctly"
-    )
-
-
-def test_set_ev_charge_hours(genetic_simulation_2):
-    """Test the set_ev_charge_hours method of EnergyManagement."""
-    simulation = genetic_simulation_2
-    ev_charge_hours = np.full(simulation.prediction_hours, 1.0)
-    simulation.set_ev_charge_hours(ev_charge_hours)
-    assert np.array_equal(simulation.ev_charge_hours, ev_charge_hours), (
-        "EV charge hours should be set correctly"
     )
 
 

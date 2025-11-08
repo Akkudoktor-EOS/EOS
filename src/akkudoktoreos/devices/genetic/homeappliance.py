@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 
 from akkudoktoreos.optimization.genetic.geneticdevices import HomeApplianceParameters
@@ -28,7 +26,6 @@ class HomeAppliance:
         self.load_curve = np.zeros(self.prediction_hours)  # Initialize the load curve with zeros
         self.duration_h = self.parameters.duration_h
         self.consumption_wh = self.parameters.consumption_wh
-        self.appliance_start: Optional[int] = None
         # setup possible start times
         if self.parameters.time_windows is None:
             self.parameters.time_windows = TimeWindowSequence(
@@ -59,33 +56,32 @@ class HomeAppliance:
         else:
             self.start_latest = 23
 
-    def set_starting_time(self, start_hour: int, global_start_hour: int = 0) -> None:
+    def set_starting_time(self, start_hour: int, global_start_hour: int = 0) -> int:
         """Sets the start time of the device and generates the corresponding load curve.
 
         :param start_hour: The hour at which the device should start.
         """
-        self.reset_load_curve()
-
-        # Check if the duration of use is within the available time windows
         if not self.start_allowed[start_hour]:
-            # No available time window to start home appliance
-            # Use the earliest one
-            start_hour = self.start_earliest
+            # It is not allowed (by the time windows) to start the application at this time
+            if global_start_hour <= self.start_latest:
+                # There is a time window left to start the appliance. Use it
+                start_hour = self.start_latest
+            else:
+                # There is no time window left to run the application
+                # Set the start into tomorrow
+                start_hour = self.start_earliest + 24
 
-        # Check if it is possibility to start the appliance
-        if start_hour < global_start_hour:
-            # Start is before current time
-            # Use the latest one
-            start_hour = self.start_latest
+        self.reset_load_curve()
 
         # Calculate power per hour based on total consumption and duration
         power_per_hour = self.consumption_wh / self.duration_h  # Convert to watt-hours
 
         # Set the power for the duration of use in the load curve array
-        self.load_curve[start_hour : start_hour + self.duration_h] = power_per_hour
+        if start_hour < len(self.load_curve):
+            end_hour = min(start_hour + self.duration_h, self.prediction_hours)
+            self.load_curve[start_hour:end_hour] = power_per_hour
 
-        # Set the selected start hour
-        self.appliance_start = start_hour
+        return start_hour
 
     def reset_load_curve(self) -> None:
         """Resets the load curve."""
@@ -107,6 +103,3 @@ class HomeAppliance:
             )
 
         return self.load_curve[hour]
-
-    def get_appliance_start(self) -> Optional[int]:
-        return self.appliance_start

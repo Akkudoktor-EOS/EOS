@@ -457,7 +457,7 @@ class GeneticOptimizationParameters(
                         {
                             "device_id": "ev11",
                             "capacity_wh": 50000,
-                            "charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                            "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
                             "min_soc_percentage": 70,
                         }
                     ]
@@ -483,7 +483,7 @@ class GeneticOptimizationParameters(
                         {
                             "device_id": "ev12",
                             "capacity_wh": 50000,
-                            "charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                            "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
                             "min_soc_percentage": 70,
                         }
                     ]

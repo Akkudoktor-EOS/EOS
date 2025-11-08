@@ -54,7 +54,20 @@ color_palette = {
     "pink-500": "#EC4899",  # pink-500
     "rose-500": "#F43F5E",  # rose-500
 }
+# Color names
 colors = list(color_palette.keys())
+
+# Colums that are exclude from the the solution card display
+# They are currently not used or are covered by others
+solution_excludes = [
+    "date_time",
+    "_op_mode",
+    "_fault_",
+    "_outage_supply_",
+    "_reserve_backup_",
+    "_ramp_rate_control_",
+    "_frequency_regulation_",
+]
 
 # Current state of solution displayed
 solution_visible: dict[str, bool] = {
@@ -122,7 +135,9 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
     instruction_columns = [
         instruction
         for instruction in solution_columns
-        if instruction.endswith("op_mode") or instruction.endswith("op_factor")
+        if instruction.endswith("op_mode")
+        or instruction.endswith("op_factor")
+        or instruction.startswith("genetic_")
     ]
     solution_columns = [x for x in solution_columns if x not in instruction_columns]
 
@@ -140,13 +155,26 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
     prediction_columns_to_join = prediction_df.columns.difference(df.columns)
     df = df.join(prediction_df[prediction_columns_to_join], how="inner")
 
-    # Remove time offset from UTC to get naive local time and make bokey plot in local time
+    # Exclude columns that currently do not have a value
+    excludes = solution_excludes
+    for instruction in instruction_columns:
+        if instruction.endswith("op_mode") and df[instruction].eq(0).all():
+            # Exclude op_mode and op_factor if all op_mode is 0
+            excludes.append(instruction)
+            excludes.append(f"{instruction[:-4]}factor")
+
+    # Make bokey plot in local time at location
+    # Determine daylight saving time change
     dst_offsets = df.index.map(lambda x: x.dst().total_seconds() / 3600)
+    # Determine desired timezone
     if config.general is None or config.general.timezone is None:
         date_time_tz = "Europe/Berlin"
     else:
         date_time_tz = config.general.timezone
-    df["date_time"] = pd.to_datetime(df["date_time"], utc=True).dt.tz_convert(date_time_tz)
+    # Ensure original date_time is parsed as UTC and convert to local time
+    df["date_time_local"] = (
+        pd.to_datetime(df["date_time"], utc=True).dt.tz_convert(date_time_tz).dt.tz_localize(None)
+    )
 
     # There is a special case if we have daylight saving time change in the time series
     if dst_offsets.nunique() > 1:
@@ -241,21 +269,12 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
     # Create line renderers for each column
     renderers = {}
 
+    # Have an index for the colors of predictions, solutions and instructions.
+    prediction_color_idx = 0
+    solution_color_idx = int(len(colors) * 0.33) + 1
+    instruction_color_idx = int(len(colors) * 0.66) + 1
     for i, col in enumerate(sorted(df.columns)):
         # Exclude some columns that are currently not used or are covered by others
-        excludes = [
-            "date_time",
-            "_op_mode",
-            "_fault_",
-            "_forced_discharge_",
-            "_outage_supply_",
-            "_reserve_backup_",
-            "_ramp_rate_control_",
-            "_frequency_regulation_",
-            "_grid_support_export_",
-            "_peak_shaving_",
-        ]
-        # excludes = ["date_time"]
         if any(exclude in col for exclude in excludes):
             continue
         if col in solution_visible:
@@ -265,73 +284,85 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
             solution_visible[col] = visible
         if col in solution_color:
             color = solution_color[col]
-        elif col == "pv_energy_wh":
-            color = "yellow-500"
-            solution_color[col] = color
-        elif col == "elec_price_amt_kwh":
-            color = "red-500"
-            solution_color[col] = color
         else:
-            color = colors[i % len(colors)]
+            if col in prediction_columns:
+                color = colors[prediction_color_idx % len(colors)]
+                prediction_color_idx += 3
+            elif col in solution_columns:
+                color = colors[solution_color_idx % len(colors)]
+                solution_color_idx += 3
+            else:
+                color = colors[instruction_color_idx % len(colors)]
+                instruction_color_idx += 3
+            # Remember the color of this column
             solution_color[col] = color
+        if col in prediction_columns:
+            line_dash = "dotted"
+        else:
+            line_dash = "solid"
         if visible:
-            if col == "pv_energy_wh":
-                r = plot.vbar(
-                    x="date_time",
-                    top=col,
-                    source=source,
-                    width=BAR_WIDTH_1HOUR * 0.8,
-                    legend_label=col,
-                    color=color_palette[color],
-                    level="underlay",
-                )
-            elif col.endswith("energy_wh"):
+            if col.endswith("energy_wh"):
                 r = plot.step(
-                    x="date_time",
+                    x="date_time_local",
                     y=col,
-                    mode="before",
+                    mode="after",
                     source=source,
                     legend_label=col,
                     color=color_palette[color],
+                    line_dash=line_dash,
+                )
+            elif col.endswith("soc_factor"):
+                r = plot.line(
+                    x="date_time_local",
+                    y=col,
+                    source=source,
+                    legend_label=col,
+                    color=color_palette[color],
+                    line_dash=line_dash,
+                    y_range_name="factor",
                 )
             elif col.endswith("factor"):
                 r = plot.step(
-                    x="date_time",
+                    x="date_time_local",
                     y=col,
-                    mode="before",
+                    mode="after",
                     source=source,
                     legend_label=col,
                     color=color_palette[color],
+                    line_dash=line_dash,
                     y_range_name="factor",
                 )
             elif col.endswith("mode"):
                 r = plot.step(
-                    x="date_time",
+                    x="date_time_local",
                     y=col,
-                    mode="before",
+                    mode="after",
                     source=source,
                     legend_label=col,
                     color=color_palette[color],
+                    line_dash=line_dash,
                     y_range_name="factor",
                 )
             elif col.endswith("amt_kwh"):
                 r = plot.step(
-                    x="date_time",
+                    x="date_time_local",
                     y=col,
-                    mode="before",
+                    mode="after",
                     source=source,
                     legend_label=col,
                     color=color_palette[color],
+                    line_dash=line_dash,
                     y_range_name="amt_kwh",
                 )
             elif col.endswith("amt"):
                 r = plot.step(
-                    x="date_time",
+                    x="date_time_local",
                     y=col,
-                    mode="before",
+                    mode="after",
                     source=source,
                     legend_label=col,
                     color=color_palette[color],
+                    line_dash=line_dash,
                     y_range_name="amt",
                 )
             else:
@@ -430,7 +461,16 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
     )
 
     return Grid(
-        Bokeh(plot),
+        Grid(
+            Bokeh(plot),
+            Card(
+                P(f"Total revenues: {solution.total_revenues_amt}"),
+                P(f"Total costs: {solution.total_costs_amt}"),
+                P(f"Total losses: {solution.total_losses_energy_wh / 1000} kWh"),
+                P(f"Fitness score: {solution.fitness_score}"),
+            ),
+            cols=1,
+        ),
         Checkbox,
         cls="w-full space-y-3 space-x-3",
     )

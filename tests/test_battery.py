@@ -6,20 +6,53 @@ from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryPara
 
 @pytest.fixture
 def setup_pv_battery():
+    device_id="battery1"
+    capacity_wh=10000
+    initial_soc_percentage=50
+    charging_efficiency=0.88
+    discharging_efficiency=0.88
+    min_soc_percentage=20
+    max_soc_percentage=80
+    max_charge_power_w=8000
+    hours=24
+
     params = SolarPanelBatteryParameters(
-        device_id="battery1",
-        capacity_wh=10000,
-        initial_soc_percentage=50,
-        min_soc_percentage=20,
-        max_soc_percentage=80,
-        max_charge_power_w=8000,
-        hours=24,
+        device_id=device_id,
+        capacity_wh=capacity_wh,
+        initial_soc_percentage=initial_soc_percentage,
+        charging_efficiency=charging_efficiency,
+        discharging_efficiency=discharging_efficiency,
+        min_soc_percentage=min_soc_percentage,
+        max_soc_percentage=max_soc_percentage,
+        max_charge_power_w=max_charge_power_w,
+        hours=hours,
     )
     battery = Battery(
         params,
         prediction_hours=48,
     )
     battery.reset()
+
+    assert battery.parameters.device_id==device_id
+    assert battery.capacity_wh==capacity_wh
+    assert battery.initial_soc_percentage==initial_soc_percentage
+    assert battery.charging_efficiency==charging_efficiency
+    assert battery.initial_soc_percentage==initial_soc_percentage
+    assert battery.discharging_efficiency==discharging_efficiency
+    assert battery.max_soc_percentage==max_soc_percentage
+    assert battery.max_charge_power_w==max_charge_power_w
+    assert battery.soc_wh==float((initial_soc_percentage / 100) * capacity_wh)
+    assert battery.min_soc_wh==float((min_soc_percentage / 100) * capacity_wh)
+    assert battery.max_soc_wh==float((max_soc_percentage / 100) * capacity_wh)
+    assert np.all(battery.charge_array == 0)
+    assert np.all(battery.discharge_array == 0)
+
+    # Init for test
+    battery.charge_array = np.full(battery.prediction_hours, 1)
+    battery.discharge_array = np.full(battery.prediction_hours, 1)
+    assert np.all(battery.charge_array == 1)
+    assert np.all(battery.discharge_array == 1)
+
     return battery
 
 
@@ -164,17 +197,47 @@ def test_charge_energy_not_allowed_hour(setup_pv_battery):
     ), "SOC should remain unchanged"
 
 
-def test_charge_energy_relative_power(setup_pv_battery):
+@pytest.mark.parametrize(
+    "wh, charge_factor, expected_raises",
+    [
+        (None, 0.5, False),  # Expected to work normally (if capacity allows)
+        (None, 1.0, False),  # Often still OK, depending on fixture capacity
+        (None, 2.0, False),   # Exceeds max charge → always ValueError
+        (1000, 0, False),
+        (1000, 1.0, True),
+    ],
+)
+def test_charge_energy_with_charge_factor(setup_pv_battery, wh, charge_factor, expected_raises):
     battery = setup_pv_battery
+    hour = 4
 
-    relative_power = 0.5  # 50% of max charge power
-    charged_wh, losses_wh = battery.charge_energy(wh=None, hour=4, relative_power=relative_power)
+    if wh is not None and charge_factor == 0.0:  # mode 1
+        raw_request_wh = wh
+    else:
+        raw_request_wh = battery.max_charge_power_w * charge_factor
+    raw_capacity_wh = max(battery.max_soc_wh - battery.soc_wh, 0.0)
 
-    assert charged_wh > 0, "Charging should occur with relative power"
-    assert losses_wh >= 0, "Losses should not be negative"
-    assert charged_wh <= battery.max_charge_power_w * relative_power, (
-        "Charging should respect relative power limit"
+    if expected_raises:
+        # Should raise
+        with pytest.raises(ValueError):
+            battery.charge_energy(
+                wh=wh,
+                hour=hour,
+                charge_factor=charge_factor,
+            )
+        return
+
+    # Should NOT raise
+    charged_wh, losses_wh = battery.charge_energy(
+        wh=wh,
+        hour=hour,
+        charge_factor=charge_factor,
     )
+
+    # Expectations
+    assert charged_wh > 0, "Charging should occur with charge factor"
+    assert losses_wh >= 0, "Losses must not be negative"
+    assert charged_wh <= raw_request_wh, "Charging must not exceed request"
     assert battery.soc_wh > 0, "SOC should increase after charging"
 
 
@@ -198,6 +261,13 @@ def setup_car_battery():
         prediction_hours=48,
     )
     battery.reset()
+
+    # Init for test
+    battery.charge_array = np.full(battery.prediction_hours, 1)
+    battery.discharge_array = np.full(battery.prediction_hours, 1)
+    assert np.all(battery.charge_array == 1)
+    assert np.all(battery.discharge_array == 1)
+
     return battery
 
 

@@ -2122,7 +2122,7 @@
               }
             ],
             "title": "Charge Rates",
-            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None triggers fallback to default charge-rates.",
             "examples": [
               [
                 0.0,
@@ -2263,7 +2263,7 @@
               }
             ],
             "title": "Charge Rates",
-            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None triggers fallback to default charge-rates.",
             "examples": [
               [
                 0.0,
@@ -5921,6 +5921,15 @@
             "title": "Total Costs Amt",
             "description": "The total costs [money amount]."
           },
+          "fitness_score": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "uniqueItems": true,
+            "title": "Fitness Score",
+            "description": "The fitness score as a set of fitness values."
+          },
           "prediction": {
             "$ref": "#/components/schemas/PydanticDateTimeDataFrame",
             "description": "Datetime data frame with time series prediction data per optimization interval:- pv_energy_wh: PV energy prediction (positive) in wh- elec_price_amt_kwh: Electricity price prediction in money per kwh- feed_in_tariff_amt_kwh: Feed in tariff prediction in money per kwh- weather_temp_air_celcius: Temperature in \u00b0C- loadforecast_energy_wh: Load mean energy prediction in wh- loadakkudoktor_std_energy_wh: Load energy standard deviation prediction in wh- loadakkudoktor_mean_energy_wh: Load mean energy prediction in wh"
@@ -5937,6 +5946,7 @@
           "total_losses_energy_wh",
           "total_revenues_amt",
           "total_costs_amt",
+          "fitness_score",
           "prediction",
           "solution"
         ],
@@ -7585,6 +7595,31 @@
             "title": "Max Soc Percentage",
             "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
             "default": 100
+          },
+          "charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Rates",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [
+              [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              null
+            ]
           }
         },
         "additionalProperties": false,
