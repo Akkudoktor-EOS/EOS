@@ -1,6 +1,6 @@
 [project]
 name = "akkudoktor-eos"
-version = "0.0.1"
+version = "0.2.0"
 authors = [
   { name="Andreas Schmitz", email="author@example.com" },
 ]
@@ -111,7 +111,7 @@ ignore_missing_imports = true
 [tool.commitizen]
 name = "cz_conventional_commits"
 version_scheme = "semver"
-version = "0.1.0+dev"            # <-- Set your current version heretag_format = "v$version"
+version = "0.2.0"            # <-- Set your current version heretag_format = "v$version"
 
 # Files to automatically update when bumping version
 update_changelog_on_bump = true
@@ -133,5 +133,5 @@ template = "keepachangelog"
 version = [
   "pyproject.toml",          # Auto-update project version
   "src/akkudoktoreos/core/version.py",
-  "src/data/default.config.json"
+  "src/akkudoktoreos/data/default.config.json"
 ]

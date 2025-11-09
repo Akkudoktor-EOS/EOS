@@ -4,7 +4,7 @@
 # Release Process
 
 This document describes how to prepare and publish a new release **via a Pull Request from a fork**,
-using **Commitizen** to manage versioning and changelogs — and how to set a **development version** after the release.
+and how to set a **development version** after the release.
 
 ## ✅ Overview of the Process
 
@@ -20,7 +20,7 @@ using **Commitizen** to manage versioning and changelogs — and how to set a **
 
 ### 1️⃣ Contributor: Prepare the Release in Your Fork
 
-**Clone and sync your fork:**
+#### Clone and sync your fork
 
 ```bash
 git clone https://github.com/<your-username>/EOS
@@ -32,25 +32,50 @@ git checkout main
 git pull eos main
 ````
 
-**Create the release branch:**
+#### Create the release branch
 
 ```bash
 git checkout -b release/vX.Y.Z
 ```
 
-**Run Commitizen to bump version and update changelog:**
+#### Bump the version information
+
+At least update
+
+- pyproject.toml
+- src/akkudoktoreos/core/version.py
+- src/akkudoktoreos/data/default.config.json
+- Makefile
+
+and the generated documentation:
 
 ```bash
-make bump
+make bump VERSION=0.1.0+dev NEW_VERSION=X.Y.Z
+make gen-docs
 ```
 
-> ✅ This updates version files and `CHANGELOG.md` in a single commit.
-> 🚫 **Do not push tags** — tags are created by the maintainer via GitHub Releases.
-
-**Push the branch to your fork:**
+You may check the changes by:
 
 ```bash
-git push origin release/vX.Y.Z
+git diff
+```
+
+#### Create a new CHANGELOG.md entry
+
+Edit CHANGELOG.md
+
+#### Create the new release commit
+
+```bash
+git add pyproject.toml src/akkudoktoreos/core/version.py \
+    src/akkudoktoreos/data/default.config.json Makefile CHANGELOG.md
+git commit -s -m "chore(release): Release vX.Y.Z"
+```
+
+#### Push the branch to your fork
+
+```bash
+git push --set-upstream origin release/vX.Y.Z
 ```
 
 ### 2️⃣ Contributor: Open the Release Pull Request
@@ -62,7 +87,7 @@ git push origin release/vX.Y.Z
 **PR Title:**
 
 ```text
-Release vX.Y.Z
+chore(release): release vX.Y.Z
 ```
 
 **PR Description Template:**
@@ -73,7 +98,7 @@ Release vX.Y.Z
 This pull request prepares release **vX.Y.Z**.
 
 ### Changes
-- Version bump via Commitizen
+- Version bump
 - Changelog update
 
 ### Changelog Summary
@@ -86,15 +111,15 @@ See `CHANGELOG.md` for full details.
 
 **Review Checklist:**
 
-* ✅ Only version files and `CHANGELOG.md` are modified
-* ✅ Version numbers are consistent
-* ✅ Changelog is complete and properly formatted
-* ✅ No unrelated changes are included
+- ✅ Only version files and `CHANGELOG.md` are modified
+- ✅ Version numbers are consistent
+- ✅ Changelog is complete and properly formatted
+- ✅ No unrelated changes are included
 
 **Merge Strategy:**
 
-* Prefer **Merge Commit** (or **Squash Merge**, per project preference)
-* Use commit message: `Release vX.Y.Z`
+- Prefer **Merge Commit** (or **Squash Merge**, per project preference)
+- Use commit message: `chore(release): Release vX.Y.Z`
 
 ### 4️⃣ Maintainer: Publish the GitHub Release
 
@@ -121,21 +146,21 @@ git pull eos main
 git checkout -b release/vX.Y.Z_dev
 ```
 
-**Set development marker manually:**
-
-The following files have to be updated:
-
-* pyproject.toml
-* src/akkudoktoreos/core/version.py
-* src/data/default.config.json
-
-Example for pyproject.toml
+**Set development version marker manually:**
 
 ```bash
-sed -i 's/version = "\(.*\)"/version = "\1+dev"/' pyproject.toml
-git add pyproject.toml
-git commit -m "chore: set development version marker"
-git push origin release/vX.Y.Z_dev
+make bump VERSION=X.Y.Z NEW_VERSION=X.Y.Z+dev
+make gen-docs
+```
+
+```bash
+git add pyproject.toml src/akkudoktoreos/core/version.py \
+    src/akkudoktoreos/data/default.config.json Makefile
+git commit -s -m "chore: set development version marker X.Y.Z+dev"
+```
+
+```bash
+git push --set-upstream origin release/vX.Y.Z_dev
 ```
 
 ### 6️⃣ Maintainer (or Contributor): Open the Development Version PR
@@ -147,13 +172,13 @@ git push origin release/vX.Y.Z_dev
 **PR Title:**
 
 ```text
-Release vX.Y.Z+dev
+chore: development version vX.Y.Z+dev
 ```
 
 **PR Description Template:**
 
 ```markdown
-## Release vX.Y.Z_dev
+## Development version vX.Y.Z+dev
 
 This pull request marks the repository as back in active development.
 
@@ -167,12 +192,12 @@ No changelog entry is needed.
 
 **Checklist:**
 
-* ✅ Only version files updated to `+dev`
-* ✅ No unintended changes
+- ✅ Only version files updated to `+dev`
+- ✅ No unintended changes
 
 **Merge Strategy:**
 
-* Merge with commit message: `Release vX.Y.Z_dev`
+- Merge with commit message: `chore: development version vX.Y.Z+dev`
 
 ## ✅ Quick Reference
 

@@ -162,7 +162,15 @@ docker-build:
 	@docker compose build --pull
 
 # Bump Akkudoktoreos version
+VERSION ?= 0.2.0
+NEW_VERSION ?= $(VERSION)+dev
+
 bump: pip-dev
-	@echo "Bumping akkudoktoreos version to release version"
+	@echo "Bumping akkudoktoreos version from $(VERSION) to $(NEW_VERSION) (dry-run: $(EXTRA_ARGS))"
 	.venv/bin/python scripts/convert_lightweight_tags.py
-	.venv/bin/cz bump
+	.venv/bin/python scripts/bump_version.py $(VERSION) $(NEW_VERSION) $(EXTRA_ARGS)
+
+bump-dry: pip-dev
+	@echo "Bumping akkudoktoreos version from $(VERSION) to $(NEW_VERSION) (dry-run: --dry-run)"
+	.venv/bin/python scripts/convert_lightweight_tags.py
+	.venv/bin/python scripts/bump_version.py $(VERSION) $(NEW_VERSION) --dry-run

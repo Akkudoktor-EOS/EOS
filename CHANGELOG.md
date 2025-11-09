@@ -5,79 +5,142 @@ All notable changes to the akkudoktoreos project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.1.0+dev (2025-10-26)
+## 0.2.0 (2025-11-09)
 
-### feat
-- setup default device configuration for automatic optimization
-- allow configuration of genetic algorithm parameters
-- allow configuration of home appliance time windows
-- mitigate old config
-- standardize measurement keys for battery/EV SoC measurements
-- feed-in tariff prediction support (incl. tests and docs)
-- energy management plan generation based on S2 standard instructions
-- make measurement keys configurable through EOS configuration
-- use pendulum types with pydantic via pydantic_extra_types.pendulum_dt
-- add Time, TimeWindow, TimeWindowSequence and to_time to datetimeutil
-- extend DataRecord with configurable field-like data
-- enrich health endpoints with version and optimization timestamps
-- add pydantic merge model tests
-- add plan tab to EOSdash
-- add predictions tab to EOSdash
-- add cache management to EOSdash admin tab
-- add about tab to EOSdash
-- adapt changelog & documentation for commitizen release flow
-- improve install and development documentation
+The most important new feature is **automatic optimization**.
+EOS can now independently perform optimization at regular intervals.
+This is based on the configured system parameters and forecasts, and also uses supplied
+measurement data, such as the current battery SoC.
+The result is an energy-management plan as well as the optimization output.
+The existing optimization interface using `POST /optimize` remains available and can still
+be used as before.
 
-### fix
-- automatic optimization (interval execution, locking, new endpoints)
-- recognize environment variables on EOS server startup
-- remove 0.0.0.0 → localhost translation on Windows
-- allow hostnames as well as IPs
-- access pydantic model fields via class instead of instance
-- downsampling in key_to_array
-- /v1/admin/cache/clear now clears all cache files; new /clear-expired endpoint
-- replace timezonefinder with tzfpy for accurate European timezones
-- explicit provider settings in config versus union
+In addition, bugs were fixed and new features were added:
+
+- Automatic optimization creates a **default configuration** if none is provided.
+  This is intended to make it easier to create a custom configuration by adapting the default.
+- The parameters of the genetic optimization algorithm (number of generations, etc.) are now
+  configurable.
+- For home appliances, start windows can now be specified (experimental).
+- Configuration files from previous versions are converted to the current format on first launch.
+- There are now measurement keys that are permanently assigned to a specific device simulation.
+  This simplifies providing measurement values for device simulations (e.g. battery SoC).
+- The infrastructure and first applications for **feed-in tariff forecasting**
+  (currently only fixed tariffs) are now integrated.
+- EOSdash has been expanded with new tabs for displaying the **energy-management plan**
+  and **predictions**.
+- The documentation has been updated and expanded in many places.
+
+### Feat
+
+- Energy-management plan generation based on S2 standard instructions
+- Feed-in-tariff prediction support (incl. tests & docs)
+- `LoadAkkudoktorAdjusted` load prediction variant
+- Standardized measurement keys for battery/EV SoC
+- Measurement keys configurable via EOS configuration
+- Setup default device configuration for automatic optimization
+- Health endpoints show version + last optimization timestamps
+- Configuration of genetic algorithm parameters
+- Configuration options for home-appliance time windows
+- Mitigation of legacy configuration
+- Config backup enhancements:
+
+  - Timestamp-based backup IDs
+  - API to list backups
+  - API to revert to a specific backup
+  - EOSdash Admin tab integration
+
+- Pendulum date types via `pydantic_extra_types.pendulum_dt`
+- `Time`, `TimeWindow`, `TimeWindowSequence`, and `to_time` helpers in `datetimeutil`
+- Extended `DataRecord` with configurable field-like semantics
+- EOSdash: Solution view now displays genetic optimization results and aggregated totals
+- EOSdash UI:
+
+  - Plan tab
+  - Predictions tab
+  - Cache management in Admin tab
+  - About tab
+
+- Pydantic merge model tests
+- Developer profiling entry in Makefile
+- Changelog & docs updated for commitizen release flow
+- Developer documentation updated
+- Improved install & development documentation
+
+### Changed
+
+- Battery simulation
+
+  - Performance improvements
+  - Charge + start times now reflect realistic simulation
+
+- Appliance simulation:
+
+  - Time windows may roll over to next day
+
+- Revised load prediction by splitting original `LoadAkkudoktor` into:
+
+  - `LoadAkkudoktor`
+  - `LoadAkkudoktorAdjusted`
+
+### Fixed
+
+- Correct URL/path for Akkudoktor forum in README
+- Automatic optimization:
+
+  - Reuses previous start solution
+  - Interval execution + locking + new endpoints
+  - Properly loads required data
+  - EV charge-rate migration for proper availability
+
+- Genetic common settings consistently available
+- Config markdown generation
+- Recognize environment variables on EOS server startup
+- Remove `0.0.0.0 → localhost` translation on Windows
+- Allow hostnames as well as IPs
+- Access Pydantic model fields via class instead of instance
+- Down-sampling in `key_to_array`
+- `/v1/admin/cache/clear` clears all cache files; added `/clear-expired`
+- Use `tzfpy` instead of timezonefinder for more accurate EU timezones
+- Explicit provider settings in config instead of union
 - ClearOutside weather prediction irradiance calculation
-- test config file priority without config_eos fixture
-- complete optimization sample request documentation
-- replace gitlint with commitizen
-- synchronize pre-commit config with real dependencies
-- add missing babel to requirements
-- fix documentation, tests, and implementation around optimization and predictions
+- Test config file priority without `config_eos` fixture
+- Complete optimization sample-request documentation
+- Replace gitlint with commitizen
+- Synchronize pre-commit config with real dependencies
+- Add missing `babel` to requirements
+- Fix documentation, tests, and implementation around optimization + predictions
 
-### chore
-- use memory cache for inverter interpolation
-- refactor genetic algorithm modules (split config, remove device singleton)
-- rename memory cache to CacheEnergyManagementStore
-- use class properties for config/ems/prediction mixins
-- skip matplotlib debug logs
-- auto-sync Bokeh JS CDN version
-- rename hello.py to about.py in EOSdash
-- remove demo page from EOSdash
-- split server test for system test
-- move doc utils to generate_config_md.py
-- improve documentation for pydantic merge models
-- remove pendulum warning from README
-- drop GitHub Discussions from contributing docs
-- bump version to 0.1.0+dev
-- rename or reorganize files/classes during refactoring
+### Chore
 
-### build
-- bump fastapi[standard] 0.115.14 → 0.117.1 and fix pytest-cov version
-- bump uvicorn 0.36.0 → 0.37.0
+- Use memory cache for inverter interpolation
+- Refactor genetic modules (split config, remove device singleton)
+- Rename memory cache to `CacheEnergyManagementStore`
+- Use class properties for config/EMS/prediction mixins
+- Skip matplotlib debug logs
+- Auto-sync Bokeh JS CDN version
+- Rename `hello.py` → `about.py` in EOSdash
+- Remove EOSdash demo page
+- Split server test from system test
+- Move doc utils to `generate_config_md.py`
+- Improve documentation for pydantic merge models
+- Remove pendulum warning from README
+- Drop GitHub Discussions from contributing docs
+- Rename or reorganize files / classes during refactors
 
-### BREAKING CHANGE
-EOS configuration and v1 API were changed:
+### BREAKING CHANGES
 
-- available_charge_rates_percent removed; replaced by new charge_rate config
-- optimization param hours renamed to horizon_hours
-- device config must now list devices and their properties explicitly
-- specific prediction provider configuration versus union
-- measurement keys provided as lists
-- new feed-in tariff providers must be configured
-- /v1/measurement/loadxxx endpoints removed (use generic measurement endpoints)
-- /v1/admin/cache/clear clears all cache files; use /v1/admin/cache/clear-expired for expired-only clearing
+EOS configuration + v1 API have changed:
+
+- `available_charge_rates_percent` removed → replaced by `charge_rate`
+- Optimization parameter `hours` → renamed to `horizon_hours`
+- Device config must explicitly list devices + properties
+- Prediction providers now explicit (instead of union)
+- Measurement keys provided as lists
+- Feed-in-tariff providers must be explicitly configured
+- `/v1/measurement/loadxxx` endpoints removed → use generic measurement endpoints
+- `/v1/admin/cache/clear` now clears **all*- cache files;
+  `/v1/admin/cache/clear-expired` only clears expired entries
 
 ## v0.1.0 (2025-09-30)
 

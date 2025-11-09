@@ -138,16 +138,16 @@ This method is recommended for users who want a stable, tested version.
 ### 1) Download the Latest Release (M2)
 
 Visit the [Releases page](https://github.com/Akkudoktor-EOS/EOS/tags) and download the latest
-release package (e.g., `akkudoktoreos-v0.1.0.tar.gz` or `akkudoktoreos-v0.1.0.zip`).
+release package (e.g., `akkudoktoreos-v0.2.0.tar.gz` or `akkudoktoreos-v0.2.0.zip`).
 
 ### 2) Extract the Package (M2)
 
 ```bash
-tar -xzf akkudoktoreos-v0.1.0.tar.gz  # For .tar.gz
+tar -xzf akkudoktoreos-v0.2.0.tar.gz  # For .tar.gz
 # or
-unzip akkudoktoreos-v0.1.0.zip  # For .zip
+unzip akkudoktoreos-v0.2.0.zip  # For .zip
 
-cd akkudoktoreos-v0.1.0
+cd akkudoktoreos-v0.2.0
 ```
 
 ### 3) Create a virtual environment and run and configure EOS (M2)
