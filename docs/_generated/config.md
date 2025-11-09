@@ -21,7 +21,7 @@ Properties:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| version | `EOS_GENERAL__VERSION` | `str` | `rw` | `0.2.0` | Configuration file version. Used to check compatibility. |
+| version | `EOS_GENERAL__VERSION` | `str` | `rw` | `0.2.0+dev` | Configuration file version. Used to check compatibility. |
 | data_folder_path | `EOS_GENERAL__DATA_FOLDER_PATH` | `Optional[pathlib.Path]` | `rw` | `None` | Path to EOS data directory. |
 | data_output_subpath | `EOS_GENERAL__DATA_OUTPUT_SUBPATH` | `Optional[pathlib.Path]` | `rw` | `output` | Sub-path for the EOS output data directory. |
 | latitude | `EOS_GENERAL__LATITUDE` | `Optional[float]` | `rw` | `52.52` | Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°) |
@@ -39,7 +39,7 @@ Properties:
 
    {
        "general": {
-           "version": "0.2.0",
+           "version": "0.2.0+dev",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
@@ -55,7 +55,7 @@ Properties:
 
    {
        "general": {
-           "version": "0.2.0",
+           "version": "0.2.0+dev",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
@@ -1780,7 +1780,7 @@ Validators:
 
    {
        "general": {
-           "version": "0.2.0",
+           "version": "0.2.0+dev",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,

@@ -162,7 +162,7 @@ docker-build:
 	@docker compose build --pull
 
 # Bump Akkudoktoreos version
-VERSION ?= 0.2.0
+VERSION ?= 0.2.0+dev
 NEW_VERSION ?= $(VERSION)+dev
 
 bump: pip-dev
