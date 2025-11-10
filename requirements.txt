@@ -26,6 +26,6 @@ pvlib==0.13.1
 pydantic==2.12.4
 pydantic_extra_types==2.10.6
 statsmodels==0.14.5
-pydantic-settings==2.11.0
+pydantic-settings==2.12.0
 linkify-it-py==2.0.3
 loguru==0.7.3
