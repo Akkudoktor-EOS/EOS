@@ -24,26 +24,34 @@ class MeasurementCommonSettings(SettingsBaseModel):
 
     load_emr_keys: Optional[list[str]] = Field(
         default=None,
-        description="The keys of the measurements that are energy meter readings of a load [kWh].",
-        examples=[["load0_emr"]],
+        json_schema_extra={
+            "description": "The keys of the measurements that are energy meter readings of a load [kWh].",
+            "examples": [["load0_emr"]],
+        },
     )
 
     grid_export_emr_keys: Optional[list[str]] = Field(
         default=None,
-        description="The keys of the measurements that are energy meter readings of energy export to grid [kWh].",
-        examples=[["grid_export_emr"]],
+        json_schema_extra={
+            "description": "The keys of the measurements that are energy meter readings of energy export to grid [kWh].",
+            "examples": [["grid_export_emr"]],
+        },
     )
 
     grid_import_emr_keys: Optional[list[str]] = Field(
         default=None,
-        description="The keys of the measurements that are energy meter readings of energy import from grid [kWh].",
-        examples=[["grid_import_emr"]],
+        json_schema_extra={
+            "description": "The keys of the measurements that are energy meter readings of energy import from grid [kWh].",
+            "examples": [["grid_import_emr"]],
+        },
     )
 
     pv_production_emr_keys: Optional[list[str]] = Field(
         default=None,
-        description="The keys of the measurements that are PV production energy meter readings [kWh].",
-        examples=[["pv1_emr"]],
+        json_schema_extra={
+            "description": "The keys of the measurements that are PV production energy meter readings [kWh].",
+            "examples": [["pv1_emr"]],
+        },
     )
 
     ## Computed fields
@@ -78,7 +86,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
     """
 
     records: list[MeasurementDataRecord] = Field(
-        default_factory=list, description="list of measurement data records"
+        default_factory=list, json_schema_extra={"description": "list of measurement data records"}
     )
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:

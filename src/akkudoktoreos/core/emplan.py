@@ -330,10 +330,13 @@ class PowerValue(PydanticBaseModel):
     """
 
     commodity_quantity: CommodityQuantity = Field(
-        ..., description="The power quantity the value refers to."
+        ..., json_schema_extra={"description": "The power quantity the value refers to."}
     )
     value: float = Field(
-        ..., description="Power value expressed in the unit associated with the CommodityQuantity."
+        ...,
+        json_schema_extra={
+            "description": "Power value expressed in the unit associated with the CommodityQuantity."
+        },
     )
 
 
@@ -347,31 +350,45 @@ class PowerForecastValue(PydanticBaseModel):
 
     value_upper_limit: Optional[float] = Field(
         None,
-        description="The upper boundary of the range with 100% certainty the power value is in it.",
+        json_schema_extra={
+            "description": "The upper boundary of the range with 100% certainty the power value is in it."
+        },
     )
     value_upper_95PPR: Optional[float] = Field(
         None,
-        description="The upper boundary of the range with 95% certainty the power value is in it.",
+        json_schema_extra={
+            "description": "The upper boundary of the range with 95% certainty the power value is in it."
+        },
     )
     value_upper_68PPR: Optional[float] = Field(
         None,
-        description="The upper boundary of the range with 68% certainty the power value is in it.",
+        json_schema_extra={
+            "description": "The upper boundary of the range with 68% certainty the power value is in it."
+        },
     )
-    value_expected: float = Field(..., description="The expected power value.")
+    value_expected: float = Field(
+        ..., json_schema_extra={"description": "The expected power value."}
+    )
     value_lower_68PPR: Optional[float] = Field(
         None,
-        description="The lower boundary of the range with 68% certainty the power value is in it.",
+        json_schema_extra={
+            "description": "The lower boundary of the range with 68% certainty the power value is in it."
+        },
     )
     value_lower_95PPR: Optional[float] = Field(
         None,
-        description="The lower boundary of the range with 95% certainty the power value is in it.",
+        json_schema_extra={
+            "description": "The lower boundary of the range with 95% certainty the power value is in it."
+        },
     )
     value_lower_limit: Optional[float] = Field(
         None,
-        description="The lower boundary of the range with 100% certainty the power value is in it.",
+        json_schema_extra={
+            "description": "The lower boundary of the range with 100% certainty the power value is in it."
+        },
     )
     commodity_quantity: CommodityQuantity = Field(
-        ..., description="The power quantity the value refers to."
+        ..., json_schema_extra={"description": "The power quantity the value refers to."}
     )
 
 
@@ -384,11 +401,13 @@ class PowerRange(PydanticBaseModel):
     """
 
     start_of_range: float = Field(
-        ..., description="Power value that defines the start of the range."
+        ..., json_schema_extra={"description": "Power value that defines the start of the range."}
     )
-    end_of_range: float = Field(..., description="Power value that defines the end of the range.")
+    end_of_range: float = Field(
+        ..., json_schema_extra={"description": "Power value that defines the end of the range."}
+    )
     commodity_quantity: CommodityQuantity = Field(
-        ..., description="The power quantity the values refer to."
+        ..., json_schema_extra={"description": "The power quantity the values refer to."}
     )
 
 
@@ -400,8 +419,12 @@ class NumberRange(PydanticBaseModel):
     Used for representing ranges of prices, percentages, or other numeric values.
     """
 
-    start_of_range: float = Field(..., description="Number that defines the start of the range.")
-    end_of_range: float = Field(..., description="Number that defines the end of the range.")
+    start_of_range: float = Field(
+        ..., json_schema_extra={"description": "Number that defines the start of the range."}
+    )
+    end_of_range: float = Field(
+        ..., json_schema_extra={"description": "Number that defines the end of the range."}
+    )
 
 
 class PowerMeasurement(PydanticBaseModel):
@@ -415,11 +438,13 @@ class PowerMeasurement(PydanticBaseModel):
     type: Literal["PowerMeasurement"] = Field(default="PowerMeasurement")
 
     measurement_timestamp: DateTime = Field(
-        ..., description="Timestamp when PowerValues were measured."
+        ..., json_schema_extra={"description": "Timestamp when PowerValues were measured."}
     )
     values: list[PowerValue] = Field(
         ...,
-        description="Array of measured PowerValues. Shall contain at least one item and at most one item per 'commodity_quantity' (defined inside the PowerValue).",
+        json_schema_extra={
+            "description": "Array of measured PowerValues. Shall contain at least one item and at most one item per 'commodity_quantity' (defined inside the PowerValue)."
+        },
     )
 
 
@@ -438,15 +463,19 @@ class EnergyMeasurement(PydanticBaseModel):
     type: Literal["EnergyMeasurement"] = Field(default="EnergyMeasurement")
 
     measurement_timestamp: DateTime = Field(
-        ..., description="Timestamp when energy values were measured."
+        ..., json_schema_extra={"description": "Timestamp when energy values were measured."}
     )
     last_reset: Optional[DateTime] = Field(
         default=None,
-        description="Timestamp when the energy meter's cumulative counter was last reset.",
+        json_schema_extra={
+            "description": "Timestamp when the energy meter's cumulative counter was last reset."
+        },
     )
     values: list[PowerValue] = Field(
         ...,
-        description="Array of measured energy values. Shall contain at least one item and at most one item per 'commodity_quantity' (defined inside the PowerValue).",
+        json_schema_extra={
+            "description": "Array of measured energy values. Shall contain at least one item and at most one item per 'commodity_quantity' (defined inside the PowerValue)."
+        },
     )
 
 
@@ -458,8 +487,12 @@ class Role(PydanticBaseModel):
     an entity interacts with the energy system for that commodity.
     """
 
-    role: RoleType = Field(..., description="Role type for the given commodity.")
-    commodity: Commodity = Field(..., description="Commodity the role refers to.")
+    role: RoleType = Field(
+        ..., json_schema_extra={"description": "Role type for the given commodity."}
+    )
+    commodity: Commodity = Field(
+        ..., json_schema_extra={"description": "Commodity the role refers to."}
+    )
 
 
 class ReceptionStatus(PydanticBaseModel):
@@ -471,14 +504,19 @@ class ReceptionStatus(PydanticBaseModel):
     """
 
     status: ReceptionStatusValues = Field(
-        ..., description="Enumeration of status values indicating reception outcome."
+        ...,
+        json_schema_extra={
+            "description": "Enumeration of status values indicating reception outcome."
+        },
     )
     diagnostic_label: Optional[str] = Field(
         None,
-        description=(
-            "Optional diagnostic label providing additional information for debugging. "
-            "Not intended for Human-Machine Interface (HMI) use."
-        ),
+        json_schema_extra={
+            "description": (
+                "Optional diagnostic label providing additional information for debugging. "
+                "Not intended for Human-Machine Interface (HMI) use."
+            )
+        },
     )
 
 
@@ -493,57 +531,73 @@ class Transition(PydanticBaseModel):
 
     id: ID = Field(
         ...,
-        description=(
-            "ID of the Transition. Shall be unique in the scope of the OMBC.SystemDescription, "
-            "FRBC.ActuatorDescription, or DDBC.ActuatorDescription in which it is used."
-        ),
+        json_schema_extra={
+            "description": (
+                "ID of the Transition. Shall be unique in the scope of the OMBC.SystemDescription, "
+                "FRBC.ActuatorDescription, or DDBC.ActuatorDescription in which it is used."
+            )
+        },
     )
     from_: ID = Field(
         ...,
         alias="from",
-        description=(
-            "ID of the OperationMode that should be switched from. "
-            "Exact type depends on the ControlType."
-        ),
+        json_schema_extra={
+            "description": (
+                "ID of the OperationMode that should be switched from. "
+                "Exact type depends on the ControlType."
+            )
+        },
     )
     to: ID = Field(
         ...,
-        description=(
-            "ID of the OperationMode that will be switched to. "
-            "Exact type depends on the ControlType."
-        ),
+        json_schema_extra={
+            "description": (
+                "ID of the OperationMode that will be switched to. "
+                "Exact type depends on the ControlType."
+            )
+        },
     )
     start_timers: list[ID] = Field(
         ...,
-        description=(
-            "List of IDs of Timers that will be (re)started when this Transition is initiated."
-        ),
+        json_schema_extra={
+            "description": (
+                "List of IDs of Timers that will be (re)started when this Transition is initiated."
+            )
+        },
     )
     blocking_timers: list[ID] = Field(
         ...,
-        description=(
-            "List of IDs of Timers that block this Transition from initiating "
-            "while at least one of them is not yet finished."
-        ),
+        json_schema_extra={
+            "description": (
+                "List of IDs of Timers that block this Transition from initiating "
+                "while at least one of them is not yet finished."
+            )
+        },
     )
     transition_costs: Optional[float] = Field(
         None,
-        description=(
-            "Absolute costs for going through this Transition, in the currency defined in ResourceManagerDetails."
-        ),
+        json_schema_extra={
+            "description": (
+                "Absolute costs for going through this Transition, in the currency defined in ResourceManagerDetails."
+            )
+        },
     )
     transition_duration: Optional[Duration] = Field(
         None,
-        description=(
-            "Time between initiation of this Transition and when the device behaves according to the target Operation Mode. "
-            "Assumed negligible if not provided."
-        ),
+        json_schema_extra={
+            "description": (
+                "Time between initiation of this Transition and when the device behaves according to the target Operation Mode. "
+                "Assumed negligible if not provided."
+            )
+        },
     )
     abnormal_condition_only: bool = Field(
         ...,
-        description=(
-            "Indicates whether this Transition may only be used during an abnormal condition."
-        ),
+        json_schema_extra={
+            "description": (
+                "Indicates whether this Transition may only be used during an abnormal condition."
+            )
+        },
     )
 
     model_config = {
@@ -563,29 +617,38 @@ class Timer(PydanticBaseModel):
 
     id: ID = Field(
         ...,
-        description=(
-            "ID of the Timer. Shall be unique in the scope of the OMBC.SystemDescription, "
-            "FRBC.ActuatorDescription, or DDBC.ActuatorDescription in which it is used."
-        ),
+        json_schema_extra={
+            "description": (
+                "ID of the Timer. Shall be unique in the scope of the OMBC.SystemDescription, "
+                "FRBC.ActuatorDescription, or DDBC.ActuatorDescription in which it is used."
+            )
+        },
     )
     diagnostic_label: Optional[str] = Field(
         None,
-        description=(
-            "Human readable name/description of the Timer. "
-            "This element is only intended for diagnostic purposes and not for HMI applications."
-        ),
+        json_schema_extra={
+            "description": (
+                "Human readable name/description of the Timer. "
+                "This element is only intended for diagnostic purposes and not for HMI applications."
+            )
+        },
     )
     duration: Duration = Field(
-        ..., description=("The time it takes for the Timer to finish after it has been started.")
+        ...,
+        json_schema_extra={
+            "description": ("The time it takes for the Timer to finish after it has been started.")
+        },
     )
     finished_at: DateTime = Field(
         ...,
-        description=(
-            "Timestamp indicating when the Timer will be finished. "
-            "If in the future, the timer is not yet finished. "
-            "If in the past, the timer is finished. "
-            "If the timer was never started, this can be an arbitrary timestamp in the past."
-        ),
+        json_schema_extra={
+            "description": (
+                "Timestamp indicating when the Timer will be finished. "
+                "If in the future, the timer is not yet finished. "
+                "If in the past, the timer is finished. "
+                "If the timer was never started, this can be an arbitrary timestamp in the past."
+            )
+        },
     )
 
 
@@ -597,9 +660,15 @@ class InstructionStatusUpdate(PydanticBaseModel):
     execution and provides feedback about the system's response to control commands.
     """
 
-    instruction_id: ID = Field(..., description=("ID of this instruction, as provided by the CEM."))
-    status_type: InstructionStatus = Field(..., description=("Present status of this instruction."))
-    timestamp: DateTime = Field(..., description=("Timestamp when the status_type last changed."))
+    instruction_id: ID = Field(
+        ..., json_schema_extra={"description": ("ID of this instruction, as provided by the CEM.")}
+    )
+    status_type: InstructionStatus = Field(
+        ..., json_schema_extra={"description": ("Present status of this instruction.")}
+    )
+    timestamp: DateTime = Field(
+        ..., json_schema_extra={"description": ("Timestamp when the status_type last changed.")}
+    )
 
 
 # ResourceManager
@@ -616,36 +685,60 @@ class ResourceManagerDetails(PydanticBaseModel):
 
     resource_id: ID = Field(
         ...,
-        description="Identifier of the ResourceManager. Shall be unique within the scope of the CEM.",
+        json_schema_extra={
+            "description": "Identifier of the ResourceManager. Shall be unique within the scope of the CEM."
+        },
     )
-    name: Optional[str] = Field(None, description="Human readable name given by user.")
+    name: Optional[str] = Field(
+        None, json_schema_extra={"description": "Human readable name given by user."}
+    )
     roles: list[Role] = Field(
-        ..., description="Each ResourceManager provides one or more energy Roles."
+        ...,
+        json_schema_extra={
+            "description": "Each ResourceManager provides one or more energy Roles."
+        },
     )
-    manufacturer: Optional[str] = Field(None, description="Name of Manufacturer.")
-    model: Optional[str] = Field(None, description="Name of the model of the device.")
-    serial_number: Optional[str] = Field(None, description="Serial number of the device.")
+    manufacturer: Optional[str] = Field(
+        None, json_schema_extra={"description": "Name of Manufacturer."}
+    )
+    model: Optional[str] = Field(
+        None, json_schema_extra={"description": "Name of the model of the device."}
+    )
+    serial_number: Optional[str] = Field(
+        None, json_schema_extra={"description": "Serial number of the device."}
+    )
     firmware_version: Optional[str] = Field(
-        None, description="Version identifier of the firmware used in the device."
+        None,
+        json_schema_extra={"description": "Version identifier of the firmware used in the device."},
     )
     instruction_processing_delay: Duration = Field(
         ...,
-        description="The average time the system and device needs to process and execute an instruction.",
+        json_schema_extra={
+            "description": "The average time the system and device needs to process and execute an instruction."
+        },
     )
     available_control_types: list[ControlType] = Field(
-        ..., description="The control types supported by this ResourceManager."
+        ...,
+        json_schema_extra={"description": "The control types supported by this ResourceManager."},
     )
     currency: Optional[Currency] = Field(
         None,
-        description="Currency to be used for all information regarding costs. "
-        "Mandatory if cost information is published.",
+        json_schema_extra={
+            "description": "Currency to be used for all information regarding costs. "
+            "Mandatory if cost information is published."
+        },
     )
     provides_forecast: bool = Field(
-        ..., description="Indicates whether the ResourceManager is able to provide PowerForecasts."
+        ...,
+        json_schema_extra={
+            "description": "Indicates whether the ResourceManager is able to provide PowerForecasts."
+        },
     )
     provides_power_measurement_types: list[CommodityQuantity] = Field(
         ...,
-        description="Array of all CommodityQuantities that this ResourceManager can provide measurements for.",
+        json_schema_extra={
+            "description": "Array of all CommodityQuantities that this ResourceManager can provide measurements for."
+        },
     )
 
 
@@ -662,18 +755,22 @@ class PowerForecastElement(PydanticBaseModel):
 
     duration: Duration = Field(
         ...,
-        description=(
-            "Duration of the PowerForecastElement. "
-            "Defines the time window the power values apply to."
-        ),
+        json_schema_extra={
+            "description": (
+                "Duration of the PowerForecastElement. "
+                "Defines the time window the power values apply to."
+            )
+        },
     )
     power_values: list[PowerForecastValue] = Field(
         ...,
         min_length=1,
-        description=(
-            "The values of power that are expected for the given period. "
-            "There shall be at least one PowerForecastValue, and at most one per CommodityQuantity."
-        ),
+        json_schema_extra={
+            "description": (
+                "The values of power that are expected for the given period. "
+                "There shall be at least one PowerForecastValue, and at most one per CommodityQuantity."
+            )
+        },
     )
 
 
@@ -691,15 +788,20 @@ class PowerForecast(PydanticBaseModel):
     """
 
     start_time: DateTime = Field(
-        ..., description="Start time of time period that is covered by the profile."
+        ...,
+        json_schema_extra={
+            "description": "Start time of time period that is covered by the profile."
+        },
     )
     elements: list[PowerForecastElement] = Field(
         ...,
         min_length=1,
-        description=(
-            "Elements of which this forecast consists. Contains at least one element. "
-            "Elements shall be placed in chronological order."
-        ),
+        json_schema_extra={
+            "description": (
+                "Elements of which this forecast consists. Contains at least one element. "
+                "Elements shall be placed in chronological order."
+            )
+        },
     )
 
 
@@ -723,16 +825,22 @@ class BaseInstruction(PydanticBaseModel, ABC):
 
     id: Optional[ID] = Field(
         default=None,
-        description=(
-            "Unique identifier of the instruction in the ResourceManager scope. "
-            "If not provided and a `resource_id` is passed at instantiation, this will "
-            "be auto-generated as `{resource_id}@{UUID}`."
-        ),
+        json_schema_extra={
+            "description": (
+                "Unique identifier of the instruction in the ResourceManager scope. "
+                "If not provided and a `resource_id` is passed at instantiation, this will "
+                "be auto-generated as `{resource_id}@{UUID}`."
+            )
+        },
     )
-    execution_time: DateTime = Field(..., description="Start time of the instruction execution.")
+    execution_time: DateTime = Field(
+        ..., json_schema_extra={"description": "Start time of the instruction execution."}
+    )
     abnormal_condition: bool = Field(
         default=False,
-        description="Indicates if this is an instruction for abnormal conditions. Defaults to False.",
+        json_schema_extra={
+            "description": "Indicates if this is an instruction for abnormal conditions. Defaults to False."
+        },
     )
 
     @model_validator(mode="before")
@@ -795,16 +903,25 @@ class PEBCAllowedLimitRange(PydanticBaseModel):
     """
 
     commodity_quantity: CommodityQuantity = Field(
-        ..., description="Type of power quantity this range applies to."
+        ..., json_schema_extra={"description": "Type of power quantity this range applies to."}
     )
     limit_type: PEBCPowerEnvelopeLimitType = Field(
-        ..., description="Whether this range applies to the upper or lower power envelope limit."
+        ...,
+        json_schema_extra={
+            "description": "Whether this range applies to the upper or lower power envelope limit."
+        },
     )
     range_boundary: NumberRange = Field(
-        ..., description="Range of values the CEM can choose for the power envelope."
+        ...,
+        json_schema_extra={
+            "description": "Range of values the CEM can choose for the power envelope."
+        },
     )
     abnormal_condition_only: Optional[bool] = Field(
-        False, description="Indicates if this range can only be used during an abnormal condition."
+        False,
+        json_schema_extra={
+            "description": "Indicates if this range can only be used during an abnormal condition."
+        },
     )
 
 
@@ -817,17 +934,24 @@ class PEBCPowerConstraints(PydanticBaseModel):
     the controlled device's behavior.
     """
 
-    id: ID = Field(..., description="Unique identifier of this PowerConstraints set.")
-    valid_from: DateTime = Field(..., description="Timestamp when these constraints become valid.")
+    id: ID = Field(
+        ..., json_schema_extra={"description": "Unique identifier of this PowerConstraints set."}
+    )
+    valid_from: DateTime = Field(
+        ..., json_schema_extra={"description": "Timestamp when these constraints become valid."}
+    )
     valid_until: Optional[DateTime] = Field(
-        None, description="Optional end time of validity for these constraints."
+        None,
+        json_schema_extra={"description": "Optional end time of validity for these constraints."},
     )
     consequence_type: PEBCPowerEnvelopeConsequenceType = Field(
-        ..., description="The type of consequence when limiting power."
+        ..., json_schema_extra={"description": "The type of consequence when limiting power."}
     )
     allowed_limit_ranges: list[PEBCAllowedLimitRange] = Field(
         ...,
-        description="List of allowed power envelope limit ranges. Must contain at least one UPPER_LIMIT and one LOWER_LIMIT.",
+        json_schema_extra={
+            "description": "List of allowed power envelope limit ranges. Must contain at least one UPPER_LIMIT and one LOWER_LIMIT."
+        },
     )
 
 
@@ -840,25 +964,37 @@ class PEBCEnergyConstraints(PydanticBaseModel):
     energy management strategies.
     """
 
-    id: ID = Field(..., description="Unique identifier of this EnergyConstraints object.")
-    valid_from: DateTime = Field(..., description="Start time for which this constraint is valid.")
-    valid_until: DateTime = Field(..., description="End time for which this constraint is valid.")
+    id: ID = Field(
+        ...,
+        json_schema_extra={"description": "Unique identifier of this EnergyConstraints object."},
+    )
+    valid_from: DateTime = Field(
+        ..., json_schema_extra={"description": "Start time for which this constraint is valid."}
+    )
+    valid_until: DateTime = Field(
+        ..., json_schema_extra={"description": "End time for which this constraint is valid."}
+    )
     upper_average_power: float = Field(
         ...,
-        description=(
-            "Maximum average power over the given time period. "
-            "Used to derive maximum energy content."
-        ),
+        json_schema_extra={
+            "description": (
+                "Maximum average power over the given time period. "
+                "Used to derive maximum energy content."
+            )
+        },
     )
     lower_average_power: float = Field(
         ...,
-        description=(
-            "Minimum average power over the given time period. "
-            "Used to derive minimum energy content."
-        ),
+        json_schema_extra={
+            "description": (
+                "Minimum average power over the given time period. "
+                "Used to derive minimum energy content."
+            )
+        },
     )
     commodity_quantity: CommodityQuantity = Field(
-        ..., description="The commodity or type of power to which this applies."
+        ...,
+        json_schema_extra={"description": "The commodity or type of power to which this applies."},
     )
 
 
@@ -870,20 +1006,26 @@ class PEBCPowerEnvelopeElement(PydanticBaseModel):
     a time-varying power envelope that constrains device power consumption or production.
     """
 
-    duration: Duration = Field(..., description="Duration of this power envelope element.")
+    duration: Duration = Field(
+        ..., json_schema_extra={"description": "Duration of this power envelope element."}
+    )
     upper_limit: float = Field(
         ...,
-        description=(
-            "Upper power limit for the given commodity_quantity. "
-            "Shall match PEBC.AllowedLimitRange with limit_type UPPER_LIMIT."
-        ),
+        json_schema_extra={
+            "description": (
+                "Upper power limit for the given commodity_quantity. "
+                "Shall match PEBC.AllowedLimitRange with limit_type UPPER_LIMIT."
+            )
+        },
     )
     lower_limit: float = Field(
         ...,
-        description=(
-            "Lower power limit for the given commodity_quantity. "
-            "Shall match PEBC.AllowedLimitRange with limit_type LOWER_LIMIT."
-        ),
+        json_schema_extra={
+            "description": (
+                "Lower power limit for the given commodity_quantity. "
+                "Shall match PEBC.AllowedLimitRange with limit_type LOWER_LIMIT."
+            )
+        },
     )
 
 
@@ -898,20 +1040,24 @@ class PEBCPowerEnvelope(PydanticBaseModel):
 
     id: ID = Field(
         ...,
-        description=(
-            "Unique identifier of this PEBC.PowerEnvelope, scoped to the ResourceManager."
-        ),
+        json_schema_extra={
+            "description": (
+                "Unique identifier of this PEBC.PowerEnvelope, scoped to the ResourceManager."
+            )
+        },
     )
     commodity_quantity: CommodityQuantity = Field(
-        ..., description="Type of power quantity the envelope applies to."
+        ..., json_schema_extra={"description": "Type of power quantity the envelope applies to."}
     )
     power_envelope_elements: list[PEBCPowerEnvelopeElement] = Field(
         ...,
         min_length=1,
-        description=(
-            "Chronologically ordered list of PowerEnvelopeElements. "
-            "Defines how power should be constrained over time."
-        ),
+        json_schema_extra={
+            "description": (
+                "Chronologically ordered list of PowerEnvelopeElements. "
+                "Defines how power should be constrained over time."
+            )
+        },
     )
 
 
@@ -925,13 +1071,17 @@ class PEBCInstruction(BaseInstruction):
     """
 
     type: Literal["PEBCInstruction"] = Field(default="PEBCInstruction")
-    power_constraints_id: ID = Field(..., description="ID of the associated PEBC.PowerConstraints.")
+    power_constraints_id: ID = Field(
+        ..., json_schema_extra={"description": "ID of the associated PEBC.PowerConstraints."}
+    )
     power_envelopes: list[PEBCPowerEnvelope] = Field(
         ...,
         min_length=1,
-        description=(
-            "List of PowerEnvelopes to follow. One per CommodityQuantity, max one per type."
-        ),
+        json_schema_extra={
+            "description": (
+                "List of PowerEnvelopes to follow. One per CommodityQuantity, max one per type."
+            )
+        },
     )
 
     def duration(self) -> Optional[Duration]:
@@ -957,9 +1107,14 @@ class PPBCPowerSequenceElement(PydanticBaseModel):
     the execution of the sequence.
     """
 
-    duration: Duration = Field(..., description="Duration of the sequence element.")
+    duration: Duration = Field(
+        ..., json_schema_extra={"description": "Duration of the sequence element."}
+    )
     power_values: list[PowerForecastValue] = Field(
-        ..., description="Forecasted power values for the duration, one per CommodityQuantity."
+        ...,
+        json_schema_extra={
+            "description": "Forecasted power values for the duration, one per CommodityQuantity."
+        },
     )
 
 
@@ -972,19 +1127,33 @@ class PPBCPowerSequence(PydanticBaseModel):
     supporting flexible power management strategies.
     """
 
-    id: ID = Field(..., description="Unique identifier of the PowerSequence within its container.")
+    id: ID = Field(
+        ...,
+        json_schema_extra={
+            "description": "Unique identifier of the PowerSequence within its container."
+        },
+    )
     elements: list[PPBCPowerSequenceElement] = Field(
-        ..., description="Ordered list of sequence elements representing power behavior."
+        ...,
+        json_schema_extra={
+            "description": "Ordered list of sequence elements representing power behavior."
+        },
     )
     is_interruptible: bool = Field(
-        ..., description="Indicates whether this sequence can be interrupted."
+        ...,
+        json_schema_extra={"description": "Indicates whether this sequence can be interrupted."},
     )
     max_pause_before: Optional[Duration] = Field(
         None,
-        description="Maximum allowed pause before this sequence starts after the previous one.",
+        json_schema_extra={
+            "description": "Maximum allowed pause before this sequence starts after the previous one."
+        },
     )
     abnormal_condition_only: bool = Field(
-        ..., description="True if sequence is only applicable in abnormal conditions."
+        ...,
+        json_schema_extra={
+            "description": "True if sequence is only applicable in abnormal conditions."
+        },
     )
 
 
@@ -999,10 +1168,15 @@ class PPBCPowerSequenceContainer(PydanticBaseModel):
 
     id: ID = Field(
         ...,
-        description="Unique identifier of the PowerSequenceContainer within its parent PowerProfileDefinition.",
+        json_schema_extra={
+            "description": "Unique identifier of the PowerSequenceContainer within its parent PowerProfileDefinition."
+        },
     )
     power_sequences: list[PPBCPowerSequence] = Field(
-        ..., description="List of alternative PowerSequences. One will be selected by the CEM."
+        ...,
+        json_schema_extra={
+            "description": "List of alternative PowerSequences. One will be selected by the CEM."
+        },
     )
 
 
@@ -1017,17 +1191,25 @@ class PPBCPowerProfileDefinition(PydanticBaseModel):
 
     id: ID = Field(
         ...,
-        description="Unique identifier of the PowerProfileDefinition within the ResourceManager session.",
+        json_schema_extra={
+            "description": "Unique identifier of the PowerProfileDefinition within the ResourceManager session."
+        },
     )
     start_time: DateTime = Field(
-        ..., description="Earliest possible start time of the first PowerSequence."
+        ...,
+        json_schema_extra={
+            "description": "Earliest possible start time of the first PowerSequence."
+        },
     )
     end_time: DateTime = Field(
-        ..., description="Latest time the last PowerSequence must be completed."
+        ...,
+        json_schema_extra={"description": "Latest time the last PowerSequence must be completed."},
     )
     power_sequences_containers: list[PPBCPowerSequenceContainer] = Field(
         ...,
-        description="List of containers for alternative power sequences, in chronological order.",
+        json_schema_extra={
+            "description": "List of containers for alternative power sequences, in chronological order."
+        },
     )
 
 
@@ -1040,18 +1222,24 @@ class PPBCPowerSequenceContainerStatus(PydanticBaseModel):
     within the broader power profile.
     """
 
-    power_profile_id: ID = Field(..., description="ID of the related PowerProfileDefinition.")
+    power_profile_id: ID = Field(
+        ..., json_schema_extra={"description": "ID of the related PowerProfileDefinition."}
+    )
     sequence_container_id: ID = Field(
-        ..., description="ID of the PowerSequenceContainer being reported on."
+        ...,
+        json_schema_extra={"description": "ID of the PowerSequenceContainer being reported on."},
     )
     selected_sequence_id: Optional[str] = Field(
-        None, description="ID of the selected PowerSequence, if any."
+        None, json_schema_extra={"description": "ID of the selected PowerSequence, if any."}
     )
     progress: Optional[Duration] = Field(
-        None, description="Elapsed time since the selected sequence started, if applicable."
+        None,
+        json_schema_extra={
+            "description": "Elapsed time since the selected sequence started, if applicable."
+        },
     )
     status: PPBCPowerSequenceStatus = Field(
-        ..., description="Status of the selected PowerSequence."
+        ..., json_schema_extra={"description": "Status of the selected PowerSequence."}
     )
 
 
@@ -1066,7 +1254,10 @@ class PPBCPowerProfileStatus(PydanticBaseModel):
     type: Literal["PPBCPowerProfileStatus"] = Field(default="PPBCPowerProfileStatus")
 
     sequence_container_status: list[PPBCPowerSequenceContainerStatus] = Field(
-        ..., description="Status list for all sequence containers in the PowerProfileDefinition."
+        ...,
+        json_schema_extra={
+            "description": "Status list for all sequence containers in the PowerProfileDefinition."
+        },
     )
 
 
@@ -1082,12 +1273,14 @@ class PPBCScheduleInstruction(BaseInstruction):
     type: Literal["PPBCScheduleInstruction"] = Field(default="PPBCScheduleInstruction")
 
     power_profile_id: ID = Field(
-        ..., description="ID of the PowerProfileDefinition being scheduled."
+        ..., json_schema_extra={"description": "ID of the PowerProfileDefinition being scheduled."}
     )
     sequence_container_id: ID = Field(
-        ..., description="ID of the container with the selected sequence."
+        ..., json_schema_extra={"description": "ID of the container with the selected sequence."}
     )
-    power_sequence_id: ID = Field(..., description="ID of the selected PowerSequence.")
+    power_sequence_id: ID = Field(
+        ..., json_schema_extra={"description": "ID of the selected PowerSequence."}
+    )
 
     def duration(self) -> Optional[Duration]:
         # @TODO: PPBCPowerProfileDefinition needed
@@ -1107,12 +1300,17 @@ class PPBCStartInterruptionInstruction(BaseInstruction):
         default="PPBCStartInterruptionInstruction"
     )
     power_profile_id: ID = Field(
-        ..., description="ID of the PowerProfileDefinition whose sequence is being interrupted."
+        ...,
+        json_schema_extra={
+            "description": "ID of the PowerProfileDefinition whose sequence is being interrupted."
+        },
     )
     sequence_container_id: ID = Field(
-        ..., description="ID of the container containing the sequence."
+        ..., json_schema_extra={"description": "ID of the container containing the sequence."}
     )
-    power_sequence_id: ID = Field(..., description="ID of the PowerSequence to be interrupted.")
+    power_sequence_id: ID = Field(
+        ..., json_schema_extra={"description": "ID of the PowerSequence to be interrupted."}
+    )
 
     def duration(self) -> Optional[Duration]:
         # @TODO: PPBCPowerProfileDefinition needed
@@ -1132,13 +1330,19 @@ class PPBCEndInterruptionInstruction(BaseInstruction):
         default="PPBCEndInterruptionInstruction"
     )
     power_profile_id: ID = Field(
-        ..., description="ID of the PowerProfileDefinition related to the ended interruption."
+        ...,
+        json_schema_extra={
+            "description": "ID of the PowerProfileDefinition related to the ended interruption."
+        },
     )
     sequence_container_id: ID = Field(
-        ..., description="ID of the container containing the sequence."
+        ..., json_schema_extra={"description": "ID of the container containing the sequence."}
     )
     power_sequence_id: ID = Field(
-        ..., description="ID of the PowerSequence for which the interruption ends."
+        ...,
+        json_schema_extra={
+            "description": "ID of the PowerSequence for which the interruption ends."
+        },
     )
 
     def duration(self) -> Optional[Duration]:
@@ -1157,21 +1361,32 @@ class OMBCOperationMode(PydanticBaseModel):
     """
 
     id: ID = Field(
-        ..., description="Unique ID of the OperationMode within the ResourceManager session."
+        ...,
+        json_schema_extra={
+            "description": "Unique ID of the OperationMode within the ResourceManager session."
+        },
     )
     diagnostic_label: Optional[str] = Field(
-        None, description="Human-readable label for diagnostics (not for HMI)."
+        None,
+        json_schema_extra={"description": "Human-readable label for diagnostics (not for HMI)."},
     )
     power_ranges: list[PowerRange] = Field(
         ...,
-        description="List of power consumption or production ranges mapped to operation_mode_factor 0 to 1.",
+        json_schema_extra={
+            "description": "List of power consumption or production ranges mapped to operation_mode_factor 0 to 1."
+        },
     )
     running_costs: Optional[NumberRange] = Field(
         None,
-        description="Estimated additional costs per second, excluding commodity cost. Represents uncertainty.",
+        json_schema_extra={
+            "description": "Estimated additional costs per second, excluding commodity cost. Represents uncertainty."
+        },
     )
     abnormal_condition_only: bool = Field(
-        ..., description="True if this mode can only be used during an abnormal condition."
+        ...,
+        json_schema_extra={
+            "description": "True if this mode can only be used during an abnormal condition."
+        },
     )
 
 
@@ -1187,19 +1402,25 @@ class OMBCStatus(PydanticBaseModel):
     type: Literal["OMBCStatus"] = Field(default="OMBCStatus")
 
     active_operation_mode_id: ID = Field(
-        ..., description="ID of the currently active operation mode."
+        ..., json_schema_extra={"description": "ID of the currently active operation mode."}
     )
     operation_mode_factor: float = Field(
         ...,
         ge=0.0,
         le=1.0,
-        description="Factor with which the operation mode is configured (between 0 and 1).",
+        json_schema_extra={
+            "description": "Factor with which the operation mode is configured (between 0 and 1)."
+        },
     )
     previous_operation_mode_id: Optional[str] = Field(
-        None, description="ID of the previously active operation mode, if known."
+        None,
+        json_schema_extra={"description": "ID of the previously active operation mode, if known."},
     )
     transition_timestamp: Optional[DateTime] = Field(
-        None, description="Timestamp of transition to the active operation mode, if applicable."
+        None,
+        json_schema_extra={
+            "description": "Timestamp of transition to the active operation mode, if applicable."
+        },
     )
 
 
@@ -1211,11 +1432,15 @@ class OMBCTimerStatus(PydanticBaseModel):
 
     type: Literal["OMBCTimerStatus"] = Field(default="OMBCTimerStatus")
 
-    timer_id: ID = Field(..., description="ID of the timer this status refers to.")
+    timer_id: ID = Field(
+        ..., json_schema_extra={"description": "ID of the timer this status refers to."}
+    )
 
     finished_at: DateTime = Field(
         ...,
-        description="Indicates when the Timer will be finished. If the DateTime is in the future, the timer is not yet finished. If the DateTime is in the past, the timer is finished. If the timer was never started, the value can be an arbitrary DateTimeStamp in the past.",
+        json_schema_extra={
+            "description": "Indicates when the Timer will be finished. If the DateTime is in the future, the timer is not yet finished. If the DateTime is in the past, the timer is finished. If the timer was never started, the value can be an arbitrary DateTimeStamp in the past."
+        },
     )
 
 
@@ -1229,17 +1454,24 @@ class OMBCSystemDefinition(PydanticBaseModel):
 
     valid_from: DateTime = Field(
         ...,
-        description="Start time from which this system description is valid. Must be in the past or present if immediately applicable.",
+        json_schema_extra={
+            "description": "Start time from which this system description is valid. Must be in the past or present if immediately applicable."
+        },
     )
     operation_modes: list[OMBCOperationMode] = Field(
         ...,
-        description="List of operation modes available for the CEM to coordinate device behavior.",
+        json_schema_extra={
+            "description": "List of operation modes available for the CEM to coordinate device behavior."
+        },
     )
     transitions: list[Transition] = Field(
-        ..., description="Possible transitions between operation modes."
+        ..., json_schema_extra={"description": "Possible transitions between operation modes."}
     )
     timers: list[Timer] = Field(
-        ..., description="Timers specifying constraints for when transitions can occur."
+        ...,
+        json_schema_extra={
+            "description": "Timers specifying constraints for when transitions can occur."
+        },
     )
 
 
@@ -1256,7 +1488,9 @@ class OMBCSystemDescription(OMBCSystemDefinition):
 
     status: OMBCStatus = Field(
         ...,
-        description="Current status information, including the active operation mode and transition details.",
+        json_schema_extra={
+            "description": "Current status information, including the active operation mode and transition details."
+        },
     )
 
 
@@ -1268,12 +1502,16 @@ class OMBCInstruction(BaseInstruction):
     """
 
     type: Literal["OMBCInstruction"] = Field(default="OMBCInstruction")
-    operation_mode_id: ID = Field(..., description="ID of the OMBC.OperationMode to activate.")
+    operation_mode_id: ID = Field(
+        ..., json_schema_extra={"description": "ID of the OMBC.OperationMode to activate."}
+    )
     operation_mode_factor: float = Field(
         ...,
         ge=0.0,
         le=1.0,
-        description="Factor with which the operation mode is configured (0 to 1).",
+        json_schema_extra={
+            "description": "Factor with which the operation mode is configured (0 to 1)."
+        },
     )
 
     def duration(self) -> Optional[Duration]:
@@ -1291,15 +1529,20 @@ class FRBCOperationModeElement(PydanticBaseModel):
     its effect on fill rate and associated power consumption/production.
     """
 
-    fill_level_range: NumberRange = Field(..., description="Fill level range for this element.")
+    fill_level_range: NumberRange = Field(
+        ..., json_schema_extra={"description": "Fill level range for this element."}
+    )
     fill_rate: NumberRange = Field(
-        ..., description="Change in fill level per second for this mode."
+        ..., json_schema_extra={"description": "Change in fill level per second for this mode."}
     )
     power_ranges: list[PowerRange] = Field(
-        ..., description="Power produced/consumed per commodity."
+        ..., json_schema_extra={"description": "Power produced/consumed per commodity."}
     )
     running_costs: Optional[NumberRange] = Field(
-        None, description="Additional costs per second (excluding commodity cost)."
+        None,
+        json_schema_extra={
+            "description": "Additional costs per second (excluding commodity cost)."
+        },
     )
 
 
@@ -1311,15 +1554,18 @@ class FRBCOperationMode(PydanticBaseModel):
     distinct way to operate the resource affecting the storage fill level.
     """
 
-    id: ID = Field(..., description="Unique ID of the operation mode within the actuator.")
+    id: ID = Field(
+        ...,
+        json_schema_extra={"description": "Unique ID of the operation mode within the actuator."},
+    )
     diagnostic_label: Optional[str] = Field(
-        None, description="Human-readable label for diagnostics."
+        None, json_schema_extra={"description": "Human-readable label for diagnostics."}
     )
     elements: list[FRBCOperationModeElement] = Field(
-        ..., description="Properties of the mode depending on fill level."
+        ..., json_schema_extra={"description": "Properties of the mode depending on fill level."}
     )
     abnormal_condition_only: bool = Field(
-        ..., description="True if mode is for abnormal conditions only."
+        ..., json_schema_extra={"description": "True if mode is for abnormal conditions only."}
     )
 
 
@@ -1332,15 +1578,20 @@ class FRBCActuatorStatus(PydanticBaseModel):
 
     type: Literal["FRBCActuatorStatus"] = Field(default="FRBCActuatorStatus")
 
-    active_operation_mode_id: ID = Field(..., description="Currently active operation mode ID.")
+    active_operation_mode_id: ID = Field(
+        ..., json_schema_extra={"description": "Currently active operation mode ID."}
+    )
     operation_mode_factor: float = Field(
-        ..., ge=0, le=1, description="Factor with which the mode is configured (0 to 1)."
+        ...,
+        ge=0,
+        le=1,
+        json_schema_extra={"description": "Factor with which the mode is configured (0 to 1)."},
     )
     previous_operation_mode_id: Optional[str] = Field(
-        None, description="Previously active operation mode ID."
+        None, json_schema_extra={"description": "Previously active operation mode ID."}
     )
     transition_timestamp: Optional[DateTime] = Field(
-        None, description="Timestamp of the last transition between modes."
+        None, json_schema_extra={"description": "Timestamp of the last transition between modes."}
     )
 
 
@@ -1351,18 +1602,26 @@ class FRBCActuatorDefinition(PydanticBaseModel):
     available operation modes, and constraints on transitions between modes.
     """
 
-    id: ID = Field(..., description="Unique actuator ID within the ResourceManager session.")
-    diagnostic_label: Optional[str] = Field(
-        None, description="Human-readable actuator description for diagnostics."
+    id: ID = Field(
+        ...,
+        json_schema_extra={"description": "Unique actuator ID within the ResourceManager session."},
     )
-    supported_commodities: list[str] = Field(..., description="List of supported commodity IDs.")
+    diagnostic_label: Optional[str] = Field(
+        None,
+        json_schema_extra={"description": "Human-readable actuator description for diagnostics."},
+    )
+    supported_commodities: list[str] = Field(
+        ..., json_schema_extra={"description": "List of supported commodity IDs."}
+    )
     operation_modes: list[FRBCOperationMode] = Field(
-        ..., description="Operation modes provided by this actuator."
+        ..., json_schema_extra={"description": "Operation modes provided by this actuator."}
     )
     transitions: list[Transition] = Field(
-        ..., description="Allowed transitions between operation modes."
+        ..., json_schema_extra={"description": "Allowed transitions between operation modes."}
     )
-    timers: list[Timer] = Field(..., description="Timers associated with this actuator.")
+    timers: list[Timer] = Field(
+        ..., json_schema_extra={"description": "Timers associated with this actuator."}
+    )
 
 
 class FRBCActuatorDescription(FRBCActuatorDefinition):
@@ -1373,7 +1632,9 @@ class FRBCActuatorDescription(FRBCActuatorDefinition):
     of the actuator.
     """
 
-    status: FRBCActuatorStatus = Field(..., description="Current status of the actuator.")
+    status: FRBCActuatorStatus = Field(
+        ..., json_schema_extra={"description": "Current status of the actuator."}
+    )
 
 
 class FRBCEnergyStatus(PydanticBaseModel):
@@ -1385,10 +1646,16 @@ class FRBCEnergyStatus(PydanticBaseModel):
     type: Literal["FRBCEnergyStatus"] = Field(default="FRBCEnergyStatus")
 
     import_total: Optional[EnergyMeasurement] = Field(
-        default=None, description="Total cumulative imported energy from the energy meter start."
+        default=None,
+        json_schema_extra={
+            "description": "Total cumulative imported energy from the energy meter start."
+        },
     )
     export_total: Optional[EnergyMeasurement] = Field(
-        default=None, description="Total cumulative exported energy from the energy meter start."
+        default=None,
+        json_schema_extra={
+            "description": "Total cumulative exported energy from the energy meter start."
+        },
     )
 
 
@@ -1401,7 +1668,9 @@ class FRBCStorageStatus(PydanticBaseModel):
 
     type: Literal["FRBCStorageStatus"] = Field(default="FRBCStorageStatus")
 
-    present_fill_level: float = Field(..., description="Current fill level of the storage.")
+    present_fill_level: float = Field(
+        ..., json_schema_extra={"description": "Current fill level of the storage."}
+    )
 
 
 class FRBCTimerStatus(PydanticBaseModel):
@@ -1412,13 +1681,19 @@ class FRBCTimerStatus(PydanticBaseModel):
 
     type: Literal["FRBCTimerStatus"] = Field(default="FRBCTimerStatus")
 
-    actuator_id: ID = Field(..., description="ID of the actuator the timer belongs to.")
+    actuator_id: ID = Field(
+        ..., json_schema_extra={"description": "ID of the actuator the timer belongs to."}
+    )
 
-    timer_id: ID = Field(..., description="ID of the timer this status refers to.")
+    timer_id: ID = Field(
+        ..., json_schema_extra={"description": "ID of the timer this status refers to."}
+    )
 
     finished_at: DateTime = Field(
         ...,
-        description="Indicates when the Timer will be finished. If the DateTime is in the future, the timer is not yet finished. If the DateTime is in the past, the timer is finished. If the timer was never started, the value can be an arbitrary DateTimeStamp in the past.",
+        json_schema_extra={
+            "description": "Indicates when the Timer will be finished. If the DateTime is in the future, the timer is not yet finished. If the DateTime is in the past, the timer is finished. If the timer was never started, the value can be an arbitrary DateTimeStamp in the past."
+        },
     )
 
 
@@ -1430,10 +1705,11 @@ class FRBCLeakageBehaviourElement(PydanticBaseModel):
     """
 
     fill_level_range: NumberRange = Field(
-        ..., description="Applicable fill level range for this element."
+        ..., json_schema_extra={"description": "Applicable fill level range for this element."}
     )
     leakage_rate: float = Field(
-        ..., description="Rate of fill level decrease per second due to leakage."
+        ...,
+        json_schema_extra={"description": "Rate of fill level decrease per second due to leakage."},
     )
 
 
@@ -1444,9 +1720,11 @@ class FRBCLeakageBehaviour(PydanticBaseModel):
     with leakage rates that may vary based on fill level.
     """
 
-    valid_from: DateTime = Field(..., description="Start of validity for this leakage behaviour.")
+    valid_from: DateTime = Field(
+        ..., json_schema_extra={"description": "Start of validity for this leakage behaviour."}
+    )
     elements: list[FRBCLeakageBehaviourElement] = Field(
-        ..., description="Contiguous elements modeling leakage."
+        ..., json_schema_extra={"description": "Contiguous elements modeling leakage."}
     )
 
 
@@ -1457,25 +1735,29 @@ class FRBCUsageForecastElement(PydanticBaseModel):
     probability ranges to represent uncertainty.
     """
 
-    duration: Duration = Field(..., description="How long the given usage rate is valid.")
+    duration: Duration = Field(
+        ..., json_schema_extra={"description": "How long the given usage rate is valid."}
+    )
     usage_rate_upper_limit: Optional[float] = Field(
-        None, description="100% probability upper limit."
+        None, json_schema_extra={"description": "100% probability upper limit."}
     )
     usage_rate_upper_95PPR: Optional[float] = Field(
-        None, description="95% probability upper limit."
+        None, json_schema_extra={"description": "95% probability upper limit."}
     )
     usage_rate_upper_68PPR: Optional[float] = Field(
-        None, description="68% probability upper limit."
+        None, json_schema_extra={"description": "68% probability upper limit."}
     )
-    usage_rate_expected: float = Field(..., description="Most likely usage rate.")
+    usage_rate_expected: float = Field(
+        ..., json_schema_extra={"description": "Most likely usage rate."}
+    )
     usage_rate_lower_68PPR: Optional[float] = Field(
-        None, description="68% probability lower limit."
+        None, json_schema_extra={"description": "68% probability lower limit."}
     )
     usage_rate_lower_95PPR: Optional[float] = Field(
-        None, description="95% probability lower limit."
+        None, json_schema_extra={"description": "95% probability lower limit."}
     )
     usage_rate_lower_limit: Optional[float] = Field(
-        None, description="100% probability lower limit."
+        None, json_schema_extra={"description": "100% probability lower limit."}
     )
 
 
@@ -1486,9 +1768,11 @@ class FRBCUsageForecast(PydanticBaseModel):
     allowing for planning of optimal resource operation.
     """
 
-    start_time: DateTime = Field(..., description="Start time of the forecast.")
+    start_time: DateTime = Field(
+        ..., json_schema_extra={"description": "Start time of the forecast."}
+    )
     elements: list[FRBCUsageForecastElement] = Field(
-        ..., description="Chronological forecast profile elements."
+        ..., json_schema_extra={"description": "Chronological forecast profile elements."}
     )
 
 
@@ -1499,9 +1783,11 @@ class FRBCFillLevelTargetProfileElement(PydanticBaseModel):
     used to guide resource operation planning.
     """
 
-    duration: Duration = Field(..., description="Duration this target applies for.")
+    duration: Duration = Field(
+        ..., json_schema_extra={"description": "Duration this target applies for."}
+    )
     fill_level_range: NumberRange = Field(
-        ..., description="Target fill level range for the duration."
+        ..., json_schema_extra={"description": "Target fill level range for the duration."}
     )
 
 
@@ -1512,9 +1798,11 @@ class FRBCFillLevelTargetProfile(PydanticBaseModel):
     for the control system to achieve through resource operation.
     """
 
-    start_time: DateTime = Field(..., description="Start time of the fill level target profile.")
+    start_time: DateTime = Field(
+        ..., json_schema_extra={"description": "Start time of the fill level target profile."}
+    )
     elements: list[FRBCFillLevelTargetProfileElement] = Field(
-        ..., description="Chronological list of target ranges."
+        ..., json_schema_extra={"description": "Chronological list of target ranges."}
     )
 
 
@@ -1526,16 +1814,16 @@ class FRBCStorageDefinition(PydanticBaseModel):
     """
 
     diagnostic_label: Optional[str] = Field(
-        None, description="Diagnostic description of the storage."
+        None, json_schema_extra={"description": "Diagnostic description of the storage."}
     )
     fill_level_label: Optional[str] = Field(
-        None, description="Description of fill level units (e.g. °C, %)."
+        None, json_schema_extra={"description": "Description of fill level units (e.g. °C, %)."}
     )
     fill_level_range: NumberRange = Field(
-        ..., description="Range in which fill level should remain."
+        ..., json_schema_extra={"description": "Range in which fill level should remain."}
     )
     leakage_behaviour: Optional[FRBCLeakageBehaviour] = Field(
-        None, description="Details of buffer leakage behaviour."
+        None, json_schema_extra={"description": "Details of buffer leakage behaviour."}
     )
 
 
@@ -1546,15 +1834,17 @@ class FRBCStorageDescription(FRBCStorageDefinition):
     constraints, current status, and behavior characteristics.
     """
 
-    status: FRBCStorageStatus = Field(..., description="Current storage status.")
+    status: FRBCStorageStatus = Field(
+        ..., json_schema_extra={"description": "Current storage status."}
+    )
     provides_leakage_behaviour: bool = Field(
-        ..., description="True if leakage behaviour can be provided."
+        ..., json_schema_extra={"description": "True if leakage behaviour can be provided."}
     )
     provides_fill_level_target_profile: bool = Field(
-        ..., description="True if fill level target profile can be provided."
+        ..., json_schema_extra={"description": "True if fill level target profile can be provided."}
     )
     provides_usage_forecast: bool = Field(
-        ..., description="True if usage forecast can be provided."
+        ..., json_schema_extra={"description": "True if usage forecast can be provided."}
     )
 
 
@@ -1566,10 +1856,17 @@ class FRBCInstruction(BaseInstruction):
     """
 
     type: Literal["FRBCInstruction"] = Field(default="FRBCInstruction")
-    actuator_id: ID = Field(..., description="ID of the actuator this instruction belongs to.")
-    operation_mode_id: str = Field(..., description="ID of the operation mode to activate.")
+    actuator_id: ID = Field(
+        ..., json_schema_extra={"description": "ID of the actuator this instruction belongs to."}
+    )
+    operation_mode_id: str = Field(
+        ..., json_schema_extra={"description": "ID of the operation mode to activate."}
+    )
     operation_mode_factor: float = Field(
-        ..., ge=0, le=1, description="Factor for the operation mode configuration (0 to 1)."
+        ...,
+        ge=0,
+        le=1,
+        json_schema_extra={"description": "Factor for the operation mode configuration (0 to 1)."},
     )
 
     def duration(self) -> Optional[Duration]:
@@ -1584,9 +1881,15 @@ class FRBCSystemDescription(PydanticBaseModel):
     including actuators and storage. This is the top-level model for FRBC.
     """
 
-    valid_from: DateTime = Field(..., description="Time this system description becomes valid.")
-    actuators: list[FRBCActuatorDescription] = Field(..., description="List of all actuators.")
-    storage: FRBCStorageDescription = Field(..., description="Details of the storage.")
+    valid_from: DateTime = Field(
+        ..., json_schema_extra={"description": "Time this system description becomes valid."}
+    )
+    actuators: list[FRBCActuatorDescription] = Field(
+        ..., json_schema_extra={"description": "List of all actuators."}
+    )
+    storage: FRBCStorageDescription = Field(
+        ..., json_schema_extra={"description": "Details of the storage."}
+    )
 
 
 # Control Types - Demand Driven Based Control (DDBC)
@@ -1601,25 +1904,40 @@ class DDBCOperationMode(PydanticBaseModel):
     """
 
     id: ID = Field(
-        ..., description="ID of the operation mode. Must be unique within the actuator description."
+        ...,
+        json_schema_extra={
+            "description": "ID of the operation mode. Must be unique within the actuator description."
+        },
     )
     diagnostic_label: Optional[str] = Field(
-        None, description="Human-readable name/description for diagnostics (not for HMI)."
+        None,
+        json_schema_extra={
+            "description": "Human-readable name/description for diagnostics (not for HMI)."
+        },
     )
     power_ranges: list[PowerRange] = Field(
         ...,
-        description="Power ranges associated with this operation mode. At least one per CommodityQuantity.",
+        json_schema_extra={
+            "description": "Power ranges associated with this operation mode. At least one per CommodityQuantity."
+        },
     )
     supply_range: NumberRange = Field(
-        ..., description="Supply rate that can match the demand rate, mapped from factor 0 to 1."
+        ...,
+        json_schema_extra={
+            "description": "Supply rate that can match the demand rate, mapped from factor 0 to 1."
+        },
     )
     running_costs: NumberRange = Field(
         ...,
-        description="Additional cost per second (excluding commodity cost). Represents uncertainty, not linked to factor.",
+        json_schema_extra={
+            "description": "Additional cost per second (excluding commodity cost). Represents uncertainty, not linked to factor."
+        },
     )
     abnormal_condition_only: Optional[bool] = Field(
         False,
-        description="Whether this operation mode may only be used during abnormal conditions.",
+        json_schema_extra={
+            "description": "Whether this operation mode may only be used during abnormal conditions."
+        },
     )
 
 
@@ -1632,16 +1950,26 @@ class DDBCActuatorStatus(PydanticBaseModel):
 
     type: Literal["DDBCActuatorStatus"] = Field(default="DDBCActuatorStatus")
 
-    active_operation_mode_id: ID = Field(..., description="Currently active operation mode ID.")
+    active_operation_mode_id: ID = Field(
+        ..., json_schema_extra={"description": "Currently active operation mode ID."}
+    )
     operation_mode_factor: float = Field(
-        ..., ge=0, le=1, description="Factor with which the operation mode is configured (0 to 1)."
+        ...,
+        ge=0,
+        le=1,
+        json_schema_extra={
+            "description": "Factor with which the operation mode is configured (0 to 1)."
+        },
     )
     previous_operation_mode_id: Optional[str] = Field(
         None,
-        description="Previously active operation mode ID. Required unless this is the first mode.",
+        json_schema_extra={
+            "description": "Previously active operation mode ID. Required unless this is the first mode."
+        },
     )
     transition_timestamp: Optional[DateTime] = Field(
-        None, description="Timestamp of transition to the active operation mode."
+        None,
+        json_schema_extra={"description": "Timestamp of transition to the active operation mode."},
     )
 
 
@@ -1654,23 +1982,39 @@ class DDBCActuatorDefinition(PydanticBaseModel):
 
     id: ID = Field(
         ...,
-        description="ID of this actuator. Must be unique in the ResourceManager scope during the session.",
+        json_schema_extra={
+            "description": "ID of this actuator. Must be unique in the ResourceManager scope during the session."
+        },
     )
     diagnostic_label: Optional[str] = Field(
-        None, description="Human-readable name/description for diagnostics (not for HMI)."
+        None,
+        json_schema_extra={
+            "description": "Human-readable name/description for diagnostics (not for HMI)."
+        },
     )
     supported_commodities: list[str] = Field(
-        ..., description="Commodities supported by this actuator. Must include at least one."
+        ...,
+        json_schema_extra={
+            "description": "Commodities supported by this actuator. Must include at least one."
+        },
     )
     operation_modes: list[DDBCOperationMode] = Field(
         ...,
-        description="List of available operation modes for this actuator. Must include at least one.",
+        json_schema_extra={
+            "description": "List of available operation modes for this actuator. Must include at least one."
+        },
     )
     transitions: list[Transition] = Field(
-        ..., description="List of transitions between operation modes. Must include at least one."
+        ...,
+        json_schema_extra={
+            "description": "List of transitions between operation modes. Must include at least one."
+        },
     )
     timers: list[Timer] = Field(
-        ..., description="List of timers associated with transitions. Can be empty."
+        ...,
+        json_schema_extra={
+            "description": "List of timers associated with transitions. Can be empty."
+        },
     )
 
 
@@ -1682,7 +2026,9 @@ class DDBCActuatorDescription(DDBCActuatorDefinition):
     its present status.
     """
 
-    status: DDBCActuatorStatus = Field(..., description="Present status of this actuator.")
+    status: DDBCActuatorStatus = Field(
+        ..., json_schema_extra={"description": "Present status of this actuator."}
+    )
 
 
 class DDBCSystemDescription(PydanticBaseModel):
@@ -1694,18 +2040,27 @@ class DDBCSystemDescription(PydanticBaseModel):
 
     valid_from: DateTime = Field(
         ...,
-        description="Moment this DDBC.SystemDescription starts to be valid. If immediately valid, it should be now or in the past.",
+        json_schema_extra={
+            "description": "Moment this DDBC.SystemDescription starts to be valid. If immediately valid, it should be now or in the past."
+        },
     )
     actuators: list[DDBCActuatorDescription] = Field(
         ...,
-        description="List of all available actuators in the system. Shall contain at least one DDBC.ActuatorAggregated.",
+        json_schema_extra={
+            "description": "List of all available actuators in the system. Shall contain at least one DDBC.ActuatorAggregated."
+        },
     )
     present_demand_rate: NumberRange = Field(
-        ..., description="Present demand rate that needs to be satisfied by the system."
+        ...,
+        json_schema_extra={
+            "description": "Present demand rate that needs to be satisfied by the system."
+        },
     )
     provides_average_demand_rate_forecast: bool = Field(
         ...,
-        description="Indicates whether a demand rate forecast is provided through DDBC.AverageDemandRateForecast.",
+        json_schema_extra={
+            "description": "Indicates whether a demand rate forecast is provided through DDBC.AverageDemandRateForecast."
+        },
     )
 
 
@@ -1717,13 +2072,19 @@ class DDBCInstruction(BaseInstruction):
     """
 
     type: Literal["DDBCInstruction"] = Field(default="DDBCInstruction")
-    actuator_id: ID = Field(..., description="ID of the actuator this instruction belongs to.")
-    operation_mode_id: ID = Field(..., description="ID of the DDBC.OperationMode to apply.")
+    actuator_id: ID = Field(
+        ..., json_schema_extra={"description": "ID of the actuator this instruction belongs to."}
+    )
+    operation_mode_id: ID = Field(
+        ..., json_schema_extra={"description": "ID of the DDBC.OperationMode to apply."}
+    )
     operation_mode_factor: float = Field(
         ...,
         ge=0,
         le=1,
-        description="Factor with which the operation mode should be applied (0 to 1).",
+        json_schema_extra={
+            "description": "Factor with which the operation mode should be applied (0 to 1)."
+        },
     )
 
     def duration(self) -> Optional[Duration]:
@@ -1738,27 +2099,32 @@ class DDBCAverageDemandRateForecastElement(PydanticBaseModel):
     probability ranges to represent uncertainty.
     """
 
-    duration: Duration = Field(..., description="Duration of this forecast element.")
+    duration: Duration = Field(
+        ..., json_schema_extra={"description": "Duration of this forecast element."}
+    )
     demand_rate_upper_limit: Optional[float] = Field(
-        None, description="100% upper limit of demand rate range."
+        None, json_schema_extra={"description": "100% upper limit of demand rate range."}
     )
     demand_rate_upper_95PPR: Optional[float] = Field(
-        None, description="95% upper limit of demand rate range."
+        None, json_schema_extra={"description": "95% upper limit of demand rate range."}
     )
     demand_rate_upper_68PPR: Optional[float] = Field(
-        None, description="68% upper limit of demand rate range."
+        None, json_schema_extra={"description": "68% upper limit of demand rate range."}
     )
     demand_rate_expected: float = Field(
-        ..., description="Expected demand rate (fill level increase/decrease per second)."
+        ...,
+        json_schema_extra={
+            "description": "Expected demand rate (fill level increase/decrease per second)."
+        },
     )
     demand_rate_lower_68PPR: Optional[float] = Field(
-        None, description="68% lower limit of demand rate range."
+        None, json_schema_extra={"description": "68% lower limit of demand rate range."}
     )
     demand_rate_lower_95PPR: Optional[float] = Field(
-        None, description="95% lower limit of demand rate range."
+        None, json_schema_extra={"description": "95% lower limit of demand rate range."}
     )
     demand_rate_lower_limit: Optional[float] = Field(
-        None, description="100% lower limit of demand rate range."
+        None, json_schema_extra={"description": "100% lower limit of demand rate range."}
     )
 
 
@@ -1770,10 +2136,13 @@ class DDBCAverageDemandRateForecast(PydanticBaseModel):
     """
 
     start_time: DateTime = Field(
-        ..., description="Start time of the average demand rate forecast profile."
+        ...,
+        json_schema_extra={
+            "description": "Start time of the average demand rate forecast profile."
+        },
     )
     elements: list[DDBCAverageDemandRateForecastElement] = Field(
-        ..., description="List of forecast elements in chronological order."
+        ..., json_schema_extra={"description": "List of forecast elements in chronological order."}
     )
 
 
@@ -1826,23 +2195,30 @@ class EnergyManagementPlan(PydanticBaseModel):
         comment (Optional[str]): Optional comment or annotation for the plan.
     """
 
-    id: ID = Field(..., description="Unique ID for the energy management plan.")
-    generated_at: DateTime = Field(..., description="Timestamp when the plan was generated.")
+    id: ID = Field(
+        ..., json_schema_extra={"description": "Unique ID for the energy management plan."}
+    )
+    generated_at: DateTime = Field(
+        ..., json_schema_extra={"description": "Timestamp when the plan was generated."}
+    )
     valid_from: Optional[DateTime] = Field(
-        default=None, description="Earliest start time of any instruction."
+        default=None, json_schema_extra={"description": "Earliest start time of any instruction."}
     )
     valid_until: Optional[DateTime] = Field(
         default=None,
-        description=(
-            "Latest end time across all instructions with finite duration; "
-            "None if all instructions have infinite duration."
-        ),
+        json_schema_extra={
+            "description": (
+                "Latest end time across all instructions with finite duration; "
+                "None if all instructions have infinite duration."
+            )
+        },
     )
     instructions: list[EnergyManagementInstruction] = Field(
-        ..., description="List of control instructions for the plan."
+        ..., json_schema_extra={"description": "List of control instructions for the plan."}
     )
     comment: Optional[str] = Field(
-        default=None, description="Optional comment or annotation for the plan."
+        default=None,
+        json_schema_extra={"description": "Optional comment or annotation for the plan."},
     )
 
     def _update_time_range(self) -> None:

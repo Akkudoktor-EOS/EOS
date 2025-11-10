@@ -53,17 +53,49 @@ def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple
 
 
 def get_example_or_default(field_name: str, field_info: FieldInfo, example_ix: int) -> Any:
-    """Generate a default value for a field, considering constraints."""
-    if field_info.examples is not None:
-        try:
-            return field_info.examples[example_ix]
-        except IndexError:
-            return field_info.examples[-1]
+    """Generate a default value for a field, considering constraints.
 
-    if field_info.default is not None:
+    Priority:
+      1. field_info.examples
+      2. field_info.example
+      3. json_schema_extra['examples']
+      4. json_schema_extra['example']
+      5. field_info.default
+    """
+    # 1. Old-style examples attribute
+    examples = getattr(field_info, "examples", None)
+    if examples is not None:
+        try:
+            return examples[example_ix]
+        except IndexError:
+            return examples[-1]
+
+    # 2. Old-style single example
+    example = getattr(field_info, "example", None)
+    if example is not None:
+        return example
+
+    # 3. Look into json_schema_extra (new style)
+    extra = getattr(field_info, "json_schema_extra", {}) or {}
+
+    examples = extra.get("examples")
+    if examples is not None:
+        try:
+            return examples[example_ix]
+        except IndexError:
+            return examples[-1]
+
+    example = extra.get("example")
+    if example is not None:
+        return example
+
+    # 5. Default
+    if getattr(field_info, "default", None) not in (None, ...):
         return field_info.default
 
-    raise NotImplementedError(f"No default or example provided '{field_name}': {field_info}")
+    raise NotImplementedError(
+        f"No default or example provided for field '{field_name}': {field_info}"
+    )
 
 
 def get_model_structure_from_examples(

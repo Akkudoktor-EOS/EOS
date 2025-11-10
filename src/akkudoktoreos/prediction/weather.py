@@ -23,7 +23,8 @@ class WeatherCommonProviderSettings(SettingsBaseModel):
     """Weather Forecast Provider Configuration."""
 
     WeatherImport: Optional[WeatherImportCommonSettings] = Field(
-        default=None, description="WeatherImport settings", examples=[None]
+        default=None,
+        json_schema_extra={"description": "WeatherImport settings", "examples": [None]},
     )
 
 
@@ -32,19 +33,23 @@ class WeatherCommonSettings(SettingsBaseModel):
 
     provider: Optional[str] = Field(
         default=None,
-        description="Weather provider id of provider to be used.",
-        examples=["WeatherImport"],
+        json_schema_extra={
+            "description": "Weather provider id of provider to be used.",
+            "examples": ["WeatherImport"],
+        },
     )
 
     provider_settings: WeatherCommonProviderSettings = Field(
         default_factory=WeatherCommonProviderSettings,
-        description="Provider settings",
-        examples=[
-            # Example 1: Empty/default settings (all providers None)
-            {
-                "WeatherImport": None,
-            },
-        ],
+        json_schema_extra={
+            "description": "Provider settings",
+            "examples": [
+                # Example 1: Empty/default settings (all providers None)
+                {
+                    "WeatherImport": None,
+                },
+            ],
+        },
     )
 
     # Validators

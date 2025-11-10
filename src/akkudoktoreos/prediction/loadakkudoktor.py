@@ -15,7 +15,8 @@ class LoadAkkudoktorCommonSettings(SettingsBaseModel):
     """Common settings for load data import from file."""
 
     loadakkudoktor_year_energy_kwh: Optional[float] = Field(
-        default=None, description="Yearly energy consumption (kWh).", examples=[40421]
+        default=None,
+        json_schema_extra={"description": "Yearly energy consumption (kWh).", "examples": [40421]},
     )
 
 
@@ -23,11 +24,11 @@ class LoadAkkudoktorDataRecord(LoadDataRecord):
     """Represents a load data record with extra fields for LoadAkkudoktor."""
 
     loadakkudoktor_mean_power_w: Optional[float] = Field(
-        default=None, description="Predicted load mean value (W)."
+        default=None, json_schema_extra={"description": "Predicted load mean value (W)."}
     )
 
     loadakkudoktor_std_power_w: Optional[float] = Field(
-        default=None, description="Predicted load standard deviation (W)."
+        default=None, json_schema_extra={"description": "Predicted load standard deviation (W)."}
     )
 
 
@@ -35,7 +36,8 @@ class LoadAkkudoktor(LoadProvider):
     """Fetch Load forecast data from Akkudoktor load profiles."""
 
     records: list[LoadAkkudoktorDataRecord] = Field(
-        default_factory=list, description="List of LoadAkkudoktorDataRecord records"
+        default_factory=list,
+        json_schema_extra={"description": "List of LoadAkkudoktorDataRecord records"},
     )
 
     @classmethod

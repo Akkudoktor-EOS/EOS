@@ -12,8 +12,10 @@ class DevicesBaseSettings(SettingsBaseModel):
 
     device_id: str = Field(
         default="<unknown>",
-        description="ID of device",
-        examples=["battery1", "ev1", "inverter1", "dishwasher"],
+        json_schema_extra={
+            "description": "ID of device",
+            "examples": ["battery1", "ev1", "inverter1", "dishwasher"],
+        },
     )
 
 

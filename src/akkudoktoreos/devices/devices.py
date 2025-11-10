@@ -25,74 +25,81 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     """Battery devices base settings."""
 
     capacity_wh: int = Field(
-        default=8000,
-        gt=0,
-        description="Capacity [Wh].",
-        examples=[8000],
+        default=8000, gt=0, json_schema_extra={"description": "Capacity [Wh].", "examples": [8000]}
     )
 
     charging_efficiency: float = Field(
         default=0.88,
         gt=0,
         le=1,
-        description="Charging efficiency [0.01 ... 1.00].",
-        examples=[0.88],
+        json_schema_extra={
+            "description": "Charging efficiency [0.01 ... 1.00].",
+            "examples": [0.88],
+        },
     )
 
     discharging_efficiency: float = Field(
         default=0.88,
         gt=0,
         le=1,
-        description="Discharge efficiency [0.01 ... 1.00].",
-        examples=[0.88],
+        json_schema_extra={
+            "description": "Discharge efficiency [0.01 ... 1.00].",
+            "examples": [0.88],
+        },
     )
 
     levelized_cost_of_storage_kwh: float = Field(
         default=0.0,
-        description="Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [€/kWh].",
-        examples=[0.12],
+        json_schema_extra={
+            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [€/kWh].",
+            "examples": [0.12],
+        },
     )
 
     max_charge_power_w: Optional[float] = Field(
         default=5000,
         gt=0,
-        description="Maximum charging power [W].",
-        examples=[5000],
+        json_schema_extra={"description": "Maximum charging power [W].", "examples": [5000]},
     )
 
     min_charge_power_w: Optional[float] = Field(
         default=50,
         gt=0,
-        description="Minimum charging power [W].",
-        examples=[50],
+        json_schema_extra={"description": "Minimum charging power [W].", "examples": [50]},
     )
 
     charge_rates: Optional[NDArray[Shape["*"], float]] = Field(
         default=BATTERY_DEFAULT_CHARGE_RATES,
-        description=(
-            "Charge rates as factor of maximum charging power [0.00 ... 1.00]. "
-            "None triggers fallback to default charge-rates."
-        ),
-        examples=[[0.0, 0.25, 0.5, 0.75, 1.0], None],
+        json_schema_extra={
+            "description": (
+                "Charge rates as factor of maximum charging power [0.00 ... 1.00]. "
+                "None triggers fallback to default charge-rates."
+            ),
+            "examples": [[0.0, 0.25, 0.5, 0.75, 1.0], None],
+        },
     )
 
     min_soc_percentage: int = Field(
         default=0,
         ge=0,
         le=100,
-        description=(
-            "Minimum state of charge (SOC) as percentage of capacity [%]. "
-            "This is the target SoC for charging"
-        ),
-        examples=[10],
+        json_schema_extra={
+            "description": (
+                "Minimum state of charge (SOC) as percentage of capacity [%]. "
+                "This is the target SoC for charging"
+            ),
+            "examples": [10],
+        },
     )
 
     max_soc_percentage: int = Field(
         default=100,
         ge=0,
         le=100,
-        description="Maximum state of charge (SOC) as percentage of capacity [%].",
-        examples=[100],
+        json_schema_extra={
+            "description": "Maximum state of charge (SOC) as percentage of capacity [%].",
+            "examples": [100],
+        },
     )
 
     @field_validator("charge_rates", mode="before")
@@ -178,14 +185,15 @@ class InverterCommonSettings(DevicesBaseSettings):
     max_power_w: Optional[float] = Field(
         default=None,
         gt=0,
-        description="Maximum power [W].",
-        examples=[10000],
+        json_schema_extra={"description": "Maximum power [W].", "examples": [10000]},
     )
 
     battery_id: Optional[str] = Field(
         default=None,
-        description="ID of battery controlled by this inverter.",
-        examples=[None, "battery1"],
+        json_schema_extra={
+            "description": "ID of battery controlled by this inverter.",
+            "examples": [None, "battery1"],
+        },
     )
 
     @computed_field  # type: ignore[prop-decorator]
@@ -200,28 +208,27 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
     """Home Appliance devices base settings."""
 
     consumption_wh: int = Field(
-        gt=0,
-        description="Energy consumption [Wh].",
-        examples=[2000],
+        gt=0, json_schema_extra={"description": "Energy consumption [Wh].", "examples": [2000]}
     )
 
     duration_h: int = Field(
         gt=0,
         le=24,
-        description="Usage duration in hours [0 ... 24].",
-        examples=[1],
+        json_schema_extra={"description": "Usage duration in hours [0 ... 24].", "examples": [1]},
     )
 
     time_windows: Optional[TimeWindowSequence] = Field(
         default=None,
-        description="Sequence of allowed time windows. Defaults to optimization general time window.",
-        examples=[
-            {
-                "windows": [
-                    {"start_time": "10:00", "duration": "2 hours"},
-                ],
-            },
-        ],
+        json_schema_extra={
+            "description": "Sequence of allowed time windows. Defaults to optimization general time window.",
+            "examples": [
+                {
+                    "windows": [
+                        {"start_time": "10:00", "duration": "2 hours"},
+                    ],
+                },
+            ],
+        },
     )
 
     @computed_field  # type: ignore[prop-decorator]
@@ -237,50 +244,62 @@ class DevicesCommonSettings(SettingsBaseModel):
 
     batteries: Optional[list[BatteriesCommonSettings]] = Field(
         default=None,
-        description="List of battery devices",
-        examples=[[{"device_id": "battery1", "capacity_wh": 8000}]],
+        json_schema_extra={
+            "description": "List of battery devices",
+            "examples": [[{"device_id": "battery1", "capacity_wh": 8000}]],
+        },
     )
 
     max_batteries: Optional[int] = Field(
         default=None,
         ge=0,
-        description="Maximum number of batteries that can be set",
-        examples=[1, 2],
+        json_schema_extra={
+            "description": "Maximum number of batteries that can be set",
+            "examples": [1, 2],
+        },
     )
 
     electric_vehicles: Optional[list[BatteriesCommonSettings]] = Field(
         default=None,
-        description="List of electric vehicle devices",
-        examples=[[{"device_id": "battery1", "capacity_wh": 8000}]],
+        json_schema_extra={
+            "description": "List of electric vehicle devices",
+            "examples": [[{"device_id": "battery1", "capacity_wh": 8000}]],
+        },
     )
 
     max_electric_vehicles: Optional[int] = Field(
         default=None,
         ge=0,
-        description="Maximum number of electric vehicles that can be set",
-        examples=[1, 2],
+        json_schema_extra={
+            "description": "Maximum number of electric vehicles that can be set",
+            "examples": [1, 2],
+        },
     )
 
     inverters: Optional[list[InverterCommonSettings]] = Field(
-        default=None, description="List of inverters", examples=[[]]
+        default=None, json_schema_extra={"description": "List of inverters", "examples": [[]]}
     )
 
     max_inverters: Optional[int] = Field(
         default=None,
         ge=0,
-        description="Maximum number of inverters that can be set",
-        examples=[1, 2],
+        json_schema_extra={
+            "description": "Maximum number of inverters that can be set",
+            "examples": [1, 2],
+        },
     )
 
     home_appliances: Optional[list[HomeApplianceCommonSettings]] = Field(
-        default=None, description="List of home appliances", examples=[[]]
+        default=None, json_schema_extra={"description": "List of home appliances", "examples": [[]]}
     )
 
     max_home_appliances: Optional[int] = Field(
         default=None,
         ge=0,
-        description="Maximum number of home_appliances that can be set",
-        examples=[1, 2],
+        json_schema_extra={
+            "description": "Maximum number of home_appliances that can be set",
+            "examples": [1, 2],
+        },
     )
 
     @computed_field  # type: ignore[prop-decorator]
@@ -336,13 +355,17 @@ class ResourceRegistry(SingletonMixin, ConfigMixin, PydanticBaseModel):
 
     latest: dict[ResourceKey, ResourceStatus] = Field(
         default_factory=dict,
-        description="Latest resource status that was reported per resource key.",
-        example=[],
+        json_schema_extra={
+            "description": "Latest resource status that was reported per resource key.",
+            "example": [],
+        },
     )
     history: dict[ResourceKey, list[tuple[DateTime, ResourceStatus]]] = Field(
         default_factory=dict,
-        description="History of resource stati that were reported per resource key.",
-        example=[],
+        json_schema_extra={
+            "description": "History of resource stati that were reported per resource key.",
+            "example": [],
+        },
     )
 
     @model_validator(mode="after")

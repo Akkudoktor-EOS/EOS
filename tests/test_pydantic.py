@@ -17,10 +17,40 @@ from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_dat
 
 
 class PydanticTestModel(PydanticBaseModel):
+    """Minimal test model for exercising PydanticBaseModel helpers."""
+
     datetime_field: DateTime = Field(
-        ..., description="A datetime field with pendulum support."
+        ...,
+        description="A datetime field with pendulum support.",
+        json_schema_extra={"description": "A datetime field with pendulum support."},
     )
-    optional_field: Optional[str] = Field(default=None, description="An optional field.")
+
+    optional_field: Optional[str] = Field(
+        default=None,
+        # optional field with no description
+    )
+
+    # ---------------------------------------------------------------------
+    # Additional fields to support metadata-based testing
+    # ---------------------------------------------------------------------
+
+    described_field: str = Field(
+        default="x",
+        description="A described string",
+        json_schema_extra={"description": "A described string"},
+    )
+
+    deprecated_field: str = Field(
+        default="y",
+        description="A deprecated string field",
+        json_schema_extra={"deprecated": "Use new_field instead"},
+    )
+
+    example_field: str = Field(
+        default="z",
+        description="An example-backed string field",
+        json_schema_extra={"examples": ["a", "b", "c"]},
+    )
 
 
 class Address(PydanticBaseModel):
@@ -376,6 +406,36 @@ class TestPydanticBaseModel:
         json_data = model.to_json()
         restored_model = PydanticTestModel.from_json(json_data)
         assert restored_model.datetime_field == dt
+
+    def test_field_extra_dict(self):
+        field = PydanticTestModel.model_fields["described_field"]
+        extra = PydanticTestModel._field_extra_dict(field)
+        assert isinstance(extra, dict)
+        assert extra.get("description") == "A described string"
+
+    def test_field_description(self):
+        result = PydanticTestModel.field_description("described_field")
+        assert result == "A described string"
+
+    def test_field_description_missing(self):
+        result = PydanticTestModel.field_description("optional_field")
+        assert result is None
+
+    def test_field_deprecated(self):
+        result = PydanticTestModel.field_deprecated("deprecated_field")
+        assert result == "Use new_field instead"
+
+    def test_field_deprecated_missing(self):
+        result = PydanticTestModel.field_deprecated("described_field")
+        assert result is None
+
+    def test_field_examples(self):
+        result = PydanticTestModel.field_examples("example_field")
+        assert result == ["a", "b", "c"]
+
+    def test_field_examples_missing(self):
+        result = PydanticTestModel.field_examples("optional_field")
+        assert result is None
 
 
 class TestPydanticDateTimeData:

@@ -23,77 +23,118 @@ pvforecast_providers = [
 class PVForecastPlaneSetting(SettingsBaseModel):
     """PV Forecast Plane Configuration."""
 
-    # latitude: Optional[float] = Field(default=None, description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)")
+    # latitude: Optional[float] = Field(default=None, json_schema_extra={ "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)" })
     surface_tilt: Optional[float] = Field(
         default=30.0,
         ge=0.0,
         le=90.0,
-        description="Tilt angle from horizontal plane. Ignored for two-axis tracking.",
-        examples=[10.0, 20.0],
+        json_schema_extra={
+            "description": "Tilt angle from horizontal plane. Ignored for two-axis tracking.",
+            "examples": [10.0, 20.0],
+        },
     )
     surface_azimuth: Optional[float] = Field(
         default=180.0,
         ge=0.0,
         le=360.0,
-        description="Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
-        examples=[180.0, 90.0],
+        json_schema_extra={
+            "description": "Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270).",
+            "examples": [180.0, 90.0],
+        },
     )
     userhorizon: Optional[List[float]] = Field(
         default=None,
-        description="Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
-        examples=[[10.0, 20.0, 30.0], [5.0, 15.0, 25.0]],
+        json_schema_extra={
+            "description": "Elevation of horizon in degrees, at equally spaced azimuth clockwise from north.",
+            "examples": [[10.0, 20.0, 30.0], [5.0, 15.0, 25.0]],
+        },
     )
     peakpower: Optional[float] = Field(
-        default=None, description="Nominal power of PV system in kW.", examples=[5.0, 3.5]
+        default=None,
+        json_schema_extra={
+            "description": "Nominal power of PV system in kW.",
+            "examples": [5.0, 3.5],
+        },
     )
     pvtechchoice: Optional[str] = Field(
-        default="crystSi", description="PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
+        default="crystSi",
+        json_schema_extra={
+            "description": "PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'."
+        },
     )
     mountingplace: Optional[str] = Field(
         default="free",
-        description="Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
+        json_schema_extra={
+            "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated."
+        },
     )
-    loss: Optional[float] = Field(default=14.0, description="Sum of PV system losses in percent")
+    loss: Optional[float] = Field(
+        default=14.0, json_schema_extra={"description": "Sum of PV system losses in percent"}
+    )
     trackingtype: Optional[int] = Field(
         default=None,
         ge=0,
         le=5,
-        description="Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
-        examples=[0, 1, 2, 3, 4, 5],
+        json_schema_extra={
+            "description": "Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south.",
+            "examples": [0, 1, 2, 3, 4, 5],
+        },
     )
     optimal_surface_tilt: Optional[bool] = Field(
         default=False,
-        description="Calculate the optimum tilt angle. Ignored for two-axis tracking.",
-        examples=[False],
+        json_schema_extra={
+            "description": "Calculate the optimum tilt angle. Ignored for two-axis tracking.",
+            "examples": [False],
+        },
     )
     optimalangles: Optional[bool] = Field(
         default=False,
-        description="Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
-        examples=[False],
+        json_schema_extra={
+            "description": "Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking.",
+            "examples": [False],
+        },
     )
     albedo: Optional[float] = Field(
         default=None,
-        description="Proportion of the light hitting the ground that it reflects back.",
-        examples=[None],
+        json_schema_extra={
+            "description": "Proportion of the light hitting the ground that it reflects back.",
+            "examples": [None],
+        },
     )
     module_model: Optional[str] = Field(
-        default=None, description="Model of the PV modules of this plane.", examples=[None]
+        default=None,
+        json_schema_extra={
+            "description": "Model of the PV modules of this plane.",
+            "examples": [None],
+        },
     )
     inverter_model: Optional[str] = Field(
-        default=None, description="Model of the inverter of this plane.", examples=[None]
+        default=None,
+        json_schema_extra={
+            "description": "Model of the inverter of this plane.",
+            "examples": [None],
+        },
     )
     inverter_paco: Optional[int] = Field(
-        default=None, description="AC power rating of the inverter [W].", examples=[6000, 4000]
+        default=None,
+        json_schema_extra={
+            "description": "AC power rating of the inverter [W].",
+            "examples": [6000, 4000],
+        },
     )
     modules_per_string: Optional[int] = Field(
         default=None,
-        description="Number of the PV modules of the strings of this plane.",
-        examples=[20],
+        json_schema_extra={
+            "description": "Number of the PV modules of the strings of this plane.",
+            "examples": [20],
+        },
     )
     strings_per_inverter: Optional[int] = Field(
         default=None,
-        description="Number of the strings of the inverter of this plane.",
-        examples=[2],
+        json_schema_extra={
+            "description": "Number of the strings of the inverter of this plane.",
+            "examples": [2],
+        },
     )
 
     @model_validator(mode="after")
@@ -124,10 +165,12 @@ class PVForecastCommonProviderSettings(SettingsBaseModel):
     """PV Forecast Provider Configuration."""
 
     PVForecastImport: Optional[PVForecastImportCommonSettings] = Field(
-        default=None, description="PVForecastImport settings", examples=[None]
+        default=None,
+        json_schema_extra={"description": "PVForecastImport settings", "examples": [None]},
     )
     PVForecastVrm: Optional[PVForecastVrmCommonSettings] = Field(
-        default=None, description="PVForecastVrm settings", examples=[None]
+        default=None,
+        json_schema_extra={"description": "PVForecastVrm settings", "examples": [None]},
     )
 
 
@@ -141,72 +184,80 @@ class PVForecastCommonSettings(SettingsBaseModel):
 
     provider: Optional[str] = Field(
         default=None,
-        description="PVForecast provider id of provider to be used.",
-        examples=["PVForecastAkkudoktor"],
+        json_schema_extra={
+            "description": "PVForecast provider id of provider to be used.",
+            "examples": ["PVForecastAkkudoktor"],
+        },
     )
 
     provider_settings: PVForecastCommonProviderSettings = Field(
         default_factory=PVForecastCommonProviderSettings,
-        description="Provider settings",
-        examples=[
-            # Example 1: Empty/default settings (all providers None)
-            {
-                "PVForecastImport": None,
-                "PVForecastVrm": None,
-            },
-        ],
+        json_schema_extra={
+            "description": "Provider settings",
+            "examples": [
+                # Example 1: Empty/default settings (all providers None)
+                {
+                    "PVForecastImport": None,
+                    "PVForecastVrm": None,
+                },
+            ],
+        },
     )
 
     planes: Optional[list[PVForecastPlaneSetting]] = Field(
         default=None,
-        description="Plane configuration.",
-        examples=[
-            [
-                {
-                    "surface_tilt": 10.0,
-                    "surface_azimuth": 180.0,
-                    "userhorizon": [10.0, 20.0, 30.0],
-                    "peakpower": 5.0,
-                    "pvtechchoice": "crystSi",
-                    "mountingplace": "free",
-                    "loss": 14.0,
-                    "trackingtype": 0,
-                    "optimal_surface_tilt": False,
-                    "optimalangles": False,
-                    "albedo": None,
-                    "module_model": None,
-                    "inverter_model": None,
-                    "inverter_paco": 6000,
-                    "modules_per_string": 20,
-                    "strings_per_inverter": 2,
-                },
-                {
-                    "surface_tilt": 20.0,
-                    "surface_azimuth": 90.0,
-                    "userhorizon": [5.0, 15.0, 25.0],
-                    "peakpower": 3.5,
-                    "pvtechchoice": "crystSi",
-                    "mountingplace": "free",
-                    "loss": 14.0,
-                    "trackingtype": 1,
-                    "optimal_surface_tilt": False,
-                    "optimalangles": False,
-                    "albedo": None,
-                    "module_model": None,
-                    "inverter_model": None,
-                    "inverter_paco": 4000,
-                    "modules_per_string": 20,
-                    "strings_per_inverter": 2,
-                },
-            ]
-        ],
+        json_schema_extra={
+            "description": "Plane configuration.",
+            "examples": [
+                [
+                    {
+                        "surface_tilt": 10.0,
+                        "surface_azimuth": 180.0,
+                        "userhorizon": [10.0, 20.0, 30.0],
+                        "peakpower": 5.0,
+                        "pvtechchoice": "crystSi",
+                        "mountingplace": "free",
+                        "loss": 14.0,
+                        "trackingtype": 0,
+                        "optimal_surface_tilt": False,
+                        "optimalangles": False,
+                        "albedo": None,
+                        "module_model": None,
+                        "inverter_model": None,
+                        "inverter_paco": 6000,
+                        "modules_per_string": 20,
+                        "strings_per_inverter": 2,
+                    },
+                    {
+                        "surface_tilt": 20.0,
+                        "surface_azimuth": 90.0,
+                        "userhorizon": [5.0, 15.0, 25.0],
+                        "peakpower": 3.5,
+                        "pvtechchoice": "crystSi",
+                        "mountingplace": "free",
+                        "loss": 14.0,
+                        "trackingtype": 1,
+                        "optimal_surface_tilt": False,
+                        "optimalangles": False,
+                        "albedo": None,
+                        "module_model": None,
+                        "inverter_model": None,
+                        "inverter_paco": 4000,
+                        "modules_per_string": 20,
+                        "strings_per_inverter": 2,
+                    },
+                ]
+            ],
+        },
     )
 
     max_planes: Optional[int] = Field(
         default=0,
         ge=0,
-        description="Maximum number of planes that can be set",
-        examples=[1, 2],
+        json_schema_extra={
+            "description": "Maximum number of planes that can be set",
+            "examples": [1, 2],
+        },
     )
 
     # Validators

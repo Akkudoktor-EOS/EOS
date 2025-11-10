@@ -85,28 +85,38 @@ class GeneralSettings(SettingsBaseModel):
     _config_file_path: ClassVar[Optional[Path]] = None
 
     version: str = Field(
-        default=__version__, description="Configuration file version. Used to check compatibility."
+        default=__version__,
+        json_schema_extra={
+            "description": "Configuration file version. Used to check compatibility."
+        },
     )
 
     data_folder_path: Optional[Path] = Field(
-        default=None, description="Path to EOS data directory.", examples=[None, "/home/eos/data"]
+        default=None,
+        json_schema_extra={
+            "description": "Path to EOS data directory.",
+            "examples": [None, "/home/eos/data"],
+        },
     )
 
     data_output_subpath: Optional[Path] = Field(
-        default="output", description="Sub-path for the EOS output data directory."
+        default="output",
+        json_schema_extra={"description": "Sub-path for the EOS output data directory."},
     )
 
     latitude: Optional[float] = Field(
         default=52.52,
         ge=-90.0,
         le=90.0,
-        description="Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)",
+        json_schema_extra={
+            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)"
+        },
     )
     longitude: Optional[float] = Field(
         default=13.405,
         ge=-180.0,
         le=180.0,
-        description="Longitude in decimal degrees, within -180 to 180 (°)",
+        json_schema_extra={"description": "Longitude in decimal degrees, within -180 to 180 (°)"},
     )
 
     # Computed fields
@@ -158,64 +168,49 @@ class SettingsEOS(pydantic_settings.BaseSettings, PydanticModelNestedValueMixin)
     """
 
     general: Optional[GeneralSettings] = Field(
-        default=None,
-        description="General Settings",
+        default=None, json_schema_extra={"description": "General Settings"}
     )
     cache: Optional[CacheCommonSettings] = Field(
-        default=None,
-        description="Cache Settings",
+        default=None, json_schema_extra={"description": "Cache Settings"}
     )
     ems: Optional[EnergyManagementCommonSettings] = Field(
-        default=None,
-        description="Energy Management Settings",
+        default=None, json_schema_extra={"description": "Energy Management Settings"}
     )
     logging: Optional[LoggingCommonSettings] = Field(
-        default=None,
-        description="Logging Settings",
+        default=None, json_schema_extra={"description": "Logging Settings"}
     )
     devices: Optional[DevicesCommonSettings] = Field(
-        default=None,
-        description="Devices Settings",
+        default=None, json_schema_extra={"description": "Devices Settings"}
     )
     measurement: Optional[MeasurementCommonSettings] = Field(
-        default=None,
-        description="Measurement Settings",
+        default=None, json_schema_extra={"description": "Measurement Settings"}
     )
     optimization: Optional[OptimizationCommonSettings] = Field(
-        default=None,
-        description="Optimization Settings",
+        default=None, json_schema_extra={"description": "Optimization Settings"}
     )
     prediction: Optional[PredictionCommonSettings] = Field(
-        default=None,
-        description="Prediction Settings",
+        default=None, json_schema_extra={"description": "Prediction Settings"}
     )
     elecprice: Optional[ElecPriceCommonSettings] = Field(
-        default=None,
-        description="Electricity Price Settings",
+        default=None, json_schema_extra={"description": "Electricity Price Settings"}
     )
     feedintariff: Optional[FeedInTariffCommonSettings] = Field(
-        default=None,
-        description="Feed In Tariff Settings",
+        default=None, json_schema_extra={"description": "Feed In Tariff Settings"}
     )
     load: Optional[LoadCommonSettings] = Field(
-        default=None,
-        description="Load Settings",
+        default=None, json_schema_extra={"description": "Load Settings"}
     )
     pvforecast: Optional[PVForecastCommonSettings] = Field(
-        default=None,
-        description="PV Forecast Settings",
+        default=None, json_schema_extra={"description": "PV Forecast Settings"}
     )
     weather: Optional[WeatherCommonSettings] = Field(
-        default=None,
-        description="Weather Settings",
+        default=None, json_schema_extra={"description": "Weather Settings"}
     )
     server: Optional[ServerCommonSettings] = Field(
-        default=None,
-        description="Server Settings",
+        default=None, json_schema_extra={"description": "Server Settings"}
     )
     utils: Optional[UtilsCommonSettings] = Field(
-        default=None,
-        description="Utilities Settings",
+        default=None, json_schema_extra={"description": "Utilities Settings"}
     )
 
     model_config = pydantic_settings.SettingsConfigDict(

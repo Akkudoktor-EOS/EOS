@@ -27,9 +27,15 @@ class LoadVrmCommonSettings(SettingsBaseModel):
     """Common settings for VRM API."""
 
     load_vrm_token: str = Field(
-        default="your-token", description="Token for Connecting VRM API", examples=["your-token"]
+        default="your-token",
+        json_schema_extra={
+            "description": "Token for Connecting VRM API",
+            "examples": ["your-token"],
+        },
     )
-    load_vrm_idsite: int = Field(default=12345, description="VRM-Installation-ID", examples=[12345])
+    load_vrm_idsite: int = Field(
+        default=12345, json_schema_extra={"description": "VRM-Installation-ID", "examples": [12345]}
+    )
 
 
 class LoadVrm(LoadProvider):

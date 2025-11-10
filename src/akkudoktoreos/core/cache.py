@@ -251,10 +251,14 @@ RetType = TypeVar("RetType")
 
 
 class CacheFileRecord(PydanticBaseModel):
-    cache_file: Any = Field(..., description="File descriptor of the cache file.")
-    until_datetime: DateTime = Field(..., description="Datetime until the cache file is valid.")
+    cache_file: Any = Field(
+        ..., json_schema_extra={"description": "File descriptor of the cache file."}
+    )
+    until_datetime: DateTime = Field(
+        ..., json_schema_extra={"description": "Datetime until the cache file is valid."}
+    )
     ttl_duration: Optional[Duration] = Field(
-        default=None, description="Duration the cache file is valid."
+        default=None, json_schema_extra={"description": "Duration the cache file is valid."}
     )
 
 

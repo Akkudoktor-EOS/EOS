@@ -835,31 +835,42 @@ class TimeWindow(BaseModel):
     Supports day names in multiple languages via locale-aware parsing.
     """
 
-    start_time: Time = Field(..., description="Start time of the time window (time of day).")
+    start_time: Time = Field(
+        ..., json_schema_extra={"description": "Start time of the time window (time of day)."}
+    )
     duration: Duration = Field(
-        ..., description="Duration of the time window starting from `start_time`."
+        ...,
+        json_schema_extra={
+            "description": "Duration of the time window starting from `start_time`."
+        },
     )
     day_of_week: Optional[Union[int, str]] = Field(
         default=None,
-        description=(
-            "Optional day of the week restriction. "
-            "Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. "
-            "If None, applies every day unless `date` is set."
-        ),
+        json_schema_extra={
+            "description": (
+                "Optional day of the week restriction. "
+                "Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. "
+                "If None, applies every day unless `date` is set."
+            )
+        },
     )
     date: Optional[Date] = Field(
         default=None,
-        description=(
-            "Optional specific calendar date for the time window. Overrides `day_of_week` if set."
-        ),
+        json_schema_extra={
+            "description": (
+                "Optional specific calendar date for the time window. Overrides `day_of_week` if set."
+            )
+        },
     )
     locale: Optional[str] = Field(
         default=None,
-        description=(
-            "Locale used to parse weekday names in `day_of_week` when given as string. "
-            "If not set, Pendulum's default locale is used. "
-            "Examples: 'en', 'de', 'fr', etc."
-        ),
+        json_schema_extra={
+            "description": (
+                "Locale used to parse weekday names in `day_of_week` when given as string. "
+                "If not set, Pendulum's default locale is used. "
+                "Examples: 'en', 'de', 'fr', etc."
+            )
+        },
     )
 
     @field_validator("duration", mode="before")
@@ -1160,7 +1171,8 @@ class TimeWindowSequence(BaseModel):
     """
 
     windows: Optional[list[TimeWindow]] = Field(
-        default_factory=list, description="List of TimeWindow objects that make up this sequence."
+        default_factory=list,
+        json_schema_extra={"description": "List of TimeWindow objects that make up this sequence."},
     )
 
     @field_validator("windows")

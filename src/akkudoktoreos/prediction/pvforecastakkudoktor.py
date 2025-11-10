@@ -157,13 +157,13 @@ class PVForecastAkkudoktorDataRecord(PVForecastDataRecord):
     """Represents a Akkudoktor specific pvforecast data record containing various pvforecast attributes at a specific datetime."""
 
     pvforecastakkudoktor_ac_power_measured: Optional[float] = Field(
-        default=None, description="Total AC power measured (W)"
+        default=None, json_schema_extra={"description": "Total AC power measured (W)"}
     )
     pvforecastakkudoktor_wind_speed_10m: Optional[float] = Field(
-        default=None, description="Wind Speed 10m (kmph)"
+        default=None, json_schema_extra={"description": "Wind Speed 10m (kmph)"}
     )
     pvforecastakkudoktor_temp_air: Optional[float] = Field(
-        default=None, description="Temperature (°C)"
+        default=None, json_schema_extra={"description": "Temperature (°C)"}
     )
 
     # Computed fields
@@ -209,7 +209,8 @@ class PVForecastAkkudoktor(PVForecastProvider):
 
     # overload
     records: List[PVForecastAkkudoktorDataRecord] = Field(
-        default_factory=list, description="List of PVForecastAkkudoktorDataRecord records"
+        default_factory=list,
+        json_schema_extra={"description": "List of PVForecastAkkudoktorDataRecord records"},
     )
 
     @classmethod

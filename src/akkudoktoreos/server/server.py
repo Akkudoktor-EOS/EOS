@@ -153,31 +153,42 @@ class ServerCommonSettings(SettingsBaseModel):
 
     host: Optional[str] = Field(
         default=get_default_host(),
-        description="EOS server IP address. Defaults to 127.0.0.1.",
-        examples=["127.0.0.1", "localhost"],
+        json_schema_extra={
+            "description": "EOS server IP address. Defaults to 127.0.0.1.",
+            "examples": ["127.0.0.1", "localhost"],
+        },
     )
     port: Optional[int] = Field(
         default=8503,
-        description="EOS server IP port number. Defaults to 8503.",
-        examples=[
-            8503,
-        ],
+        json_schema_extra={
+            "description": "EOS server IP port number. Defaults to 8503.",
+            "examples": [
+                8503,
+            ],
+        },
     )
-    verbose: Optional[bool] = Field(default=False, description="Enable debug output")
+    verbose: Optional[bool] = Field(
+        default=False, json_schema_extra={"description": "Enable debug output"}
+    )
     startup_eosdash: Optional[bool] = Field(
-        default=True, description="EOS server to start EOSdash server. Defaults to True."
+        default=True,
+        json_schema_extra={"description": "EOS server to start EOSdash server. Defaults to True."},
     )
     eosdash_host: Optional[str] = Field(
         default=None,
-        description="EOSdash server IP address. Defaults to EOS server IP address.",
-        examples=["127.0.0.1", "localhost"],
+        json_schema_extra={
+            "description": "EOSdash server IP address. Defaults to EOS server IP address.",
+            "examples": ["127.0.0.1", "localhost"],
+        },
     )
     eosdash_port: Optional[int] = Field(
         default=None,
-        description="EOSdash server IP port number. Defaults to EOS server IP port number + 1.",
-        examples=[
-            8504,
-        ],
+        json_schema_extra={
+            "description": "EOSdash server IP port number. Defaults to EOS server IP port number + 1.",
+            "examples": [
+                8504,
+            ],
+        },
     )
 
     @field_validator("host", "eosdash_host", mode="before")

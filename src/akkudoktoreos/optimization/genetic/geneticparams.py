@@ -37,19 +37,29 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
     """Encapsulates energy-related forecasts and costs used in GENETIC optimization."""
 
     pv_prognose_wh: list[float] = Field(
-        description="An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+        json_schema_extra={
+            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+        }
     )
     strompreis_euro_pro_wh: list[float] = Field(
-        description="An array of floats representing the electricity price in euros per watt-hour for different time intervals."
+        json_schema_extra={
+            "description": "An array of floats representing the electricity price in euros per watt-hour for different time intervals."
+        }
     )
     einspeiseverguetung_euro_pro_wh: Union[list[float], float] = Field(
-        description="A float or array of floats representing the feed-in compensation in euros per watt-hour."
+        json_schema_extra={
+            "description": "A float or array of floats representing the feed-in compensation in euros per watt-hour."
+        }
     )
     preis_euro_pro_wh_akku: float = Field(
-        description="A float representing the cost of battery energy per watt-hour."
+        json_schema_extra={
+            "description": "A float representing the cost of battery energy per watt-hour."
+        }
     )
     gesamtlast: list[float] = Field(
-        description="An array of floats representing the total load (consumption) in watts for different time intervals."
+        json_schema_extra={
+            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
+        }
     )
 
     @model_validator(mode="after")
@@ -93,10 +103,15 @@ class GeneticOptimizationParameters(
     dishwasher: Optional[HomeApplianceParameters] = None
     temperature_forecast: Optional[list[Optional[float]]] = Field(
         default=None,
-        description="An array of floats representing the temperature forecast in degrees Celsius for different time intervals.",
+        json_schema_extra={
+            "description": "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
+        },
     )
     start_solution: Optional[list[float]] = Field(
-        default=None, description="Can be `null` or contain a previous solution (if available)."
+        default=None,
+        json_schema_extra={
+            "description": "Can be `null` or contain a previous solution (if available)."
+        },
     )
 
     @model_validator(mode="after")

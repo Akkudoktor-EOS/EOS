@@ -28,29 +28,52 @@ from akkudoktoreos.utils.utils import NumpyEncoder
 
 
 class DeviceOptimizeResult(GeneticParametersBaseModel):
-    device_id: str = Field(description="ID of device", examples=["device1"])
-    hours: int = Field(gt=0, description="Number of hours in the simulation.", examples=[24])
+    device_id: str = Field(
+        json_schema_extra={"description": "ID of device", "examples": ["device1"]}
+    )
+    hours: int = Field(
+        gt=0,
+        json_schema_extra={"description": "Number of hours in the simulation.", "examples": [24]},
+    )
 
 
 class ElectricVehicleResult(DeviceOptimizeResult):
     """Result class containing information related to the electric vehicle's charging and discharging behavior."""
 
-    device_id: str = Field(description="ID of electric vehicle", examples=["ev1"])
+    device_id: str = Field(
+        json_schema_extra={"description": "ID of electric vehicle", "examples": ["ev1"]}
+    )
     charge_array: list[float] = Field(
-        description="Hourly charging status (0 for no charging, 1 for charging)."
+        json_schema_extra={
+            "description": "Hourly charging status (0 for no charging, 1 for charging)."
+        }
     )
     discharge_array: list[int] = Field(
-        description="Hourly discharging status (0 for no discharging, 1 for discharging)."
+        json_schema_extra={
+            "description": "Hourly discharging status (0 for no discharging, 1 for discharging)."
+        }
     )
-    discharging_efficiency: float = Field(description="The discharge efficiency as a float..")
-    capacity_wh: int = Field(description="Capacity of the EV’s battery in watt-hours.")
-    charging_efficiency: float = Field(description="Charging efficiency as a float..")
-    max_charge_power_w: int = Field(description="Maximum charging power in watts.")
+    discharging_efficiency: float = Field(
+        json_schema_extra={"description": "The discharge efficiency as a float.."}
+    )
+    capacity_wh: int = Field(
+        json_schema_extra={"description": "Capacity of the EV’s battery in watt-hours."}
+    )
+    charging_efficiency: float = Field(
+        json_schema_extra={"description": "Charging efficiency as a float.."}
+    )
+    max_charge_power_w: int = Field(
+        json_schema_extra={"description": "Maximum charging power in watts."}
+    )
     soc_wh: float = Field(
-        description="State of charge of the battery in watt-hours at the start of the simulation."
+        json_schema_extra={
+            "description": "State of charge of the battery in watt-hours at the start of the simulation."
+        }
     )
     initial_soc_percentage: int = Field(
-        description="State of charge at the start of the simulation in percentage."
+        json_schema_extra={
+            "description": "State of charge at the start of the simulation in percentage."
+        }
     )
 
     @field_validator("discharge_array", "charge_array", mode="before")
@@ -61,37 +84,49 @@ class ElectricVehicleResult(DeviceOptimizeResult):
 class GeneticSimulationResult(GeneticParametersBaseModel):
     """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
 
-    Last_Wh_pro_Stunde: list[float] = Field(description="TBD")
+    Last_Wh_pro_Stunde: list[float] = Field(json_schema_extra={"description": "TBD"})
     EAuto_SoC_pro_Stunde: list[float] = Field(
-        description="The state of charge of the EV for each hour."
+        json_schema_extra={"description": "The state of charge of the EV for each hour."}
     )
     Einnahmen_Euro_pro_Stunde: list[float] = Field(
-        description="The revenue from grid feed-in or other sources in euros per hour."
+        json_schema_extra={
+            "description": "The revenue from grid feed-in or other sources in euros per hour."
+        }
     )
     Gesamt_Verluste: float = Field(
-        description="The total losses in watt-hours over the entire period."
+        json_schema_extra={"description": "The total losses in watt-hours over the entire period."}
     )
     Gesamtbilanz_Euro: float = Field(
-        description="The total balance of revenues minus costs in euros."
+        json_schema_extra={"description": "The total balance of revenues minus costs in euros."}
     )
-    Gesamteinnahmen_Euro: float = Field(description="The total revenues in euros.")
-    Gesamtkosten_Euro: float = Field(description="The total costs in euros.")
+    Gesamteinnahmen_Euro: float = Field(
+        json_schema_extra={"description": "The total revenues in euros."}
+    )
+    Gesamtkosten_Euro: float = Field(json_schema_extra={"description": "The total costs in euros."})
     Home_appliance_wh_per_hour: list[Optional[float]] = Field(
-        description="The energy consumption of a household appliance in watt-hours per hour."
+        json_schema_extra={
+            "description": "The energy consumption of a household appliance in watt-hours per hour."
+        }
     )
-    Kosten_Euro_pro_Stunde: list[float] = Field(description="The costs in euros per hour.")
+    Kosten_Euro_pro_Stunde: list[float] = Field(
+        json_schema_extra={"description": "The costs in euros per hour."}
+    )
     Netzbezug_Wh_pro_Stunde: list[float] = Field(
-        description="The grid energy drawn in watt-hours per hour."
+        json_schema_extra={"description": "The grid energy drawn in watt-hours per hour."}
     )
     Netzeinspeisung_Wh_pro_Stunde: list[float] = Field(
-        description="The energy fed into the grid in watt-hours per hour."
+        json_schema_extra={"description": "The energy fed into the grid in watt-hours per hour."}
     )
-    Verluste_Pro_Stunde: list[float] = Field(description="The losses in watt-hours per hour.")
+    Verluste_Pro_Stunde: list[float] = Field(
+        json_schema_extra={"description": "The losses in watt-hours per hour."}
+    )
     akku_soc_pro_stunde: list[float] = Field(
-        description="The state of charge of the battery (not the EV) in percentage per hour."
+        json_schema_extra={
+            "description": "The state of charge of the battery (not the EV) in percentage per hour."
+        }
     )
     Electricity_price: list[float] = Field(
-        description="Used Electricity Price, including predictions"
+        json_schema_extra={"description": "Used Electricity Price, including predictions"}
     )
 
     @field_validator(
@@ -115,24 +150,34 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
     """**Note**: The first value of "Last_Wh_per_hour", "Netzeinspeisung_Wh_per_hour", and "Netzbezug_Wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
 
     ac_charge: list[float] = Field(
-        description="Array with AC charging values as relative power (0.0-1.0), other values set to 0."
+        json_schema_extra={
+            "description": "Array with AC charging values as relative power (0.0-1.0), other values set to 0."
+        }
     )
     dc_charge: list[float] = Field(
-        description="Array with DC charging values as relative power (0-1), other values set to 0."
+        json_schema_extra={
+            "description": "Array with DC charging values as relative power (0-1), other values set to 0."
+        }
     )
     discharge_allowed: list[int] = Field(
-        description="Array with discharge values (1 for discharge, 0 otherwise)."
+        json_schema_extra={
+            "description": "Array with discharge values (1 for discharge, 0 otherwise)."
+        }
     )
-    eautocharge_hours_float: Optional[list[float]] = Field(description="TBD")
+    eautocharge_hours_float: Optional[list[float]] = Field(json_schema_extra={"description": "TBD"})
     result: GeneticSimulationResult
     eauto_obj: Optional[ElectricVehicleResult]
     start_solution: Optional[list[float]] = Field(
         default=None,
-        description="An array of binary values (0 or 1) representing a possible starting solution for the simulation.",
+        json_schema_extra={
+            "description": "An array of binary values (0 or 1) representing a possible starting solution for the simulation."
+        },
     )
     washingstart: Optional[int] = Field(
         default=None,
-        description="Can be `null` or contain an object representing the start of washing (if applicable).",
+        json_schema_extra={
+            "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
+        },
     )
 
     @field_validator(

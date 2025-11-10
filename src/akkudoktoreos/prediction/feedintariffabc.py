@@ -20,7 +20,9 @@ class FeedInTariffDataRecord(PredictionRecord):
 
     """
 
-    feed_in_tariff_wh: Optional[float] = Field(None, description="Feed in tariff per Wh (€/Wh)")
+    feed_in_tariff_wh: Optional[float] = Field(
+        None, json_schema_extra={"description": "Feed in tariff per Wh (€/Wh)"}
+    )
 
     # Computed fields
     @computed_field  # type: ignore[prop-decorator]
@@ -46,7 +48,8 @@ class FeedInTariffProvider(PredictionProvider):
 
     # overload
     records: List[FeedInTariffDataRecord] = Field(
-        default_factory=list, description="List of FeedInTariffDataRecord records"
+        default_factory=list,
+        json_schema_extra={"description": "List of FeedInTariffDataRecord records"},
     )
 
     @classmethod

@@ -16,8 +16,10 @@ class FeedInTariffFixedCommonSettings(SettingsBaseModel):
     feed_in_tariff_kwh: Optional[float] = Field(
         default=None,
         ge=0,
-        description="Electricity price feed in tariff [€/kWH].",
-        examples=[0.078],
+        json_schema_extra={
+            "description": "Electricity price feed in tariff [€/kWH].",
+            "examples": [0.078],
+        },
     )
 
 
