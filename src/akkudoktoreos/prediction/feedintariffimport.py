@@ -21,13 +21,17 @@ class FeedInTariffImportCommonSettings(SettingsBaseModel):
 
     import_file_path: Optional[Union[str, Path]] = Field(
         default=None,
-        description="Path to the file to import feed in tariff data from.",
-        examples=[None, "/path/to/feedintariff.json"],
+        json_schema_extra={
+            "description": "Path to the file to import feed in tariff data from.",
+            "examples": [None, "/path/to/feedintariff.json"],
+        },
     )
     import_json: Optional[str] = Field(
         default=None,
-        description="JSON string, dictionary of feed in tariff forecast value lists.",
-        examples=['{"fead_in_tariff_wh": [0.000078, 0.000078, 0.000023]}'],
+        json_schema_extra={
+            "description": "JSON string, dictionary of feed in tariff forecast value lists.",
+            "examples": ['{"fead_in_tariff_wh": [0.000078, 0.000078, 0.000023]}'],
+        },
     )
 
     # Validators

@@ -16,7 +16,7 @@ class LoadDataRecord(PredictionRecord):
     """Represents a load data record containing various load attributes at a specific datetime."""
 
     loadforecast_power_w: Optional[float] = Field(
-        default=None, description="Predicted load mean value (W)."
+        default=None, json_schema_extra={"description": "Predicted load mean value (W)."}
     )
 
 
@@ -42,7 +42,7 @@ class LoadProvider(PredictionProvider):
 
     # overload
     records: List[LoadDataRecord] = Field(
-        default_factory=list, description="List of LoadDataRecord records"
+        default_factory=list, json_schema_extra={"description": "List of LoadDataRecord records"}
     )
 
     @classmethod

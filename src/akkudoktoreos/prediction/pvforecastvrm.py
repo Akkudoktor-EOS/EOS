@@ -27,10 +27,14 @@ class PVForecastVrmCommonSettings(SettingsBaseModel):
     """Common settings for VRM API."""
 
     pvforecast_vrm_token: str = Field(
-        default="your-token", description="Token for Connecting VRM API", examples=["your-token"]
+        default="your-token",
+        json_schema_extra={
+            "description": "Token for Connecting VRM API",
+            "examples": ["your-token"],
+        },
     )
     pvforecast_vrm_idsite: int = Field(
-        default=12345, description="VRM-Installation-ID", examples=[12345]
+        default=12345, json_schema_extra={"description": "VRM-Installation-ID", "examples": [12345]}
     )
 
 

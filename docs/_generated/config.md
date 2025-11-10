@@ -21,11 +21,11 @@ Properties:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| version | `EOS_GENERAL__VERSION` | `str` | `rw` | `0.2.0+dev` | Configuration file version. Used to check compatibility. |
-| data_folder_path | `EOS_GENERAL__DATA_FOLDER_PATH` | `Optional[pathlib.Path]` | `rw` | `None` | Path to EOS data directory. |
-| data_output_subpath | `EOS_GENERAL__DATA_OUTPUT_SUBPATH` | `Optional[pathlib.Path]` | `rw` | `output` | Sub-path for the EOS output data directory. |
-| latitude | `EOS_GENERAL__LATITUDE` | `Optional[float]` | `rw` | `52.52` | Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°) |
-| longitude | `EOS_GENERAL__LONGITUDE` | `Optional[float]` | `rw` | `13.405` | Longitude in decimal degrees, within -180 to 180 (°) |
+| version | `EOS_GENERAL__VERSION` | `str` | `rw` | `0.2.0+dev` | - |
+| data_folder_path | `EOS_GENERAL__DATA_FOLDER_PATH` | `Optional[pathlib.Path]` | `rw` | `None` | - |
+| data_output_subpath | `EOS_GENERAL__DATA_OUTPUT_SUBPATH` | `Optional[pathlib.Path]` | `rw` | `output` | - |
+| latitude | `EOS_GENERAL__LATITUDE` | `Optional[float]` | `rw` | `52.52` | - |
+| longitude | `EOS_GENERAL__LONGITUDE` | `Optional[float]` | `rw` | `13.405` | - |
 | timezone | | `Optional[str]` | `ro` | `N/A` | Compute timezone based on latitude and longitude. |
 | data_output_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Compute data_output_path based on data_folder_path. |
 | config_folder_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration directory. |
@@ -76,8 +76,8 @@ Properties:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| subpath | `EOS_CACHE__SUBPATH` | `Optional[pathlib.Path]` | `rw` | `cache` | Sub-path for the EOS cache data directory. |
-| cleanup_interval | `EOS_CACHE__CLEANUP_INTERVAL` | `float` | `rw` | `300` | Intervall in seconds for EOS file cache cleanup. |
+| subpath | `EOS_CACHE__SUBPATH` | `Optional[pathlib.Path]` | `rw` | `cache` | - |
+| cleanup_interval | `EOS_CACHE__CLEANUP_INTERVAL` | `float` | `rw` | `300` | - |
 :::
 
 ### Example Input/Output
@@ -101,9 +101,9 @@ Properties:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| startup_delay | `EOS_EMS__STARTUP_DELAY` | `float` | `rw` | `5` | Startup delay in seconds for EOS energy management runs. |
-| interval | `EOS_EMS__INTERVAL` | `Optional[float]` | `rw` | `None` | Intervall in seconds between EOS energy management runs. |
-| mode | `EOS_EMS__MODE` | `Optional[akkudoktoreos.core.emsettings.EnergyManagementMode]` | `rw` | `None` | Energy management mode [OPTIMIZATION | PREDICTION]. |
+| startup_delay | `EOS_EMS__STARTUP_DELAY` | `float` | `rw` | `5` | - |
+| interval | `EOS_EMS__INTERVAL` | `Optional[float]` | `rw` | `None` | - |
+| mode | `EOS_EMS__MODE` | `Optional[akkudoktoreos.core.emsettings.EnergyManagementMode]` | `rw` | `None` | - |
 :::
 
 ### Example Input/Output
@@ -128,8 +128,8 @@ Properties:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| console_level | `EOS_LOGGING__CONSOLE_LEVEL` | `Optional[str]` | `rw` | `None` | Logging level when logging to console. |
-| file_level | `EOS_LOGGING__FILE_LEVEL` | `Optional[str]` | `rw` | `None` | Logging level when logging to file. |
+| console_level | `EOS_LOGGING__CONSOLE_LEVEL` | `Optional[str]` | `rw` | `None` | - |
+| file_level | `EOS_LOGGING__FILE_LEVEL` | `Optional[str]` | `rw` | `None` | - |
 | file_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Computed log file path based on data output path. |
 :::
 
@@ -168,14 +168,14 @@ Properties:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| batteries | `EOS_DEVICES__BATTERIES` | `Optional[list[akkudoktoreos.devices.devices.BatteriesCommonSettings]]` | `rw` | `None` | List of battery devices |
-| max_batteries | `EOS_DEVICES__MAX_BATTERIES` | `Optional[int]` | `rw` | `None` | Maximum number of batteries that can be set |
-| electric_vehicles | `EOS_DEVICES__ELECTRIC_VEHICLES` | `Optional[list[akkudoktoreos.devices.devices.BatteriesCommonSettings]]` | `rw` | `None` | List of electric vehicle devices |
-| max_electric_vehicles | `EOS_DEVICES__MAX_ELECTRIC_VEHICLES` | `Optional[int]` | `rw` | `None` | Maximum number of electric vehicles that can be set |
-| inverters | `EOS_DEVICES__INVERTERS` | `Optional[list[akkudoktoreos.devices.devices.InverterCommonSettings]]` | `rw` | `None` | List of inverters |
-| max_inverters | `EOS_DEVICES__MAX_INVERTERS` | `Optional[int]` | `rw` | `None` | Maximum number of inverters that can be set |
-| home_appliances | `EOS_DEVICES__HOME_APPLIANCES` | `Optional[list[akkudoktoreos.devices.devices.HomeApplianceCommonSettings]]` | `rw` | `None` | List of home appliances |
-| max_home_appliances | `EOS_DEVICES__MAX_HOME_APPLIANCES` | `Optional[int]` | `rw` | `None` | Maximum number of home_appliances that can be set |
+| batteries | `EOS_DEVICES__BATTERIES` | `Optional[list[akkudoktoreos.devices.devices.BatteriesCommonSettings]]` | `rw` | `None` | - |
+| max_batteries | `EOS_DEVICES__MAX_BATTERIES` | `Optional[int]` | `rw` | `None` | - |
+| electric_vehicles | `EOS_DEVICES__ELECTRIC_VEHICLES` | `Optional[list[akkudoktoreos.devices.devices.BatteriesCommonSettings]]` | `rw` | `None` | - |
+| max_electric_vehicles | `EOS_DEVICES__MAX_ELECTRIC_VEHICLES` | `Optional[int]` | `rw` | `None` | - |
+| inverters | `EOS_DEVICES__INVERTERS` | `Optional[list[akkudoktoreos.devices.devices.InverterCommonSettings]]` | `rw` | `None` | - |
+| max_inverters | `EOS_DEVICES__MAX_INVERTERS` | `Optional[int]` | `rw` | `None` | - |
+| home_appliances | `EOS_DEVICES__HOME_APPLIANCES` | `Optional[list[akkudoktoreos.devices.devices.HomeApplianceCommonSettings]]` | `rw` | `None` | - |
+| max_home_appliances | `EOS_DEVICES__MAX_HOME_APPLIANCES` | `Optional[int]` | `rw` | `None` | - |
 | measurement_keys | | `Optional[list[str]]` | `ro` | `N/A` | Return the measurement keys for the resource/ device stati that are measurements. |
 :::
 
@@ -337,10 +337,10 @@ Properties:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| device_id | `str` | `rw` | `<unknown>` | ID of device |
-| consumption_wh | `int` | `rw` | `required` | Energy consumption [Wh]. |
-| duration_h | `int` | `rw` | `required` | Usage duration in hours [0 ... 24]. |
-| time_windows | `Optional[akkudoktoreos.utils.datetimeutil.TimeWindowSequence]` | `rw` | `None` | Sequence of allowed time windows. Defaults to optimization general time window. |
+| device_id | `str` | `rw` | `<unknown>` | - |
+| consumption_wh | `int` | `rw` | `required` | - |
+| duration_h | `int` | `rw` | `required` | - |
+| time_windows | `Optional[akkudoktoreos.utils.datetimeutil.TimeWindowSequence]` | `rw` | `None` | - |
 | measurement_keys | `Optional[list[str]]` | `ro` | `N/A` | Measurement keys for the home appliance stati that are measurements. |
 :::
 
@@ -354,54 +354,6 @@ Properties:
            "home_appliances": [
                {
                    "device_id": "battery1",
-                   "consumption_wh": 2000,
-                   "duration_h": 1,
-                   "time_windows": {
-                       "windows": [
-                           {
-                               "start_time": "10:00:00.000000 Europe/Berlin",
-                               "duration": "2 hours",
-                               "day_of_week": null,
-                               "date": null,
-                               "locale": null
-                           }
-                       ]
-                   }
-               },
-               {
-                   "device_id": "ev1",
-                   "consumption_wh": 2000,
-                   "duration_h": 1,
-                   "time_windows": {
-                       "windows": [
-                           {
-                               "start_time": "10:00:00.000000 Europe/Berlin",
-                               "duration": "2 hours",
-                               "day_of_week": null,
-                               "date": null,
-                               "locale": null
-                           }
-                       ]
-                   }
-               },
-               {
-                   "device_id": "inverter1",
-                   "consumption_wh": 2000,
-                   "duration_h": 1,
-                   "time_windows": {
-                       "windows": [
-                           {
-                               "start_time": "10:00:00.000000 Europe/Berlin",
-                               "duration": "2 hours",
-                               "day_of_week": null,
-                               "date": null,
-                               "locale": null
-                           }
-                       ]
-                   }
-               },
-               {
-                   "device_id": "dishwasher",
                    "consumption_wh": 2000,
                    "duration_h": 1,
                    "time_windows": {
@@ -431,57 +383,6 @@ Properties:
            "home_appliances": [
                {
                    "device_id": "battery1",
-                   "consumption_wh": 2000,
-                   "duration_h": 1,
-                   "time_windows": {
-                       "windows": [
-                           {
-                               "start_time": "10:00:00.000000 Europe/Berlin",
-                               "duration": "2 hours",
-                               "day_of_week": null,
-                               "date": null,
-                               "locale": null
-                           }
-                       ]
-                   },
-                   "measurement_keys": []
-               },
-               {
-                   "device_id": "ev1",
-                   "consumption_wh": 2000,
-                   "duration_h": 1,
-                   "time_windows": {
-                       "windows": [
-                           {
-                               "start_time": "10:00:00.000000 Europe/Berlin",
-                               "duration": "2 hours",
-                               "day_of_week": null,
-                               "date": null,
-                               "locale": null
-                           }
-                       ]
-                   },
-                   "measurement_keys": []
-               },
-               {
-                   "device_id": "inverter1",
-                   "consumption_wh": 2000,
-                   "duration_h": 1,
-                   "time_windows": {
-                       "windows": [
-                           {
-                               "start_time": "10:00:00.000000 Europe/Berlin",
-                               "duration": "2 hours",
-                               "day_of_week": null,
-                               "date": null,
-                               "locale": null
-                           }
-                       ]
-                   },
-                   "measurement_keys": []
-               },
-               {
-                   "device_id": "dishwasher",
                    "consumption_wh": 2000,
                    "duration_h": 1,
                    "time_windows": {
@@ -510,9 +411,9 @@ Properties:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| device_id | `str` | `rw` | `<unknown>` | ID of device |
-| max_power_w | `Optional[float]` | `rw` | `None` | Maximum power [W]. |
-| battery_id | `Optional[str]` | `rw` | `None` | ID of battery controlled by this inverter. |
+| device_id | `str` | `rw` | `<unknown>` | - |
+| max_power_w | `Optional[float]` | `rw` | `None` | - |
+| battery_id | `Optional[str]` | `rw` | `None` | - |
 | measurement_keys | `Optional[list[str]]` | `ro` | `N/A` | Measurement keys for the inverter stati that are measurements. |
 :::
 
@@ -528,21 +429,6 @@ Properties:
                    "device_id": "battery1",
                    "max_power_w": 10000.0,
                    "battery_id": null
-               },
-               {
-                   "device_id": "ev1",
-                   "max_power_w": 10000.0,
-                   "battery_id": "battery1"
-               },
-               {
-                   "device_id": "inverter1",
-                   "max_power_w": 10000.0,
-                   "battery_id": "battery1"
-               },
-               {
-                   "device_id": "dishwasher",
-                   "max_power_w": 10000.0,
-                   "battery_id": "battery1"
                }
            ]
        }
@@ -562,24 +448,6 @@ Properties:
                    "max_power_w": 10000.0,
                    "battery_id": null,
                    "measurement_keys": []
-               },
-               {
-                   "device_id": "ev1",
-                   "max_power_w": 10000.0,
-                   "battery_id": "battery1",
-                   "measurement_keys": []
-               },
-               {
-                   "device_id": "inverter1",
-                   "max_power_w": 10000.0,
-                   "battery_id": "battery1",
-                   "measurement_keys": []
-               },
-               {
-                   "device_id": "dishwasher",
-                   "max_power_w": 10000.0,
-                   "battery_id": "battery1",
-                   "measurement_keys": []
                }
            ]
        }
@@ -594,16 +462,16 @@ Properties:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| device_id | `str` | `rw` | `<unknown>` | ID of device |
-| capacity_wh | `int` | `rw` | `8000` | Capacity [Wh]. |
-| charging_efficiency | `float` | `rw` | `0.88` | Charging efficiency [0.01 ... 1.00]. |
-| discharging_efficiency | `float` | `rw` | `0.88` | Discharge efficiency [0.01 ... 1.00]. |
-| levelized_cost_of_storage_kwh | `float` | `rw` | `0.0` | Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [€/kWh]. |
-| max_charge_power_w | `Optional[float]` | `rw` | `5000` | Maximum charging power [W]. |
-| min_charge_power_w | `Optional[float]` | `rw` | `50` | Minimum charging power [W]. |
-| charge_rates | `Optional[numpydantic.vendor.npbase_meta_classes.NDArray]` | `rw` | `[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]` | Charge rates as factor of maximum charging power [0.00 ... 1.00]. None triggers fallback to default charge-rates. |
-| min_soc_percentage | `int` | `rw` | `0` | Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging |
-| max_soc_percentage | `int` | `rw` | `100` | Maximum state of charge (SOC) as percentage of capacity [%]. |
+| device_id | `str` | `rw` | `<unknown>` | - |
+| capacity_wh | `int` | `rw` | `8000` | - |
+| charging_efficiency | `float` | `rw` | `0.88` | - |
+| discharging_efficiency | `float` | `rw` | `0.88` | - |
+| levelized_cost_of_storage_kwh | `float` | `rw` | `0.0` | - |
+| max_charge_power_w | `Optional[float]` | `rw` | `5000` | - |
+| min_charge_power_w | `Optional[float]` | `rw` | `50` | - |
+| charge_rates | `Optional[numpydantic.vendor.npbase_meta_classes.NDArray]` | `rw` | `[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]` | - |
+| min_soc_percentage | `int` | `rw` | `0` | - |
+| max_soc_percentage | `int` | `rw` | `100` | - |
 | measurement_key_soc_factor | `str` | `ro` | `N/A` | Measurement key for the battery state of charge (SoC) as factor of total capacity [0.0 ... 1.0]. |
 | measurement_key_power_l1_w | `str` | `ro` | `N/A` | Measurement key for the L1 power the battery is charged or discharged with [W]. |
 | measurement_key_power_l2_w | `str` | `ro` | `N/A` | Measurement key for the L2 power the battery is charged or discharged with [W]. |
@@ -631,42 +499,6 @@ Battery SoC, power. |
                    "max_charge_power_w": 5000.0,
                    "min_charge_power_w": 50.0,
                    "charge_rates": "[0.   0.25 0.5  0.75 1.  ]",
-                   "min_soc_percentage": 10,
-                   "max_soc_percentage": 100
-               },
-               {
-                   "device_id": "ev1",
-                   "capacity_wh": 8000,
-                   "charging_efficiency": 0.88,
-                   "discharging_efficiency": 0.88,
-                   "levelized_cost_of_storage_kwh": 0.12,
-                   "max_charge_power_w": 5000.0,
-                   "min_charge_power_w": 50.0,
-                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
-                   "min_soc_percentage": 10,
-                   "max_soc_percentage": 100
-               },
-               {
-                   "device_id": "inverter1",
-                   "capacity_wh": 8000,
-                   "charging_efficiency": 0.88,
-                   "discharging_efficiency": 0.88,
-                   "levelized_cost_of_storage_kwh": 0.12,
-                   "max_charge_power_w": 5000.0,
-                   "min_charge_power_w": 50.0,
-                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
-                   "min_soc_percentage": 10,
-                   "max_soc_percentage": 100
-               },
-               {
-                   "device_id": "dishwasher",
-                   "capacity_wh": 8000,
-                   "charging_efficiency": 0.88,
-                   "discharging_efficiency": 0.88,
-                   "levelized_cost_of_storage_kwh": 0.12,
-                   "max_charge_power_w": 5000.0,
-                   "min_charge_power_w": 50.0,
-                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
                    "min_soc_percentage": 10,
                    "max_soc_percentage": 100
                }
@@ -706,78 +538,6 @@ Battery SoC, power. |
                        "battery1-power-l3-w",
                        "battery1-power-3-phase-sym-w"
                    ]
-               },
-               {
-                   "device_id": "ev1",
-                   "capacity_wh": 8000,
-                   "charging_efficiency": 0.88,
-                   "discharging_efficiency": 0.88,
-                   "levelized_cost_of_storage_kwh": 0.12,
-                   "max_charge_power_w": 5000.0,
-                   "min_charge_power_w": 50.0,
-                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
-                   "min_soc_percentage": 10,
-                   "max_soc_percentage": 100,
-                   "measurement_key_soc_factor": "ev1-soc-factor",
-                   "measurement_key_power_l1_w": "ev1-power-l1-w",
-                   "measurement_key_power_l2_w": "ev1-power-l2-w",
-                   "measurement_key_power_l3_w": "ev1-power-l3-w",
-                   "measurement_key_power_3_phase_sym_w": "ev1-power-3-phase-sym-w",
-                   "measurement_keys": [
-                       "ev1-soc-factor",
-                       "ev1-power-l1-w",
-                       "ev1-power-l2-w",
-                       "ev1-power-l3-w",
-                       "ev1-power-3-phase-sym-w"
-                   ]
-               },
-               {
-                   "device_id": "inverter1",
-                   "capacity_wh": 8000,
-                   "charging_efficiency": 0.88,
-                   "discharging_efficiency": 0.88,
-                   "levelized_cost_of_storage_kwh": 0.12,
-                   "max_charge_power_w": 5000.0,
-                   "min_charge_power_w": 50.0,
-                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
-                   "min_soc_percentage": 10,
-                   "max_soc_percentage": 100,
-                   "measurement_key_soc_factor": "inverter1-soc-factor",
-                   "measurement_key_power_l1_w": "inverter1-power-l1-w",
-                   "measurement_key_power_l2_w": "inverter1-power-l2-w",
-                   "measurement_key_power_l3_w": "inverter1-power-l3-w",
-                   "measurement_key_power_3_phase_sym_w": "inverter1-power-3-phase-sym-w",
-                   "measurement_keys": [
-                       "inverter1-soc-factor",
-                       "inverter1-power-l1-w",
-                       "inverter1-power-l2-w",
-                       "inverter1-power-l3-w",
-                       "inverter1-power-3-phase-sym-w"
-                   ]
-               },
-               {
-                   "device_id": "dishwasher",
-                   "capacity_wh": 8000,
-                   "charging_efficiency": 0.88,
-                   "discharging_efficiency": 0.88,
-                   "levelized_cost_of_storage_kwh": 0.12,
-                   "max_charge_power_w": 5000.0,
-                   "min_charge_power_w": 50.0,
-                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
-                   "min_soc_percentage": 10,
-                   "max_soc_percentage": 100,
-                   "measurement_key_soc_factor": "dishwasher-soc-factor",
-                   "measurement_key_power_l1_w": "dishwasher-power-l1-w",
-                   "measurement_key_power_l2_w": "dishwasher-power-l2-w",
-                   "measurement_key_power_l3_w": "dishwasher-power-l3-w",
-                   "measurement_key_power_3_phase_sym_w": "dishwasher-power-3-phase-sym-w",
-                   "measurement_keys": [
-                       "dishwasher-soc-factor",
-                       "dishwasher-power-l1-w",
-                       "dishwasher-power-l2-w",
-                       "dishwasher-power-l3-w",
-                       "dishwasher-power-3-phase-sym-w"
-                   ]
                }
            ]
        }
@@ -792,10 +552,10 @@ Battery SoC, power. |
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| load_emr_keys | `EOS_MEASUREMENT__LOAD_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are energy meter readings of a load [kWh]. |
-| grid_export_emr_keys | `EOS_MEASUREMENT__GRID_EXPORT_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are energy meter readings of energy export to grid [kWh]. |
-| grid_import_emr_keys | `EOS_MEASUREMENT__GRID_IMPORT_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are energy meter readings of energy import from grid [kWh]. |
-| pv_production_emr_keys | `EOS_MEASUREMENT__PV_PRODUCTION_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | The keys of the measurements that are PV production energy meter readings [kWh]. |
+| load_emr_keys | `EOS_MEASUREMENT__LOAD_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | - |
+| grid_export_emr_keys | `EOS_MEASUREMENT__GRID_EXPORT_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | - |
+| grid_import_emr_keys | `EOS_MEASUREMENT__GRID_IMPORT_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | - |
+| pv_production_emr_keys | `EOS_MEASUREMENT__PV_PRODUCTION_EMR_KEYS` | `Optional[list[str]]` | `rw` | `None` | - |
 | keys | | `list[str]` | `ro` | `N/A` | The keys of the measurements that can be stored. |
 :::
 
@@ -859,10 +619,10 @@ Battery SoC, power. |
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| horizon_hours | `EOS_OPTIMIZATION__HORIZON_HOURS` | `Optional[int]` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
-| interval | `EOS_OPTIMIZATION__INTERVAL` | `Optional[int]` | `rw` | `3600` | The optimization interval [sec]. |
-| algorithm | `EOS_OPTIMIZATION__ALGORITHM` | `Optional[str]` | `rw` | `GENETIC` | The optimization algorithm. |
-| genetic | `EOS_OPTIMIZATION__GENETIC` | `Optional[akkudoktoreos.optimization.optimization.GeneticCommonSettings]` | `rw` | `None` | Genetic optimization algorithm configuration. |
+| horizon_hours | `EOS_OPTIMIZATION__HORIZON_HOURS` | `Optional[int]` | `rw` | `24` | - |
+| interval | `EOS_OPTIMIZATION__INTERVAL` | `Optional[int]` | `rw` | `3600` | - |
+| algorithm | `EOS_OPTIMIZATION__ALGORITHM` | `Optional[str]` | `rw` | `GENETIC` | - |
+| genetic | `EOS_OPTIMIZATION__GENETIC` | `Optional[akkudoktoreos.optimization.optimization.GeneticCommonSettings]` | `rw` | `None` | - |
 :::
 
 ### Example Input/Output
@@ -895,10 +655,10 @@ Battery SoC, power. |
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| individuals | `Optional[int]` | `rw` | `300` | Number of individuals (solutions) to generate for the (initial) generation [>= 10]. Defaults to 300. |
-| generations | `Optional[int]` | `rw` | `400` | Number of generations to evaluate the optimal solution [>= 10]. Defaults to 400. |
-| seed | `Optional[int]` | `rw` | `None` | Fixed seed for genetic algorithm. Defaults to 'None' which means random seed. |
-| penalties | `Optional[dict[str, Union[float, int, str]]]` | `rw` | `None` | A dictionary of penalty function parameters consisting of a penalty function parameter name and the associated value. |
+| individuals | `Optional[int]` | `rw` | `300` | - |
+| generations | `Optional[int]` | `rw` | `400` | - |
+| seed | `Optional[int]` | `rw` | `None` | - |
+| penalties | `Optional[dict[str, Union[float, int, str]]]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -942,8 +702,8 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| hours | `EOS_PREDICTION__HOURS` | `Optional[int]` | `rw` | `48` | Number of hours into the future for predictions |
-| historic_hours | `EOS_PREDICTION__HISTORIC_HOURS` | `Optional[int]` | `rw` | `48` | Number of hours into the past for historical predictions data |
+| hours | `EOS_PREDICTION__HOURS` | `Optional[int]` | `rw` | `48` | - |
+| historic_hours | `EOS_PREDICTION__HISTORIC_HOURS` | `Optional[int]` | `rw` | `48` | - |
 :::
 
 ### Example Input/Output
@@ -967,10 +727,10 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| provider | `EOS_ELECPRICE__PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
-| charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `Optional[float]` | `rw` | `None` | Electricity price charges [€/kWh]. Will be added to variable market price. |
-| vat_rate | `EOS_ELECPRICE__VAT_RATE` | `Optional[float]` | `rw` | `1.19` | VAT rate factor applied to electricity price when charges are used. |
-| provider_settings | `EOS_ELECPRICE__PROVIDER_SETTINGS` | `ElecPriceCommonProviderSettings` | `rw` | `required` | Provider settings |
+| provider | `EOS_ELECPRICE__PROVIDER` | `Optional[str]` | `rw` | `None` | - |
+| charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `Optional[float]` | `rw` | `None` | - |
+| vat_rate | `EOS_ELECPRICE__VAT_RATE` | `Optional[float]` | `rw` | `1.19` | - |
+| provider_settings | `EOS_ELECPRICE__PROVIDER_SETTINGS` | `ElecPriceCommonProviderSettings` | `rw` | `required` | - |
 :::
 
 ### Example Input/Output
@@ -998,8 +758,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import elecprice data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of electricity price forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | - |
+| import_json | `Optional[str]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1027,7 +787,7 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| ElecPriceImport | `Optional[akkudoktoreos.prediction.elecpriceimport.ElecPriceImportCommonSettings]` | `rw` | `None` | ElecPriceImport settings |
+| ElecPriceImport | `Optional[akkudoktoreos.prediction.elecpriceimport.ElecPriceImportCommonSettings]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1052,8 +812,8 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| provider | `EOS_FEEDINTARIFF__PROVIDER` | `Optional[str]` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
-| provider_settings | `EOS_FEEDINTARIFF__PROVIDER_SETTINGS` | `FeedInTariffCommonProviderSettings` | `rw` | `required` | Provider settings |
+| provider | `EOS_FEEDINTARIFF__PROVIDER` | `Optional[str]` | `rw` | `None` | - |
+| provider_settings | `EOS_FEEDINTARIFF__PROVIDER_SETTINGS` | `FeedInTariffCommonProviderSettings` | `rw` | `required` | - |
 :::
 
 ### Example Input/Output
@@ -1080,8 +840,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import feed in tariff data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of feed in tariff forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | - |
+| import_json | `Optional[str]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1109,7 +869,7 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| feed_in_tariff_kwh | `Optional[float]` | `rw` | `None` | Electricity price feed in tariff [€/kWH]. |
+| feed_in_tariff_kwh | `Optional[float]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1136,8 +896,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| FeedInTariffFixed | `Optional[akkudoktoreos.prediction.feedintarifffixed.FeedInTariffFixedCommonSettings]` | `rw` | `None` | FeedInTariffFixed settings |
-| FeedInTariffImport | `Optional[akkudoktoreos.prediction.feedintariffimport.FeedInTariffImportCommonSettings]` | `rw` | `None` | FeedInTariffImport settings |
+| FeedInTariffFixed | `Optional[akkudoktoreos.prediction.feedintarifffixed.FeedInTariffFixedCommonSettings]` | `rw` | `None` | - |
+| FeedInTariffImport | `Optional[akkudoktoreos.prediction.feedintariffimport.FeedInTariffImportCommonSettings]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1163,8 +923,8 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| provider | `EOS_LOAD__PROVIDER` | `Optional[str]` | `rw` | `None` | Load provider id of provider to be used. |
-| provider_settings | `EOS_LOAD__PROVIDER_SETTINGS` | `LoadCommonProviderSettings` | `rw` | `required` | Provider settings |
+| provider | `EOS_LOAD__PROVIDER` | `Optional[str]` | `rw` | `None` | - |
+| provider_settings | `EOS_LOAD__PROVIDER_SETTINGS` | `LoadCommonProviderSettings` | `rw` | `required` | - |
 :::
 
 ### Example Input/Output
@@ -1192,8 +952,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import load data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | - |
+| import_json | `Optional[str]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1221,8 +981,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| load_vrm_token | `str` | `rw` | `your-token` | Token for Connecting VRM API |
-| load_vrm_idsite | `int` | `rw` | `12345` | VRM-Installation-ID |
+| load_vrm_token | `str` | `rw` | `your-token` | - |
+| load_vrm_idsite | `int` | `rw` | `12345` | - |
 :::
 
 #### Example Input/Output
@@ -1250,7 +1010,7 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| loadakkudoktor_year_energy_kwh | `Optional[float]` | `rw` | `None` | Yearly energy consumption (kWh). |
+| loadakkudoktor_year_energy_kwh | `Optional[float]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1277,9 +1037,9 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| LoadAkkudoktor | `Optional[akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktorCommonSettings]` | `rw` | `None` | LoadAkkudoktor settings |
-| LoadVrm | `Optional[akkudoktoreos.prediction.loadvrm.LoadVrmCommonSettings]` | `rw` | `None` | LoadVrm settings |
-| LoadImport | `Optional[akkudoktoreos.prediction.loadimport.LoadImportCommonSettings]` | `rw` | `None` | LoadImport settings |
+| LoadAkkudoktor | `Optional[akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktorCommonSettings]` | `rw` | `None` | - |
+| LoadVrm | `Optional[akkudoktoreos.prediction.loadvrm.LoadVrmCommonSettings]` | `rw` | `None` | - |
+| LoadImport | `Optional[akkudoktoreos.prediction.loadimport.LoadImportCommonSettings]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1306,10 +1066,10 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| provider | `EOS_PVFORECAST__PROVIDER` | `Optional[str]` | `rw` | `None` | PVForecast provider id of provider to be used. |
-| provider_settings | `EOS_PVFORECAST__PROVIDER_SETTINGS` | `PVForecastCommonProviderSettings` | `rw` | `required` | Provider settings |
-| planes | `EOS_PVFORECAST__PLANES` | `Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]` | `rw` | `None` | Plane configuration. |
-| max_planes | `EOS_PVFORECAST__MAX_PLANES` | `Optional[int]` | `rw` | `0` | Maximum number of planes that can be set |
+| provider | `EOS_PVFORECAST__PROVIDER` | `Optional[str]` | `rw` | `None` | - |
+| provider_settings | `EOS_PVFORECAST__PROVIDER_SETTINGS` | `PVForecastCommonProviderSettings` | `rw` | `required` | - |
+| planes | `EOS_PVFORECAST__PLANES` | `Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]` | `rw` | `None` | - |
+| max_planes | `EOS_PVFORECAST__MAX_PLANES` | `Optional[int]` | `rw` | `0` | - |
 | planes_peakpower | | `List[float]` | `ro` | `N/A` | Compute a list of the peak power per active planes. |
 | planes_azimuth | | `List[float]` | `ro` | `N/A` | Compute a list of the azimuths per active planes. |
 | planes_tilt | | `List[float]` | `ro` | `N/A` | Compute a list of the tilts per active planes. |
@@ -1479,22 +1239,22 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| surface_tilt | `Optional[float]` | `rw` | `30.0` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
-| surface_azimuth | `Optional[float]` | `rw` | `180.0` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
-| userhorizon | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
-| peakpower | `Optional[float]` | `rw` | `None` | Nominal power of PV system in kW. |
-| pvtechchoice | `Optional[str]` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
-| mountingplace | `Optional[str]` | `rw` | `free` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
-| loss | `Optional[float]` | `rw` | `14.0` | Sum of PV system losses in percent |
-| trackingtype | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| optimal_surface_tilt | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
-| optimalangles | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
-| albedo | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
-| module_model | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
-| inverter_model | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
-| inverter_paco | `Optional[int]` | `rw` | `None` | AC power rating of the inverter [W]. |
-| modules_per_string | `Optional[int]` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
-| strings_per_inverter | `Optional[int]` | `rw` | `None` | Number of the strings of the inverter of this plane. |
+| surface_tilt | `Optional[float]` | `rw` | `30.0` | - |
+| surface_azimuth | `Optional[float]` | `rw` | `180.0` | - |
+| userhorizon | `Optional[List[float]]` | `rw` | `None` | - |
+| peakpower | `Optional[float]` | `rw` | `None` | - |
+| pvtechchoice | `Optional[str]` | `rw` | `crystSi` | - |
+| mountingplace | `Optional[str]` | `rw` | `free` | - |
+| loss | `Optional[float]` | `rw` | `14.0` | - |
+| trackingtype | `Optional[int]` | `rw` | `None` | - |
+| optimal_surface_tilt | `Optional[bool]` | `rw` | `False` | - |
+| optimalangles | `Optional[bool]` | `rw` | `False` | - |
+| albedo | `Optional[float]` | `rw` | `None` | - |
+| module_model | `Optional[str]` | `rw` | `None` | - |
+| inverter_model | `Optional[str]` | `rw` | `None` | - |
+| inverter_paco | `Optional[int]` | `rw` | `None` | - |
+| modules_per_string | `Optional[int]` | `rw` | `None` | - |
+| strings_per_inverter | `Optional[int]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1526,28 +1286,6 @@ Validators:
                    "inverter_paco": 6000,
                    "modules_per_string": 20,
                    "strings_per_inverter": 2
-               },
-               {
-                   "surface_tilt": 20.0,
-                   "surface_azimuth": 90.0,
-                   "userhorizon": [
-                       5.0,
-                       15.0,
-                       25.0
-                   ],
-                   "peakpower": 3.5,
-                   "pvtechchoice": "crystSi",
-                   "mountingplace": "free",
-                   "loss": 14.0,
-                   "trackingtype": 1,
-                   "optimal_surface_tilt": false,
-                   "optimalangles": false,
-                   "albedo": null,
-                   "module_model": null,
-                   "inverter_model": null,
-                   "inverter_paco": 4000,
-                   "modules_per_string": 20,
-                   "strings_per_inverter": 2
                }
            ]
        }
@@ -1562,8 +1300,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| pvforecast_vrm_token | `str` | `rw` | `your-token` | Token for Connecting VRM API |
-| pvforecast_vrm_idsite | `int` | `rw` | `12345` | VRM-Installation-ID |
+| pvforecast_vrm_token | `str` | `rw` | `your-token` | - |
+| pvforecast_vrm_idsite | `int` | `rw` | `12345` | - |
 :::
 
 #### Example Input/Output
@@ -1591,8 +1329,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import PV forecast data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of PV forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | - |
+| import_json | `Optional[str]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1620,8 +1358,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| PVForecastImport | `Optional[akkudoktoreos.prediction.pvforecastimport.PVForecastImportCommonSettings]` | `rw` | `None` | PVForecastImport settings |
-| PVForecastVrm | `Optional[akkudoktoreos.prediction.pvforecastvrm.PVForecastVrmCommonSettings]` | `rw` | `None` | PVForecastVrm settings |
+| PVForecastImport | `Optional[akkudoktoreos.prediction.pvforecastimport.PVForecastImportCommonSettings]` | `rw` | `None` | - |
+| PVForecastVrm | `Optional[akkudoktoreos.prediction.pvforecastvrm.PVForecastVrmCommonSettings]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1647,8 +1385,8 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| provider | `EOS_WEATHER__PROVIDER` | `Optional[str]` | `rw` | `None` | Weather provider id of provider to be used. |
-| provider_settings | `EOS_WEATHER__PROVIDER_SETTINGS` | `WeatherCommonProviderSettings` | `rw` | `required` | Provider settings |
+| provider | `EOS_WEATHER__PROVIDER` | `Optional[str]` | `rw` | `None` | - |
+| provider_settings | `EOS_WEATHER__PROVIDER_SETTINGS` | `WeatherCommonProviderSettings` | `rw` | `required` | - |
 :::
 
 ### Example Input/Output
@@ -1674,8 +1412,8 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import weather data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of weather forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | - |
+| import_json | `Optional[str]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1703,7 +1441,7 @@ Validators:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| WeatherImport | `Optional[akkudoktoreos.prediction.weatherimport.WeatherImportCommonSettings]` | `rw` | `None` | WeatherImport settings |
+| WeatherImport | `Optional[akkudoktoreos.prediction.weatherimport.WeatherImportCommonSettings]` | `rw` | `None` | - |
 :::
 
 #### Example Input/Output
@@ -1728,12 +1466,12 @@ Validators:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| host | `EOS_SERVER__HOST` | `Optional[str]` | `rw` | `127.0.0.1` | EOS server IP address. Defaults to 127.0.0.1. |
-| port | `EOS_SERVER__PORT` | `Optional[int]` | `rw` | `8503` | EOS server IP port number. Defaults to 8503. |
-| verbose | `EOS_SERVER__VERBOSE` | `Optional[bool]` | `rw` | `False` | Enable debug output |
-| startup_eosdash | `EOS_SERVER__STARTUP_EOSDASH` | `Optional[bool]` | `rw` | `True` | EOS server to start EOSdash server. Defaults to True. |
-| eosdash_host | `EOS_SERVER__EOSDASH_HOST` | `Optional[str]` | `rw` | `None` | EOSdash server IP address. Defaults to EOS server IP address. |
-| eosdash_port | `EOS_SERVER__EOSDASH_PORT` | `Optional[int]` | `rw` | `None` | EOSdash server IP port number. Defaults to EOS server IP port number + 1. |
+| host | `EOS_SERVER__HOST` | `Optional[str]` | `rw` | `127.0.0.1` | - |
+| port | `EOS_SERVER__PORT` | `Optional[int]` | `rw` | `8503` | - |
+| verbose | `EOS_SERVER__VERBOSE` | `Optional[bool]` | `rw` | `False` | - |
+| startup_eosdash | `EOS_SERVER__STARTUP_EOSDASH` | `Optional[bool]` | `rw` | `True` | - |
+| eosdash_host | `EOS_SERVER__EOSDASH_HOST` | `Optional[str]` | `rw` | `None` | - |
+| eosdash_port | `EOS_SERVER__EOSDASH_PORT` | `Optional[int]` | `rw` | `None` | - |
 :::
 
 ### Example Input/Output

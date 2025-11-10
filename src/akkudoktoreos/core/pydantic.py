@@ -43,6 +43,7 @@ from pydantic import (
     ValidationInfo,
     field_validator,
 )
+from pydantic.fields import ComputedFieldInfo, FieldInfo
 
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
 
@@ -720,6 +721,146 @@ class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
         data = json.loads(json_str)
         return cls.model_validate(data)
 
+    @classmethod
+    def _field_extra_dict(
+        cls,
+        model_field: Union[FieldInfo, ComputedFieldInfo],
+    ) -> Dict[str, Any]:
+        """Return the ``json_schema_extra`` dictionary for a given model field.
+
+        This method provides a safe and unified way to access the
+        ``json_schema_extra`` metadata associated with a Pydantic field
+        definition. It supports both standard fields defined via
+        ``Field(...)`` and computed fields, and gracefully handles
+        cases where ``json_schema_extra`` is not present.
+
+        Args:
+            model_field (Union[FieldInfo, ComputedFieldInfo]):
+                The Pydantic field object from which to extract
+                ``json_schema_extra`` metadata. This can be obtained
+                from ``model.model_fields[field_name]`` or
+                ``model.model_computed_fields[field_name]``.
+
+        Returns:
+            Dict[str, Any]:
+                A dictionary containing the field’s ``json_schema_extra``
+                metadata. If no metadata is available, an empty dictionary
+                is returned.
+
+        Raises:
+            None:
+                This method does not raise. Missing metadata is handled
+                gracefully by returning an empty dictionary.
+
+        Examples:
+            >>> class User(Base):
+            ...     name: str = Field(
+            ...         json_schema_extra={"description": "User name"}
+            ...     )
+            ...
+            >>> field = User.model_fields["name"]
+            >>> User.get_field_extra_dict(field)
+            {'description': 'User name'}
+
+            >>> missing = User.model_fields.get("unknown", None)
+            >>> User.get_field_extra_dict(missing) if missing else {}
+            {}
+        """
+        if model_field is None:
+            return {}
+
+        # Pydantic v2 primary location
+        extra = getattr(model_field, "json_schema_extra", None)
+        if isinstance(extra, dict):
+            return extra
+
+        # Pydantic v1 compatibility fallback
+        fi = getattr(model_field, "field_info", None)
+        if fi is not None:
+            extra = getattr(fi, "json_schema_extra", None)
+            if isinstance(extra, dict):
+                return extra
+
+        return {}
+
+    @classmethod
+    def field_description(cls, field_name: str) -> Optional[str]:
+        """Return the description metadata of a model field, if available.
+
+        This method retrieves the `Field` specification from the model's
+        `model_fields` registry and extracts its description from the field's
+        `json_schema_extra` / `extra` metadata (as provided by
+        `_field_extra_dict`). If the field does not exist or no description is
+        present, ``None`` is returned.
+
+        Args:
+            field_name (str):
+                Name of the field whose description should be returned.
+
+        Returns:
+            Optional[str]:
+                The textual description if present, otherwise ``None``.
+        """
+        field = cls.model_fields.get(field_name)
+        if not field:
+            return None
+        extra = cls._field_extra_dict(field)
+        if "description" in extra:
+            return str(extra["description"])
+        return None
+
+    @classmethod
+    def field_deprecated(cls, field_name: str) -> Optional[str]:
+        """Return the deprecated metadata of a model field, if available.
+
+        This method retrieves the `Field` specification from the model's
+        `model_fields` registry and extracts its description from the field's
+        `json_schema_extra` / `extra` metadata (as provided by
+        `_field_extra_dict`). If the field does not exist or no description is
+        present, ``None`` is returned.
+
+        Args:
+            field_name (str):
+                Name of the field whose deprecated info should be returned.
+
+        Returns:
+            Optional[str]:
+                The textual deprecated info if present, otherwise ``None``.
+        """
+        field = cls.model_fields.get(field_name)
+        if not field:
+            return None
+        extra = cls._field_extra_dict(field)
+        if "deprecated" in extra:
+            return str(extra["deprecated"])
+        return None
+
+    @classmethod
+    def field_examples(cls, field_name: str) -> Optional[list[Any]]:
+        """Return the examples metadata of a model field, if available.
+
+        This method retrieves the `Field` specification from the model's
+        `model_fields` registry and extracts its description from the field's
+        `json_schema_extra` / `extra` metadata (as provided by
+        `_field_extra_dict`). If the field does not exist or no description is
+        present, ``None`` is returned.
+
+        Args:
+            field_name (str):
+                Name of the field whose examples should be returned.
+
+        Returns:
+            Optional[list[Any]]:
+                The examples if present, otherwise ``None``.
+        """
+        field = cls.model_fields.get(field_name)
+        if not field:
+            return None
+        extra = cls._field_extra_dict(field)
+        if "examples" in extra:
+            return extra["examples"]
+        return None
+
 
 class PydanticDateTimeData(RootModel):
     """Pydantic model for time series data with consistent value lengths.
@@ -795,9 +936,12 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
 
     data: Dict[str, Dict[str, Any]]
     dtypes: Dict[str, str] = Field(default_factory=dict)
-    tz: Optional[str] = Field(default=None, description="Timezone for datetime values")
+    tz: Optional[str] = Field(
+        default=None, json_schema_extra={"description": "Timezone for datetime values"}
+    )
     datetime_columns: list[str] = Field(
-        default_factory=lambda: ["date_time"], description="Columns to be treated as datetime"
+        default_factory=lambda: ["date_time"],
+        json_schema_extra={"description": "Columns to be treated as datetime"},
     )
 
     @field_validator("tz")

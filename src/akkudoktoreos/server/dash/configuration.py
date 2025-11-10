@@ -77,6 +77,65 @@ def get_nested_value(
         return default
 
 
+def get_field_extra_dict(
+    subfield_info: Union[FieldInfo, ComputedFieldInfo],
+) -> Dict[str, Any]:
+    """Extract json_schema_extra.
+
+    Extract regardless of whether it is defined directly
+    on the field (Pydantic v2) or inherited from v1 compatibility wrappers.
+    Always returns a dictionary.
+    """
+    # Pydantic v2 location
+    extra = getattr(subfield_info, "json_schema_extra", None)
+    if isinstance(extra, dict):
+        return extra
+
+    # Pydantic v1 compatibility fallbacks
+    fi = getattr(subfield_info, "field_info", None)
+    if fi is not None:
+        extra = getattr(fi, "json_schema_extra", None)
+        if isinstance(extra, dict):
+            return extra
+
+    return {}
+
+
+def get_description(
+    subfield_info: Union[FieldInfo, ComputedFieldInfo],
+    extra: Dict[str, Any],
+) -> str:
+    """Fetch description.
+
+    Priority:
+    1) json_schema_extra["description"]
+    2) field_info.description
+    3) empty string
+    """
+    if "description" in extra:
+        return str(extra["description"])
+
+    desc = getattr(subfield_info, "description", None)
+    return str(desc) if desc is not None else ""
+
+
+def get_deprecated(
+    subfield_info: Union[FieldInfo, ComputedFieldInfo],
+    extra: Dict[str, Any],
+) -> Optional[Any]:
+    """Fetch deprecated.
+
+    Priority:
+    1) json_schema_extra["deprecated"]
+    2) field_info.deprecated
+    3) None
+    """
+    if "deprecated" in extra:
+        return extra["deprecated"]
+
+    return getattr(subfield_info, "deprecated", None)
+
+
 def get_default_value(field_info: Union[FieldInfo, ComputedFieldInfo], regular_field: bool) -> Any:
     """Retrieve the default value of a field.
 
@@ -163,6 +222,7 @@ def configuration(
                 ):
                     if found_basic:
                         continue
+                    extra = get_field_extra_dict(subfield_info)
 
                     config: dict[str, Optional[Any]] = {}
                     config["name"] = ".".join(values_prefix + parent_types)
@@ -170,12 +230,8 @@ def configuration(
                         get_nested_value(values, values_prefix + parent_types, "<unknown>")
                     )
                     config["default"] = json.dumps(get_default_value(subfield_info, regular_field))
-                    config["description"] = (
-                        subfield_info.description if subfield_info.description else ""
-                    )
-                    config["deprecated"] = (
-                        subfield_info.deprecated if subfield_info.deprecated else None
-                    )
+                    config["description"] = get_description(subfield_info, extra)
+                    config["deprecated"] = get_deprecated(subfield_info, extra)
                     if isinstance(subfield_info, ComputedFieldInfo):
                         config["read-only"] = "ro"
                         type_description = str(subfield_info.return_type)

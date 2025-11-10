@@ -24,17 +24,23 @@ class EnergyManagementCommonSettings(SettingsBaseModel):
     startup_delay: float = Field(
         default=5,
         ge=1,
-        description="Startup delay in seconds for EOS energy management runs.",
+        json_schema_extra={
+            "description": "Startup delay in seconds for EOS energy management runs."
+        },
     )
 
     interval: Optional[float] = Field(
         default=None,
-        description="Intervall in seconds between EOS energy management runs.",
-        examples=["300"],
+        json_schema_extra={
+            "description": "Intervall in seconds between EOS energy management runs.",
+            "examples": ["300"],
+        },
     )
 
     mode: Optional[EnergyManagementMode] = Field(
         default=None,
-        description="Energy management mode [OPTIMIZATION | PREDICTION].",
-        examples=["OPTIMIZATION", "PREDICTION"],
+        json_schema_extra={
+            "description": "Energy management mode [OPTIMIZATION | PREDICTION].",
+            "examples": ["OPTIMIZATION", "PREDICTION"],
+        },
     )

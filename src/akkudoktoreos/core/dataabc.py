@@ -84,12 +84,16 @@ class DataRecord(DataBase, MutableMapping):
         - Supports non-standard data types like `datetime`.
     """
 
-    date_time: Optional[DateTime] = Field(default=None, description="DateTime")
+    date_time: Optional[DateTime] = Field(
+        default=None, json_schema_extra={"description": "DateTime"}
+    )
 
     configured_data: dict[str, Any] = Field(
         default_factory=dict,
-        description="Configured field like data",
-        examples=[{"load0_mr": 40421}],
+        json_schema_extra={
+            "description": "Configured field like data",
+            "examples": [{"load0_mr": 40421}],
+        },
     )
 
     # Pydantic v2 model configuration
@@ -368,10 +372,11 @@ class DataRecord(DataBase, MutableMapping):
             return None
 
         # Get all descriptions from the fields
-        descriptions = {
-            field_name: field_info.description
-            for field_name, field_info in cls.model_fields.items()
-        }
+        descriptions: dict[str, str] = {}
+        for field_name in cls.model_fields.keys():
+            desc = cls.field_description(field_name)
+            if desc:
+                descriptions[field_name] = desc
 
         # Use difflib to get close matches
         matches = difflib.get_close_matches(
@@ -429,8 +434,7 @@ class DataSequence(DataBase, MutableSequence):
     Usage:
         # Example of creating, adding, and using DataSequence
         class DerivedSequence(DataSquence):
-            records: List[DerivedDataRecord] = Field(default_factory=list,
-                                                        description="List of data records")
+            records: List[DerivedDataRecord] = Field(default_factory=list, json_schema_extra={ "description": "List of data records" })
 
         seq = DerivedSequence()
         seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=72))
@@ -445,7 +449,9 @@ class DataSequence(DataBase, MutableSequence):
     """
 
     # To be overloaded by derived classes.
-    records: List[DataRecord] = Field(default_factory=list, description="List of data records")
+    records: List[DataRecord] = Field(
+        default_factory=list, json_schema_extra={"description": "List of data records"}
+    )
 
     # Derived fields (computed)
     @computed_field  # type: ignore[prop-decorator]
@@ -1313,7 +1319,7 @@ class DataProvider(SingletonMixin, DataSequence):
     """
 
     update_datetime: Optional[AwareDatetime] = Field(
-        None, description="Latest update datetime for generic data"
+        None, json_schema_extra={"description": "Latest update datetime for generic data"}
     )
 
     @abstractmethod
@@ -1780,7 +1786,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
 
     # To be overloaded by derived classes.
     providers: List[DataProvider] = Field(
-        default_factory=list, description="List of data providers"
+        default_factory=list, json_schema_extra={"description": "List of data providers"}
     )
 
     @field_validator("providers", mode="after")

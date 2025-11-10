@@ -21,7 +21,8 @@ class ElecPriceCommonProviderSettings(SettingsBaseModel):
     """Electricity Price Prediction Provider Configuration."""
 
     ElecPriceImport: Optional[ElecPriceImportCommonSettings] = Field(
-        default=None, description="ElecPriceImport settings", examples=[None]
+        default=None,
+        json_schema_extra={"description": "ElecPriceImport settings", "examples": [None]},
     )
 
 
@@ -30,31 +31,39 @@ class ElecPriceCommonSettings(SettingsBaseModel):
 
     provider: Optional[str] = Field(
         default=None,
-        description="Electricity price provider id of provider to be used.",
-        examples=["ElecPriceAkkudoktor"],
+        json_schema_extra={
+            "description": "Electricity price provider id of provider to be used.",
+            "examples": ["ElecPriceAkkudoktor"],
+        },
     )
     charges_kwh: Optional[float] = Field(
         default=None,
         ge=0,
-        description="Electricity price charges [€/kWh]. Will be added to variable market price.",
-        examples=[0.21],
+        json_schema_extra={
+            "description": "Electricity price charges [€/kWh]. Will be added to variable market price.",
+            "examples": [0.21],
+        },
     )
     vat_rate: Optional[float] = Field(
         default=1.19,
         ge=0,
-        description="VAT rate factor applied to electricity price when charges are used.",
-        examples=[1.19],
+        json_schema_extra={
+            "description": "VAT rate factor applied to electricity price when charges are used.",
+            "examples": [1.19],
+        },
     )
 
     provider_settings: ElecPriceCommonProviderSettings = Field(
         default_factory=ElecPriceCommonProviderSettings,
-        description="Provider settings",
-        examples=[
-            # Example 1: Empty/default settings (all providers None)
-            {
-                "ElecPriceImport": None,
-            },
-        ],
+        json_schema_extra={
+            "description": "Provider settings",
+            "examples": [
+                # Example 1: Empty/default settings (all providers None)
+                {
+                    "ElecPriceImport": None,
+                },
+            ],
+        },
     )
 
     # Validators

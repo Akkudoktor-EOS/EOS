@@ -72,8 +72,7 @@ class PredictionSequence(DataSequence):
     Usage:
         # Example of creating, adding, and using PredictionSequence
         class DerivedSequence(PredictionSquence):
-            records: List[DerivedPredictionRecord] = Field(default_factory=list,
-                                                        description="List of prediction records")
+            records: List[DerivedPredictionRecord] = Field(default_factory=list, json_schema_extra={ "description": "List of prediction records" })
 
         seq = DerivedSequence()
         seq.insert(DerivedPredictionRecord(date_time=datetime.now(), temperature=72))
@@ -89,7 +88,7 @@ class PredictionSequence(DataSequence):
 
     # To be overloaded by derived classes.
     records: List[PredictionRecord] = Field(
-        default_factory=list, description="List of prediction records"
+        default_factory=list, json_schema_extra={"description": "List of prediction records"}
     )
 
 
@@ -249,5 +248,5 @@ class PredictionContainer(PredictionStartEndKeepMixin, DataContainer):
 
     # To be overloaded by derived classes.
     providers: List[PredictionProvider] = Field(
-        default_factory=list, description="List of prediction providers"
+        default_factory=list, json_schema_extra={"description": "List of prediction providers"}
     )

@@ -70,13 +70,17 @@ class PredictionCommonSettings(SettingsBaseModel):
     """
 
     hours: Optional[int] = Field(
-        default=48, ge=0, description="Number of hours into the future for predictions"
+        default=48,
+        ge=0,
+        json_schema_extra={"description": "Number of hours into the future for predictions"},
     )
 
     historic_hours: Optional[int] = Field(
         default=48,
         ge=0,
-        description="Number of hours into the past for historical predictions data",
+        json_schema_extra={
+            "description": "Number of hours into the past for historical predictions data"
+        },
     )
 
 
@@ -107,7 +111,9 @@ class Prediction(PredictionContainer):
             WeatherClearOutside,
             WeatherImport,
         ]
-    ] = Field(default_factory=list, description="List of prediction providers")
+    ] = Field(
+        default_factory=list, json_schema_extra={"description": "List of prediction providers"}
+    )
 
 
 # Initialize forecast providers, all are singletons.

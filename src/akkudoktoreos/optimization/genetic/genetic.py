@@ -34,50 +34,74 @@ class GeneticSimulation(PydanticBaseModel):
     )
 
     start_hour: int = Field(
-        default=0, ge=0, le=23, description="Starting hour on day for optimizations."
+        default=0,
+        ge=0,
+        le=23,
+        json_schema_extra={"description": "Starting hour on day for optimizations."},
     )
 
     optimization_hours: Optional[int] = Field(
-        default=24, ge=0, description="Number of hours into the future for optimizations."
+        default=24,
+        ge=0,
+        json_schema_extra={"description": "Number of hours into the future for optimizations."},
     )
 
     prediction_hours: Optional[int] = Field(
-        default=48, ge=0, description="Number of hours into the future for predictions"
+        default=48,
+        ge=0,
+        json_schema_extra={"description": "Number of hours into the future for predictions"},
     )
 
     load_energy_array: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
-        description="An array of floats representing the total load (consumption) in watts for different time intervals.",
+        json_schema_extra={
+            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
+        },
     )
     pv_prediction_wh: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
-        description="An array of floats representing the forecasted photovoltaic output in watts for different time intervals.",
+        json_schema_extra={
+            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+        },
     )
     elect_price_hourly: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
-        description="An array of floats representing the electricity price in euros per watt-hour for different time intervals.",
+        json_schema_extra={
+            "description": "An array of floats representing the electricity price in euros per watt-hour for different time intervals."
+        },
     )
     elect_revenue_per_hour_arr: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
-        description="An array of floats representing the feed-in compensation in euros per watt-hour.",
+        json_schema_extra={
+            "description": "An array of floats representing the feed-in compensation in euros per watt-hour."
+        },
     )
 
-    battery: Optional[Battery] = Field(default=None, description="TBD.")
-    ev: Optional[Battery] = Field(default=None, description="TBD.")
-    home_appliance: Optional[HomeAppliance] = Field(default=None, description="TBD.")
-    inverter: Optional[Inverter] = Field(default=None, description="TBD.")
+    battery: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
+    ev: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
+    home_appliance: Optional[HomeAppliance] = Field(
+        default=None, json_schema_extra={"description": "TBD."}
+    )
+    inverter: Optional[Inverter] = Field(default=None, json_schema_extra={"description": "TBD."})
 
-    ac_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(default=None, description="TBD")
-    dc_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(default=None, description="TBD")
+    ac_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
+        default=None, json_schema_extra={"description": "TBD"}
+    )
+    dc_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
+        default=None, json_schema_extra={"description": "TBD"}
+    )
     bat_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, description="TBD"
+        default=None, json_schema_extra={"description": "TBD"}
     )
-    ev_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(default=None, description="TBD")
+    ev_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
+        default=None, json_schema_extra={"description": "TBD"}
+    )
     ev_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None, description="TBD"
+        default=None, json_schema_extra={"description": "TBD"}
     )
     home_appliance_start_hour: Optional[int] = Field(
-        default=None, description="Home appliance start hour - None denotes no start."
+        default=None,
+        json_schema_extra={"description": "Home appliance start hour - None denotes no start."},
     )
 
     def prepare(
