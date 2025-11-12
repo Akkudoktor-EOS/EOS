@@ -12,14 +12,16 @@ class classproperty:
     the class rather than any instance of the class.
 
     Example:
-        class MyClass:
-            _value = 42
+        .. code-block:: python
 
-            @classproperty
-            def value(cls):
-                return cls._value
+            class MyClass:
+                _value = 42
 
-        print(MyClass.value)  # Outputs: 42
+                @classproperty
+                def value(cls):
+                    return cls._value
+
+            print(MyClass.value)  # Outputs: 42
 
     Methods:
         __get__: Retrieves the value of the class property by calling the

@@ -287,10 +287,10 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
     Example:
         To initialize and access configuration attributes (only one instance is created):
-        ```python
-        config_eos = ConfigEOS()  # Always returns the same instance
-        print(config_eos.prediction.hours)  # Access a setting from the loaded configuration
-        ```
+        .. code-block:: python
+
+            config_eos = ConfigEOS()  # Always returns the same instance
+                print(config_eos.prediction.hours)  # Access a setting from the loaded configuration
 
     """
 
@@ -461,9 +461,12 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             ValidationError: If the data contains invalid values for the defined fields.
 
         Example:
-            >>> config = get_config()
-            >>> new_data = {"prediction": {"hours": 24}, "server": {"port": 8000}}
-            >>> config.merge_settings_from_dict(new_data)
+            .. code-block:: python
+
+                config = get_config()
+                new_data = {"prediction": {"hours": 24}, "server": {"port": 8000}}
+                config.merge_settings_from_dict(new_data)
+
         """
         self._setup(**merge_models(self, data))
 
@@ -518,8 +521,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         The returned dictionary uses `backup_id` (suffix) as keys. The value for
         each key is a dictionary including:
         - ``storage_time``: The file modification timestamp in ISO-8601 format.
-        - ``version``: Version information found in the backup file
-            (defaults to ``"unknown"``).
+        - ``version``: Version information found in the backup file (defaults to ``"unknown"``).
 
         Returns:
             dict[str, dict[str, Any]]: Mapping of backup identifiers to metadata.

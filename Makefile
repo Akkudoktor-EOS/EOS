@@ -71,12 +71,13 @@ gen-docs: pip-dev
 
 # Target to build HTML documentation
 docs: pip-dev
-	.venv/bin/sphinx-build -M html docs build/docs
+	.venv/bin/pytest --full-run tests/test_docsphinx.py
 	@echo "Documentation build to build/docs/html/."
 
 # Target to read the HTML documentation
-read-docs: docs
+read-docs:
 	@echo "Read the documentation in your browser"
+	.venv/bin/pytest --full-run tests/test_docsphinx.py
 	.venv/bin/python -m webbrowser build/docs/html/index.html
 
 # Clean Python bytecode
@@ -163,7 +164,7 @@ docker-build:
 
 # Bump Akkudoktoreos version
 VERSION ?= 0.2.0+dev
-NEW_VERSION ?= $(VERSION)+dev
+NEW_VERSION ?= $(subst +dev,,$(VERSION))+dev # be careful - default is always +dev
 
 bump: pip-dev
 	@echo "Bumping akkudoktoreos version from $(VERSION) to $(NEW_VERSION) (dry-run: $(EXTRA_ARGS))"

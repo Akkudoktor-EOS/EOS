@@ -117,17 +117,25 @@ class WeatherClearOutside(WeatherProvider):
 
         Workflow:
             1. **Retrieve Web Content**: Uses a helper method to fetch or retrieve cached ClearOutside HTML content.
+
             2. **Extract Forecast Date and Timezone**:
-                - Parses the forecast's start and end dates and the UTC offset from the "Generated" header.
+                - Parses the forecast's start and end dates and the UTC offset from the "Generated"
+                    header.
+
             3. **Extract Weather Data**:
                 - For each day in the 7-day forecast, the function finds detailed weather parameters
-                and associates values for each hour.
-                - Parameters include cloud cover, temperature, humidity, visibility, and precipitation type, among others.
+                    and associates values for each hour.
+                - Parameters include cloud cover, temperature, humidity, visibility, and
+                    precipitation type, among others.
+
             4. **Irradiance Calculation**:
-                - Calculates irradiance (GHI, DNI, DHI) values using cloud cover data and the `pvlib` library.
+                - Calculates irradiance (GHI, DNI, DHI) values using cloud cover data and the
+                    `pvlib` library.
+
             5. **Store Data**:
                 - Combines all hourly data into `WeatherDataRecord` objects, with keys
-                standardized according to `WeatherDataRecord` attributes.
+                    standardized according to `WeatherDataRecord` attributes.
+
         """
         # Get ClearOutside web content - either from site or cached
         response = self._request_forecast(force_update=force_update)  # type: ignore
