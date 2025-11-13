@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-ARG PYTHON_VERSION=3.12.7
+ARG PYTHON_VERSION=3.13.9
 FROM python:${PYTHON_VERSION}-slim
 
 LABEL source="https://github.com/Akkudoktor-EOS/EOS"

@@ -36,7 +36,8 @@ help:
 # Target to set up a Python 3 virtual environment
 venv:
 	python3 -m venv .venv
-	@echo "Virtual environment created in '.venv'. Activate it using 'source .venv/bin/activate'."
+	@PYVER=$$(./.venv/bin/python --version) && \
+	echo "Virtual environment created in '.venv' with $$PYVER. Activate it using 'source .venv/bin/activate'."
 
 # Target to install dependencies from requirements.txt
 pip: venv
@@ -157,10 +158,12 @@ mypy:
 
 # Run entire setup on docker
 docker-run:
+	@docker pull python:3.13.9-slim
 	@docker compose up --remove-orphans
 
 docker-build:
-	@docker compose build --pull
+	@docker pull python:3.13.9-slim
+	@docker compose build
 
 # Bump Akkudoktoreos version
 VERSION ?= 0.2.0+dev
