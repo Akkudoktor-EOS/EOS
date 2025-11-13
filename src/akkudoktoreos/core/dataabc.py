@@ -432,20 +432,23 @@ class DataSequence(DataBase, MutableSequence):
         Derived classes have to provide their own records field with correct record type set.
 
     Usage:
-        # Example of creating, adding, and using DataSequence
-        class DerivedSequence(DataSquence):
-            records: List[DerivedDataRecord] = Field(default_factory=list, json_schema_extra={ "description": "List of data records" })
+        .. code-block:: python
 
-        seq = DerivedSequence()
-        seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=72))
-        seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=75))
+            # Example of creating, adding, and using DataSequence
+            class DerivedSequence(DataSquence):
+                records: List[DerivedDataRecord] = Field(default_factory=list, json_schema_extra={ "description": "List of data records" })
 
-        # Convert to JSON and back
-        json_data = seq.to_json()
-        new_seq = DerivedSequence.from_json(json_data)
+            seq = DerivedSequence()
+            seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=72))
+            seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=75))
 
-        # Convert to Pandas Series
-        series = seq.key_to_series('temperature')
+            # Convert to JSON and back
+            json_data = seq.to_json()
+            new_seq = DerivedSequence.from_json(json_data)
+
+            # Convert to Pandas Series
+            series = seq.key_to_series('temperature')
+
     """
 
     # To be overloaded by derived classes.
@@ -737,9 +740,12 @@ class DataSequence(DataBase, MutableSequence):
             **kwargs: Key-value pairs as keyword arguments
 
         Examples:
-            >>> update_value(date, 'temperature', 25.5)
-            >>> update_value(date, {'temperature': 25.5, 'humidity': 80})
-            >>> update_value(date, temperature=25.5, humidity=80)
+            .. code-block:: python
+
+                update_value(date, 'temperature', 25.5)
+                update_value(date, {'temperature': 25.5, 'humidity': 80})
+                update_value(date, temperature=25.5, humidity=80)
+
         """
         # Process input arguments into a dictionary
         values: Dict[str, Any] = {}
@@ -1378,15 +1384,18 @@ class DataImportMixin:
     """Mixin class for import of generic data.
 
     This class is designed to handle generic data provided in the form of a key-value dictionary.
+
     - **Keys**: Represent identifiers from the record keys of a specific data.
-    - **Values**: Are lists of data values starting at a specified `start_datetime`, where
+    - **Values**: Are lists of data values starting at a specified start_datetime, where
       each value corresponds to a subsequent time interval (e.g., hourly).
 
-    Two special keys are handled. `start_datetime` may be used to defined the starting datetime of
-    the values. `ìnterval` may be used to define the fixed time interval between two values.
+    Two special keys are handled. start_datetime may be used to defined the starting datetime of
+    the values. ìnterval may be used to define the fixed time interval between two values.
 
-    On import `self.update_value(datetime, key, value)` is called which has to be provided.
-    Also `self.ems_start_datetime` may be necessary as a default in case `start_datetime`is not given.
+    On import self.update_value(datetime, key, value) is called which has to be provided.
+    Also self.ems_start_datetime may be necessary as a default in case start_datetime is not
+    given.
+
     """
 
     # Attributes required but defined elsehere.
@@ -1418,16 +1427,20 @@ class DataImportMixin:
         Behavior:
             - Skips invalid timestamps during DST spring forward transitions.
             - Includes both instances of repeated timestamps during DST fall back transitions.
-            - Ensures the list contains exactly `value_count` entries.
+            - Ensures the list contains exactly 'value_count' entries.
 
         Example:
-            >>> start_datetime = pendulum.datetime(2024, 11, 3, 0, 0, tz="America/New_York")
-            >>> import_datetimes(start_datetime, 5)
-            [(DateTime(2024, 11, 3, 0, 0, tzinfo=Timezone('America/New_York')), 0),
-            (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),
-            (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),  # Repeated hour
-            (DateTime(2024, 11, 3, 2, 0, tzinfo=Timezone('America/New_York')), 2),
-            (DateTime(2024, 11, 3, 3, 0, tzinfo=Timezone('America/New_York')), 3)]
+            .. code-block:: python
+
+                start_datetime = pendulum.datetime(2024, 11, 3, 0, 0, tz="America/New_York")
+                import_datetimes(start_datetime, 5)
+
+                [(DateTime(2024, 11, 3, 0, 0, tzinfo=Timezone('America/New_York')), 0),
+                (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),
+                (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),  # Repeated hour
+                (DateTime(2024, 11, 3, 2, 0, tzinfo=Timezone('America/New_York')), 2),
+                (DateTime(2024, 11, 3, 3, 0, tzinfo=Timezone('America/New_York')), 3)]
+
         """
         timestamps_with_indices: List[Tuple[DateTime, int]] = []
 
@@ -1665,17 +1678,18 @@ class DataImportMixin:
             JSONDecodeError: If the file content is not valid JSON.
 
         Example:
-            Given a JSON string with the following content:
-            ```json
-            {
-                "start_datetime": "2024-11-10 00:00:00"
-                "interval": "30 minutes"
-                "loadforecast_power_w": [20.5, 21.0, 22.1],
-                "other_xyz: [10.5, 11.0, 12.1],
-            }
-            ```
-            and `key_prefix = "load"`, only the "loadforecast_power_w" key will be processed even though
-            both keys are in the record.
+            Given a JSON string with the following content and `key_prefix = "load"`, only the
+            "loadforecast_power_w" key will be processed even though both keys are in the record.
+
+            .. code-block:: json
+
+                {
+                    "start_datetime": "2024-11-10 00:00:00",
+                    "interval": "30 minutes",
+                    "loadforecast_power_w": [20.5, 21.0, 22.1],
+                    "other_xyz: [10.5, 11.0, 12.1]
+                }
+
         """
         # Try pandas dataframe with orient="split"
         try:
@@ -1741,15 +1755,16 @@ class DataImportMixin:
             JSONDecodeError: If the file content is not valid JSON.
 
         Example:
-            Given a JSON file with the following content:
-            ```json
-            {
-                "loadforecast_power_w": [20.5, 21.0, 22.1],
-                "other_xyz: [10.5, 11.0, 12.1],
-            }
-            ```
-            and `key_prefix = "load"`, only the "loadforecast_power_w" key will be processed even though
-            both keys are in the record.
+            Given a JSON file with the following content and `key_prefix = "load"`, only the
+            "loadforecast_power_w" key will be processed even though both keys are in the record.
+
+            .. code-block:: json
+
+                {
+                    "loadforecast_power_w": [20.5, 21.0, 22.1],
+                    "other_xyz: [10.5, 11.0, 12.1],
+                }
+
         """
         with import_file_path.open("r", encoding="utf-8", newline=None) as import_file:
             import_str = import_file.read()
@@ -1762,9 +1777,10 @@ class DataImportProvider(DataImportMixin, DataProvider):
     """Abstract base class for data providers that import generic data.
 
     This class is designed to handle generic data provided in the form of a key-value dictionary.
+
     - **Keys**: Represent identifiers from the record keys of a specific data.
     - **Values**: Are lists of data values starting at a specified `start_datetime`, where
-      each value corresponds to a subsequent time interval (e.g., hourly).
+        each value corresponds to a subsequent time interval (e.g., hourly).
 
     Subclasses must implement the logic for managing generic data based on the imported records.
     """

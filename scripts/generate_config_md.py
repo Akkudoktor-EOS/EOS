@@ -8,7 +8,7 @@ import re
 import sys
 import textwrap
 from pathlib import Path
-from typing import Any, Type, Union
+from typing import Any, Optional, Type, Union, get_args
 
 from loguru import logger
 from pydantic.fields import ComputedFieldInfo, FieldInfo
@@ -24,13 +24,29 @@ undocumented_types: dict[PydanticBaseModel, tuple[str, list[str]]] = dict()
 global_config_dict: dict[str, Any] = dict()
 
 
-def get_title(config: PydanticBaseModel) -> str:
+def get_model_class_from_annotation(field_type: Any) -> type[PydanticBaseModel] | None:
+    """Given a type annotation (possibly Optional or Union), return the first Pydantic model class."""
+    origin = getattr(field_type, "__origin__", None)
+    if origin is Union:
+        # unwrap Union/Optional
+        for arg in get_args(field_type):
+            cls = get_model_class_from_annotation(arg)
+            if cls is not None:
+                return cls
+        return None
+    elif isinstance(field_type, type) and issubclass(field_type, PydanticBaseModel):
+        return field_type
+    else:
+        return None
+
+
+def get_title(config: type[PydanticBaseModel]) -> str:
     if config.__doc__ is None:
         raise NameError(f"Missing docstring: {config}")
     return config.__doc__.strip().splitlines()[0].strip(".")
 
 
-def get_body(config: PydanticBaseModel) -> str:
+def get_body(config: type[PydanticBaseModel]) -> str:
     if config.__doc__ is None:
         raise NameError(f"Missing docstring: {config}")
     return textwrap.dedent("\n".join(config.__doc__.strip().splitlines()[1:])).strip()
@@ -124,7 +140,7 @@ def get_model_structure_from_examples(
 
 
 def create_model_from_examples(
-    model_class: PydanticBaseModel, multiple: bool
+    model_class: type[PydanticBaseModel], multiple: bool
 ) -> list[PydanticBaseModel]:
     """Create a model instance with default or example values, respecting constraints."""
     return [
@@ -163,7 +179,7 @@ def get_type_name(field_type: type) -> str:
 
 
 def generate_config_table_md(
-    config: PydanticBaseModel,
+    config: type[PydanticBaseModel],
     toplevel_keys: list[str],
     prefix: str,
     toplevel: bool = False,
@@ -199,22 +215,28 @@ def generate_config_table_md(
             table += "\n\n"
 
         table += (
+            "<!-- pyml disable line-length -->\n"
             ":::{table} "
             + f"{'::'.join(toplevel_keys)}\n:widths: 10 {env_width}10 5 5 30\n:align: left\n\n"
         )
         table += f"| Name {env_header}| Type | Read-Only | Default | Description |\n"
         table += f"| ---- {env_header_underline}| ---- | --------- | ------- | ----------- |\n"
 
-    for field_name, field_info in list(config.model_fields.items()) + list(
-        config.model_computed_fields.items()
-    ):
+
+    fields = {}
+    for field_name, field_info in config.model_fields.items():
+        fields[field_name] = field_info
+    for field_name, field_info in config.model_computed_fields.items():
+        fields[field_name] = field_info
+    for field_name in sorted(fields.keys()):
+        field_info = fields[field_name]
         regular_field = isinstance(field_info, FieldInfo)
 
         config_name = field_name if extra_config else field_name.upper()
         field_type = field_info.annotation if regular_field else field_info.return_type
         default_value = get_default_value(field_info, regular_field)
-        description = field_info.description if field_info.description else "-"
-        deprecated = field_info.deprecated if field_info.deprecated else None
+        description = config.field_description(field_name)
+        deprecated = config.field_deprecated(field_name)
         read_only = "rw" if regular_field else "ro"
         type_name = get_type_name(field_type)
 
@@ -270,7 +292,7 @@ def generate_config_table_md(
                 undocumented_types.setdefault(new_type, (info[0], info[1]))
 
     if toplevel:
-        table += ":::\n\n"  # Add an empty line after the table
+        table += ":::\n<!-- pyml enable line-length -->\n\n"  # Add an empty line after the table
 
         has_examples_list = toplevel_keys[-1] == "list"
         instance_list = create_model_from_examples(config, has_examples_list)
@@ -288,9 +310,13 @@ def generate_config_table_md(
             same_output = ins_out_dict_list == ins_dict_list
             same_output_str = "/Output" if same_output else ""
 
-            table += f"#{heading_level} Example Input{same_output_str}\n\n"
-            table += "```{eval-rst}\n"
-            table += ".. code-block:: json\n\n"
+            # -- code block heading
+            table += "<!-- pyml disable no-emphasis-as-heading -->\n"
+            table += f"**Example Input{same_output_str}**\n"
+            table += "<!-- pyml enable no-emphasis-as-heading -->\n\n"
+            # -- code block
+            table += "<!-- pyml disable line-length -->\n"
+            table += "```json\n"
             if has_examples_list:
                 input_dict = build_nested_structure(toplevel_keys[:-1], ins_dict_list)
                 if not extra_config:
@@ -300,20 +326,24 @@ def generate_config_table_md(
                 if not extra_config:
                     global_config_dict[toplevel_keys[0]] = ins_dict_list[0]
             table += textwrap.indent(json.dumps(input_dict, indent=4), "   ")
-            table += "\n"
-            table += "```\n\n"
+            table += "\n```\n<!-- pyml enable line-length -->\n\n"
+            # -- end code block
 
             if not same_output:
-                table += f"#{heading_level} Example Output\n\n"
-                table += "```{eval-rst}\n"
-                table += ".. code-block:: json\n\n"
+                # -- code block heading
+                table += "<!-- pyml disable no-emphasis-as-heading -->\n"
+                table += f"**Example Output**\n"
+                table += "<!-- pyml enable no-emphasis-as-heading -->\n\n"
+                # -- code block
+                table += "<!-- pyml disable line-length -->\n"
+                table += "```json\n"
                 if has_examples_list:
                     output_dict = build_nested_structure(toplevel_keys[:-1], ins_out_dict_list)
                 else:
                     output_dict = build_nested_structure(toplevel_keys, ins_out_dict_list[0])
                 table += textwrap.indent(json.dumps(output_dict, indent=4), "   ")
-                table += "\n"
-                table += "```\n\n"
+                table += "\n```\n<!-- pyml enable line-length -->\n\n"
+                # -- end code block
 
         while undocumented_types:
             extra_config_type, extra_info = undocumented_types.popitem()
@@ -325,7 +355,7 @@ def generate_config_table_md(
     return table
 
 
-def generate_config_md(config_eos: ConfigEOS) -> str:
+def generate_config_md(file_path: Optional[Union[str, Path]], config_eos: ConfigEOS) -> str:
     """Generate configuration specification in Markdown with extra tables for prefixed values.
 
     Returns:
@@ -337,44 +367,103 @@ def generate_config_md(config_eos: ConfigEOS) -> str:
     )
     GeneralSettings._config_folder_path = config_eos.general.config_file_path.parent
 
-    markdown = "# Configuration Table\n\n"
+    markdown = ""
 
-    # Generate tables for each top level config
-    for field_name, field_info in config_eos.__class__.model_fields.items():
-        field_type = field_info.annotation
-        markdown += generate_config_table_md(
-            field_type, [field_name], f"EOS_{field_name.upper()}__", True
+    if file_path:
+        file_path = Path(file_path)
+        # -- table of content
+        markdown += "```{toctree}\n"
+        markdown += ":maxdepth: 1\n"
+        markdown += ":caption: Configuration Table\n\n"
+    else:
+        markdown += "# Configuration Table\n\n"
+        markdown += (
+            "The configuration table describes all the configuration options of Akkudoktor-EOS\n\n"
         )
 
+    # Generate tables for each top level config
+    for field_name in sorted(config_eos.__class__.model_fields.keys()):
+        field_info = config_eos.__class__.model_fields[field_name]
+        field_type = field_info.annotation
+        model_class = get_model_class_from_annotation(field_type)
+        if model_class is None:
+            raise ValueError(f"Can not find class of top level field {field_name}.")
+        table = generate_config_table_md(
+            model_class, [field_name], f"EOS_{field_name.upper()}__", True
+        )
+        if file_path:
+            # Write table to extra document
+            table_path = file_path.with_name(file_path.stem + f"{field_name.lower()}.md")
+            write_to_file(table_path, table)
+            markdown += f"../_generated/{table_path.name}\n"
+        else:
+            # We will write to stdout
+            markdown += "---\n\n"
+            markdown += table
+
+    # Generate full example
+    example = ""
     # Full config
-    markdown += "## Full example Config\n\n"
-    markdown += "```{eval-rst}\n"
-    markdown += ".. code-block:: json\n\n"
+    example += "## Full example Config\n\n"
+    # -- code block
+    example += "<!-- pyml disable line-length -->\n"
+    example += "```json\n"
     # Test for valid config first
     config_eos.merge_settings_from_dict(global_config_dict)
-    markdown += textwrap.indent(json.dumps(global_config_dict, indent=4), "   ")
-    markdown += "\n"
-    markdown += "```\n\n"
+    example += textwrap.indent(json.dumps(global_config_dict, indent=4), "   ")
+    example += "\n"
+    example += "```\n<!-- pyml enable line-length -->\n\n"
+    # -- end code block end
+    if file_path:
+        example_path = file_path.with_name(file_path.stem + f"example.md")
+        write_to_file(example_path, example)
+        markdown += f"../_generated/{example_path.name}\n"
+        markdown += "```\n\n"
+        # -- end table of content
+    else:
+        markdown += "---\n\n"
+        markdown += example
 
     # Assure there is no double \n at end of file
     markdown = markdown.rstrip("\n")
     markdown += "\n"
 
+    markdown += "\nAuto generated from source code.\n"
+
+    # Write markdown to file or stdout
+    write_to_file(file_path, markdown)
+
+    return markdown
+
+
+def write_to_file(file_path: Optional[Union[str, Path]], config_md: str):
+    if os.name == "nt":
+       config_md = config_md.replace("\\\\", "/")
+
     # Assure log path does not leak to documentation
-    markdown = re.sub(
+    config_md = re.sub(
         r'(?<=["\'])/[^"\']*/output/eos\.log(?=["\'])',
-        '/home/user/.local/share/net.akkudoktoreos.net/output/eos.log',
-        markdown
+        '/home/user/.local/share/net.akkudoktor.eos/output/eos.log',
+        config_md
     )
 
     # Assure timezone name does not leak to documentation
     tz_name = to_datetime().timezone_name
-    markdown = re.sub(re.escape(tz_name), "Europe/Berlin", markdown, flags=re.IGNORECASE)
+    config_md = re.sub(re.escape(tz_name), "Europe/Berlin", config_md, flags=re.IGNORECASE)
     # Also replace UTC, as GitHub CI always is on UTC
-    markdown = re.sub(re.escape("UTC"), "Europe/Berlin", markdown, flags=re.IGNORECASE)
+    config_md = re.sub(re.escape("UTC"), "Europe/Berlin", config_md, flags=re.IGNORECASE)
 
+    # Assure no extra lines at end of file
+    config_md = config_md.rstrip("\n")
+    config_md += "\n"
 
-    return markdown
+    if file_path:
+        # Write to file
+        with open(Path(file_path), "w", encoding="utf-8", newline="\n") as f:
+            f.write(config_md)
+    else:
+        # Write to std output
+        print(config_md)
 
 
 def main():
@@ -384,23 +473,14 @@ def main():
         "--output-file",
         type=str,
         default=None,
-        help="File to write the Configuration Specification to",
+        help="File to write the top level configuration specification to.",
     )
 
     args = parser.parse_args()
     config_eos = get_config()
 
     try:
-        config_md = generate_config_md(config_eos)
-        if os.name == "nt":
-            config_md = config_md.replace("\\\\", "/")
-        if args.output_file:
-            # Write to file
-            with open(args.output_file, "w", encoding="utf-8", newline="\n") as f:
-                f.write(config_md)
-        else:
-            # Write to std output
-            print(config_md)
+        config_md = generate_config_md(args.output_file, config_eos)
 
     except Exception as e:
         print(f"Error during Configuration Specification generation: {e}", file=sys.stderr)

@@ -90,7 +90,10 @@ class CacheEnergyManagementStore(SingletonMixin):
         the application lifecycle.
 
         Example:
-            >>> cache = CacheEnergyManagementStore()
+            .. code-block:: python
+
+                cache = CacheEnergyManagementStore()
+
         """
         if hasattr(self, "_initialized"):
             return
@@ -112,7 +115,10 @@ class CacheEnergyManagementStore(SingletonMixin):
             AttributeError: If the cache object does not have the requested method.
 
         Example:
-            >>> result = cache.get("key")
+            .. code-block:: python
+
+                result = cache.get("key")
+
         """
         # This will return a method of the target cache, or raise an AttributeError
         target_attr = getattr(self.cache, name)
@@ -134,7 +140,10 @@ class CacheEnergyManagementStore(SingletonMixin):
             KeyError: If the key does not exist in the cache.
 
         Example:
-            >>> value = cache["user_data"]
+            .. code-block:: python
+
+                value = cache["user_data"]
+
         """
         return CacheEnergyManagementStore.cache[key]
 
@@ -146,7 +155,10 @@ class CacheEnergyManagementStore(SingletonMixin):
             value (Any): The value to store.
 
         Example:
-            >>> cache["user_data"] = {"name": "Alice", "age": 30}
+            .. code-block:: python
+
+                cache["user_data"] = {"name": "Alice", "age": 30}
+
         """
         CacheEnergyManagementStore.cache[key] = value
 
@@ -166,7 +178,10 @@ class CacheEnergyManagementStore(SingletonMixin):
         management system run).
 
         Example:
-            >>> cache.clear()
+            .. code-block:: python
+
+                cache.clear()
+
         """
         if hasattr(self.cache, "clear") and callable(getattr(self.cache, "clear")):
             CacheEnergyManagementStore.cache.clear()
@@ -248,12 +263,15 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                       with their associated keys and dates.
 
     Example:
-        >>> cache_store = CacheFileStore()
-        >>> cache_store.create('example_file')
-        >>> cache_file = cache_store.get('example_file')
-        >>> cache_file.write('Some data')
-        >>> cache_file.seek(0)
-        >>> print(cache_file.read())  # Output: 'Some data'
+        .. code-block:: python
+
+            cache_store = CacheFileStore()
+            cache_store.create('example_file')
+            cache_file = cache_store.get('example_file')
+            cache_file.write('Some data')
+            cache_file.seek(0)
+            print(cache_file.read())  # Output: 'Some data'
+
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -462,10 +480,13 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
             file_obj: A file-like object representing the cache file.
 
         Example:
-            >>> cache_file = cache_store.create('example_file', suffix='.txt')
-            >>> cache_file.write('Some cached data')
-            >>> cache_file.seek(0)
-            >>> print(cache_file.read())  # Output: 'Some cached data'
+            .. code-block:: python
+
+                cache_file = cache_store.create('example_file', suffix='.txt')
+                cache_file.write('Some cached data')
+                cache_file.seek(0)
+                print(cache_file.read())  # Output: 'Some cached data'
+
         """
         cache_file_key, until_datetime_dt, ttl_duration = self._generate_cache_file_key(
             key, until_datetime=until_datetime, until_date=until_date, with_ttl=with_ttl
@@ -514,7 +535,10 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
             ValueError: If the key is already in store.
 
         Example:
-            >>> cache_store.set('example_file', io.BytesIO(b'Some binary data'))
+            .. code-block:: python
+
+                cache_store.set('example_file', io.BytesIO(b'Some binary data'))
+
         """
         cache_file_key, until_datetime_dt, ttl_duration = self._generate_cache_file_key(
             key, until_datetime=until_datetime, until_date=until_date, with_ttl=with_ttl
@@ -570,10 +594,13 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
             file_obj: The file-like cache object, or None if no file is found.
 
         Example:
-            >>> cache_file = cache_store.get('example_file')
-            >>> if cache_file:
-            >>>     cache_file.seek(0)
-            >>>     print(cache_file.read())  # Output: Cached data (if exists)
+            .. code-block:: python
+
+                cache_file = cache_store.get('example_file')
+                if cache_file:
+                    cache_file.seek(0)
+                    print(cache_file.read())  # Output: Cached data (if exists)
+
         """
         if until_datetime or until_date:
             until_datetime, _ttl_duration = self._until_datetime_by_options(
@@ -852,13 +879,15 @@ def cache_in_file(
             A decorated function that caches its result in a temporary file.
 
     Example:
-        >>> from datetime import date
-        >>> @cache_in_file(suffix='.txt')
-        >>> def expensive_computation(until_date=None):
-        >>>     # Perform some expensive computation
-        >>>     return 'Some large result'
-        >>>
-        >>> result = expensive_computation(until_date=date.today())
+        .. code-block:: python
+
+            from datetime import date
+            @cache_in_file(suffix='.txt')
+            def expensive_computation(until_date=None):
+                # Perform some expensive computation
+                return 'Some large result'
+
+            result = expensive_computation(until_date=date.today())
 
     Notes:
         - The cache key is based on the function arguments after excluding those in `ignore_params`.

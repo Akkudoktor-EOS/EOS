@@ -194,6 +194,8 @@ def format_endpoint(path: str, method: str, details: dict, devel: bool = False) 
 
     markdown = f"## {method.upper()} {path}\n\n"
 
+    # -- links
+    markdown += "<!-- pyml disable line-length -->\n"
     markdown += f"**Links**: {local_path}, {akkudoktoreos_main_path}"
     if devel:
         # Add link to akkudoktor branch the development has used
@@ -206,7 +208,8 @@ def format_endpoint(path: str, method: str, details: dict, devel: bool = False) 
                 + link_method
             )
             markdown += f", {akkudoktoreos_base_path}"
-    markdown += "\n\n"
+    markdown += "\n<!-- pyml enable line-length -->\n\n"
+    # -- links end
 
     summary = details.get("summary", None)
     if summary:
@@ -214,9 +217,14 @@ def format_endpoint(path: str, method: str, details: dict, devel: bool = False) 
 
     description = details.get("description", None)
     if description:
-        markdown += "```\n"
-        markdown += f"{description}"
-        markdown += "\n```\n\n"
+        # -- code block
+        markdown += "<!-- pyml disable line-length -->\n"
+        markdown += "```python\n"
+        markdown += '"""\n'
+        markdown += f"{description}\n"
+        markdown += '"""\n'
+        markdown += "```\n<!-- pyml enable line-length -->\n\n"
+        # -- end code block end
 
     markdown += format_parameters(details.get("parameters", []))
     markdown += format_request_body(details.get("requestBody", {}).get("content", {}))
@@ -239,7 +247,11 @@ def openapi_to_markdown(openapi_json: dict, devel: bool = False) -> str:
     info = extract_info(openapi_json)
     markdown = f"# {info['title']}\n\n"
     markdown += f"**Version**: `{info['version']}`\n\n"
-    markdown += f"**Description**: {info['description']}\n\n"
+    # -- description
+    markdown += "<!-- pyml disable line-length -->\n"
+    markdown += f"**Description**: {info['description']}\n"
+    markdown += "<!-- pyml enable line-length -->\n\n"
+    # -- end description
     markdown += f"**Base URL**: `{info['base_url']}`\n\n"
 
     security_schemes = openapi_json.get("components", {}).get("securitySchemes", {})
@@ -256,6 +268,8 @@ def openapi_to_markdown(openapi_json: dict, devel: bool = False) -> str:
     # Assure the is no double \n at end of file
     markdown = markdown.rstrip("\n")
     markdown += "\n"
+
+    markdown += "\nAuto generated from openapi.json.\n"
 
     return markdown
 

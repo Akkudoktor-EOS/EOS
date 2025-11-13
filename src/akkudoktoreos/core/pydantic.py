@@ -6,10 +6,12 @@ These enhancements facilitate the use of Pydantic models in applications requiri
 datetime fields and consistent data serialization.
 
 Key Features:
+
 - Custom type adapter for `pendulum.DateTime` fields with automatic serialization to ISO 8601 strings.
 - Utility methods for converting models to and from dictionaries and JSON strings.
 - Validation tools for maintaining data consistency, including specialized support for
   pandas DataFrames and Series with datetime indexes.
+
 """
 
 import inspect
@@ -157,16 +159,19 @@ class PydanticModelNestedValueMixin:
                 or an invalid transition is made (such as an attribute on a non-model).
 
         Example:
-            class Address(PydanticBaseModel):
-                city: str
+            .. code-block:: python
 
-            class User(PydanticBaseModel):
-                name: str
-                address: Address
+                class Address(PydanticBaseModel):
+                    city: str
 
-            user = User(name="Alice", address=Address(city="NY"))
-            user._validate_path_structure("address/city")  # OK
-            user._validate_path_structure("address/zipcode")  # Raises ValueError
+                class User(PydanticBaseModel):
+                    name: str
+                    address: Address
+
+                user = User(name="Alice", address=Address(city="NY"))
+                user._validate_path_structure("address/city")  # OK
+                user._validate_path_structure("address/zipcode")  # Raises ValueError
+
         """
         path_elements = path.strip("/").split("/")
         # The model we are currently working on
@@ -264,18 +269,19 @@ class PydanticModelNestedValueMixin:
             IndexError: If a list index is out of bounds or invalid.
 
         Example:
-            ```python
-            class Address(PydanticBaseModel):
-                city: str
+            .. code-block:: python
 
-            class User(PydanticBaseModel):
-                name: str
-                address: Address
+                class Address(PydanticBaseModel):
+                    city: str
 
-            user = User(name="Alice", address=Address(city="New York"))
-            city = user.get_nested_value("address/city")
-            print(city)  # Output: "New York"
-            ```
+                class User(PydanticBaseModel):
+                    name: str
+                    address: Address
+
+                user = User(name="Alice", address=Address(city="New York"))
+                city = user.get_nested_value("address/city")
+                print(city)  # Output: "New York"
+
         """
         path_elements = path.strip("/").split("/")
         model: Any = self
@@ -318,22 +324,23 @@ class PydanticModelNestedValueMixin:
             TypeError: If a missing field cannot be initialized.
 
         Example:
-            ```python
-            class Address(PydanticBaseModel):
-                city: Optional[str]
+            .. code-block:: python
 
-            class User(PydanticBaseModel):
-                name: str
-                address: Optional[Address]
-                settings: Optional[Dict[str, Any]]
+                class Address(PydanticBaseModel):
+                    city: Optional[str]
 
-            user = User(name="Alice", address=None, settings=None)
-            user.set_nested_value("address/city", "Los Angeles")
-            user.set_nested_value("settings/theme", "dark")
+                class User(PydanticBaseModel):
+                    name: str
+                    address: Optional[Address]
+                    settings: Optional[Dict[str, Any]]
 
-            print(user.address.city)  # Output: "Los Angeles"
-            print(user.settings)  # Output: {'theme': 'dark'}
-            ```
+                user = User(name="Alice", address=None, settings=None)
+                user.set_nested_value("address/city", "Los Angeles")
+                user.set_nested_value("settings/theme", "dark")
+
+                print(user.address.city)  # Output: "Los Angeles"
+                print(user.settings)  # Output: {'theme': 'dark'}
+
         """
         path = path.strip("/")
         # Store old value (if possible)
@@ -753,18 +760,21 @@ class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
                 gracefully by returning an empty dictionary.
 
         Examples:
-            >>> class User(Base):
-            ...     name: str = Field(
-            ...         json_schema_extra={"description": "User name"}
-            ...     )
-            ...
-            >>> field = User.model_fields["name"]
-            >>> User.get_field_extra_dict(field)
-            {'description': 'User name'}
+            .. code-block:: python
 
-            >>> missing = User.model_fields.get("unknown", None)
-            >>> User.get_field_extra_dict(missing) if missing else {}
-            {}
+                class User(Base):
+                    name: str = Field(
+                        json_schema_extra={"description": "User name"}
+                )
+
+                field = User.model_fields["name"]
+                User.get_field_extra_dict(field)
+                {'description': 'User name'}
+
+                missing = User.model_fields.get("unknown", None)
+                User.get_field_extra_dict(missing) if missing else {}
+                {}
+
         """
         if model_field is None:
             return {}
@@ -873,12 +883,15 @@ class PydanticDateTimeData(RootModel):
     - All value lists must have the same length
 
     Example:
-        {
-            "start_datetime": "2024-01-01 00:00:00",  # optional
-            "interval": "1 Hour",                     # optional
-            "loadforecast_power_w": [20.5, 21.0, 22.1],
-            "load_min": [18.5, 19.0, 20.1]
-        }
+        .. code-block:: python
+
+            {
+                "start_datetime": "2024-01-01 00:00:00",  # optional
+                "interval": "1 Hour",                     # optional
+                "loadforecast_power_w": [20.5, 21.0, 22.1],
+                "load_min": [18.5, 19.0, 20.1]
+            }
+
     """
 
     root: Dict[str, Union[str, List[Union[float, int, str, None]]]]
@@ -1275,9 +1288,12 @@ class PydanticDateTimeSeries(PydanticBaseModel):
             ValueError: If series index is not datetime type.
 
         Example:
-            >>> dates = pd.date_range('2024-01-01', periods=3)
-            >>> s = pd.Series([1.1, 2.2, 3.3], index=dates)
-            >>> model = PydanticDateTimeSeries.from_series(s)
+        .. code-block:: python
+
+            dates = pd.date_range('2024-01-01', periods=3)
+            s = pd.Series([1.1, 2.2, 3.3], index=dates)
+            model = PydanticDateTimeSeries.from_series(s)
+
         """
         index = pd.Index([to_datetime(dt, as_string=True, in_timezone=tz) for dt in series.index])
         series.index = index

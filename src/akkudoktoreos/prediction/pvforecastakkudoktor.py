@@ -12,51 +12,53 @@ Classes:
     PVForecastAkkudoktor: Primary class to manage PV power forecasts, handle data retrieval, caching, and integration with Akkudoktor.net.
 
 Example:
-    # Set up the configuration with necessary fields for URL generation
-    settings_data = {
-        "general": {
-            "latitude": 52.52,
-            "longitude": 13.405,
-        },
-        "prediction": {
-            "hours": 48,
-            "historic_hours": 24,
-        },
-        "pvforecast": {
-            "provider": "PVForecastAkkudoktor",
-            "planes": [
-                {
-                    "peakpower": 5.0,
-                    "surface_azimuth": 170,
-                    "surface_tilt": 7,
-                    "userhorizon": [20, 27, 22, 20],
-                    "inverter_paco": 10000,
-                },
-                {
-                    "peakpower": 4.8,
-                    "surface_azimuth": 90,
-                    "surface_tilt": 7,
-                    "userhorizon": [30, 30, 30, 50],
-                    "inverter_paco": 10000,
-                }
-            ]
+    .. code-block:: python
+
+        # Set up the configuration with necessary fields for URL generation
+        settings_data = {
+            "general": {
+                "latitude": 52.52,
+                "longitude": 13.405,
+            },
+            "prediction": {
+                "hours": 48,
+                "historic_hours": 24,
+            },
+            "pvforecast": {
+                "provider": "PVForecastAkkudoktor",
+                "planes": [
+                    {
+                        "peakpower": 5.0,
+                        "surface_azimuth": 170,
+                        "surface_tilt": 7,
+                        "userhorizon": [20, 27, 22, 20],
+                        "inverter_paco": 10000,
+                    },
+                    {
+                        "peakpower": 4.8,
+                        "surface_azimuth": 90,
+                        "surface_tilt": 7,
+                        "userhorizon": [30, 30, 30, 50],
+                        "inverter_paco": 10000,
+                    }
+                ]
+            }
         }
-    }
 
-    # Create the config instance from the provided data
-    config = PVForecastAkkudoktorSettings(**settings_data)
+        # Create the config instance from the provided data
+        config = PVForecastAkkudoktorSettings(**settings_data)
 
-    # Initialize the forecast object with the generated configuration
-    forecast = PVForecastAkkudoktor(settings=config)
+        # Initialize the forecast object with the generated configuration
+        forecast = PVForecastAkkudoktor(settings=config)
 
-    # Get an actual forecast
-    forecast.update_data()
+        # Get an actual forecast
+        forecast.update_data()
 
-    # Update the AC power measurement for a specific date and time
-    forecast.update_value(to_datetime(None, to_maxtime=False), "pvforecastakkudoktor_ac_power_measured", 1000.0)
+        # Update the AC power measurement for a specific date and time
+        forecast.update_value(to_datetime(None, to_maxtime=False), "pvforecastakkudoktor_ac_power_measured", 1000.0)
 
-    # Report the DC and AC power forecast along with AC measurements
-    print(forecast.report_ac_power_and_measurement())
+        # Report the DC and AC power forecast along with AC measurements
+        print(forecast.report_ac_power_and_measurement())
 
 Attributes:
     hours (int): Number of hours into the future to forecast. Default is 48.

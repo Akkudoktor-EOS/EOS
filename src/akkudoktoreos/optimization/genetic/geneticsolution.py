@@ -212,15 +212,14 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             discharge_allowed (bool): Whether discharging is permitted.
 
         Returns:
-            tuple[BatteryOperationMode, float]:
-                A tuple containing:
+            tuple[BatteryOperationMode, float]: A tuple containing
                 - `BatteryOperationMode`: the representative high-level operation mode.
                 - `float`: the operation factor corresponding to the active signal.
 
         Notes:
             - The mapping prioritizes AC charge > DC charge > discharge.
             - Multiple strategies can produce the same low-level signals; this function
-            returns a representative mode based on a defined priority order.
+              returns a representative mode based on a defined priority order.
         """
         # (0,0,0) → Nothing allowed
         if ac_charge <= 0.0 and dc_charge <= 0.0 and not discharge_allowed:

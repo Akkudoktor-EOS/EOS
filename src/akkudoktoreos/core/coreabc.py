@@ -39,11 +39,12 @@ class ConfigMixin:
         config (ConfigEOS): Property to access the global EOS configuration.
 
     Example:
-        ```python
-        class MyEOSClass(ConfigMixin):
-            def my_method(self):
-                if self.config.myconfigval:
-        ```
+        .. code-block:: python
+
+            class MyEOSClass(ConfigMixin):
+                def my_method(self):
+                    if self.config.myconfigval:
+
     """
 
     @classproperty
@@ -78,12 +79,13 @@ class MeasurementMixin:
         measurement (Measurement): Property to access the global EOS measurement data.
 
     Example:
-        ```python
-        class MyOptimizationClass(MeasurementMixin):
-            def analyze_mymeasurement(self):
-                measurement_data = self.measurement.mymeasurement
-                # Perform analysis
-        ```
+        .. code-block:: python
+
+            class MyOptimizationClass(MeasurementMixin):
+                def analyze_mymeasurement(self):
+                    measurement_data = self.measurement.mymeasurement
+                    # Perform analysis
+
     """
 
     @classproperty
@@ -118,12 +120,13 @@ class PredictionMixin:
         prediction (Prediction): Property to access the global EOS prediction data.
 
     Example:
-        ```python
-        class MyOptimizationClass(PredictionMixin):
-            def analyze_myprediction(self):
-                prediction_data = self.prediction.mypredictionresult
-                # Perform analysis
-        ```
+        .. code-block:: python
+
+            class MyOptimizationClass(PredictionMixin):
+                def analyze_myprediction(self):
+                    prediction_data = self.prediction.mypredictionresult
+                    # Perform analysis
+
     """
 
     @classproperty
@@ -159,12 +162,13 @@ class EnergyManagementSystemMixin:
         ems (EnergyManagementSystem): Property to access the global EOS energy management system.
 
     Example:
-        ```python
-        class MyOptimizationClass(EnergyManagementSystemMixin):
-            def analyze_myprediction(self):
-                ems_data = self.ems.the_ems_method()
-                # Perform analysis
-        ```
+        .. code-block:: python
+
+            class MyOptimizationClass(EnergyManagementSystemMixin):
+                def analyze_myprediction(self):
+                    ems_data = self.ems.the_ems_method()
+                    # Perform analysis
+
     """
 
     @classproperty
@@ -224,22 +228,25 @@ class SingletonMixin:
         - Avoid using `__init__` to reinitialize the singleton instance after it has been created.
 
     Example:
-        class MySingletonModel(SingletonMixin, PydanticBaseModel):
-            name: str
+        .. code-block:: python
 
-            # implement __init__ to avoid re-initialization of parent classes:
-            def __init__(self, *args: Any, **kwargs: Any) -> None:
-                if hasattr(self, "_initialized"):
-                    return
-                # Your initialisation here
-                ...
-                super().__init__(*args, **kwargs)
+            class MySingletonModel(SingletonMixin, PydanticBaseModel):
+                name: str
 
-        instance1 = MySingletonModel(name="Instance 1")
-        instance2 = MySingletonModel(name="Instance 2")
+                # implement __init__ to avoid re-initialization of parent classes:
+                def __init__(self, *args: Any, **kwargs: Any) -> None:
+                    if hasattr(self, "_initialized"):
+                        return
+                    # Your initialisation here
+                    ...
+                    super().__init__(*args, **kwargs)
 
-        assert instance1 is instance2  # True
-        print(instance1.name)          # Output: "Instance 1"
+            instance1 = MySingletonModel(name="Instance 1")
+            instance2 = MySingletonModel(name="Instance 2")
+
+            assert instance1 is instance2  # True
+            print(instance1.name)          # Output: "Instance 1"
+
     """
 
     _lock: ClassVar[threading.Lock] = threading.Lock()

@@ -70,20 +70,23 @@ class PredictionSequence(DataSequence):
         Derived classes have to provide their own records field with correct record type set.
 
     Usage:
-        # Example of creating, adding, and using PredictionSequence
-        class DerivedSequence(PredictionSquence):
-            records: List[DerivedPredictionRecord] = Field(default_factory=list, json_schema_extra={ "description": "List of prediction records" })
+        .. code-block:: python
 
-        seq = DerivedSequence()
-        seq.insert(DerivedPredictionRecord(date_time=datetime.now(), temperature=72))
-        seq.insert(DerivedPredictionRecord(date_time=datetime.now(), temperature=75))
+            # Example of creating, adding, and using PredictionSequence
+            class DerivedSequence(PredictionSquence):
+                records: List[DerivedPredictionRecord] = Field(default_factory=list, json_schema_extra={ "description": "List of prediction records" })
 
-        # Convert to JSON and back
-        json_data = seq.to_json()
-        new_seq = DerivedSequence.from_json(json_data)
+            seq = DerivedSequence()
+            seq.insert(DerivedPredictionRecord(date_time=datetime.now(), temperature=72))
+            seq.insert(DerivedPredictionRecord(date_time=datetime.now(), temperature=75))
 
-        # Convert to Pandas Series
-        series = seq.key_to_series('temperature')
+            # Convert to JSON and back
+            json_data = seq.to_json()
+            new_seq = DerivedSequence.from_json(json_data)
+
+            # Convert to Pandas Series
+            series = seq.key_to_series('temperature')
+
     """
 
     # To be overloaded by derived classes.
@@ -224,9 +227,10 @@ class PredictionImportProvider(PredictionProvider, DataImportProvider):
     """Abstract base class for prediction providers that import prediction data.
 
     This class is designed to handle prediction data provided in the form of a key-value dictionary.
+
     - **Keys**: Represent identifiers from the record keys of a specific prediction.
     - **Values**: Are lists of prediction values starting at a specified `start_datetime`, where
-      each value corresponds to a subsequent time interval (e.g., hourly).
+        each value corresponds to a subsequent time interval (e.g., hourly).
 
     Subclasses must implement the logic for managing prediction data based on the imported records.
     """

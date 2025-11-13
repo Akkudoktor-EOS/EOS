@@ -171,25 +171,28 @@ class Battery:
 
         Two **exclusive** modes:
 
-        Mode 1:
-            - `wh is not None` and `charge_factor == 0`
-            → The raw requested charge energy is `wh` (pre-efficiency).
-            → If remaining capacity is insufficient, charging is automatically limited.
-            → No exception is raised due to capacity limits.
+        **Mode 1:**
 
-        Mode 2:
-            - `wh is None` and `charge_factor > 0`
-            → The raw requested energy is `max_charge_power_w * charge_factor`.
-            → If the request exceeds remaining capacity, the algorithm tries to
-              find a lower charge_factor that is compatible. If such a charge factor
-              exists, this hour’s charge_factor is replaced.
-            → If no charge factor can accommodate charging, the request is ignored
-              (`(0.0, 0.0)` is returned) and a penalty is applied elsewhere.
+        - `wh is not None` and `charge_factor == 0`
+        - The raw requested charge energy is `wh` (pre-efficiency).
+        - If remaining capacity is insufficient, charging is automatically limited.
+        - No exception is raised due to capacity limits.
+
+        **Mode 2:**
+
+        - `wh is None` and `charge_factor > 0`
+        - The raw requested energy is `max_charge_power_w * charge_factor`.
+        - If the request exceeds remaining capacity, the algorithm tries to find a lower
+          `charge_factor` that is compatible. If such a charge factor exists, this hour’s
+          `charge_factor` is replaced.
+        - If no charge factor can accommodate charging, the request is ignored (``(0.0, 0.0)`` is
+          returned) and a penalty is applied elsewhere.
 
         Charging is constrained by:
-            • Available SoC headroom (max_soc_wh − soc_wh)
-            • max_charge_power_w
-            • charging_efficiency
+
+        - Available SoC headroom (``max_soc_wh − soc_wh``)
+        - ``max_charge_power_w``
+        - ``charging_efficiency``
 
         Args:
             wh (float | None):
