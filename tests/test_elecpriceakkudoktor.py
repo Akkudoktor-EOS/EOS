@@ -173,11 +173,20 @@ def test_request_forecast_status_codes(
         provider._request_forecast()
 
 
+@patch("requests.get")
 @patch("akkudoktoreos.core.cache.CacheFileStore")
-def test_cache_integration(mock_cache, provider):
+def test_cache_integration(mock_cache, mock_get, provider, sample_akkudoktor_1_json):
     """Test caching of 8-day electricity price data."""
+    # Mock response object
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.content = json.dumps(sample_akkudoktor_1_json)
+    mock_get.return_value = mock_response
+
+    # Mock cache object
     mock_cache_instance = mock_cache.return_value
     mock_cache_instance.get.return_value = None  # Simulate no cache
+
     provider._update_data(force_update=True)
     mock_cache_instance.create.assert_called_once()
     mock_cache_instance.get.assert_called_once()
