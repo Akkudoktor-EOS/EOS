@@ -16,7 +16,6 @@ from akkudoktoreos.core.cache import (
     CacheFileStore,
     cache_energy_management,
     cache_in_file,
-    cachemethod_energy_management,
 )
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
@@ -64,10 +63,10 @@ class TestCacheEnergyManagementStore:
 
 class TestCacheUntilUpdateDecorators:
     def test_cachemethod_energy_management(self, cache_energy_management_store):
-        """Test that cachemethod_energy_management caches method results."""
+        """Test that cache_energy_management caches method results."""
 
         class MyClass:
-            @cachemethod_energy_management
+            @cache_energy_management
             def compute(self, value: int) -> int:
                 return value * 2
 
@@ -102,7 +101,7 @@ class TestCacheUntilUpdateDecorators:
         """Test that caching works for different arguments."""
 
         class MyClass:
-            @cachemethod_energy_management
+            @cache_energy_management
             def compute(self, value: int) -> int:
                 return value * 2
 
@@ -123,7 +122,7 @@ class TestCacheUntilUpdateDecorators:
         """Test that cache is cleared between EMS update cycles."""
 
         class MyClass:
-            @cachemethod_energy_management
+            @cache_energy_management
             def compute(self, value: int) -> int:
                 return value * 2
 

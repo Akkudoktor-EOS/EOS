@@ -167,11 +167,20 @@ def test_request_forecast_status_codes(
         provider._request_forecast()
 
 
+@patch("requests.get")
 @patch("akkudoktoreos.core.cache.CacheFileStore")
-def test_cache_integration(mock_cache, provider):
+def test_cache_integration(mock_cache, mock_get, provider, sample_energycharts_json):
     """Test caching of 8-day electricity price data."""
+    # Mock response object
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.content = json.dumps(sample_energycharts_json)
+    mock_get.return_value = mock_response
+
+    # Mock cache object
     mock_cache_instance = mock_cache.return_value
     mock_cache_instance.get.return_value = None  # Simulate no cache
+
     provider._update_data(force_update=True)
     mock_cache_instance.create.assert_called_once()
     mock_cache_instance.get.assert_called_once()
@@ -195,7 +204,7 @@ def test_key_to_array_resampling(provider):
 
 
 @pytest.mark.skip(reason="For development only")
-def test_akkudoktor_development_forecast_data(provider):
+def test_energycharts_development_forecast_data(provider):
     """Fetch data from real Energy-Charts server."""
     # Preset, as this is usually done by update_data()
     provider.ems_start_datetime = to_datetime("2024-10-26 00:00:00")

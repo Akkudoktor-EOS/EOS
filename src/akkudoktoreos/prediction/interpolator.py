@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 
-from akkudoktoreos.core.cache import cachemethod_energy_management
+from akkudoktoreos.core.cache import cache_energy_management
 from akkudoktoreos.core.coreabc import SingletonMixin
 
 
@@ -24,7 +24,7 @@ class SelfConsumptionProbabilityInterpolator:
         points = np.array([np.full_like(partial_loads, load_1h_power), partial_loads]).T
         return points, partial_loads
 
-    @cachemethod_energy_management
+    @cache_energy_management
     def calculate_self_consumption(self, load_1h_power: float, pv_power: float) -> float:
         """Calculate the PV self-consumption rate using RegularGridInterpolator.
 

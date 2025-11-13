@@ -179,64 +179,35 @@ class CacheEnergyManagementStore(SingletonMixin):
             raise AttributeError(f"'{self.cache.__class__.__name__}' object has no method 'clear'")
 
 
-def cachemethod_energy_management(method: TCallable) -> TCallable:
-    """Decorator for in memory caching the result of an instance method.
+def cache_energy_management(callable: TCallable) -> TCallable:
+    """Decorator for in memory caching the result of a callable.
 
-    This decorator caches the method's result in `CacheEnergyManagementStore`, ensuring
-    that subsequent calls with the same arguments return the cached result until the
+    This decorator caches the method or function's result in `CacheEnergyManagementStore`,
+    ensuring that subsequent calls with the same arguments return the cached result until the
     next energy management start.
 
     Args:
-        method (Callable): The instance method to be decorated.
-
-    Returns:
-        Callable: The wrapped method with caching functionality.
-
-    Example:
-        >>> class MyClass:
-        >>>     @cachemethod_energy_management
-        >>>     def expensive_method(self, param: str) -> str:
-        >>>         # Perform expensive computation
-        >>>         return f"Computed {param}"
-    """
-
-    @cachebox.cachedmethod(
-        cache=CacheEnergyManagementStore().cache, callback=cache_energy_management_store_callback
-    )
-    @functools.wraps(method)
-    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-        result = method(self, *args, **kwargs)
-        return result
-
-    return wrapper
-
-
-def cache_energy_management(func: TCallable) -> TCallable:
-    """Decorator for in memory caching the result of a standalone function.
-
-    This decorator caches the function's result in `CacheEnergyManagementStore`, ensuring
-    that subsequent calls with the same arguments return the cached result until the
-    next energy management start.
-
-    Args:
-        func (Callable): The function to be decorated.
+        callable (Callable): The function or method to be decorated.
 
     Returns:
         Callable: The wrapped function with caching functionality.
 
     Example:
-        >>> @cache_until_next_update
-        >>> def expensive_function(param: str) -> str:
-        >>>     # Perform expensive computation
-        >>>     return f"Computed {param}"
+        .. code-block:: python
+
+            @cache_energy_management
+            def expensive_function(param: str) -> str:
+                # Perform expensive computation
+                return f"Computed {param}"
+
     """
 
     @cachebox.cached(
         cache=CacheEnergyManagementStore().cache, callback=cache_energy_management_store_callback
     )
-    @functools.wraps(func)
+    @functools.wraps(callable)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        result = func(*args, **kwargs)
+        result = callable(*args, **kwargs)
         return result
 
     return wrapper
