@@ -9,7 +9,12 @@ from loguru import logger
 from pydantic import computed_field
 
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
-from akkudoktoreos.core.coreabc import ConfigMixin, PredictionMixin, SingletonMixin
+from akkudoktoreos.core.coreabc import (
+    AdapterMixin,
+    ConfigMixin,
+    PredictionMixin,
+    SingletonMixin,
+)
 from akkudoktoreos.core.emplan import EnergyManagementPlan
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.core.pydantic import PydanticBaseModel
@@ -39,7 +44,9 @@ class EnergyManagementStage(Enum):
         return self.value
 
 
-class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBaseModel):
+class EnergyManagement(
+    SingletonMixin, ConfigMixin, PredictionMixin, AdapterMixin, PydanticBaseModel
+):
     """Energy management."""
 
     # Start datetime.
@@ -149,6 +156,7 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         """Run the energy management.
 
         This method initializes the energy management run by setting its
+
         start datetime, updating predictions, and optionally starting
         optimization depending on the selected mode or configuration.
 
@@ -193,7 +201,12 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         # Throw away any memory cached results of the last energy management run.
         CacheEnergyManagementStore().clear()
 
-        # TODO: Do data aquisition by adapters
+        # Do data aquisition by adapters
+        try:
+            cls.adapter.update_data(force_enable)
+        except Exception as e:
+            error_msg = f"Adapter update failed - phase {cls._stage}: {e}"
+            logger.error(error_msg)
 
         cls._stage = EnergyManagementStage.FORECAST_RETRIEVAL
 
@@ -264,7 +277,12 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         logger.debug("Energy management plan:\n{}", cls._plan)
         logger.info("Energy management run done (optimization updated)")
 
-        # TODO: Do control dispatch by adapters
+        # Do control dispatch by adapters
+        try:
+            cls.adapter.update_data(force_enable)
+        except Exception as e:
+            error_msg = f"Adapter update failed - phase {cls._stage}: {e}"
+            logger.error(error_msg)
 
         # energy management run finished
         cls._stage = EnergyManagementStage.IDLE

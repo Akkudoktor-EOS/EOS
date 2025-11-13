@@ -142,7 +142,7 @@ test-system:
 	.venv/bin/pytest --system-test -vs --cov src --cov-report term-missing
 
 # Target to run all tests.
-test-full:
+test-finalize:
 	@echo "Running all tests..."
 	.venv/bin/pytest --finalize
 

@@ -21,6 +21,7 @@ from platformdirs import user_config_dir, user_data_dir
 from pydantic import Field, computed_field, field_validator
 
 # settings
+from akkudoktoreos.adapter.adapter import AdapterCommonSettings
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.config.configmigrate import migrate_config_data, migrate_config_file
 from akkudoktoreos.core.cachesettings import CacheCommonSettings
@@ -65,21 +66,7 @@ def get_absolute_path(
 
 
 class GeneralSettings(SettingsBaseModel):
-    """Settings for common configuration.
-
-    General configuration to set directories of cache and output files and system location (latitude
-    and longitude).
-    Validators ensure each parameter is within a specified range. A computed property, `timezone`,
-    determines the time zone based on latitude and longitude.
-
-    Attributes:
-        latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.
-        longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.
-
-    Properties:
-        timezone (Optional[str]): Computed time zone string based on the specified latitude
-            and longitude.
-    """
+    """General settings."""
 
     _config_folder_path: ClassVar[Optional[Path]] = None
     _config_file_path: ClassVar[Optional[Path]] = None
@@ -109,21 +96,21 @@ class GeneralSettings(SettingsBaseModel):
         ge=-90.0,
         le=90.0,
         json_schema_extra={
-            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°)"
+            "description": "Latitude in decimal degrees between -90 and 90. North is positive (ISO 19115) (°)"
         },
     )
     longitude: Optional[float] = Field(
         default=13.405,
         ge=-180.0,
         le=180.0,
-        json_schema_extra={"description": "Longitude in decimal degrees, within -180 to 180 (°)"},
+        json_schema_extra={"description": "Longitude in decimal degrees within -180 to 180 (°)"},
     )
 
     # Computed fields
     @computed_field  # type: ignore[prop-decorator]
     @property
     def timezone(self) -> Optional[str]:
-        """Compute timezone based on latitude and longitude."""
+        """Computed timezone based on latitude and longitude."""
         if self.latitude and self.longitude:
             return to_timezone(location=(self.latitude, self.longitude), as_string=True)
         return None
@@ -131,7 +118,7 @@ class GeneralSettings(SettingsBaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def data_output_path(self) -> Optional[Path]:
-        """Compute data_output_path based on data_folder_path."""
+        """Computed data_output_path based on data_folder_path."""
         return get_absolute_path(self.data_folder_path, self.data_output_subpath)
 
     @computed_field  # type: ignore[prop-decorator]
@@ -211,6 +198,9 @@ class SettingsEOS(pydantic_settings.BaseSettings, PydanticModelNestedValueMixin)
     )
     utils: Optional[UtilsCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Utilities Settings"}
+    )
+    adapter: Optional[AdapterCommonSettings] = Field(
+        default=None, json_schema_extra={"description": "Adapter Settings"}
     )
 
     model_config = pydantic_settings.SettingsConfigDict(
@@ -384,7 +374,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             dotenv_settings,
         ]
 
-        # Apend file settings to sources
+        # Append file settings to sources
         file_settings: Optional[pydantic_settings.JsonConfigSettingsSource] = None
         try:
             backup_file = config_file.with_suffix(f".{to_datetime(as_string='YYYYMMDDHHmmss')}")
@@ -560,6 +550,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         return result
 
     def _create_initial_config_file(self) -> None:
+        """Create initial config file."""
         if self.general.config_file_path and not self.general.config_file_path.exists():
             self.general.config_file_path.parent.mkdir(parents=True, exist_ok=True)
             try:
