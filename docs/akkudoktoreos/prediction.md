@@ -124,8 +124,9 @@ Configuration options:
 
   - `charges_kwh`: Electricity price charges (€/kWh).
   - `vat_rate`: VAT rate factor applied to electricity price when charges are used (default: 1.19).
-  - `provider_settings.import_file_path`: Path to the file to import electricity price forecast data from.
-  - `provider_settings.import_json`: JSON string, dictionary of electricity price forecast value lists.
+  - `elecpriceimport.import_file_path`: Path to the file to import electricity price forecast data from.
+  - `elecpriceimport.import_json`: JSON string, dictionary of electricity price forecast value lists.
+  - `energycharts.bidding_zone`: Bidding zone Energy Charts shall provide price data for.
 
 ### ElecPriceAkkudoktor Provider
 

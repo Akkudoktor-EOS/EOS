@@ -9,7 +9,6 @@ format, enabling consistent access to forecasted and historical elecprice attrib
 from pathlib import Path
 from typing import Optional, Union
 
-from loguru import logger
 from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
@@ -65,16 +64,13 @@ class ElecPriceImport(ElecPriceProvider, PredictionImportProvider):
         return "ElecPriceImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.elecprice.provider_settings.ElecPriceImport is None:
-            logger.debug(f"{self.provider_id()} data update without provider settings.")
-            return
-        if self.config.elecprice.provider_settings.ElecPriceImport.import_file_path:
+        if self.config.elecprice.elecpriceimport.import_file_path:
             self.import_from_file(
-                self.config.elecprice.provider_settings.ElecPriceImport.import_file_path,
+                self.config.elecprice.elecpriceimport.import_file_path,
                 key_prefix="elecprice",
             )
-        if self.config.elecprice.provider_settings.ElecPriceImport.import_json:
+        if self.config.elecprice.elecpriceimport.import_json:
             self.import_from_json(
-                self.config.elecprice.provider_settings.ElecPriceImport.import_json,
+                self.config.elecprice.elecpriceimport.import_json,
                 key_prefix="elecprice",
             )

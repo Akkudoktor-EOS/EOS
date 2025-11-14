@@ -21,11 +21,14 @@ if TYPE_CHECKING:
 #   - tuple[str, Callable[[Any], Any]] (new path + transform)
 #   - None (drop)
 MIGRATION_MAP: Dict[str, Union[str, Tuple[str, Callable[[Any], Any]], None]] = {
-    # 0.1.0 -> 0.2.0
+    # 0.2.0 -> 0.2.0+dev
+    "elecprice/provider_settings/ElecPriceImport/import_file_path": "elecprice/elecpriceimport/import_file_path",
+    "elecprice/provider_settings/ElecPriceImport/import_json": "elecprice/elecpriceimport/import_json",
+    # 0.1.0 -> 0.2.0+dev
     "devices/batteries/0/initial_soc_percentage": None,
     "devices/electric_vehicles/0/initial_soc_percentage": None,
-    "elecprice/provider_settings/import_file_path": "elecprice/provider_settings/ElecPriceImport/import_file_path",
-    "elecprice/provider_settings/import_json": "elecprice/provider_settings/ElecPriceImport/import_json",
+    "elecprice/provider_settings/import_file_path": "elecprice/elecpriceimport/import_file_path",
+    "elecprice/provider_settings/import_json": "elecprice/elecpriceimport/import_json",
     "load/provider_settings/import_file_path": "load/provider_settings/LoadImport/import_file_path",
     "load/provider_settings/import_json": "load/provider_settings/LoadImport/import_json",
     "load/provider_settings/loadakkudoktor_year_energy": "load/provider_settings/LoadAkkudoktor/loadakkudoktor_year_energy_kwh",

@@ -18,11 +18,9 @@ def provider(sample_import_1_json, config_eos):
     settings = {
         "elecprice": {
             "provider": "ElecPriceImport",
-            "provider_settings": {
-                "ElecPriceImport": {
-                    "import_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
-                    "import_json": json.dumps(sample_import_1_json),
-                },
+            "elecpriceimport": {
+                "import_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
+                "import_json": json.dumps(sample_import_1_json),
             },
         }
     }
@@ -56,10 +54,8 @@ def test_invalid_provider(provider, config_eos):
     settings = {
         "elecprice": {
             "provider": "<invalid>",
-            "provider_settings": {
-                "ElecPriceImport": {
-                    "import_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
-                },
+            "elecpriceimport": {
+                "import_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
             },
         }
     }
@@ -90,11 +86,11 @@ def test_import(provider, sample_import_1_json, start_datetime, from_file, confi
     ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
-        config_eos.elecprice.provider_settings.ElecPriceImport.import_json = None
-        assert config_eos.elecprice.provider_settings.ElecPriceImport.import_json is None
+        config_eos.elecprice.elecpriceimport.import_json = None
+        assert config_eos.elecprice.elecpriceimport.import_json is None
     else:
-        config_eos.elecprice.provider_settings.ElecPriceImport.import_file_path = None
-        assert config_eos.elecprice.provider_settings.ElecPriceImport.import_file_path is None
+        config_eos.elecprice.elecpriceimport.import_file_path = None
+        assert config_eos.elecprice.elecpriceimport.import_file_path is None
     provider.clear()
 
     # Call the method

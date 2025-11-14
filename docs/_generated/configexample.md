@@ -71,8 +71,12 @@
            "provider": "ElecPriceAkkudoktor",
            "charges_kwh": 0.21,
            "vat_rate": 1.19,
-           "provider_settings": {
-               "ElecPriceImport": null
+           "elecpriceimport": {
+               "import_file_path": null,
+               "import_json": null
+           },
+           "energycharts": {
+               "bidding_zone": "DE-LU"
            }
        },
        "ems": {
