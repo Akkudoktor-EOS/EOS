@@ -92,7 +92,7 @@
            }
        },
        "general": {
-           "version": "0.2.0+dev",
+           "version": "0.2.0+dev.4dbc2d",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,

@@ -50,7 +50,7 @@ def test_optimize(
     fn_out: str,
     ngen: int,
     config_eos: ConfigEOS,
-    is_full_run: bool,
+    is_finalize: bool,
 ):
     """Test optimierung_ems."""
     # Test parameters
@@ -107,8 +107,8 @@ def test_optimize(
 
     genetic_optimization = GeneticOptimization(fixed_seed=fixed_seed)
 
-    # Activate with pytest --full-run
-    if ngen > 10 and not is_full_run:
+    # Activate with pytest --finalize
+    if ngen > 10 and not is_finalize:
         pytest.skip()
 
     visualize_filename = str((DIR_TESTDATA / f"new_{fn_out}").with_suffix(".pdf"))

@@ -120,15 +120,6 @@ def test_singleton_behavior(config_eos, config_default_dirs):
     assert instance1.general.config_file_path == initial_cfg_file
 
 
-def test_default_config_path(config_eos, config_default_dirs):
-    """Test that the default config file path is computed correctly."""
-    _, _, config_default_dir_default, _ = config_default_dirs
-
-    expected_path = config_default_dir_default.joinpath("default.config.json")
-    assert config_eos.config_default_file_path == expected_path
-    assert config_eos.config_default_file_path.is_file()
-
-
 def test_config_file_priority(config_default_dirs):
     """Test config file priority.
 

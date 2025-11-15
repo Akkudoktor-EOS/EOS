@@ -1,12 +1,11 @@
-import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
-from fnmatch import fnmatch
 from pathlib import Path
+from typing import Optional
 
 import pytest
 
@@ -17,43 +16,6 @@ DIR_DOCS = DIR_PROJECT_ROOT / "docs"
 DIR_SRC = DIR_PROJECT_ROOT / "src"
 
 HASH_FILE = DIR_BUILD / ".sphinx_hash.json"
-
-# Allowed file suffixes to consider
-ALLOWED_SUFFIXES = {".py", ".md", ".json"}
-
-# Directory patterns to exclude (glob-like)
-EXCLUDED_DIR_PATTERNS = {"*_autosum", "*__pycache__"}
-
-
-def is_excluded_dir(path: Path) -> bool:
-    """Check whether a directory should be excluded based on name patterns."""
-    return any(fnmatch(path.name, pattern) for pattern in EXCLUDED_DIR_PATTERNS)
-
-
-def hash_tree(paths: list[Path], suffixes=ALLOWED_SUFFIXES) -> str:
-    """Return SHA256 hash for files under `paths`.
-
-    Restricted by suffix, excluding excluded directory patterns.
-    """
-    h = hashlib.sha256()
-
-    for root in paths:
-        if not root.exists():
-            continue
-        for p in sorted(root.rglob("*")):
-            # Skip excluded directories
-            if p.is_dir() and is_excluded_dir(p):
-                continue
-
-            # Skip files inside excluded directories
-            if any(is_excluded_dir(parent) for parent in p.parents):
-                continue
-
-            # Hash only allowed file types
-            if p.is_file() and p.suffix.lower() in suffixes:
-                h.update(p.read_bytes())
-
-    return h.hexdigest()
 
 
 def find_sphinx_build() -> str:
@@ -69,15 +31,12 @@ def find_sphinx_build() -> str:
 
 
 @pytest.fixture(scope="session")
-def sphinx_changed() -> bool:
-    """Returns True if any watched files have changed since last run.
+def sphinx_changed(version_and_hash) -> Optional[str]:
+    """Returns new hash if any watched files have changed since last run.
 
     Hash is stored in .sphinx_hash.json.
     """
-    # Directories whose changes should trigger rebuilding docs
-    watched_paths = [Path("docs"), Path("src")]
-
-    current_hash = hash_tree(watched_paths)
+    new_hash = None
 
     # Load previous hash
     try:
@@ -86,13 +45,12 @@ def sphinx_changed() -> bool:
     except Exception:
         previous_hash = None
 
-    changed = (previous_hash != current_hash)
+    changed = (previous_hash != version_and_hash["hash_current"])
 
-    # Update stored hash
-    HASH_FILE.parent.mkdir(parents=True, exist_ok=True)
-    HASH_FILE.write_text(json.dumps({"hash": current_hash}, indent=2))
+    if changed:
+        new_hash = version_and_hash["hash_current"]
 
-    return changed
+    return new_hash
 
 
 class TestSphinxDocumentation:
@@ -120,17 +78,17 @@ class TestSphinxDocumentation:
         if DIR_BUILD_DOCS.exists():
             shutil.rmtree(DIR_BUILD_DOCS)
 
-    def test_sphinx_build(self, sphinx_changed: bool, is_full_run: bool):
+    def test_sphinx_build(self, sphinx_changed: Optional[str], is_finalize: bool):
         """Build Sphinx documentation and ensure no major warnings appear in the build output."""
-        if not is_full_run:
-            pytest.skip("Skipping Sphinx test — not full run")
+        # Ensure docs folder exists
+        if not DIR_DOCS.exists():
+            pytest.skip(f"Skipping Sphinx build test - docs folder not present: {DIR_DOCS}")
 
         if not sphinx_changed:
             pytest.skip(f"Skipping Sphinx build — no relevant file changes detected: {HASH_FILE}")
 
-        # Ensure docs folder exists
-        if not Path("docs").exists():
-            pytest.skip(f"Skipping Sphinx build test - docs folder not present: {DIR_DOCS}")
+        if not is_finalize:
+            pytest.skip("Skipping Sphinx test — not full run")
 
         # Clean directories
         self._cleanup_autosum_dirs()
@@ -176,3 +134,7 @@ class TestSphinxDocumentation:
         ]
 
         assert not bad_lines, f"Sphinx build contained errors:\n" + "\n".join(bad_lines)
+
+        # Update stored hash
+        HASH_FILE.parent.mkdir(parents=True, exist_ok=True)
+        HASH_FILE.write_text(json.dumps({"hash": sphinx_changed}, indent=2))

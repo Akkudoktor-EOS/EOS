@@ -1,0 +1,99 @@
+name: Bump Version
+
+# Trigger the workflow on any push to main
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    name: Bump Version Workflow
+
+    steps:
+      # --- Step 1: Checkout the repository ---
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0           # Needed to create tags and see full history
+          persist-credentials: true # Needed for pushing commits and tags
+
+      # --- Step 2: Set up Python ---
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # --- Step 3: Calculate version dynamically ---
+      - name: Calculate version
+        id: calc
+        run: |
+          # Call custom version calculation script
+          VERSION=$(python scripts/get_version.py)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Computed version: $VERSION"
+
+      # --- Step 4: Skip workflow for development versions ---
+      - name: Skip if version contains 'dev'
+        run: |
+          # Exit workflow early if the version contains 'dev'
+          if [[ "${{ steps.calc.outputs.version }}" == *dev* ]]; then
+            echo "Version contains 'dev', skipping bump version workflow."
+            exit 0
+          fi
+
+      # --- Step 5: Update files and commit if necessary ---
+      - name: Update files and commit
+        run: |
+          # Define files to update
+          UPDATE_FILES="haaddon/config.yaml"
+
+          # Call general Python version replacement script
+          python scripts/update_version.py "${{ steps.calc.outputs.version }}" $UPDATE_FILES
+
+          # Commit changes if any
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add $UPDATE_FILES
+
+          if git diff --cached --quiet; then
+            echo "No files changed. Skipping commit."
+          else
+            git commit -m "chore: bump version to ${{ steps.calc.outputs.version }}"
+            git push
+
+      # --- Step 6: Create release tag ---
+      - name: Create release tag if it does not exist
+        id: tagging
+        run: |
+          TAG="v${{ steps.calc.outputs.version }}"
+
+          if git rev-parse --verify "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists. Skipping tag creation."
+            echo "created=false" >> $GITHUB_OUTPUT
+          else
+            git tag -a "v${{ steps.calc.outputs.version }}" -m "Release ${{ steps.calc.outputs.version }}"
+            git push origin "v${{ steps.calc.outputs.version }}"
+            echo "created=true" >> $GITHUB_OUTPUT
+          fi
+
+      # --- Step 7: Bump to development version ---
+      - name: Bump dev version
+        id: bump_dev
+        run: |
+          VERSION_BASE=$(python scripts/bump_dev_version.py | tail -n1)
+          if [ -z "$VERSION_BASE" ]; then
+            echo "Error: bump_dev_version.py returned an empty version."
+            exit 1
+          fi
+          echo "version_base=$VERSION_BASE" >> $GITHUB_OUTPUT
+
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add src/akkudoktoreos/core/version.py
+          if git diff --cached --quiet; then
+            echo "version.py not changed. Skipping commit."
+          else
+            git commit -m "chore: bump dev version to ${VERSION_BASE}"
+            git push

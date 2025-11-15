@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -7,6 +8,7 @@ import sys
 import tempfile
 import time
 from contextlib import contextmanager
+from fnmatch import fnmatch
 from http import HTTPStatus
 from pathlib import Path
 from typing import Generator, Optional, Union
@@ -21,11 +23,13 @@ from loguru import logger
 from xprocess import ProcessStarter, XProcess
 
 from akkudoktoreos.config.config import ConfigEOS, get_config
+from akkudoktoreos.core.version import _version_hash, version
 from akkudoktoreos.server.server import get_default_host
 
 # -----------------------------------------------
 # Adapt pytest logging handling to Loguru logging
 # -----------------------------------------------
+
 
 @pytest.fixture
 def caplog(caplog: LogCaptureFixture):
@@ -88,7 +92,7 @@ def disable_debug_logging(scope="session", autouse=True):
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--full-run", action="store_true", default=False, help="Run with all optimization tests."
+        "--finalize", action="store_true", default=False, help="Run with all tests."
     )
     parser.addoption(
         "--check-config-side-effect",
@@ -105,8 +109,8 @@ def pytest_addoption(parser):
 
 
 @pytest.fixture
-def is_full_run(request):
-    yield bool(request.config.getoption("--full-run"))
+def is_finalize(request):
+    yield bool(request.config.getoption("--finalize"))
 
 
 @pytest.fixture(autouse=True)
@@ -121,6 +125,12 @@ def config_mixin(config_eos):
 @pytest.fixture
 def is_system_test(request):
     yield bool(request.config.getoption("--system-test"))
+
+
+@pytest.fixture
+def is_ci() -> bool:
+    """Returns True if running on GitHub Actions CI, False otherwise."""
+    return os.getenv("CI") == "true"
 
 
 @pytest.fixture
@@ -526,6 +536,25 @@ def server_setup_for_function(xprocess) -> Generator[dict[str, Union[str, int]],
     """A fixture to start the server for a test function."""
     with server_base(xprocess) as result:
         yield result
+
+
+# --------------------------------------
+# Provide version and hash check support
+# --------------------------------------
+
+
+@pytest.fixture(scope="session")
+def version_and_hash() -> Generator[dict[str, Optional[str]], None, None]:
+    """Return version info as in in version.py and calculate current hash.
+
+    Runs once per test session.
+    """
+    info = version()
+    info["hash_current"] = _version_hash()
+
+    yield info
+
+    # After all tests
 
 
 # ------------------------------
