@@ -2469,7 +2469,10 @@
             "$ref": "#/components/schemas/ElecPriceCommonSettings-Output",
             "default": {
               "vat_rate": 1.19,
-              "provider_settings": {}
+              "elecpriceimport": {},
+              "energycharts": {
+                "bidding_zone": "DE-LU"
+              }
             }
           },
           "feedintariff": {
@@ -2975,27 +2978,6 @@
         "title": "DevicesCommonSettings",
         "description": "Base configuration for devices simulation settings."
       },
-      "ElecPriceCommonProviderSettings": {
-        "properties": {
-          "ElecPriceImport": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ElecPriceImportCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "ElecPriceImport settings",
-            "examples": [
-              null
-            ]
-          }
-        },
-        "type": "object",
-        "title": "ElecPriceCommonProviderSettings",
-        "description": "Electricity Price Prediction Provider Configuration."
-      },
       "ElecPriceCommonSettings-Input": {
         "properties": {
           "provider": {
@@ -3046,12 +3028,13 @@
               1.19
             ]
           },
-          "provider_settings": {
-            "$ref": "#/components/schemas/ElecPriceCommonProviderSettings",
-            "description": "Provider settings",
-            "examples": [
-              {}
-            ]
+          "elecpriceimport": {
+            "$ref": "#/components/schemas/ElecPriceImportCommonSettings",
+            "description": "Import provider settings."
+          },
+          "energycharts": {
+            "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
+            "description": "Energy Charts provider settings."
           }
         },
         "type": "object",
@@ -3108,17 +3091,33 @@
               1.19
             ]
           },
-          "provider_settings": {
-            "$ref": "#/components/schemas/ElecPriceCommonProviderSettings",
-            "description": "Provider settings",
-            "examples": [
-              {}
-            ]
+          "elecpriceimport": {
+            "$ref": "#/components/schemas/ElecPriceImportCommonSettings",
+            "description": "Import provider settings."
+          },
+          "energycharts": {
+            "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
+            "description": "Energy Charts provider settings."
           }
         },
         "type": "object",
         "title": "ElecPriceCommonSettings",
         "description": "Electricity Price Prediction Configuration."
+      },
+      "ElecPriceEnergyChartsCommonSettings": {
+        "properties": {
+          "bidding_zone": {
+            "$ref": "#/components/schemas/EnergyChartsBiddingZones",
+            "description": "Bidding Zone: 'AT', 'BE', 'CH', 'CZ', 'DE-LU', 'DE-AT-LU', 'DK1', 'DK2', 'FR', 'HU', 'IT-NORTH', 'NL', 'NO2', 'PL', 'SE4' or 'SI'",
+            "default": "DE-LU",
+            "examples": [
+              "AT"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecPriceEnergyChartsCommonSettings",
+        "description": "Common settings for Energy Charts electricity price provider."
       },
       "ElecPriceImportCommonSettings": {
         "properties": {
@@ -3374,6 +3373,29 @@
         ],
         "title": "ElectricVehicleResult",
         "description": "Result class containing information related to the electric vehicle's charging and discharging behavior."
+      },
+      "EnergyChartsBiddingZones": {
+        "type": "string",
+        "enum": [
+          "AT",
+          "BE",
+          "CH",
+          "CZ",
+          "DE-LU",
+          "DE-AT-LU",
+          "DK1",
+          "DK2",
+          "FR",
+          "HU",
+          "IT-NORTH",
+          "NL",
+          "NO2",
+          "PL",
+          "SE4",
+          "SI"
+        ],
+        "title": "EnergyChartsBiddingZones",
+        "description": "Energy Charts Bidding Zones."
       },
       "EnergyManagementCommonSettings": {
         "properties": {
