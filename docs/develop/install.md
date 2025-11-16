@@ -5,10 +5,10 @@
 
 This guide provides different methods to install AkkudoktorEOS:
 
-- Installation from Source (GitHub)
-- Installation from Release Package (GitHub)
-- Installation with Docker (DockerHub)
-- Installation with Docker (docker-compose)
+- Installation from Source (GitHub) (M1)
+- Installation from Release Package (GitHub) (M2)
+- Installation with Docker (DockerHub) (M3)
+- Installation with Docker (docker-compose) (M4)
 
 Choose the method that best suits your needs.
 
@@ -33,6 +33,9 @@ Before installing, ensure you have the following:
 
 - Docker Engine 20.10 or higher
 - Docker Compose (optional, recommended)
+
+See [Install Docker Engine](https://docs.docker.com/engine/install/) on how to install docker on
+your Linux distro.
 
 ## Installation from Source (GitHub) (M1)
 

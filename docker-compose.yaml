@@ -1,6 +1,7 @@
 ---
 networks:
   default:
+    external: true
     name: "eos"
 services:
   eos:
