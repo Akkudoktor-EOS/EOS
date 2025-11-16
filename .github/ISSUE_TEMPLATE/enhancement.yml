@@ -8,18 +8,20 @@ body:
 - type: markdown
   attributes:
     value: >
-      Please post your idea first as a [Discussion](https://github.com/Akkudoktor-EOS/EOS/discussions)
-      to validate it and bring attention to it. After validation,
-      you can open this issue for a more technical developer discussion.
       Check the [Contributor Guide](https://github.com/Akkudoktor-EOS/EOS/blob/main/CONTRIBUTING.md)
       if you need more information.
+
+- type: textarea
+  attributes:
+    label: "Describe the enhancement or feature request:"
+  validations:
+    required: true
 
 - type: textarea
   attributes:
     label: "Link to discussion and related issues"
     description: >
       <link here>
-    render: python
   validations:
     required: false
 
@@ -28,6 +30,5 @@ body:
     label: "Proposed implementation"
     description: >
       How it could be implemented with a high level API.
-    render: python
   validations:
     required: false
