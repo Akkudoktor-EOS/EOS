@@ -1,5 +1,8 @@
 # Define the targets
-.PHONY: help venv pip install dist test test-full test-system test-ci test-profile docker-run docker-build docs read-docs clean format gitlint mypy run run-dev run-dash run-dash-dev bumps
+.PHONY: help venv pip install dist test test-full test-system test-ci test-profile docker-run docker-build docs read-docs clean format gitlint mypy run run-dev run-dash run-dash-dev prepare-version test-version
+
+# - Take VERSION from version.py
+VERSION := $(shell python3 scripts/get_version.py)
 
 # Default target
 all: help
@@ -25,13 +28,13 @@ help:
 	@echo "  run-dash     - Run EOSdash production server in virtual environment."
 	@echo "  run-dash-dev - Run EOSdash development server in virtual environment (automatically reloads)."
 	@echo "  test         - Run tests."
-	@echo "  test-full    - Run tests with full optimization."
+	@echo "  test-full    - Run all tests (e.g. to finalize a commit)."
 	@echo "  test-system  - Run tests with system tests enabled."
 	@echo "  test-ci      - Run tests as CI does. No user config file allowed."
 	@echo "  test-profile - Run single test optimization with profiling."
 	@echo "  dist         - Create distribution (in dist/)."
 	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
-	@echo "  bump         - Bump version to next release version."
+	@echo "  prepare-version - Prepare a version defined in setup.py."
 
 # Target to set up a Python 3 virtual environment
 venv:
@@ -50,8 +53,12 @@ pip-dev: pip
 	.venv/bin/pip install -r requirements-dev.txt
 	@echo "Dependencies installed from requirements-dev.txt."
 
+# Target to create a version.txt
+version-txt:
+	echo "$(VERSION)" > version.txt
+
 # Target to install EOS in editable form (development mode) into virtual environment.
-install: pip-dev
+install: pip-dev version-txt
 	.venv/bin/pip install build
 	.venv/bin/pip install -e .
 	@echo "EOS installed in editable form (development mode)."
@@ -63,7 +70,7 @@ dist: pip
 	@echo "Distribution created (see dist/)."
 
 # Target to generate documentation
-gen-docs: pip-dev
+gen-docs: pip-dev version-txt
 	.venv/bin/pip install -e .
 	.venv/bin/python ./scripts/generate_config_md.py --output-file docs/_generated/config.md
 	.venv/bin/python ./scripts/generate_openapi_md.py --output-file docs/_generated/openapi.md
@@ -127,7 +134,7 @@ test:
 # Target to run tests as done by CI on Github.
 test-ci:
 	@echo "Running tests as CI..."
-	.venv/bin/pytest --full-run --check-config-side-effect -vs --cov src --cov-report term-missing
+	.venv/bin/pytest --finalize --check-config-side-effect -vs --cov src --cov-report term-missing
 
 # Target to run tests including the system tests.
 test-system:
@@ -137,7 +144,7 @@ test-system:
 # Target to run all tests.
 test-full:
 	@echo "Running all tests..."
-	.venv/bin/pytest --full-run
+	.venv/bin/pytest --finalize
 
 # Target to run tests including the single test optimization with profiling.
 test-profile:
@@ -165,16 +172,19 @@ docker-build:
 	@docker pull python:3.13.9-slim
 	@docker compose build
 
-# Bump Akkudoktoreos version
-VERSION ?= 0.2.0+dev
-NEW_VERSION ?= $(subst +dev,,$(VERSION))+dev # be careful - default is always +dev
+# Propagete version info to all version files
+# Take UPDATE_FILES from GitHub action bump-version.yml
+UPDATE_FILES := $(shell sed -n 's/^[[:space:]]*UPDATE_FILES[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
+                        .github/workflows/bump-version.yml)
+prepare-version: #pip-dev
+	@echo "Update version to $(VERSION) from version.py in files $(UPDATE_FILES) and doc"
+	.venv/bin/python ./scripts/update_version.py $(VERSION) $(UPDATE_FILES)
+	.venv/bin/python ./scripts/convert_lightweight_tags.py
+	.venv/bin/python ./scripts/generate_config_md.py --output-file docs/_generated/config.md
+	.venv/bin/python ./scripts/generate_openapi_md.py --output-file docs/_generated/openapi.md
+	.venv/bin/python ./scripts/generate_openapi.py --output-file openapi.json
+	.venv/bin/pytest -vv --finalize tests/test_version.py
 
-bump: pip-dev
-	@echo "Bumping akkudoktoreos version from $(VERSION) to $(NEW_VERSION) (dry-run: $(EXTRA_ARGS))"
-	.venv/bin/python scripts/convert_lightweight_tags.py
-	.venv/bin/python scripts/bump_version.py $(VERSION) $(NEW_VERSION) $(EXTRA_ARGS)
-
-bump-dry: pip-dev
-	@echo "Bumping akkudoktoreos version from $(VERSION) to $(NEW_VERSION) (dry-run: --dry-run)"
-	.venv/bin/python scripts/convert_lightweight_tags.py
-	.venv/bin/python scripts/bump_version.py $(VERSION) $(NEW_VERSION) --dry-run
+test-version:
+	echo "Test version information to be correctly set in all version files"
+	.venv/bin/pytest -vv tests/test_version.py

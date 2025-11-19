@@ -1,6 +1,6 @@
 [project]
 name = "akkudoktor-eos"
-version = "0.2.0+dev"
+dynamic = ["version"] # Get version information dynamically
 authors = [
   { name="Andreas Schmitz", email="author@example.com" },
 ]
@@ -25,6 +25,8 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
+# version.txt must be generated
+version = { file = "version.txt" }
 
 [tool.setuptools.packages.find]
 where = ["src/"]
@@ -109,29 +111,10 @@ module = "xprocess.*"
 ignore_missing_imports = true
 
 [tool.commitizen]
+# Only used as linter
 name = "cz_conventional_commits"
 version_scheme = "semver"
-version = "0.2.0+dev"            # <-- Set your current version heretag_format = "v$version"
 
-# Files to automatically update when bumping version
-update_changelog_on_bump = true
-changelog_incremental = true
-annotated_tag = true
-bump_message = "chore(release): $current_version → $new_version"
-
-# Branch validation settings
+# Enforce commit message and branch style:
 branch_validation = true
 branch_pattern = "^(feat|fix|chore|docs|refactor|test)/[a-z0-9._-]+$"
-
-# Customize changelog generation
-[tool.commitizen.changelog]
-path = "CHANGELOG.md"
-template = "keepachangelog"
-
-# If your version is stored in multiple files (Python modules, docs etc.), add them here
-[tool.commitizen.files]
-version = [
-  "pyproject.toml",          # Auto-update project version
-  "src/akkudoktoreos/core/version.py",
-  "src/akkudoktoreos/data/default.config.json"
-]

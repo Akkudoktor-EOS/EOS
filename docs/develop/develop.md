@@ -393,6 +393,13 @@ At a minimum, you should run the module tests:
         make test
 ```
 
+:::{admonition} Note
+:class: Note
+Depending on your changes you may also have to change the version.py and documentation files. Do as
+suggested by the tests. You may ignore the version.py and documentation changes up until you
+finalize your change.
+:::
+
 You should also run the system tests. These include additional tests that interact with real
 resources:
 

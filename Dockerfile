@@ -1,4 +1,7 @@
 # syntax=docker/dockerfile:1.7
+# Dockerfile
+
+# Set base image first
 ARG PYTHON_VERSION=3.13.9
 FROM python:${PYTHON_VERSION}-slim
 
@@ -32,28 +35,25 @@ RUN adduser --system --group --no-create-home eos \
     && mkdir -p "${EOS_CONFIG_DIR}" \
     && chown eos "${EOS_CONFIG_DIR}"
 
+# Install requirements
 COPY requirements.txt .
-
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r requirements.txt
 
+# Copy source
+COPY src/ ./src
 COPY pyproject.toml .
-RUN mkdir -p src && pip install --no-cache-dir -e .
 
-COPY src src
+# Create version information
+COPY scripts/get_version.py ./scripts/get_version.py
+RUN python scripts/get_version.py > ./version.txt
+RUN rm ./scripts/get_version.py
 
-# Create minimal default configuration for Docker to fix EOSDash accessibility (#629)
-# This ensures EOSDash binds to 0.0.0.0 instead of 127.0.0.1 in containers
-RUN echo '{\n\
-  "server": {\n\
-    "host": "0.0.0.0",\n\
-    "port": 8503,\n\
-    "startup_eosdash": true,\n\
-    "eosdash_host": "0.0.0.0",\n\
-    "eosdash_port": 8504\n\
-  }\n\
-}' > "${EOS_CONFIG_DIR}/EOS.config.json" \
-    && chown eos:eos "${EOS_CONFIG_DIR}/EOS.config.json"
+RUN echo "Building Akkudoktor-EOS with Python $PYTHON_VERSION"
+
+# Install akkudoktoreos package in editable form (-e)
+# pyproject-toml will read the version from version.txt
+RUN pip install --no-cache-dir -e .
 
 USER eos
 ENTRYPOINT []
@@ -61,6 +61,7 @@ ENTRYPOINT []
 EXPOSE 8503
 EXPOSE 8504
 
-CMD ["python", "src/akkudoktoreos/server/eos.py", "--host", "0.0.0.0"]
+# Ensure EOS and EOSdash bind to 0.0.0.0
+CMD ["python", "-m", "akkudoktoreos.server.eos", "--host", "0.0.0.0"]
 
 VOLUME ["${MPLCONFIGDIR}", "${EOS_CACHE_DIR}", "${EOS_OUTPUT_DIR}", "${EOS_CONFIG_DIR}"]

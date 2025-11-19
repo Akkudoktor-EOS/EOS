@@ -11,7 +11,7 @@ Key features:
 
 import json
 import os
-import shutil
+import tempfile
 from pathlib import Path
 from typing import Any, ClassVar, Optional, Type
 
@@ -154,7 +154,7 @@ class GeneralSettings(SettingsBaseModel):
         if v not in cls.compatible_versions:
             error = (
                 f"Incompatible configuration version '{v}'. "
-                f"Expected one of: {', '.join(cls.compatible_versions)}."
+                f"Expected: {', '.join(cls.compatible_versions)}."
             )
             logger.error(error)
             raise ValueError(error)
@@ -335,32 +335,44 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             file_secret_settings (pydantic_settings.PydanticBaseSettingsSource): Unused (needed for parent class interface).
 
         Returns:
-            tuple[pydantic_settings.PydanticBaseSettingsSource, ...]: A tuple of settings sources in the order they should be applied.
+            tuple[pydantic_settings.PydanticBaseSettingsSource, ...]: A tuple of settings sources in the order they     should be applied.
 
         Behavior:
             1. Checks for the existence of a JSON configuration file in the expected location.
-            2. If the configuration file does not exist, creates the directory (if needed) and attempts to copy a
-               default configuration file to the location. If the copy fails, uses the default configuration file directly.
-            3. Creates a `pydantic_settings.JsonConfigSettingsSource` for both the configuration file and the default configuration file.
+            2. If the configuration file does not exist, creates the directory (if needed) and
+               attempts to create a default configuration file in the location. If the creation
+               fails, a temporary configuration directory is used.
+            3. Creates a `pydantic_settings.JsonConfigSettingsSource` for the configuration
+               file.
             4. Updates class attributes `GeneralSettings._config_folder_path` and
                `GeneralSettings._config_file_path` to reflect the determined paths.
-            5. Returns a tuple containing all provided and newly created settings sources in the desired order.
+            5. Returns a tuple containing all provided and newly created settings sources in
+               the desired order.
 
         Notes:
-            - This method logs a warning if the default configuration file cannot be copied.
-            - It ensures that a fallback to the default configuration file is always possible.
+            - This method logs an error if the default configuration file in the normal
+              configuration directory cannot be created.
+            - It ensures that a fallback to a default configuration file is always possible.
         """
         # Ensure we know and have the config folder path and the config file
         config_file, exists = cls._get_config_file_path()
         config_dir = config_file.parent
         if not exists:
             config_dir.mkdir(parents=True, exist_ok=True)
+            # Create minimum config file
+            config_minimum_content = '{ "general": { "version": "' + __version__ + '" } }'
             try:
-                shutil.copy2(cls.config_default_file_path, config_file)
+                config_file.write_text(config_minimum_content, encoding="utf-8")
             except Exception as exc:
-                logger.warning(f"Could not copy default config: {exc}. Using default config...")
-                config_file = cls.config_default_file_path
-                config_dir = config_file.parent
+                # Create minimum config in temporary config directory as last resort
+                error_msg = f"Could not create minimum config file in {config_dir}: {exc}"
+                logger.error(error_msg)
+                temp_dir = Path(tempfile.mkdtemp())
+                info_msg = f"Using temporary config directory {temp_dir}"
+                logger.info(info_msg)
+                config_dir = temp_dir
+                config_file = temp_dir / config_file.name
+                config_file.write_text(config_minimum_content, encoding="utf-8")
         # Remember config_dir and config file
         GeneralSettings._config_folder_path = config_dir
         GeneralSettings._config_file_path = config_file
@@ -387,18 +399,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 f"Error reading config file '{config_file}' (falling back to default config): {ex}"
             )
 
-        # Append default settings to sources
-        default_settings = pydantic_settings.JsonConfigSettingsSource(
-            settings_cls, json_file=cls.config_default_file_path
-        )
-        setting_sources.append(default_settings)
-
         return tuple(setting_sources)
-
-    @classproperty
-    def config_default_file_path(cls) -> Path:
-        """Compute the default config file path."""
-        return cls.package_root_path.joinpath("data/default.config.json")
 
     @classproperty
     def package_root_path(cls) -> Path:
