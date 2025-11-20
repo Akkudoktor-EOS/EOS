@@ -371,7 +371,7 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
                     BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
-            KeyError,
+            TypeError,
         ),
         # Invalid index (no number)
         (
@@ -383,7 +383,7 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
                     BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
-            KeyError,
+            IndexError,
         ),
         # Unset value (set None)
         (
