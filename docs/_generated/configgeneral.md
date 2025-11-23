@@ -25,10 +25,10 @@ Properties:
 | data_folder_path | `EOS_GENERAL__DATA_FOLDER_PATH` | `Optional[pathlib.Path]` | `rw` | `None` | Path to EOS data directory. |
 | data_output_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | None |
 | data_output_subpath | `EOS_GENERAL__DATA_OUTPUT_SUBPATH` | `Optional[pathlib.Path]` | `rw` | `output` | Sub-path for the EOS output data directory. |
-| latitude | `EOS_GENERAL__LATITUDE` | `Optional[float]` | `rw` | `52.52` | Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°) |
-| longitude | `EOS_GENERAL__LONGITUDE` | `Optional[float]` | `rw` | `13.405` | Longitude in decimal degrees, within -180 to 180 (°) |
-| timezone | | `Optional[str]` | `ro` | `N/A` | None |
-| version | `EOS_GENERAL__VERSION` | `str` | `rw` | `0.2.0+dev.4dbc2d` | Configuration file version. Used to check compatibility. |
+| latitude | `EOS_GENERAL__LATITUDE` | `Optional[float]` | `rw` | `52.52` | Latitude in decimal degrees between -90 and 90. North is positive (ISO 19115) (°) |
+| longitude | `EOS_GENERAL__LONGITUDE` | `Optional[float]` | `rw` | `13.405` | Longitude in decimal degrees within -180 to 180 (°) |
+| timezone | | `Optional[str]` | `ro` | `N/A` | Computed timezone based on latitude and longitude. |
+| version | `EOS_GENERAL__VERSION` | `str` | `rw` | `0.2.0.dev27350002` | Configuration file version. Used to check compatibility. |
 :::
 <!-- pyml enable line-length -->
 
@@ -40,7 +40,7 @@ Properties:
 ```json
    {
        "general": {
-           "version": "0.2.0+dev.4dbc2d",
+           "version": "0.2.0.dev27350002",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
@@ -58,7 +58,7 @@ Properties:
 ```json
    {
        "general": {
-           "version": "0.2.0+dev.4dbc2d",
+           "version": "0.2.0.dev27350002",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
