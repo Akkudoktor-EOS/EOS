@@ -48,7 +48,7 @@ __version__ = 0.3.0
 
 Prepare version by updating versioned files, e.g.:
 
-- haaddon/config.yaml
+- config.yaml
 
 and the generated documentation:
 
@@ -132,7 +132,7 @@ See `.github/workflwows/bump-version.yml`for details.
 
 ### 5️⃣ CI: Prepare the Development Version Marker
 
-The development version marker will automatically be set by the GitHub CI action.
+The development version marker `.dev` will automatically be set by the GitHub CI action.
 
 See `.github/workflwows/bump-version.yml`for details.
 

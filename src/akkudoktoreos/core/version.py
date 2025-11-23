@@ -6,13 +6,15 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import Optional
 
-# For development add `+dev` to previous release
-# For release omit `+dev`.
-VERSION_BASE = "0.2.0+dev"
+# For development add `.dev` to previous release
+# For release omit `.dev`.
+VERSION_BASE = "0.2.0.dev"
 
 # Project hash of relevant files
 HASH_EOS = ""
 
+# Number of digits to append to .dev to identify a development version
+VERSION_DEV_PRECISION = 8
 
 # ------------------------------
 # Helpers for version generation
@@ -91,8 +93,11 @@ def _version_calculate() -> str:
     """Compute version."""
     global HASH_EOS
     HASH_EOS = _version_hash()
-    if VERSION_BASE.endswith("+dev"):
-        return f"{VERSION_BASE}.{HASH_EOS[:6]}"
+    if VERSION_BASE.endswith("dev"):
+        # After dev only digits are allowed - convert hexdigest to digits
+        hash_value = int(HASH_EOS, 16)
+        hash_digits = str(hash_value % (10**VERSION_DEV_PRECISION)).zfill(VERSION_DEV_PRECISION)
+        return f"{VERSION_BASE}{hash_digits}"
     else:
         return VERSION_BASE
 
@@ -114,10 +119,10 @@ __version__ = _version_calculate()
 VERSION_RE = re.compile(
     r"""
     ^(?P<base>\d+\.\d+\.\d+)            # x.y.z
-    (?:\+                               # +dev.hash starts here
+    (?:[\.\+\-]                         # .dev<hash> starts here
         (?:
             (?P<dev>dev)                # literal 'dev'
-            (?:\.(?P<hash>[A-Za-z0-9]+))?  # optional .hash
+            (?:(?P<hash>[A-Za-z0-9]+))?  # optional <hash>
         )
     )?
     $
@@ -131,8 +136,8 @@ def version() -> dict[str, Optional[str]]:
 
     The version string shall be of the form:
         x.y.z
-        x.y.z+dev
-        x.y.z+dev.HASH
+        x.y.z.dev
+        x.y.z.dev<HASH>
 
     Returns:
         .. code-block:: python
