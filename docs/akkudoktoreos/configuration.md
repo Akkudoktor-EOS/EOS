@@ -1,7 +1,7 @@
 % SPDX-License-Identifier: Apache-2.0
 (configuration-page)=
 
-# Configuration Guideline
+# Configuration Guide
 
 The configuration controls all aspects of EOS: optimization, prediction, measurement, and energy
 management.

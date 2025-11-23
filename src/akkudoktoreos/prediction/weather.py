@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.prediction import get_prediction
@@ -51,6 +51,12 @@ class WeatherCommonSettings(SettingsBaseModel):
             ],
         },
     )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def providers(self) -> list[str]:
+        """Available weather provider ids."""
+        return weather_providers
 
     # Validators
     @field_validator("provider", mode="after")

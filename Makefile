@@ -10,30 +10,30 @@ all: help
 # Target to display help information
 help:
 	@echo "Available targets:"
-	@echo "  venv         - Set up a Python 3 virtual environment."
-	@echo "  pip          - Install dependencies from requirements.txt."
-	@echo "  pip-dev      - Install dependencies from requirements-dev.txt."
-	@echo "  format       - Format source code."
-	@echo "  gitlint      - Lint last commit message."
-	@echo "  mypy         - Run mypy."
-	@echo "  install      - Install EOS in editable form (development mode) into virtual environment."
-	@echo "  docker-run   - Run entire setup on docker"
-	@echo "  docker-build - Rebuild docker image"
-	@echo "  docs         - Generate HTML documentation (in build/docs/html/)."
-	@echo "  read-docs    - Read HTML documentation in your browser."
-	@echo "  gen-docs     - Generate openapi.json and docs/_generated/*."
-	@echo "  clean-docs   - Remove generated documentation."
-	@echo "  run          - Run EOS production server in virtual environment."
-	@echo "  run-dev      - Run EOS development server in virtual environment (automatically reloads)."
-	@echo "  run-dash     - Run EOSdash production server in virtual environment."
-	@echo "  run-dash-dev - Run EOSdash development server in virtual environment (automatically reloads)."
-	@echo "  test         - Run tests."
-	@echo "  test-full    - Run all tests (e.g. to finalize a commit)."
-	@echo "  test-system  - Run tests with system tests enabled."
-	@echo "  test-ci      - Run tests as CI does. No user config file allowed."
-	@echo "  test-profile - Run single test optimization with profiling."
-	@echo "  dist         - Create distribution (in dist/)."
-	@echo "  clean        - Remove generated documentation, distribution and virtual environment."
+	@echo "  venv          - Set up a Python 3 virtual environment."
+	@echo "  pip           - Install dependencies from requirements.txt."
+	@echo "  pip-dev       - Install dependencies from requirements-dev.txt."
+	@echo "  format        - Format source code."
+	@echo "  gitlint       - Lint last commit message."
+	@echo "  mypy          - Run mypy."
+	@echo "  install       - Install EOS in editable form (development mode) into virtual environment."
+	@echo "  docker-run    - Run entire setup on docker"
+	@echo "  docker-build  - Rebuild docker image"
+	@echo "  docs          - Generate HTML documentation (in build/docs/html/)."
+	@echo "  read-docs     - Read HTML documentation in your browser."
+	@echo "  gen-docs      - Generate openapi.json and docs/_generated/*."
+	@echo "  clean-docs    - Remove generated documentation."
+	@echo "  run           - Run EOS production server in virtual environment."
+	@echo "  run-dev       - Run EOS development server in virtual environment (automatically reloads)."
+	@echo "  run-dash      - Run EOSdash production server in virtual environment."
+	@echo "  run-dash-dev  - Run EOSdash development server in virtual environment (automatically reloads)."
+	@echo "  test          - Run tests."
+	@echo "  test-finalize - Run all tests (e.g. to finalize a commit)."
+	@echo "  test-system   - Run tests with system tests enabled."
+	@echo "  test-ci       - Run tests as CI does. No user config file allowed."
+	@echo "  test-profile  - Run single test optimization with profiling."
+	@echo "  dist          - Create distribution (in dist/)."
+	@echo "  clean         - Remove generated documentation, distribution and virtual environment."
 	@echo "  prepare-version - Prepare a version defined in setup.py."
 
 # Target to set up a Python 3 virtual environment
@@ -79,13 +79,13 @@ gen-docs: pip-dev version-txt
 
 # Target to build HTML documentation
 docs: pip-dev
-	.venv/bin/pytest --full-run tests/test_docsphinx.py
+	.venv/bin/pytest --finalize tests/test_docsphinx.py
 	@echo "Documentation build to build/docs/html/."
 
 # Target to read the HTML documentation
 read-docs:
 	@echo "Read the documentation in your browser"
-	.venv/bin/pytest --full-run tests/test_docsphinx.py
+	.venv/bin/pytest --finalize tests/test_docsphinx.py
 	.venv/bin/python -m webbrowser build/docs/html/index.html
 
 # Clean Python bytecode
@@ -108,7 +108,7 @@ clean: clean-docs
 
 run:
 	@echo "Starting EOS production server, please wait..."
-	.venv/bin/python -m akkudoktoreos.server.eos
+	.venv/bin/python -m akkudoktoreos.server.eos --startup_eosdash true
 
 run-dev:
 	@echo "Starting EOS development server, please wait..."
@@ -142,7 +142,7 @@ test-system:
 	.venv/bin/pytest --system-test -vs --cov src --cov-report term-missing
 
 # Target to run all tests.
-test-full:
+test-finalize:
 	@echo "Running all tests..."
 	.venv/bin/pytest --finalize
 
@@ -165,10 +165,14 @@ mypy:
 
 # Run entire setup on docker
 docker-run:
+	@echo "Build and run EOS docker container locally."
+	@echo "Persistent data (and config) in ${HOME}/.local/share/net.akkudoktor.eos"
 	@docker pull python:3.13.9-slim
 	@docker compose up --remove-orphans
 
 docker-build:
+	@echo "Build EOS docker container locally."
+	@echo "Persistent data (and config) in ${HOME}/.local/share/net.akkudoktor.eos"
 	@docker pull python:3.13.9-slim
 	@docker compose build
 

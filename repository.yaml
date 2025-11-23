@@ -1,0 +1,9 @@
+# Home Assistant - Add-on Repository Configuration
+# ------------------------------------------------
+# https://developers.home-assistant.io/docs/add-ons/repository#repository-configuration
+#
+# The Akkudoktor-EOS add-on repo is special because there is only one add-on and it is in
+# the root directory (no add-on folder as usual).
+name: Akkudoktor-EOS
+url: http://github.com/Akkudoktor-EOS/EOS
+maintainer: Akkudoktor-EOS Team

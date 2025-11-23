@@ -29,6 +29,7 @@ from akkudoktoreos.core.emplan import (
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.server.dash.bokeh import Bokeh, bokey_apply_theme_to_plot
 from akkudoktoreos.server.dash.components import Error
+from akkudoktoreos.server.dash.context import request_url_for
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
 
 # bar width for 1 hour bars (time given in millseconds)
@@ -385,7 +386,7 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
                         name=f"{renderer}-visible",
                         value="true",
                         checked=solution_visible[renderer],
-                        hx_post="/eosdash/plan",
+                        hx_post=request_url_for("/eosdash/plan"),
                         hx_target="#page-content",
                         hx_swap="innerHTML",
                         hx_vals='js:{ "category": "solution", "action": "visible", "renderer": '
@@ -412,7 +413,7 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
                         name=f"{renderer}-visible",
                         value="true",
                         checked=solution_visible[renderer],
-                        hx_post="/eosdash/plan",
+                        hx_post=request_url_for("/eosdash/plan"),
                         hx_target="#page-content",
                         hx_swap="innerHTML",
                         hx_vals='js:{ "category": "solution", "action": "visible", "renderer": '
@@ -439,7 +440,7 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
                         name=f"{renderer}-visible",
                         value="true",
                         checked=solution_visible[renderer],
-                        hx_post="/eosdash/plan",
+                        hx_post=request_url_for("/eosdash/plan"),
                         hx_target="#page-content",
                         hx_swap="innerHTML",
                         hx_vals='js:{ "category": "solution", "action": "visible", "renderer": '
@@ -595,7 +596,7 @@ def Plan(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = None) 
             result.raise_for_status()
         except requests.exceptions.HTTPError as err:
             detail = result.json()["detail"]
-            return Error(f"Can not retrieve configuration from {server}: {err}, {detail}")
+            return Error(f"Can not retrieve configuration from {server}: {err},\n{detail}")
         eosstatus.eos_config = SettingsEOS(**result.json())
 
         # Get the optimization solution
@@ -607,7 +608,7 @@ def Plan(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = None) 
             solution_json = result.json()
         except requests.exceptions.HTTPError as e:
             detail = result.json()["detail"]
-            warning_msg = f"Can not retrieve optimization solution from {server}: {e}, {detail}"
+            warning_msg = f"Can not retrieve optimization solution from {server}: {e},\n{detail}"
             logger.warning(warning_msg)
             return Error(warning_msg)
         except Exception as e:
@@ -623,7 +624,7 @@ def Plan(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = None) 
             plan_json = result.json()
         except requests.exceptions.HTTPError as e:
             detail = result.json()["detail"]
-            warning_msg = f"Can not retrieve plan from {server}: {e}, {detail}"
+            warning_msg = f"Can not retrieve plan from {server}: {e},\n{detail}"
             logger.warning(warning_msg)
             return Error(warning_msg)
         except Exception as e:

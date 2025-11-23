@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
@@ -56,6 +56,12 @@ class ElecPriceCommonSettings(SettingsBaseModel):
         default_factory=ElecPriceEnergyChartsCommonSettings,
         json_schema_extra={"description": "Energy Charts provider settings."},
     )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def providers(self) -> list[str]:
+        """Available electricity price provider ids."""
+        return elecprice_providers
 
     # Validators
     @field_validator("provider", mode="after")

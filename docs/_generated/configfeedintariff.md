@@ -9,11 +9,12 @@
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | provider | `EOS_FEEDINTARIFF__PROVIDER` | `Optional[str]` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
 | provider_settings | `EOS_FEEDINTARIFF__PROVIDER_SETTINGS` | `FeedInTariffCommonProviderSettings` | `rw` | `required` | Provider settings |
+| providers | | `list[str]` | `ro` | `N/A` | Available feed in tariff provider ids. |
 :::
 <!-- pyml enable line-length -->
 
 <!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
+**Example Input**
 <!-- pyml enable no-emphasis-as-heading -->
 
 <!-- pyml disable line-length -->
@@ -25,6 +26,28 @@
                "FeedInTariffFixed": null,
                "FeedInTariffImport": null
            }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "feedintariff": {
+           "provider": "FeedInTariffFixed",
+           "provider_settings": {
+               "FeedInTariffFixed": null,
+               "FeedInTariffImport": null
+           },
+           "providers": [
+               "FeedInTariffFixed",
+               "FeedInTariffImport"
+           ]
        }
    }
 ```

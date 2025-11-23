@@ -3,7 +3,7 @@
   "info": {
     "title": "Akkudoktor-EOS",
     "description": "This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.",
-    "version": "v0.2.0+dev.4dbc2d"
+    "version": "v0.2.0.dev70048701"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -176,6 +176,9 @@
     },
     "/v1/health": {
       "get": {
+        "tags": [
+          "health"
+        ],
         "summary": "Fastapi Health Get",
         "description": "Health check endpoint to verify that the EOS server is alive.",
         "operationId": "fastapi_health_get_v1_health_get",
@@ -2020,6 +2023,96 @@
   },
   "components": {
     "schemas": {
+      "AdapterCommonSettings-Input": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "List of adapter provider id(s) of provider(s) to be used.",
+            "examples": [
+              [
+                "HomeAssistant"
+              ],
+              [
+                "HomeAssistant",
+                "NodeRED"
+              ]
+            ]
+          },
+          "homeassistant": {
+            "$ref": "#/components/schemas/HomeAssistantAdapterCommonSettings-Input",
+            "description": "Home Assistant adapter settings."
+          },
+          "nodered": {
+            "$ref": "#/components/schemas/NodeREDAdapterCommonSettings",
+            "description": "NodeRED adapter settings."
+          }
+        },
+        "type": "object",
+        "title": "AdapterCommonSettings",
+        "description": "Adapter Configuration."
+      },
+      "AdapterCommonSettings-Output": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "List of adapter provider id(s) of provider(s) to be used.",
+            "examples": [
+              [
+                "HomeAssistant"
+              ],
+              [
+                "HomeAssistant",
+                "NodeRED"
+              ]
+            ]
+          },
+          "homeassistant": {
+            "$ref": "#/components/schemas/HomeAssistantAdapterCommonSettings-Output",
+            "description": "Home Assistant adapter settings."
+          },
+          "nodered": {
+            "$ref": "#/components/schemas/NodeREDAdapterCommonSettings",
+            "description": "NodeRED adapter settings."
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "Available electricity price provider ids.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "providers"
+        ],
+        "title": "AdapterCommonSettings",
+        "description": "Adapter Configuration."
+      },
       "BatteriesCommonSettings-Input": {
         "properties": {
           "device_id": {
@@ -2123,6 +2216,19 @@
             ],
             "title": "Charge Rates",
             "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None triggers fallback to default charge-rates.",
+            "default": [
+              0.0,
+              0.1,
+              0.2,
+              0.3,
+              0.4,
+              0.5,
+              0.6,
+              0.7,
+              0.8,
+              0.9,
+              1.0
+            ],
             "examples": [
               [
                 0.0,
@@ -2264,6 +2370,19 @@
             ],
             "title": "Charge Rates",
             "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None triggers fallback to default charge-rates.",
+            "default": [
+              0.0,
+              0.1,
+              0.2,
+              0.3,
+              0.4,
+              0.5,
+              0.6,
+              0.7,
+              0.8,
+              0.9,
+              1.0
+            ],
             "examples": [
               [
                 0.0,
@@ -2340,7 +2459,7 @@
               }
             ],
             "title": "Measurement Keys",
-            "description": "Measurement keys for the battery stati that are measurements.\n\nBattery SoC, power.",
+            "description": "Measurement keys for the battery stati that are measurements.",
             "readOnly": true
           }
         },
@@ -2406,13 +2525,14 @@
           "general": {
             "$ref": "#/components/schemas/GeneralSettings-Output",
             "default": {
-              "version": "0.2.0+dev.4dbc2d",
+              "version": "0.2.0.dev70048701",
               "data_output_subpath": "output",
               "latitude": 52.52,
               "longitude": 13.405,
               "timezone": "Europe/Berlin",
               "config_folder_path": "/home/user/.config/net.akkudoktoreos.net",
-              "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
+              "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json",
+              "home_assistant_addon": false
             }
           },
           "cache": {
@@ -2447,7 +2567,7 @@
             }
           },
           "optimization": {
-            "$ref": "#/components/schemas/OptimizationCommonSettings",
+            "$ref": "#/components/schemas/OptimizationCommonSettings-Output",
             "default": {
               "horizon_hours": 24,
               "interval": 3600,
@@ -2455,7 +2575,8 @@
               "genetic": {
                 "generations": 400,
                 "individuals": 300
-              }
+              },
+              "keys": []
             }
           },
           "prediction": {
@@ -2472,19 +2593,34 @@
               "elecpriceimport": {},
               "energycharts": {
                 "bidding_zone": "DE-LU"
-              }
+              },
+              "providers": [
+                "ElecPriceAkkudoktor",
+                "ElecPriceEnergyCharts",
+                "ElecPriceImport"
+              ]
             }
           },
           "feedintariff": {
             "$ref": "#/components/schemas/FeedInTariffCommonSettings-Output",
             "default": {
-              "provider_settings": {}
+              "provider_settings": {},
+              "providers": [
+                "FeedInTariffFixed",
+                "FeedInTariffImport"
+              ]
             }
           },
           "load": {
             "$ref": "#/components/schemas/LoadCommonSettings-Output",
             "default": {
-              "provider_settings": {}
+              "provider_settings": {},
+              "providers": [
+                "LoadAkkudoktor",
+                "LoadAkkudoktorAdjusted",
+                "LoadVrm",
+                "LoadImport"
+              ]
             }
           },
           "pvforecast": {
@@ -2492,6 +2628,11 @@
             "default": {
               "provider_settings": {},
               "max_planes": 0,
+              "providers": [
+                "PVForecastAkkudoktor",
+                "PVForecastVrm",
+                "PVForecastImport"
+              ],
               "planes_peakpower": [],
               "planes_azimuth": [],
               "planes_tilt": [],
@@ -2502,7 +2643,12 @@
           "weather": {
             "$ref": "#/components/schemas/WeatherCommonSettings-Output",
             "default": {
-              "provider_settings": {}
+              "provider_settings": {},
+              "providers": [
+                "BrightSky",
+                "ClearOutside",
+                "WeatherImport"
+              ]
             }
           },
           "server": {
@@ -2517,6 +2663,24 @@
           "utils": {
             "$ref": "#/components/schemas/UtilsCommonSettings",
             "default": {}
+          },
+          "adapter": {
+            "$ref": "#/components/schemas/AdapterCommonSettings-Output",
+            "default": {
+              "homeassistant": {
+                "eos_device_instruction_entity_ids": [],
+                "eos_solution_entity_ids": [],
+                "homeassistant_entity_ids": []
+              },
+              "nodered": {
+                "host": "127.0.0.1",
+                "port": 1880
+              },
+              "providers": [
+                "HomeAssistant",
+                "NodeRED"
+              ]
+            }
           }
         },
         "additionalProperties": false,
@@ -3098,9 +3262,21 @@
           "energycharts": {
             "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
             "description": "Energy Charts provider settings."
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "Available electricity price provider ids.",
+            "readOnly": true
           }
         },
         "type": "object",
+        "required": [
+          "providers"
+        ],
         "title": "ElecPriceCommonSettings",
         "description": "Electricity Price Prediction Configuration."
       },
@@ -3976,9 +4152,21 @@
             "examples": [
               {}
             ]
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "Available feed in tariff provider ids.",
+            "readOnly": true
           }
         },
         "type": "object",
+        "required": [
+          "providers"
+        ],
         "title": "FeedInTariffCommonSettings",
         "description": "Feed In Tariff Prediction Configuration."
       },
@@ -4084,7 +4272,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0+dev.4dbc2d"
+            "default": "0.2.0.dev70048701"
           },
           "data_folder_path": {
             "anyOf": [
@@ -4129,7 +4317,7 @@
               }
             ],
             "title": "Latitude",
-            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)",
+            "description": "Latitude in decimal degrees between -90 and 90. North is positive (ISO 19115) (\u00b0)",
             "default": 52.52
           },
           "longitude": {
@@ -4144,13 +4332,13 @@
               }
             ],
             "title": "Longitude",
-            "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
+            "description": "Longitude in decimal degrees within -180 to 180 (\u00b0)",
             "default": 13.405
           }
         },
         "type": "object",
         "title": "GeneralSettings",
-        "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude."
+        "description": "General settings."
       },
       "GeneralSettings-Output": {
         "properties": {
@@ -4158,7 +4346,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0+dev.4dbc2d"
+            "default": "0.2.0.dev70048701"
           },
           "data_folder_path": {
             "anyOf": [
@@ -4203,7 +4391,7 @@
               }
             ],
             "title": "Latitude",
-            "description": "Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (\u00b0)",
+            "description": "Latitude in decimal degrees between -90 and 90. North is positive (ISO 19115) (\u00b0)",
             "default": 52.52
           },
           "longitude": {
@@ -4218,7 +4406,7 @@
               }
             ],
             "title": "Longitude",
-            "description": "Longitude in decimal degrees, within -180 to 180 (\u00b0)",
+            "description": "Longitude in decimal degrees within -180 to 180 (\u00b0)",
             "default": 13.405
           },
           "timezone": {
@@ -4231,7 +4419,7 @@
               }
             ],
             "title": "Timezone",
-            "description": "Compute timezone based on latitude and longitude.",
+            "description": "Computed timezone based on latitude and longitude.",
             "readOnly": true
           },
           "data_output_path": {
@@ -4245,7 +4433,7 @@
               }
             ],
             "title": "Data Output Path",
-            "description": "Compute data_output_path based on data_folder_path.",
+            "description": "Computed data_output_path based on data_folder_path.",
             "readOnly": true
           },
           "config_folder_path": {
@@ -4275,6 +4463,12 @@
             "title": "Config File Path",
             "description": "Path to EOS configuration file.",
             "readOnly": true
+          },
+          "home_assistant_addon": {
+            "type": "boolean",
+            "title": "Home Assistant Addon",
+            "description": "EOS is running as home assistant add-on.",
+            "readOnly": true
           }
         },
         "type": "object",
@@ -4282,10 +4476,11 @@
           "timezone",
           "data_output_path",
           "config_folder_path",
-          "config_file_path"
+          "config_file_path",
+          "home_assistant_addon"
         ],
         "title": "GeneralSettings",
-        "description": "Settings for common configuration.\n\nGeneral configuration to set directories of cache and output files and system location (latitude\nand longitude).\nValidators ensure each parameter is within a specified range. A computed property, `timezone`,\ndetermines the time zone based on latitude and longitude.\n\nAttributes:\n    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.\n    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.\n\nProperties:\n    timezone (Optional[str]): Computed time zone string based on the specified latitude\n        and longitude."
+        "description": "General settings."
       },
       "GeneticCommonSettings": {
         "properties": {
@@ -5010,6 +5205,310 @@
         "title": "HomeApplianceParameters",
         "description": "Home Appliance Device Simulation Configuration."
       },
+      "HomeAssistantAdapterCommonSettings-Input": {
+        "properties": {
+          "config_entity_ids": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Entity Ids",
+            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/0/capacity_wh",
+            "examples": [
+              {
+                "devices/batteries/0/capacity_wh": "sensor.battery1_capacity"
+              }
+            ]
+          },
+          "load_emr_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Emr Entity Ids",
+            "description": "Entity ID(s) of load energy meter reading [kWh]",
+            "examples": [
+              [
+                "sensor.load_energy_total_kwh"
+              ],
+              [
+                "sensor.load_emr1_kwh",
+                "sensor.load_emr2_kwh"
+              ]
+            ]
+          },
+          "pv_production_emr_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Production Emr Entity Ids",
+            "description": "Entity ID(s) of PV production energy meter reading [kWh]",
+            "examples": [
+              [
+                "sensor.pv_energy_total_kwh"
+              ],
+              [
+                "sensor.pv_emr1_kwh",
+                "sensor.pv_emr2_kwh"
+              ]
+            ]
+          },
+          "device_measurement_entity_ids": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Measurement Entity Ids",
+            "description": "Mapping of EOS measurement keys used by device (resource) simulations to Home Assistant entity IDs.",
+            "examples": [
+              {
+                "battery1_soc_factor": "sensor.battery1_soc_factor",
+                "ev11_soc_factor": "sensor.ev11_soc_factor"
+              }
+            ]
+          },
+          "device_instruction_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Instruction Entity Ids",
+            "description": "Entity IDs for device (resource) instructions to be updated by EOS.\nThe device ids (resource ids) have to be prepended by 'sensor.eos_' to build the entity_id.\nE.g. The instruction for device id 'battery1' becomes the entity_id 'sensor.eos_battery1'.",
+            "examples": [
+              [
+                "sensor.eos_battery1"
+              ]
+            ]
+          },
+          "solution_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solution Entity Ids",
+            "description": "Entity IDs for optimization solution keys to be updated by EOS.\nThe solution keys have to be prepended by 'sensor.eos_' to build the entity_id.\nE.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_battery1_idle_op_mode'.",
+            "examples": [
+              [
+                "sensor.eos_battery1_idle_mode_mode"
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "title": "HomeAssistantAdapterCommonSettings",
+        "description": "Common settings for the home assistant adapter."
+      },
+      "HomeAssistantAdapterCommonSettings-Output": {
+        "properties": {
+          "config_entity_ids": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Entity Ids",
+            "description": "Mapping of EOS config keys to Home Assistant entity IDs.\nThe config key has to be given by a \u2018/\u2019-separated path\ne.g. devices/batteries/0/capacity_wh",
+            "examples": [
+              {
+                "devices/batteries/0/capacity_wh": "sensor.battery1_capacity"
+              }
+            ]
+          },
+          "load_emr_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Emr Entity Ids",
+            "description": "Entity ID(s) of load energy meter reading [kWh]",
+            "examples": [
+              [
+                "sensor.load_energy_total_kwh"
+              ],
+              [
+                "sensor.load_emr1_kwh",
+                "sensor.load_emr2_kwh"
+              ]
+            ]
+          },
+          "pv_production_emr_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pv Production Emr Entity Ids",
+            "description": "Entity ID(s) of PV production energy meter reading [kWh]",
+            "examples": [
+              [
+                "sensor.pv_energy_total_kwh"
+              ],
+              [
+                "sensor.pv_emr1_kwh",
+                "sensor.pv_emr2_kwh"
+              ]
+            ]
+          },
+          "device_measurement_entity_ids": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Measurement Entity Ids",
+            "description": "Mapping of EOS measurement keys used by device (resource) simulations to Home Assistant entity IDs.",
+            "examples": [
+              {
+                "battery1_soc_factor": "sensor.battery1_soc_factor",
+                "ev11_soc_factor": "sensor.ev11_soc_factor"
+              }
+            ]
+          },
+          "device_instruction_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Instruction Entity Ids",
+            "description": "Entity IDs for device (resource) instructions to be updated by EOS.\nThe device ids (resource ids) have to be prepended by 'sensor.eos_' to build the entity_id.\nE.g. The instruction for device id 'battery1' becomes the entity_id 'sensor.eos_battery1'.",
+            "examples": [
+              [
+                "sensor.eos_battery1"
+              ]
+            ]
+          },
+          "solution_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solution Entity Ids",
+            "description": "Entity IDs for optimization solution keys to be updated by EOS.\nThe solution keys have to be prepended by 'sensor.eos_' to build the entity_id.\nE.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_battery1_idle_op_mode'.",
+            "examples": [
+              [
+                "sensor.eos_battery1_idle_mode_mode"
+              ]
+            ]
+          },
+          "homeassistant_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Homeassistant Entity Ids",
+            "description": "Entity IDs available at Home Assistant.",
+            "readOnly": true
+          },
+          "eos_solution_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Eos Solution Entity Ids",
+            "description": "Entity IDs for optimization solution available at EOS.",
+            "readOnly": true
+          },
+          "eos_device_instruction_entity_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Eos Device Instruction Entity Ids",
+            "description": "Entity IDs for energy management instructions available at EOS.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "homeassistant_entity_ids",
+          "eos_solution_entity_ids",
+          "eos_device_instruction_entity_ids"
+        ],
+        "title": "HomeAssistantAdapterCommonSettings",
+        "description": "Common settings for the home assistant adapter."
+      },
       "InverterCommonSettings-Input": {
         "properties": {
           "device_id": {
@@ -5314,9 +5813,21 @@
             "examples": [
               {}
             ]
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "Available load provider ids.",
+            "readOnly": true
           }
         },
         "type": "object",
+        "required": [
+          "providers"
+        ],
         "title": "LoadCommonSettings",
         "description": "Load Prediction Configuration."
       },
@@ -5385,7 +5896,7 @@
         },
         "type": "object",
         "title": "LoadVrmCommonSettings",
-        "description": "Common settings for VRM API."
+        "description": "Common settings for load forecast VRM API."
       },
       "LoggingCommonSettings-Input": {
         "properties": {
@@ -5684,6 +6195,46 @@
         "title": "MeasurementCommonSettings",
         "description": "Measurement Configuration."
       },
+      "NodeREDAdapterCommonSettings": {
+        "properties": {
+          "host": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Host",
+            "description": "Node-RED server IP address. Defaults to 127.0.0.1.",
+            "default": "127.0.0.1",
+            "examples": [
+              "127.0.0.1",
+              "localhost"
+            ]
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port",
+            "description": "Node-RED server IP port number. Defaults to 1880.",
+            "default": 1880,
+            "examples": [
+              1880
+            ]
+          }
+        },
+        "type": "object",
+        "title": "NodeREDAdapterCommonSettings",
+        "description": "Common settings for the NodeRED adapter.\n\nThe Node-RED adapter sends to HTTP IN nodes.\n\nThis is the example flow:\n\n[HTTP In \\\\<URL\\\\>] -> [Function (parse payload)] -> [Debug] -> [HTTP Response]\n\nThere are two URLs that are used:\n\n- GET /eos/data_aquisition\n  The GET is issued before the optimization.\n- POST /eos/control_dispatch\n  The POST is issued after the optimization."
+      },
       "OMBCInstruction": {
         "properties": {
           "id": {
@@ -5799,7 +6350,7 @@
         "title": "OMBCStatus",
         "description": "Reports the current operational status of an Operation Mode Based Control system.\n\nThis model provides real-time status information about an OMBC-controlled device,\nincluding which operation mode is currently active, how it is configured,\nand information about recent mode transitions. It enables monitoring of the\ndevice's operational state and tracking mode transition history."
       },
-      "OptimizationCommonSettings": {
+      "OptimizationCommonSettings-Input": {
         "properties": {
           "horizon_hours": {
             "anyOf": [
@@ -5874,6 +6425,96 @@
           }
         },
         "type": "object",
+        "title": "OptimizationCommonSettings",
+        "description": "General Optimization Configuration."
+      },
+      "OptimizationCommonSettings-Output": {
+        "properties": {
+          "horizon_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Horizon Hours",
+            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
+            ]
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3600.0,
+                "minimum": 900.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval",
+            "description": "The optimization interval [sec].",
+            "default": 3600,
+            "examples": [
+              3600,
+              900
+            ]
+          },
+          "algorithm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Algorithm",
+            "description": "The optimization algorithm.",
+            "default": "GENETIC",
+            "examples": [
+              "GENETIC"
+            ]
+          },
+          "genetic": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GeneticCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Genetic optimization algorithm configuration.",
+            "examples": [
+              {
+                "individuals": 400,
+                "penalties": {
+                  "ev_soc_miss": 10
+                }
+              }
+            ]
+          },
+          "keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Keys",
+            "description": "The keys of the solution.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "keys"
+        ],
         "title": "OptimizationCommonSettings",
         "description": "General Optimization Configuration."
       },
@@ -6641,6 +7282,15 @@
               2
             ]
           },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "Available PVForecast provider ids.",
+            "readOnly": true
+          },
           "planes_peakpower": {
             "items": {
               "type": "number"
@@ -6681,6 +7331,7 @@
         },
         "type": "object",
         "required": [
+          "providers",
           "planes_peakpower",
           "planes_azimuth",
           "planes_tilt",
@@ -7027,7 +7678,7 @@
         },
         "type": "object",
         "title": "PVForecastVrmCommonSettings",
-        "description": "Common settings for VRM API."
+        "description": "Common settings for PV forecast VRM API."
       },
       "PowerMeasurement-Input": {
         "properties": {
@@ -7144,7 +7795,7 @@
         },
         "type": "object",
         "title": "PredictionCommonSettings",
-        "description": "General Prediction Configuration.\n\nThis class provides configuration for prediction settings, allowing users to specify\nparameters such as the forecast duration (in hours).\nValidators ensure each parameter is within a specified range.\n\nAttributes:\n    hours (Optional[int]): Number of hours into the future for predictions.\n        Must be non-negative.\n    historic_hours (Optional[int]): Number of hours into the past for historical data.\n        Must be non-negative.\n\nValidators:\n    validate_hours (int): Ensures `hours` is a non-negative integer.\n    validate_historic_hours (int): Ensures `historic_hours` is a non-negative integer."
+        "description": "General Prediction Configuration."
       },
       "PydanticDateTimeData": {
         "additionalProperties": {
@@ -7175,7 +7826,7 @@
         },
         "type": "object",
         "title": "PydanticDateTimeData",
-        "description": "Pydantic model for time series data with consistent value lengths.\n\nThis model validates a dictionary where:\n- Keys are strings representing data series names\n- Values are lists of numeric or string values\n- Special keys 'start_datetime' and 'interval' can contain string values\nfor time series indexing\n- All value lists must have the same length\n\nExample:\n    .. code-block:: python\n\n        {\n            \"start_datetime\": \"2024-01-01 00:00:00\",  # optional\n            \"interval\": \"1 Hour\",                     # optional\n            \"loadforecast_power_w\": [20.5, 21.0, 22.1],\n            \"load_min\": [18.5, 19.0, 20.1]\n        }"
+        "description": "Pydantic model for time series data with consistent value lengths.\n\nThis model validates a dictionary where:\n- Keys are strings representing data series names\n- Values are lists of numeric or string values\n- Special keys 'start_datetime' and 'interval' can contain string values\nfor time series indexing\n- All value lists must have the same length\n\nExample:\n    .. code-block:: python\n\n        {\n            \"start_datetime\": \"2024-01-01 00:00:00\",  # optional\n            \"interval\": \"1 hour\",                     # optional\n            \"loadforecast_power_w\": [20.5, 21.0, 22.1],\n            \"load_min\": [18.5, 19.0, 20.1]\n        }"
       },
       "PydanticDateTimeDataFrame": {
         "properties": {
@@ -7421,7 +8072,7 @@
           "optimization": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/OptimizationCommonSettings"
+                "$ref": "#/components/schemas/OptimizationCommonSettings-Input"
               },
               {
                 "type": "null"
@@ -7516,6 +8167,17 @@
               }
             ],
             "description": "Utilities Settings"
+          },
+          "adapter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdapterCommonSettings-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Adapter Settings"
           }
         },
         "additionalProperties": false,
@@ -7931,9 +8593,21 @@
             "examples": [
               {}
             ]
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "Available weather provider ids.",
+            "readOnly": true
           }
         },
         "type": "object",
+        "required": [
+          "providers"
+        ],
         "title": "WeatherCommonSettings",
         "description": "Weather Forecast Configuration."
       },

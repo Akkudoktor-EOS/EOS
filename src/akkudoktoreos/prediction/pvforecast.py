@@ -260,6 +260,12 @@ class PVForecastCommonSettings(SettingsBaseModel):
         },
     )
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def providers(self) -> list[str]:
+        """Available PVForecast provider ids."""
+        return pvforecast_providers
+
     # Validators
     @field_validator("provider", mode="after")
     @classmethod

@@ -9,11 +9,12 @@
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | provider | `EOS_WEATHER__PROVIDER` | `Optional[str]` | `rw` | `None` | Weather provider id of provider to be used. |
 | provider_settings | `EOS_WEATHER__PROVIDER_SETTINGS` | `WeatherCommonProviderSettings` | `rw` | `required` | Provider settings |
+| providers | | `list[str]` | `ro` | `N/A` | Available weather provider ids. |
 :::
 <!-- pyml enable line-length -->
 
 <!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
+**Example Input**
 <!-- pyml enable no-emphasis-as-heading -->
 
 <!-- pyml disable line-length -->
@@ -24,6 +25,28 @@
            "provider_settings": {
                "WeatherImport": null
            }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "weather": {
+           "provider": "WeatherImport",
+           "provider_settings": {
+               "WeatherImport": null
+           },
+           "providers": [
+               "BrightSky",
+               "ClearOutside",
+               "WeatherImport"
+           ]
        }
    }
 ```

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import signal
@@ -44,73 +45,116 @@ class TestServer:
 
 
 class TestServerStartStop:
-    def test_server_start_eosdash(self, tmpdir):
-        """Test the EOSdash server startup from EOS."""
-        # Do not use any fixture as this will make pytest the owner of the EOSdash port.
-        host = get_default_host()
-        port = 8503
-        eosdash_host = host
-        eosdash_port = 8504
+
+    @pytest.mark.asyncio
+    async def test_server_start_eosdash(self, config_eos, monkeypatch, tmp_path):
+        """Test the EOSdash server startup from EOS.
+
+        Do not use any fixture as this will make pytest the owner of the EOSdash port.
+
+        Tests that:
+        1. EOSdash starts via the supervisor
+        2. The /eosdash/health endpoint returns OK
+        3. EOSdash reports correct status and version
+        4. EOSdash can be terminated cleanly
+        """
+        eos_dir = tmp_path
+        monkeypatch.setenv("EOS_DIR", str(eos_dir))
+        monkeypatch.setenv("EOS_CONFIG_DIR", str(eos_dir))
+
+        # Import with environment vars set to prevent creation of EOS.config.json in wrong dir.
+        from akkudoktoreos.server.rest.starteosdash import run_eosdash_supervisor
+
+        config_eos.server.host = get_default_host()
+        config_eos.server.port = 8503
+        config_eos.server.eosdash_host = config_eos.server.host
+        config_eos.server.eosdash_port = 8504
         timeout = 120
 
-        server = f"http://{host}:{port}"
-        eosdash_server = f"http://{eosdash_host}:{eosdash_port}"
-        eos_dir = str(tmpdir)
+        eosdash_server = f"http://{config_eos.server.eosdash_host}:{config_eos.server.eosdash_port}"
 
         # Cleanup any EOS and EOSdash process left.
-        cleanup_eos_eosdash(host, port, eosdash_host, eosdash_port, timeout)
-
-        # Import after test setup to prevent creation of config file before test
-        from akkudoktoreos.server.eos import start_eosdash
-
-        # Port may be blocked
-        assert wait_for_port_free(eosdash_port, timeout=120, waiting_app_name="EOSdash")
-
-        process = start_eosdash(
-            host=eosdash_host,
-            port=eosdash_port,
-            eos_host=host,
-            eos_port=port,
-            log_level="DEBUG",
-            access_log=False,
-            reload=False,
-            eos_dir=eos_dir,
-            eos_config_dir=eos_dir,
+        cleanup_eos_eosdash(
+            host=config_eos.server.host,
+            port=config_eos.server.port,
+            eosdash_host=config_eos.server.eosdash_host,
+            eosdash_port=config_eos.server.eosdash_port,
+            server_timeout=timeout,
         )
 
-        # Assure EOSdash is up
+        # Port may be blocked
+        assert wait_for_port_free(config_eos.server.eosdash_port, timeout=120, waiting_app_name="EOSdash")
+
+
+        """Start the EOSdash supervisor as a background task for testing."""
+        task = asyncio.create_task(run_eosdash_supervisor())
+
+        # give the supervisor some time to begin starting EOSdash
+        await asyncio.sleep(1)
+
+        # ---------------------------------
+        # Wait for health endpoint to come up
+        # ---------------------------------
         startup = False
         error = ""
+
         for retries in range(int(timeout / 3)):
             try:
-                result = requests.get(f"{eosdash_server}/eosdash/health", timeout=2)
-                if result.status_code == HTTPStatus.OK:
+                resp = requests.get(f"{eosdash_server}/eosdash/health", timeout=2)
+                if resp.status_code == HTTPStatus.OK:
                     startup = True
                     break
-                error = f"{result.status_code}, {str(result.content)}"
+                error = f"{resp.status_code}, {str(resp.content)}"
             except Exception as ex:
                 error = str(ex)
-            time.sleep(3)
 
-        assert startup, f"Connection to {eosdash_server}/eosdash/health failed: {error}"
-        health = result.json()
-        assert health["status"] == "alive"
-        assert health["version"] == __version__
+            await asyncio.sleep(3)
 
-        # Shutdown eosdash
+        # Graceful shutdown of the background task
+        # Do it before any assert
+        task.cancel()
         try:
-            result = requests.get(f"{eosdash_server}/eosdash/health", timeout=2)
-            if result.status_code == HTTPStatus.OK:
-                pid = result.json()["pid"]
-                os.kill(pid, signal.SIGTERM)
-                time.sleep(1)
-                result = requests.get(f"{eosdash_server}/eosdash/health", timeout=2)
-                assert result.status_code != HTTPStatus.OK
-        except:
+            await task
+        except asyncio.CancelledError:
             pass
 
-        # Cleanup any EOS and EOSdash process left.
-        cleanup_eos_eosdash(host, port, eosdash_host, eosdash_port, timeout)
+        assert startup, f"Connection to {eosdash_server}/eosdash/health failed: {error}"
+
+        health = resp.json()
+        assert health.get("status") == "alive"
+        assert health.get("version") == __version__
+
+        # ---------------------------------
+        # Shutdown EOSdash (as provided)
+        # ---------------------------------
+        try:
+            resp = requests.get(f"{eosdash_server}/eosdash/health", timeout=2)
+            if resp.status_code == HTTPStatus.OK:
+                pid = resp.json().get("pid")
+                assert pid is not None, "EOSdash did not report a PID"
+
+                os.kill(pid, signal.SIGTERM)
+                time.sleep(1)
+
+                # After shutdown, the server should not respond OK anymore
+                try:
+                    resp2 = requests.get(f"{eosdash_server}/eosdash/health", timeout=2)
+                    assert resp2.status_code != HTTPStatus.OK
+                except Exception:
+                    pass  # expected
+        except Exception:
+            pass  # ignore shutdown errors for safety
+
+        # ---------------------------------
+        # Cleanup any leftover processes
+        # ---------------------------------
+        cleanup_eos_eosdash(
+            host=config_eos.server.host,
+            port=config_eos.server.port,
+            eosdash_host=config_eos.server.eosdash_host,
+            eosdash_port=config_eos.server.eosdash_port,
+            server_timeout=timeout,
+        )
 
     @pytest.mark.skipif(os.name == "nt", reason="Server restart not supported on Windows")
     def test_server_restart(self, server_setup_for_function, is_system_test):

@@ -18,7 +18,7 @@ from akkudoktoreos.devices.devicesabc import DevicesBaseSettings
 from akkudoktoreos.utils.datetimeutil import DateTime, TimeWindowSequence, to_datetime
 
 # Default charge rates for battery
-BATTERY_DEFAULT_CHARGE_RATES = np.linspace(0.0, 1.0, 11)  # 0.0, 0.1, ..., 1.0
+BATTERY_DEFAULT_CHARGE_RATES: list[float] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
 
 class BatteriesCommonSettings(DevicesBaseSettings):
@@ -68,7 +68,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         json_schema_extra={"description": "Minimum charging power [W].", "examples": [50]},
     )
 
-    charge_rates: Optional[NDArray[Shape["*"], float]] = Field(
+    charge_rates: Optional[list[float]] = Field(
         default=BATTERY_DEFAULT_CHARGE_RATES,
         json_schema_extra={
             "description": (
@@ -165,10 +165,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def measurement_keys(self) -> Optional[list[str]]:
-        """Measurement keys for the battery stati that are measurements.
-
-        Battery SoC, power.
-        """
+        """Measurement keys for the battery stati that are measurements."""
         keys: list[str] = [
             self.measurement_key_soc_factor,
             self.measurement_key_power_l1_w,

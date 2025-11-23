@@ -51,12 +51,15 @@ A dictionary with the following structure:
 ```json
     {
         "start_datetime": "2024-01-01 00:00:00",
-        "interval": "1 Hour",
+        "interval": "1 hour",
         "<prediction key>": [value, value, ...],
         "<prediction key>": [value, value, ...],
         ...
     }
 ```
+
+If `start_datetime` is not provided EOS defaults to the `start_datetime` of the current energy
+management run. If `interval` is not provided EOS defaults to one hour.
 
 #### 2. DateTimeDataFrame
 
@@ -402,10 +405,11 @@ represent equal angular distance around the horizon. For instance, if you have 3
 point is due north, the next is 10 degrees east of north, and so on, until the last point, 10
 degrees west of north.
 
----
+![Userhorizon PVGIS](../_static/horizon_eyefish_en.png)
 
 Most of the configuration options are in line with the
-[PVLib](https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html) definition for PVGIS data.
+[PVLib](https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html) definition
+for PVGIS data.
 
 Detailed definitions from **PVLib** for PVGIS data.
 
@@ -413,12 +417,14 @@ Detailed definitions from **PVLib** for PVGIS data.
 
 Tilt angle from horizontal plane.
 
+![Tilt PVGIS](../_static/slope.gif)
+
 - `surface_azimuth`
 
 Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180,
 west=270). This is offset 180 degrees from the convention used by PVGIS.
 
----
+![Azimuth PVGIS](../_static/azimuth.gif)
 
 ### PVForecastAkkudoktor Provider
 

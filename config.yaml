@@ -1,0 +1,57 @@
+# Home Assistant - Add-on Configuration
+# -------------------------------------
+# https://developers.home-assistant.io/docs/add-ons/configuration#add-on-configuration
+#
+# The Akkudoktor-EOS add-on repo is special because there is only one add-on and it is in
+# the root directory (no add-on folder as usual).
+
+name: "Akkudoktor-EOS"
+version: "0.2.0.dev70048701"
+slug: "eos"
+description: "Akkudoktor-EOS add-on"
+url: "https://github.com/Akkudoktor-EOS/EOS"
+
+arch:
+  - aarch64
+  - amd64
+
+startup: "application"
+init: false
+boot: "auto"
+
+# Map home assistant persistent folders
+# /data is automatically mapped - do not list here
+map:
+  - share:rw
+  - config:rw
+
+# API access
+homeassistant: true
+homeassistant_api: true
+
+# Ports exposed by the add-on
+ports:
+  8503/tcp: 8503
+#  8504/tcp: 8504
+
+ports_description:
+  8503/tcp: "EOS REST server"
+#  8504/tcp: "EOSdash dashboard server"
+
+# EOSdash interface (if not ingress)
+# webui: "http://[HOST]:[PORT:8504]"
+
+# EOSdash by ingress
+ingress: true
+ingress_port: 8504
+ingress_stream: true
+panel_icon: "mdi:web"
+
+# EOS uses several directories under /data - config, cache, output
+backup_exclude:
+  - /data/cache
+  - /data/output
+
+# We do not use options
+options: {}
+schema: {}

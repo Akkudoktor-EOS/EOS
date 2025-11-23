@@ -400,7 +400,21 @@ class PydanticModelNestedValueMixin:
 
             # Get next value
             next_value = None
-            if isinstance(model, BaseModel):
+            if isinstance(model, RootModel):
+                # If this is the final key, set the value
+                if is_final_key:
+                    try:
+                        model.validate_and_set(key, value)
+                    except Exception as e:
+                        raise ValueError(f"Error updating model: {e}") from e
+                    return
+
+                next_value = model.root
+
+            elif isinstance(model, BaseModel):
+                logger.debug(
+                    f"Detected base model {model.__class__.__name__} of type {type(model)}"
+                )
                 # Track parent and key for possible assignment later
                 parent = model
                 parent_key = [
@@ -432,6 +446,7 @@ class PydanticModelNestedValueMixin:
                     next_value = getattr(model, key, None)
 
             elif isinstance(model, list):
+                logger.debug(f"Detected list of type {type(model)}")
                 # Handle lists (ensure index exists and modify safely)
                 try:
                     idx = int(key)
@@ -468,6 +483,7 @@ class PydanticModelNestedValueMixin:
                     return
 
             elif isinstance(model, dict):
+                logger.debug(f"Detected dict of type {type(model)}")
                 # Handle dictionaries (auto-create missing keys)
 
                 # Get next type from parent key type information
@@ -795,29 +811,61 @@ class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
 
     @classmethod
     def field_description(cls, field_name: str) -> Optional[str]:
-        """Return the description metadata of a model field, if available.
+        """Return a human-readable description for a model field.
 
-        This method retrieves the `Field` specification from the model's
-        `model_fields` registry and extracts its description from the field's
-        `json_schema_extra` / `extra` metadata (as provided by
-        `_field_extra_dict`). If the field does not exist or no description is
-        present, ``None`` is returned.
+        Looks up descriptions for both regular and computed fields.
+        Resolution order:
+
+        Normal fields:
+            1) json_schema_extra["description"]
+            2) field.description
+
+        Computed fields:
+            1) ComputedFieldInfo.description
+            2) function docstring (func.__doc__)
+            3) json_schema_extra["description"]
+
+        If a field exists but no description is found, returns "-".
+        If the field does not exist, returns None.
 
         Args:
-            field_name (str):
-                Name of the field whose description should be returned.
+            field_name: Field name.
 
         Returns:
-            Optional[str]:
-                The textual description if present, otherwise ``None``.
+            Description string, "-" if missing, or None if not a field.
         """
-        field = cls.model_fields.get(field_name)
-        if not field:
+        # 1) Regular declared fields
+        field: FieldInfo | None = cls.model_fields.get(field_name)
+        if field is not None:
+            extra = cls._field_extra_dict(field)
+            if "description" in extra:
+                return str(extra["description"])
+            # some FieldInfo may also have .description directly
+            if getattr(field, "description", None):
+                return str(field.description)
+
             return None
-        extra = cls._field_extra_dict(field)
+
+        # 2) Computed fields live in a separate mapping
+        cfield: ComputedFieldInfo | None = cls.model_computed_fields.get(field_name)
+        if cfield is None:
+            return None
+
+        # 2a) ComputedFieldInfo may have a description attribute
+        if getattr(cfield, "description", None):
+            return str(cfield.description)
+
+        # 2b) fallback to wrapped property's docstring
+        func = getattr(cfield, "func", None)
+        if func and func.__doc__:
+            return func.__doc__.strip()
+
+        # 2c) last resort: json_schema_extra if you use it for computed fields
+        extra = cls._field_extra_dict(cfield)
         if "description" in extra:
             return str(extra["description"])
-        return None
+
+        return "-"
 
     @classmethod
     def field_deprecated(cls, field_name: str) -> Optional[str]:
@@ -887,7 +935,7 @@ class PydanticDateTimeData(RootModel):
 
             {
                 "start_datetime": "2024-01-01 00:00:00",  # optional
-                "interval": "1 Hour",                     # optional
+                "interval": "1 hour",                     # optional
                 "loadforecast_power_w": [20.5, 21.0, 22.1],
                 "load_min": [18.5, 19.0, 20.1]
             }

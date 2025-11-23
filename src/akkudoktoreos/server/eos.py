@@ -9,7 +9,6 @@ import subprocess
 import sys
 import traceback
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
 
 import psutil
@@ -33,7 +32,7 @@ from akkudoktoreos.core.emplan import EnergyManagementPlan, ResourceStatus
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.core.logabc import LOGGING_LEVELS
-from akkudoktoreos.core.logging import read_file_log, track_logging_config
+from akkudoktoreos.core.logging import logging_track_config, read_file_log
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeData,
@@ -54,11 +53,13 @@ from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.server.rest.error import create_error_page
+from akkudoktoreos.server.rest.starteosdash import run_eosdash_supervisor
 from akkudoktoreos.server.rest.tasks import repeat_every
 from akkudoktoreos.server.server import (
+    drop_root_privileges,
+    fix_data_directories_permissions,
     get_default_host,
     get_host_ip,
-    validate_ip_or_hostname,
     wait_for_port_free,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
@@ -70,15 +71,18 @@ prediction_eos = get_prediction()
 ems_eos = get_ems()
 resource_registry_eos = get_resource_registry()
 
-
 # ------------------------------------
 # Logging configuration at import time
 # ------------------------------------
 
 logger.remove()
-track_logging_config(config_eos, "logging", None, None)
-config_eos.track_nested_value("/logging", track_logging_config)
+logging_track_config(config_eos, "logging", None, None)
 
+# -----------------------------
+# Configuration change tracking
+# -----------------------------
+
+config_eos.track_nested_value("/logging", logging_track_config)
 
 # ----------------------------
 # Safe argparse at import time
@@ -114,6 +118,11 @@ parser.add_argument(
     default=None,
     help="Enable or disable automatic EOSdash startup. Options: True or False (default: value from config)",
 )
+parser.add_argument(
+    "--run_as_user",
+    type=str,
+    help="The unprivileged user account the EOS server shall switch to after performing root-level startup tasks.",
+)
 
 # Command line arguments
 args: argparse.Namespace
@@ -137,7 +146,7 @@ if args and args.log_level is not None:
     # Ensure log_level from command line is in config settings
     if log_level in LOGGING_LEVELS:
         # Setup console logging level using nested value
-        # - triggers logging configuration by track_logging_config
+        # - triggers logging configuration by logging_track_config
         config_eos.set_nested_value("logging/console_level", log_level)
         logger.debug(f"logging/console_level configuration set by argument to {log_level}")
 
@@ -186,105 +195,6 @@ if config_eos.server.startup_eosdash:
     # Setup EOS server host
     if config_eos.server.eosdash_port is None:
         config_eos.set_nested_value("server/eosdash_port", port + 1)
-
-
-# ----------------------
-# EOSdash server startup
-# ----------------------
-
-
-def start_eosdash(
-    host: str,
-    port: int,
-    eos_host: str,
-    eos_port: int,
-    log_level: str,
-    access_log: bool,
-    reload: bool,
-    eos_dir: str,
-    eos_config_dir: str,
-) -> subprocess.Popen:
-    """Start the EOSdash server as a subprocess.
-
-    This function starts the EOSdash server by launching it as a subprocess. It checks if the server
-    is already running on the specified port and either returns the existing process or starts a new
-    one.
-
-    Args:
-        host (str): The hostname for the EOSdash server.
-        port (int): The port for the EOSdash server.
-        eos_host (str): The hostname for the EOS server.
-        eos_port (int): The port for the EOS server.
-        log_level (str): The logging level for the EOSdash server.
-        access_log (bool): Flag to enable or disable access logging.
-        reload (bool): Flag to enable or disable auto-reloading.
-        eos_dir (str): Path to the EOS data directory.
-        eos_config_dir (str): Path to the EOS configuration directory.
-
-    Returns:
-        subprocess.Popen: The process of the EOSdash server.
-
-    Raises:
-        RuntimeError: If the EOSdash server fails to start.
-    """
-    try:
-        validate_ip_or_hostname(host)
-        validate_ip_or_hostname(eos_host)
-    except Exception as ex:
-        error_msg = f"Could not start EOSdash: {ex}"
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
-
-    eosdash_path = Path(__file__).parent.resolve().joinpath("eosdash.py")
-
-    # Do a one time check for port free to generate warnings if not so
-    wait_for_port_free(port, timeout=0, waiting_app_name="EOSdash")
-
-    cmd = [
-        sys.executable,
-        "-m",
-        "akkudoktoreos.server.eosdash",
-        "--host",
-        str(host),
-        "--port",
-        str(port),
-        "--eos-host",
-        str(eos_host),
-        "--eos-port",
-        str(eos_port),
-        "--log_level",
-        log_level,
-        "--access_log",
-        str(access_log),
-        "--reload",
-        str(reload),
-    ]
-    # Set environment before any subprocess run, to keep custom config dir
-    env = os.environ.copy()
-    env["EOS_DIR"] = eos_dir
-    env["EOS_CONFIG_DIR"] = eos_config_dir
-
-    try:
-        server_process = subprocess.Popen(  # noqa: S603
-            cmd,
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-        )
-        logger.info(f"Started EOSdash with '{cmd}'.")
-    except subprocess.CalledProcessError as ex:
-        error_msg = f"Could not start EOSdash: {ex}"
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
-
-    # Check EOSdash is still running
-    if server_process.poll() is not None:
-        error_msg = f"EOSdash finished immediatedly with code: {server_process.returncode}"
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
-
-    return server_process
 
 
 # ----------------------
@@ -389,41 +299,7 @@ async def server_shutdown_task() -> None:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
-    if config_eos.server.startup_eosdash:
-        try:
-            if (
-                config_eos.server.eosdash_host is None
-                or config_eos.server.eosdash_port is None
-                or config_eos.server.host is None
-                or config_eos.server.port is None
-            ):
-                raise ValueError(
-                    f"Invalid configuration for EOSdash server startup.\n"
-                    f"- server/startup_eosdash: {config_eos.server.startup_eosdash}\n"
-                    f"- server/eosdash_host: {config_eos.server.eosdash_host}\n"
-                    f"- server/eosdash_port: {config_eos.server.eosdash_port}\n"
-                    f"- server/host: {config_eos.server.host}\n"
-                    f"- server/port: {config_eos.server.port}"
-                )
-
-            log_level = (
-                config_eos.logging.console_level if config_eos.logging.console_level else "info"
-            )
-
-            eosdash_process = start_eosdash(
-                host=str(config_eos.server.eosdash_host),
-                port=config_eos.server.eosdash_port,
-                eos_host=str(config_eos.server.host),
-                eos_port=config_eos.server.port,
-                log_level=log_level,
-                access_log=True,
-                reload=False,
-                eos_dir=str(config_eos.general.data_folder_path),
-                eos_config_dir=str(config_eos.general.config_folder_path),
-            )
-        except Exception as e:
-            logger.error(f"Failed to start EOSdash server. Error: {e}")
-            sys.exit(1)
+    asyncio.create_task(run_eosdash_supervisor())
 
     load_eos_state()
 
@@ -606,7 +482,7 @@ async def fastapi_admin_server_shutdown_post() -> dict:
     }
 
 
-@app.get("/v1/health")
+@app.get("/v1/health", tags=["health"])
 def fastapi_health_get():  # type: ignore
     """Health check endpoint to verify that the EOS server is alive."""
     return JSONResponse(
@@ -1190,7 +1066,7 @@ def fastapi_energy_management_optimization_solution_get() -> OptimizationSolutio
     if solution is None:
         raise HTTPException(
             status_code=404,
-            detail="Can not get the optimization solution. Did you configure automatic optimization?",
+            detail="Can not get the optimization solution.\nDid you configure automatic optimization?",
         )
     return solution
 
@@ -1202,7 +1078,7 @@ def fastapi_energy_management_plan_get() -> EnergyManagementPlan:
     if plan is None:
         raise HTTPException(
             status_code=404,
-            detail="Can not get the energy management plan. Did you configure automatic optimization?",
+            detail="Can not get the energy management plan.\nDid you configure automatic optimization?",
         )
     return plan
 
@@ -1256,7 +1132,7 @@ async def fastapi_strompreis() -> list[float]:
     except Exception as e:
         raise HTTPException(
             status_code=404,
-            detail=f"Can not get the electricity price forecast: {e}. Did you configure the electricity price forecast provider?",
+            detail=f"Can not get the electricity price forecast: {e}.\nDid you configure the electricity price forecast provider?",
         )
 
     return elecprice
@@ -1360,7 +1236,7 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     except Exception as e:
         raise HTTPException(
             status_code=404,
-            detail=f"Can not get the total load forecast: {e}. Did you configure the load forecast provider?",
+            detail=f"Can not get the total load forecast: {e}.\nDid you configure the load forecast provider?",
         )
 
     return prediction_list
@@ -1421,7 +1297,7 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     except Exception as e:
         raise HTTPException(
             status_code=404,
-            detail=f"Can not get the total load forecast: {e}. Did you configure the load forecast provider?",
+            detail=f"Can not get the total load forecast: {e}.\nDid you configure the load forecast provider?",
         )
 
     return prediction_list
@@ -1616,6 +1492,17 @@ def run_eos() -> None:
     Returns:
         None
     """
+    if args:
+        run_as_user = args.run_as_user
+    else:
+        run_as_user = None
+
+    # Switch data directories ownership to user
+    fix_data_directories_permissions(run_as_user=run_as_user)
+
+    # Switch privileges to run_as_user
+    drop_root_privileges(run_as_user=run_as_user)
+
     # Wait for EOS port to be free - e.g. in case of restart
     wait_for_port_free(port, timeout=120, waiting_app_name="EOS")
 
@@ -1628,6 +1515,8 @@ def run_eos() -> None:
             log_level="info",  # Fix log level for uvicorn to info
             access_log=True,  # Fix server access logging to True
             reload=reload,
+            proxy_headers=True,
+            forwarded_allow_ips="*",
         )
     except Exception as e:
         logger.exception("Failed to start uvicorn server.")

@@ -15,43 +15,49 @@ from typing import List
 VERSION_PATTERNS = [
     # Python: __version__ = "1.2.3"
     re.compile(
-        r'(?<![A-Za-z0-9])(__version__\s*=\s*")'
-        r'(?P<ver>\d+\.\d+\.\d+(?:\+[0-9A-Za-z\.]+)?)'
+        r'(?<![A-Za-z0-9_])(__version__\s*=\s*")'
+        r'(?P<ver>\d+\.\d+\.\d+(?:[\.\+\-][0-9A-Za-z]+)?)'
         r'(")'
     ),
 
     # Python: version = "1.2.3"
     re.compile(
-        r'(?<![A-Za-z0-9])(version\s*=\s*")'
-        r'(?P<ver>\d+\.\d+\.\d+(?:\+[0-9A-Za-z\.]+)?)'
+        r'(?<![A-Za-z0-9_])(version\s*=\s*")'
+        r'(?P<ver>\d+\.\d+\.\d+(?:[\.\+\-][0-9A-Za-z]+)?)'
         r'(")'
     ),
 
     # JSON: "version": "1.2.3"
     re.compile(
-        r'(?<![A-Za-z0-9])("version"\s*:\s*")'
-        r'(?P<ver>\d+\.\d+\.\d+(?:\+[0-9A-Za-z\.]+)?)'
+        r'(?<![A-Za-z0-9_])("version"\s*:\s*")'
+        r'(?P<ver>\d+\.\d+\.\d+(?:[\.\+\-][0-9A-Za-z]+)?)'
         r'(")'
     ),
 
     # Makefile-style: VERSION ?= 1.2.3
     re.compile(
-        r'(?<![A-Za-z0-9])(VERSION\s*\?=\s*)'
-        r'(?P<ver>\d+\.\d+\.\d+(?:\+[0-9A-Za-z\.]+)?)'
+        r'(?<![A-Za-z0-9_])(VERSION\s*\?=\s*)'
+        r'(?P<ver>\d+\.\d+\.\d+(?:[\.\+\-][0-9A-Za-z]+)?)'
+    ),
+
+    # Environment-style: VERSION = 1.2.3
+    re.compile(
+        r'(?<![A-Za-z0-9_])(VERSION\s*\=\s*)'
+        r'(?P<ver>\d+\.\d+\.\d+(?:[\.\+\-][0-9A-Za-z]+)?)'
     ),
 
     # YAML: version: "1.2.3"
     re.compile(
         r'(?m)^(version\s*:\s*["\']?)'
-        r'(?P<ver>\d+\.\d+\.\d+(?:\+[0-9A-Za-z\.]+)?)'
+        r'(?P<ver>\d+\.\d+\.\d+(?:[\.\+\-][0-9A-Za-z]+)?)'
         r'(["\']?)\s*$'
     ),
 ]
 
 
 def update_version_in_file(file_path: Path, new_version: str) -> bool:
-    """
-    Replace version strings in a file based on VERSION_PATTERNS.
+    """Replace version strings in a file based on VERSION_PATTERNS.
+
     Returns True if the file was updated.
     """
     content = file_path.read_text()

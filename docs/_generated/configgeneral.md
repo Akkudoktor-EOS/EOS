@@ -1,17 +1,4 @@
-## Settings for common configuration
-
-General configuration to set directories of cache and output files and system location (latitude
-and longitude).
-Validators ensure each parameter is within a specified range. A computed property, `timezone`,
-determines the time zone based on latitude and longitude.
-
-Attributes:
-    latitude (Optional[float]): Latitude in degrees, must be between -90 and 90.
-    longitude (Optional[float]): Longitude in degrees, must be between -180 and 180.
-
-Properties:
-    timezone (Optional[str]): Computed time zone string based on the specified latitude
-        and longitude.
+## General settings
 
 <!-- pyml disable line-length -->
 :::{table} general
@@ -20,15 +7,16 @@ Properties:
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| config_file_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | None |
-| config_folder_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | None |
+| config_file_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration file. |
+| config_folder_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration directory. |
 | data_folder_path | `EOS_GENERAL__DATA_FOLDER_PATH` | `Optional[pathlib.Path]` | `rw` | `None` | Path to EOS data directory. |
-| data_output_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | None |
+| data_output_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Computed data_output_path based on data_folder_path. |
 | data_output_subpath | `EOS_GENERAL__DATA_OUTPUT_SUBPATH` | `Optional[pathlib.Path]` | `rw` | `output` | Sub-path for the EOS output data directory. |
-| latitude | `EOS_GENERAL__LATITUDE` | `Optional[float]` | `rw` | `52.52` | Latitude in decimal degrees, between -90 and 90, north is positive (ISO 19115) (°) |
-| longitude | `EOS_GENERAL__LONGITUDE` | `Optional[float]` | `rw` | `13.405` | Longitude in decimal degrees, within -180 to 180 (°) |
-| timezone | | `Optional[str]` | `ro` | `N/A` | None |
-| version | `EOS_GENERAL__VERSION` | `str` | `rw` | `0.2.0+dev.4dbc2d` | Configuration file version. Used to check compatibility. |
+| home_assistant_addon | | `bool` | `ro` | `N/A` | EOS is running as home assistant add-on. |
+| latitude | `EOS_GENERAL__LATITUDE` | `Optional[float]` | `rw` | `52.52` | Latitude in decimal degrees between -90 and 90. North is positive (ISO 19115) (°) |
+| longitude | `EOS_GENERAL__LONGITUDE` | `Optional[float]` | `rw` | `13.405` | Longitude in decimal degrees within -180 to 180 (°) |
+| timezone | | `Optional[str]` | `ro` | `N/A` | Computed timezone based on latitude and longitude. |
+| version | `EOS_GENERAL__VERSION` | `str` | `rw` | `0.2.0.dev70048701` | Configuration file version. Used to check compatibility. |
 :::
 <!-- pyml enable line-length -->
 
@@ -40,7 +28,7 @@ Properties:
 ```json
    {
        "general": {
-           "version": "0.2.0+dev.4dbc2d",
+           "version": "0.2.0.dev70048701",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
@@ -58,7 +46,7 @@ Properties:
 ```json
    {
        "general": {
-           "version": "0.2.0+dev.4dbc2d",
+           "version": "0.2.0.dev70048701",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
@@ -66,7 +54,8 @@ Properties:
            "timezone": "Europe/Berlin",
            "data_output_path": null,
            "config_folder_path": "/home/user/.config/net.akkudoktoreos.net",
-           "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
+           "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json",
+           "home_assistant_addon": false
        }
    }
 ```

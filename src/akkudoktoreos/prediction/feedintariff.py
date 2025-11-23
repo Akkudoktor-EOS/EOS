@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
@@ -55,6 +55,12 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
             ],
         },
     )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def providers(self) -> list[str]:
+        """Available feed in tariff provider ids."""
+        return feedintariff_providers
 
     # Validators
     @field_validator("provider", mode="after")

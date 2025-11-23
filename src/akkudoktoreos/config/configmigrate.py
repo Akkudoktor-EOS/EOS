@@ -21,6 +21,11 @@ if TYPE_CHECKING:
 #   - tuple[str, Callable[[Any], Any]] (new path + transform)
 #   - None (drop)
 MIGRATION_MAP: Dict[str, Union[str, Tuple[str, Callable[[Any], Any]], None]] = {
+    # 0.2.0.dev -> 0.2.0.dev
+    "adapter/homeassistant/optimization_solution_entity_ids": (
+        "adapter/homeassistant/solution_entity_ids",
+        lambda v: v if isinstance(v, list) else None,
+    ),
     # 0.2.0 -> 0.2.0+dev
     "elecprice/provider_settings/ElecPriceImport/import_file_path": "elecprice/elecpriceimport/import_file_path",
     "elecprice/provider_settings/ElecPriceImport/import_json": "elecprice/elecpriceimport/import_json",
