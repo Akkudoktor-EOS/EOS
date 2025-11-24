@@ -9,7 +9,7 @@
 # - commitizen - sync with requirements-dev.txt (if on pypi)
 #
 # !!! Sync .pre-commit-config.yaml and requirements-dev.txt !!!
-pre-commit==4.4.0
+pre-commit==4.5.0
 mypy==1.18.2
 types-requests==2.32.4.20250913 # for mypy
 pandas-stubs==2.3.2.250926 # for mypy
