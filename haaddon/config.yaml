@@ -1,0 +1,26 @@
+# https://developers.home-assistant.io/docs/add-ons/configuration#add-on-config
+name: "Akkudoktor-EOS"
+#version: "0.2.0+dev"
+slug: eos
+description: Akkudoktor-EOS add-on
+url: "https://github.com/Akkudoktor-EOS/EOS/tree/main/haaddon"
+arch:
+  - aarch64
+  - amd64
+init: false
+map:
+  - share:rw
+  - config:rw
+ports:
+  8503/tcp: 8503
+  8504/tcp: 8504
+ports_description:
+  8503/tcp: EOS fastapi server
+  8504/tcp: EOS Dashboard
+# options:
+# schema:
+backup_exclude:
+  - /data/eos/cache
+#image: "ghcr.io/duetting/{arch}-addon-eos"
+startup: services
+webui: http://[HOST]:[PORT:8504]

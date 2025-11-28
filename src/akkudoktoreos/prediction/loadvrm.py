@@ -24,7 +24,7 @@ class VrmForecastResponse(PydanticBaseModel):
 
 
 class LoadVrmCommonSettings(SettingsBaseModel):
-    """Common settings for VRM API."""
+    """Common settings for load forecast VRM API."""
 
     load_vrm_token: str = Field(
         default="your-token",

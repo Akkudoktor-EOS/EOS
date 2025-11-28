@@ -328,8 +328,11 @@ For detailed Docker instructions, refer to [Installation Guideline](install-page
 
 #### Step 4.1 - Create a development branch
 
+Create a local development branch and make it know on your GitHub repo.
+
 ```bash
 git checkout -b <MY_DEVELOPMENT_BRANCH>
+git push --set-upstream origin <MY_DEVELOPMENT_BRANCH>
 ```
 
 Replace `<MY_DEVELOPMENT_BRANCH>` with the development branch name. The branch name shall be of the
@@ -590,6 +593,10 @@ Ensure your changes do not break existing functionality:
 ### Follow Coding Standards
 
 Keep your code consistent with existing style and conventions.
+
+#### Keep Python Docstrings RST Compatible
+
+The docstrings will be parsed by Sphinx in automatic documentation generation.
 
 ### Use Issues for Discussion
 

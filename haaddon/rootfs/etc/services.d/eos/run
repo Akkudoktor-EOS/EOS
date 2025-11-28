@@ -1,0 +1,54 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Start the eos service
+# s6-overlay docs: https://github.com/just-containers/s6-overlay
+# ==============================================================================
+
+# Add your code here
+
+if [ ! -d /data/eos/cache ]; then
+    bashio::log.info "Creating /data/eos/cache"
+    mkdir -p "/data/eos/cache"
+fi
+chown -R eos "/data/eos/cache"
+if [ ! -d /opt/eos/cache ]; then
+    ln -s "/data/eos/cache" "/opt/eos/cache"
+fi
+
+if [ ! -d /share/eos/output ]; then
+    bashio::log.info "Creating /share/eos/output"
+    mkdir -p "/share/eos/output"
+fi
+chown -R eos "/share/eos/output"
+if [ ! -d /opt/eos/output ]; then
+    ln -s "/share/eos/output" "/opt/eos/output"
+fi
+
+if [ ! -d /config/eos ]; then
+    bashio::log.info "Creating /config/eos"
+    mkdir -p "/config/eos"
+fi
+chown -R eos "/config/eos"
+
+if [ ! -f /config/eos/EOS.config.json ]; then
+    bashio::log.info "Creating /config/eos/EOS.config.json"
+	cp /etc/services.d/eos/user/contents.d/EOS.config.json /config/eos/EOS.config.json
+else
+    bashio::log.info "Use existing /config/eos/EOS.config.json"
+fi
+chown eos "/config/eos/EOS.config.json"
+if [ ! -f /opt/eos/EOS.config.json ]; then
+    ln -s "/config/eos/EOS.config.json" "/opt/eos/EOS.config.json"
+fi
+
+bashio::log.info "Update listen IP address in EOS.config.json"
+jq '.server.host = "0.0.0.0"' "/config/eos/EOS.config.json" | sponge "/config/eos/EOS.config.json"
+jq '.server.eosdash_host = "0.0.0.0"' "/config/eos/EOS.config.json" | sponge "/config/eos/EOS.config.json"
+
+bashio::log.info "Current EOS.config.json content"
+jq "." "/config/eos/EOS.config.json"
+
+## Run your program
+bashio::log.info "Start EOS fastapi server"
+cd /opt/eos || exit
+exec python3 src/akkudoktoreos/server/eos.py

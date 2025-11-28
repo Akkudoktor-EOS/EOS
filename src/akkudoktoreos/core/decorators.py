@@ -25,11 +25,11 @@ class classproperty:
 
     Methods:
         __get__: Retrieves the value of the class property by calling the
-                 decorated method on the class.
+            decorated method on the class.
 
     Parameters:
         fget (Callable[[Any], Any]): A method that takes the class as an
-                                      argument and returns a value.
+            argument and returns a value.
 
     Raises:
         RuntimeError: If `fget` is not defined when `__get__` is called.

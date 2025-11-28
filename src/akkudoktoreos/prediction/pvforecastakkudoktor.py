@@ -193,20 +193,6 @@ class PVForecastAkkudoktor(PVForecastProvider):
     from the PVForecastAkkudoktor API and maps it to `PVForecastDataRecord` fields, applying
     any necessary scaling or unit corrections. It manages the forecast over a range
     of hours into the future and retains historical data.
-
-    Attributes:
-        hours (int, optional): Number of hours in the future for the forecast.
-        historic_hours (int, optional): Number of past hours for retaining data.
-        latitude (float, optional): The latitude in degrees, validated to be between -90 and 90.
-        longitude (float, optional): The longitude in degrees, validated to be between -180 and 180.
-        start_datetime (datetime, optional): Start datetime for forecasts, defaults to the current datetime.
-        end_datetime (datetime, computed): The forecast's end datetime, computed based on `start_datetime` and `hours`.
-        keep_datetime (datetime, computed): The datetime to retain historical data, computed from `start_datetime` and `historic_hours`.
-
-    Methods:
-        provider_id(): Returns a unique identifier for the provider.
-        _request_forecast(): Fetches the forecast from the Akkudoktor API.
-        _update_data(): Processes and updates forecast data from Akkudoktor in PVForecastDataRecord format.
     """
 
     # overload

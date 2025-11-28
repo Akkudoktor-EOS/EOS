@@ -2,6 +2,7 @@
 :maxdepth: 1
 :caption: Configuration Table
 
+../_generated/configadapter.md
 ../_generated/configcache.md
 ../_generated/configdevices.md
 ../_generated/configelecprice.md
