@@ -234,14 +234,14 @@ class GeneticSimulation(PydanticBaseModel):
         consumption_energy_per_hour = np.full((total_hours), np.nan)
         costs_per_hour = np.full((total_hours), np.nan)
         revenue_per_hour = np.full((total_hours), np.nan)
-        soc_per_hour = np.full((total_hours), np.nan)
-        soc_ev_per_hour = np.full((total_hours), np.nan)
         losses_wh_per_hour = np.full((total_hours), np.nan)
-        home_appliance_wh_per_hour = np.full((total_hours), np.nan)
         electricity_price_per_hour = np.full((total_hours), np.nan)
 
         # Set initial state
         if battery_fast:
+            # Pre-allocate arrays for the results, optimized for speed
+            soc_per_hour = np.full((total_hours), np.nan)
+
             soc_per_hour[0] = battery_fast.current_soc_percentage()
             # Fill the charge array of the battery
             dc_charge_hours_fast[0:start_hour] = 0
@@ -255,8 +255,14 @@ class GeneticSimulation(PydanticBaseModel):
             bat_discharge_hours_fast[0:start_hour] = 0
             bat_discharge_hours_fast[end_hour:] = 0
             battery_fast.discharge_array = bat_discharge_hours_fast
+        else:
+            # Default return if no battery is available
+            soc_per_hour = np.full((total_hours), 0)
 
         if ev_fast:
+            # Pre-allocate arrays for the results, optimized for speed
+            soc_ev_per_hour = np.full((total_hours), np.nan)
+
             soc_ev_per_hour[0] = ev_fast.current_soc_percentage()
             # Fill the charge array of the ev
             ev_charge_hours_fast[0:start_hour] = 0
@@ -266,14 +272,22 @@ class GeneticSimulation(PydanticBaseModel):
             ev_discharge_hours_fast[0:start_hour] = 0
             ev_discharge_hours_fast[end_hour:] = 0
             ev_fast.discharge_array = ev_discharge_hours_fast
+        else:
+            # Default return if no electric vehicle is available
+            soc_ev_per_hour = np.full((total_hours), 0)
 
         if home_appliance_fast and self.home_appliance_start_hour:
             home_appliance_enabled = True
+            # Pre-allocate arrays for the results, optimized for speed
+            home_appliance_wh_per_hour = np.full((total_hours), np.nan)
+
             self.home_appliance_start_hour = home_appliance_fast.set_starting_time(
                 self.home_appliance_start_hour, start_hour
             )
         else:
             home_appliance_enabled = False
+            # Default return if no home appliance is available
+            home_appliance_wh_per_hour = np.full((total_hours), 0)
 
         for hour in range(start_hour, end_hour):
             hour_idx = hour - start_hour
