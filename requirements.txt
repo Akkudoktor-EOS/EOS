@@ -1,5 +1,5 @@
 babel==2.17.0
-beautifulsoup4==4.14.2
+beautifulsoup4==4.14.3
 cachebox==5.1.0
 numpy==2.3.5
 numpydantic==1.7.0
