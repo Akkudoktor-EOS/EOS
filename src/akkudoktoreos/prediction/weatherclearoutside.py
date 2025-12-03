@@ -37,7 +37,7 @@ WheaterDataClearOutsideMapping: List[Tuple[str, Optional[str], Optional[float]]]
     ("Precipitation Type", "Precipitation Type", None),
     ("Precipitation Probability (%)", "Precipitation Probability (%)", 1),
     ("Precipitation Amount (mm)", "Precipitation Amount (mm)", 1),
-    ("Wind Speed (mph)", "Wind Speed (kmph)", 1.60934),
+    ("Wind Speed/Direction (mph)", "Wind Speed (kmph)", 1.60934),
     ("Chance of Frost", "Chance of Frost", None),
     ("Temperature (°C)", "Temperature (°C)", 1),
     ("Feels Like (°C)", "Feels Like (°C)", 1),
@@ -218,7 +218,7 @@ class WeatherClearOutside(WeatherProvider):
             for detail_name in detail_names:
                 if detail_name not in clearoutside_key_mapping:
                     warning_msg = (
-                        f"Clearoutside schema change. Unexpected detail name {detail_name}."
+                        f"Clearoutside schema change. Unexpected detail name '{detail_name}'."
                     )
                     logger.warning(warning_msg)
 
@@ -226,17 +226,13 @@ class WeatherClearOutside(WeatherProvider):
             # Beware there is one ul paragraph before that is not associated to a detail
             p_detail_tables = p_day.find_all("ul")
             if len(p_detail_tables) != len(detail_names) + 1:
-                error_msg = f"Clearoutside schema change. Unexpected number ({p_detail_tables}) of `ul` for details {len(detail_names)}. Should be one extra only."
+                error_msg = f"Clearoutside schema change. Unexpected number ({p_detail_tables}) of 'ul' for details {len(detail_names)}. Should be one extra only."
                 logger.error(error_msg)
                 raise ValueError(error_msg)
             p_detail_tables.pop(0)
 
             # Create clearout data
             clearout_data = {}
-            # Replace some detail names that we use differently
-            detail_names = [
-                s.replace("Wind Speed/Direction (mph)", "Wind Speed (mph)") for s in detail_names
-            ]
             # Number of detail values. On last day may be less than 24.
             detail_values_count = None
             # Add data values
@@ -266,7 +262,7 @@ class WeatherClearOutside(WeatherProvider):
                 extra_detail_name = None
                 extra_detail_data = []
                 for p_detail_value in p_detail_values:
-                    if detail_name == "Wind Speed (mph)":
+                    if detail_name == "Wind Speed/Direction (mph)":
                         # Get the  usual value
                         value_str = p_detail_value.get_text()
                         # Also extract extra data
