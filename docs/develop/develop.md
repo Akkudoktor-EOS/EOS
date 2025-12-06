@@ -328,8 +328,11 @@ For detailed Docker instructions, refer to [Installation Guideline](install-page
 
 #### Step 4.1 - Create a development branch
 
+Create a local development branch and make it know on your GitHub repo.
+
 ```bash
 git checkout -b <MY_DEVELOPMENT_BRANCH>
+git push --set-upstream origin <MY_DEVELOPMENT_BRANCH>
 ```
 
 Replace `<MY_DEVELOPMENT_BRANCH>` with the development branch name. The branch name shall be of the
@@ -591,6 +594,10 @@ Ensure your changes do not break existing functionality:
 
 Keep your code consistent with existing style and conventions.
 
+#### Keep Python Docstrings RST Compatible
+
+The docstrings will be parsed by Sphinx in automatic documentation generation.
+
 ### Use Issues for Discussion
 
 Before making major changes, open an issue or discuss with maintainers.
@@ -598,3 +605,21 @@ Before making major changes, open an issue or discuss with maintainers.
 ### Document Changes
 
 Update docstrings, comments, and any relevant documentation.
+
+### Start / reopen home assistant devcontainer in VS Code
+
+1. Open VS Code
+
+2. Press F1 (or Ctrl+Shift+P / Cmd+Shift+P)
+
+3. Run:
+
+```bash
+Dev Containers: Reopen in Container
+```
+
+VS Code will:
+
+- Build the container (if needed)
+- Start it
+- Reopen your workspace inside it

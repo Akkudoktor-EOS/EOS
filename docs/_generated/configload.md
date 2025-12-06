@@ -64,7 +64,7 @@
 ```
 <!-- pyml enable line-length -->
 
-### Common settings for VRM API
+### Common settings for load forecast VRM API
 
 <!-- pyml disable line-length -->
 :::{table} load::provider_settings::LoadVrm

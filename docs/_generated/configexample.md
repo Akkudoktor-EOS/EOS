@@ -3,6 +3,20 @@
 <!-- pyml disable line-length -->
 ```json
    {
+       "adapter": {
+           "provider": "HomeAssistant",
+           "homeassistant": {
+               "entity_id_pv_production_emr_kwh": null,
+               "entity_id_battery_soc_factor": null,
+               "entity_id_ev_soc_factor": null,
+               "measurement_entity_ids": {},
+               "optimization_solution_entity_ids": {}
+           },
+           "nodered": {
+               "host": "127.0.0.1",
+               "port": 1880
+           }
+       },
        "cache": {
            "subpath": "cache",
            "cleanup_interval": 300.0
@@ -17,7 +31,19 @@
                    "levelized_cost_of_storage_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
-                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
+                   "charge_rates": [
+                       0.0,
+                       0.1,
+                       0.2,
+                       0.3,
+                       0.4,
+                       0.5,
+                       0.6,
+                       0.7,
+                       0.8,
+                       0.9,
+                       1.0
+                   ],
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "battery1-soc-factor",
@@ -44,7 +70,19 @@
                    "levelized_cost_of_storage_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
-                   "charge_rates": "[0.  0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1. ]",
+                   "charge_rates": [
+                       0.0,
+                       0.1,
+                       0.2,
+                       0.3,
+                       0.4,
+                       0.5,
+                       0.6,
+                       0.7,
+                       0.8,
+                       0.9,
+                       1.0
+                   ],
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "battery1-soc-factor",
@@ -92,7 +130,7 @@
            }
        },
        "general": {
-           "version": "0.2.0.dev27350002",
+           "version": "0.2.0.dev70597243",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
