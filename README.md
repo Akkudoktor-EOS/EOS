@@ -73,6 +73,50 @@ docker run -d \
 
 ## Installation
 
+### Home Assistant add-on
+
+![Supports aarch64 Architecture][aarch64-shield]
+![Supports amd64 Architecture][amd64-shield]
+
+[aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
+[amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
+
+
+To install the **Akkudoktor-EOS** add-on in Home Assistant:
+
+1. **Add the repository URL**:
+
+   In Home Assistant, go to:
+
+   ```
+   Settings → Add-ons → Add-on Store → ⋮ (top-right menu) → Repositories
+   ```
+
+   and enter the URL of this Git repository:
+
+   ```
+   https://github.com/Akkudoktor-EOS/EOS
+   ```
+
+2. **Install the add-on**:
+
+   After adding the repository, the add-on will appear in the Add-on Store. Click **Install**.
+
+3. **Start the add-on**:
+
+   Once installed, click **Start** in the add-on panel.
+
+4. **Access the dashboard**:
+
+   Click **Open Web UI** in the add-on panel.
+
+5. **Configure EOS** (optional):
+   In the dashboard, go to:
+
+   ```
+   Config
+   ```
+
 ### Docker (Recommended)
 
 ```bash

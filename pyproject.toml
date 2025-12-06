@@ -87,6 +87,9 @@ convention = "google"
 minversion = "8.3.3"
 pythonpath = [ "src", ]
 testpaths = [ "tests", ]
+markers = [
+    "docker: marks tests that require a local Docker engine"
+]
 
 [tool.mypy]
 files = ["src", "tests"]

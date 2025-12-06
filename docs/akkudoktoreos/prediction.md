@@ -402,10 +402,11 @@ represent equal angular distance around the horizon. For instance, if you have 3
 point is due north, the next is 10 degrees east of north, and so on, until the last point, 10
 degrees west of north.
 
----
+![Userhorizon PVGIS](../_static/horizon_eyefish_en.png)
 
 Most of the configuration options are in line with the
-[PVLib](https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html) definition for PVGIS data.
+[PVLib](https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html) definition
+for PVGIS data.
 
 Detailed definitions from **PVLib** for PVGIS data.
 
@@ -413,12 +414,14 @@ Detailed definitions from **PVLib** for PVGIS data.
 
 Tilt angle from horizontal plane.
 
+![Tilt PVGIS](../_static/slope.gif)
+
 - `surface_azimuth`
 
 Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180,
 west=270). This is offset 180 degrees from the convention used by PVGIS.
 
----
+![Azimuth PVGIS](../_static/azimuth.gif)
 
 ### PVForecastAkkudoktor Provider
 

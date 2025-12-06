@@ -2,35 +2,13 @@
 # MIT license
 from typing import Optional
 
-import bokeh
 from bokeh.embed import components
 from bokeh.models import Plot
-from monsterui.franken import H4, Card, NotStr, Script
+from bokeh.resources import INLINE
+from monsterui.franken import H4, Card, NotStr
 
-bokeh_version = bokeh.__version__
-
-BokehJS = [
-    Script(
-        src=f"https://cdn.bokeh.org/bokeh/release/bokeh-{bokeh_version}.min.js",
-        crossorigin="anonymous",
-    ),
-    Script(
-        src=f"https://cdn.bokeh.org/bokeh/release/bokeh-widgets-{bokeh_version}.min.js",
-        crossorigin="anonymous",
-    ),
-    Script(
-        src=f"https://cdn.bokeh.org/bokeh/release/bokeh-tables-{bokeh_version}.min.js",
-        crossorigin="anonymous",
-    ),
-    Script(
-        src=f"https://cdn.bokeh.org/bokeh/release/bokeh-gl-{bokeh_version}.min.js",
-        crossorigin="anonymous",
-    ),
-    Script(
-        src=f"https://cdn.bokeh.org/bokeh/release/bokeh-mathjax-{bokeh_version}.min.js",
-        crossorigin="anonymous",
-    ),
-]
+# Javascript for bokeh - to be included by the page
+BokehJS = [NotStr(INLINE.render_css()), NotStr(INLINE.render_js())]
 
 
 def bokey_apply_theme_to_plot(plot: Plot, dark: bool) -> None:

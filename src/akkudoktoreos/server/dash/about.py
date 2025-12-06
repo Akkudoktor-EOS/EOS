@@ -19,6 +19,8 @@ over a specified period.
 
 Documentation can be found at [Akkudoktor-EOS](https://akkudoktor-eos.readthedocs.io/en/latest/).
 
+---
+
 ## Version Information
 
 **Current Version:** {__version__}
@@ -29,4 +31,5 @@ Documentation can be found at [Akkudoktor-EOS](https://akkudoktor-eos.readthedoc
 
 
 def About(**kwargs: Any) -> Div:
+    global about_md
     return Markdown(about_md, **kwargs)
