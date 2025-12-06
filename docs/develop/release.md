@@ -10,7 +10,7 @@ and how to set a **development version** after the release.
 
 | Step | Actor       | Action |
 |------|-------------|--------|
-| 1    | Contributor | Prepare a release branch **in your fork** using Commitizen |
+| 1    | Contributor | Prepare a release branch **in your fork** |
 | 2    | Contributor | Open a **Pull Request to upstream** (`Akkudoktor-EOS/EOS`) |
 | 3    | Maintainer  | Review and **merge the release PR** |
 | 4    | CI  | Create the **GitHub Release and tag** |
