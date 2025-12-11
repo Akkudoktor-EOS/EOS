@@ -47,7 +47,7 @@ jobs:
       - name: Update files and commit
         run: |
           # Define files to update
-          UPDATE_FILES="haaddon/config.yaml"
+          UPDATE_FILES="config.yaml"
 
           # Call general Python version replacement script
           python scripts/update_version.py "${{ steps.calc.outputs.version }}" $UPDATE_FILES

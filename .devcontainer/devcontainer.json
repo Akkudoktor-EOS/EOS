@@ -1,0 +1,39 @@
+{
+  "name": "Devcontainer for Akkudoktor-EOS add-on repository",
+  "image": "ghcr.io/home-assistant/devcontainer:2-addons",
+  "appPort": ["7123:8123", "7357:4357", "8503:8503", "8504:8504"],
+  "remoteUser": "root",
+  "postStartCommand": "bash -c 'echo \"127.0.0.1 $(hostname)\" >> /etc/hosts' && bash devcontainer_bootstrap",
+  "runArgs": [
+    "-e",
+    "GIT_EDITOR=code --wait",
+    "--privileged",
+    "--hostname=homeassistant"
+  ],
+  "containerEnv": {
+    "WORKSPACE_DIRECTORY": "${containerWorkspaceFolder}"
+  },
+  "workspaceFolder": "/mnt/supervisor/addons/local/${localWorkspaceFolderBasename}",
+  "workspaceMount": "source=${localWorkspaceFolder},target=${containerWorkspaceFolder},type=bind,consistency=cached",
+  "customizations": {
+    "vscode": {
+      "extensions": ["timonwong.shellcheck", "esbenp.prettier-vscode"],
+      "settings": {
+        "terminal.integrated.profiles.linux": {
+          "zsh": {
+            "path": "/usr/bin/zsh"
+          }
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "editor.formatOnPaste": false,
+        "editor.formatOnSave": true,
+        "editor.formatOnType": true,
+        "files.trimTrailingWhitespace": true
+      }
+    }
+  },
+  "mounts": [
+    "type=volume,target=/var/lib/docker",
+    "type=volume,target=/mnt/supervisor"
+  ]
+}

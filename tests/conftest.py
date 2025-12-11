@@ -30,7 +30,6 @@ from akkudoktoreos.server.server import get_default_host
 # Adapt pytest logging handling to Loguru logging
 # -----------------------------------------------
 
-
 @pytest.fixture
 def caplog(caplog: LogCaptureFixture):
     """Propagate Loguru logs to the pytest caplog handler."""
@@ -430,13 +429,20 @@ def server_base(
     eos_dir = str(eos_tmp_dir.name)
 
     class Starter(ProcessStarter):
+        # Set environment for server run
+        env = os.environ.copy()
+        env["EOS_DIR"] = eos_dir
+        env["EOS_CONFIG_DIR"] = eos_dir
+        if extra_env:
+            env.update(extra_env)
+
         # assure server to be installed
         try:
             project_dir = Path(__file__).parent.parent
             subprocess.run(
                 [sys.executable, "-c", "import", "akkudoktoreos.server.eos"],
                 check=True,
-                env=os.environ,
+                env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=project_dir,
@@ -444,19 +450,12 @@ def server_base(
         except subprocess.CalledProcessError:
             subprocess.run(
                 [sys.executable, "-m", "pip", "install", "-e", str(project_dir)],
-                env=os.environ,
+                env=env,
                 check=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 cwd=project_dir,
             )
-
-        # Set environment for server run
-        env = os.environ.copy()
-        env["EOS_DIR"] = eos_dir
-        env["EOS_CONFIG_DIR"] = eos_dir
-        if extra_env:
-            env.update(extra_env)
 
         # Set command to start server process
         args = [
@@ -487,6 +486,25 @@ def server_base(
                 logger.debug(f"[xprocess] Exception during health check: {e}")
             return False
 
+        def wait_callback(self):
+            """Assert that process is ready to answer queries using provided
+            callback funtion. Will raise TimeoutError if self.callback does not
+            return True before self.timeout seconds"""
+            from datetime import datetime
+
+            while True:
+                time.sleep(1.0)
+                if self.startup_check():
+                    return True
+                if datetime.now() > self._max_time:
+                    info = self.process.getinfo("eos")
+                    error_msg = (
+                        f"The provided startup check could not assert process responsiveness\n"
+                        f"within the specified time interval of {self.timeout} seconds.\n"
+                        f"Server log is in '{info.logpath}'.\n"
+                    )
+                    raise TimeoutError(error_msg)
+
     # Kill all running eos and eosdash process - just to be sure
     cleanup_eos_eosdash(host, port, eosdash_host, eosdash_port, server_timeout)
 
@@ -494,10 +512,12 @@ def server_base(
     config_file_path = Path(eos_dir).joinpath(ConfigEOS.CONFIG_FILE_NAME)
     with config_file_path.open(mode="w", encoding="utf-8", newline="\n") as fd:
         json.dump({}, fd)
+    logger.info(f"Created empty config file in {config_file_path}.")
 
     # ensure process is running and return its logfile
     pid, logfile = xprocess.ensure("eos", Starter)
     logger.info(f"Started EOS ({pid}). This may take very long (up to {server_timeout} seconds).")
+    logger.info(f"EOS_DIR: {Starter.env["EOS_DIR"]}, EOS_CONFIG_DIR: {Starter.env["EOS_CONFIG_DIR"]}")
     logger.info(f"View xprocess logfile at: {logfile}")
 
     yield {
@@ -509,7 +529,7 @@ def server_base(
         "timeout": server_timeout,
     }
 
-    # clean up whole process tree afterwards
+     # clean up whole process tree afterwards
     xprocess.getinfo("eos").terminate()
 
     # Cleanup any EOS process left.

@@ -1,7 +1,6 @@
 ---
 networks:
   default:
-    external: true
     name: "eos"
 services:
   eos:
@@ -21,7 +20,6 @@ services:
       - MKL_NUM_THREADS=1
       - PIP_PROGRESS_BAR=off
       - PIP_NO_COLOR=1
-      - EOS_CONFIG_DIR=config
       - EOS_SERVER__EOSDASH_SESSKEY=s3cr3t
       - EOS_SERVER__HOST=0.0.0.0
       - EOS_SERVER__PORT=8503
@@ -39,8 +37,6 @@ services:
       - "${EOS_SERVER__EOSDASH_PORT}:8504"
 
     # Volume mount configuration (optional)
-    # Example volume mounts (uncomment to use):
+    # Example volume mount (uncomment to use):
     # volumes:
-    #   - ./config:/opt/eos/config     # Mount local config directory
-    #   - ./cache:/opt/eos/cache       # Mount local cache directory
-    #   - ./output:/opt/eos/output     # Mount local output directory
+    #   - ./eos_data:/data # Mount local eos data directory

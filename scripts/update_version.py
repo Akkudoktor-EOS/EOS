@@ -16,34 +16,34 @@ VERSION_PATTERNS = [
     # Python: __version__ = "1.2.3"
     re.compile(
         r'(?<![A-Za-z0-9])(__version__\s*=\s*")'
-        r'(?P<ver>\d+\.\d+\.\d+(?:\+[0-9A-Za-z\.]+)?)'
+        r'(?P<ver>\d+\.\d+\.\d+(?:[\.\+\-][0-9A-Za-z]+)?)'
         r'(")'
     ),
 
     # Python: version = "1.2.3"
     re.compile(
         r'(?<![A-Za-z0-9])(version\s*=\s*")'
-        r'(?P<ver>\d+\.\d+\.\d+(?:\+[0-9A-Za-z\.]+)?)'
+        r'(?P<ver>\d+\.\d+\.\d+(?:[\.\+\-][0-9A-Za-z]+)?)'
         r'(")'
     ),
 
     # JSON: "version": "1.2.3"
     re.compile(
         r'(?<![A-Za-z0-9])("version"\s*:\s*")'
-        r'(?P<ver>\d+\.\d+\.\d+(?:\+[0-9A-Za-z\.]+)?)'
+        r'(?P<ver>\d+\.\d+\.\d+(?:[\.\+\-][0-9A-Za-z]+)?)'
         r'(")'
     ),
 
     # Makefile-style: VERSION ?= 1.2.3
     re.compile(
         r'(?<![A-Za-z0-9])(VERSION\s*\?=\s*)'
-        r'(?P<ver>\d+\.\d+\.\d+(?:\+[0-9A-Za-z\.]+)?)'
+        r'(?P<ver>\d+\.\d+\.\d+(?:[\.\+\-][0-9A-Za-z]+)?)'
     ),
 
     # YAML: version: "1.2.3"
     re.compile(
         r'(?m)^(version\s*:\s*["\']?)'
-        r'(?P<ver>\d+\.\d+\.\d+(?:\+[0-9A-Za-z\.]+)?)'
+        r'(?P<ver>\d+\.\d+\.\d+(?:[\.\+\-][0-9A-Za-z]+)?)'
         r'(["\']?)\s*$'
     ),
 ]
