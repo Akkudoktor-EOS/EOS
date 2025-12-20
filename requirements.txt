@@ -7,7 +7,7 @@ matplotlib==3.10.8
 contourpy==1.3.3
 fastapi[standard-no-fastapi-cloud-cli]==0.124.0
 fastapi_cli==0.0.16
-rich-toolkit==0.17.0
+rich-toolkit==0.17.1
 python-fasthtml==0.12.36
 MonsterUI==1.0.36
 markdown-it-py==3.0.0
