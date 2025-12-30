@@ -9,13 +9,14 @@
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | max_planes | `EOS_PVFORECAST__MAX_PLANES` | `Optional[int]` | `rw` | `0` | Maximum number of planes that can be set |
 | planes | `EOS_PVFORECAST__PLANES` | `Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]` | `rw` | `None` | Plane configuration. |
-| planes_azimuth | | `List[float]` | `ro` | `N/A` | None |
-| planes_inverter_paco | | `Any` | `ro` | `N/A` | None |
-| planes_peakpower | | `List[float]` | `ro` | `N/A` | None |
-| planes_tilt | | `List[float]` | `ro` | `N/A` | None |
-| planes_userhorizon | | `Any` | `ro` | `N/A` | None |
+| planes_azimuth | | `List[float]` | `ro` | `N/A` | Compute a list of the azimuths per active planes. |
+| planes_inverter_paco | | `Any` | `ro` | `N/A` | Compute a list of the maximum power rating of the inverter per active planes. |
+| planes_peakpower | | `List[float]` | `ro` | `N/A` | Compute a list of the peak power per active planes. |
+| planes_tilt | | `List[float]` | `ro` | `N/A` | Compute a list of the tilts per active planes. |
+| planes_userhorizon | | `Any` | `ro` | `N/A` | Compute a list of the user horizon per active planes. |
 | provider | `EOS_PVFORECAST__PROVIDER` | `Optional[str]` | `rw` | `None` | PVForecast provider id of provider to be used. |
 | provider_settings | `EOS_PVFORECAST__PROVIDER_SETTINGS` | `PVForecastCommonProviderSettings` | `rw` | `required` | Provider settings |
+| providers | | `list[str]` | `ro` | `N/A` | Available PVForecast provider ids. |
 :::
 <!-- pyml enable line-length -->
 
@@ -144,6 +145,11 @@
                }
            ],
            "max_planes": 1,
+           "providers": [
+               "PVForecastAkkudoktor",
+               "PVForecastVrm",
+               "PVForecastImport"
+           ],
            "planes_peakpower": [
                5.0,
                3.5
@@ -177,7 +183,7 @@
 ```
 <!-- pyml enable line-length -->
 
-### Common settings for VRM API
+### Common settings for PV forecast VRM API
 
 <!-- pyml disable line-length -->
 :::{table} pvforecast::provider_settings::PVForecastVrm

@@ -1657,47 +1657,162 @@ def test_to_datetime(
 # to_duration
 # -----------------------------
 
+class TestToDuration:
+    # ------------------------------------------------------------------
+    # Valid input conversions (no formatting)
+    # ------------------------------------------------------------------
+    @pytest.mark.parametrize(
+        "input_value, expected_output",
+        [
+            # duration input
+            (pendulum.duration(days=1), pendulum.duration(days=1)),
 
-# Test cases for valid duration inputs
-@pytest.mark.parametrize(
-    "input_value, expected_output",
-    [
-        # duration input
-        (pendulum.duration(days=1), pendulum.duration(days=1)),
-        # String input
-        ("2 days", pendulum.duration(days=2)),
-        ("5 hours", pendulum.duration(hours=5)),
-        ("47 hours", pendulum.duration(hours=47)),
-        ("48 hours", pendulum.duration(seconds=48 * 3600)),
-        ("30 minutes", pendulum.duration(minutes=30)),
-        ("45 seconds", pendulum.duration(seconds=45)),
-        (
-            "1 day 2 hours 30 minutes 15 seconds",
-            pendulum.duration(days=1, hours=2, minutes=30, seconds=15),
-        ),
-        ("3 days 4 hours", pendulum.duration(days=3, hours=4)),
-        # Integer/Float input
-        (3600, pendulum.duration(seconds=3600)),  # 1 hour
-        (86400, pendulum.duration(days=1)),  # 1 day
-        (1800.5, pendulum.duration(seconds=1800.5)),  # 30 minutes and 0.5 seconds
-        # Tuple/List input
-        ((1, 2, 30, 15), pendulum.duration(days=1, hours=2, minutes=30, seconds=15)),
-        ([0, 10, 0, 0], pendulum.duration(hours=10)),
-    ],
-)
-def test_to_duration_valid(input_value, expected_output):
-    """Test to_duration with valid inputs."""
-    assert to_duration(input_value) == expected_output
+            # String input
+            ("1 hour", pendulum.duration(hours=1)),
+            ("2 days", pendulum.duration(days=2)),
+            ("5 hours", pendulum.duration(hours=5)),
+            ("47 hours", pendulum.duration(hours=47)),
+            ("48 hours", pendulum.duration(seconds=48 * 3600)),
+            ("30 minutes", pendulum.duration(minutes=30)),
+            ("45 seconds", pendulum.duration(seconds=45)),
+            (
+                "1 day 2 hours 30 minutes 15 seconds",
+                pendulum.duration(days=1, hours=2, minutes=30, seconds=15),
+            ),
+            ("3 days 4 hours", pendulum.duration(days=3, hours=4)),
 
+            # Integer / Float
+            (3600, pendulum.duration(seconds=3600)),
+            (86400, pendulum.duration(days=1)),
+            (1800.5, pendulum.duration(seconds=1800.5)),
 
-def test_to_duration_summation():
-    start_datetime = to_datetime("2028-01-11 00:00:00")
-    index_datetime = start_datetime
-    for i in range(48):
-        expected_datetime = start_datetime + to_duration(f"{i} hours")
-        assert index_datetime == expected_datetime
-        index_datetime += to_duration("1 hour")
-    assert index_datetime == to_datetime("2028-01-13 00:00:00")
+            # Tuple / List
+            ((1, 2, 30, 15), pendulum.duration(days=1, hours=2, minutes=30, seconds=15)),
+            ([0, 10, 0, 0], pendulum.duration(hours=10)),
+        ],
+    )
+    def test_to_duration_valid(self, input_value, expected_output):
+        """Test that valid inputs convert to correct Duration objects."""
+        assert to_duration(input_value) == expected_output
+
+    # ------------------------------------------------------------------
+    # ISO-8601 output (`as_string=True`)
+    # ------------------------------------------------------------------
+    @pytest.mark.parametrize(
+        "input_value, expected",
+        [
+            ("15 minutes", "PT15M"),
+            ("1 hour 30 minutes", "PT1H30M"),
+            ("45 seconds", "PT45S"),
+            ("1 hour 5 seconds", "PT1H5S"),
+            ("2 days", "P2D"),
+            ("2 days 3 hours 4 minutes 5 seconds", "P2DT3H4M5S"),
+            ("0 seconds", "PT0S"),
+        ]
+    )
+    def test_as_string_true_iso8601(self, input_value, expected):
+        """Test ISO-8601 duration strings for various inputs."""
+        assert to_duration(input_value, as_string=True) == expected
+
+    # ------------------------------------------------------------------
+    # Human readable (`as_string="human"`)
+    # ------------------------------------------------------------------
+    def test_as_string_human(self):
+        assert to_duration("90 seconds", as_string="human") == "1 minute 30 seconds"
+
+    # ------------------------------------------------------------------
+    # Pandas frequency (`as_string="pandas"`)
+    # ------------------------------------------------------------------
+    @pytest.mark.parametrize(
+        "input_value, expected",
+        [
+            ("1 hour", "1h"),
+            ("2 hours", "2h"),
+            ("15 minutes", "15min"),
+            ("90 minutes", "90min"),
+            ("30 seconds", "30s"),
+            ("900 seconds", "15min"),
+        ],
+    )
+    def test_as_string_pandas(self, input_value, expected):
+        assert to_duration(input_value, as_string="pandas") == expected
+
+    # ------------------------------------------------------------------
+    # Custom format strings
+    # ------------------------------------------------------------------
+    def test_as_string_custom_seconds(self):
+        assert to_duration("75 seconds", as_string="Total: {S}s") == "Total: 75s"
+
+    def test_as_string_custom_minutes(self):
+        assert to_duration("15 minutes", as_string="{M}m total") == "15m total"
+
+    def test_as_string_custom_hours(self):
+        assert to_duration("7200 seconds", as_string="{H} hours") == "2 hours"
+
+    def test_as_string_custom_human_alias(self):
+        assert to_duration("30 minutes", as_string="{f}") == "30 minutes"
+
+    # ------------------------------------------------------------------
+    # Invalid input handling
+    # ------------------------------------------------------------------
+    @pytest.mark.parametrize(
+        "input_value",
+        [
+            "not a duration",
+            "5 lightyears",
+            (1, 2, 3),             # wrong tuple size
+            {"a": 1},              # unsupported type
+            None,
+        ],
+    )
+    def test_invalid_inputs_raise(self, input_value):
+        with pytest.raises(ValueError):
+            to_duration(input_value)
+
+    # ------------------------------------------------------------------
+    # Invalid as_string values
+    # ------------------------------------------------------------------
+    def test_invalid_as_string_raises(self):
+        with pytest.raises(ValueError):
+            to_duration("5 minutes", as_string=123) # type: ignore
+
+    def test_summation(self):
+        start_datetime = to_datetime("2028-01-11 00:00:00")
+        index_datetime = start_datetime
+        for i in range(48):
+            expected_datetime = start_datetime + to_duration(f"{i} hours")
+            assert index_datetime == expected_datetime
+            index_datetime += to_duration("1 hour")
+        assert index_datetime == to_datetime("2028-01-13 00:00:00")
+
+    def test_excessive_length_raises_valueerror(self):
+        """Test that to_duration raises ValueError for strings exceeding max length.
+
+        This test covers the fix for the ReDoS vulnerability.
+        Related to: #494
+        """
+        # String exceeds limits
+        long_string = "a" * (MAX_DURATION_STRING_LENGTH + 50)
+
+        # Expected Errormessage – ESCAPED für Regex
+        expected_error_message = re.escape(
+            f"Input string exceeds maximum allowed length ({MAX_DURATION_STRING_LENGTH})."
+        )
+
+        # Check if error was raised
+        with pytest.raises(ValueError, match=expected_error_message):
+            to_duration(long_string)
+
+        # Optional: String exactly at the limit should NOT trigger the length check.
+        at_limit_string = "b" * MAX_DURATION_STRING_LENGTH
+        try:
+            to_duration(at_limit_string)
+        except ValueError as e:
+            if str(e) == f"Input string exceeds maximum allowed length ({MAX_DURATION_STRING_LENGTH}).":
+                pytest.fail(
+                    f"to_duration raised length ValueError unexpectedly for string at limit: {at_limit_string}"
+                )
+            pass
 
 
 # -----------------------------
@@ -1900,33 +2015,3 @@ def test_compare_datetimes_gt(dt1, dt2):
     assert compare_datetimes(dt1, dt2).gt
     assert compare_datetimes(dt1, dt2).le == False
     assert compare_datetimes(dt1, dt2).lt == False
-
-
-def test_to_duration_excessive_length_raises_valueerror():
-    """Test that to_duration raises ValueError for strings exceeding max length.
-
-    This test covers the fix for the ReDoS vulnerability.
-    Related to: #494
-    """
-    # String exceeds limits
-    long_string = "a" * (MAX_DURATION_STRING_LENGTH + 50)
-
-    # Expected Errormessage – ESCAPED für Regex
-    expected_error_message = re.escape(
-        f"Input string exceeds maximum allowed length ({MAX_DURATION_STRING_LENGTH})."
-    )
-
-    # Check if error was raised
-    with pytest.raises(ValueError, match=expected_error_message):
-        to_duration(long_string)
-
-    # Optional: String exactly at the limit should NOT trigger the length check.
-    at_limit_string = "b" * MAX_DURATION_STRING_LENGTH
-    try:
-        to_duration(at_limit_string)
-    except ValueError as e:
-        if str(e) == f"Input string exceeds maximum allowed length ({MAX_DURATION_STRING_LENGTH}).":
-            pytest.fail(
-                f"to_duration raised length ValueError unexpectedly for string at limit: {at_limit_string}"
-            )
-        pass

@@ -6,6 +6,8 @@ from pathlib import Path
 import pytest
 import yaml
 
+from akkudoktoreos.core.version import _version_calculate, _version_hash
+
 DIR_PROJECT_ROOT = Path(__file__).parent.parent
 GET_VERSION_SCRIPT = DIR_PROJECT_ROOT / "scripts" / "get_version.py"
 BUMP_DEV_SCRIPT = DIR_PROJECT_ROOT / "scripts" / "bump_dev_version.py"
@@ -16,6 +18,54 @@ UPDATE_SCRIPT = DIR_PROJECT_ROOT / "scripts" / "update_version.py"
 def write_file(path: Path, content: str):
     path.write_text(content, encoding="utf-8")
     return path
+
+
+# --- Test version helpers ---
+def test_version_non_dev(monkeypatch):
+    """If VERSION_BASE does not end with 'dev', no hash digits are appended."""
+    monkeypatch.setattr("akkudoktoreos.core.version.VERSION_BASE", "0.2.0")
+    result = _version_calculate()
+    assert result == "0.2.0"
+
+
+def test_version_dev_precision_8(monkeypatch):
+    """Test that a dev version appends exactly 8 digits derived from the hash."""
+    fake_hash = "abcdef1234567890"  # deterministic fake digest
+
+    monkeypatch.setattr("akkudoktoreos.core.version._version_hash", lambda: fake_hash)
+    monkeypatch.setattr("akkudoktoreos.core.version.VERSION_BASE", "0.2.0.dev")
+    monkeypatch.setattr("akkudoktoreos.core.version.VERSION_DEV_PRECISION", 8)
+
+    result = _version_calculate()
+
+    # compute expected suffix
+    hash_value = int(fake_hash, 16)
+    expected_digits = str(hash_value % (10 ** 8)).zfill(8)
+
+    expected = f"0.2.0.dev{expected_digits}"
+
+    assert result == expected
+    assert len(expected_digits) == 8
+    assert result.startswith("0.2.0.dev")
+    assert result == expected
+
+
+def test_version_dev_precision_8_different_hash(monkeypatch):
+    """A different hash must produce a different 8-digit suffix."""
+    fake_hash = "1234abcd9999ffff"
+
+    monkeypatch.setattr("akkudoktoreos.core.version._version_hash", lambda: fake_hash)
+    monkeypatch.setattr("akkudoktoreos.core.version.VERSION_BASE", "0.2.0.dev")
+    monkeypatch.setattr("akkudoktoreos.core.version.VERSION_DEV_PRECISION", 8)
+
+    result = _version_calculate()
+
+    hash_value = int(fake_hash, 16)
+    expected_digits = str(hash_value % (10 ** 8)).zfill(8)
+    expected = f"0.2.0.dev{expected_digits}"
+
+    assert result == expected
+    assert len(expected_digits) == 8
 
 
 # --- 1️⃣ Test get_version.py ---
@@ -62,7 +112,7 @@ def test_bump_dev_version_appends_dev(tmp_path):
         check=True
     )
     new_version = result.stdout.strip()
-    assert new_version == "0.2.0+dev"
+    assert new_version == "0.2.0.dev"
 
     content = version_file.read_text()
     assert f'VERSION_BASE = "{new_version}"' in content
@@ -113,7 +163,7 @@ def test_workflow_git(tmp_path):
         check=True
     )
     dev_version = result.stdout.strip()
-    assert dev_version.endswith("+dev")
-    assert dev_version.count("+dev") == 1
+    assert dev_version.endswith(".dev")
+    assert dev_version.count(".dev") == 1
     content = version_file.read_text()
     assert f'VERSION_BASE = "{dev_version}"' in content

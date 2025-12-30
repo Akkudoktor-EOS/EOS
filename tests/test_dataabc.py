@@ -698,6 +698,33 @@ class TestDataSequence:
                 fill_method="invalid",
             )
 
+    def test_key_to_array_resample_mean(self, sequence):
+        """Test that numeric resampling uses mean when multiple values fall into one interval."""
+        interval = to_duration("1 hour")
+        # Insert values every 15 minutes within the same hour
+        record1 = self.create_test_record(pendulum.datetime(2023, 11, 6, 0, 0), 1.0)
+        record2 = self.create_test_record(pendulum.datetime(2023, 11, 6, 0, 15), 2.0)
+        record3 = self.create_test_record(pendulum.datetime(2023, 11, 6, 0, 30), 3.0)
+        record4 = self.create_test_record(pendulum.datetime(2023, 11, 6, 0, 45), 4.0)
+
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+        sequence.insert_by_datetime(record3)
+        sequence.insert_by_datetime(record4)
+
+        # Resample to hourly interval, expecting the mean of the 4 values
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6, 0),
+            end_datetime=pendulum.datetime(2023, 11, 6, 1),
+            interval=interval,
+        )
+
+        assert isinstance(array, np.ndarray)
+        assert len(array) == 1  # one interval: 0:00-1:00
+        # The first interval mean = (1+2+3+4)/4 = 2.5
+        assert array[0] == pytest.approx(2.5)
+
     def test_to_datetimeindex(self, sequence2):
         record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
         record2 = self.create_test_record(datetime(2023, 11, 6), 0.9)

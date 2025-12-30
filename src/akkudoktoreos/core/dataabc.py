@@ -1018,7 +1018,7 @@ class DataSequence(DataBase, MutableSequence):
         end_datetime: Optional[DateTime] = None,
         interval: Optional[Duration] = None,
         fill_method: Optional[str] = None,
-        dropna: Optional[bool] = None,
+        dropna: Optional[bool] = True,
     ) -> NDArray[Shape["*"], Any]:
         """Extract an array indexed by fixed time intervals from data records within an optional date range.
 
@@ -1032,17 +1032,19 @@ class DataSequence(DataBase, MutableSequence):
                 - 'ffill': Forward fill missing values.
                 - 'bfill': Backward fill missing values.
                 - 'none': Defaults to 'linear' for numeric values, otherwise 'ffill'.
-            dropna: (bool, optional): Whether to drop NAN/ None values before processing. Defaults to True.
+            dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+                Defaults to True.
 
         Returns:
-            np.ndarray: A NumPy Array of the values extracted from the specified key.
+            np.ndarray: A NumPy Array of the values at the chosen frequency extracted from the
+                specified key.
 
         Raises:
             KeyError: If the specified key is not found in any of the DataRecords.
         """
         self._validate_key(key)
 
-        # General check on fill_method
+        # Validate fill method
         if fill_method not in ("ffill", "bfill", "linear", "none", None):
             raise ValueError(f"Unsupported fill method: {fill_method}")
 
@@ -1050,13 +1052,17 @@ class DataSequence(DataBase, MutableSequence):
         start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
         end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
 
-        resampled = None
         if interval is None:
             interval = to_duration("1 hour")
+            resample_freq = "1h"
+        else:
+            resample_freq = to_duration(interval, as_string="pandas")
 
+        # Load raw lists (already sorted & filtered)
         dates, values = self.key_to_lists(key=key, dropna=dropna)
         values_len = len(values)
 
+        # Bring lists into shape
         if values_len < 1:
             # No values, assume at least one value set to None
             if start_datetime is not None:
@@ -1092,40 +1098,40 @@ class DataSequence(DataBase, MutableSequence):
                 dates.append(end_datetime)
                 values.append(values[-1])
 
-        series = pd.Series(data=values, index=pd.DatetimeIndex(dates), name=key)
-        if not series.index.inferred_type == "datetime64":
+        # Construct series
+        series = pd.Series(values, index=pd.DatetimeIndex(dates), name=key)
+        if series.index.inferred_type != "datetime64":
             raise TypeError(
                 f"Expected DatetimeIndex, but got {type(series.index)} "
                 f"infered to {series.index.inferred_type}: {series}"
             )
 
-        # Handle missing values
-        if series.dtype in [np.float64, np.float32, np.int64, np.int32]:
-            # Numeric types
-            if fill_method is None:
+        # Determine default fill method depending on dtype
+        if fill_method is None:
+            if pd.api.types.is_numeric_dtype(series):
                 fill_method = "linear"
-            # Resample the series to the specified interval
-            resampled = series.resample(interval, origin=resample_origin).first()
-            if fill_method == "linear":
-                resampled = resampled.interpolate(method="linear")
-            elif fill_method == "ffill":
-                resampled = resampled.ffill()
-            elif fill_method == "bfill":
-                resampled = resampled.bfill()
-            elif fill_method != "none":
-                raise ValueError(f"Unsupported fill method: {fill_method}")
-        else:
-            # Non-numeric types
-            if fill_method is None:
+            else:
                 fill_method = "ffill"
-            # Resample the series to the specified interval
+
+        # Perform the resampling
+        if pd.api.types.is_numeric_dtype(series):
+            # numeric → use mean
+            resampled = series.resample(interval, origin=resample_origin).mean()
+        else:
+            # non-numeric → fallback (first, last, mode, or ffill)
             resampled = series.resample(interval, origin=resample_origin).first()
-            if fill_method == "ffill":
-                resampled = resampled.ffill()
-            elif fill_method == "bfill":
-                resampled = resampled.bfill()
-            elif fill_method != "none":
-                raise ValueError(f"Unsupported fill method for non-numeric data: {fill_method}")
+
+        # Handle missing values after resampling
+        if fill_method == "linear" and pd.api.types.is_numeric_dtype(series):
+            resampled = resampled.interpolate("linear")
+        elif fill_method == "ffill":
+            resampled = resampled.ffill()
+        elif fill_method == "bfill":
+            resampled = resampled.bfill()
+        elif fill_method == "none":
+            pass
+        else:
+            raise ValueError(f"Unsupported fill method: {fill_method}")
 
         logger.debug(
             "Resampled for '{}' with length {}: {}...{}",
@@ -1141,6 +1147,16 @@ class DataSequence(DataBase, MutableSequence):
         if end_datetime is not None and len(resampled) > 0:
             resampled = resampled.truncate(after=end_datetime.subtract(seconds=1))
         array = resampled.values
+
+        # Convert NaN to None if there are actually NaNs
+        if (
+            isinstance(array, np.ndarray)
+            and np.issubdtype(array.dtype.type, np.floating)
+            and pd.isna(array).any()
+        ):
+            array = array.astype(object)
+            array[pd.isna(array)] = None
+
         logger.debug(
             "Array for '{}' with length {}: {}...{}", key, len(array), array[:10], array[-10:]
         )
@@ -1691,6 +1707,14 @@ class DataImportMixin:
                 }
 
         """
+        # Strip quotes if provided - does not effect unquoted string
+        json_str = json_str.strip()  # strip white space at start and end
+        if (json_str.startswith("'") and json_str.endswith("'")) or (
+            json_str.startswith('"') and json_str.endswith('"')
+        ):
+            json_str = json_str[1:-1]  # strip outer quotes
+        json_str = json_str.strip()  # strip remaining white space at start and end
+
         # Try pandas dataframe with orient="split"
         try:
             import_data = PydanticDateTimeDataFrame.model_validate_json(json_str)
@@ -1720,10 +1744,15 @@ class DataImportMixin:
             logger.debug(f"PydanticDateTimeData import: {error_msg}")
 
         # Use simple dict format
-        import_data = json.loads(json_str)
-        self.import_from_dict(
-            import_data, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval
-        )
+        try:
+            import_data = json.loads(json_str)
+            self.import_from_dict(
+                import_data, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval
+            )
+        except Exception as e:
+            error_msg = f"Invalid JSON string '{json_str}': {e}"
+            logger.debug(error_msg)
+            raise ValueError(error_msg) from e
 
     def import_from_file(
         self,

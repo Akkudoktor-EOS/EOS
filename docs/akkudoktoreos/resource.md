@@ -253,6 +253,6 @@ the home appliance can be operated in two operation modes:
 |-----------------------|-------------------------------------------------------------------------|
 | **RUN**               | The home appliance is started and runs until the end of it's power      |
 |                       | sequence.                                                               |
-| **IDLE**              | The home appliance does not run.                                        |
+| **OFF**               | The home appliance does not run.                                        |
 
 The **operation mode factor** (0.0–1.0) is ignored.

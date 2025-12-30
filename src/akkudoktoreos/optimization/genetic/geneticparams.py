@@ -177,33 +177,33 @@ class GeneticOptimizationParameters(
         # Check for general predictions conditions
         if cls.config.general.latitude is None:
             default_latitude = 52.52
-            logger.error(f"Latitude unknown - defaulting to {default_latitude}.")
+            logger.info(f"Latitude unknown - defaulting to {default_latitude}.")
             cls.config.general.latitude = default_latitude
         if cls.config.general.longitude is None:
             default_longitude = 13.405
-            logger.error(f"Longitude unknown - defaulting to {default_longitude}.")
+            logger.info(f"Longitude unknown - defaulting to {default_longitude}.")
             cls.config.general.longitude = default_longitude
         if cls.config.prediction.hours is None:
-            logger.error("Prediction hours unknown - defaulting to 48 hours.")
+            logger.info("Prediction hours unknown - defaulting to 48 hours.")
             cls.config.prediction.hours = 48
         if cls.config.prediction.historic_hours is None:
-            logger.error("Prediction historic hours unknown - defaulting to 24 hours.")
+            logger.info("Prediction historic hours unknown - defaulting to 24 hours.")
             cls.config.prediction.historic_hours = 24
         # Check optimization definitions
         if cls.config.optimization.horizon_hours is None:
-            logger.error("Optimization horizon unknown - defaulting to 24 hours.")
+            logger.info("Optimization horizon unknown - defaulting to 24 hours.")
             cls.config.optimization.horizon_hours = 24
         if cls.config.optimization.interval is None:
-            logger.error("Optimization interval unknown - defaulting to 3600 seconds.")
+            logger.info("Optimization interval unknown - defaulting to 3600 seconds.")
             cls.config.optimization.interval = 3600
         if cls.config.optimization.interval != 3600:
-            logger.error(
+            logger.info(
                 "Optimization interval '{}' seconds not supported - forced to 3600 seconds."
             )
             cls.config.optimization.interval = 3600
         # Check genetic algorithm definitions
         if cls.config.optimization.genetic is None:
-            logger.error(
+            logger.info(
                 "Genetic optimization configuration not configured - defaulting to demo config."
             )
             cls.config.optimization.genetic = {
@@ -215,16 +215,16 @@ class GeneticOptimizationParameters(
                 },
             }
         if cls.config.optimization.genetic.individuals is None:
-            logger.error("Genetic individuals unknown - defaulting to 300.")
+            logger.info("Genetic individuals unknown - defaulting to 300.")
             cls.config.optimization.genetic.individuals = 300
         if cls.config.optimization.genetic.generations is None:
-            logger.error("Genetic generations unknown - defaulting to 400.")
+            logger.info("Genetic generations unknown - defaulting to 400.")
             cls.config.optimization.genetic.generations = 400
         if cls.config.optimization.genetic.penalties is None:
-            logger.error("Genetic penalties unknown - defaulting to demo config.")
+            logger.info("Genetic penalties unknown - defaulting to demo config.")
             cls.config.optimization.genetic.penalties = {"ev_soc_miss": 10}
         if "ev_soc_miss" not in cls.config.optimization.genetic.penalties:
-            logger.error("ev_soc_miss penalty function parameter unknown - defaulting to 100.")
+            logger.info("ev_soc_miss penalty function parameter unknown - defaulting to 10.")
             cls.config.optimization.genetic.penalties["ev_soc_miss"] = 10
 
         # Get start solution from last run
@@ -262,7 +262,7 @@ class GeneticOptimizationParameters(
                     * power_to_energy_per_interval_factor
                 ).tolist()
             except:
-                logger.exception(
+                logger.info(
                     "No PV forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
                     attempt,
                 )
@@ -270,6 +270,7 @@ class GeneticOptimizationParameters(
                     {
                         "pvforecast": {
                             "provider": "PVForecastAkkudoktor",
+                            "max_planes": 4,
                             "planes": [
                                 {
                                     "peakpower": 5.0,
@@ -314,7 +315,7 @@ class GeneticOptimizationParameters(
                     fill_method="ffill",
                 ).tolist()
             except:
-                logger.exception(
+                logger.info(
                     "No Electricity Marketprice forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
                     attempt,
                 )
@@ -330,7 +331,7 @@ class GeneticOptimizationParameters(
                     fill_method="ffill",
                 ).tolist()
             except:
-                logger.exception(
+                logger.info(
                     "No Load forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
                     attempt,
                 )
@@ -357,7 +358,7 @@ class GeneticOptimizationParameters(
                     fill_method="ffill",
                 ).tolist()
             except:
-                logger.exception(
+                logger.info(
                     "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
                     attempt,
                 )
@@ -384,7 +385,7 @@ class GeneticOptimizationParameters(
                     fill_method="ffill",
                 ).tolist()
             except:
-                logger.exception(
+                logger.info(
                     "No weather forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
                     attempt,
                 )
@@ -397,14 +398,14 @@ class GeneticOptimizationParameters(
             # Batteries
             # ---------
             if cls.config.devices.max_batteries is None:
-                logger.error("Number of battery devices not configured - defaulting to 1.")
+                logger.info("Number of battery devices not configured - defaulting to 1.")
                 cls.config.devices.max_batteries = 1
             if cls.config.devices.max_batteries == 0:
                 battery_params = None
                 battery_lcos_kwh = 0
             else:
                 if cls.config.devices.batteries is None:
-                    logger.error("No battery device data available - defaulting to demo data.")
+                    logger.info("No battery device data available - defaulting to demo data.")
                     cls.config.devices.batteries = [{"device_id": "battery1", "capacity_wh": 8000}]
                 try:
                     battery_config = cls.config.devices.batteries[0]
@@ -418,7 +419,7 @@ class GeneticOptimizationParameters(
                         max_soc_percentage=battery_config.max_soc_percentage,
                     )
                 except:
-                    logger.exception(
+                    logger.info(
                         "No battery device data available - defaulting to demo data. Parameter preparation attempt {}.",
                         attempt,
                     )
@@ -427,7 +428,7 @@ class GeneticOptimizationParameters(
                     continue
                 # Levelized cost of ownership
                 if battery_config.levelized_cost_of_storage_kwh is None:
-                    logger.error(
+                    logger.info(
                         "No battery device LCOS data available - defaulting to 0 €/kWh. Parameter preparation attempt {}.",
                         attempt,
                     )
@@ -449,7 +450,7 @@ class GeneticOptimizationParameters(
                 except:
                     initial_soc_percentage = None
                 if initial_soc_percentage is None:
-                    logger.error(
+                    logger.info(
                         f"No battery device SoC data (measurement key = '{battery_config.measurement_key_soc_factor}') available - defaulting to 0."
                     )
                     initial_soc_percentage = 0
@@ -458,13 +459,13 @@ class GeneticOptimizationParameters(
             # Electric Vehicles
             # -----------------
             if cls.config.devices.max_electric_vehicles is None:
-                logger.error("Number of electric_vehicle devices not configured - defaulting to 1.")
+                logger.info("Number of electric_vehicle devices not configured - defaulting to 1.")
                 cls.config.devices.max_electric_vehicles = 1
             if cls.config.devices.max_electric_vehicles == 0:
                 electric_vehicle_params = None
             else:
                 if cls.config.devices.electric_vehicles is None:
-                    logger.error(
+                    logger.info(
                         "No electric vehicle device data available - defaulting to demo data."
                     )
                     cls.config.devices.max_electric_vehicles = 1
@@ -489,7 +490,7 @@ class GeneticOptimizationParameters(
                         max_soc_percentage=electric_vehicle_config.max_soc_percentage,
                     )
                 except:
-                    logger.exception(
+                    logger.info(
                         "No electric_vehicle device data available - defaulting to demo data. Parameter preparation attempt {}.",
                         attempt,
                     )
@@ -520,7 +521,7 @@ class GeneticOptimizationParameters(
                 except:
                     initial_soc_percentage = None
                 if initial_soc_percentage is None:
-                    logger.error(
+                    logger.info(
                         f"No electric vehicle device SoC data (measurement key = '{electric_vehicle_config.measurement_key_soc_factor}') available - defaulting to 0."
                     )
                     initial_soc_percentage = 0
@@ -529,13 +530,13 @@ class GeneticOptimizationParameters(
             # Inverters
             # ---------
             if cls.config.devices.max_inverters is None:
-                logger.error("Number of inverter devices not configured - defaulting to 1.")
+                logger.info("Number of inverter devices not configured - defaulting to 1.")
                 cls.config.devices.max_inverters = 1
             if cls.config.devices.max_inverters == 0:
                 inverter_params = None
             else:
                 if cls.config.devices.inverters is None:
-                    logger.error("No inverter device data available - defaulting to demo data.")
+                    logger.info("No inverter device data available - defaulting to demo data.")
                     cls.config.devices.inverters = [
                         {
                             "device_id": "inverter1",
@@ -551,7 +552,7 @@ class GeneticOptimizationParameters(
                         battery_id=inverter_config.battery_id,
                     )
                 except:
-                    logger.exception(
+                    logger.info(
                         "No inverter device data available - defaulting to demo data. Parameter preparation attempt {}.",
                         attempt,
                     )
@@ -568,14 +569,14 @@ class GeneticOptimizationParameters(
             # Home Appliances
             # ---------------
             if cls.config.devices.max_home_appliances is None:
-                logger.error("Number of home appliance devices not configured - defaulting to 1.")
+                logger.info("Number of home appliance devices not configured - defaulting to 1.")
                 cls.config.devices.max_home_appliances = 1
             if cls.config.devices.max_home_appliances == 0:
                 home_appliance_params = None
             else:
                 home_appliance_params = None
                 if cls.config.devices.home_appliances is None:
-                    logger.error(
+                    logger.info(
                         "No home appliance device data available - defaulting to demo data."
                     )
                     cls.config.devices.home_appliances = [
@@ -606,7 +607,7 @@ class GeneticOptimizationParameters(
                         time_windows=home_appliance_config.time_windows,
                     )
                 except:
-                    logger.exception(
+                    logger.info(
                         "No home appliance device data available - defaulting to demo data. Parameter preparation attempt {}.",
                         attempt,
                     )
@@ -639,7 +640,7 @@ class GeneticOptimizationParameters(
                     start_solution=start_solution,
                 )
             except:
-                logger.exception(
+                logger.info(
                     "Can not prepare optimization parameters - will retry. Parameter preparation attempt {}.",
                     attempt,
                 )

@@ -11,11 +11,12 @@
 | genetic | `EOS_OPTIMIZATION__GENETIC` | `Optional[akkudoktoreos.optimization.optimization.GeneticCommonSettings]` | `rw` | `None` | Genetic optimization algorithm configuration. |
 | horizon_hours | `EOS_OPTIMIZATION__HORIZON_HOURS` | `Optional[int]` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
 | interval | `EOS_OPTIMIZATION__INTERVAL` | `Optional[int]` | `rw` | `3600` | The optimization interval [sec]. |
+| keys | | `list[str]` | `ro` | `N/A` | The keys of the solution. |
 :::
 <!-- pyml enable line-length -->
 
 <!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
+**Example Input**
 <!-- pyml enable no-emphasis-as-heading -->
 
 <!-- pyml disable line-length -->
@@ -33,6 +34,31 @@
                    "ev_soc_miss": 10
                }
            }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "optimization": {
+           "horizon_hours": 24,
+           "interval": 3600,
+           "algorithm": "GENETIC",
+           "genetic": {
+               "individuals": 400,
+               "generations": 400,
+               "seed": null,
+               "penalties": {
+                   "ev_soc_miss": 10
+               }
+           },
+           "keys": []
        }
    }
 ```

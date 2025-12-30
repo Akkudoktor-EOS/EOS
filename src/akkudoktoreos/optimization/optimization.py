@@ -1,6 +1,6 @@
 from typing import Optional, Union
 
-from pydantic import Field, model_validator
+from pydantic import Field, computed_field, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.pydantic import (
@@ -86,6 +86,22 @@ class OptimizationCommonSettings(SettingsBaseModel):
         },
     )
 
+    # Computed fields
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def keys(self) -> list[str]:
+        """The keys of the solution."""
+        from akkudoktoreos.core.ems import get_ems
+
+        key_list = []
+        optimization_solution = get_ems().optimization_solution()
+        if optimization_solution:
+            # Prepare mapping
+            df = optimization_solution.solution.to_dataframe()
+            key_list = df.columns.tolist()
+        return sorted(set(key_list))
+
+    # Validators
     @model_validator(mode="after")
     def _enforce_algorithm_configuration(self) -> "OptimizationCommonSettings":
         """Ensure algorithm default configuration is set."""

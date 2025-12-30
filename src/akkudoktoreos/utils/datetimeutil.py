@@ -665,11 +665,14 @@ def to_time(
             - int (e.g. 14 → 14:00)
             - float (e.g. 14.5 → 14:30)
             - tuple like (14,), (14, 30), (14, 30, 15)
+
         in_timezone: Optional timezone name or object (e.g., "Europe/Berlin").
             Defaults to the local timezone.
+
         to_naive: If True, return a timezone-naive Time object.
+
         as_string: If True, return time as "HH:mm:ss ZZ".
-                   If a format string is provided, it's passed to `pendulum.Time.format()`.
+            If a format string is provided, it's passed to `pendulum.Time.format()`.
 
     Returns:
         Time or str: A time object or its formatted string.
@@ -1637,105 +1640,232 @@ def to_datetime(
     return dt
 
 
+# to duration helper
+def duration_to_iso8601(duration: pendulum.Duration) -> str:
+    """Convert pendulum.Duration to ISO-8601 duration string."""
+    total_seconds = int(duration.total_seconds())
+
+    days, rem = divmod(total_seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, seconds = divmod(rem, 60)
+
+    parts = ["P"]
+    if days:
+        parts.append(f"{days}D")
+
+    time_parts = []
+    if hours:
+        time_parts.append(f"{hours}H")
+    if minutes:
+        time_parts.append(f"{minutes}M")
+    if seconds:
+        time_parts.append(f"{seconds}S")
+
+    if time_parts:
+        parts.append("T")
+        parts.extend(time_parts)
+    elif len(parts) == 1:  # zero duration
+        parts.append("T0S")
+
+    return "".join(parts)
+
+
+@overload
 def to_duration(
     input_value: Union[
         Duration, datetime.timedelta, str, int, float, Tuple[int, int, int, int], List[int]
     ],
-) -> Duration:
-    """Converts various input types into a Duration object using pendulum.
+    as_string: Literal[False] | None = None,
+) -> Duration: ...
+
+
+@overload
+def to_duration(
+    input_value: Union[
+        Duration, datetime.timedelta, str, int, float, Tuple[int, int, int, int], List[int]
+    ],
+    as_string: str | Literal[True] = True,
+) -> str: ...
+
+
+def to_duration(
+    input_value: Union[
+        Duration, datetime.timedelta, str, int, float, Tuple[int, int, int, int], List[int]
+    ],
+    as_string: Optional[Union[str, bool]] = None,
+) -> Union[Duration, str]:
+    """Converts various input types into a `pendulum.Duration` or a formatted duration string.
 
     Args:
-        input_value (Union[Duration, timedelta, str, int, float, tuple, list]): Input to be converted
-            into a timedelta:
-            - str: A duration string like "2 days", "5 hours", "30 minutes", or a combination.
-            - int/float: Number representing seconds.
-            - tuple/list: A tuple or list in the format (days, hours, minutes, seconds).
+        input_value (Union[Duration, timedelta, str, int, float, tuple, list]):
+            The input value to convert into a duration.
+            Supported types include:
+
+            - `pendulum.Duration`: Returned unchanged unless formatting is requested.
+            - `datetime.timedelta`: Converted based on total seconds.
+            - `str`: A duration expression (e.g., `"15 minutes"`, `"2 hours"`),
+              or a string parsed by Pendulum.
+            - `int` or `float`: Interpreted as a number of seconds.
+            - `tuple` or `list`: Must be `(days, hours, minutes, seconds)`.
+
+        as_string (Optional[Union[str, bool]]):
+            Controls the output format of the returned duration:
+
+            - `None` or `False` (default):
+                Returns a `pendulum.Duration` object.
+            - `True`:
+                Returns an ISO-8601 duration string (e.g., `"PT15M"`).
+            - `"human"`:
+                Returns a human-readable form (e.g., `"15 minutes"`).
+            - `"pandas"`:
+                Returns a Pandas frequency string such as:
+                - `"1h"` for 1 hour
+                - `"15min"` for 15 minutes
+                - `"900s"` for 900 seconds
+            - `str`:
+                A custom format pattern. The following format tokens are supported:
+                - `{S}` → total seconds
+                - `{M}` → total minutes (integer)
+                - `{H}` → total hours (integer)
+                - `{f}` → human-friendly representation (Pendulum `in_words()`)
+
+    Example:
+                    `"Duration: {M} minutes"` → `"Duration: 15 minutes"`
 
     Returns:
-        duration: A Duration object corresponding to the input value.
+        Union[Duration, str]:
+            - A `pendulum.Duration` if no formatting is requested.
+            - A formatted string depending on the `as_string` option.
 
     Raises:
-        ValueError: If the input format is not supported.
+        ValueError:
+            - If the input type is unsupported.
+            - If a duration string cannot be parsed.
+            - If `as_string` contains an unsupported format option.
 
     Examples:
-        >>> to_duration("2 days 5 hours")
-        timedelta(days=2, seconds=18000)
+        >>> to_duration("15 minutes")
+        <Duration [900 seconds]>
 
-        >>> to_duration(3600)
-        timedelta(seconds=3600)
+        >>> to_duration("15 minutes", as_string=True)
+        'PT15M'
 
-        >>> to_duration((1, 2, 30, 15))
-        timedelta(days=1, seconds=90315)
+        >>> to_duration("15 minutes", as_string="human")
+        '15 minutes'
+
+        >>> to_duration("90 seconds", as_string="pandas")
+        '90S'
+
+        >>> to_duration("15 minutes", as_string="{M}m")
+        '15m'
     """
+    # ---- normalize to pendulum.Duration ----
+    duration = None
+
     if isinstance(input_value, Duration):
-        return input_value
+        duration = input_value
 
-    if isinstance(input_value, datetime.timedelta):
-        return pendulum.duration(seconds=input_value.total_seconds())
+    elif isinstance(input_value, datetime.timedelta):
+        duration = pendulum.duration(seconds=input_value.total_seconds())
 
-    if isinstance(input_value, (int, float)):
-        # Handle integers or floats as seconds
-        return pendulum.duration(seconds=input_value)
+    elif isinstance(input_value, (int, float)):
+        duration = pendulum.duration(seconds=input_value)
 
     elif isinstance(input_value, (tuple, list)):
-        # Handle tuple or list: (days, hours, minutes, seconds)
-        if len(input_value) == 4:
-            days, hours, minutes, seconds = input_value
-            return pendulum.duration(days=days, hours=hours, minutes=minutes, seconds=seconds)
-        else:
-            error_msg = f"Expected a tuple or list of length 4, got {len(input_value)}"
+        if len(input_value) != 4:
+            error_msg = f"Expected tuple/list length 4, got {len(input_value)}"
             logger.error(error_msg)
             raise ValueError(error_msg)
+        days, hours, minutes, seconds = input_value
+        duration = pendulum.duration(days=days, hours=hours, minutes=minutes, seconds=seconds)
 
     elif isinstance(input_value, str):
-        # Use pendulum's parsing for human-readable duration strings
+        # first try pendulum.parse
         try:
             parsed = pendulum.parse(input_value)
             if isinstance(parsed, pendulum.Duration):
-                return parsed  # Already a duration
+                duration = parsed  # Already a duration
             else:
                 # It's a DateTime, calculate duration from start of day
-                return parsed - parsed.start_of("day")
+                duration = parsed - parsed.start_of("day")
         except pendulum.parsing.exceptions.ParserError as e:
             logger.trace(f"Invalid Pendulum time string format '{input_value}': {e}")
 
-        # Handle strings like "2 days 5 hours 30 minutes"
-        total_seconds = 0
-        time_units = {
-            "day": 86400,  # 24 * 60 * 60
-            "hour": 3600,
-            "minute": 60,
-            "second": 1,
-        }
-
-        # Mitigate ReDoS vulnerability (#494) by checking input string length.
-        if len(input_value) > MAX_DURATION_STRING_LENGTH:
-            raise ValueError(
-                f"Input string exceeds maximum allowed length ({MAX_DURATION_STRING_LENGTH})."
-            )
-        # Regular expression to match time components like '2 days', '5 hours', etc.
-        matches = re.findall(r"(\d+)\s*(days?|hours?|minutes?|seconds?)", input_value)
-
-        if not matches:
-            error_msg = f"Invalid time string format '{input_value}'"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        for value, unit in matches:
-            unit = unit.lower().rstrip("s")  # Normalize unit
-            if unit in time_units:
-                total_seconds += int(value) * time_units[unit]
-            else:
-                error_msg = f"Unsupported time unit: {unit}"
+            # Mitigate ReDoS vulnerability (#494) by checking input string length.
+            if len(input_value) > MAX_DURATION_STRING_LENGTH:
+                error_msg = (
+                    f"Input string exceeds maximum allowed length ({MAX_DURATION_STRING_LENGTH})."
+                )
                 logger.error(error_msg)
                 raise ValueError(error_msg)
 
-        return pendulum.duration(seconds=total_seconds)
+            # Handle strings like "2 days 5 hours 30 minutes"
+            matches = re.findall(r"(\d+)\s*(days?|hours?|minutes?|seconds?)", input_value)
+            if not matches:
+                error_msg = f"Invalid time string format '{input_value}'"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+
+            total_seconds = 0
+            time_units = {
+                "day": 86400,
+                "hour": 3600,
+                "minute": 60,
+                "second": 1,
+            }
+            for value, unit in matches:
+                unit = unit.lower().rstrip("s")  # Normalize unit
+                if unit in time_units:
+                    total_seconds += int(value) * time_units[unit]
+                else:
+                    error_msg = f"Unsupported time unit: {unit}"
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+
+            duration = pendulum.duration(seconds=total_seconds)
 
     else:
         error_msg = f"Unsupported input type: {type(input_value)}"
         logger.error(error_msg)
         raise ValueError(error_msg)
+
+    # ---- now apply as_string rules ----
+    if not as_string:
+        return duration
+
+    total_seconds = int(duration.total_seconds())
+
+    # Boolean True → ISO-8601
+    if as_string is True:
+        return duration_to_iso8601(duration)
+
+    # Human-readable
+    if as_string == "human":
+        return duration.in_words()
+
+    # Pandas frequency
+    if as_string == "pandas":
+        # hours?
+        if total_seconds % 3600 == 0:
+            return f"{total_seconds // 3600}h"
+        # minutes?
+        if total_seconds % 60 == 0:
+            return f"{total_seconds // 60}min"
+        # else seconds (fallback)
+        return f"{total_seconds}s"
+
+    # Custom format string
+    if isinstance(as_string, str):
+        return as_string.format(
+            S=total_seconds,
+            M=total_seconds // 60,
+            H=total_seconds // 3600,
+            f=duration.in_words(),
+        )
+
+    error_msg = f"Unsupported as_string value: {as_string}"
+    logger.error(error_msg)
+    raise ValueError(error_msg)
 
 
 @overload

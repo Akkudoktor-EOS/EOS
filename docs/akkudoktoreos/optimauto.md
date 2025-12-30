@@ -36,7 +36,8 @@ Through an iterative process of selection, crossover, and mutation, the algorith
 more effective solutions. The final result is an optimized control strategy that balances multiple
 system goals within the constraints of the input data and configuration.
 
-:::{note}
+:::{admonition} Note
+:class: note
 You don’t need to understand the internal workings of the genetic algorithm to benefit from
 automatic optimization. EOS handles everything behind the scenes based on your configuration.
 However, advanced users can fine-tune the optimization behavior using additional settings like

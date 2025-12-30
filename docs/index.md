@@ -28,6 +28,7 @@ develop/getting_started.md
 
 develop/CONTRIBUTING.md
 develop/install.md
+akkudoktoreos/configuration.md
 develop/update.md
 develop/revert.md
 

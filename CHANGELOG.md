@@ -5,6 +5,104 @@ All notable changes to the akkudoktoreos project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.0 (2025-12-??)
+
+Adapters for Home Assistant and NodeRed integration are added. These adapters
+provide a simplified interface to these HEMS besides the standard REST interface.
+Akkudoktor-EOS can now be run as Home Assistant add-on and standalone.
+As Home Assistant add-on EOS uses ingress to fully integrate the EOSdash dashboard
+in Home Assistant.
+
+In addition, bugs were fixed and new features were added.
+
+### Feat
+
+- add adapters for integrations
+
+  Adapters for Home Assistant and NodeRED integration are added.
+  Akkudoktor-EOS can now be run as Home Assistant add-on and standalone.
+
+  As Home Assistant add-on EOS uses ingress to fully integrate the EOSdash dashboard
+  in Home Assistant.
+
+- allow eos to be started with root permissions and drop priviledges
+
+  Home assistant starts all add-ons with root permissions. Eos now drops
+  root permissions if an applicable user is defined by paramter --run_as_user.
+  The docker image defines the user eos to be used.
+
+- make eos supervise and monitor EOSdash
+
+  Eos now not only starts EOSdash but also monitors EOSdash during runtime
+  and restarts EOSdash on fault. EOSdash logging is captured by EOS
+  and forwarded to the EOS log to provide better visibility.
+
+- add duration to string conversion
+
+  Make to_duration to also return the duration as string on request.
+
+### Fixed
+
+- development version scheme
+
+  The development versioning scheme is adaptet to fit to docker and
+  home assistant expectations. The new scheme is x.y.z and x.y.z.dev<hash>.
+  Hash is only digits as expected by home assistant. Development version
+  is appended by .dev as expected by docker.
+
+- use mean value in interval on resampling for array
+
+  When downsampling data use the mean value of all values within the new
+  sampling interval.
+
+- default battery ev soc and appliance wh
+
+  Make the genetic simulation return default values for the
+  battery SoC, electric vehicle SoC and appliance load if these
+  assets are not used.
+
+- import json string
+
+  Strip outer quotes from JSON strings on import to be compliant to json.loads()
+  expectation.
+
+- default interval definition for import data
+
+  Default interval must be defined in lowercase human definition to
+  be accepted by pendulum.
+
+- clearoutside schema change
+
+### Chore
+
+- Use info logging to report missing optimization parameters
+
+  In parameter preparation for automatic optimization an error was logged for missing paramters.
+  Log is now down using the info level.
+
+- make EOSdash use the EOS data directory for file import/ export
+
+  EOSdash use the EOS data directory for file import/ export by default.
+  This allows to use the configuration import/ export function also
+  within docker images.
+
+- improve EOSdash config tab display
+
+  Improve display of JSON code and add more forms for config value update.
+
+- make docker image file system layout similar to home assistant
+
+  Only use /data directory for persistent data. This is handled as a
+  docker volume. The /data volume is mapped to ~/.local/share/net.akkudoktor.eos
+  if using docker compose.
+
+- add home assistant add-on development environment
+
+  Add VSCode devcontainer and task definition for home assistant add-on
+  development.
+
+- improve documentation
+
 ## 0.2.0 (2025-11-09)
 
 The most important new feature is **automatic optimization**.

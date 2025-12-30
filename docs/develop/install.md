@@ -3,12 +3,13 @@
 
 # Installation Guide
 
-This guide provides different methods to install AkkudoktorEOS:
+This guide provides different methods to install Akkudoktor-EOS:
 
 - Installation from Source (GitHub) (M1)
 - Installation from Release Package (GitHub) (M2)
 - Installation with Docker (DockerHub) (M3)
 - Installation with Docker (docker-compose) (M4)
+- Installation in Home Assistant (M5)
 
 Choose the method that best suits your needs.
 
@@ -22,20 +23,34 @@ release see the [Revert Guideline](revert-page).
 
 Before installing, ensure you have the following:
 
-### For Source / Release Installation
+### For Source / Release Installation (M1/M2)
 
 - Python 3.10 or higher
 - pip
 - Git (only for source)
 - Tar/Zip (for release package)
 
-### For Docker Installation
+### For Docker Installation (M3/M4)
 
 - Docker Engine 20.10 or higher
 - Docker Compose (optional, recommended)
 
+:::{admonition} Tip
+:class: Note
 See [Install Docker Engine](https://docs.docker.com/engine/install/) on how to install docker on
 your Linux distro.
+:::
+
+### For Installation in Home Assistant (M5)
+
+- [Home Assistant Operating System](https://www.home-assistant.io/installation/)
+
+:::{admonition} Warning
+:class: Warning
+Akkudoktor-EOS is a [Home Assistant add-on](https://www.home-assistant.io/addons/).
+[Home Assistant Container](https://www.home-assistant.io/installation/) installations don’t
+have access to add-ons.
+:::
 
 ## Installation from Source (GitHub) (M1)
 
@@ -214,7 +229,12 @@ should be available at [http://localhost:8504](http://localhost:8504).
 
 ### 4) Configure EOS (M3)
 
-Use EOSdash at [http://localhost:8504](http://localhost:8504) to configure EOS.
+Use EOSdash at [http://localhost:8504](http://localhost:8504) to configure EOS. In the dashboard,
+go to:
+
+```bash
+Config
+```
 
 ## Installation with Docker (docker-compose) (M4)
 
@@ -251,37 +271,85 @@ docker logs akkudoktoreos
 EOS should now be accessible at [http://localhost:8503/docs](http://localhost:8503/docs) and EOSdash
 should be available at [http://localhost:8504](http://localhost:8504).
 
-### 4) Configure EOS
+The configuration file is in `${HOME}/.local/share/net.akkudoktor.eos/config/EOS.config.json`.
 
-Use EOSdash at [http://localhost:8504](http://localhost:8504) to configure EOS.
+### 4) Configure EOS (M4)
+
+Use EOSdash at [http://localhost:8504](http://localhost:8504) to configure EOS. In the dashboard,
+go to:
+
+```bash
+Config
+```
+
+You may edit the configuration file directly at
+`${HOME}/.local/share/net.akkudoktor.eos/config/EOS.config.json`.
+
+## Installation in Home Assistant (M5)
+
+[![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FAkkudoktor-EOS%2FEOS)
+
+### 1) Add the repository URL (M5)
+
+In Home Assistant, go to:
+
+```bash
+Settings → Add-ons → Add-on Store → ⋮ (top-right menu) → Repositories
+```
+
+and enter the URL of this Git repository:
+
+```bash
+https://github.com/Akkudoktor-EOS/EOS
+```
+
+### 2) Install the add-on (M5)
+
+After adding the repository, the add-on will appear in the Add-on Store. Click `Install`.
+
+### 3) Start the add-on (M5)
+
+Once installed, click `Start` in the add-on panel.
+
+### 4) Access the dashboard (M5)
+
+Click `Open Web UI` in the add-on panel.
+
+### 5) Configure EOS (M5)
+
+In the dashboard, go to:
+
+```bash
+Config
+```
 
 ## Helpful Docker Commands
 
-**View logs:**
+### View logs
 
 ```bash
 docker logs -f akkudoktoreos
 ```
 
-**Stop the container:**
+### Stop the container
 
 ```bash
 docker stop akkudoktoreos
 ```
 
-**Start the container:**
+### Start the container
 
 ```bash
 docker start akkudoktoreos
 ```
 
-**Remove the container:**
+### Remove the container
 
 ```bash
 docker rm -f akkudoktoreos
 ```
 
-**Update to latest version:**
+### Update to latest version
 
 ```bash
 docker pull Akkudoktor-EOS/EOS:latest
@@ -289,3 +357,29 @@ docker stop akkudoktoreos
 docker rm akkudoktoreos
 # Then run the container again with the run command
 ```
+
+### Solve docker DNS not working
+
+Switch Docker to use the real resolv.conf, not the stub.
+
+1️⃣ Replace /etc/resolv.conf symlink
+
+```bash
+sudo ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
+```
+
+This file contains the actual upstream DNS servers (e.g. your Fritz!Box).
+
+2️⃣ Restart Docker
+
+```bash
+sudo systemctl restart docker
+```
+
+3️⃣ Verify
+
+```bash
+docker run --rm busybox nslookup registry-1.docker.io
+```
+
+You should now see a valid IP address.

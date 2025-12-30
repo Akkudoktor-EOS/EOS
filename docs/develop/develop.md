@@ -328,8 +328,11 @@ For detailed Docker instructions, refer to [Installation Guideline](install-page
 
 #### Step 4.1 - Create a development branch
 
+Create a local development branch and make it know on your GitHub repo.
+
 ```bash
 git checkout -b <MY_DEVELOPMENT_BRANCH>
+git push --set-upstream origin <MY_DEVELOPMENT_BRANCH>
 ```
 
 Replace `<MY_DEVELOPMENT_BRANCH>` with the development branch name. The branch name shall be of the
@@ -591,6 +594,10 @@ Ensure your changes do not break existing functionality:
 
 Keep your code consistent with existing style and conventions.
 
+#### Keep Python Docstrings RST Compatible
+
+The docstrings will be parsed by Sphinx in automatic documentation generation.
+
 ### Use Issues for Discussion
 
 Before making major changes, open an issue or discuss with maintainers.
@@ -598,3 +605,100 @@ Before making major changes, open an issue or discuss with maintainers.
 ### Document Changes
 
 Update docstrings, comments, and any relevant documentation.
+
+### Start or Reopen the Home Assistant Dev Container in VS Code
+
+### 1. Open Visual Studio Code
+
+Start Visual Studio Code.
+
+### 2. Open the Command Palette
+
+Open the Command Palette:
+
+- **Windows / Linux:** `Ctrl + Shift + P`
+- **macOS:** `Cmd + Shift + P`
+
+### 3. Reopen the Workspace in the Dev Container
+
+In the Command Palette, select:
+
+```text
+Dev Containers: Reopen in Container
+```
+
+VS Code will:
+
+- Build the dev container (if required)
+- Start the container
+- Reopen the workspace inside the container
+
+### 4. Start Home Assistant
+
+Open the Command Palette again and select:
+
+```text
+Dev Terminal: Run Task... → Start Home Assistant
+```
+
+:::{admonition} Note
+:class: note
+Startup may take several minutes while the Home Assistant Supervisor initializes.
+:::
+
+If startup fails you may retry with container rebuild before:
+
+```text
+Dev Containers: Rebuild Container without Cache
+```
+
+### 5. Open Home Assistant
+
+Once startup is complete, open your browser and navigate to:
+
+```text
+http://localhost:7123/
+```
+
+If this is your first start, complete the standard Home Assistant onboarding process.
+
+### 6. Install the Local Akkudoktor-EOS Add-on
+
+#### 6.1 Open the Add-on Store
+
+In Home Assistant, navigate to:
+
+```text
+Settings → Add-ons → Add-on Store
+```
+
+Open the top-right menu (⋮), then select:
+
+```text
+Repositories → Local add-ons
+```
+
+Choose **Akkudoktor-EOS**.
+
+#### 6.2 Install the Add-on
+
+The Akkudoktor-EOS add-on is automatically available.
+Click **Install** to begin installation.
+
+#### 6.3 Start the Add-on
+
+After installation completes, click **Start** in the add-on panel.
+
+#### 6.4 Open the EOS Web Interface
+
+In the add-on panel, click **Open Web UI** to access the EOS dashboard.
+
+#### 6.5 Configure EOS (Optional)
+
+In the EOS dashboard, navigate to:
+
+```text
+Config
+```
+
+to adjust configuration settings as needed.

@@ -11,12 +11,13 @@
 | elecpriceimport | `EOS_ELECPRICE__ELECPRICEIMPORT` | `ElecPriceImportCommonSettings` | `rw` | `required` | Import provider settings. |
 | energycharts | `EOS_ELECPRICE__ENERGYCHARTS` | `ElecPriceEnergyChartsCommonSettings` | `rw` | `required` | Energy Charts provider settings. |
 | provider | `EOS_ELECPRICE__PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
+| providers | | `list[str]` | `ro` | `N/A` | Available electricity price provider ids. |
 | vat_rate | `EOS_ELECPRICE__VAT_RATE` | `Optional[float]` | `rw` | `1.19` | VAT rate factor applied to electricity price when charges are used. |
 :::
 <!-- pyml enable line-length -->
 
 <!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
+**Example Input**
 <!-- pyml enable no-emphasis-as-heading -->
 
 <!-- pyml disable line-length -->
@@ -33,6 +34,34 @@
            "energycharts": {
                "bidding_zone": "DE-LU"
            }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "elecprice": {
+           "provider": "ElecPriceAkkudoktor",
+           "charges_kwh": 0.21,
+           "vat_rate": 1.19,
+           "elecpriceimport": {
+               "import_file_path": null,
+               "import_json": null
+           },
+           "energycharts": {
+               "bidding_zone": "DE-LU"
+           },
+           "providers": [
+               "ElecPriceAkkudoktor",
+               "ElecPriceEnergyCharts",
+               "ElecPriceImport"
+           ]
        }
    }
 ```

@@ -5,17 +5,13 @@ for the EOS dashboard.
 """
 
 import json
-from pathlib import Path
 from typing import Any, Optional, Union
 
 import requests
 from fasthtml.common import Select
 from loguru import logger
-from monsterui.foundations import stringify
 from monsterui.franken import (  # Select, TODO: Select from FrankenUI does not work - using Select from FastHTML instead
     H3,
-    Button,
-    ButtonT,
     Card,
     Details,
     Div,
@@ -28,32 +24,11 @@ from monsterui.franken import (  # Select, TODO: Select from FrankenUI does not 
     Summary,
     UkIcon,
 )
-from platformdirs import user_config_dir
 
-from akkudoktoreos.server.dash.components import Error, Success
+from akkudoktoreos.server.dash.components import ConfigButton, Error, Success
 from akkudoktoreos.server.dash.configuration import get_nested_value
+from akkudoktoreos.server.dash.context import export_import_directory, request_url_for
 from akkudoktoreos.utils.datetimeutil import to_datetime
-
-# Directory to export files to, or to import files from
-export_import_directory = Path(user_config_dir("net.akkudoktor.eosdash", "akkudoktor"))
-
-
-def AdminButton(*c: Any, cls: Optional[Union[str, tuple]] = None, **kwargs: Any) -> Button:
-    """Creates a styled button for administrative actions.
-
-    Args:
-        *c (Any): Positional arguments representing the button's content.
-        cls (Optional[Union[str, tuple]]): Additional CSS classes for styling. Defaults to None.
-        **kwargs (Any): Additional keyword arguments passed to the `Button`.
-
-    Returns:
-        Button: A styled `Button` component for admin actions.
-    """
-    new_cls = f"{ButtonT.primary}"
-    if cls:
-        new_cls += f" {stringify(cls)}"
-    kwargs["cls"] = new_cls
-    return Button(*c, submit=False, **kwargs)
 
 
 def AdminCache(
@@ -111,9 +86,9 @@ def AdminCache(
                         Grid(
                             DivHStacked(
                                 UkIcon(icon="play"),
-                                AdminButton(
+                                ConfigButton(
                                     "Clear all",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='{"category": "cache", "action": "clear"}',
@@ -132,9 +107,9 @@ def AdminCache(
                         Grid(
                             DivHStacked(
                                 UkIcon(icon="play"),
-                                AdminButton(
+                                ConfigButton(
                                     "Clear expired",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='{"category": "cache", "action": "clear-expired"}',
@@ -301,14 +276,16 @@ def AdminConfig(
                 )
 
     # Update for display, in case we added a new file before
-    import_from_file_names = [f.name for f in list(export_import_directory.glob("*.json"))]
+    import_from_file_names = sorted([f.name for f in list(export_import_directory.glob("*.json"))])
     if config_backup is None:
         revert_to_backup_metadata_list = ["Backup list not available"]
     else:
-        revert_to_backup_metadata_list = [
-            f"{backup_meta['date_time']} {backup_meta['version']}"
-            for backup_id, backup_meta in config_backup.items()
-        ]
+        revert_to_backup_metadata_list = sorted(
+            [
+                f"{backup_meta['date_time']} {backup_meta['version']}"
+                for backup_id, backup_meta in config_backup.items()
+            ]
+        )
 
     return (
         category,
@@ -319,9 +296,9 @@ def AdminConfig(
                         Grid(
                             DivHStacked(
                                 UkIcon(icon="play"),
-                                AdminButton(
+                                ConfigButton(
                                     "Save to file",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='{"category": "configuration", "action": "save_to_file"}',
@@ -341,9 +318,9 @@ def AdminConfig(
                         Grid(
                             DivHStacked(
                                 UkIcon(icon="play"),
-                                AdminButton(
+                                ConfigButton(
                                     "Revert to backup",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='js:{ "category": "configuration", "action": "revert_to_backup", "backup_metadata": document.querySelector("[name=\'selected_backup_metadata\']").value }',
@@ -352,6 +329,7 @@ def AdminConfig(
                                     *Options(*revert_to_backup_metadata_list),
                                     id="backup_metadata",
                                     name="selected_backup_metadata",  # Name of hidden input field with selected value
+                                    cls="border rounded px-3 py-2 mr-2",
                                     placeholder="Select backup",
                                 ),
                             ),
@@ -368,9 +346,9 @@ def AdminConfig(
                         Grid(
                             DivHStacked(
                                 UkIcon(icon="play"),
-                                AdminButton(
+                                ConfigButton(
                                     "Export to file",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='js:{"category": "configuration", "action": "export_to_file", "export_to_file_tag": document.querySelector("[name=\'chosen_export_file_tag\']").value }',
@@ -398,9 +376,9 @@ def AdminConfig(
                         Grid(
                             DivHStacked(
                                 UkIcon(icon="play"),
-                                AdminButton(
+                                ConfigButton(
                                     "Import from file",
-                                    hx_post="/eosdash/admin",
+                                    hx_post=request_url_for("/eosdash/admin"),
                                     hx_target="#page-content",
                                     hx_swap="innerHTML",
                                     hx_vals='js:{ "category": "configuration", "action": "import_from_file", "import_file_name": document.querySelector("[name=\'selected_import_file_name\']").value }',
@@ -409,6 +387,7 @@ def AdminConfig(
                                     *Options(*import_from_file_names),
                                     id="import_file_name",
                                     name="selected_import_file_name",  # Name of hidden input field with selected value
+                                    cls="border rounded px-3 py-2 mr-2",
                                     placeholder="Select file",
                                 ),
                             ),

@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
-"""
-Update VERSION_BASE in version.py after a release tag.
+"""Update VERSION_BASE in version.py after a release tag.
 
 Behavior:
 - Read VERSION_BASE from version.py
-- Strip ANY existing "+dev" suffix
-- Append exactly one "+dev"
+- Strip ANY existing ".dev" suffix
+- Append exactly one ".dev"
 - Write back the updated file
 
 This ensures:
-    0.2.0        --> 0.2.0+dev
-    0.2.0+dev    --> 0.2.0+dev
-    0.2.0+dev+dev -> 0.2.0+dev
+    0.2.0        --> 0.2.0.dev
+    0.2.0.dev    --> 0.2.0.dev
+    0.2.0.dev.dev -> 0.2.0.dev
 """
 
 import re
@@ -33,11 +32,11 @@ def bump_dev_version_file(file: Path) -> str:
 
     base_version = m.group(1)
 
-    # Remove trailing +dev if present → ensure idempotency
-    cleaned = re.sub(r'(\+dev)+$', '', base_version)
+    # Remove trailing .dev if present → ensure idempotency
+    cleaned = re.sub(r'(\.dev)+$', '', base_version)
 
     # Append +dev
-    new_version = f"{cleaned}+dev"
+    new_version = f"{cleaned}.dev"
 
     # Replace inside file content
     new_text = re.sub(

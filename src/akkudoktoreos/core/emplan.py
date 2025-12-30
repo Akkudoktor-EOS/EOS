@@ -10,9 +10,11 @@ Demand Driven Based Control.
 
 import uuid
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from enum import Enum
 from typing import Annotated, Literal, Optional, Union
 
+from loguru import logger
 from pydantic import Field, computed_field, model_validator
 
 from akkudoktoreos.core.pydantic import PydanticBaseModel
@@ -2257,20 +2259,60 @@ class EnergyManagementPlan(PydanticBaseModel):
         self.valid_from = to_datetime()
         self.valid_until = None
 
+    def get_resources(self) -> list[str]:
+        """Retrieves the resource_ids for the resources the plan currently holds instructions for.
+
+        Returns a list of resource ids.
+        """
+        resource_ids = []
+        for instr in self.instructions:
+            resource_id = instr.resource_id
+            if resource_id not in resource_ids:
+                resource_ids.append(resource_id)
+        return resource_ids
+
     def get_active_instructions(
         self, now: Optional[DateTime] = None
-    ) -> list[EnergyManagementInstruction]:
-        """Retrieves all currently active instructions at the specified time."""
+    ) -> list["EnergyManagementInstruction"]:
+        """Retrieves the currently active instruction for each resource at the specified time.
+
+        Semantics:
+        - For each resource, consider only instructions with execution_time <= now.
+        - Choose the instruction with the latest execution_time (the most recent).
+        - If that instruction has a duration (timedelta), it's active only if now < execution_time + duration.
+        - If that instruction has no duration (None), treat it as open-ended (active until superseded).
+
+        Returns a list with at most one instruction per resource (the active one).
+        """
         now = now or to_datetime()
-        active = []
+        # Group instructions by resource_id
+        by_resource: dict[str, list["EnergyManagementInstruction"]] = defaultdict(list)
         for instr in self.instructions:
-            instr_duration = instr.duration()
+            # skip instructions scheduled in the future
+            if instr.execution_time <= now:
+                by_resource[instr.resource_id].append(instr)
+
+        active: list["EnergyManagementInstruction"] = []
+
+        for resource_id, instrs in by_resource.items():
+            # pick latest instruction by execution_time
+            latest = max(instrs, key=lambda i: i.execution_time)
+
+            if len(instrs) == 0:
+                # No instructions, ther shall be at least one
+                error_msg = f"No instructions for {resource_id}"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+
+            instr_duration = latest.duration()  # expected: Duration| None
             if instr_duration is None:
-                if instr.execution_time <= now:
-                    active.append(instr)
+                # open-ended (active until replaced) -> active because we selected latest <= now
+                active.append(latest)
             else:
-                if instr.execution_time <= now < instr.execution_time + instr_duration:
-                    active.append(instr)
+                # active only if now is strictly before execution_time + duration
+                if latest.execution_time + instr_duration > now:
+                    active.append(latest)
+
         return active
 
     def get_next_instruction(

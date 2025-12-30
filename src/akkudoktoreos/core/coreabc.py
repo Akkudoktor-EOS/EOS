@@ -18,10 +18,51 @@ from loguru import logger
 from akkudoktoreos.core.decorators import classproperty
 from akkudoktoreos.utils.datetimeutil import DateTime
 
+adapter_eos: Any = None
 config_eos: Any = None
 measurement_eos: Any = None
 prediction_eos: Any = None
 ems_eos: Any = None
+
+
+class AdapterMixin:
+    """Mixin class for managing EOS adapter.
+
+    This class serves as a foundational component for EOS-related classes requiring access
+    to the global EOS adapters. It provides a `adapter` property that dynamically retrieves
+    the adapter instance.
+
+    Usage:
+        Subclass this base class to gain access to the `adapter` attribute, which retrieves the
+        global adapter instance lazily to avoid import-time circular dependencies.
+
+    Attributes:
+        adapter (Adapter): Property to access the global EOS adapter.
+
+    Example:
+        .. code-block:: python
+
+            class MyEOSClass(AdapterMixin):
+                def my_method(self):
+                    self.adapter.update_date()
+
+    """
+
+    @classproperty
+    def adapter(cls) -> Any:
+        """Convenience class method/ attribute to retrieve the EOS adapters.
+
+        Returns:
+            Adapter: The adapters.
+        """
+        # avoid circular dependency at import time
+        global adapter_eos
+        if adapter_eos is None:
+            from akkudoktoreos.adapter.adapter import get_adapter
+
+            adapter_eos = get_adapter()
+
+        return adapter_eos
 
 
 class ConfigMixin:

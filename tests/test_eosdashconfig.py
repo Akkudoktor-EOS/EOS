@@ -14,7 +14,7 @@ from pydantic.fields import FieldInfo
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.pvforecast import PVForecastPlaneSetting
 from akkudoktoreos.server.dash.configuration import (
-    configuration,
+    create_config_details,
     get_default_value,
     get_nested_value,
     resolve_nested_types,
@@ -68,38 +68,44 @@ class TestEOSdashConfig:
     def test_configuration(self):
         """Test extracting configuration details from a Pydantic model based on provided values."""
         values = {"field1": "custom_value", "field2": 20}
-        config = configuration(SampleModel, values)
+        config_details = create_config_details(SampleModel, values)
+
         assert any(
-            item["name"] == "field1" and item["value"] == '"custom_value"' for item in config
+            item["name"] == "field1" and item["value"] == '"custom_value"'
+            for key, item in config_details.items()
         )
-        assert any(item["name"] == "field2" and item["value"] == "20" for item in config)
+        assert any(
+            item["name"] == "field2" and item["value"] == "20"
+            for key, item in config_details.items()
+        )
 
     def test_configuration_eos(self, config_eos):
         """Test extracting EOS configuration details from EOS config based on provided values."""
         with FILE_TESTDATA_EOSSERVER_CONFIG_1.open("r", encoding="utf-8", newline=None) as fd:
             values = json.load(fd)
-        config = configuration(config_eos, values)
+        config_details = create_config_details(config_eos, values)
         assert any(
-            item["name"] == "server.eosdash_port" and item["value"] == "8504" for item in config
+            item["name"] == "server.eosdash_port" and item["value"] == "8504"
+            for key, item in config_details.items()
         )
         assert any(
             item["name"] == "server.eosdash_host" and item["value"] == '"127.0.0.1"'
-            for item in config
+            for key, item in config_details.items()
         )
 
     def test_configuration_pvforecast_plane_settings(self):
         """Test extracting EOS PV forecast plane configuration details from EOS config based on provided values."""
         with FILE_TESTDATA_EOSSERVER_CONFIG_1.open("r", encoding="utf-8", newline=None) as fd:
             values = json.load(fd)
-        config = configuration(
+        config_details = create_config_details(
             PVForecastPlaneSetting(), values, values_prefix=["pvforecast", "planes", "0"]
         )
         assert any(
             item["name"] == "pvforecast.planes.0.surface_azimuth" and item["value"] == "170"
-            for item in config
+            for key, item in config_details.items()
         )
         assert any(
             item["name"] == "pvforecast.planes.0.userhorizon"
             and item["value"] == "[20, 27, 22, 20]"
-            for item in config
+            for key, item in config_details.items()
         )

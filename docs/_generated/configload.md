@@ -9,11 +9,12 @@
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | provider | `EOS_LOAD__PROVIDER` | `Optional[str]` | `rw` | `None` | Load provider id of provider to be used. |
 | provider_settings | `EOS_LOAD__PROVIDER_SETTINGS` | `LoadCommonProviderSettings` | `rw` | `required` | Provider settings |
+| providers | | `list[str]` | `ro` | `N/A` | Available load provider ids. |
 :::
 <!-- pyml enable line-length -->
 
 <!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
+**Example Input**
 <!-- pyml enable no-emphasis-as-heading -->
 
 <!-- pyml disable line-length -->
@@ -26,6 +27,31 @@
                "LoadVrm": null,
                "LoadImport": null
            }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "load": {
+           "provider": "LoadAkkudoktor",
+           "provider_settings": {
+               "LoadAkkudoktor": null,
+               "LoadVrm": null,
+               "LoadImport": null
+           },
+           "providers": [
+               "LoadAkkudoktor",
+               "LoadAkkudoktorAdjusted",
+               "LoadVrm",
+               "LoadImport"
+           ]
        }
    }
 ```
@@ -64,7 +90,7 @@
 ```
 <!-- pyml enable line-length -->
 
-### Common settings for VRM API
+### Common settings for load forecast VRM API
 
 <!-- pyml disable line-length -->
 :::{table} load::provider_settings::LoadVrm

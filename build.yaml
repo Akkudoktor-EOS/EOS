@@ -1,0 +1,14 @@
+# Home Assistant - Add-on Build Configuration
+# -------------------------------------------
+# https://developers.home-assistant.io/docs/add-ons/configuration#add-on-extended-build
+#
+# The Akkudoktor-EOS add-on repo is special because there is only one add-on and it is in
+# the root directory (no add-on folder as usual).
+
+image: "addon-eos"
+build_from:
+  # Debian based images only
+  amd64: "ghcr.io/home-assistant/amd64-base-debian:trixie"
+  aarch64: "ghcr.io/home-assistant/aarch64-base-debian:trixie"
+args:
+  PYTHON_VERSION: "3.13"
