@@ -16,7 +16,7 @@ This enables EOS to integrate into tools like ioBroker and Grafana,
 while keeping EOS **device simulations and optimisation
 logic decoupled from other implementations**.
 
-## 1. Exchanging data between EOS and e.g. ioBroker via Node-RED
+## 1. Exchanging data between EOS and e.g. ioBroker & Grafana via Node-RED
 
 ### Basic concept
 
@@ -63,14 +63,29 @@ After the run, EOS provides:
 * EOS Solution
 * EOS Plan
 
+### Configuration steps in ioBroker
+
+#### 1. Create MQTT instance
+
+* tbd
+
 #### 2. Use EOS data
 
 EOS entities can be referenced in:
 
 * Automations
 * Scripts
-* Dashboards
 * Device control logic
+
+### Configuration steps in Grafana
+
+#### 1. Create data source connection
+
+* tbd
+
+#### 2. Integrate in dashboard
+
+EOS entities can be referenced in Dashboards
 
 
 ## 2. Data obtained *from EOS*
