@@ -211,19 +211,6 @@ EOS does **not** directly control devices.
 It provides **structured optimisation results**, while e.g. ioBroker remains
 responsible for executing the actual control actions.
 
-## 6. Data sent *to EOS* and how
-
-All data sent to EOS is provided via **Home Assistant entity states and attributes**.
-
-| Data type             | HA entity type  | Purpose in EOS       |
-| --------------------- | --------------- | -------------------- |
-| Configuration values  | Sensor / Number | Device modelling     |
-| Measurements          | Sensor          | Initial device state |
-| Energy meter readings | Sensor          | Forecast correction  |
-| Availability flags    | Binary sensor   | Device availability  |
-
-> EOS always **reads** this data; Home Assistant remains the authoritative source for measurements and configuration.
-
 ### Summary
 
 * **EOS** focuses on **forecasting, simulation, and optimisation**
