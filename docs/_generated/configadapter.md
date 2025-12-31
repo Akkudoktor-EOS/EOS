@@ -28,6 +28,8 @@
            "homeassistant": {
                "config_entity_ids": null,
                "load_emr_entity_ids": null,
+               "grid_export_emr_entity_ids": null,
+               "grid_import_emr_entity_ids": null,
                "pv_production_emr_entity_ids": null,
                "device_measurement_entity_ids": null,
                "device_instruction_entity_ids": null,
@@ -59,6 +61,8 @@
            "homeassistant": {
                "config_entity_ids": null,
                "load_emr_entity_ids": null,
+               "grid_export_emr_entity_ids": null,
+               "grid_import_emr_entity_ids": null,
                "pv_production_emr_entity_ids": null,
                "device_measurement_entity_ids": null,
                "device_instruction_entity_ids": null,
@@ -142,9 +146,11 @@ E.g. The instruction for device id 'battery1' becomes the entity_id 'sensor.eos_
 | device_measurement_entity_ids | `Optional[dict[str, str]]` | `rw` | `None` | Mapping of EOS measurement keys used by device (resource) simulations to Home Assistant entity IDs. |
 | eos_device_instruction_entity_ids | `list[str]` | `ro` | `N/A` | Entity IDs for energy management instructions available at EOS. |
 | eos_solution_entity_ids | `list[str]` | `ro` | `N/A` | Entity IDs for optimization solution available at EOS. |
+| grid_export_emr_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity ID(s) of export to grid energy meter readings [kWh] |
+| grid_import_emr_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity ID(s) of import from grid energy meter readings [kWh] |
 | homeassistant_entity_ids | `list[str]` | `ro` | `N/A` | Entity IDs available at Home Assistant. |
-| load_emr_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity ID(s) of load energy meter reading [kWh] |
-| pv_production_emr_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity ID(s) of PV production energy meter reading [kWh] |
+| load_emr_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity ID(s) of load energy meter readings [kWh] |
+| pv_production_emr_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity ID(s) of PV production energy meter readings [kWh] |
 | solution_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity IDs for optimization solution keys to be updated by EOS.
 The solution keys have to be prepended by 'sensor.eos_' to build the entity_id.
 E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_battery1_idle_op_mode'. |
@@ -165,6 +171,12 @@ E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_batt
                },
                "load_emr_entity_ids": [
                    "sensor.load_energy_total_kwh"
+               ],
+               "grid_export_emr_entity_ids": [
+                   "sensor.grid_export_energy_total_kwh"
+               ],
+               "grid_import_emr_entity_ids": [
+                   "sensor.grid_import_energy_total_kwh"
                ],
                "pv_production_emr_entity_ids": [
                    "sensor.pv_energy_total_kwh"
@@ -199,6 +211,12 @@ E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_batt
                },
                "load_emr_entity_ids": [
                    "sensor.load_energy_total_kwh"
+               ],
+               "grid_export_emr_entity_ids": [
+                   "sensor.grid_export_energy_total_kwh"
+               ],
+               "grid_import_emr_entity_ids": [
+                   "sensor.grid_import_energy_total_kwh"
                ],
                "pv_production_emr_entity_ids": [
                    "sensor.pv_energy_total_kwh"

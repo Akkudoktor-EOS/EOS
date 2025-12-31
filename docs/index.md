@@ -31,6 +31,8 @@ develop/install.md
 akkudoktoreos/configuration.md
 develop/update.md
 develop/revert.md
+akkudoktoreos/adapter/adapterhomeassistant.md
+akkudoktoreos/adapter/adapternodered.md
 
 ```
 
@@ -48,6 +50,7 @@ akkudoktoreos/prediction.md
 akkudoktoreos/measurement.md
 akkudoktoreos/integration.md
 akkudoktoreos/logging.md
+akkudoktoreos/adapter.md
 akkudoktoreos/serverapi.md
 akkudoktoreos/api.rst
 

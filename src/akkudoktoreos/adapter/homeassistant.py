@@ -54,7 +54,7 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
     load_emr_entity_ids: Optional[list[str]] = Field(
         default=None,
         json_schema_extra={
-            "description": "Entity ID(s) of load energy meter reading [kWh]",
+            "description": "Entity ID(s) of load energy meter readings [kWh]",
             "examples": [
                 ["sensor.load_energy_total_kwh"],
                 ["sensor.load_emr1_kwh", "sensor.load_emr2_kwh"],
@@ -62,10 +62,30 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
         },
     )
 
+    grid_export_emr_entity_ids: Optional[list[str]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Entity ID(s) of export to grid energy meter readings [kWh]",
+            "examples": [
+                ["sensor.grid_export_energy_total_kwh"],
+            ],
+        },
+    )
+
+    grid_import_emr_entity_ids: Optional[list[str]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Entity ID(s) of import from grid energy meter readings [kWh]",
+            "examples": [
+                ["sensor.grid_import_energy_total_kwh"],
+            ],
+        },
+    )
+
     pv_production_emr_entity_ids: Optional[list[str]] = Field(
         default=None,
         json_schema_extra={
-            "description": "Entity ID(s) of PV production energy meter reading [kWh]",
+            "description": "Entity ID(s) of PV production energy meter readings [kWh]",
             "examples": [
                 ["sensor.pv_energy_total_kwh"],
                 ["sensor.pv_emr1_kwh", "sensor.pv_emr2_kwh"],
@@ -467,6 +487,50 @@ class HomeAssistantAdapter(AdapterProvider):
                     except Exception as e:
                         logger.error(f"{e}")
 
+            # Retrieve export to grid measurements
+            entity_ids = self.config.adapter.homeassistant.grid_export_emr_entity_ids
+            if entity_ids:
+                measurement_keys = self.config.measurement.grid_export_emr_keys
+                if measurement_keys is None:
+                    measurement_keys = []
+                for entity_id in entity_ids:
+                    measurement_key = entity_id
+                    if measurement_key not in measurement_keys:
+                        measurement_keys.append(measurement_key)
+                        self.config.measurement.grid_export_emr_keys = measurement_keys
+                    try:
+                        state = self.get_entity_state(entity_id)
+                        logger.debug(f"Entity {entity_id}: {state}")
+                        if state:
+                            measurement_value = float(state)
+                            self.measurement.update_value(
+                                self.ems_start_datetime, measurement_key, measurement_value
+                            )
+                    except Exception as e:
+                        logger.error(f"{e}")
+
+            # Retrieve import from grid measurements
+            entity_ids = self.config.adapter.homeassistant.grid_import_emr_entity_ids
+            if entity_ids:
+                measurement_keys = self.config.measurement.grid_import_emr_keys
+                if measurement_keys is None:
+                    measurement_keys = []
+                for entity_id in entity_ids:
+                    measurement_key = entity_id
+                    if measurement_key not in measurement_keys:
+                        measurement_keys.append(measurement_key)
+                        self.config.measurement.grid_import_emr_keys = measurement_keys
+                    try:
+                        state = self.get_entity_state(entity_id)
+                        logger.debug(f"Entity {entity_id}: {state}")
+                        if state:
+                            measurement_value = float(state)
+                            self.measurement.update_value(
+                                self.ems_start_datetime, measurement_key, measurement_value
+                            )
+                    except Exception as e:
+                        logger.error(f"{e}")
+
             # Retrieve measurements for PV prediction
             entity_ids = self.config.adapter.homeassistant.pv_production_emr_entity_ids
             if entity_ids:
@@ -477,7 +541,7 @@ class HomeAssistantAdapter(AdapterProvider):
                     measurement_key = entity_id
                     if measurement_key not in measurement_keys:
                         measurement_keys.append(measurement_key)
-                        self.comfig.measurement.pv_production_emr_keys = measurement_keys
+                        self.config.measurement.pv_production_emr_keys = measurement_keys
                     try:
                         state = self.get_entity_state(entity_id)
                         logger.debug(f"Entity {entity_id}: {state}")

@@ -10,6 +10,8 @@
            "homeassistant": {
                "config_entity_ids": null,
                "load_emr_entity_ids": null,
+               "grid_export_emr_entity_ids": null,
+               "grid_import_emr_entity_ids": null,
                "pv_production_emr_entity_ids": null,
                "device_measurement_entity_ids": null,
                "device_instruction_entity_ids": null,
@@ -136,7 +138,7 @@
            }
        },
        "general": {
-           "version": "0.2.0.dev81236039",
+           "version": "0.2.0.dev44099868",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
