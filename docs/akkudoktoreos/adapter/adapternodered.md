@@ -89,7 +89,7 @@ E.g.:
   * `operation_mode_factor`
   * Power or rate limits
   * Mode-specific control parameters
-  * 
+
 
 ### 2.2 Solution entity IDs
 
