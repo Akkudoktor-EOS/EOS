@@ -36,10 +36,13 @@ Typical use cases with Node-RED:
 
 ### Configuration steps in EOS
 
-#### 1. Enable and configure the Home Assistant adapter
+#### 1. Enable and configure the Node-RED adapter
 
-EOS must be configured with access to the Home Assistant API. It must be run
-as a Home Assistant add-on.
+EOS must be configured with access to the Node-RED instance in Config->adapter.
+* prerequisite is an already installed and running Node-RED instance
+* adapter.nodered.host: 192.168.1.100 (example IP of your Node-RED instance)
+* adapter.nodered.port: 1880 (default)
+* adapter.provider: NodeRED
 
 #### 2. Define source entity IDs
 
