@@ -64,18 +64,7 @@ After the run, EOS provides:
 * Create nodes for EOS Solution
 * Create nodes for EOS Plan
 
--------------------------------------------------------------------------------------------------
-
-#### 1. Accept entities created by EOS
-
-Entities written by EOS automatically appear in Home Assistant’s state machine.
-
-#### 2. Make entities usable in the UI
-
-* Entities created by EOS have **no unique ID**.
-* To use them properly in dashboards, history, or automations, wrap them in **template sensors**.
-
-#### 3. Use EOS data
+#### 2. Use EOS data
 
 EOS entities can be referenced in:
 
@@ -84,26 +73,6 @@ EOS entities can be referenced in:
 * Dashboards
 * Device control logic
 
-:::{admonition} Warning
-:class: warning
-Entities created by EOS have **no unique ID**. The unique ID cannot be set by an add-on.
-To use the entity information in the Home Assistant UI, a template sensor should be used.
-:::
-
-##### Example: UI-usable template sensor for an EOS entity
-
-<!-- pyml disable line-length -->
-```yaml
-template:
-  - sensor:
-      - name: "Battery1 Operation Mode"
-        unique_id: "battery1_op_mode"
-        state: >
-          {% set battery1_op_mode = states('sensor.eos_battery1') -%}
-          {{ battery1_op_mode }}
-        state_class: measurement
-````
-<!-- pyml enable line-length -->
 
 ## 2. Data obtained *from EOS*
 
