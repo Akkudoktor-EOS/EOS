@@ -3,7 +3,7 @@
   "info": {
     "title": "Akkudoktor-EOS",
     "description": "This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.",
-    "version": "v0.2.0.dev81236039"
+    "version": "v0.2.0.dev44099868"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -2525,7 +2525,7 @@
           "general": {
             "$ref": "#/components/schemas/GeneralSettings-Output",
             "default": {
-              "version": "0.2.0.dev81236039",
+              "version": "0.2.0.dev44099868",
               "data_output_subpath": "output",
               "latitude": 52.52,
               "longitude": 13.405,
@@ -4272,7 +4272,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev81236039"
+            "default": "0.2.0.dev44099868"
           },
           "data_folder_path": {
             "anyOf": [
@@ -4346,7 +4346,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev81236039"
+            "default": "0.2.0.dev44099868"
           },
           "data_folder_path": {
             "anyOf": [
@@ -5240,7 +5240,7 @@
               }
             ],
             "title": "Load Emr Entity Ids",
-            "description": "Entity ID(s) of load energy meter reading [kWh]",
+            "description": "Entity ID(s) of load energy meter readings [kWh]",
             "examples": [
               [
                 "sensor.load_energy_total_kwh"
@@ -5248,6 +5248,46 @@
               [
                 "sensor.load_emr1_kwh",
                 "sensor.load_emr2_kwh"
+              ]
+            ]
+          },
+          "grid_export_emr_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Emr Entity Ids",
+            "description": "Entity ID(s) of export to grid energy meter readings [kWh]",
+            "examples": [
+              [
+                "sensor.grid_export_energy_total_kwh"
+              ]
+            ]
+          },
+          "grid_import_emr_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Import Emr Entity Ids",
+            "description": "Entity ID(s) of import from grid energy meter readings [kWh]",
+            "examples": [
+              [
+                "sensor.grid_import_energy_total_kwh"
               ]
             ]
           },
@@ -5264,7 +5304,7 @@
               }
             ],
             "title": "Pv Production Emr Entity Ids",
-            "description": "Entity ID(s) of PV production energy meter reading [kWh]",
+            "description": "Entity ID(s) of PV production energy meter readings [kWh]",
             "examples": [
               [
                 "sensor.pv_energy_total_kwh"
@@ -5376,7 +5416,7 @@
               }
             ],
             "title": "Load Emr Entity Ids",
-            "description": "Entity ID(s) of load energy meter reading [kWh]",
+            "description": "Entity ID(s) of load energy meter readings [kWh]",
             "examples": [
               [
                 "sensor.load_energy_total_kwh"
@@ -5384,6 +5424,46 @@
               [
                 "sensor.load_emr1_kwh",
                 "sensor.load_emr2_kwh"
+              ]
+            ]
+          },
+          "grid_export_emr_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Emr Entity Ids",
+            "description": "Entity ID(s) of export to grid energy meter readings [kWh]",
+            "examples": [
+              [
+                "sensor.grid_export_energy_total_kwh"
+              ]
+            ]
+          },
+          "grid_import_emr_entity_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Import Emr Entity Ids",
+            "description": "Entity ID(s) of import from grid energy meter readings [kWh]",
+            "examples": [
+              [
+                "sensor.grid_import_energy_total_kwh"
               ]
             ]
           },
@@ -5400,7 +5480,7 @@
               }
             ],
             "title": "Pv Production Emr Entity Ids",
-            "description": "Entity ID(s) of PV production energy meter reading [kWh]",
+            "description": "Entity ID(s) of PV production energy meter readings [kWh]",
             "examples": [
               [
                 "sensor.pv_energy_total_kwh"

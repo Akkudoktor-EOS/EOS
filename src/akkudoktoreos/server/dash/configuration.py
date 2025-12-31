@@ -703,6 +703,12 @@ def Configuration(
             elif config["name"].startswith("adapter.homeassistant.load_emr_entity_ids"):
                 # Home Assistant adapter load energy meter readings entities
                 update_form_factory = make_config_update_list_form(homeassistant_entity_ids)
+            elif config["name"].startswith("adapter.homeassistant.grid_export_emr_entity_ids"):
+                # Home Assistant adapter grid export energy meter readings entities
+                update_form_factory = make_config_update_list_form(homeassistant_entity_ids)
+            elif config["name"].startswith("adapter.homeassistant.grid_import_emr_entity_ids"):
+                # Home Assistant adapter grid import energy meter readings entities
+                update_form_factory = make_config_update_list_form(homeassistant_entity_ids)
             elif config["name"].startswith("adapter.homeassistant.pv_production_emr_entity_ids"):
                 # Home Assistant adapter pv energy meter readings entities
                 update_form_factory = make_config_update_list_form(homeassistant_entity_ids)

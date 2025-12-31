@@ -16,7 +16,7 @@
 | latitude | `EOS_GENERAL__LATITUDE` | `Optional[float]` | `rw` | `52.52` | Latitude in decimal degrees between -90 and 90. North is positive (ISO 19115) (°) |
 | longitude | `EOS_GENERAL__LONGITUDE` | `Optional[float]` | `rw` | `13.405` | Longitude in decimal degrees within -180 to 180 (°) |
 | timezone | | `Optional[str]` | `ro` | `N/A` | Computed timezone based on latitude and longitude. |
-| version | `EOS_GENERAL__VERSION` | `str` | `rw` | `0.2.0.dev81236039` | Configuration file version. Used to check compatibility. |
+| version | `EOS_GENERAL__VERSION` | `str` | `rw` | `0.2.0.dev44099868` | Configuration file version. Used to check compatibility. |
 :::
 <!-- pyml enable line-length -->
 
@@ -28,7 +28,7 @@
 ```json
    {
        "general": {
-           "version": "0.2.0.dev81236039",
+           "version": "0.2.0.dev44099868",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
@@ -46,7 +46,7 @@
 ```json
    {
        "general": {
-           "version": "0.2.0.dev81236039",
+           "version": "0.2.0.dev44099868",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
