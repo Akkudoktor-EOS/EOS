@@ -8,9 +8,9 @@ The Node-RED adapter provides a **bidirectional interface** between
 
 It allows EOS to:
 
-* **Receive** entity states and attributes via Node-RED and EOS Rest API (The HTTP-IN Node "GET /eos_data_acquisition" is NOT yet functional)
+* **Receive** entity states and attributes via Node-RED and EOS REST API (The HTTP-IN Node "GET /eos_data_acquisition" is NOT yet functional)
 * **Provide** control instructions via the new HTTP-IN Node
-* **Provide** Solution and Plan results via Rest API
+* **Provide** Solution and Plan results via REST API
 
 This enables EOS to integrate into tools like ioBroker and Grafana,
 while keeping EOS **device simulations and optimisation
@@ -23,7 +23,7 @@ logic decoupled from other implementations**.
 EOS **receives** e.g. measurements from **ioBroker objects** via **MQTT**
 before each energy management run.
 
-EOS **provides results** via HTTP-IN and Rest API after each optimisation run.
+EOS **provides results** via HTTP-IN and REST API after each optimisation run.
 The values of these results can be moved via Node-RED. 
 
 Typical use cases with Node-RED:
@@ -95,7 +95,7 @@ E.g.:
 
 Each energy management run produces an **optimisation solution**.
 
-EOS can publish solution-level details to dedicated Home Assistant entities for:
+EOS can publish solution-level details for:
 
 * Debugging and validation
 * Visualisation and dashboards
@@ -103,16 +103,16 @@ EOS can publish solution-level details to dedicated Home Assistant entities for:
 
 EOS updates these entities **after each energy management run**.
 
-## 3. Data read by EOS from Home Assistant
+## 3. Data retrieved by EOS via Node-RED
 
-Before starting an energy optimisation run, EOS retrieves several categories of
-data from Home Assistant, including:
+Before starting an energy optimisation run, EOS can retrieve several categories of
+data via Node-RED, including:
 
-### 3.1 Configuration entity IDs
+### 3.1 Configuration entity IDs (NOT TESTED BY ME)
 
-EOS can synchronise parts of its configuration from Home Assistant entity states.
+EOS can synchronise parts of its configuration via REST API.
 This is particularly useful for **device (resource) parameters** already provided
-by Home Assistant integrations, such as:
+by other systems, such as:
 
 * Battery capacity
 * Maximum charge or discharge power
@@ -135,7 +135,7 @@ optimisation results.
 
 Load **Energy Meter Readings (EMR)** are used to adapt and refine the **load prediction**.
 
-EOS retrieves these readings from Home Assistant **before each energy management run**
+EOS can retrieve these readings via Node-RED REST API calls **before each energy management run**
 to align forecasts with actual consumption.
 
 ### 3.4 PV production EMR entity IDs
@@ -143,47 +143,60 @@ to align forecasts with actual consumption.
 PV production **Energy Meter Readings (EMR)** are used to adapt and refine the
 **photovoltaic generation forecast**.
 
-EOS retrieves these readings from Home Assistant **before each optimisation run**
+EOS can retrieve these readings via Node-RED REST API calls **before each optimisation run**
 to improve forecast accuracy based on real production data.
 
 ## 4. Entity state and value conversion
 
-When reading configuration values and measurements from entity states, the adapter
-applies the following heuristics to convert the Home Assistant state into a suitable
-EOS value:
-
-* **Boolean `True`**: `["y", "yes", "on", "true", "home", "open"]`
-* **Boolean `False`**: `["n", "no", "off", "false", "closed"]`
-* **`None`**: `["unavailable", "none"]`
-* **`float`**: if the value can be converted to a floating-point number
-* **`str`**: if none of the above apply
-
-### Recommendation: value conversion in Home Assistant
-
-To adapt, scale, or transform Home Assistant entity values to match EOS
-expectations, it is recommended to use
-[template sensors](https://www.home-assistant.io/integrations/template/#sensor).
-
-This keeps value conversion fully within Home Assistant, ensuring a clean and
-consistent EOS configuration.
+Value conversion into the expected REST API format can be done in a Node-RED "function" node.
 
 ### Example: Battery SoC conversion
 
-Convert a battery state of charge from percentage `[0..100]` to a normalised factor
-`[0.0..1.0]`:
+Convert a battery state of charge from percentage `[0..100]` to the expected schema
 
-<!-- pyml disable line-length -->
-```yaml
-template:
-  - sensor:
-      - name: "Battery1 SoC Factor"
-        unique_id: "battery1_soc_factor"
-        state: >
-          {% set bat_charge_soc = states('sensor.battery1_soc_percent') | float(100) -%}
-          {{ bat_charge_soc / 100.0 }}
-        state_class: measurement
+
 ```
-<!-- pyml enable line-length -->
+if (msg.topic === "Battery_SOC") {
+    let now = new Date();
+
+    // Format date/time as 'YYYY-MM-DD HH:MM:SS', then encode
+    let pad = n => n < 10 ? "0" + n : n;
+    let datetimeRaw =
+        now.getFullYear() + "-" +
+        pad(now.getMonth() + 1) + "-" +
+        pad(now.getDate()) + " " +
+        pad(now.getHours()) + ":" +
+        pad(now.getMinutes()) + ":" +
+        pad(now.getSeconds());
+    let datetimeEncoded = encodeURIComponent(datetimeRaw);
+
+    // Prepare value as decimal with leading zero
+    let value = String(msg.payload);
+    if (value.startsWith(".")) {
+        value = "0" + value;
+    } else if (!value.includes(".")) {
+        let intval = parseInt(value);
+        if (value.length === 1) {
+            value = "0.0" + value;
+        } else if (intval > 1 && intval < 100) {
+            value = "0." + value;
+        }
+    }
+
+    // Build and URL-encode key
+    const key = "battery1-soc-factor";
+    let keyEncoded = encodeURIComponent(key);
+
+    // Build URL
+    let baseUrl = "http://192.168.1.100:8503/v1/measurement/value";
+    msg.url = `${baseUrl}?datetime=${datetimeEncoded}&key=${keyEncoded}&value=${encodeURIComponent(value)}`;
+    msg.payload = ""; // Empty for PUT
+
+    return msg;
+}
+return null;
+```
+
 
 ## 5. Further processing of EOS data in Home Assistant
 
