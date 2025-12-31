@@ -47,7 +47,7 @@ EOS must be configured with access to the Node-RED instance in Config->adapter.
 #### 2. Run energy optimisation
 
 Continiously:
-* EOS receives via Node-RED measurement values before optimisation.
+* EOS receives measurement values via Node-RED before optimisation.
 
 After the run, EOS provides:
 * The device instruction and solution entities for the current time slot via the new HTTP-IN "Control Dispatch".
