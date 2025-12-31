@@ -198,9 +198,9 @@ return null;
 ```
 
 
-## 5. Further processing of EOS data in Home Assistant
+## 5. Further processing of EOS data in e.g. ioBroker and Grafana
 
-Once published, EOS data behaves like any other Home Assistant entity and can be:
+Once published, EOS data can be used in any needed scenario:
 
 * Used as triggers or conditions in automations
 * Mapped to device-specific services or integrations
@@ -208,7 +208,7 @@ Once published, EOS data behaves like any other Home Assistant entity and can be
 * Compared with measured values for monitoring and validation
 
 EOS does **not** directly control devices.
-It provides **structured optimisation results**, while Home Assistant remains
+It provides **structured optimisation results**, while e.g. ioBroker remains
 responsible for executing the actual control actions.
 
 ## 6. Data sent *to EOS* and how
@@ -227,8 +227,9 @@ All data sent to EOS is provided via **Home Assistant entity states and attribut
 ### Summary
 
 * **EOS** focuses on **forecasting, simulation, and optimisation**
-* **Home Assistant** focuses on **measurement, integration, and execution**
+* **Node-RED** focuses on **moving and processing**
+* **ioBroker** focuses on **measurement, integration, and execution**
+* **Grafana** focuses on **visualisation**
 
-The Home Assistant adapter provides a clear, structured interface between both
-systems, allowing flexible integration without coupling EOS to Home Assistant
-device specifics.
+The Node-RED adapter and the REST API provide a structured interface between EOS and a heterogeneous environment,
+allowing flexible integration without coupling EOS to device specifics.
