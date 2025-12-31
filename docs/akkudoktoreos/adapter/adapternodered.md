@@ -75,11 +75,12 @@ EOS entities can be referenced in:
 
 ## 2. Data obtained *from EOS*
 
-### 2.1 Device instruction entity IDs
+### 2.1 Device instruction entity IDs (Control Dispatch)
 
 After each energy optimisation run, EOS produces **device instructions** for the
-controlled resources. These instructions are written back to Home Assistant via
-dedicated entities.
+controlled resources.
+E.g.:
+{"battery1_op_mode":"SELF_CONSUMPTION","battery1_op_factor":1,"ev11_op_mode":"IDLE","ev11_op_factor":1,"homeappliance1_op_mode":"RUN","homeappliance1_op_factor":1}
 
 * The **entity state** represents the device's selected **operation mode**.
 * **Entity attributes** provide additional parameters for the operation mode, such as:
@@ -87,8 +88,7 @@ dedicated entities.
   * `operation_mode_factor`
   * Power or rate limits
   * Mode-specific control parameters
-
-> **Note:** Home Assistant automations or device integrations can react to these updates to execute control actions.
+  * 
 
 ### 2.2 Solution entity IDs
 
