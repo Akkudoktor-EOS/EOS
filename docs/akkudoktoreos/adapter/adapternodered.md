@@ -1,10 +1,10 @@
 % SPDX-License-Identifier: Apache-2.0
-(adapter-homeassistant-page)=
+(adapter-nodered-page)=
 
-# Home Assistant Adapter
+# Node-RED Adapter
 
-The Home Assistant adapter provides a bidirectional interface between
-**Home Assistant (HA)** and the **Akkudoktor-EOS (EOS)** energy optimisation system.
+The Node-RED adapter provides a bidirectional interface between
+**Node-RED** and the **Akkudoktor-EOS (EOS)** energy optimisation system.
 
 It allows EOS to:
 
