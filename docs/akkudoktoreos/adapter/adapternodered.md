@@ -8,8 +8,9 @@ The Node-RED adapter provides a **bidirectional interface** between
 
 It allows EOS to:
 
-* **Receive** entity states and attributes via Node-RED HTTP-IN Node
-* **Provide** control instructions via HTTP-IN Node
+* **Receive** entity states and attributes via Node-RED and EOS Rest API (The HTTP-IN Node "GET /eos_data_acquisition" is NOT yet functional)
+* **Provide** control instructions via the new HTTP-IN Node
+* **Provide** Solution and Plan results via Rest API
 
 This enables EOS to integrate into tools like ioBroker and Grafana,
 while keeping EOS **device simulations and optimisation
