@@ -81,7 +81,7 @@ After each energy optimisation run, EOS produces **device instructions** for the
 controlled resources.
 
 E.g.:
-'{"battery1_op_mode":"SELF_CONSUMPTION","battery1_op_factor":1,"ev11_op_mode":"IDLE","ev11_op_factor":1,"homeappliance1_op_mode":"RUN","homeappliance1_op_factor":1}'
+`{"battery1_op_mode":"SELF_CONSUMPTION","battery1_op_factor":1,"ev11_op_mode":"IDLE","ev11_op_factor":1,"homeappliance1_op_mode":"RUN","homeappliance1_op_factor":1}`
 
 * The **entity state** represents the device's selected **operation mode**.
 * **Entity attributes** provide additional parameters for the operation mode, such as:
