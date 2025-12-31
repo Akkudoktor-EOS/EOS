@@ -56,9 +56,8 @@ After the run, EOS provides:
 
 ### Configuration steps in NodeRED
 
-#### 1. Create Node-RED flow with the necessary nodes
+#### 1. Create Node-RED flow with nodes for processing
 
-Create a new Node-RED flow with nodes for processing
 * battery SoC
 * EOS Control Disptach
 * EOS Solution
