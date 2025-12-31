@@ -11,11 +11,11 @@ It allows EOS to:
 * **Receive** entity states and attributes via Node-RED HTTP-IN Node
 * **Provide** control instructions via HTTP-IN Node
 
-This enables EOS to integrate seamlessly with Home Assistant–managed devices,
-sensors, and energy meters, while keeping EOS **device simulations and optimisation
-logic decoupled from HA-specific implementations**.
+This enables EOS to integrate into tools like ioBroker and Grafana,
+while keeping EOS **device simulations and optimisation
+logic decoupled from other implementations**.
 
-## 1. Exchanging data between EOS and Home Assistant
+## 1. Exchanging data between EOS and e.g. ioBroker via Node-RED
 
 ### Basic concept
 
