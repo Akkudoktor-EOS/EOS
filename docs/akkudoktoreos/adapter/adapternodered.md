@@ -58,11 +58,11 @@ After the run, EOS provides:
 
 #### 1. Create Node-RED flow with the necessary nodes
 
-* Create a new Node-RED flow
-* Create nodes for battery SoC
-* Create nodes for EOS Control Disptach
-* Create nodes for EOS Solution
-* Create nodes for EOS Plan
+Create a new Node-RED flow with nodes for processing
+* battery SoC
+* EOS Control Disptach
+* EOS Solution
+* EOS Plan
 
 #### 2. Use EOS data
 
