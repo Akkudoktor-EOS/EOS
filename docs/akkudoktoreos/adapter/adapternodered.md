@@ -20,15 +20,15 @@ logic decoupled from other implementations**.
 
 ### Basic concept
 
-EOS **reads** configuration data and measurements from **Home Assistant entity states**
+EOS **receives** e.g. measurements from **ioBroker objects** via **MQTT**
 before each energy management run.
 
-EOS **publishes results** by writing states and attributes to Home Assistant entities.
-After each optimisation run, these values are available as standard Home Assistant entities
-and can be used like any other sensor or state.
+EOS **provides results** via HTTP-IN and Rest API after each optimisation run.
+The values of these results can be moved via Node-RED. 
 
-Typical use cases in Home Assistant:
+Typical use cases with Node-RED:
 
+* optimal for heterogeneous systems
 * Dashboards and visualisation
 * Automations and scripts
 * Device or manufacturer integrations
