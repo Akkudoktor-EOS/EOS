@@ -44,38 +44,25 @@ EOS must be configured with access to the Node-RED instance in Config->adapter.
 * adapter.nodered.port: 1880 (default)
 * adapter.provider: NodeRED
 
--------------------------------------------------------------------------------------------------
+#### 2. Run energy optimisation
 
-#### 2. Define source entity IDs
+Continiously:
+* EOS receives (via Node-RED) continiously measurement values before optimisation.
 
-Configure EOS to read configuration and measurement entities from Home Assistant.
-Typical sources include:
-
-* Configuration entities
-* Measurement entities
-
-#### 3. Define target entity IDs
-
-Configure EOS to write the results back to Home Assistant.
-Typical targets include:
-
-* Device instruction entities
-* Solution / optimisation result entities
-
--------------------------------------------------------------------------------------------------
-
-#### 4. Run energy optimisation
-
-* EOS receives continiously measurement values before optimisation.
-* After the run, EOS provides the device instruction and solution entities via HTTP-IN "Control Dispatch".
+After the run, EOS provides:
+* The device instruction and solution entities for the current time slot via the new HTTP-IN "Control Dispatch".
+* The **Solution** via "http://192.168.1.100:8503/v1/energy-management/optimization/solution".
+* The **Plan** via "http://192.168.1.100:8503/v1/energy-management/optimization/plan"
 
 ### Configuration steps in NodeRED
 
-#### 1. Create Node-RED flow with nodes
+#### 1. Create Node-RED flow with the necessary nodes
 
 * Create a new Node-RED flow
 * Create nodes for battery SoC
 * Create nodes for EOS Control Disptach
+* Create nodes for EOS Solution
+* Create nodes for EOS Plan
 
 -------------------------------------------------------------------------------------------------
 
