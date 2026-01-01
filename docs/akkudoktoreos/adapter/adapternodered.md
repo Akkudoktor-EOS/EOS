@@ -59,6 +59,14 @@ After the run, EOS provides:
 #### 1. Create Node-RED flow with nodes for processing
 
 * battery SoC
+
+<img width="1585" height="183" alt="image" src="https://github.com/user-attachments/assets/dc6fab90-47f0-4e66-ad5f-fb3124eac231" />
+<img width="817" height="648" alt="image" src="https://github.com/user-attachments/assets/f221588e-987f-4375-9544-f95f1f44a77f" />
+<img width="683" height="511" alt="image" src="https://github.com/user-attachments/assets/3fd9af68-fa15-44d4-9e01-4df23f005b64" />
+<img width="815" height="337" alt="image" src="https://github.com/user-attachments/assets/8abddd62-3e90-4660-9230-d1e0a2f138a2" />
+<img width="816" height="1238" alt="image" src="https://github.com/user-attachments/assets/960ae7be-63f3-4141-80d8-b057bdd1a138" />
+<img width="641" height="1031" alt="image" src="https://github.com/user-attachments/assets/2c6e56bb-9540-415f-8150-d114b34fb533" />
+
 * EOS Control Disptach
 * EOS Solution
 * EOS Plan
