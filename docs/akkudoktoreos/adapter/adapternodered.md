@@ -53,7 +53,7 @@ After the run, EOS provides:
 * The **Solution** via "http://192.168.1.107:8503/v1/energy-management/optimization/solution".
 * The **Plan** via "http://192.168.1.107:8503/v1/energy-management/optimization/plan"
 
-### Configuration steps in ioBroker
+### Configuration steps in ioBroker (e.g. IP 192.168.1.105)
 
 #### 1. Create MQTT Server/Broker
 
@@ -75,7 +75,7 @@ Objects can be handed over to Node-Red
 * EV SoC
 * PV power
 
-### Configuration steps in NodeRED
+### Configuration steps in NodeRED (e.g. IP 192.168.1.109)
 
 #### 1. Create Node-RED flow with nodes for processing
 
@@ -106,11 +106,11 @@ Objects can be handed over to Node-Red
 
 Add new data sources for JSON API
 *  Name: EOS Control Dispatch (e.g.)
-*  Connection: http://192.168.1.100:1880/EOS-Control-Dispatch (IP adress of your Node-RED instance)
+*  Connection: http://192.168.1.109:1880/EOS-Control-Dispatch (IP adress of your Node-RED instance)
 *  Authenticaion: No Authenticaion
 
 *  Name: EOS Solution (e.g.)
-*  Connection: http://192.168.1.100:1880/grafana-data (IP adress of your EOS instance)
+*  Connection: http://192.168.1.109:1880/grafana-data (IP adress of your EOS instance)
 *  Authenticaion: No Authenticaion  
 
 
