@@ -33,13 +33,13 @@ Typical use cases with Node-RED:
 * Device or manufacturer integrations
 * Debugging and validation
 
-### Configuration steps in EOS
+### Configuration steps in EOS (e.g. IP 192.168.1.107)
 
 #### 1. Enable and configure the Node-RED adapter
 
 EOS must be configured with access to the Node-RED instance in Config->adapter.
 * prerequisite is an already installed and running Node-RED instance
-* adapter.nodered.host: 192.168.1.100 (example IP of your Node-RED instance)
+* adapter.nodered.host: 192.168.1.109 (example IP of your Node-RED instance)
 * adapter.nodered.port: 1880 (default)
 * adapter.provider: NodeRED
 
@@ -50,8 +50,8 @@ Continiously:
 
 After the run, EOS provides:
 * The device instruction and solution entities for the current time slot via the new HTTP-IN "Control Dispatch".
-* The **Solution** via "http://192.168.1.100:8503/v1/energy-management/optimization/solution".
-* The **Plan** via "http://192.168.1.100:8503/v1/energy-management/optimization/plan"
+* The **Solution** via "http://192.168.1.107:8503/v1/energy-management/optimization/solution".
+* The **Plan** via "http://192.168.1.107:8503/v1/energy-management/optimization/plan"
 
 ### Configuration steps in ioBroker
 
