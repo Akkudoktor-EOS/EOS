@@ -110,7 +110,7 @@ Add new data sources for JSON API
 *  Authenticaion: No Authenticaion
 
 *  Name: EOS Solution (e.g.)
-*  Connection: http://192.168.1.109:1880/grafana-data (IP adress of your EOS instance)
+*  Connection: http://192.168.1.109:1880/grafana-data (IP adress of your Node-RED instance)
 *  Authenticaion: No Authenticaion  
 
 
