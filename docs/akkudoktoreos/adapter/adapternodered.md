@@ -94,10 +94,6 @@ Add new data sources for JSON API
 *  Connection: http://192.168.1.100:1880/EOS-Control-Dispatch (IP adress of your Node-RED instance)
 *  Authenticaion: No Authenticaion
 
-*  Name: EOS Plan (e.g.)
-*  Connection: http://192.168.1.101:8503/v1/energy-management/plan (IP adress of your EOS instance)
-*  Authenticaion: No Authenticaion
-
 *  Name: EOS Solution (e.g.)
 *  Connection: http://192.168.1.100:1880/grafana-data (IP adress of your EOS instance)
 *  Authenticaion: No Authenticaion  
