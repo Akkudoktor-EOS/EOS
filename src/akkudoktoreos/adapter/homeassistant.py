@@ -455,7 +455,7 @@ class HomeAssistantAdapter(AdapterProvider):
                     measurement_key = entity_id
                     if measurement_key not in measurement_keys:
                         measurement_keys.append(measurement_key)
-                        self.comfig.measurement.load_emr_keys = measurement_keys
+                        self.config.measurement.load_emr_keys = measurement_keys
                     try:
                         state = self.get_entity_state(entity_id)
                         logger.debug(f"Entity {entity_id}: {state}")
