@@ -3,7 +3,7 @@
   "info": {
     "title": "Akkudoktor-EOS",
     "description": "This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.",
-    "version": "v0.2.0.dev81043823"
+    "version": "v0.2.0.dev81236039"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -2525,7 +2525,7 @@
           "general": {
             "$ref": "#/components/schemas/GeneralSettings-Output",
             "default": {
-              "version": "0.2.0.dev81043823",
+              "version": "0.2.0.dev81236039",
               "data_output_subpath": "output",
               "latitude": 52.52,
               "longitude": 13.405,
@@ -4272,7 +4272,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev81043823"
+            "default": "0.2.0.dev81236039"
           },
           "data_folder_path": {
             "anyOf": [
@@ -4346,7 +4346,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev81043823"
+            "default": "0.2.0.dev81236039"
           },
           "data_folder_path": {
             "anyOf": [

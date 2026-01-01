@@ -3,6 +3,7 @@ import os
 import re
 import sys
 from pathlib import Path
+from typing import Any, MutableMapping
 
 from loguru import logger
 
@@ -34,6 +35,58 @@ LOG_PATTERN = re.compile(
     """,
     re.VERBOSE,
 )
+
+
+def patch_loguru_record(
+    record: MutableMapping[str, Any],
+    *,
+    file_name: str,
+    file_path: str,
+    line_no: int,
+    function: str,
+    logger_name: str = "EOSdash",
+) -> None:
+    """Patch a Loguru log record with subprocess-origin metadata.
+
+    This helper mutates an existing Loguru record in-place to update selected
+    metadata fields (file, line, function, and logger name) while preserving
+    Loguru's internal record structure. It must be used with ``logger.patch()``
+    and **must not** replace structured fields (such as ``record["file"]``)
+    with plain dictionaries.
+
+    The function is intended for forwarding log messages originating from
+    subprocess stdout/stderr streams into Loguru while retaining meaningful
+    source information (e.g., file path and line number).
+
+    Args:
+        record:
+            The Loguru record dictionary provided to ``logger.patch()``.
+        file_name:
+            The source file name to assign (e.g. ``"main.py"``).
+        file_path:
+            The full source file path to assign
+            (e.g. ``"/app/server/main.py"``).
+        line_no:
+            The source line number associated with the log entry.
+        function:
+            The function name associated with the log entry.
+        logger_name:
+            The logical logger name to assign to the record. Defaults to
+            ``"EOSdash"``.
+
+    Notes:
+        - This function mutates the record in-place and returns ``None``.
+        - Only attributes of existing structured objects are modified;
+          no structured Loguru fields are replaced.
+        - Replacing ``record["file"]`` or similar structured fields with a
+          dictionary will cause Loguru sinks to fail.
+
+    """
+    record["file"].name = file_name
+    record["file"].path = file_path
+    record["line"] = line_no
+    record["function"] = function
+    record["name"] = logger_name
 
 
 async def forward_stream(stream: asyncio.StreamReader, prefix: str = "") -> None:
@@ -94,16 +147,12 @@ async def forward_stream(stream: asyncio.StreamReader, prefix: str = "") -> None
 
             # ---- Patch logger with realistic metadata ----
             patched = logger.patch(
-                lambda r: r.update(
-                    {
-                        "file": {
-                            "name": file_name,
-                            "path": file_path,
-                        },
-                        "line": line_no,
-                        "function": func_name,
-                        "name": "EOSdash",
-                    }
+                lambda r: patch_loguru_record(
+                    r,
+                    file_name=file_name,
+                    file_path=file_path,
+                    line_no=line_no,
+                    function=func_name,
                 )
             )
 
@@ -115,16 +164,13 @@ async def forward_stream(stream: asyncio.StreamReader, prefix: str = "") -> None
             file_path = f"/subprocess/{file_name}"
 
             logger.patch(
-                lambda r: r.update(
-                    {
-                        "file": {
-                            "name": file_name,
-                            "path": file_path,
-                        },
-                        "line": 1,
-                        "function": "<subprocess>",
-                        "name": "EOSdash",
-                    }
+                lambda r: patch_loguru_record(
+                    r,
+                    file_name=file_name,
+                    file_path=file_path,
+                    line_no=1,
+                    function="<subprocess>",
+                    logger_name="EOSdash",
                 )
             ).info(f"{prefix}{raw}")
 

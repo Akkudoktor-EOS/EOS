@@ -136,7 +136,7 @@
            }
        },
        "general": {
-           "version": "0.2.0.dev81043823",
+           "version": "0.2.0.dev81236039",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
