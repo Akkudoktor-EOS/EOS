@@ -176,7 +176,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             logger.debug(debug_msg)
         return energy_array
 
-    def load_total(
+    def load_total_kwh(
         self,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
@@ -207,7 +207,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
         if end_datetime is None:
             end_datetime = self[-1].date_time
         size = self._interval_count(start_datetime, end_datetime, interval)
-        load_total_array = np.zeros(size)
+        load_total_kwh_array = np.zeros(size)
         # Loop through all loads
         if isinstance(self.config.measurement.load_emr_keys, list):
             for key in self.config.measurement.load_emr_keys:
@@ -219,11 +219,11 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
                     interval=interval,
                 )
                 # Add calculated load to total load
-                load_total_array += load_array
-                debug_msg = f"Total load '{key}' calculation: {load_total_array}"
+                load_total_kwh_array += load_array
+                debug_msg = f"Total load '{key}' calculation: {load_total_kwh_array}"
                 logger.debug(debug_msg)
 
-        return load_total_array
+        return load_total_kwh_array
 
 
 def get_measurement() -> Measurement:

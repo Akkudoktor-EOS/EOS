@@ -124,23 +124,23 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
         compare_end = self.measurement.max_datetime
         compare_interval = to_duration("1 hour")
 
-        load_total_array = self.measurement.load_total(
+        load_total_kwh_array = self.measurement.load_total_kwh(
             start_datetime=compare_start,
             end_datetime=compare_end,
             interval=compare_interval,
         )
         compare_dt = compare_start
-        for i in range(len(load_total_array)):
-            load_total = load_total_array[i]
+        for i in range(len(load_total_kwh_array)):
+            load_total_wh = load_total_kwh_array[i] * 1000
             # Extract mean (index 0) and standard deviation (index 1) for the given day and hour
             # Day indexing starts at 0, -1 because of that
             hourly_stats = data_year_energy[compare_dt.day_of_year - 1, :, compare_dt.hour]
             weight = 1 / ((compare_end - compare_dt).days + 1)
             if compare_dt.day_of_week < 5:
-                weekday_adjust[compare_dt.hour] += (load_total - hourly_stats[0]) * weight
+                weekday_adjust[compare_dt.hour] += (load_total_wh - hourly_stats[0]) * weight
                 weekday_adjust_weight[compare_dt.hour] += weight
             else:
-                weekend_adjust[compare_dt.hour] += (load_total - hourly_stats[0]) * weight
+                weekend_adjust[compare_dt.hour] += (load_total_wh - hourly_stats[0]) * weight
                 weekend_adjust_weight[compare_dt.hour] += weight
             compare_dt += compare_interval
         # Calculate mean
