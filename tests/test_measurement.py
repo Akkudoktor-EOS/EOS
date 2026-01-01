@@ -217,6 +217,7 @@ class TestMeasurement:
     @pytest.fixture
     def measurement_eos(self, config_eos):
         """Fixture to create a Measurement instance."""
+        # Load meter readings are in kWh
         config_eos.measurement.load_emr_keys = ["load0_mr", "load1_mr", "load2_mr", "load3_mr"]
         measurement = get_measurement()
         record0 = MeasurementDataRecord(
@@ -365,35 +366,35 @@ class TestMeasurement:
         with pytest.raises(ValueError, match="interval must be positive"):
             measurement_eos._energy_from_meter_readings(key, start_datetime, end_datetime, interval)
 
-    def test_load_total(self, measurement_eos):
+    def test_load_total_kwh(self, measurement_eos):
         """Test total load calculation."""
         start = datetime(2023, 1, 1, 0)
         end = datetime(2023, 1, 1, 2)
         interval = duration(hours=1)
 
-        result = measurement_eos.load_total(start_datetime=start, end_datetime=end, interval=interval)
+        result = measurement_eos.load_total_kwh(start_datetime=start, end_datetime=end, interval=interval)
 
         # Expected total load per interval
         expected = np.array([100, 100])  # Differences between consecutive meter readings
         np.testing.assert_array_equal(result, expected)
 
-    def test_load_total_no_data(self, measurement_eos):
+    def test_load_total_kwh_no_data(self, measurement_eos):
         """Test total load calculation with no data."""
         measurement_eos.records = []
         start = datetime(2023, 1, 1, 0)
         end = datetime(2023, 1, 1, 3)
         interval = duration(hours=1)
 
-        result = measurement_eos.load_total(start_datetime=start, end_datetime=end, interval=interval)
+        result = measurement_eos.load_total_kwh(start_datetime=start, end_datetime=end, interval=interval)
         expected = np.zeros(3)  # No data, so all intervals are zero
         np.testing.assert_array_equal(result, expected)
 
-    def test_load_total_partial_intervals(self, measurement_eos):
+    def test_load_total_kwh_partial_intervals(self, measurement_eos):
         """Test total load calculation with partial intervals."""
         start = datetime(2023, 1, 1, 0, 30)  # Start in the middle of an interval
         end = datetime(2023, 1, 1, 1, 30)  # End in the middle of another interval
         interval = duration(hours=1)
 
-        result = measurement_eos.load_total(start_datetime=start, end_datetime=end, interval=interval)
+        result = measurement_eos.load_total_kwh(start_datetime=start, end_datetime=end, interval=interval)
         expected = np.array([100])  # Only one complete interval covered
         np.testing.assert_array_equal(result, expected)

@@ -56,9 +56,10 @@ def loadakkudoktoradjusted(config_eos):
 @pytest.fixture
 def measurement_eos():
     """Fixture to initialise the Measurement instance."""
+    # Load meter readings are in kWh
     measurement = get_measurement()
-    load0_mr = 500
-    load1_mr = 500
+    load0_mr = 500.0
+    load1_mr = 500.0
     dt = to_datetime("2024-01-01T00:00:00")
     interval = to_duration("1 hour")
     for i in range(25):
@@ -70,8 +71,9 @@ def measurement_eos():
             )
         )
         dt += interval
-        load0_mr += 50
-        load1_mr += 50
+        # 0.05 kWh = 50 Wh
+        load0_mr += 0.05
+        load1_mr += 0.05
     assert compare_datetimes(measurement.min_datetime, to_datetime("2024-01-01T00:00:00")).equal
     assert compare_datetimes(measurement.max_datetime, to_datetime("2024-01-02T00:00:00")).equal
     return measurement
@@ -187,7 +189,7 @@ def test_calculate_adjustment(loadakkudoktoradjusted, measurement_eos):
             100.0,
         ]
     )
-    np.testing.assert_array_equal(weekday_adjust, expected)
+    np.testing.assert_allclose(weekday_adjust, expected)
 
     assert weekend_adjust.shape == (24,)
     expected = np.array(
