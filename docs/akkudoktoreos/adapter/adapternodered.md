@@ -65,9 +65,12 @@ After the run, EOS provides:
 
 ### Configuration steps in ioBroker
 
-#### 1. Create MQTT instance
+#### 1. Create MQTT Server/Broker
 
-* tbd
+* In ioBroker Create a new instance "IP = Server/Broker"
+* IP Adress of the ioBroker: 192.168.1.105 (e.g.)
+* Port: 1883 (default)
+* Authentication is optional
 
 #### 2. Use EOS data
 
@@ -77,15 +80,42 @@ EOS entities can be referenced in:
 * Scripts
 * Device control logic
 
+Objects can be handed over to Node-Red
+* Battery SoC
+* EV SoC
+* PV power
+
 ### Configuration steps in Grafana
 
 #### 1. Create data source connection
 
-* tbd
+Add new data sources for JSON API
+*  Name: EOS Control Dispatch (e.g.)
+*  Connection: http://192.168.1.100:1880/EOS-Control-Dispatch (IP adress of your Node-RED instance)
+*  Authenticaion: No Authenticaion
+
+*  Name: EOS Plan (e.g.)
+*  Connection: http://192.168.1.101:8503/v1/energy-management/plan (IP adress of your EOS instance)
+*  Authenticaion: No Authenticaion
+
+*  Name: EOS Solution (e.g.)
+*  Connection: http://192.168.1.100:1880/grafana-data (IP adress of your EOS instance)
+*  Authenticaion: No Authenticaion  
+
 
 #### 2. Integrate in dashboard
 
 EOS entities can be referenced in Dashboards
+
+* Add a new panel
+* select Data source: EOS Control Dispatch (e.g.)
+Add Fields
+*  $.homeappliance1_op_mode
+*  $.homeappliance1_op_factor
+*  $.battery1_op_mode
+*  $.battery1_op_factor
+*  $.ev11_op_mode
+*  $.ev11_op_factor
 
 
 ## 2. Data obtained *from EOS*
