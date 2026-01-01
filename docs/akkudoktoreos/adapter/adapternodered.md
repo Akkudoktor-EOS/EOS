@@ -90,6 +90,13 @@ Objects can be handed over to Node-Red
 <img width="641" height="1031" alt="image" src="https://github.com/user-attachments/assets/2c6e56bb-9540-415f-8150-d114b34fb533" />
 
 * EOS Control Disptach
+
+<img width="1187" height="148" alt="image" src="https://github.com/user-attachments/assets/766d6838-8ca8-47c9-8075-b0bc9d106c82" />
+<img width="638" height="337" alt="image" src="https://github.com/user-attachments/assets/5bb7fdc7-e036-4be7-a4da-6d92c0dba243" />
+<img width="806" height="381" alt="image" src="https://github.com/user-attachments/assets/942dba79-e5a0-4d45-a876-0439f50b2245" />
+<img width="652" height="317" alt="image" src="https://github.com/user-attachments/assets/47e35f4d-9696-4ecc-823e-532dfc01ddca" />
+
+
 * EOS Solution
 * EOS Plan
 
