@@ -29,7 +29,6 @@ The values of these results can be moved via Node-RED.
 Typical use cases with Node-RED:
 
 * optimal for heterogeneous systems
-* Dashboards and visualisation
 * Automations and scripts
 * Device or manufacturer integrations
 * Debugging and validation
