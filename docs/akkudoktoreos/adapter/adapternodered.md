@@ -244,7 +244,7 @@ if (msg.topic === "Battery_SOC") {
     let keyEncoded = encodeURIComponent(key);
 
     // Build URL
-    let baseUrl = "http://192.168.1.100:8503/v1/measurement/value";
+    let baseUrl = "http://192.168.1.107:8503/v1/measurement/value";
     msg.url = `${baseUrl}?datetime=${datetimeEncoded}&key=${keyEncoded}&value=${encodeURIComponent(value)}`;
     msg.payload = ""; // Empty for PUT
 
