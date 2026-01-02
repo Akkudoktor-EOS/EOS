@@ -41,7 +41,7 @@ EOS must be configured with access to the Node-RED instance in Config->adapter.
 * prerequisite is an already installed and running Node-RED instance
 * adapter.nodered.host: 192.168.1.109 (example IP of your Node-RED instance)
 * adapter.nodered.port: 1880 (default)
-* adapter.provider: NodeRED
+* adapter.provider: ["NodeRED"]
 
 #### 2. Run energy optimisation
 
