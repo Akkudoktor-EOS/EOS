@@ -131,7 +131,7 @@ Add Fields
 
 ## 2. Data obtained *from EOS*
 
-### 2.1 Device instruction entity IDs (Control Dispatch)
+### 2.1 Device instruction (Control Dispatch)
 
 After each energy optimisation run, EOS produces **device instructions** for the
 controlled resources.
@@ -147,7 +147,7 @@ E.g.:
   * Mode-specific control parameters
 
 
-### 2.2 Solution entity IDs
+### 2.2 Solution
 
 Each energy management run produces an **optimisation solution**.
 
@@ -157,12 +157,11 @@ EOS can publish solution-level details for:
 * Visualisation and dashboards
 * Gaining deeper insight into optimisation decisions
 
-EOS updates these entities **after each energy management run**.
+EOS updates the solution **after each energy management run**.
 
 ## 3. Data retrieved by EOS via Node-RED
 
-Before starting an energy optimisation run, EOS can retrieve several categories of
-data via Node-RED, including:
+"Under construction".
 
 ### 3.1 Configuration entity IDs (NOT TESTED BY ME)
 
@@ -202,7 +201,7 @@ PV production **Energy Meter Readings (EMR)** are used to adapt and refine the
 EOS can retrieve these readings via Node-RED REST API calls **before each optimisation run**
 to improve forecast accuracy based on real production data.
 
-## 4. Entity state and value conversion
+## 4. Value conversion
 
 Value conversion into the expected REST API format can be done in a Node-RED "function" node.
 
