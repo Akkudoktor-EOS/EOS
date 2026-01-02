@@ -81,19 +81,20 @@ Objects can be handed over to Node-Red
 
 * battery SoC
 
-<img width="1585" height="183" alt="image" src="https://github.com/user-attachments/assets/dc6fab90-47f0-4e66-ad5f-fb3124eac231" />
-<img width="817" height="648" alt="image" src="https://github.com/user-attachments/assets/f221588e-987f-4375-9544-f95f1f44a77f" />
-<img width="683" height="511" alt="image" src="https://github.com/user-attachments/assets/3fd9af68-fa15-44d4-9e01-4df23f005b64" />
-<img width="815" height="337" alt="image" src="https://github.com/user-attachments/assets/8abddd62-3e90-4660-9230-d1e0a2f138a2" />
-<img width="1301" height="1238" alt="image" src="https://github.com/user-attachments/assets/0b74b1f7-3d28-4434-8ae2-c866433ad50e" />
-<img width="641" height="1031" alt="image" src="https://github.com/user-attachments/assets/2c6e56bb-9540-415f-8150-d114b34fb533" />
+![My Picture](../../_static/EOS_Battery_SoC_Part-1.png)
+![My Picture](../../_static/EOS_Battery_SoC_Part-2.png)
+![My Picture](../../_static/EOS_Battery_SoC_Part-3.png)
+![My Picture](../../_static/EOS_Battery_SoC_Part-4.png)
+![My Picture](../../_static/EOS_Battery_SoC_Part-5.png)
+![My Picture](../../_static/EOS_Battery_SoC_Part-6.png)
 
 * EOS Control Disptach
 
-<img width="1187" height="148" alt="image" src="https://github.com/user-attachments/assets/766d6838-8ca8-47c9-8075-b0bc9d106c82" />
-<img width="638" height="337" alt="image" src="https://github.com/user-attachments/assets/5bb7fdc7-e036-4be7-a4da-6d92c0dba243" />
-<img width="806" height="381" alt="image" src="https://github.com/user-attachments/assets/942dba79-e5a0-4d45-a876-0439f50b2245" />
-<img width="652" height="317" alt="image" src="https://github.com/user-attachments/assets/47e35f4d-9696-4ecc-823e-532dfc01ddca" />
+![My Picture](../../_static/EOS_Control_Dispatch_Part-1.png)
+![My Picture](../../_static/EOS_Control_Dispatch_Part-2.png)
+![My Picture](../../_static/EOS_Control_Dispatch_Part-3.png)
+![My Picture](../../_static/EOS_Control_Dispatch_Part-4.png)
+
 
 
 * EOS Solution
