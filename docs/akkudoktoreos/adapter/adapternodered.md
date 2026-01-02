@@ -8,8 +8,8 @@ The Node-RED adapter provides a **bidirectional interface** between
 
 It allows EOS to:
 
-* **Receive** entity states and attributes via Node-RED and EOS REST API (The HTTP-IN Node "GET /eos_data_acquisition" is NOT yet functional)
-* **Provide** control instructions via the new HTTP-IN Node
+* **Receive** measurements and device states via Node-RED and EOS REST API (The HTTP-IN Node "GET /eos_data_acquisition" is NOT yet functional)
+* **Provide** control instructions via HTTP-IN Node
 * **Provide** Solution and Plan results via REST API
 
 This enables EOS to integrate into tools like ioBroker and Grafana,
@@ -46,10 +46,10 @@ EOS must be configured with access to the Node-RED instance in Config->adapter.
 #### 2. Run energy optimisation
 
 Continiously:
-* EOS receives measurement values via Node-RED before optimisation.
+* EOS receives measurement values by the REST interface from Node-RED before optimisation.
 
 After the run, EOS provides:
-* The device instruction and solution entities for the current time slot via the new HTTP-IN "Control Dispatch".
+* The device instruction and solution entities for the current time slot via HTTP-IN "Control Dispatch".
 * The **Solution** via "http://192.168.1.107:8503/v1/energy-management/optimization/solution".
 * The **Plan** via "http://192.168.1.107:8503/v1/energy-management/optimization/plan"
 
