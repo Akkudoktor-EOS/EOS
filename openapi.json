@@ -2,8 +2,13 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Akkudoktor-EOS",
+    "summary": "Comprehensive solution for simulating and optimizing an energy system based on renewable energy sources",
     "description": "This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.",
-    "version": "v0.2.0.dev84352035"
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    },
+    "version": "v0.2.0.dev58204789"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -119,6 +124,54 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Fastapi Admin Cache Get V1 Admin Cache Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/database/stats": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Fastapi Admin Database Stats Get",
+        "description": "Get statistics from database.\n\nReturns:\n    data (dict): The database statistics",
+        "operationId": "fastapi_admin_database_stats_get_v1_admin_database_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Fastapi Admin Database Stats Get V1 Admin Database Stats Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/database/vacuum": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Fastapi Admin Database Vacuum Post",
+        "description": "Remove old records from database.\n\nReturns:\n    data (dict): The database stats after removal of old records.",
+        "operationId": "fastapi_admin_database_vacuum_post_v1_admin_database_vacuum_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Fastapi Admin Database Vacuum Post V1 Admin Database Vacuum Post"
                 }
               }
             }
@@ -2102,7 +2155,7 @@
             },
             "type": "array",
             "title": "Providers",
-            "description": "Available electricity price provider ids.",
+            "description": "Available adapter provider ids.",
             "readOnly": true
           }
         },
@@ -2493,9 +2546,10 @@
           },
           "cleanup_interval": {
             "type": "number",
+            "minimum": 5.0,
             "title": "Cleanup Interval",
             "description": "Intervall in seconds for EOS file cache cleanup.",
-            "default": 300
+            "default": 300.0
           }
         },
         "type": "object",
@@ -2523,170 +2577,61 @@
       "ConfigEOS": {
         "properties": {
           "general": {
-            "$ref": "#/components/schemas/GeneralSettings-Output",
-            "default": {
-              "version": "0.2.0.dev84352035",
-              "data_output_subpath": "output",
-              "latitude": 52.52,
-              "longitude": 13.405,
-              "timezone": "Europe/Berlin",
-              "config_folder_path": "/home/user/.config/net.akkudoktoreos.net",
-              "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json",
-              "home_assistant_addon": false
-            }
+            "$ref": "#/components/schemas/GeneralSettings-Output"
           },
           "cache": {
-            "$ref": "#/components/schemas/CacheCommonSettings",
-            "default": {
-              "subpath": "cache",
-              "cleanup_interval": 300.0
-            }
+            "$ref": "#/components/schemas/CacheCommonSettings"
+          },
+          "database": {
+            "$ref": "#/components/schemas/DatabaseCommonSettings-Output"
           },
           "ems": {
-            "$ref": "#/components/schemas/EnergyManagementCommonSettings",
-            "default": {
-              "startup_delay": 5.0
-            }
+            "$ref": "#/components/schemas/EnergyManagementCommonSettings"
           },
           "logging": {
-            "$ref": "#/components/schemas/LoggingCommonSettings-Output",
-            "default": {
-              "file_path": "/home/user/.local/share/net.akkudoktoreos.net/output/eos.log"
-            }
+            "$ref": "#/components/schemas/LoggingCommonSettings-Output"
           },
           "devices": {
-            "$ref": "#/components/schemas/DevicesCommonSettings-Output",
-            "default": {
-              "measurement_keys": []
-            }
+            "$ref": "#/components/schemas/DevicesCommonSettings-Output"
           },
           "measurement": {
-            "$ref": "#/components/schemas/MeasurementCommonSettings-Output",
-            "default": {
-              "keys": []
-            }
+            "$ref": "#/components/schemas/MeasurementCommonSettings-Output"
           },
           "optimization": {
-            "$ref": "#/components/schemas/OptimizationCommonSettings-Output",
-            "default": {
-              "horizon_hours": 24,
-              "interval": 3600,
-              "algorithm": "GENETIC",
-              "genetic": {
-                "generations": 400,
-                "individuals": 300
-              },
-              "keys": []
-            }
+            "$ref": "#/components/schemas/OptimizationCommonSettings-Output"
           },
           "prediction": {
-            "$ref": "#/components/schemas/PredictionCommonSettings",
-            "default": {
-              "hours": 48,
-              "historic_hours": 48
-            }
+            "$ref": "#/components/schemas/PredictionCommonSettings"
           },
           "elecprice": {
-            "$ref": "#/components/schemas/ElecPriceCommonSettings-Output",
-            "default": {
-              "vat_rate": 1.19,
-              "elecpriceimport": {},
-              "energycharts": {
-                "bidding_zone": "DE-LU"
-              },
-              "providers": [
-                "ElecPriceAkkudoktor",
-                "ElecPriceEnergyCharts",
-                "ElecPriceImport"
-              ]
-            }
+            "$ref": "#/components/schemas/ElecPriceCommonSettings-Output"
           },
           "feedintariff": {
-            "$ref": "#/components/schemas/FeedInTariffCommonSettings-Output",
-            "default": {
-              "provider_settings": {},
-              "providers": [
-                "FeedInTariffFixed",
-                "FeedInTariffImport"
-              ]
-            }
+            "$ref": "#/components/schemas/FeedInTariffCommonSettings-Output"
           },
           "load": {
-            "$ref": "#/components/schemas/LoadCommonSettings-Output",
-            "default": {
-              "provider_settings": {},
-              "providers": [
-                "LoadAkkudoktor",
-                "LoadAkkudoktorAdjusted",
-                "LoadVrm",
-                "LoadImport"
-              ]
-            }
+            "$ref": "#/components/schemas/LoadCommonSettings-Output"
           },
           "pvforecast": {
-            "$ref": "#/components/schemas/PVForecastCommonSettings-Output",
-            "default": {
-              "provider_settings": {},
-              "max_planes": 0,
-              "providers": [
-                "PVForecastAkkudoktor",
-                "PVForecastVrm",
-                "PVForecastImport"
-              ],
-              "planes_peakpower": [],
-              "planes_azimuth": [],
-              "planes_tilt": [],
-              "planes_userhorizon": [],
-              "planes_inverter_paco": []
-            }
+            "$ref": "#/components/schemas/PVForecastCommonSettings-Output"
           },
           "weather": {
-            "$ref": "#/components/schemas/WeatherCommonSettings-Output",
-            "default": {
-              "provider_settings": {},
-              "providers": [
-                "BrightSky",
-                "ClearOutside",
-                "WeatherImport"
-              ]
-            }
+            "$ref": "#/components/schemas/WeatherCommonSettings-Output"
           },
           "server": {
-            "$ref": "#/components/schemas/ServerCommonSettings",
-            "default": {
-              "host": "127.0.0.1",
-              "port": 8503,
-              "verbose": false,
-              "startup_eosdash": true
-            }
+            "$ref": "#/components/schemas/ServerCommonSettings"
           },
           "utils": {
-            "$ref": "#/components/schemas/UtilsCommonSettings",
-            "default": {}
+            "$ref": "#/components/schemas/UtilsCommonSettings"
           },
           "adapter": {
-            "$ref": "#/components/schemas/AdapterCommonSettings-Output",
-            "default": {
-              "homeassistant": {
-                "eos_device_instruction_entity_ids": [],
-                "eos_solution_entity_ids": [],
-                "homeassistant_entity_ids": []
-              },
-              "nodered": {
-                "host": "127.0.0.1",
-                "port": 1880
-              },
-              "providers": [
-                "HomeAssistant",
-                "NodeRED"
-              ]
-            }
+            "$ref": "#/components/schemas/AdapterCommonSettings-Output"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "title": "ConfigEOS",
-        "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_CONFIG_DIR` environment variable\n    2. The directory specified by the `EOS_DIR` environment variable.\n    3. A platform specific default directory for EOS.\n    4. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nAttributes:\n    config_folder_path (Optional[Path]): Path to the configuration directory.\n    config_file_path (Optional[Path]): Path to the configuration file.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    .. code-block:: python\n\n        config_eos = ConfigEOS()  # Always returns the same instance\n            print(config_eos.prediction.hours)  # Access a setting from the loaded configuration"
+        "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_CONFIG_DIR` environment variable\n    2. The directory specified by the `EOS_DIR` environment variable.\n    3. A platform specific default directory for EOS.\n    4. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    .. code-block:: python\n\n        config_eos = ConfigEOS()  # Always returns the same instance\n            print(config_eos.prediction.hours)  # Access a setting from the loaded configuration"
       },
       "DDBCActuatorStatus": {
         "properties": {
@@ -2808,6 +2753,240 @@
         ],
         "title": "DDBCInstruction",
         "description": "Instruction for Demand Driven Based Control (DDBC).\n\nContains information about when and how to activate a specific operation mode\nfor an actuator. Used to command resources to change their operation at a specified time."
+      },
+      "DatabaseCommonSettings-Input": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "Database provider id of provider to be used.",
+            "examples": [
+              "LMDB"
+            ]
+          },
+          "compression_level": {
+            "type": "integer",
+            "maximum": 9.0,
+            "minimum": 0.0,
+            "title": "Compression Level",
+            "description": "Compression level for database record data.",
+            "default": 9,
+            "examples": [
+              0,
+              9
+            ]
+          },
+          "initial_load_window_h": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Load Window H",
+            "description": "Specifies the default duration of the initial load window when loading records from the database, in hours. If set to None, the full available range is loaded. The window is centered around the current time by default, unless a different center time is specified. Different database namespaces may define their own default windows.",
+            "examples": [
+              "48",
+              "None"
+            ]
+          },
+          "keep_duration_h": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keep Duration H",
+            "description": "Default maximum duration records shall be kept in database [hours, none].\nNone indicates forever. Database namespaces may have diverging definitions.",
+            "examples": [
+              48,
+              "none"
+            ]
+          },
+          "autosave_interval_sec": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Autosave Interval Sec",
+            "description": "Automatic saving interval [seconds].\nSet to None to disable automatic saving.",
+            "default": 10,
+            "examples": [
+              5
+            ]
+          },
+          "compaction_interval_sec": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compaction Interval Sec",
+            "description": "Interval in between automatic tiered compaction runs [seconds].\nCompaction downsamples old records to reduce storage while retaining coverage. Set to None to disable automatic compaction.",
+            "default": 604800,
+            "examples": [
+              604800
+            ]
+          },
+          "batch_size": {
+            "type": "integer",
+            "title": "Batch Size",
+            "description": "Number of records to process in batch operations.",
+            "default": 100,
+            "examples": [
+              100
+            ]
+          }
+        },
+        "type": "object",
+        "title": "DatabaseCommonSettings",
+        "description": "Configuration model for database settings.\n\nAttributes:\n    provider: Optional provider identifier (e.g. \"LMDB\").\n    max_records_in_memory: Maximum records kept in memory before auto-save.\n    auto_save: Whether to auto-save when threshold exceeded.\n    batch_size: Batch size for batch operations."
+      },
+      "DatabaseCommonSettings-Output": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "Database provider id of provider to be used.",
+            "examples": [
+              "LMDB"
+            ]
+          },
+          "compression_level": {
+            "type": "integer",
+            "maximum": 9.0,
+            "minimum": 0.0,
+            "title": "Compression Level",
+            "description": "Compression level for database record data.",
+            "default": 9,
+            "examples": [
+              0,
+              9
+            ]
+          },
+          "initial_load_window_h": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Load Window H",
+            "description": "Specifies the default duration of the initial load window when loading records from the database, in hours. If set to None, the full available range is loaded. The window is centered around the current time by default, unless a different center time is specified. Different database namespaces may define their own default windows.",
+            "examples": [
+              "48",
+              "None"
+            ]
+          },
+          "keep_duration_h": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keep Duration H",
+            "description": "Default maximum duration records shall be kept in database [hours, none].\nNone indicates forever. Database namespaces may have diverging definitions.",
+            "examples": [
+              48,
+              "none"
+            ]
+          },
+          "autosave_interval_sec": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Autosave Interval Sec",
+            "description": "Automatic saving interval [seconds].\nSet to None to disable automatic saving.",
+            "default": 10,
+            "examples": [
+              5
+            ]
+          },
+          "compaction_interval_sec": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compaction Interval Sec",
+            "description": "Interval in between automatic tiered compaction runs [seconds].\nCompaction downsamples old records to reduce storage while retaining coverage. Set to None to disable automatic compaction.",
+            "default": 604800,
+            "examples": [
+              604800
+            ]
+          },
+          "batch_size": {
+            "type": "integer",
+            "title": "Batch Size",
+            "description": "Number of records to process in batch operations.",
+            "default": 100,
+            "examples": [
+              100
+            ]
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "Return available database provider ids.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "providers"
+        ],
+        "title": "DatabaseCommonSettings",
+        "description": "Configuration model for database settings.\n\nAttributes:\n    provider: Optional provider identifier (e.g. \"LMDB\").\n    max_records_in_memory: Maximum records kept in memory before auto-save.\n    auto_save: Whether to auto-save when threshold exceeded.\n    batch_size: Batch size for batch operations."
       },
       "DevicesCommonSettings-Input": {
         "properties": {
@@ -3583,16 +3762,11 @@
             "default": 5
           },
           "interval": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "number",
+            "minimum": 60.0,
             "title": "Interval",
-            "description": "Intervall in seconds between EOS energy management runs.",
+            "description": "Intervall between EOS energy management runs [seconds].",
+            "default": 300.0,
             "examples": [
               "300"
             ]
@@ -4268,28 +4442,22 @@
       },
       "GeneralSettings-Input": {
         "properties": {
+          "home_assistant_addon": {
+            "type": "boolean",
+            "title": "Home Assistant Addon",
+            "description": "EOS is running as home assistant add-on."
+          },
           "version": {
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev84352035"
+            "default": "0.2.0.dev58204789"
           },
           "data_folder_path": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "path"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
+            "format": "path",
             "title": "Data Folder Path",
-            "description": "Path to EOS data directory.",
-            "examples": [
-              null,
-              "/home/eos/data"
-            ]
+            "description": "Path to EOS data folder."
           },
           "data_output_subpath": {
             "anyOf": [
@@ -4302,7 +4470,7 @@
               }
             ],
             "title": "Data Output Subpath",
-            "description": "Sub-path for the EOS output data directory.",
+            "description": "Sub-path for the EOS output data folder.",
             "default": "output"
           },
           "latitude": {
@@ -4346,24 +4514,13 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev84352035"
+            "default": "0.2.0.dev58204789"
           },
           "data_folder_path": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "path"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
+            "format": "path",
             "title": "Data Folder Path",
-            "description": "Path to EOS data directory.",
-            "examples": [
-              null,
-              "/home/eos/data"
-            ]
+            "description": "Path to EOS data folder."
           },
           "data_output_subpath": {
             "anyOf": [
@@ -4376,7 +4533,7 @@
               }
             ],
             "title": "Data Output Subpath",
-            "description": "Sub-path for the EOS output data directory.",
+            "description": "Sub-path for the EOS output data folder.",
             "default": "output"
           },
           "latitude": {
@@ -4463,12 +4620,6 @@
             "title": "Config File Path",
             "description": "Path to EOS configuration file.",
             "readOnly": true
-          },
-          "home_assistant_addon": {
-            "type": "boolean",
-            "title": "Home Assistant Addon",
-            "description": "EOS is running as home assistant add-on.",
-            "readOnly": true
           }
         },
         "type": "object",
@@ -4476,8 +4627,7 @@
           "timezone",
           "data_output_path",
           "config_folder_path",
-          "config_file_path",
-          "home_assistant_addon"
+          "config_file_path"
         ],
         "title": "GeneralSettings",
         "description": "General settings."
@@ -6091,6 +6241,23 @@
       },
       "MeasurementCommonSettings-Input": {
         "properties": {
+          "historic_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Historic Hours",
+            "description": "Number of hours into the past for measurement data",
+            "default": 17520,
+            "examples": [
+              17520
+            ]
+          },
           "load_emr_keys": {
             "anyOf": [
               {
@@ -6178,6 +6345,23 @@
       },
       "MeasurementCommonSettings-Output": {
         "properties": {
+          "historic_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Historic Hours",
+            "description": "Number of hours into the past for measurement data",
+            "default": 17520,
+            "examples": [
+              17520
+            ]
+          },
           "load_emr_keys": {
             "anyOf": [
               {
@@ -8104,6 +8288,17 @@
               }
             ],
             "description": "Cache Settings"
+          },
+          "database": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DatabaseCommonSettings-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Database Settings"
           },
           "ems": {
             "anyOf": [

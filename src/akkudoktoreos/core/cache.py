@@ -13,6 +13,7 @@ import os
 import pickle
 import tempfile
 import threading
+from pathlib import Path
 from typing import (
     IO,
     Any,
@@ -236,6 +237,24 @@ Param = ParamSpec("Param")
 RetType = TypeVar("RetType")
 
 
+def cache_clear(clear_all: Optional[bool] = None) -> None:
+    """Cleanup expired cache files."""
+    if clear_all:
+        CacheFileStore().clear(clear_all=True)
+    else:
+        CacheFileStore().clear(before_datetime=to_datetime())
+
+
+def cache_load() -> dict:
+    """Load cache from cachefilestore.json."""
+    return CacheFileStore().load_store()
+
+
+def cache_save() -> dict:
+    """Save cache to cachefilestore.json."""
+    return CacheFileStore().save_store()
+
+
 class CacheFileRecord(PydanticBaseModel):
     cache_file: Any = Field(
         ..., json_schema_extra={"description": "File descriptor of the cache file."}
@@ -284,8 +303,15 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
             return
         self._store: Dict[str, CacheFileRecord] = {}
         self._store_lock = threading.RLock()
-        self._store_file = self.config.cache.path().joinpath("cachefilestore.json")
         super().__init__(*args, **kwargs)
+
+    def _store_file(self) -> Optional[Path]:
+        """Get file to store the cache."""
+        try:
+            return self.config.cache.path().joinpath("cachefilestore.json")
+        except Exception:
+            logger.error("Path for cache files missing. Please configure!")
+        return None
 
     def _until_datetime_by_options(
         self,
@@ -496,10 +522,18 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                 # File already available
                 cache_file_obj = cache_item.cache_file
             else:
-                self.config.cache.path().mkdir(parents=True, exist_ok=True)
-                cache_file_obj = tempfile.NamedTemporaryFile(
-                    mode=mode, delete=delete, suffix=suffix, dir=self.config.cache.path()
-                )
+                # Create cache file
+                store_file = self._store_file()
+                if store_file:
+                    store_file.parent.mkdir(parents=True, exist_ok=True)
+                    cache_file_obj = tempfile.NamedTemporaryFile(
+                        mode=mode, delete=delete, suffix=suffix, dir=store_file.parent
+                    )
+                else:
+                    # Cache storage not configured, use temporary path
+                    cache_file_obj = tempfile.NamedTemporaryFile(
+                        mode=mode, delete=delete, suffix=suffix
+                    )
                 self._store[cache_file_key] = CacheFileRecord(
                     cache_file=cache_file_obj,
                     until_datetime=until_datetime_dt,
@@ -766,10 +800,14 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
         Returns:
             data (dict): cache management data that was saved.
         """
+        store_file = self._store_file()
+        if store_file is None:
+            return {}
+
         with self._store_lock:
-            self._store_file.parent.mkdir(parents=True, exist_ok=True)
+            store_file.parent.mkdir(parents=True, exist_ok=True)
             store_to_save = self.current_store()
-            with self._store_file.open("w", encoding="utf-8", newline="\n") as f:
+            with store_file.open("w", encoding="utf-8", newline="\n") as f:
                 try:
                     json.dump(store_to_save, f, indent=4)
                 except Exception as e:
@@ -782,18 +820,22 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
         Returns:
             data (dict): cache management data that was loaded.
         """
+        store_file = self._store_file()
+        if store_file is None:
+            return {}
+
         with self._store_lock:
             store_loaded = {}
-            if self._store_file.exists():
-                with self._store_file.open("r", encoding="utf-8", newline=None) as f:
+            if store_file.exists():
+                with store_file.open("r", encoding="utf-8", newline=None) as f:
                     try:
                         store_to_load = json.load(f)
                     except Exception as e:
                         logger.error(
                             f"Error loading cache file store: {e}\n"
-                            + f"Deleting the store file {self._store_file}."
+                            + f"Deleting the store file {store_file}."
                         )
-                        self._store_file.unlink()
+                        store_file.unlink()
                         return {}
                     for key, record in store_to_load.items():
                         if record is None:

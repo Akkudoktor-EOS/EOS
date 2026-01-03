@@ -5,7 +5,7 @@ All notable changes to the akkudoktoreos project will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 (2025-12-??)
+## 0.3.0 (2026-02-??)
 
 Adapters for Home Assistant and NodeRed integration are added. These adapters
 provide a simplified interface to these HEMS besides the standard REST interface.
@@ -13,94 +13,126 @@ Akkudoktor-EOS can now be run as Home Assistant add-on and standalone.
 As Home Assistant add-on EOS uses ingress to fully integrate the EOSdash dashboard
 in Home Assistant.
 
+The prediction and measurement data can now be backed by a database. The database allows
+to keep historic prediction data and measurement data for long time without keeping
+it in memory. The database supports backend selection, compression, incremental data load,
+automatic data saving to storage, automatic vaccum and compaction. Two database backends
+are integrated and can be configured, LMDB and SQLight3.
+
 In addition, bugs were fixed and new features were added.
 
 ### Feat
 
+- add database support for measurements and historic prediction data.
+  The prediction and measurement data can now be backed by a database. The database allows
+  to keep historic prediction data and measurement data for long time without keeping
+  it in memory. Two database backends are integrated and can be configured, LMDB and SQLight3.
 - add adapters for integrations
-
   Adapters for Home Assistant and NodeRED integration are added.
   Akkudoktor-EOS can now be run as Home Assistant add-on and standalone.
-
   As Home Assistant add-on EOS uses ingress to fully integrate the EOSdash dashboard
   in Home Assistant.
-
+- add make repeated task function
+  make_repeated_task allows to wrap a function to be repeated cyclically.
 - allow eos to be started with root permissions and drop priviledges
-
   Home assistant starts all add-ons with root permissions. Eos now drops
   root permissions if an applicable user is defined by paramter --run_as_user.
   The docker image defines the user eos to be used.
-
 - make eos supervise and monitor EOSdash
-
   Eos now not only starts EOSdash but also monitors EOSdash during runtime
   and restarts EOSdash on fault. EOSdash logging is captured by EOS
   and forwarded to the EOS log to provide better visibility.
-
 - add duration to string conversion
-
   Make to_duration to also return the duration as string on request.
 
 ### Fixed
 
+- config eos test setup
+  Make the config_eos fixture generate a new instance of the config_eos singleton.
+  Use correct env names to setup data folder path.
+- startup with no config
+  Make cache and measurements complain about missing data path configuration but
+  do not bail out.
+- soc data preparation and usage for genetic optimization.
+  Search for soc measurments 48 hours around the optimization start time.
+  Only clamp soc to maximum in battery device simulation.
+- dashboard bailout on zero value solution display
+  Do not use zero values to calculate the chart values adjustment for display.
+- openapi generation script
+  Make the script also replace data_folder_path and data_output_path to hide
+  real (test) environment pathes.
 - development version scheme
-
   The development versioning scheme is adaptet to fit to docker and
   home assistant expectations. The new scheme is x.y.z and x.y.z.dev<hash>.
   Hash is only digits as expected by home assistant. Development version
   is appended by .dev as expected by docker.
-
 - use mean value in interval on resampling for array
-
   When downsampling data use the mean value of all values within the new
   sampling interval.
-
 - default battery ev soc and appliance wh
-
   Make the genetic simulation return default values for the
   battery SoC, electric vehicle SoC and appliance load if these
   assets are not used.
-
 - import json string
-
   Strip outer quotes from JSON strings on import to be compliant to json.loads()
   expectation.
-
 - default interval definition for import data
-
   Default interval must be defined in lowercase human definition to
   be accepted by pendulum.
-
 - clearoutside schema change
 
 ### Chore
 
+- removed index based data sequence access
+  Index based data sequence access does not make sense as the sequence can be backed
+  by the database. The sequence is now purely time series data.
+- refactor eos startup to avoid module import startup
+  Avoid module import initialisation expecially of the EOS configuration.
+  Config mutation, singleton initialization, logging setup, argparse parsing,
+  background task definitions depending on config and environment-dependent behavior
+  is now done at function startup.
+- introduce retention manager
+  A single long-running background task that owns the scheduling of all periodic
+  server-maintenance jobs (cache cleanup, DB autosave, …)
+- canonicalize timezone name for UTC
+  Timezone names that are semantically identical to UTC are canonicalized to UTC.
+- extend config file migration for default value handling
+- extend datetime util test cases
+- make version test check for untracked files
+  Check for files that are not tracked by git. Version calculation will be
+  wrong if these files will not be commited.
+- bump pandas to 3.0.0
+  Pandas 3.0 now performs inference on the appropriate resolution (a.k.a. unit)
+  for the output dtype which may become datetime64[us] (before it was ns). Also
+  numeric dtype detection is now more strict which needs a different detection for
+  numerics.
+- bump pydantic-settings to 2.12.0
+  pydantic-settings 2.12.0 under pytest creates a different behaviour. The tests
+  were adapted and a workaround was introduced. Also ConfigEOS was adapted
+  to allow for fine grain initialization control to be able to switch
+  off certain settings such as file settings during test.
+- remove sci learn kit from dependencies
+  The sci learn kit is not strictly necessary as long as we have scipy.
+- add documentation mode guarding for sphinx autosummary
+  Sphinx autosummary excecutes functions. Prevent exceptions in case of pure doc
+  mode.
+- adapt docker-build CI workflow to stricter GitHub handling
 - Use info logging to report missing optimization parameters
-
   In parameter preparation for automatic optimization an error was logged for missing paramters.
   Log is now down using the info level.
-
 - make EOSdash use the EOS data directory for file import/ export
-
   EOSdash use the EOS data directory for file import/ export by default.
   This allows to use the configuration import/ export function also
   within docker images.
-
 - improve EOSdash config tab display
-
   Improve display of JSON code and add more forms for config value update.
-
 - make docker image file system layout similar to home assistant
-
   Only use /data directory for persistent data. This is handled as a
   docker volume. The /data volume is mapped to ~/.local/share/net.akkudoktor.eos
   if using docker compose.
-
 - add home assistant add-on development environment
-
   Add VSCode devcontainer and task definition for home assistant add-on
   development.
-
 - improve documentation
 
 ## 0.2.0 (2025-11-09)

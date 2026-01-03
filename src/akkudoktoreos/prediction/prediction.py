@@ -26,7 +26,7 @@ Attributes:
     weather_clearoutside (WeatherClearOutside): Weather forecast provider using ClearOutside.
 """
 
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from pydantic import Field
 
@@ -69,38 +69,6 @@ class PredictionCommonSettings(SettingsBaseModel):
     )
 
 
-class Prediction(PredictionContainer):
-    """Prediction container to manage multiple prediction providers.
-
-    Attributes:
-        providers (List[Union[PVForecastAkkudoktor, WeatherBrightSky, WeatherClearOutside]]):
-            List of forecast provider instances, in the order they should be updated.
-            Providers may depend on updates from others.
-    """
-
-    providers: List[
-        Union[
-            ElecPriceAkkudoktor,
-            ElecPriceEnergyCharts,
-            ElecPriceImport,
-            FeedInTariffFixed,
-            FeedInTariffImport,
-            LoadAkkudoktor,
-            LoadAkkudoktorAdjusted,
-            LoadVrm,
-            LoadImport,
-            PVForecastAkkudoktor,
-            PVForecastVrm,
-            PVForecastImport,
-            WeatherBrightSky,
-            WeatherClearOutside,
-            WeatherImport,
-        ]
-    ] = Field(
-        default_factory=list, json_schema_extra={"description": "List of prediction providers"}
-    )
-
-
 # Initialize forecast providers, all are singletons.
 elecprice_akkudoktor = ElecPriceAkkudoktor()
 elecprice_energy_charts = ElecPriceEnergyCharts()
@@ -119,42 +87,85 @@ weather_clearoutside = WeatherClearOutside()
 weather_import = WeatherImport()
 
 
-def get_prediction() -> Prediction:
-    """Gets the EOS prediction data."""
-    # Initialize Prediction instance with providers in the required order
+def prediction_providers() -> list[
+    Union[
+        ElecPriceAkkudoktor,
+        ElecPriceEnergyCharts,
+        ElecPriceImport,
+        FeedInTariffFixed,
+        FeedInTariffImport,
+        LoadAkkudoktor,
+        LoadAkkudoktorAdjusted,
+        LoadVrm,
+        LoadImport,
+        PVForecastAkkudoktor,
+        PVForecastVrm,
+        PVForecastImport,
+        WeatherBrightSky,
+        WeatherClearOutside,
+        WeatherImport,
+    ]
+]:
+    """Return list of prediction providers."""
+    global \
+        elecprice_akkudoktor, \
+        elecprice_energy_charts, \
+        elecprice_import, \
+        feedintariff_fixed, \
+        feedintariff_import, \
+        loadforecast_akkudoktor, \
+        loadforecast_akkudoktor_adjusted, \
+        loadforecast_vrm, \
+        loadforecast_import, \
+        pvforecast_akkudoktor, \
+        pvforecast_vrm, \
+        pvforecast_import, \
+        weather_brightsky, \
+        weather_clearoutside, \
+        weather_import
+
     # Care for provider sequence as providers may rely on others to be updated before.
-    prediction = Prediction(
-        providers=[
-            elecprice_akkudoktor,
-            elecprice_energy_charts,
-            elecprice_import,
-            feedintariff_fixed,
-            feedintariff_import,
-            loadforecast_akkudoktor,
-            loadforecast_akkudoktor_adjusted,
-            loadforecast_vrm,
-            loadforecast_import,
-            pvforecast_akkudoktor,
-            pvforecast_vrm,
-            pvforecast_import,
-            weather_brightsky,
-            weather_clearoutside,
-            weather_import,
+    return [
+        elecprice_akkudoktor,
+        elecprice_energy_charts,
+        elecprice_import,
+        feedintariff_fixed,
+        feedintariff_import,
+        loadforecast_akkudoktor,
+        loadforecast_akkudoktor_adjusted,
+        loadforecast_vrm,
+        loadforecast_import,
+        pvforecast_akkudoktor,
+        pvforecast_vrm,
+        pvforecast_import,
+        weather_brightsky,
+        weather_clearoutside,
+        weather_import,
+    ]
+
+
+class Prediction(PredictionContainer):
+    """Prediction container to manage multiple prediction providers."""
+
+    providers: list[
+        Union[
+            ElecPriceAkkudoktor,
+            ElecPriceEnergyCharts,
+            ElecPriceImport,
+            FeedInTariffFixed,
+            FeedInTariffImport,
+            LoadAkkudoktor,
+            LoadAkkudoktorAdjusted,
+            LoadVrm,
+            LoadImport,
+            PVForecastAkkudoktor,
+            PVForecastVrm,
+            PVForecastImport,
+            WeatherBrightSky,
+            WeatherClearOutside,
+            WeatherImport,
         ]
+    ] = Field(
+        default_factory=prediction_providers,
+        json_schema_extra={"description": "List of prediction providers"},
     )
-    return prediction
-
-
-def main() -> None:
-    """Main function to update and display predictions.
-
-    This function initializes and updates the forecast providers in sequence
-    according to the `Prediction` instance, then prints the updated prediction data.
-    """
-    prediction = get_prediction()
-    prediction.update_data()
-    print(f"Prediction: {prediction}")
-
-
-if __name__ == "__main__":
-    main()

@@ -6,8 +6,7 @@ import pstats
 import sys
 import time
 
-from akkudoktoreos.config.config import get_config
-from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.core.coreabc import get_config, get_prediction
 
 config_eos = get_config()
 prediction_eos = get_prediction()

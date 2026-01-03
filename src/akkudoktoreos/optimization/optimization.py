@@ -3,6 +3,7 @@ from typing import Optional, Union
 from pydantic import Field, computed_field, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeDataFrame,
@@ -91,10 +92,14 @@ class OptimizationCommonSettings(SettingsBaseModel):
     @property
     def keys(self) -> list[str]:
         """The keys of the solution."""
-        from akkudoktoreos.core.ems import get_ems
+        try:
+            ems_eos = get_ems()
+        except:
+            # ems might not be initialized
+            return []
 
         key_list = []
-        optimization_solution = get_ems().optimization_solution()
+        optimization_solution = ems_eos.optimization_solution()
         if optimization_solution:
             # Prepare mapping
             df = optimization_solution.solution.to_dataframe()

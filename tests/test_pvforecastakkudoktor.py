@@ -5,8 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 from loguru import logger
 
-from akkudoktoreos.core.ems import get_ems
-from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.core.coreabc import get_ems, get_prediction
 from akkudoktoreos.prediction.pvforecastakkudoktor import (
     AkkudoktorForecastHorizon,
     AkkudoktorForecastMeta,
@@ -137,7 +136,7 @@ def provider():
 def provider_empty_instance():
     """Fixture that returns an empty instance of PVForecast."""
     empty_instance = PVForecastAkkudoktor()
-    empty_instance.clear()
+    empty_instance.delete_by_datetime(start_datetime=None, end_datetime=None)
     assert len(empty_instance) == 0
     return empty_instance
 
@@ -277,7 +276,7 @@ def test_pvforecast_akkudoktor_update_with_sample_forecast(
     ems_eos.set_start_datetime(sample_forecast_start)
     provider.update_data(force_enable=True, force_update=True)
     assert compare_datetimes(provider.ems_start_datetime, sample_forecast_start).equal
-    assert compare_datetimes(provider[0].date_time, to_datetime(sample_forecast_start)).equal
+    assert compare_datetimes(provider.records[0].date_time, to_datetime(sample_forecast_start)).equal
 
 
 # Report Generation Test
@@ -290,7 +289,7 @@ def test_report_ac_power_and_measurement(provider, config_eos):
         pvforecast_dc_power=450.0,
         pvforecast_ac_power=400.0,
     )
-    provider.append(record)
+    provider.insert_by_datetime(record)
 
     report = provider.report_ac_power_and_measurement()
     assert "DC: 450.0" in report
@@ -323,19 +322,19 @@ def test_timezone_behaviour(
     expected_datetime = to_datetime("2024-10-06T00:00:00+0200", in_timezone=other_timezone)
     assert compare_datetimes(other_start_datetime, expected_datetime).equal
 
-    provider.clear()
+    provider.delete_by_datetime(start_datetime=None, end_datetime=None)
     assert len(provider) == 0
     ems_eos = get_ems()
     ems_eos.set_start_datetime(other_start_datetime)
     provider.update_data(force_update=True)
     assert compare_datetimes(provider.ems_start_datetime, other_start_datetime).equal
     # Check wether first record starts at requested sample start time
-    assert compare_datetimes(provider[0].date_time, sample_forecast_start).equal
+    assert compare_datetimes(provider.records[0].date_time, sample_forecast_start).equal
 
     # Test updating AC power measurement for a specific date.
     provider.update_value(sample_forecast_start, "pvforecastakkudoktor_ac_power_measured", 1000)
     # Check wether first record was filled with ac power measurement
-    assert provider[0].pvforecastakkudoktor_ac_power_measured == 1000
+    assert provider.records[0].pvforecastakkudoktor_ac_power_measured == 1000
 
     # Test fetching temperature forecast for a specific date.
     other_end_datetime = other_start_datetime + to_duration("24 hours")

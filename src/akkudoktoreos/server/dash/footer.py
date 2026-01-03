@@ -7,7 +7,7 @@ from monsterui.franken import A, ButtonT, DivFullySpaced, P
 from requests.exceptions import RequestException
 
 import akkudoktoreos.server.dash.eosstatus as eosstatus
-from akkudoktoreos.config.config import get_config
+from akkudoktoreos.core.coreabc import get_config
 
 
 def get_alive(eos_host: str, eos_port: Union[str, int]) -> str:

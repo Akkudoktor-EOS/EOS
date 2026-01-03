@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from akkudoktoreos.core.cache import CacheFileStore
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.weatherbrightsky import WeatherBrightSky
 from akkudoktoreos.utils.datetimeutil import to_datetime
 

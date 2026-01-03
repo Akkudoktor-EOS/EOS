@@ -6,6 +6,7 @@ data records for measurements.
 The measurements can be added programmatically or imported from a file or JSON string.
 """
 
+from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
@@ -16,11 +17,25 @@ from pydantic import Field, computed_field
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.dataabc import DataImportMixin, DataRecord, DataSequence
-from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_duration
+from akkudoktoreos.utils.datetimeutil import (
+    DateTime,
+    Duration,
+    to_datetime,
+    to_duration,
+)
 
 
 class MeasurementCommonSettings(SettingsBaseModel):
     """Measurement Configuration."""
+
+    historic_hours: Optional[int] = Field(
+        default=2 * 365 * 24,
+        ge=0,
+        json_schema_extra={
+            "description": "Number of hours into the past for measurement data",
+            "examples": [2 * 365 * 24],
+        },
+    )
 
     load_emr_keys: Optional[list[str]] = Field(
         default=None,
@@ -94,6 +109,16 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             return
         super().__init__(*args, **kwargs)
 
+    def _measurement_file_path(self) -> Optional[Path]:
+        """Path to measurements file (may be used optional to database)."""
+        try:
+            return self.config.general.data_folder_path / "measurement.json"
+        except Exception:
+            logger.error(
+                "Path for measurements is missing. Please configure data folder path or database!"
+            )
+        return None
+
     def _interval_count(
         self, start_datetime: DateTime, end_datetime: DateTime, interval: Duration
     ) -> int:
@@ -143,30 +168,32 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             np.ndarray: A NumPy Array of the energy [kWh] per interval values calculated from
                         the meter readings.
         """
-        # Add one interval to end_datetime to assure we have a energy value interval for all
-        # datetimes from start_datetime (inclusive) to end_datetime (exclusive)
-        end_datetime += interval
         size = self._interval_count(start_datetime, end_datetime, interval)
 
         energy_mr_array = self.key_to_array(
-            key=key, start_datetime=start_datetime, end_datetime=end_datetime, interval=interval
+            key=key,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime + interval,
+            interval=interval,
+            fill_method="time",
+            boundary="context",
         )
-        if energy_mr_array.size != size:
+        if energy_mr_array.size != size + 1:
             logging_msg = (
                 f"'{key}' meter reading array size: {energy_mr_array.size}"
-                f" does not fit to expected size: {size}, {energy_mr_array}"
+                f" does not fit to expected size: {size + 1}, {energy_mr_array}"
             )
             if energy_mr_array.size != 0:
                 logger.error(logging_msg)
                 raise ValueError(logging_msg)
             logger.debug(logging_msg)
-            energy_array = np.zeros(size - 1)
+            energy_array = np.zeros(size)
         elif np.any(energy_mr_array == None):
             # 'key_to_array()' creates None values array if no data records are available.
             # Array contains None value -> ignore
             debug_msg = f"'{key}' meter reading None: {energy_mr_array}"
             logger.debug(debug_msg)
-            energy_array = np.zeros(size - 1)
+            energy_array = np.zeros(size)
         else:
             # Calculate load per interval
             debug_msg = f"'{key}' meter reading: {energy_mr_array}"
@@ -193,6 +220,9 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             np.ndarray: A NumPy Array of the total load energy [kWh] per interval values calculated from
                         the load meter readings.
         """
+        if interval is None:
+            interval = to_duration("1 hour")
+
         if len(self) < 1:
             # No data available
             if start_datetime is None or end_datetime is None:
@@ -200,14 +230,14 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             else:
                 size = self._interval_count(start_datetime, end_datetime, interval)
             return np.zeros(size)
-        if interval is None:
-            interval = to_duration("1 hour")
+
         if start_datetime is None:
-            start_datetime = self[0].date_time
+            start_datetime = self.min_datetime
         if end_datetime is None:
-            end_datetime = self[-1].date_time
+            end_datetime = self.max_datetime.add(seconds=1)
         size = self._interval_count(start_datetime, end_datetime, interval)
         load_total_kwh_array = np.zeros(size)
+
         # Loop through all loads
         if isinstance(self.config.measurement.load_emr_keys, list):
             for key in self.config.measurement.load_emr_keys:
@@ -225,7 +255,66 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
 
         return load_total_kwh_array
 
+    # ----------------------- Measurement Database Protocol ---------------------
 
-def get_measurement() -> Measurement:
-    """Gets the EOS measurement data."""
-    return Measurement()
+    def db_namespace(self) -> str:
+        return "Measurement"
+
+    def db_keep_datetime(self) -> Optional[DateTime]:
+        """Earliest datetime from which database records should be retained.
+
+        Used when removing old records from database to free space.
+
+        Returns:
+            Datetime or None.
+        """
+        return to_datetime().subtract(hours=self.config.measurement.historic_hours)
+
+    def save(self) -> bool:
+        """Save the measurements to persistent storage.
+
+        Returns:
+            True in case the measurements were saved, False otherwise.
+        """
+        # Use db storage if available
+        saved_to_db = DataSequence.save(self)
+        if not saved_to_db:
+            measurement_file_path = self._measurement_file_path()
+            if measurement_file_path is None:
+                return False
+            try:
+                measurement_file_path.write_text(
+                    self.model_dump_json(indent=4),
+                    encoding="utf-8",
+                    newline="\n",
+                )
+            except Exception as e:
+                logger.exception("Cannot save measurements")
+        return True
+
+    def load(self) -> bool:
+        """Load measurements from persistent storage.
+
+        Returns:
+            True in case the measurements were loaded, False otherwise.
+        """
+        # Use db storage if available
+        loaded_from_db = DataSequence.load(self)
+        if not loaded_from_db:
+            measurement_file_path = self._measurement_file_path()
+            if measurement_file_path is None:
+                return False
+            if not measurement_file_path.exists():
+                return False
+            try:
+                # Validate into a temporary instance
+                loaded = self.__class__.model_validate_json(
+                    measurement_file_path.read_text(encoding="utf-8")
+                )
+
+                # Explicitly add data records to the existing singleton
+                for record in loaded.records:
+                    self.insert_by_datetime(record)
+            except Exception as e:
+                logger.exception("Cannot load measurements")
+        return True

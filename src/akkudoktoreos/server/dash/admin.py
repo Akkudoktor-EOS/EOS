@@ -402,6 +402,75 @@ def AdminConfig(
     )
 
 
+def AdminDatabase(
+    eos_host: str, eos_port: Union[str, int], data: Optional[dict], config: Optional[dict[str, Any]]
+) -> tuple[str, Union[Card, list[Card]]]:
+    """Creates a cache management card.
+
+    Args:
+        eos_host (str): The hostname of the EOS server.
+        eos_port (Union[str, int]): The port of the EOS server.
+        data (Optional[dict]): Incoming data containing action and category for processing.
+
+    Returns:
+        tuple[str, Union[Card, list[Card]]]: A tuple containing the cache category label and the `Card` UI component.
+    """
+    server = f"http://{eos_host}:{eos_port}"
+    eos_hostname = "EOS server"
+    eosdash_hostname = "EOSdash server"
+
+    category = "database"
+
+    status_vacuum = (None,)
+    if data and data.get("category", None) == category:
+        # This data is for us
+        if data["action"] == "vacuum":
+            # Remove old records from database
+            try:
+                result = requests.post(f"{server}/v1/admin/database/vacuum", timeout=30)
+                result.raise_for_status()
+                status_vacuum = Success(
+                    f"Removed old data records from database on '{eos_hostname}'"
+                )
+            except requests.exceptions.HTTPError as e:
+                detail = result.json()["detail"]
+                status_vacuum = Error(
+                    f"Can not remove old data records from database on '{eos_hostname}': {e}, {detail}"
+                )
+            except Exception as e:
+                status_vacuum = Error(
+                    f"Can not remove old data records from database on '{eos_hostname}': {e}"
+                )
+
+    return (
+        category,
+        [
+            Card(
+                Details(
+                    Summary(
+                        Grid(
+                            DivHStacked(
+                                UkIcon(icon="play"),
+                                ConfigButton(
+                                    "Vacuum",
+                                    hx_post=request_url_for("/eosdash/admin"),
+                                    hx_target="#page-content",
+                                    hx_swap="innerHTML",
+                                    hx_vals='{"category": "database", "action": "vacuum"}',
+                                ),
+                                P(f"Remove old data records from database on '{eos_hostname}'"),
+                            ),
+                            status_vacuum,
+                        ),
+                        cls="list-none",
+                    ),
+                    P(f"Remove old data records from database on '{eos_hostname}'."),
+                ),
+            ),
+        ],
+    )
+
+
 def Admin(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = None) -> Div:
     """Generates the administrative dashboard layout.
 
@@ -450,6 +519,7 @@ def Admin(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = None)
     for category, admin in [
         AdminCache(eos_host, eos_port, data, config),
         AdminConfig(eos_host, eos_port, data, config, config_backup),
+        AdminDatabase(eos_host, eos_port, data, config),
     ]:
         if category != last_category:
             rows.append(H3(category))

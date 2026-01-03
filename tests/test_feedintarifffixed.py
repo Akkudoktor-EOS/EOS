@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
 

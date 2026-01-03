@@ -26,6 +26,9 @@ MIGRATION_PAIRS = [
     # (DIR_TESTDATA / "old_config_X.json", DIR_TESTDATA / "expected_config_X.json"),
 ]
 
+# Any sentinel in expected data
+_ANY_SENTINEL = "__ANY__"
+
 
 def _dict_contains(superset: Any, subset: Any, path="") -> list[str]:
     """Recursively verify that all key-value pairs from a subset dictionary or list exist in a superset.
@@ -60,6 +63,9 @@ def _dict_contains(superset: Any, subset: Any, path="") -> list[str]:
             errors.extend(_dict_contains(superset[i], elem, f"{path}[{i}]" if path else f"[{i}]"))
 
     else:
+        # "__ANY__" in expected means "accept whatever value the migration produces"
+        if subset == _ANY_SENTINEL:
+            return errors
         # Compare values (with numeric tolerance)
         if isinstance(subset, (int, float)) and isinstance(superset, (int, float)):
             if abs(float(subset) - float(superset)) > 1e-6:
@@ -162,6 +168,7 @@ class TestConfigMigration:
             assert backup_file.exists(), f"Backup file not created for {old_file.name}"
 
             # --- Compare migrated result with expected output ---
+            old_data = json.loads(old_file.read_text(encoding="utf-8"))
             new_data = json.loads(working_file.read_text(encoding="utf-8"))
             expected_data = json.loads(expected_file.read_text(encoding="utf-8"))
 
@@ -202,6 +209,14 @@ class TestConfigMigration:
                 # Verify the migrated value matches the expected one
                 new_value = configmigrate._get_json_nested_value(new_data, new_path)
                 if new_value != expected_value:
+                    # Check if this mapping uses _KEEP_DEFAULT and the old value was None/missing
+                    old_value = configmigrate._get_json_nested_value(old_data, old_path)
+                    keep_default = (
+                        isinstance(mapping, tuple)
+                        and configmigrate._KEEP_DEFAULT in mapping
+                    )
+                    if keep_default and old_value is None:
+                        continue  # acceptable: old was None, new model keeps its default
                     mismatched_values.append(
                         f"{old_path} → {new_path}: expected {expected_value!r}, got {new_value!r}"
                     )
