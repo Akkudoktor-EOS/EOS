@@ -29,10 +29,11 @@ class EnergyManagementCommonSettings(SettingsBaseModel):
         },
     )
 
-    interval: Optional[float] = Field(
-        default=None,
+    interval: float = Field(
+        default=300.0,
+        ge=60.0,
         json_schema_extra={
-            "description": "Intervall in seconds between EOS energy management runs.",
+            "description": "Intervall between EOS energy management runs [seconds].",
             "examples": ["300"],
         },
     )

@@ -167,12 +167,21 @@ def temp_store_file():
 
 
 @pytest.fixture
-def cache_file_store(temp_store_file):
+def cache_file_store(temp_store_file, monkeypatch):
     """A pytest fixture that creates a new CacheFileStore instance for testing."""
+
     cache = CacheFileStore()
-    cache._store_file = temp_store_file
+
+    # Patch the _cache_file method to return the temp file
+    monkeypatch.setattr(
+        cache,
+        "_store_file",
+        lambda: temp_store_file,
+    )
+
     cache.clear(clear_all=True)
     assert len(cache._store) == 0
+
     return cache
 
 
@@ -481,7 +490,7 @@ class TestCacheFileStore:
         cache_file_store.save_store()
 
         # Verify the file content
-        with cache_file_store._store_file.open("r", encoding="utf-8", newline=None) as f:
+        with cache_file_store._store_file().open("r", encoding="utf-8", newline=None) as f:
             store_loaded = json.load(f)
             assert "test_key" in store_loaded
             assert store_loaded["test_key"]["cache_file"] == "cache_file_path"
@@ -501,7 +510,7 @@ class TestCacheFileStore:
                 "ttl_duration": None,
             }
         }
-        with cache_file_store._store_file.open("w", encoding="utf-8", newline="\n") as f:
+        with cache_file_store._store_file().open("w", encoding="utf-8", newline="\n") as f:
             json.dump(cache_record, f, indent=4)
 
         # Mock the open function to return a MagicMock for the cache file

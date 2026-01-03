@@ -14,7 +14,8 @@ from loguru import logger
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
-from akkudoktoreos.config.config import ConfigEOS, GeneralSettings, get_config
+from akkudoktoreos.config.config import ConfigEOS, default_data_folder_path
+from akkudoktoreos.core.coreabc import get_config, singletons_init
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
@@ -361,12 +362,6 @@ def generate_config_md(file_path: Optional[Union[str, Path]], config_eos: Config
     Returns:
         str: The Markdown representation of the configuration spec.
     """
-    # Fix file path for general settings to not show local/test file path
-    GeneralSettings._config_file_path = Path(
-        "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
-    )
-    GeneralSettings._config_folder_path = config_eos.general.config_file_path.parent
-
     markdown = ""
 
     if file_path:
@@ -446,6 +441,19 @@ def write_to_file(file_path: Optional[Union[str, Path]], config_md: str):
         '/home/user/.local/share/net.akkudoktor.eos/output/eos.log',
         config_md
     )
+    # Assure pathes are set to default for documentation
+    replacements = [
+        ("data_folder_path", "/home/user/.local/share/net.akkudoktoreos.net"),
+        ("data_output_path", "/home/user/.local/share/net.akkudoktoreos.net/output"),
+        ("config_folder_path", "/home/user/.config/net.akkudoktoreos.net"),
+        ("config_file_path", "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"),
+    ]
+    for key, value in replacements:
+        config_md = re.sub(
+            rf'("{key}":\s*)"[^"]*"',
+            rf'\1"{value}"',
+            config_md
+        )
 
     # Assure timezone name does not leak to documentation
     tz_name = to_datetime().timezone_name
@@ -477,16 +485,31 @@ def main():
     )
 
     args = parser.parse_args()
-    config_eos = get_config()
+
+    # Ensure we are in documentation mode
+    ConfigEOS._force_documentation_mode = True
+
+    # Make minimal config to make the generation reproducable
+    config_eos = get_config(init={
+            "with_init_settings": True,
+            "with_env_settings": False,
+            "with_dotenv_settings": False,
+            "with_file_settings": False,
+            "with_file_secret_settings": False,
+        })
+
+    # Also init other singletons to get same list of e.g. providers
+    singletons_init()
 
     try:
         config_md = generate_config_md(args.output_file, config_eos)
-
     except Exception as e:
         print(f"Error during Configuration Specification generation: {e}", file=sys.stderr)
         # keep throwing error to debug potential problems (e.g. invalid examples)
         raise e
-
+    finally:
+        # Ensure we are out of documentation mode
+        ConfigEOS._force_documentation_mode = False
 
 if __name__ == "__main__":
     main()

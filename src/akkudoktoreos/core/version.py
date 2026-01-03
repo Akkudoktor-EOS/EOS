@@ -2,6 +2,7 @@
 
 import hashlib
 import re
+from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Optional
@@ -16,14 +17,117 @@ HASH_EOS = ""
 # Number of digits to append to .dev to identify a development version
 VERSION_DEV_PRECISION = 8
 
+# Hashing configuration
+DIR_PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+ALLOWED_SUFFIXES: set[str] = {".py", ".md", ".json"}
+EXCLUDED_DIR_PATTERNS: set[str] = {"*_autosum", "*__pycache__", "*_generated"}
+EXCLUDED_FILES: set[Path] = set()
+
+
 # ------------------------------
 # Helpers for version generation
 # ------------------------------
 
 
-def is_excluded_dir(path: Path, excluded_dir_patterns: set[str]) -> bool:
-    """Check whether a directory should be excluded based on name patterns."""
-    return any(fnmatch(path.name, pattern) for pattern in excluded_dir_patterns)
+@dataclass
+class HashConfig:
+    """Configuration for file hashing."""
+
+    paths: list[Path]
+    allowed_suffixes: set[str]
+    excluded_dir_patterns: set[str]
+    excluded_files: set[Path]
+
+    def __post_init__(self) -> None:
+        """Validate configuration."""
+        for path in self.paths:
+            if not path.exists():
+                raise ValueError(f"Path does not exist: {path}")
+
+
+def is_excluded_dir(path: Path, patterns: set[str]) -> bool:
+    """Check if directory matches any exclusion pattern.
+
+    Args:
+        path: Directory path to check
+        patterns: set of glob-like patterns (e.g., {``*__pycache__``, ``*_test``})
+
+    Returns:
+        True if directory should be excluded
+    """
+    dir_name = path.name
+    return any(fnmatch(dir_name, pattern) for pattern in patterns)
+
+
+def collect_files(config: HashConfig) -> list[Path]:
+    """Collect all files that should be included in the hash.
+
+    This function only collects files - it doesn't hash them.
+    Makes it easy to inspect what will be hashed.
+
+    Args:
+        config: Hash configuration
+
+    Returns:
+        Sorted list of files to be hashed
+
+    Example:
+        >>> config = HashConfig(
+        ...     paths=[Path('src')],
+        ...     allowed_suffixes={'.py'},
+        ...     excluded_dir_patterns={'*__pycache__'},
+        ...     excluded_files=set()
+        ... )
+        >>> files = collect_files(config)
+        >>> print(f"Will hash {len(files)} files")
+        >>> for f in files[:5]:
+        ...     print(f"  {f}")
+    """
+    collected_files: list[Path] = []
+
+    for root in config.paths:
+        for p in sorted(root.rglob("*")):
+            # Skip excluded directories
+            if p.is_dir() and is_excluded_dir(p, config.excluded_dir_patterns):
+                continue
+
+            # Skip files inside excluded directories
+            if any(is_excluded_dir(parent, config.excluded_dir_patterns) for parent in p.parents):
+                continue
+
+            # Skip excluded files
+            if p.resolve() in config.excluded_files:
+                continue
+
+            # Collect only allowed file types
+            if p.is_file() and p.suffix.lower() in config.allowed_suffixes:
+                collected_files.append(p.resolve())
+
+    return sorted(collected_files)
+
+
+def hash_files(files: list[Path]) -> str:
+    """Calculate SHA256 hash of file contents.
+
+    Args:
+        files: list of files to hash (order matters!)
+
+    Returns:
+        SHA256 hex digest
+
+    Example:
+        >>> files = [Path('file1.py'), Path('file2.py')]
+        >>> hash_value = hash_files(files)
+    """
+    h = hashlib.sha256()
+
+    for file_path in files:
+        if not file_path.exists():
+            continue
+
+        h.update(file_path.read_bytes())
+
+    return h.hexdigest()
 
 
 def hash_tree(
@@ -31,80 +135,93 @@ def hash_tree(
     allowed_suffixes: set[str],
     excluded_dir_patterns: set[str],
     excluded_files: Optional[set[Path]] = None,
-) -> str:
-    """Return SHA256 hash for files under `paths`.
+) -> tuple[str, list[Path]]:
+    """Return SHA256 hash for files under `paths` and the list of files hashed.
 
-    Restricted by suffix, excluding excluded directory patterns and excluded_files.
+    Args:
+        paths: list of root paths to hash
+        allowed_suffixes: set of file suffixes to include (e.g., {'.py', '.json'})
+        excluded_dir_patterns: set of directory patterns to exclude
+        excluded_files: Optional set of specific files to exclude
+
+    Returns:
+        tuple of (hash_digest, list_of_hashed_files)
+
+    Example:
+        >>> hash_digest, files = hash_tree(
+        ...     paths=[Path('src')],
+        ...     allowed_suffixes={'.py'},
+        ...     excluded_dir_patterns={'*__pycache__'},
+        ... )
+        >>> print(f"Hash: {hash_digest}")
+        >>> print(f"Based on {len(files)} files")
     """
-    h = hashlib.sha256()
-    excluded_files = excluded_files or set()
+    config = HashConfig(
+        paths=paths,
+        allowed_suffixes=allowed_suffixes,
+        excluded_dir_patterns=excluded_dir_patterns,
+        excluded_files=excluded_files or set(),
+    )
 
-    for root in paths:
-        if not root.exists():
-            raise ValueError(f"Root path does not exist: {root}")
-        for p in sorted(root.rglob("*")):
-            # Skip excluded directories
-            if p.is_dir() and is_excluded_dir(p, excluded_dir_patterns):
-                continue
+    files = collect_files(config)
+    digest = hash_files(files)
 
-            # Skip files inside excluded directories
-            if any(is_excluded_dir(parent, excluded_dir_patterns) for parent in p.parents):
-                continue
+    return digest, files
 
-            # Skip excluded files
-            if p.resolve() in excluded_files:
-                continue
 
-            # Hash only allowed file types
-            if p.is_file() and p.suffix.lower() in allowed_suffixes:
-                h.update(p.read_bytes())
-
-    digest = h.hexdigest()
-
-    return digest
+# ---------------------
+# Version hash function
+# ---------------------
 
 
 def _version_hash() -> str:
     """Calculate project hash.
 
-    Only package file ins src/akkudoktoreos can be hashed to make it work also for packages.
+    Only package files in src/akkudoktoreos can be hashed to make it work also for packages.
+
+    Returns:
+        SHA256 hash of the project files
     """
-    DIR_PACKAGE_ROOT = Path(__file__).resolve().parent.parent
+    if not str(DIR_PACKAGE_ROOT).endswith("src/akkudoktoreos"):
+        error_msg = f"DIR_PACKAGE_ROOT does not end with src/akkudoktoreos: {DIR_PACKAGE_ROOT}"
+        raise ValueError(error_msg)
 
-    # Allowed file suffixes to consider
-    ALLOWED_SUFFIXES: set[str] = {".py", ".md", ".json"}
-
-    # Directory patterns to exclude (glob-like)
-    EXCLUDED_DIR_PATTERNS: set[str] = {"*_autosum", "*__pycache__", "*_generated"}
-
-    # Files to exclude
-    EXCLUDED_FILES: set[Path] = set()
-
-    # Directories whose changes shall be part of the project hash
+    # Configuration
     watched_paths = [DIR_PACKAGE_ROOT]
 
-    hash_current = hash_tree(
-        watched_paths, ALLOWED_SUFFIXES, EXCLUDED_DIR_PATTERNS, excluded_files=EXCLUDED_FILES
+    # Collect files and calculate hash
+    hash_digest, hashed_files = hash_tree(
+        watched_paths,
+        ALLOWED_SUFFIXES,
+        EXCLUDED_DIR_PATTERNS,
+        excluded_files=EXCLUDED_FILES,
     )
-    return hash_current
+
+    return hash_digest
 
 
 def _version_calculate() -> str:
-    """Compute version."""
-    global HASH_EOS
-    HASH_EOS = _version_hash()
-    if VERSION_BASE.endswith("dev"):
+    """Calculate the full version string.
+
+    For release versions: "x.y.z"
+    For dev versions: "x.y.z.dev<hash>"
+
+    Returns:
+        Full version string
+    """
+    if VERSION_BASE.endswith(".dev"):
         # After dev only digits are allowed - convert hexdigest to digits
-        hash_value = int(HASH_EOS, 16)
+        hash_value = int(_version_hash(), 16)
         hash_digits = str(hash_value % (10**VERSION_DEV_PRECISION)).zfill(VERSION_DEV_PRECISION)
         return f"{VERSION_BASE}{hash_digits}"
     else:
+        # Release version - use base as-is
         return VERSION_BASE
 
 
 # ---------------------------
 # Project version information
-# ----------------------------
+# ---------------------------
 
 # The version
 __version__ = _version_calculate()
@@ -114,16 +231,13 @@ __version__ = _version_calculate()
 # Version info access
 # -------------------
 
-
 # Regular expression to split the version string into pieces
 VERSION_RE = re.compile(
     r"""
     ^(?P<base>\d+\.\d+\.\d+)            # x.y.z
-    (?:[\.\+\-]                         # .dev<hash> starts here
-        (?:
-            (?P<dev>dev)                # literal 'dev'
-            (?:(?P<hash>[A-Za-z0-9]+))?  # optional <hash>
-        )
+    (?:\.                                # .dev<hash> starts here
+        (?P<dev>dev)                     # literal 'dev'
+        (?P<hash>[a-f0-9]+)?             # optional <hash> (hex digits)
     )?
     $
     """,
@@ -143,7 +257,7 @@ def version() -> dict[str, Optional[str]]:
         .. code-block:: python
 
             {
-                "version": "0.2.0+dev.a96a65",
+                "version": "0.2.0.dev.a96a65",
                 "base": "x.y.z",
                 "dev": "dev" or None,
                 "hash": "<hash>" or None,
@@ -153,7 +267,7 @@ def version() -> dict[str, Optional[str]]:
 
     match = VERSION_RE.match(__version__)
     if not match:
-        raise ValueError(f"Invalid version format: {version}")
+        raise ValueError(f"Invalid version format: {__version__}")  # Fixed: was 'version'
 
     info = match.groupdict()
     info["version"] = __version__

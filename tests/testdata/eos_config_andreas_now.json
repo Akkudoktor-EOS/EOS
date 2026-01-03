@@ -1,6 +1,6 @@
 {
   "general": {
-    "data_folder_path": null,
+    "data_folder_path": "__ANY__",
     "data_output_subpath": "output",
     "latitude": 52.5,
     "longitude": 13.4

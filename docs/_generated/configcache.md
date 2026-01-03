@@ -7,7 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| cleanup_interval | `EOS_CACHE__CLEANUP_INTERVAL` | `float` | `rw` | `300` | Intervall in seconds for EOS file cache cleanup. |
+| cleanup_interval | `EOS_CACHE__CLEANUP_INTERVAL` | `float` | `rw` | `300.0` | Intervall in seconds for EOS file cache cleanup. |
 | subpath | `EOS_CACHE__SUBPATH` | `Optional[pathlib.Path]` | `rw` | `cache` | Sub-path for the EOS cache data directory. |
 :::
 <!-- pyml enable line-length -->

@@ -19,32 +19,44 @@ import json
 import os
 import sys
 
-from fastapi.openapi.utils import get_openapi
-
+from akkudoktoreos.core.coreabc import get_config
 from akkudoktoreos.server.eos import app
 
 
 def generate_openapi() -> dict:
-    """Generate the OpenAPI specification.
+    # Make minimal config to make the generation reproducable
+    config_eos = get_config(init={
+            "with_init_settings": True,
+            "with_env_settings": False,
+            "with_dotenv_settings": False,
+            "with_file_settings": False,
+            "with_file_secret_settings": False,
+        })
 
-    Returns:
-        openapi_spec (dict): OpenAPI specification.
-    """
-    openapi_spec = get_openapi(
-        title=app.title,
-        version=app.version,
-        openapi_version=app.openapi_version,
-        description=app.description,
-        routes=app.routes,
+    openapi_spec = app.openapi()
+
+    config_schema = (
+        openapi_spec
+        .get("components", {})
+        .get("schemas", {})
+        .get("ConfigEOS", {})
+        .get("properties", {})
     )
 
-    # Fix file path for general settings to not show local/test file path
-    general = openapi_spec["components"]["schemas"]["ConfigEOS"]["properties"]["general"]["default"]
-    general["config_file_path"] = "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
-    general["config_folder_path"] = "/home/user/.config/net.akkudoktoreos.net"
-    # Fix file path for logging settings to not show local/test file path
-    logging = openapi_spec["components"]["schemas"]["ConfigEOS"]["properties"]["logging"]["default"]
-    logging["file_path"] = "/home/user/.local/share/net.akkudoktoreos.net/output/eos.log"
+    # ---- General settings ----
+    general = config_schema.get("general", {}).get("default")
+    if general:
+        general.update({
+            "config_file_path": "/home/user/.config/net.akkudoktoreos.net/EOS.config.json",
+            "config_folder_path": "/home/user/.config/net.akkudoktoreos.net",
+            "data_folder_path": "/home/user/.local/share/net.akkudoktoreos.net",
+            "data_output_path": "/home/user/.local/share/net.akkudoktoreos.net/output",
+        })
+
+    # ---- Logging settings ----
+    logging_cfg = config_schema.get("logging", {}).get("default")
+    if logging_cfg:
+        logging_cfg["file_path"] = "/home/user/.local/share/net.akkudoktoreos.net/output/eos.log"
 
     return openapi_spec
 

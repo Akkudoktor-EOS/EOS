@@ -1,11 +1,12 @@
 import json
 from pathlib import Path
 
+import numpy.testing as npt
 import pytest
 
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.weatherimport import WeatherImport
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
+from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
@@ -87,6 +88,7 @@ def test_invalid_provider(provider, config_eos, monkeypatch):
 )
 def test_import(provider, sample_import_1_json, start_datetime, from_file, config_eos):
     """Test fetching forecast from Import."""
+    key = "weather_temp_air"
     ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
@@ -95,7 +97,7 @@ def test_import(provider, sample_import_1_json, start_datetime, from_file, confi
     else:
         config_eos.weather.provider_settings.WeatherImport.import_file_path = None
         assert config_eos.weather.provider_settings.WeatherImport.import_file_path is None
-    provider.clear()
+    provider.delete_by_datetime(start_datetime=None, end_datetime=None)
 
     # Call the method
     provider.update_data()
@@ -104,16 +106,13 @@ def test_import(provider, sample_import_1_json, start_datetime, from_file, confi
     assert provider.ems_start_datetime is not None
     assert provider.total_hours is not None
     assert compare_datetimes(provider.ems_start_datetime, ems_eos.start_datetime).equal
-    values = sample_import_1_json["weather_temp_air"]
-    value_datetime_mapping = provider.import_datetimes(ems_eos.start_datetime, len(values))
-    for i, mapping in enumerate(value_datetime_mapping):
-        assert i < len(provider.records)
-        expected_datetime, expected_value_index = mapping
-        expected_value = values[expected_value_index]
-        result_datetime = provider.records[i].date_time
-        result_value = provider.records[i]["weather_temp_air"]
 
-        # print(f"{i}: Expected: {expected_datetime}:{expected_value}")
-        # print(f"{i}:   Result: {result_datetime}:{result_value}")
-        assert compare_datetimes(result_datetime, expected_datetime).equal
-        assert result_value == expected_value
+    expected_values = sample_import_1_json[key]
+    result_values = provider.key_to_array(
+        key=key,
+        start_datetime=provider.ems_start_datetime,
+        end_datetime=provider.ems_start_datetime + to_duration(f"{len(expected_values)} hours"),
+        interval=to_duration("1 hour"),
+    )
+    # Allow for some difference due to value calculation on DST change
+    npt.assert_allclose(result_values, expected_values, rtol=0.001)

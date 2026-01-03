@@ -206,13 +206,20 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
         else:
             continue
     # Adjust to similar y-axis 0-point
+    values_min_max = [
+        (energy_wh_min, energy_wh_max),
+        (amt_kwh_min, amt_kwh_max),
+        (amt_min, amt_max),
+        (soc_factor_min, soc_factor_max),
+    ]
     # First get the maximum factor for the min value related the maximum value
-    min_max_factor = max(
-        (energy_wh_min * -1.0) / energy_wh_max,
-        (amt_kwh_min * -1.0) / amt_kwh_max,
-        (amt_min * -1.0) / amt_max,
-        (soc_factor_min * -1.0) / soc_factor_max,
-    )
+    min_max_factor = 0.0
+    for value_min, value_max in values_min_max:
+        if value_max > 0:
+            value_factor = (value_min * -1.0) / value_max
+            if value_factor > min_max_factor:
+                min_max_factor = value_factor
+
     # Adapt the min values to have the same relative min/max factor on all y-axis
     energy_wh_min = min_max_factor * energy_wh_max * -1.0
     amt_kwh_min = min_max_factor * amt_kwh_max * -1.0

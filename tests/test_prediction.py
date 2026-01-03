@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
+from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
@@ -15,7 +16,6 @@ from akkudoktoreos.prediction.loadvrm import LoadVrm
 from akkudoktoreos.prediction.prediction import (
     Prediction,
     PredictionCommonSettings,
-    get_prediction,
 )
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport

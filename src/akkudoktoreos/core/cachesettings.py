@@ -20,7 +20,8 @@ class CacheCommonSettings(SettingsBaseModel):
     )
 
     cleanup_interval: float = Field(
-        default=5 * 60,
+        default=5.0 * 60,
+        ge=5.0,
         json_schema_extra={"description": "Intervall in seconds for EOS file cache cleanup."},
     )
 

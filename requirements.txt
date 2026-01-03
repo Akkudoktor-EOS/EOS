@@ -14,12 +14,11 @@ markdown-it-py==4.0.0
 mdit-py-plugins==0.5.0
 bokeh==3.8.2
 uvicorn==0.40.0
-scikit-learn==1.8.0
 scipy==1.17.0
 tzfpy==1.1.1
 deap==1.4.3
 requests==2.32.5
-pandas==2.3.3
+pandas==3.0.0
 pendulum==3.2.0
 platformdirs==4.9.2
 psutil==7.2.2
@@ -27,6 +26,7 @@ pvlib==0.15.0
 pydantic==2.12.5
 pydantic_extra_types==2.11.0
 statsmodels==0.14.6
-pydantic-settings==2.11.0
+pydantic-settings==2.12.0
 linkify-it-py==2.0.3
 loguru==0.7.3
+lmdb==1.7.5

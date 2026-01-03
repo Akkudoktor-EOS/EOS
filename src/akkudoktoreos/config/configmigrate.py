@@ -3,7 +3,7 @@
 import json
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Set, Tuple, Union, cast
 
 from loguru import logger
 
@@ -13,19 +13,33 @@ if TYPE_CHECKING:
     # There are circular dependencies - only import here for type checking
     from akkudoktoreos.config.config import SettingsEOSDefaults
 
+
+_KEEP_DEFAULT = object()
+
 # -----------------------------
 # Global migration map constant
 # -----------------------------
 # key: old JSON path, value: either
 #   - str (new model path)
 #   - tuple[str, Callable[[Any], Any]] (new path + transform)
+#   - _KEEP_DEFAULT (keep new default if old value is none or not given)
 #   - None (drop)
-MIGRATION_MAP: Dict[str, Union[str, Tuple[str, Callable[[Any], Any]], None]] = {
+MIGRATION_MAP: Dict[
+    str,
+    Union[
+        str,  # simple rename
+        Tuple[str, Callable[[Any], Any]],  # rename + transform
+        Tuple[str, object],  # rename + _KEEP_DEFAULT
+        Tuple[str, object, Callable[[Any], Any]],  # rename + _KEEP_DEFAULT + transform
+        None,  # drop
+    ],
+] = {
     # 0.2.0.dev -> 0.2.0.dev
     "adapter/homeassistant/optimization_solution_entity_ids": (
         "adapter/homeassistant/solution_entity_ids",
         lambda v: v if isinstance(v, list) else None,
     ),
+    "general/data_folder_path": ("general/data_folder_path", _KEEP_DEFAULT),
     # 0.2.0 -> 0.2.0+dev
     "elecprice/provider_settings/ElecPriceImport/import_file_path": "elecprice/elecpriceimport/import_file_path",
     "elecprice/provider_settings/ElecPriceImport/import_json": "elecprice/elecpriceimport/import_json",
@@ -91,20 +105,32 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
     for old_path, mapping in MIGRATION_MAP.items():
         new_path = None
         transform = None
+        keep_default = False
+
         if mapping is None:
             migrated_source_paths.add(old_path.strip("/"))
             logger.debug(f"🗑️ Migration map: dropping '{old_path}'")
             continue
         if isinstance(mapping, tuple):
-            new_path, transform = mapping
+            new_path = mapping[0]
+            for m in mapping[1:]:
+                if m is _KEEP_DEFAULT:
+                    keep_default = True
+                elif callable(m):
+                    transform = cast(Callable[[Any], Any], m)
         else:
             new_path = mapping
 
         old_value = _get_json_nested_value(config_data, old_path)
         if old_value is None:
-            migrated_source_paths.add(old_path.strip("/"))
-            mapped_count += 1
-            logger.debug(f"✅ Migrated mapped '{old_path}' → 'None'")
+            if keep_default:
+                migrated_source_paths.add(old_path.strip("/"))
+                mapped_count += 1
+                logger.debug(f"✅ Migrated mapped '{old_path}' → keeping new default")
+            else:
+                migrated_source_paths.add(old_path.strip("/"))
+                mapped_count += 1
+                logger.debug(f"✅ Migrated mapped '{old_path}' → 'None'")
             continue
 
         try:

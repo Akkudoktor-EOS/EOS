@@ -1868,6 +1868,28 @@ def to_duration(
     raise ValueError(error_msg)
 
 
+# Timezone names that are semantically identical to UTC and should be
+# canonicalized.  Keys are lower-cased for case-insensitive matching.
+_UTC_ALIASES: dict[str, str] = {
+    "utc": "UTC",
+    "gmt": "UTC",
+    "z": "UTC",
+    "etc/utc": "UTC",
+    "etc/gmt": "UTC",
+    "etc/gmt+0": "UTC",
+    "etc/gmt-0": "UTC",
+    "etc/gmt0": "UTC",
+    "etc/greenwich": "UTC",
+    "etc/universal": "UTC",
+    "etc/zulu": "UTC",
+}
+
+
+def _canonicalize_tz_name(name: str) -> str:
+    """Return 'UTC' when *name* is a known UTC alias, otherwise return unchanged."""
+    return _UTC_ALIASES.get(name.lower(), name)
+
+
 @overload
 def to_timezone(
     utc_offset: Optional[float] = None,
@@ -1890,6 +1912,9 @@ def to_timezone(
     as_string: Optional[bool] = False,
 ) -> Union[Timezone, str]:
     """Determines the timezone either by UTC offset, geographic location, or local system timezone.
+
+    Timezone names that are semantically equivalent to UTC (e.g. ``GMT``, ``Z``,
+    ``Etc/GMT``) are canonicalized to ``"UTC"`` before returning.
 
     By default, it returns a `Timezone` object representing the timezone.
     If `as_string` is set to `True`, the function returns the timezone name as a string instead.
@@ -1925,7 +1950,15 @@ def to_timezone(
         if not -24 <= utc_offset <= 24:
             raise ValueError("UTC offset must be within the range -24 to +24 hours.")
 
-        # Convert UTC offset to an Etc/GMT-compatible format
+        # Offset of exactly 0 is plain UTC – no need for Etc/GMT+0 etc.
+        if utc_offset == 0:
+            if as_string:
+                return "UTC"
+            return pendulum.timezone("UTC")
+
+        # Convert UTC offset to an Etc/GMT-compatible format.
+        # NOTE: Etc/GMT sign convention is *inverted* relative to the common
+        # expectation: Etc/GMT+5 means UTC-5.  We therefore flip the sign.
         hours = int(utc_offset)
         minutes = int((abs(utc_offset) - abs(hours)) * 60)
         sign = "-" if utc_offset >= 0 else "+"
@@ -1951,6 +1984,8 @@ def to_timezone(
         except Exception as e:
             raise ValueError(f"Error determining timezone for location {location}: {e}") from e
 
+        tz_name = _canonicalize_tz_name(tz_name)
+
         if as_string:
             return tz_name
         return pendulum.timezone(tz_name)
@@ -1958,7 +1993,9 @@ def to_timezone(
     # Fallback to local timezone
     local_tz = pendulum.local_timezone()
     if isinstance(local_tz, str):
-        local_tz = pendulum.timezone(local_tz)
+        local_tz = pendulum.timezone(_canonicalize_tz_name(local_tz))
+    else:
+        local_tz = pendulum.timezone(_canonicalize_tz_name(local_tz.name))
     if as_string:
         return local_tz.name
     return local_tz

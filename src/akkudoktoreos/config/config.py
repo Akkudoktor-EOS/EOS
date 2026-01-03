@@ -11,6 +11,7 @@ Key features:
 
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any, ClassVar, Optional, Type, Union
@@ -26,6 +27,7 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.config.configmigrate import migrate_config_data, migrate_config_file
 from akkudoktoreos.core.cachesettings import CacheCommonSettings
 from akkudoktoreos.core.coreabc import SingletonMixin
+from akkudoktoreos.core.database import DatabaseCommonSettings
 from akkudoktoreos.core.decorators import classproperty
 from akkudoktoreos.core.emsettings import (
     EnergyManagementCommonSettings,
@@ -65,16 +67,66 @@ def get_absolute_path(
     return None
 
 
+def is_home_assistant_addon() -> bool:
+    """Detect Home Assistant add-on environment.
+
+    Home Assistant sets this environment variable automatically.
+    """
+    return "HASSIO_TOKEN" in os.environ or "SUPERVISOR_TOKEN" in os.environ
+
+
+def default_data_folder_path() -> Path:
+    """Provide default data folder path.
+
+    1. From EOS_DATA_DIR env
+    2. From EOS_DIR env
+    3. From platform specific default path
+    4. Current working directory
+
+    Note:
+        When running as Home Assistant add-on the path is fixed to /data.
+    """
+    if is_home_assistant_addon():
+        return Path("/data")
+
+    # 1. From EOS_DATA_DIR env
+    if env_dir := os.getenv(ConfigEOS.EOS_DATA_DIR):
+        try:
+            data_dir = Path(env_dir).resolve()
+            data_dir.mkdir(parents=True, exist_ok=True)
+            return data_dir
+        except Exception as e:
+            logger.warning(f"Could not setup data folder {data_dir}: {e}")
+
+    # 2. From EOS_DIR env
+    if env_dir := os.getenv(ConfigEOS.EOS_DIR):
+        try:
+            data_dir = Path(env_dir).resolve()
+            data_dir.mkdir(parents=True, exist_ok=True)
+            return data_dir
+        except Exception as e:
+            logger.warning(f"Could not setup data folder {data_dir}: {e}")
+
+    # 3. From platform specific default path
+    try:
+        data_dir = Path(user_data_dir(ConfigEOS.APP_NAME, ConfigEOS.APP_AUTHOR))
+        if data_dir is not None:
+            data_dir.mkdir(parents=True, exist_ok=True)
+            return data_dir
+    except Exception as e:
+        logger.warning(f"Could not setup data folder {data_dir}: {e}")
+
+    # 4. Current working directory
+    return Path.cwd()
+
+
 class GeneralSettings(SettingsBaseModel):
     """General settings."""
 
-    _config_folder_path: ClassVar[Optional[Path]] = None
-    _config_file_path: ClassVar[Optional[Path]] = None
-
-    # Detect Home Assistant add-on environment
-    # Home Assistant sets this environment variable automatically
-    _home_assistant_addon: ClassVar[bool] = (
-        "HASSIO_TOKEN" in os.environ or "SUPERVISOR_TOKEN" in os.environ
+    home_assistant_addon: bool = Field(
+        default_factory=is_home_assistant_addon,
+        json_schema_extra={"description": "EOS is running as home assistant add-on."},
+        exclude=True,
     )
 
     version: str = Field(
@@ -84,17 +136,16 @@ class GeneralSettings(SettingsBaseModel):
         },
     )
 
-    data_folder_path: Optional[Path] = Field(
-        default=None,
+    data_folder_path: Path = Field(
+        default_factory=default_data_folder_path,
         json_schema_extra={
-            "description": "Path to EOS data directory.",
-            "examples": [None, "/home/eos/data"],
+            "description": "Path to EOS data folder.",
         },
     )
 
     data_output_subpath: Optional[Path] = Field(
         default="output",
-        json_schema_extra={"description": "Sub-path for the EOS output data directory."},
+        json_schema_extra={"description": "Sub-path for the EOS output data folder."},
     )
 
     latitude: Optional[float] = Field(
@@ -134,19 +185,13 @@ class GeneralSettings(SettingsBaseModel):
     @property
     def config_folder_path(self) -> Optional[Path]:
         """Path to EOS configuration directory."""
-        return self._config_folder_path
+        return self.config._config_file_path.parent
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def config_file_path(self) -> Optional[Path]:
         """Path to EOS configuration file."""
-        return self._config_file_path
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def home_assistant_addon(self) -> bool:
-        """EOS is running as home assistant add-on."""
-        return self._home_assistant_addon
+        return self.config._config_file_path
 
     compatible_versions: ClassVar[list[str]] = [__version__]
 
@@ -164,17 +209,19 @@ class GeneralSettings(SettingsBaseModel):
 
     @field_validator("data_folder_path", mode="after")
     @classmethod
-    def validate_data_folder_path(cls, value: Optional[Union[str, Path]]) -> Optional[Path]:
+    def validate_data_folder_path(cls, value: Optional[Union[str, Path]]) -> Path:
         """Ensure dir is available."""
-        if cls._home_assistant_addon:
+        if is_home_assistant_addon():
             # Force to home assistant add-on /data directory
             return Path("/data")
         if value is None:
-            return None
+            return default_data_folder_path()
         if isinstance(value, str):
             value = Path(value)
-        value.resolve()
-        if not value.is_dir():
+        try:
+            value.resolve()
+            value.mkdir(parents=True, exist_ok=True)
+        except Exception:
             raise ValueError(f"Data folder path '{value}' is not a directory.")
         return value
 
@@ -190,6 +237,9 @@ class SettingsEOS(pydantic_settings.BaseSettings, PydanticModelNestedValueMixin)
     )
     cache: Optional[CacheCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Cache Settings"}
+    )
+    database: Optional[DatabaseCommonSettings] = Field(
+        default=None, json_schema_extra={"description": "Database Settings"}
     )
     ems: Optional[EnergyManagementCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Energy Management Settings"}
@@ -248,22 +298,23 @@ class SettingsEOSDefaults(SettingsEOS):
     Used by ConfigEOS instance to make all fields available.
     """
 
-    general: GeneralSettings = GeneralSettings()
-    cache: CacheCommonSettings = CacheCommonSettings()
-    ems: EnergyManagementCommonSettings = EnergyManagementCommonSettings()
-    logging: LoggingCommonSettings = LoggingCommonSettings()
-    devices: DevicesCommonSettings = DevicesCommonSettings()
-    measurement: MeasurementCommonSettings = MeasurementCommonSettings()
-    optimization: OptimizationCommonSettings = OptimizationCommonSettings()
-    prediction: PredictionCommonSettings = PredictionCommonSettings()
-    elecprice: ElecPriceCommonSettings = ElecPriceCommonSettings()
-    feedintariff: FeedInTariffCommonSettings = FeedInTariffCommonSettings()
-    load: LoadCommonSettings = LoadCommonSettings()
-    pvforecast: PVForecastCommonSettings = PVForecastCommonSettings()
-    weather: WeatherCommonSettings = WeatherCommonSettings()
-    server: ServerCommonSettings = ServerCommonSettings()
-    utils: UtilsCommonSettings = UtilsCommonSettings()
-    adapter: AdapterCommonSettings = AdapterCommonSettings()
+    general: GeneralSettings = Field(default_factory=GeneralSettings)
+    cache: CacheCommonSettings = Field(default_factory=CacheCommonSettings)
+    database: DatabaseCommonSettings = Field(default_factory=DatabaseCommonSettings)
+    ems: EnergyManagementCommonSettings = Field(default_factory=EnergyManagementCommonSettings)
+    logging: LoggingCommonSettings = Field(default_factory=LoggingCommonSettings)
+    devices: DevicesCommonSettings = Field(default_factory=DevicesCommonSettings)
+    measurement: MeasurementCommonSettings = Field(default_factory=MeasurementCommonSettings)
+    optimization: OptimizationCommonSettings = Field(default_factory=OptimizationCommonSettings)
+    prediction: PredictionCommonSettings = Field(default_factory=PredictionCommonSettings)
+    elecprice: ElecPriceCommonSettings = Field(default_factory=ElecPriceCommonSettings)
+    feedintariff: FeedInTariffCommonSettings = Field(default_factory=FeedInTariffCommonSettings)
+    load: LoadCommonSettings = Field(default_factory=LoadCommonSettings)
+    pvforecast: PVForecastCommonSettings = Field(default_factory=PVForecastCommonSettings)
+    weather: WeatherCommonSettings = Field(default_factory=WeatherCommonSettings)
+    server: ServerCommonSettings = Field(default_factory=ServerCommonSettings)
+    utils: UtilsCommonSettings = Field(default_factory=UtilsCommonSettings)
+    adapter: AdapterCommonSettings = Field(default_factory=AdapterCommonSettings)
 
     def __hash__(self) -> int:
         # Just for usage in configmigrate, finally overwritten when used by ConfigEOS.
@@ -300,10 +351,6 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         the same instance, which contains the most up-to-date configuration. Modifying the configuration
         in one part of the application reflects across all references to this class.
 
-    Attributes:
-        config_folder_path (Optional[Path]): Path to the configuration directory.
-        config_file_path (Optional[Path]): Path to the configuration file.
-
     Raises:
         FileNotFoundError: If no configuration file is found, and creating a default configuration fails.
 
@@ -323,6 +370,15 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
     EOS_CONFIG_DIR: ClassVar[str] = "EOS_CONFIG_DIR"
     ENCODING: ClassVar[str] = "UTF-8"
     CONFIG_FILE_NAME: ClassVar[str] = "EOS.config.json"
+    _init_config_eos: ClassVar[dict[str, bool]] = {
+        "with_init_settings": True,
+        "with_env_settings": True,
+        "with_dotenv_settings": True,
+        "with_file_settings": True,
+        "with_file_secret_settings": True,
+    }
+    _config_file_path: ClassVar[Optional[Path]] = None
+    _force_documentation_mode = False
 
     def __hash__(self) -> int:
         # ConfigEOS is a singleton
@@ -377,30 +433,155 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
               configuration directory cannot be created.
             - It ensures that a fallback to a default configuration file is always possible.
         """
-        # Ensure we know and have the config folder path and the config file
-        config_file = cls._setup_config_file()
+
+        def lazy_config_file_settings() -> dict:
+            """Config file settings.
+
+            This function runs at **instance creation**, not class definition. Ensures if ConfigEOS
+            is recreated this function is run.
+            """
+            config_file_path, exists = cls._get_config_file_path()
+            if not exists:
+                # Create minimum config file
+                config_minimum_content = '{ "general": { "version": "' + __version__ + '" } }'
+                if config_file_path.is_relative_to(ConfigEOS.package_root_path):
+                    # Never write into package directory
+                    error_msg = (
+                        f"Could not create minimum config file. "
+                        f"Config file path '{config_file_path}' is within package root "
+                        f"'{ConfigEOS.package_root_path}'"
+                    )
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
+                try:
+                    config_file_path.parent.mkdir(parents=True, exist_ok=True)
+                    config_file_path.write_text(config_minimum_content, encoding="utf-8")
+                except Exception as exc:
+                    # Create minimum config in temporary config directory as last resort
+                    error_msg = (
+                        f"Could not create minimum config file in {config_file_path.parent}: {exc}"
+                    )
+                    logger.error(error_msg)
+                    temp_dir = Path(tempfile.mkdtemp())
+                    info_msg = f"Using temporary config directory {temp_dir}"
+                    logger.info(info_msg)
+                    config_file_path = temp_dir / config_file_path.name
+                    config_file_path.write_text(config_minimum_content, encoding="utf-8")
+
+            # Remember for other lazy settings and computed_field
+            cls._config_file_path = config_file_path
+
+            return {}
+
+        def lazy_data_folder_path_settings() -> dict:
+            """Data folder path settings.
+
+            This function runs at **instance creation**, not class definition. Ensures if ConfigEOS
+            is recreated this function is run.
+            """
+            # Updates path to the data directory.
+            data_folder_settings = {
+                "general": {
+                    "data_folder_path": default_data_folder_path(),
+                },
+            }
+
+            return data_folder_settings
+
+        def lazy_init_settings() -> dict:
+            """Init settings.
+
+            This function runs at **instance creation**, not class definition. Ensures if ConfigEOS
+            is recreated this function is run.
+            """
+            if not cls._init_config_eos.get("with_init_settings", True):
+                logger.debug("Config initialisation with init settings is disabled.")
+                return {}
+
+            settings = init_settings()
+
+            return settings
+
+        def lazy_env_settings() -> dict:
+            """Env settings.
+
+            This function runs at **instance creation**, not class definition. Ensures if ConfigEOS
+            is recreated this function is run.
+            """
+            if not cls._init_config_eos.get("with_env_settings", True):
+                logger.debug("Config initialisation with env settings is disabled.")
+                return {}
+
+            return env_settings()
+
+        def lazy_dotenv_settings() -> dict:
+            """Dotenv settings.
+
+            This function runs at **instance creation**, not class definition. Ensures if ConfigEOS
+            is recreated this function is run.
+            """
+            if not cls._init_config_eos.get("with_dotenv_settings", True):
+                logger.debug("Config initialisation with dotenv settings is disabled.")
+                return {}
+
+            return dotenv_settings()
+
+        def lazy_file_settings() -> dict:
+            """File settings.
+
+            This function runs at **instance creation**, not class definition. Ensures if ConfigEOS
+            is recreated this function is run.
+
+            Ensures the config file exists and creates a backup if necessary.
+            """
+            if not cls._init_config_eos.get("with_file_settings", True):
+                logger.debug("Config initialisation with file settings is disabled.")
+                return {}
+
+            config_file = cls._config_file_path  # provided by lazy_config_file_settings
+            if config_file is None:
+                # This should not happen
+                raise RuntimeError("Config file path not set.")
+
+            try:
+                backup_file = config_file.with_suffix(f".{to_datetime(as_string='YYYYMMDDHHmmss')}")
+                if migrate_config_file(config_file, backup_file):
+                    # If the config file does have the correct version add it as settings source
+                    settings = pydantic_settings.JsonConfigSettingsSource(
+                        settings_cls, json_file=config_file
+                    )()
+            except Exception as ex:
+                logger.error(
+                    f"Error reading config file '{config_file}' (falling back to default config): {ex}"
+                )
+                settings = {}
+
+            return settings
+
+        def lazy_file_secret_settings() -> dict:
+            """File secret settings.
+
+            This function runs at **instance creation**, not class definition. Ensures if ConfigEOS
+            is recreated this function is run.
+            """
+            if not cls._init_config_eos.get("with_file_secret_settings", True):
+                logger.debug("Config initialisation with file secret settings is disabled.")
+                return {}
+
+            return file_secret_settings()
 
         # All the settings sources in priority sequence
+        # The settings are all lazyly evaluated at instance creation time to allow for
+        # runtime configuration.
         setting_sources = [
-            init_settings,
-            env_settings,
-            dotenv_settings,
+            lazy_config_file_settings,  # Prio high
+            lazy_init_settings,
+            lazy_env_settings,
+            lazy_dotenv_settings,
+            lazy_file_settings,
+            lazy_data_folder_path_settings,
+            lazy_file_secret_settings,  # Prio low
         ]
-
-        # Append file settings to sources
-        file_settings: Optional[pydantic_settings.JsonConfigSettingsSource] = None
-        try:
-            backup_file = config_file.with_suffix(f".{to_datetime(as_string='YYYYMMDDHHmmss')}")
-            if migrate_config_file(config_file, backup_file):
-                # If the config file does have the correct version add it as settings source
-                file_settings = pydantic_settings.JsonConfigSettingsSource(
-                    settings_cls, json_file=config_file
-                )
-                setting_sources.append(file_settings)
-        except Exception as ex:
-            logger.error(
-                f"Error reading config file '{config_file}' (falling back to default config): {ex}"
-            )
 
         return tuple(setting_sources)
 
@@ -409,30 +590,41 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         """Compute the package root path."""
         return Path(__file__).parent.parent.resolve()
 
+    @classmethod
+    def documentation_mode(cls) -> bool:
+        """Are we running in documentation mode.
+
+        Some checks may be relaxed to allow for proper documentation execution.
+        """
+        # Detect if Sphinx is importing this module
+        is_sphinx = "sphinx" in sys.modules or getattr(sys, "_called_from_sphinx", False)
+        return cls._force_documentation_mode or is_sphinx
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initializes the singleton ConfigEOS instance.
 
         Configuration data is loaded from a configuration file or a default one is created if none
         exists.
         """
-        logger.debug("Config init with parameters {} {}", args, kwargs)
         # Check for singleton guard
         if hasattr(self, "_initialized"):
+            logger.debug("Config init called again with parameters {} {}", args, kwargs)
             return
+        logger.debug("Config init with parameters {} {}", args, kwargs)
         self._setup(self, *args, **kwargs)
 
     def _setup(self, *args: Any, **kwargs: Any) -> None:
         """Re-initialize global settings."""
         logger.debug("Config setup with parameters {} {}", args, kwargs)
+
         # Assure settings base knows the singleton EOS configuration
         SettingsBaseModel.config = self
+
         # (Re-)load settings - call base class init
         SettingsEOSDefaults.__init__(self, *args, **kwargs)
-        # Init config file and data folder pathes
-        self._setup_config_file()
-        self._update_data_folder_path()
+
         self._initialized = True
-        logger.debug("Config setup:\n{}", self)
+        logger.debug(f"Config setup:\n{self}")
 
     def merge_settings(self, settings: SettingsEOS) -> None:
         """Merges the provided settings into the global settings for EOS, with optional overwrite.
@@ -562,48 +754,6 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
         return result
 
-    def _update_data_folder_path(self) -> None:
-        """Updates path to the data directory."""
-        # From Settings
-        if data_dir := self.general.data_folder_path:
-            try:
-                data_dir.mkdir(parents=True, exist_ok=True)
-                self.general.data_folder_path = data_dir
-                return
-            except Exception as e:
-                logger.warning(f"Could not setup data dir {data_dir}: {e}")
-        # From EOS_DATA_DIR env
-        if env_dir := os.getenv(self.EOS_DATA_DIR):
-            try:
-                data_dir = Path(env_dir).resolve()
-                data_dir.mkdir(parents=True, exist_ok=True)
-                self.general.data_folder_path = data_dir
-                return
-            except Exception as e:
-                logger.warning(f"Could not setup data dir {data_dir}: {e}")
-        # From EOS_DIR env
-        if env_dir := os.getenv(self.EOS_DIR):
-            try:
-                data_dir = Path(env_dir).resolve()
-                data_dir.mkdir(parents=True, exist_ok=True)
-                self.general.data_folder_path = data_dir
-                return
-            except Exception as e:
-                logger.warning(f"Could not setup data dir {data_dir}: {e}")
-        # From platform specific default path
-        try:
-            data_dir = Path(user_data_dir(self.APP_NAME, self.APP_AUTHOR))
-            if data_dir is not None:
-                data_dir.mkdir(parents=True, exist_ok=True)
-                self.general.data_folder_path = data_dir
-                return
-        except Exception as e:
-            logger.warning(f"Could not setup data dir {data_dir}: {e}")
-        # Current working directory
-        data_dir = Path.cwd()
-        logger.warning(f"Using data dir {data_dir}")
-        self.general.data_folder_path = data_dir
-
     @classmethod
     def _get_config_file_path(cls) -> tuple[Path, bool]:
         """Find a valid configuration file or return the desired path for a new config file.
@@ -618,32 +768,80 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         Returns:
             tuple[Path, bool]: The path to the configuration file and if there is already a config file there
         """
-        if GeneralSettings._home_assistant_addon:
+        if is_home_assistant_addon():
             # Only /data is persistent for home assistant add-on
             cfile = Path("/data/config") / cls.CONFIG_FILE_NAME
             logger.debug(f"Config file forced to: '{cfile}'")
             return cfile, cfile.exists()
 
         config_dirs = []
-        env_eos_dir = os.getenv(cls.EOS_DIR)
-        logger.debug(f"Environment EOS_DIR: '{env_eos_dir}'")
 
-        env_eos_config_dir = os.getenv(cls.EOS_CONFIG_DIR)
-        logger.debug(f"Environment EOS_CONFIG_DIR: '{env_eos_config_dir}'")
-        env_config_dir = get_absolute_path(env_eos_dir, env_eos_config_dir)
-        logger.debug(f"Resulting environment config dir: '{env_config_dir}'")
+        # 1. Directory specified by EOS_CONFIG_DIR
+        config_dir: Optional[Union[Path, str]] = os.getenv(cls.EOS_CONFIG_DIR)
+        if config_dir:
+            logger.debug(f"Environment EOS_CONFIG_DIR: '{config_dir}'")
+            config_dir = Path(config_dir).resolve()
+            if config_dir.exists():
+                config_dirs.append(config_dir)
+            else:
+                logger.info(f"Environment EOS_CONFIG_DIR: '{config_dir}' does not exist.")
 
-        if env_config_dir is not None:
-            config_dirs.append(env_config_dir.resolve())
-        config_dirs.append(Path(user_config_dir(cls.APP_NAME, cls.APP_AUTHOR)))
-        config_dirs.append(Path.cwd())
+        # 2. Directory specified by EOS_DIR / EOS_CONFIG_DIR
+        eos_dir = os.getenv(cls.EOS_DIR)
+        eos_config_dir = os.getenv(cls.EOS_CONFIG_DIR)
+        if eos_dir and eos_config_dir:
+            logger.debug(f"Environment EOS_DIR/EOS_CONFIG_DIR: '{eos_dir}/{eos_config_dir}'")
+            config_dir = get_absolute_path(eos_dir, eos_config_dir)
+            if config_dir:
+                config_dir = Path(config_dir).resolve()
+                if config_dir.exists():
+                    config_dirs.append(config_dir)
+                else:
+                    logger.info(
+                        f"Environment EOS_DIR/EOS_CONFIG_DIR: '{config_dir}' does not exist."
+                    )
+            else:
+                logger.debug(
+                    f"Environment EOS_DIR/EOS_CONFIG_DIR: '{eos_dir}/{eos_config_dir}' not a valid path"
+                )
+
+        # 3. Directory specified by EOS_DIR
+        config_dir = os.getenv(cls.EOS_DIR)
+        if config_dir:
+            logger.debug(f"Environment EOS_DIR: '{config_dir}'")
+            config_dir = Path(config_dir).resolve()
+            if config_dir.exists():
+                config_dirs.append(config_dir)
+            else:
+                logger.info(f"Environment EOS_DIR: '{config_dir}' does not exist.")
+
+        # 4. User configuration directory
+        config_dir = Path(user_config_dir(cls.APP_NAME, cls.APP_AUTHOR)).resolve()
+        logger.debug(f"User config dir: '{config_dir}'")
+        if config_dir.exists():
+            config_dirs.append(config_dir)
+        else:
+            logger.info(f"User config dir: '{config_dir}' does not exist.")
+
+        # 5. Current working directory
+        config_dir = Path.cwd()
+        logger.debug(f"Current working dir: '{config_dir}'")
+        if config_dir.exists():
+            config_dirs.append(config_dir)
+        else:
+            logger.info(f"Current working dir: '{config_dir}' does not exist.")
+
+        # Search for file
         for cdir in config_dirs:
             cfile = cdir.joinpath(cls.CONFIG_FILE_NAME)
             if cfile.exists():
                 logger.debug(f"Found config file: '{cfile}'")
                 return cfile, True
 
-        return config_dirs[0].joinpath(cls.CONFIG_FILE_NAME), False
+        # Return highest priority directory with standard file name appended
+        default_config_file = config_dirs[0].joinpath(cls.CONFIG_FILE_NAME)
+        logger.debug(f"No config file found. Defaulting to: '{default_config_file}'")
+        return default_config_file, False
 
     @classmethod
     def _setup_config_file(cls) -> Path:
@@ -714,8 +912,3 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         The first non None value in priority order is taken.
         """
         self._setup(**self.model_dump())
-
-
-def get_config() -> ConfigEOS:
-    """Gets the EOS configuration data."""
-    return ConfigEOS()

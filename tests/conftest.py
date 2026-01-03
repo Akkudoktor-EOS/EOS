@@ -22,7 +22,8 @@ from _pytest.logging import LogCaptureFixture
 from loguru import logger
 from xprocess import ProcessStarter, XProcess
 
-from akkudoktoreos.config.config import ConfigEOS, get_config
+from akkudoktoreos.config.config import ConfigEOS
+from akkudoktoreos.core.coreabc import get_config, get_prediction, singletons_init
 from akkudoktoreos.core.version import _version_hash, version
 from akkudoktoreos.server.server import get_default_host
 
@@ -134,8 +135,6 @@ def is_ci() -> bool:
 
 @pytest.fixture
 def prediction_eos():
-    from akkudoktoreos.prediction.prediction import get_prediction
-
     return get_prediction()
 
 
@@ -172,6 +171,37 @@ def cfg_non_existent(request):
     )
 
 
+# ------------------------------------
+# Provide pytest EOS config management
+# ------------------------------------
+
+
+@pytest.fixture
+def config_default_dirs(tmpdir):
+    """Fixture that provides a list of directories to be used as config dir."""
+    tmp_user_home_dir = Path(tmpdir)
+
+    # Default config directory from platform user config directory
+    config_default_dir_user = tmp_user_home_dir / "config"
+
+    # Default config directory from current working directory
+    config_default_dir_cwd = tmp_user_home_dir / "cwd"
+    config_default_dir_cwd.mkdir()
+
+    # Default config directory from default config file
+    config_default_dir_default = Path(__file__).parent.parent.joinpath("src/akkudoktoreos/data")
+
+    # Default data directory from platform user data directory
+    data_default_dir_user = tmp_user_home_dir
+
+    return (
+        config_default_dir_user,
+        config_default_dir_cwd,
+        config_default_dir_default,
+        data_default_dir_user,
+    )
+
+
 @pytest.fixture(autouse=True)
 def user_cwd(config_default_dirs):
     """Patch cwd provided by module pathlib.Path.cwd."""
@@ -203,64 +233,102 @@ def user_data_dir(config_default_dirs):
 
 
 @pytest.fixture
-def config_eos(
+def config_eos_factory(
     disable_debug_logging,
     user_config_dir,
     user_data_dir,
     user_cwd,
     config_default_dirs,
     monkeypatch,
-) -> ConfigEOS:
-    """Fixture to reset EOS config to default values."""
-    monkeypatch.setenv(
-        "EOS_CONFIG__DATA_CACHE_SUBPATH", str(config_default_dirs[-1] / "data/cache")
-    )
-    monkeypatch.setenv(
-        "EOS_CONFIG__DATA_OUTPUT_SUBPATH", str(config_default_dirs[-1] / "data/output")
-    )
-    config_file = config_default_dirs[0] / ConfigEOS.CONFIG_FILE_NAME
-    config_file_cwd = config_default_dirs[1] / ConfigEOS.CONFIG_FILE_NAME
-    assert not config_file.exists()
-    assert not config_file_cwd.exists()
+):
+    """Factory fixture for creating a fully initialized ``ConfigEOS`` instance.
 
-    config_eos = get_config()
-    config_eos.reset_settings()
-    assert config_file == config_eos.general.config_file_path
-    assert config_file.exists()
-    assert not config_file_cwd.exists()
+    Returns a callable that creates a ``ConfigEOS`` singleton with a controlled
+    filesystem layout and environment variables. Allows tests to customize which
+    pydantic-settings sources are enabled (init, env, dotenv, file, secrets).
 
-    # Check user data directory pathes (config_default_dirs[-1] == data_default_dir_user)
-    assert config_default_dirs[-1] / "data" == config_eos.general.data_folder_path
-    assert config_default_dirs[-1] / "data/cache" == config_eos.cache.path()
-    assert config_default_dirs[-1] / "data/output" == config_eos.general.data_output_path
-    assert config_default_dirs[-1] / "data/output/eos.log" == config_eos.logging.file_path
-    return config_eos
+    The factory ensures:
+    - Required directories exist
+    - No pre-existing config files are present
+    - Settings are reloaded to respect test-specific configuration
+    - Dependent singletons are initialized
+
+    The singleton instance is reset during fixture teardown.
+    """
+    def _create(init: dict[str, bool] | None = None) -> ConfigEOS:
+        init = init or {
+            "with_init_settings": True,
+            "with_env_settings": True,
+            "with_dotenv_settings": False,
+            "with_file_settings": False,
+            "with_file_secret_settings": False,
+        }
+
+        # reset singleton before touching env or config
+        ConfigEOS.reset_instance()
+        ConfigEOS._init_config_eos = {
+            "with_init_settings": True,
+            "with_env_settings": True,
+            "with_dotenv_settings": True,
+            "with_file_settings": True,
+            "with_file_secret_settings": True,
+        }
+        ConfigEOS._config_file_path = None
+        ConfigEOS._force_documentation_mode = False
+
+        data_folder_path = config_default_dirs[-1] / "data"
+        data_folder_path.mkdir(exist_ok=True)
+
+        config_dir = config_default_dirs[0]
+        config_dir.mkdir(exist_ok=True)
+
+        cwd = config_default_dirs[1]
+        cwd.mkdir(exist_ok=True)
+
+        monkeypatch.setenv("EOS_CONFIG_DIR", str(config_dir))
+        monkeypatch.setenv("EOS_GENERAL__DATA_FOLDER_PATH", str(data_folder_path))
+        monkeypatch.setenv("EOS_GENERAL__DATA_CACHE_SUBPATH", "cache")
+        monkeypatch.setenv("EOS_GENERAL__DATA_OUTPUT_SUBPATH", "output")
+
+        # Ensure no config files exist
+        config_file = config_dir / ConfigEOS.CONFIG_FILE_NAME
+        config_file_cwd = cwd / ConfigEOS.CONFIG_FILE_NAME
+        assert not config_file.exists()
+        assert not config_file_cwd.exists()
+
+        config_eos = get_config(init=init)
+        # Ensure newly created configurations are respected
+        # Note: Workaround for pydantic_settings and pytest
+        config_eos.reset_settings()
+
+        # Check user data directory pathes (config_default_dirs[-1] == data_default_dir_user)
+        assert config_eos.general.data_folder_path == data_folder_path
+        assert config_eos.general.data_output_subpath == Path("output")
+        assert config_eos.cache.subpath == "cache"
+        assert config_eos.cache.path() == config_default_dirs[-1] / "data/cache"
+        assert config_eos.logging.file_path == config_default_dirs[-1] / "data/output/eos.log"
+
+        # Check config file path
+        assert str(config_eos.general.config_file_path) == str(config_file)
+        assert config_file.exists()
+        assert not config_file_cwd.exists()
+
+        # Initialize all other singletons (if not already initialized)
+        singletons_init()
+
+        return config_eos
+
+    yield _create
+
+    # teardown - final safety net
+    ConfigEOS.reset_instance()
 
 
 @pytest.fixture
-def config_default_dirs(tmpdir):
-    """Fixture that provides a list of directories to be used as config dir."""
-    tmp_user_home_dir = Path(tmpdir)
-
-    # Default config directory from platform user config directory
-    config_default_dir_user = tmp_user_home_dir / "config"
-
-    # Default config directory from current working directory
-    config_default_dir_cwd = tmp_user_home_dir / "cwd"
-    config_default_dir_cwd.mkdir()
-
-    # Default config directory from default config file
-    config_default_dir_default = Path(__file__).parent.parent.joinpath("src/akkudoktoreos/data")
-
-    # Default data directory from platform user data directory
-    data_default_dir_user = tmp_user_home_dir
-
-    return (
-        config_default_dir_user,
-        config_default_dir_cwd,
-        config_default_dir_default,
-        data_default_dir_user,
-    )
+def config_eos(config_eos_factory) -> ConfigEOS:
+    """Fixture to reset EOS config to default values."""
+    config_eos = config_eos_factory()
+    return config_eos
 
 
 # ------------------------------------
@@ -405,7 +473,11 @@ def server_base(
     Yields:
         dict[str, str]: A dictionary containing:
             - "server" (str): URL of the server.
+            - "port": port
+            - "eosdash_server": eosdash_server
+            - "eosdash_port": eosdash_port
             - "eos_dir" (str): Path to the temporary EOS_DIR.
+            - "timeout": server_timeout
     """
     host = get_default_host()
     port = 8503
@@ -427,12 +499,14 @@ def server_base(
 
     eos_tmp_dir = tempfile.TemporaryDirectory()
     eos_dir = str(eos_tmp_dir.name)
+    eos_general_data_folder_path = str(Path(eos_dir) / "data")
 
     class Starter(ProcessStarter):
         # Set environment for server run
         env = os.environ.copy()
         env["EOS_DIR"] = eos_dir
         env["EOS_CONFIG_DIR"] = eos_dir
+        env["EOS_GENERAL__DATA_FOLDER_PATH"] = eos_general_data_folder_path
         if extra_env:
             env.update(extra_env)
 
