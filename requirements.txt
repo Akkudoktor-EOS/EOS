@@ -30,3 +30,4 @@ statsmodels==0.14.6
 pydantic-settings==2.11.0
 linkify-it-py==2.0.3
 loguru==0.7.3
+lmdb==1.7.5

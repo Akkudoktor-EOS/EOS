@@ -16,11 +16,25 @@ from pydantic import Field, computed_field
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.dataabc import DataImportMixin, DataRecord, DataSequence
-from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_duration
+from akkudoktoreos.utils.datetimeutil import (
+    DateTime,
+    Duration,
+    to_datetime,
+    to_duration,
+)
 
 
 class MeasurementCommonSettings(SettingsBaseModel):
     """Measurement Configuration."""
+
+    historic_hours: Optional[int] = Field(
+        default=2 * 365 * 24,
+        ge=0,
+        json_schema_extra={
+            "description": "Number of hours into the past for measurement data",
+            "examples": [2 * 365 * 24],
+        },
+    )
 
     load_emr_keys: Optional[list[str]] = Field(
         default=None,
@@ -224,6 +238,71 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
                 logger.debug(debug_msg)
 
         return load_total_kwh_array
+
+    # ----------------------- Measurement Database Protocol ---------------------
+
+    def db_namespace(self) -> str:
+        return "Measurement"
+
+    def db_keep_datetime(self) -> Optional[DateTime]:
+        """Earliest datetime from which database records should be retained.
+
+        Used when removing old records from database to free space.
+
+        Returns:
+            Datetime or None.
+        """
+        return to_datetime().subtract(hours=self.config.measurement.historic_hours)
+
+    def save(self) -> bool:
+        """Save the measurements to persistent storage.
+
+        Returns:
+            True in case the measurements were saved, False otherwise.
+        """
+        # Use db storage if available
+        saved_to_db = DataSequence.save(self)
+        if not saved_to_db:
+            if not self.config.general.data_folder_path:
+                raise ValueError("Data folder path unknown.")
+            measurement_file_path = self.config.general.data_folder_path / "measurement.json"
+            try:
+                measurement_file_path.write_text(
+                    self.model_dump_json(indent=4),
+                    encoding="utf-8",
+                    newline="\n",
+                )
+            except Exception as e:
+                logger.exception("Cannot save measurements")
+        return True
+
+    def load(self) -> bool:
+        """Load measurements from persistent storage.
+
+        Returns:
+            True in case the measurements were loaded, False otherwise.
+        """
+        # Use db storage if available
+        loaded_from_db = DataSequence.load(self)
+        if not loaded_from_db:
+            if not self.config.general.data_folder_path:
+                raise ValueError("Data folder path unknown.")
+            measurement_file_path = self.config.general.data_folder_path / "measurement.json"
+            if not measurement_file_path.exists():
+                return False
+
+            try:
+                # Validate into a temporary instance
+                loaded = self.__class__.model_validate_json(
+                    measurement_file_path.read_text(encoding="utf-8")
+                )
+
+                # Explicitly add data records to the existing singleton
+                for record in loaded.records:
+                    self.insert_by_datetime(record)
+            except Exception as e:
+                logger.exception("Cannot load measurements")
+        return True
 
 
 def get_measurement() -> Measurement:
