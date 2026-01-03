@@ -23,7 +23,7 @@ def test_openapi_spec_current(config_eos):
         expected_spec = json.load(f_expected)
 
     # Patch get_config and import within guard to patch global variables within the eos module.
-    with patch("akkudoktoreos.config.config.get_config", return_value=config_eos):
+    with patch("akkudoktoreos.core.coreabc.get_config", return_value=config_eos):
         # Ensure the script works correctly as part of a package
         root_dir = Path(__file__).resolve().parent.parent
         sys.path.insert(0, str(root_dir))
@@ -56,7 +56,7 @@ def test_openapi_md_current(config_eos):
         expected_spec_md = f_expected.read()
 
     # Patch get_config and import within guard to patch global variables within the eos module.
-    with patch("akkudoktoreos.config.config.get_config", return_value=config_eos):
+    with patch("akkudoktoreos.core.coreabc.get_config", return_value=config_eos):
         # Ensure the script works correctly as part of a package
         root_dir = Path(__file__).resolve().parent.parent
         sys.path.insert(0, str(root_dir))
@@ -88,7 +88,7 @@ def test_config_md_current(config_eos):
     DIR_TEST_GENERATED.mkdir(parents=True, exist_ok=True)
 
     # Patch get_config and import within guard to patch global variables within the eos module.
-    with patch("akkudoktoreos.config.config.get_config", return_value=config_eos):
+    with patch("akkudoktoreos.core.coreabc.get_config", return_value=config_eos):
         # Ensure the script works correctly as part of a package
         root_dir = Path(__file__).resolve().parent.parent
         sys.path.insert(0, str(root_dir))

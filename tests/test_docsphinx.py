@@ -9,6 +9,8 @@ from typing import Optional
 
 import pytest
 
+from akkudoktoreos.core.coreabc import singletons_init
+
 DIR_PROJECT_ROOT = Path(__file__).absolute().parent.parent
 DIR_BUILD = DIR_PROJECT_ROOT / "build"
 DIR_BUILD_DOCS = DIR_PROJECT_ROOT / "build" / "docs"
@@ -80,6 +82,7 @@ class TestSphinxDocumentation:
 
     def test_sphinx_build(self, sphinx_changed: Optional[str], is_finalize: bool):
         """Build Sphinx documentation and ensure no major warnings appear in the build output."""
+
         # Ensure docs folder exists
         if not DIR_DOCS.exists():
             pytest.skip(f"Skipping Sphinx build test - docs folder not present: {DIR_DOCS}")
@@ -88,7 +91,7 @@ class TestSphinxDocumentation:
             pytest.skip(f"Skipping Sphinx build — no relevant file changes detected: {HASH_FILE}")
 
         if not is_finalize:
-            pytest.skip("Skipping Sphinx test — not full run")
+            pytest.skip("Skipping Sphinx test — not finalize")
 
         # Clean directories
         self._cleanup_autosum_dirs()
@@ -123,7 +126,11 @@ class TestSphinxDocumentation:
         # Remove temporary EOS_DIR
         eos_tmp_dir.cleanup()
 
-        assert returncode == 0
+        if returncode != 0:
+            pytest.fail(
+                f"Sphinx build failed with exit code {returncode}.\n"
+                f"{output}\n"
+            )
 
         # Possible markers: ERROR: WARNING: TRACEBACK:
         major_markers = ("ERROR:", "TRACEBACK:")

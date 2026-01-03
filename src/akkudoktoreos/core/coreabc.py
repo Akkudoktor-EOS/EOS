@@ -1,28 +1,78 @@
 """Abstract and base classes for EOS core.
 
-This module provides foundational classes for handling configuration and prediction functionality
-in EOS. It includes base classes that provide convenient access to global
-configuration and prediction instances through properties.
-
-Classes:
-    - ConfigMixin: Mixin class for managing and accessing global configuration.
-    - PredictionMixin: Mixin class for managing and accessing global prediction data.
-    - SingletonMixin: Mixin class to create singletons.
+This module provides foundational classes and functions to access global EOS resources.
 """
 
+from __future__ import (
+    annotations,  # use types lazy as strings, helps to prevent circular dependencies
+)
+
+import sys
 import threading
-from typing import Any, ClassVar, Dict, Optional, Type
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Type, Union
 
 from loguru import logger
 
 from akkudoktoreos.core.decorators import classproperty
 from akkudoktoreos.utils.datetimeutil import DateTime
 
-adapter_eos: Any = None
-config_eos: Any = None
-measurement_eos: Any = None
-prediction_eos: Any = None
-ems_eos: Any = None
+if TYPE_CHECKING:
+    # Prevents circular dependies
+    from akkudoktoreos.adapter.adapter import Adapter
+    from akkudoktoreos.config.config import ConfigEOS
+    from akkudoktoreos.core.datadb import DataDB
+    from akkudoktoreos.core.ems import EnergyManagement
+    from akkudoktoreos.devices.devices import ResourceRegistry
+    from akkudoktoreos.measurement.measurement import Measurement
+    from akkudoktoreos.prediction.prediction import Prediction
+
+
+# Detect if Sphinx is importing this module
+_DOCS_MODE = "sphinx" in sys.modules or getattr(sys, "_called_from_sphinx", False)
+
+
+# Module level singleton cache
+_adapter_eos: Optional[Adapter] = None
+_config_eos: Optional[ConfigEOS] = None
+_ems_eos: Optional[EnergyManagement] = None
+_database_eos: Optional[DataDB] = None
+_measurement_eos: Optional[Measurement] = None
+_prediction_eos: Optional[Prediction] = None
+_resource_registry_eos: Optional[ResourceRegistry] = None
+
+
+def get_adapter(init: bool = False) -> Adapter:
+    """Retrieve the singleton EOS Adapter instance.
+
+    This function provides access to the global EOS Adapter instance. The Adapter
+    object is created on first access if `init` is True. If the instance is
+    accessed before initialization and `init` is False, a RuntimeError is raised.
+
+    Args:
+        init (bool): If True, create the Adapter instance if it does not exist.
+                     Default is False.
+
+    Returns:
+        Adapter: The global EOS Adapter instance.
+
+    Raises:
+        RuntimeError: If accessed before initialization with `init=False`.
+
+    Usage:
+        .. code-block:: python
+
+            adapter = get_adapter(init=True)  # Initialize and retrieve
+            adapter.do_something()
+    """
+    global _adapter_eos
+    if _adapter_eos is None:
+        if not init and not _DOCS_MODE:
+            raise RuntimeError("Adapter access before init.")
+        from akkudoktoreos.adapter.adapter import Adapter
+
+        _adapter_eos = Adapter()
+
+    return _adapter_eos
 
 
 class AdapterMixin:
@@ -49,20 +99,83 @@ class AdapterMixin:
     """
 
     @classproperty
-    def adapter(cls) -> Any:
+    def adapter(cls) -> Adapter:
         """Convenience class method/ attribute to retrieve the EOS adapters.
 
         Returns:
             Adapter: The adapters.
         """
-        # avoid circular dependency at import time
-        global adapter_eos
-        if adapter_eos is None:
-            from akkudoktoreos.adapter.adapter import get_adapter
+        return get_adapter()
 
-            adapter_eos = get_adapter()
 
-        return adapter_eos
+def get_config(init: Union[bool, dict[str, bool]] = False) -> ConfigEOS:
+    """Retrieve the singleton EOS configuration instance.
+
+    This function provides controlled access to the global EOS configuration
+    singleton (`ConfigEOS`). The configuration is created lazily on first
+    access and can be initialized with a configurable set of settings sources.
+
+    By default, accessing the configuration without prior initialization
+    raises a `RuntimeError`. Passing `init=True` or an initialization
+    configuration dictionary enables creation of the singleton.
+
+    Args:
+        init (Union[bool, dict[str, bool]]):
+            Controls initialization of the configuration.
+
+            - ``False`` (default): Do not initialize. Raises ``RuntimeError``
+              if the configuration does not yet exist.
+            - ``True``: Initialize the configuration using default
+              initialization behavior (all settings sources enabled).
+            - ``dict[str, bool]``: Initialize the configuration with fine-grained
+              control over which settings sources are enabled. Missing keys
+              default to ``True``.
+
+            Supported keys include:
+                - ``with_init_settings``
+                - ``with_env_settings``
+                - ``with_dotenv_settings``
+                - ``with_file_settings``
+                - ``with_file_secret_settings``
+
+    Returns:
+        ConfigEOS: The global EOS configuration singleton instance.
+
+    Raises:
+        RuntimeError:
+            If the configuration has not been initialized and ``init`` is
+            ``False``.
+
+    Usage:
+        .. code-block:: python
+
+            # Initialize with default behavior (all sources enabled)
+            config = get_config(init=True)
+
+            # Initialize with explicit source control
+            config = get_config(init={
+                "with_init_settings": True,
+                "with_env_settings": True,
+                "with_dotenv_settings": True,
+                "with_file_settings": False,
+                "with_file_secret_settings": False,
+            })
+
+            # Access existing configuration
+            host = get_config().server.host
+    """
+    global _config_eos
+    if _config_eos is None:
+        if not init and not _DOCS_MODE:
+            raise RuntimeError("Config access before init.")
+        from akkudoktoreos.config.config import ConfigEOS
+
+        if isinstance(init, dict):
+            ConfigEOS._init_config_eos = init
+
+        _config_eos = ConfigEOS()
+
+    return _config_eos
 
 
 class ConfigMixin:
@@ -89,20 +202,48 @@ class ConfigMixin:
     """
 
     @classproperty
-    def config(cls) -> Any:
+    def config(cls) -> ConfigEOS:
         """Convenience class method/ attribute to retrieve the EOS configuration data.
 
         Returns:
             ConfigEOS: The configuration.
         """
-        # avoid circular dependency at import time
-        global config_eos
-        if config_eos is None:
-            from akkudoktoreos.config.config import get_config
+        return get_config()
 
-            config_eos = get_config()
 
-        return config_eos
+def get_measurement(init: bool = False) -> Measurement:
+    """Retrieve the singleton EOS Measurement instance.
+
+    This function provides access to the global EOS Measurement object. The
+    Measurement instance is created on first access if `init` is True. If the
+    instance is accessed before initialization and `init` is False, a RuntimeError
+    is raised.
+
+    Args:
+        init (bool): If True, create the Measurement instance if it does not exist.
+                     Default is False.
+
+    Returns:
+        Measurement: The global EOS Measurement instance.
+
+    Raises:
+        RuntimeError: If accessed before initialization with `init=False`.
+
+    Usage:
+        .. code-block:: python
+
+            measurement = get_measurement(init=True)  # Initialize and retrieve
+            measurement.read_sensor_data()
+    """
+    global _measurement_eos
+    if _measurement_eos is None:
+        if not init and not _DOCS_MODE:
+            raise RuntimeError("Measurement access before init.")
+        from akkudoktoreos.measurement.measurement import Measurement
+
+        _measurement_eos = Measurement()
+
+    return _measurement_eos
 
 
 class MeasurementMixin:
@@ -130,20 +271,48 @@ class MeasurementMixin:
     """
 
     @classproperty
-    def measurement(cls) -> Any:
+    def measurement(cls) -> Measurement:
         """Convenience class method/ attribute to retrieve the EOS measurement data.
 
         Returns:
             Measurement: The measurement.
         """
-        # avoid circular dependency at import time
-        global measurement_eos
-        if measurement_eos is None:
-            from akkudoktoreos.measurement.measurement import get_measurement
+        return get_measurement()
 
-            measurement_eos = get_measurement()
 
-        return measurement_eos
+def get_prediction(init: bool = False) -> Prediction:
+    """Retrieve the singleton EOS Prediction instance.
+
+    This function provides access to the global EOS Prediction object. The
+    Prediction instance is created on first access if `init` is True. If the
+    instance is accessed before initialization and `init` is False, a RuntimeError
+    is raised.
+
+    Args:
+        init (bool): If True, create the Prediction instance if it does not exist.
+                     Default is False.
+
+    Returns:
+        Prediction: The global EOS Prediction instance.
+
+    Raises:
+        RuntimeError: If accessed before initialization with `init=False`.
+
+    Usage:
+        .. code-block:: python
+
+            prediction = get_prediction(init=True)  # Initialize and retrieve
+            prediction.forecast_next_hour()
+    """
+    global _prediction_eos
+    if _prediction_eos is None:
+        if not init and not _DOCS_MODE:
+            raise RuntimeError("Prediction access before init.")
+        from akkudoktoreos.prediction.prediction import Prediction
+
+        _prediction_eos = Prediction()
+
+    return _prediction_eos
 
 
 class PredictionMixin:
@@ -171,20 +340,47 @@ class PredictionMixin:
     """
 
     @classproperty
-    def prediction(cls) -> Any:
+    def prediction(cls) -> Prediction:
         """Convenience class method/ attribute to retrieve the EOS prediction data.
 
         Returns:
             Prediction: The prediction.
         """
-        # avoid circular dependency at import time
-        global prediction_eos
-        if prediction_eos is None:
-            from akkudoktoreos.prediction.prediction import get_prediction
+        return get_prediction()
 
-            prediction_eos = get_prediction()
 
-        return prediction_eos
+def get_ems(init: bool = False) -> EnergyManagement:
+    """Retrieve the singleton EOS Energy Management System (EMS) instance.
+
+    This function provides access to the global EOS EMS instance. The instance
+    is created on first access if `init` is True. If the instance is accessed
+    before initialization and `init` is False, a RuntimeError is raised.
+
+    Args:
+        init (bool): If True, create the EMS instance if it does not exist.
+                     Default is False.
+
+    Returns:
+        EnergyManagement: The global EOS EMS instance.
+
+    Raises:
+        RuntimeError: If accessed before initialization with `init=False`.
+
+    Usage:
+        .. code-block:: python
+
+            ems = get_ems(init=True)  # Initialize and retrieve
+            ems.start_energy_management_loop()
+    """
+    global _ems_eos
+    if _ems_eos is None:
+        if not init and not _DOCS_MODE:
+            raise RuntimeError("EMS access before init.")
+        from akkudoktoreos.core.ems import EnergyManagement
+
+        _ems_eos = EnergyManagement()
+
+    return _ems_eos
 
 
 class EnergyManagementSystemMixin:
@@ -200,7 +396,7 @@ class EnergyManagementSystemMixin:
         global EnergyManagementSystem instance lazily to avoid import-time circular dependencies.
 
     Attributes:
-        ems (EnergyManagementSystem): Property to access the global EOS energy management system.
+        ems (EnergyManagement): Property to access the global EOS energy management system.
 
     Example:
         .. code-block:: python
@@ -213,20 +409,114 @@ class EnergyManagementSystemMixin:
     """
 
     @classproperty
-    def ems(cls) -> Any:
+    def ems(cls) -> EnergyManagement:
         """Convenience class method/ attribute to retrieve the EOS energy management system.
 
         Returns:
             EnergyManagementSystem: The energy management system.
         """
-        # avoid circular dependency at import time
-        global ems_eos
-        if ems_eos is None:
-            from akkudoktoreos.core.ems import get_ems
+        return get_ems()
 
-            ems_eos = get_ems()
 
-        return ems_eos
+def get_database(init: bool = False) -> DataDB:
+    """Retrieve the singleton EOS database instance.
+
+    This function provides access to the global EOS DataDB instance. The
+    instance is created on first access if `init` is True. If the instance is
+    accessed before initialization and `init` is False, a RuntimeError is raised.
+
+    Args:
+        init (bool): If True, create the DataDB instance if it does not exist.
+                     Default is False.
+
+    Returns:
+        DataDB: The global EOS database instance.
+
+    Raises:
+        RuntimeError: If accessed before initialization with `init=False`.
+
+    Usage:
+        .. code-block:: python
+
+            db = get_database(init=True)  # Initialize and retrieve
+            db.insert_measurement(...)
+    """
+    global _database_eos
+    if _database_eos is None:
+        if not init and not _DOCS_MODE:
+            raise RuntimeError("Database access before init.")
+        from akkudoktoreos.core.datadb import DataDB
+
+        _database_eos = DataDB()
+
+    return _database_eos
+
+
+class DatabaseMixin:
+    """Mixin class for managing EOS database access.
+
+    This class serves as a foundational component for EOS-related classes requiring access
+    to the EOS database. It provides a `database` property that dynamically retrieves
+    the database instance.
+
+    Usage:
+        Subclass this base class to gain access to the `database` attribute, which retrieves the
+        global database instance lazily to avoid import-time circular dependencies.
+
+    Attributes:
+        database (DataDB): Property to access the global EOS database.
+
+    Example:
+        .. code-block:: python
+
+            class MyOptimizationClass(PredictionMixin):
+                def store something(self):
+                    db = self.database
+
+    """
+
+    @classproperty
+    def database(cls) -> DataDB:
+        """Convenience class method/ attribute to retrieve the EOS database.
+
+        Returns:
+            DataDB: The database.
+        """
+        return get_database()
+
+
+def get_resource_registry(init: bool = False) -> ResourceRegistry:
+    """Retrieve the singleton EOS Resource Registry instance.
+
+    This function provides access to the global EOS ResourceRegistry instance.
+    The instance is created on first access if `init` is True. If the instance
+    is accessed before initialization and `init` is False, a RuntimeError is raised.
+
+    Args:
+        init (bool): If True, create the ResourceRegistry instance if it does not exist.
+                     Default is False.
+
+    Returns:
+        ResourceRegistry: The global EOS Resource Registry instance.
+
+    Raises:
+        RuntimeError: If accessed before initialization with `init=False`.
+
+    Usage:
+        .. code-block:: python
+
+            registry = get_resource_registry(init=True)  # Initialize and retrieve
+            registry.register_device(my_device)
+    """
+    global _resource_registry_eos
+    if _resource_registry_eos is None:
+        if not init and not _DOCS_MODE:
+            raise RuntimeError("ResourceRegistry access before init.")
+        from akkudoktoreos.devices.devices import ResourceRegistry
+
+        _resource_registry_eos = ResourceRegistry()
+
+    return _resource_registry_eos
 
 
 class StartMixin(EnergyManagementSystemMixin):
@@ -243,14 +533,7 @@ class StartMixin(EnergyManagementSystemMixin):
         Returns:
             DateTime: The starting datetime of the current or latest energy management, or None.
         """
-        # avoid circular dependency at import time
-        global ems_eos
-        if ems_eos is None:
-            from akkudoktoreos.core.ems import get_ems
-
-            ems_eos = get_ems()
-
-        return ems_eos.start_datetime
+        return get_ems().start_datetime
 
 
 class SingletonMixin:
@@ -332,3 +615,43 @@ class SingletonMixin:
         if not hasattr(self, "_initialized"):
             super().__init__(*args, **kwargs)
             self._initialized = True
+
+
+_singletons_init_running: bool = False
+
+
+def singletons_init() -> None:
+    """Initialize the singletons for adapter, config, measurement, prediction, database, resource registry."""
+    # Prevent recursive calling
+    global \
+        _singletons_init_running, \
+        _adapter_eos, \
+        _config_eos, \
+        _database_eos, \
+        _measurement_eos, \
+        _prediction_eos, \
+        _ems_eos, \
+        _resource_registry_eos
+
+    if _singletons_init_running:
+        return
+
+    _singletons_init_running = True
+
+    try:
+        if _config_eos is None:
+            get_config(init=True)
+        if _adapter_eos is None:
+            get_adapter(init=True)
+        if _database_eos is None:
+            get_database(init=True)
+        if _ems_eos is None:
+            get_ems(init=True)
+        if _measurement_eos is None:
+            get_measurement(init=True)
+        if _prediction_eos is None:
+            get_prediction(init=True)
+        if _resource_registry_eos is None:
+            get_resource_registry(init=True)
+    finally:
+        _singletons_init_running = False
