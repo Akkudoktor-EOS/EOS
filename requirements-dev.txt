@@ -11,7 +11,7 @@
 # !!! Sync .pre-commit-config.yaml and requirements-dev.txt !!!
 pre-commit==4.5.1
 mypy==1.19.1
-types-requests==2.32.4.20250913 # for mypy
+types-requests==2.32.4.20260107 # for mypy
 pandas-stubs==2.3.3.251219 # for mypy
 tokenize-rt==6.2.0 # for mypy
 types-docutils==0.22.3.20251115 # for mypy
