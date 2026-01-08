@@ -6,7 +6,7 @@
 # the root directory (no add-on folder as usual).
 
 name: "Akkudoktor-EOS"
-version: "0.2.0.dev44099868"
+version: "0.2.0.dev84352035"
 slug: "eos"
 description: "Akkudoktor-EOS add-on"
 url: "https://github.com/Akkudoktor-EOS/EOS"

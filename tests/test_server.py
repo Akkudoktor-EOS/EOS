@@ -10,6 +10,7 @@ import psutil
 import pytest
 import requests
 from conftest import cleanup_eos_eosdash
+from loguru import logger
 
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.server.server import get_default_host, wait_for_port_free
@@ -45,6 +46,73 @@ class TestServer:
 
 
 class TestServerStartStop:
+
+    @pytest.mark.asyncio
+    async def test_forward_stream_truncates_very_long_line(self, monkeypatch, tmp_path):
+        """Test logging from EOSdash can also handle very long lines."""
+
+        eos_dir = tmp_path
+        monkeypatch.setenv("EOS_DIR", str(eos_dir))
+        monkeypatch.setenv("EOS_CONFIG_DIR", str(eos_dir))
+
+        # Import after env vars are set
+        from akkudoktoreos.server.rest.starteosdash import (
+            EOSDASH_LOG_MAX_LINE_BYTES,
+            _eosdash_log_worker,
+            eosdash_log_queue,
+            forward_stream,
+        )
+
+        # ---- Ensure queue + worker are initialized ----
+        if eosdash_log_queue is None:
+            from akkudoktoreos.server.rest import starteosdash
+
+            starteosdash.eosdash_log_queue = asyncio.Queue(maxsize=10)
+            worker_task = asyncio.create_task(_eosdash_log_worker())
+        else:
+            worker_task = None
+
+        long_message = "X" * (EOSDASH_LOG_MAX_LINE_BYTES + 10_000)
+        raw_line = f"INFO some.module:123 some_func - {long_message}\n"
+        raw_bytes = raw_line.encode()
+
+        reader = asyncio.StreamReader()
+        reader.feed_data(raw_bytes)
+        reader.feed_eof()
+
+        # ---- Capture Loguru output ----
+        records = []
+
+        def sink(message):
+            records.append(message.record)
+
+        logger_id = logger.add(sink, level="INFO")
+
+        try:
+            await forward_stream(reader)
+
+            # Allow log worker to flush queue
+            await asyncio.sleep(0)
+
+        finally:
+            logger.remove(logger_id)
+
+            # Clean shutdown of worker (important for pytest)
+            if worker_task:
+                from akkudoktoreos.server.rest import starteosdash
+
+                if starteosdash.eosdash_log_queue:
+                    starteosdash.eosdash_log_queue.put_nowait(None)
+                await worker_task
+
+        # ---- Assert ----
+        assert len(records) == 1, "Expected exactly one log record"
+
+        record = records[0]
+        msg = record["message"]
+
+        assert msg.endswith("[TRUNCATED]"), "Expected truncation marker"
+        assert len(msg) <= EOSDASH_LOG_MAX_LINE_BYTES + 20
 
     @pytest.mark.asyncio
     async def test_server_start_eosdash(self, config_eos, monkeypatch, tmp_path):
