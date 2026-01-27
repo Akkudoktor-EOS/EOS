@@ -12,7 +12,7 @@ It allows EOS to:
 * **Receive** measurements and device states via Node-RED
   (The HTTP-IN Node "eos_data_acquisition" is NOT yet functional)
 
-This adapter enables a handover of the EOS control instructions (EV, battery & home appliance) 
+This adapter enables a handover of the EOS control instructions (EV, battery & home appliance)
 for the current timeslot via Node-RED to any desired integration,
 while keeping EOS **device simulations and optimisation
 logic decoupled from other implementations**.
