@@ -18,7 +18,6 @@ for the current timeslot via Node-RED to any desired integration,
 while keeping EOS **device simulations and optimisation
 logic decoupled from other implementations**.
 
-
 ## 1. Exchanging data between EOS and Node-RED
 
 ### Basic concept
@@ -36,7 +35,6 @@ Typical use cases with Node-RED:
 * Device or manufacturer integrations
 * Debugging and validation
 
-
 ### Configuration steps in EOS
 
 #### 1. Enable and configure the Node-RED adapter
@@ -47,7 +45,6 @@ EOS must be configured with access to the Node-RED instance in Config->adapter.
 * adapter.nodered.port: 1880 (default)
 * adapter.provider: ["NodeRED"]
 
-
 #### 2. Run energy optimisation
 
 Before the run, EOS receives:
@@ -56,7 +53,6 @@ Before the run, EOS receives:
 
 After the run, EOS provides:
 * The device instruction and solution entities for the current time slot via HTTP-IN "Control Dispatch".
-
 
 ### Configuration steps in NodeRED
 
@@ -68,7 +64,6 @@ After the run, EOS provides:
 ![My Picture](../../_static/EOS_Control_Dispatch_Part-2.png)
 ![My Picture](../../_static/EOS_Control_Dispatch_Part-3.png)
 ![My Picture](../../_static/EOS_Control_Dispatch_Part-4.png)
-
 
 ## 2. Data obtained *from EOS*
 
@@ -87,11 +82,9 @@ E.g.:
   * Power or rate limits
   * Mode-specific control parameters
 
-
 ## 3. Data retrieved by EOS via Node-RED
 
 "Under construction".
-
 
 ## 4. Further processing of EOS data
 
