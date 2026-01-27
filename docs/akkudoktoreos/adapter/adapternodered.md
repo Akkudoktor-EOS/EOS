@@ -12,7 +12,6 @@ It allows EOS to:
 * **Receive** measurements and device states via Node-RED
   (The HTTP-IN Node "eos_data_acquisition" is NOT yet functional)
 
-
 This adapter enables a handover of the EOS control instructions (EV, battery & home appliance) 
 for the current timeslot via Node-RED to any desired integration,
 while keeping EOS **device simulations and optimisation
@@ -26,7 +25,6 @@ EOS **receives** e.g. measurements via HTTP-IN by Node-RED before each energy ma
 (The HTTP-IN Node "eos_data_acquisition" is NOT yet functional)
 
 EOS **provides control instructions** via HTTP-IN to Node-RED after each optimisation run.
-
 
 Typical use cases with Node-RED:
 
@@ -103,7 +101,6 @@ responsible for executing the actual control actions.
 
 * **EOS** focuses on **forecasting, simulation, and optimisation**
 * **Node-RED** can focus on **moving, processing, integration and execution**
-
 
 The Node-RED adapter provides a structured interface between EOS and a heterogeneous environment,
 allowing flexible integration without coupling EOS to device specifics.
