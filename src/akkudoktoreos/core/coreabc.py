@@ -229,6 +229,42 @@ class EnergyManagementSystemMixin:
         return ems_eos
 
 
+class DatabaseMixin:
+    """Mixin class for managing EOS database access.
+
+    This class serves as a foundational component for EOS-related classes requiring access
+    to the EOS database. It provides a `database` property that dynamically retrieves
+    the database instance.
+
+    Usage:
+        Subclass this base class to gain access to the `database` attribute, which retrieves the
+        global database instance lazily to avoid import-time circular dependencies.
+
+    Attributes:
+        database (DataDB): Property to access the global EOS database.
+
+    Example:
+        .. code-block:: python
+
+            class MyOptimizationClass(PredictionMixin):
+                def store something(self):
+                    db = self.database
+
+    """
+
+    @property
+    def database(self) -> Any:
+        """Convenience class method/ attribute to retrieve the EOS database.
+
+        Returns:
+            database: The database.
+        """
+        # avoid circular dependency at import time
+        from akkudoktoreos.core.datadb import get_database
+
+        return get_database()
+
+
 class StartMixin(EnergyManagementSystemMixin):
     """A mixin to manage the start datetime for energy management.
 

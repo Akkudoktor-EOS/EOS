@@ -29,6 +29,13 @@
            "subpath": "cache",
            "cleanup_interval": 300.0
        },
+       "database": {
+           "provider": "LMDB",
+           "compression_level": 0,
+           "max_records_in_memory": 1000,
+           "auto_save": true,
+           "batch_size": 100
+       },
        "devices": {
            "batteries": [
                {
@@ -138,7 +145,7 @@
            }
        },
        "general": {
-           "version": "0.2.0.dev84352035",
+           "version": "0.2.0.dev83512874",
            "data_folder_path": null,
            "data_output_subpath": "output",
            "latitude": 52.52,
@@ -157,6 +164,7 @@
            "file_level": "TRACE"
        },
        "measurement": {
+           "historic_hours": 17520,
            "load_emr_keys": [
                "load0_emr"
            ],
