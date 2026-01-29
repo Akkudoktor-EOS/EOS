@@ -26,6 +26,7 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.config.configmigrate import migrate_config_data, migrate_config_file
 from akkudoktoreos.core.cachesettings import CacheCommonSettings
 from akkudoktoreos.core.coreabc import SingletonMixin
+from akkudoktoreos.core.datadb import DatabaseCommonSettings
 from akkudoktoreos.core.decorators import classproperty
 from akkudoktoreos.core.emsettings import (
     EnergyManagementCommonSettings,
@@ -191,6 +192,9 @@ class SettingsEOS(pydantic_settings.BaseSettings, PydanticModelNestedValueMixin)
     cache: Optional[CacheCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Cache Settings"}
     )
+    database: Optional[DatabaseCommonSettings] = Field(
+        default=None, json_schema_extra={"description": "Database Settings"}
+    )
     ems: Optional[EnergyManagementCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Energy Management Settings"}
     )
@@ -250,6 +254,7 @@ class SettingsEOSDefaults(SettingsEOS):
 
     general: GeneralSettings = GeneralSettings()
     cache: CacheCommonSettings = CacheCommonSettings()
+    database: DatabaseCommonSettings = DatabaseCommonSettings()
     ems: EnergyManagementCommonSettings = EnergyManagementCommonSettings()
     logging: LoggingCommonSettings = LoggingCommonSettings()
     devices: DevicesCommonSettings = DevicesCommonSettings()

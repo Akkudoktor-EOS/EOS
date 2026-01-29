@@ -28,6 +28,7 @@ from loguru import logger
 
 from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
 from akkudoktoreos.core.cache import CacheFileStore
+from akkudoktoreos.core.datadb import database_track_config
 from akkudoktoreos.core.emplan import EnergyManagementPlan, ResourceStatus
 from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.core.emsettings import EnergyManagementMode
@@ -83,6 +84,7 @@ logging_track_config(config_eos, "logging", None, None)
 # -----------------------------
 
 config_eos.track_nested_value("/logging", logging_track_config)
+config_eos.track_nested_value("/database", database_track_config)
 
 # ----------------------------
 # Safe argparse at import time
@@ -205,12 +207,14 @@ if config_eos.server.startup_eosdash:
 def save_eos_state() -> None:
     """Save EOS state."""
     resource_registry_eos.save()
+    measurement_eos.save()
     cache_save()  # keep last
 
 
 def load_eos_state() -> None:
     """Load EOS state."""
     cache_load()  # keep first
+    measurement_eos.load()
     resource_registry_eos.load()
 
 
@@ -407,6 +411,46 @@ def fastapi_admin_cache_get() -> dict:
         data = CacheFileStore().current_store()
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error on cache data retrieval: {e}")
+    return data
+
+
+@app.get("/v1/admin/database/stats", tags=["admin"])
+def fastapi_admin_database_stats_get() -> dict:
+    """Get statistics from database.
+
+    Returns:
+        data (dict): The database statistics
+    """
+    data = {}
+    try:
+        # Get the stats
+        data[measurement_eos.db_namespace()] = measurement_eos.db_get_stats()
+        data[prediction_eos.__class__.__name__] = prediction_eos.db_get_stats()
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        raise HTTPException(
+            status_code=400, detail=f"Error on database statistic retrieval: {e}\n{trace}"
+        )
+    return data
+
+
+@app.post("/v1/admin/database/vacuum", tags=["admin"])
+def fastapi_admin_database_vacuum_post() -> dict:
+    """Remove old records from database.
+
+    Returns:
+        data (dict): The database stats after removal of old records.
+    """
+    data = {}
+    try:
+        measurement_eos.db_vacuum()
+        prediction_eos.db_vacuum()
+        # Get the stats
+        data[measurement_eos.db_namespace()] = measurement_eos.db_get_stats()
+        data[prediction_eos.__class__.__name__] = prediction_eos.db_get_stats()
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        raise HTTPException(status_code=400, detail=f"Error on database vacuum: {e}\n{trace}")
     return data
 
 
