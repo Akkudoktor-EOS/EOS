@@ -36,7 +36,7 @@ def test_genetic_params_english_input():
     print("✅ English input accepted")
 
 def test_genetic_params_english_output():
-    """Test that English field names are used in JSON output."""
+    """Test that both English and German field names are in JSON output (backward compatibility)."""
     data_de = {
         "pv_prognose_wh": [100.0, 200.0],
         "strompreis_euro_pro_wh": [0.0003, 0.0003],
@@ -47,16 +47,24 @@ def test_genetic_params_english_output():
     params = GeneticEnergyManagementParameters(**data_de)
     json_output = json.loads(params.model_dump_json(by_alias=True))
 
+    # English names should be in output
     assert "pv_forecast_wh" in json_output
     assert "electricity_price_per_wh" in json_output
     assert "feed_in_tariff_per_wh" in json_output
     assert "price_per_wh_battery" in json_output
     assert "total_load" in json_output
 
-    # German names should NOT be in output
-    assert "pv_prognose_wh" not in json_output
-    assert "strompreis_euro_pro_wh" not in json_output
-    print("✅ English output generated")
+    # German names should ALSO be in output (backward compatibility)
+    assert "pv_prognose_wh" in json_output
+    assert "strompreis_euro_pro_wh" in json_output
+    assert "einspeiseverguetung_euro_pro_wh" in json_output
+    assert "preis_euro_pro_wh_akku" in json_output
+    assert "gesamtlast" in json_output
+
+    # Both should have same values
+    assert json_output["pv_forecast_wh"] == json_output["pv_prognose_wh"]
+    assert json_output["electricity_price_per_wh"] == json_output["strompreis_euro_pro_wh"]
+    print("✅ Both English and German output generated")
 
 def test_simulation_result_translations():
     """Test simulation result field translations."""

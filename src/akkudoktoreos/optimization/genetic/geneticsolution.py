@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import pandas as pd
 from loguru import logger
-from pydantic import AliasChoices, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, ConfigDict, Field, computed_field, field_validator
 
 from akkudoktoreos.core.coreabc import (
     ConfigMixin,
@@ -148,6 +148,85 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
         validation_alias=AliasChoices("Electricity_price", "electricity_price"),
         json_schema_extra={"description": "Used Electricity Price, including predictions"},
     )
+
+    # Computed fields for backward compatibility (deprecated German names)
+    @computed_field
+    @property
+    def Last_Wh_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use load_wh_per_hour instead."""
+        return self.load_wh_per_hour
+
+    @computed_field
+    @property
+    def EAuto_SoC_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use ev_soc_per_hour instead."""
+        return self.ev_soc_per_hour
+
+    @computed_field
+    @property
+    def Einnahmen_Euro_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use revenue_per_hour instead."""
+        return self.revenue_per_hour
+
+    @computed_field
+    @property
+    def Gesamt_Verluste(self) -> float:
+        """Deprecated: Use total_losses instead."""
+        return self.total_losses
+
+    @computed_field
+    @property
+    def Gesamtbilanz_Euro(self) -> float:
+        """Deprecated: Use total_balance instead."""
+        return self.total_balance
+
+    @computed_field
+    @property
+    def Gesamteinnahmen_Euro(self) -> float:
+        """Deprecated: Use total_revenue instead."""
+        return self.total_revenue
+
+    @computed_field
+    @property
+    def Gesamtkosten_Euro(self) -> float:
+        """Deprecated: Use total_costs instead."""
+        return self.total_costs
+
+    @computed_field
+    @property
+    def Kosten_Euro_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use costs_per_hour instead."""
+        return self.costs_per_hour
+
+    @computed_field
+    @property
+    def Netzbezug_Wh_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use grid_consumption_wh_per_hour instead."""
+        return self.grid_consumption_wh_per_hour
+
+    @computed_field
+    @property
+    def Netzeinspeisung_Wh_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use grid_feed_in_wh_per_hour instead."""
+        return self.grid_feed_in_wh_per_hour
+
+    @computed_field
+    @property
+    def Verluste_Pro_Stunde(self) -> list[float]:
+        """Deprecated: Use losses_per_hour instead."""
+        return self.losses_per_hour
+
+    @computed_field
+    @property
+    def akku_soc_pro_stunde(self) -> list[float]:
+        """Deprecated: Use battery_soc_per_hour instead."""
+        return self.battery_soc_per_hour
+
+    @computed_field
+    @property
+    def Electricity_price(self) -> list[float]:
+        """Deprecated: Use electricity_price instead."""
+        return self.electricity_price
 
     @field_validator(
         "load_wh_per_hour",

@@ -11,7 +11,14 @@ forecasts, and fallback defaults, preparing them for optimization runs.
 from typing import Optional, Union
 
 from loguru import logger
-from pydantic import AliasChoices, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 from typing_extensions import Self
 
 from akkudoktoreos.core.coreabc import (
@@ -68,6 +75,37 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
             "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
         },
     )
+
+    # Computed fields for backward compatibility (deprecated German names)
+    @computed_field
+    @property
+    def pv_prognose_wh(self) -> list[float]:
+        """Deprecated: Use pv_forecast_wh instead."""
+        return self.pv_forecast_wh
+
+    @computed_field
+    @property
+    def strompreis_euro_pro_wh(self) -> list[float]:
+        """Deprecated: Use electricity_price_per_wh instead."""
+        return self.electricity_price_per_wh
+
+    @computed_field
+    @property
+    def einspeiseverguetung_euro_pro_wh(self) -> Union[list[float], float]:
+        """Deprecated: Use feed_in_tariff_per_wh instead."""
+        return self.feed_in_tariff_per_wh
+
+    @computed_field
+    @property
+    def preis_euro_pro_wh_akku(self) -> float:
+        """Deprecated: Use price_per_wh_battery instead."""
+        return self.price_per_wh_battery
+
+    @computed_field
+    @property
+    def gesamtlast(self) -> list[float]:
+        """Deprecated: Use total_load instead."""
+        return self.total_load
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
