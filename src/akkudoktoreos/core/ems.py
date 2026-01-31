@@ -409,7 +409,6 @@ class EnergyManagement(
             )
 
 
-
 # Initialize the Energy Management System, it is a singleton.
 ems = EnergyManagement()
 

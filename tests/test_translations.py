@@ -2,8 +2,12 @@
 """Quick test to verify API field name translations work correctly."""
 
 import json
-from akkudoktoreos.optimization.genetic.geneticparams import GeneticEnergyManagementParameters
+
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticEnergyManagementParameters,
+)
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSimulationResult
+
 
 def test_genetic_params_german_input():
     """Test that German field names are accepted as input."""
