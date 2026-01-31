@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import pandas as pd
 from loguru import logger
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, ConfigDict, Field, field_validator
 
 from akkudoktoreos.core.coreabc import (
     ConfigMixin,
@@ -84,49 +84,83 @@ class ElectricVehicleResult(DeviceOptimizeResult):
 class GeneticSimulationResult(GeneticParametersBaseModel):
     """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
 
-    Last_Wh_pro_Stunde: list[float] = Field(json_schema_extra={"description": "TBD"})
+    model_config = ConfigDict(populate_by_name=True)
+
+    Last_Wh_pro_Stunde: list[float] = Field(
+        validation_alias=AliasChoices("Last_Wh_pro_Stunde", "load_wh_per_hour"),
+        serialization_alias="load_wh_per_hour",
+        json_schema_extra={"description": "The load in watt-hours per hour."},
+    )
     EAuto_SoC_pro_Stunde: list[float] = Field(
-        json_schema_extra={"description": "The state of charge of the EV for each hour."}
+        validation_alias=AliasChoices("EAuto_SoC_pro_Stunde", "ev_soc_per_hour"),
+        serialization_alias="ev_soc_per_hour",
+        json_schema_extra={"description": "The state of charge of the EV for each hour."},
     )
     Einnahmen_Euro_pro_Stunde: list[float] = Field(
+        validation_alias=AliasChoices("Einnahmen_Euro_pro_Stunde", "revenue_per_hour"),
+        serialization_alias="revenue_per_hour",
         json_schema_extra={
-            "description": "The revenue from grid feed-in or other sources in euros per hour."
-        }
+            "description": "The revenue from grid feed-in or other sources per hour."
+        },
     )
     Gesamt_Verluste: float = Field(
-        json_schema_extra={"description": "The total losses in watt-hours over the entire period."}
+        validation_alias=AliasChoices("Gesamt_Verluste", "total_losses"),
+        serialization_alias="total_losses",
+        json_schema_extra={"description": "The total losses in watt-hours over the entire period."},
     )
     Gesamtbilanz_Euro: float = Field(
-        json_schema_extra={"description": "The total balance of revenues minus costs in euros."}
+        validation_alias=AliasChoices("Gesamtbilanz_Euro", "total_balance"),
+        serialization_alias="total_balance",
+        json_schema_extra={"description": "The total balance of revenues minus costs."},
     )
     Gesamteinnahmen_Euro: float = Field(
-        json_schema_extra={"description": "The total revenues in euros."}
+        validation_alias=AliasChoices("Gesamteinnahmen_Euro", "total_revenue"),
+        serialization_alias="total_revenue",
+        json_schema_extra={"description": "The total revenues."},
     )
-    Gesamtkosten_Euro: float = Field(json_schema_extra={"description": "The total costs in euros."})
+    Gesamtkosten_Euro: float = Field(
+        validation_alias=AliasChoices("Gesamtkosten_Euro", "total_costs"),
+        serialization_alias="total_costs",
+        json_schema_extra={"description": "The total costs."},
+    )
     Home_appliance_wh_per_hour: list[Optional[float]] = Field(
+        validation_alias=AliasChoices("Home_appliance_wh_per_hour", "home_appliance_wh_per_hour"),
+        serialization_alias="home_appliance_wh_per_hour",
         json_schema_extra={
             "description": "The energy consumption of a household appliance in watt-hours per hour."
-        }
+        },
     )
     Kosten_Euro_pro_Stunde: list[float] = Field(
-        json_schema_extra={"description": "The costs in euros per hour."}
+        validation_alias=AliasChoices("Kosten_Euro_pro_Stunde", "costs_per_hour"),
+        serialization_alias="costs_per_hour",
+        json_schema_extra={"description": "The costs per hour."},
     )
     Netzbezug_Wh_pro_Stunde: list[float] = Field(
-        json_schema_extra={"description": "The grid energy drawn in watt-hours per hour."}
+        validation_alias=AliasChoices("Netzbezug_Wh_pro_Stunde", "grid_consumption_wh_per_hour"),
+        serialization_alias="grid_consumption_wh_per_hour",
+        json_schema_extra={"description": "The grid energy drawn in watt-hours per hour."},
     )
     Netzeinspeisung_Wh_pro_Stunde: list[float] = Field(
-        json_schema_extra={"description": "The energy fed into the grid in watt-hours per hour."}
+        validation_alias=AliasChoices("Netzeinspeisung_Wh_pro_Stunde", "grid_feed_in_wh_per_hour"),
+        serialization_alias="grid_feed_in_wh_per_hour",
+        json_schema_extra={"description": "The energy fed into the grid in watt-hours per hour."},
     )
     Verluste_Pro_Stunde: list[float] = Field(
-        json_schema_extra={"description": "The losses in watt-hours per hour."}
+        validation_alias=AliasChoices("Verluste_Pro_Stunde", "losses_per_hour"),
+        serialization_alias="losses_per_hour",
+        json_schema_extra={"description": "The losses in watt-hours per hour."},
     )
     akku_soc_pro_stunde: list[float] = Field(
+        validation_alias=AliasChoices("akku_soc_pro_stunde", "battery_soc_per_hour"),
+        serialization_alias="battery_soc_per_hour",
         json_schema_extra={
             "description": "The state of charge of the battery (not the EV) in percentage per hour."
-        }
+        },
     )
     Electricity_price: list[float] = Field(
-        json_schema_extra={"description": "Used Electricity Price, including predictions"}
+        validation_alias=AliasChoices("Electricity_price", "electricity_price"),
+        serialization_alias="electricity_price",
+        json_schema_extra={"description": "Used Electricity Price, including predictions"},
     )
 
     @field_validator(

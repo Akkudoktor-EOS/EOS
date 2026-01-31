@@ -11,7 +11,7 @@ forecasts, and fallback defaults, preparing them for optimization runs.
 from typing import Optional, Union
 
 from loguru import logger
-from pydantic import Field, field_validator, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, field_validator, model_validator
 from typing_extensions import Self
 
 from akkudoktoreos.core.coreabc import (
@@ -36,30 +36,42 @@ from akkudoktoreos.utils.datetimeutil import to_duration
 class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
     """Encapsulates energy-related forecasts and costs used in GENETIC optimization."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     pv_prognose_wh: list[float] = Field(
+        validation_alias=AliasChoices("pv_prognose_wh", "pv_forecast_wh"),
+        serialization_alias="pv_forecast_wh",
         json_schema_extra={
             "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
-        }
+        },
     )
     strompreis_euro_pro_wh: list[float] = Field(
+        validation_alias=AliasChoices("strompreis_euro_pro_wh", "electricity_price_per_wh"),
+        serialization_alias="electricity_price_per_wh",
         json_schema_extra={
-            "description": "An array of floats representing the electricity price in euros per watt-hour for different time intervals."
-        }
+            "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
+        },
     )
     einspeiseverguetung_euro_pro_wh: Union[list[float], float] = Field(
+        validation_alias=AliasChoices("einspeiseverguetung_euro_pro_wh", "feed_in_tariff_per_wh"),
+        serialization_alias="feed_in_tariff_per_wh",
         json_schema_extra={
-            "description": "A float or array of floats representing the feed-in compensation in euros per watt-hour."
-        }
+            "description": "A float or array of floats representing the feed-in compensation per watt-hour."
+        },
     )
     preis_euro_pro_wh_akku: float = Field(
+        validation_alias=AliasChoices("preis_euro_pro_wh_akku", "price_per_wh_battery"),
+        serialization_alias="price_per_wh_battery",
         json_schema_extra={
             "description": "A float representing the cost of battery energy per watt-hour."
-        }
+        },
     )
     gesamtlast: list[float] = Field(
+        validation_alias=AliasChoices("gesamtlast", "total_load"),
+        serialization_alias="total_load",
         json_schema_extra={
             "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
-        }
+        },
     )
 
     @model_validator(mode="after")
