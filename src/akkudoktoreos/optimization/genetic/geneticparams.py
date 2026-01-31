@@ -38,37 +38,32 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    pv_prognose_wh: list[float] = Field(
+    pv_forecast_wh: list[float] = Field(
         validation_alias=AliasChoices("pv_prognose_wh", "pv_forecast_wh"),
-        serialization_alias="pv_forecast_wh",
         json_schema_extra={
             "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
         },
     )
-    strompreis_euro_pro_wh: list[float] = Field(
+    electricity_price_per_wh: list[float] = Field(
         validation_alias=AliasChoices("strompreis_euro_pro_wh", "electricity_price_per_wh"),
-        serialization_alias="electricity_price_per_wh",
         json_schema_extra={
             "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
         },
     )
-    einspeiseverguetung_euro_pro_wh: Union[list[float], float] = Field(
+    feed_in_tariff_per_wh: Union[list[float], float] = Field(
         validation_alias=AliasChoices("einspeiseverguetung_euro_pro_wh", "feed_in_tariff_per_wh"),
-        serialization_alias="feed_in_tariff_per_wh",
         json_schema_extra={
             "description": "A float or array of floats representing the feed-in compensation per watt-hour."
         },
     )
-    preis_euro_pro_wh_akku: float = Field(
+    price_per_wh_battery: float = Field(
         validation_alias=AliasChoices("preis_euro_pro_wh_akku", "price_per_wh_battery"),
-        serialization_alias="price_per_wh_battery",
         json_schema_extra={
             "description": "A float representing the cost of battery energy per watt-hour."
         },
     )
-    gesamtlast: list[float] = Field(
+    total_load: list[float] = Field(
         validation_alias=AliasChoices("gesamtlast", "total_load"),
-        serialization_alias="total_load",
         json_schema_extra={
             "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
         },
@@ -81,13 +76,13 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
         Raises:
             ValueError: If input list lengths differ.
         """
-        pv_prognose_length = len(self.pv_prognose_wh)
+        pv_forecast_length = len(self.pv_forecast_wh)
         if (
-            pv_prognose_length != len(self.strompreis_euro_pro_wh)
-            or pv_prognose_length != len(self.gesamtlast)
+            pv_forecast_length != len(self.electricity_price_per_wh)
+            or pv_forecast_length != len(self.total_load)
             or (
-                isinstance(self.einspeiseverguetung_euro_pro_wh, list)
-                and pv_prognose_length != len(self.einspeiseverguetung_euro_pro_wh)
+                isinstance(self.feed_in_tariff_per_wh, list)
+                and pv_forecast_length != len(self.feed_in_tariff_per_wh)
             )
         ):
             raise ValueError("Input lists have different lengths")
@@ -133,7 +128,7 @@ class GeneticOptimizationParameters(
         Raises:
             ValueError: If list lengths mismatch.
         """
-        arr_length = len(self.ems.pv_prognose_wh)
+        arr_length = len(self.ems.pv_forecast_wh)
         if self.temperature_forecast is not None and arr_length != len(self.temperature_forecast):
             raise ValueError("Input lists have different lengths")
         return self
@@ -638,11 +633,11 @@ class GeneticOptimizationParameters(
             try:
                 oparams = GeneticOptimizationParameters(
                     ems=GeneticEnergyManagementParameters(
-                        pv_prognose_wh=pvforecast_ac_power,
-                        strompreis_euro_pro_wh=elecprice_marketprice_wh,
-                        einspeiseverguetung_euro_pro_wh=feed_in_tariff_wh,
-                        gesamtlast=loadforecast_power_w,
-                        preis_euro_pro_wh_akku=battery_lcos_kwh / 1000,
+                        pv_forecast_wh=pvforecast_ac_power,
+                        electricity_price_per_wh=elecprice_marketprice_wh,
+                        feed_in_tariff_per_wh=feed_in_tariff_wh,
+                        total_load=loadforecast_power_w,
+                        price_per_wh_battery=battery_lcos_kwh / 1000,
                     ),
                     temperature_forecast=weather_temp_air,
                     pv_akku=battery_params,
