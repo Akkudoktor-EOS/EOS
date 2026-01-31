@@ -78,31 +78,26 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
 
     # Computed fields for backward compatibility (deprecated German names)
     @computed_field
-    @property
     def pv_prognose_wh(self) -> list[float]:
         """Deprecated: Use pv_forecast_wh instead."""
         return self.pv_forecast_wh
 
     @computed_field
-    @property
     def strompreis_euro_pro_wh(self) -> list[float]:
         """Deprecated: Use electricity_price_per_wh instead."""
         return self.electricity_price_per_wh
 
     @computed_field
-    @property
     def einspeiseverguetung_euro_pro_wh(self) -> Union[list[float], float]:
         """Deprecated: Use feed_in_tariff_per_wh instead."""
         return self.feed_in_tariff_per_wh
 
     @computed_field
-    @property
     def preis_euro_pro_wh_akku(self) -> float:
         """Deprecated: Use price_per_wh_battery instead."""
         return self.price_per_wh_battery
 
     @computed_field
-    @property
     def gesamtlast(self) -> list[float]:
         """Deprecated: Use total_load instead."""
         return self.total_load
