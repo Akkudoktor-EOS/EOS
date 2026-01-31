@@ -19,7 +19,7 @@ def test_genetic_params_german_input():
         "gesamtlast": [500.0, 600.0],
     }
     params = GeneticEnergyManagementParameters(**data_de)
-    assert params.pv_prognose_wh == [100.0, 200.0]
+    assert params.pv_forecast_wh == [100.0, 200.0]
     print("✅ German input accepted")
 
 def test_genetic_params_english_input():
@@ -32,7 +32,7 @@ def test_genetic_params_english_input():
         "total_load": [500.0, 600.0],
     }
     params = GeneticEnergyManagementParameters(**data_en)
-    assert params.pv_prognose_wh == [100.0, 200.0]
+    assert params.pv_forecast_wh == [100.0, 200.0]
     print("✅ English input accepted")
 
 def test_genetic_params_english_output():
