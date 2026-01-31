@@ -1,119 +1,203 @@
-# Energy System Simulation and Optimization
+![AkkudoktorEOS](./docs/_static/logo.png#gh-light-mode-only)
+![AkkudoktorEOS](./docs/_static/logo_dark.png#gh-dark-mode-only)
 
-This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
+**Build optimized energy management plans for your home automation**
 
-Documentation can be found at [Akkudoktor-EOS](https://akkudoktor-eos.readthedocs.io/en/latest/).
+AkkudoktorEOS is a comprehensive solution for simulating and optimizing energy systems based on
+renewable sources. Optimize your photovoltaic systems, battery storage, load management, and
+electric vehicles while considering real-time electricity pricing.
 
-## Getting Involved
+## Why use AkkudoktorEOS?
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+AkkudoktorEOS can be used to build energy management plans that are optimized for your specific
+setup of PV system, battery, electric vehicle, household load and electricity pricing. It can
+be integrated into home automation systems such as NodeRED, Home Assistant, EVCC.
 
-## System requirements
+## 🏘️ Community
 
-- Python >= 3.11, < 3.13
-- Architecture: amd64, aarch64 (armv8)
-- OS: Linux, Windows, macOS
+We are an open-source community-driven project and we love to hear from you. Here are some ways to
+get involved:
 
-Note: For Python 3.13 some dependencies (e.g. [Pendulum](https://github.com/python-pendulum/Pendulum)) are not yet available on https://pypi.org and have to be manually compiled (a recent [Rust](https://www.rust-lang.org/tools/install) installation is required).
+- [GitHub Issue Tracker](https://github.com/Akkudoktor-EOS/EOS/issues): discuss ideas and features,
+and report bugs.
 
-Other architectures (e.g. armv6, armv7) are unsupported for now, because a multitude of dependencies are not available on https://piwheels.org and have to be built manually (a recent Rust installation and [GCC](https://gcc.gnu.org/) are required, Python 3.11 is recommended).
+- [Akkudoktor Forum](https://www.akkudoktor.net/c/der-akkudoktor/eos): get direct suppport from the
+cummunity.
+
+## What do people build with AkkudoktorEOS
+
+The community uses AkkudoktorEOS to minimize grid energy consumption and to maximize the revenue
+from grid energy feed in with their home automation system.
+
+- Andreas Schmitz, [the Akkudoktor](https://www.youtube.com/@Akkudoktor), uses
+  EOS integrated in his NodeRED home automation system for
+  [OpenSource Energieoptimierung](https://www.youtube.com/watch?v=sHtv0JCxAYk).
+- Jörg, [meintechblog](https://www.youtube.com/@meintechblog), uses EOS for
+  day-ahead optimization for time-variable energy prices. See:
+  [So installiere ich EOS von Andreas Schmitz](https://www.youtube.com/watch?v=9XCPNU9UqSs)
+
+## Why not use AkkudoktorEOS?
+
+AkkudoktorEOS does not control your home automation assets. It must be integrated into a home
+automation system. If you do not use a home automation system or you feel uncomfortable with
+the configuration effort needed for the integration you should better use other solutions.
+
+## Quick Start
+
+Run EOS with Docker (access dashboard at `http://localhost:8504`):
+
+```bash
+docker run -d \
+  --name akkudoktoreos \
+  -p 8503:8503 \
+  -p 8504:8504 \
+  -e OPENBLAS_NUM_THREADS=1 \
+  -e OMP_NUM_THREADS=1 \
+  -e MKL_NUM_THREADS=1 \
+  -e EOS_SERVER__HOST=0.0.0.0 \
+  -e EOS_SERVER__EOSDASH_HOST=0.0.0.0 \
+  -e EOS_SERVER__EOSDASH_PORT=8504 \
+  --ulimit nproc=65535:65535 \
+  --ulimit nofile=65535:65535 \
+  --security-opt seccomp=unconfined \
+  akkudoktor/eos:latest
+```
+
+## System Requirements
+
+- **Python**: 3.11 or higher
+- **Architecture**: amd64, aarch64 (armv8)
+- **OS**: Linux, Windows, macOS
+
+> **Note**: Other architectures (armv6, armv7) require manual compilation of dependencies with Rust and GCC.
 
 ## Installation
 
-The project requires Python 3.11 or newer. Docker images (amd64/aarch64) can be found at [akkudoktor/eos](https://hub.docker.com/r/akkudoktor/eos).
+### Home Assistant add-on
 
-Following sections describe how to locally start the EOS server on `http://localhost:8503`.
+![Supports aarch64 Architecture][aarch64-shield]
+![Supports amd64 Architecture][amd64-shield]
 
-### Run from source
+[aarch64-shield]: https://img.shields.io/badge/aarch64-yes-green.svg
+[amd64-shield]: https://img.shields.io/badge/amd64-yes-green.svg
 
-Install dependencies in virtual environment:
+To install the **Akkudoktor-EOS** add-on in Home Assistant:
 
-Linux:
+[![Open your Home Assistant instance and show the add add-on repository dialog with a specific repository URL pre-filled.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FAkkudoktor-EOS%2FEOS)
+
+1. **Add the repository URL**:
+
+   In Home Assistant, go to:
+
+   ```
+   Settings → Add-ons → Add-on Store → ⋮ (top-right menu) → Repositories
+   ```
+
+   and enter the URL of this Git repository:
+
+   ```
+   https://github.com/Akkudoktor-EOS/EOS
+   ```
+
+2. **Install the add-on**:
+
+   After adding the repository, the add-on will appear in the Add-on Store. Click **Install**.
+
+3. **Start the add-on**:
+
+   Once installed, click **Start** in the add-on panel.
+
+4. **Access the dashboard**:
+
+   Click **Open Web UI** in the add-on panel.
+
+5. **Configure EOS** (optional):
+   In the dashboard, go to:
+
+   ```
+   Config
+   ```
+
+### Docker (Recommended)
+
+```bash
+docker pull akkudoktor/eos:latest
+docker compose up -d
+```
+
+Access the API at `http://localhost:8503` (docs at `http://localhost:8503/docs`)
+
+### From Source
+
+```bash
+git clone https://github.com/Akkudoktor-EOS/EOS.git
+cd EOS
+```
+
+**Linux:**
 
 ```bash
 python -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/pip install -e .
+.venv/bin/python -m akkudoktoreos.server.eos
 ```
 
-Windows:
+**Windows:**
 
 ```cmd
 python -m venv .venv
-.venv\Scripts\Activate
 .venv\Scripts\pip install -r requirements.txt
 .venv\Scripts\pip install -e .
+.venv\Scripts\python -m akkudoktoreos.server.eos
 ```
-
-Finally, start the EOS server to access it at `http://localhost:8503` (API docs at `http://localhost:8503/docs`):
-
-Linux:
-
-```bash
-.venv/bin/python src/akkudoktoreos/server/eos.py
-```
-
-Windows:
-
-```cmd
-.venv\Scripts\python src/akkudoktoreos/server/eos.py
-```
-
-### Docker
-
-Start EOS with following command to access it at `http://localhost:8503` (API docs at `http://localhost:8503/docs`):
-
-```bash
-docker compose up
-```
-
-If you are running the EOS container on a system hosting multiple services, such as a Synology NAS, and want to allow external network access to EOS, please ensure that the default exported ports (8503, 8504) are available on the host. On Synology systems, these ports might already be in use (refer to [this guide](https://kb.synology.com/en-me/DSM/tutorial/What_network_ports_are_used_by_Synology_services)). If the ports are occupied, you will need to reconfigure the exported ports accordingly.
 
 ## Configuration
 
-This project uses the `EOS.config.json` file to manage configuration settings.
+EOS uses `EOS.config.json` for configuration. If the file doesn't exist, a default configuration is
+created automatically.
 
-### Default Configuration
+### Custom Configuration Directory
 
-A default configuration file `default.config.json` is provided. This file contains all the necessary configuration keys with their default values.
+```bash
+export EOS_DIR=/path/to/your/config
+```
 
-### Custom Configuration
+### Configuration Methods
 
-Users can specify a custom configuration directory by setting the environment variable `EOS_DIR`.
+1. **EOSdash** (Recommended) - Web interface at `http://localhost:8504`
+2. **Manual** - Edit `EOS.config.json` directly
+3. **API** - Use the [Server API](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json)
 
-- If the directory specified by `EOS_DIR` contains an existing `config.json` file, the application will use this configuration file.
-- If the `EOS.config.json` file does not exist in the specified directory, the `default.config.json` file will be copied to the directory as `EOS.config.json`.
+See the [documentation](https://akkudoktor-eos.readthedocs.io/) for all configuration options.
 
-### Configuration Updates
+## Port Configuration
 
-If the configuration keys in the `EOS.config.json` file are missing or different from those in `default.config.json`, they will be automatically updated to match the default settings, ensuring that all required keys are present.
+**Default ports**: 8503 (API), 8504 (Dashboard)
 
-## Classes and Functionalities
+If running on shared systems (e.g., Synology NAS), these ports may conflict with system services. Reconfigure port mappings as needed:
 
-This project uses various classes to simulate and optimize the components of an energy system. Each class represents a specific aspect of the system, as described below:
+```bash
+docker run -p 8505:8503 -p 8506:8504 ...
+```
 
-- `Battery`: Simulates a battery storage system, including capacity, state of charge, and now charge and discharge losses.
+## API Documentation
 
-- `PVForecast`: Provides forecast data for photovoltaic generation, based on weather data and historical generation data.
+Interactive API docs available at:
+- Swagger UI: `http://localhost:8503/docs`
+- OpenAPI Spec: [View Online](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json)
 
-- `Load`: Models the load requirements of a household or business, enabling the prediction of future energy demand.
+## Resources
 
-- `Heatpump`: Simulates a heat pump, including its energy consumption and efficiency under various operating conditions.
+- [Full Documentation](https://akkudoktor-eos.readthedocs.io/)
+- [Installation Guide (German)](https://www.youtube.com/watch?v=9XCPNU9UqSs)
 
-- `Strompreis`: Provides information on electricity prices, enabling optimization of energy consumption and generation based on tariff information.
+## Contributing
 
-- `EMS`: The Energy Management System (EMS) coordinates the interaction between the various components, performs optimization, and simulates the operation of the entire energy system.
+We welcome contributions! See [CONTRIBUTING](CONTRIBUTING.md) for guidelines.
 
-These classes work together to enable a detailed simulation and optimization of the energy system. For each class, specific parameters and settings can be adjusted to test different scenarios and strategies.
+[![Contributors](https://contrib.rocks/image?repo=Akkudoktor-EOS/EOS)](https://github.com/Akkudoktor-EOS/EOS/graphs/contributors)
 
-### Customization and Extension
+## License
 
-Each class is designed to be easily customized and extended to integrate additional functions or improvements. For example, new methods can be added for more accurate modeling of PV system or battery behavior. Developers are invited to modify and extend the system according to their needs.
-
-## Server API
-
-See the Swagger API documentation for detailed information: [EOS OpenAPI Spec](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json)
-
-## Further resources
-
-- [Installation guide (de)](https://meintechblog.de/2024/09/05/andreas-schmitz-joerg-installiert-mein-energieoptimierungssystem/)
+This project is licensed under the Apache License 2.0 - see the LICENSE file for details.

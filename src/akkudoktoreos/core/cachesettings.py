@@ -15,17 +15,22 @@ class CacheCommonSettings(SettingsBaseModel):
     """Cache Configuration."""
 
     subpath: Optional[Path] = Field(
-        default="cache", description="Sub-path for the EOS cache data directory."
+        default="cache",
+        json_schema_extra={"description": "Sub-path for the EOS cache data directory."},
     )
 
     cleanup_interval: float = Field(
-        default=5 * 60, description="Intervall in seconds for EOS file cache cleanup."
+        default=5 * 60,
+        json_schema_extra={"description": "Intervall in seconds for EOS file cache cleanup."},
     )
 
     # Do not make this a pydantic computed field. The pydantic model must be fully initialized
     # to have access to config.general, which may not be the case if it is a computed field.
     def path(self) -> Optional[Path]:
-        """Compute cache path based on general.data_folder_path."""
+        """Computed cache path based on general.data_folder_path."""
+        if self.config.general.home_assistant_addon:
+            # Only /data is persistent for home assistant add-on
+            return Path("/data/cache")
         data_cache_path = self.config.general.data_folder_path
         if data_cache_path is None or self.subpath is None:
             return None

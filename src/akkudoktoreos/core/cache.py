@@ -28,12 +28,17 @@ from typing import (
 
 import cachebox
 from loguru import logger
-from pendulum import DateTime, Duration
 from pydantic import Field
 
 from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin
 from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import (
+    DateTime,
+    Duration,
+    compare_datetimes,
+    to_datetime,
+    to_duration,
+)
 
 # ---------------------------------
 # In-Memory Caching Functionality
@@ -43,25 +48,28 @@ from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_
 TCallable = TypeVar("TCallable", bound=Callable[..., Any])
 
 
-def cache_until_update_store_callback(event: int, key: Any, value: Any) -> None:
-    """Calback function for CacheUntilUpdateStore."""
-    CacheUntilUpdateStore.last_event = event
-    CacheUntilUpdateStore.last_key = key
-    CacheUntilUpdateStore.last_value = value
+def cache_energy_management_store_callback(event: int, key: Any, value: Any) -> None:
+    """Calback function for CacheEnergyManagementStore."""
+    CacheEnergyManagementStore.last_event = event
+    CacheEnergyManagementStore.last_key = key
+    CacheEnergyManagementStore.last_value = value
     if event == cachebox.EVENT_MISS:
-        CacheUntilUpdateStore.miss_count += 1
+        CacheEnergyManagementStore.miss_count += 1
     elif event == cachebox.EVENT_HIT:
-        CacheUntilUpdateStore.hit_count += 1
+        CacheEnergyManagementStore.hit_count += 1
     else:
         # unreachable code
         raise NotImplementedError
 
 
-class CacheUntilUpdateStore(SingletonMixin):
+class CacheEnergyManagementStore(SingletonMixin):
     """Singleton-based in-memory LRU (Least Recently Used) cache.
 
     This cache is shared across the application to store results of decorated
-    methods or functions until the next EMS (Energy Management System) update.
+    methods or functions during energy management runs.
+
+    Energy management tasks shall clear the cache at the start of the energy management
+    task.
 
     The cache uses an LRU eviction strategy, storing up to 100 items, with the oldest
     items being evicted once the cache reaches its capacity.
@@ -75,14 +83,17 @@ class CacheUntilUpdateStore(SingletonMixin):
     miss_count: ClassVar[int] = 0
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        """Initializes the `CacheUntilUpdateStore` instance with default parameters.
+        """Initializes the `CacheEnergyManagementStore` instance with default parameters.
 
         The cache uses an LRU eviction strategy with a maximum size of 100 items.
         This cache is a singleton, meaning only one instance will exist throughout
         the application lifecycle.
 
         Example:
-            >>> cache = CacheUntilUpdateStore()
+            .. code-block:: python
+
+                cache = CacheEnergyManagementStore()
+
         """
         if hasattr(self, "_initialized"):
             return
@@ -104,7 +115,10 @@ class CacheUntilUpdateStore(SingletonMixin):
             AttributeError: If the cache object does not have the requested method.
 
         Example:
-            >>> result = cache.get("key")
+            .. code-block:: python
+
+                result = cache.get("key")
+
         """
         # This will return a method of the target cache, or raise an AttributeError
         target_attr = getattr(self.cache, name)
@@ -126,9 +140,12 @@ class CacheUntilUpdateStore(SingletonMixin):
             KeyError: If the key does not exist in the cache.
 
         Example:
-            >>> value = cache["user_data"]
+            .. code-block:: python
+
+                value = cache["user_data"]
+
         """
-        return CacheUntilUpdateStore.cache[key]
+        return CacheEnergyManagementStore.cache[key]
 
     def __setitem__(self, key: Any, value: Any) -> None:
         """Stores an item in the cache.
@@ -138,17 +155,20 @@ class CacheUntilUpdateStore(SingletonMixin):
             value (Any): The value to store.
 
         Example:
-            >>> cache["user_data"] = {"name": "Alice", "age": 30}
+            .. code-block:: python
+
+                cache["user_data"] = {"name": "Alice", "age": 30}
+
         """
-        CacheUntilUpdateStore.cache[key] = value
+        CacheEnergyManagementStore.cache[key] = value
 
     def __len__(self) -> int:
         """Returns the number of items in the cache."""
-        return len(CacheUntilUpdateStore.cache)
+        return len(CacheEnergyManagementStore.cache)
 
     def __repr__(self) -> str:
-        """Provides a string representation of the CacheUntilUpdateStore object."""
-        return repr(CacheUntilUpdateStore.cache)
+        """Provides a string representation of the CacheEnergyManagementStore object."""
+        return repr(CacheEnergyManagementStore.cache)
 
     def clear(self) -> None:
         """Clears the cache, removing all stored items.
@@ -158,77 +178,51 @@ class CacheUntilUpdateStore(SingletonMixin):
         management system run).
 
         Example:
-            >>> cache.clear()
+            .. code-block:: python
+
+                cache.clear()
+
         """
         if hasattr(self.cache, "clear") and callable(getattr(self.cache, "clear")):
-            CacheUntilUpdateStore.cache.clear()
-            CacheUntilUpdateStore.last_event = None
-            CacheUntilUpdateStore.last_key = None
-            CacheUntilUpdateStore.last_value = None
-            CacheUntilUpdateStore.miss_count = 0
-            CacheUntilUpdateStore.hit_count = 0
+            CacheEnergyManagementStore.cache.clear()
+            CacheEnergyManagementStore.last_event = None
+            CacheEnergyManagementStore.last_key = None
+            CacheEnergyManagementStore.last_value = None
+            CacheEnergyManagementStore.miss_count = 0
+            CacheEnergyManagementStore.hit_count = 0
         else:
             raise AttributeError(f"'{self.cache.__class__.__name__}' object has no method 'clear'")
 
 
-def cachemethod_until_update(method: TCallable) -> TCallable:
-    """Decorator for in memory caching the result of an instance method.
+def cache_energy_management(callable: TCallable) -> TCallable:
+    """Decorator for in memory caching the result of a callable.
 
-    This decorator caches the method's result in `CacheUntilUpdateStore`, ensuring
-    that subsequent calls with the same arguments return the cached result until the
-    next EMS update cycle.
-
-    Args:
-        method (Callable): The instance method to be decorated.
-
-    Returns:
-        Callable: The wrapped method with caching functionality.
-
-    Example:
-        >>> class MyClass:
-        >>>     @cachemethod_until_update
-        >>>     def expensive_method(self, param: str) -> str:
-        >>>         # Perform expensive computation
-        >>>         return f"Computed {param}"
-    """
-
-    @cachebox.cachedmethod(
-        cache=CacheUntilUpdateStore().cache, callback=cache_until_update_store_callback
-    )
-    @functools.wraps(method)
-    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-        result = method(self, *args, **kwargs)
-        return result
-
-    return wrapper
-
-
-def cache_until_update(func: TCallable) -> TCallable:
-    """Decorator for in memory caching the result of a standalone function.
-
-    This decorator caches the function's result in `CacheUntilUpdateStore`, ensuring
-    that subsequent calls with the same arguments return the cached result until the
-    next EMS update cycle.
+    This decorator caches the method or function's result in `CacheEnergyManagementStore`,
+    ensuring that subsequent calls with the same arguments return the cached result until the
+    next energy management start.
 
     Args:
-        func (Callable): The function to be decorated.
+        callable (Callable): The function or method to be decorated.
 
     Returns:
         Callable: The wrapped function with caching functionality.
 
     Example:
-        >>> @cache_until_next_update
-        >>> def expensive_function(param: str) -> str:
-        >>>     # Perform expensive computation
-        >>>     return f"Computed {param}"
+        .. code-block:: python
+
+            @cache_energy_management
+            def expensive_function(param: str) -> str:
+                # Perform expensive computation
+                return f"Computed {param}"
+
     """
 
     @cachebox.cached(
-        cache=CacheUntilUpdateStore().cache, callback=cache_until_update_store_callback
+        cache=CacheEnergyManagementStore().cache, callback=cache_energy_management_store_callback
     )
-    @functools.wraps(func)
+    @functools.wraps(callable)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        result = func(*args, **kwargs)
+        result = callable(*args, **kwargs)
         return result
 
     return wrapper
@@ -243,10 +237,14 @@ RetType = TypeVar("RetType")
 
 
 class CacheFileRecord(PydanticBaseModel):
-    cache_file: Any = Field(..., description="File descriptor of the cache file.")
-    until_datetime: DateTime = Field(..., description="Datetime until the cache file is valid.")
+    cache_file: Any = Field(
+        ..., json_schema_extra={"description": "File descriptor of the cache file."}
+    )
+    until_datetime: DateTime = Field(
+        ..., json_schema_extra={"description": "Datetime until the cache file is valid."}
+    )
     ttl_duration: Optional[Duration] = Field(
-        default=None, description="Duration the cache file is valid."
+        default=None, json_schema_extra={"description": "Duration the cache file is valid."}
     )
 
 
@@ -265,12 +263,15 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                       with their associated keys and dates.
 
     Example:
-        >>> cache_store = CacheFileStore()
-        >>> cache_store.create('example_file')
-        >>> cache_file = cache_store.get('example_file')
-        >>> cache_file.write('Some data')
-        >>> cache_file.seek(0)
-        >>> print(cache_file.read())  # Output: 'Some data'
+        .. code-block:: python
+
+            cache_store = CacheFileStore()
+            cache_store.create('example_file')
+            cache_file = cache_store.get('example_file')
+            cache_file.write('Some data')
+            cache_file.seek(0)
+            print(cache_file.read())  # Output: 'Some data'
+
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -435,7 +436,7 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                     )
 
                 logger.debug(
-                    f"Search: ttl:{ttl_duration}, until:{until_datetime}, at:{at_datetime}, before:{before_datetime} -> hit: {generated_key == cache_file_key}, item: {cache_item.cache_file.seek(0), cache_item.cache_file.read()}"
+                    f"Search: ttl:{ttl_duration}, until:{until_datetime}, at:{at_datetime}, before:{before_datetime} -> hit: {generated_key == cache_file_key}, item: {cache_item.cache_file.seek(0), cache_item.cache_file.read()[:10]}..."
                 )
 
                 if generated_key == cache_file_key:
@@ -479,10 +480,13 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
             file_obj: A file-like object representing the cache file.
 
         Example:
-            >>> cache_file = cache_store.create('example_file', suffix='.txt')
-            >>> cache_file.write('Some cached data')
-            >>> cache_file.seek(0)
-            >>> print(cache_file.read())  # Output: 'Some cached data'
+            .. code-block:: python
+
+                cache_file = cache_store.create('example_file', suffix='.txt')
+                cache_file.write('Some cached data')
+                cache_file.seek(0)
+                print(cache_file.read())  # Output: 'Some cached data'
+
         """
         cache_file_key, until_datetime_dt, ttl_duration = self._generate_cache_file_key(
             key, until_datetime=until_datetime, until_date=until_date, with_ttl=with_ttl
@@ -531,7 +535,10 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
             ValueError: If the key is already in store.
 
         Example:
-            >>> cache_store.set('example_file', io.BytesIO(b'Some binary data'))
+            .. code-block:: python
+
+                cache_store.set('example_file', io.BytesIO(b'Some binary data'))
+
         """
         cache_file_key, until_datetime_dt, ttl_duration = self._generate_cache_file_key(
             key, until_datetime=until_datetime, until_date=until_date, with_ttl=with_ttl
@@ -587,10 +594,13 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
             file_obj: The file-like cache object, or None if no file is found.
 
         Example:
-            >>> cache_file = cache_store.get('example_file')
-            >>> if cache_file:
-            >>>     cache_file.seek(0)
-            >>>     print(cache_file.read())  # Output: Cached data (if exists)
+            .. code-block:: python
+
+                cache_file = cache_store.get('example_file')
+                if cache_file:
+                    cache_file.seek(0)
+                    print(cache_file.read())  # Output: Cached data (if exists)
+
         """
         if until_datetime or until_date:
             until_datetime, _ttl_duration = self._until_datetime_by_options(
@@ -869,13 +879,15 @@ def cache_in_file(
             A decorated function that caches its result in a temporary file.
 
     Example:
-        >>> from datetime import date
-        >>> @cache_in_file(suffix='.txt')
-        >>> def expensive_computation(until_date=None):
-        >>>     # Perform some expensive computation
-        >>>     return 'Some large result'
-        >>>
-        >>> result = expensive_computation(until_date=date.today())
+        .. code-block:: python
+
+            from datetime import date
+            @cache_in_file(suffix='.txt')
+            def expensive_computation(until_date=None):
+                # Perform some expensive computation
+                return 'Some large result'
+
+            result = expensive_computation(until_date=date.today())
 
     Notes:
         - The cache key is based on the function arguments after excluding those in `ignore_params`.

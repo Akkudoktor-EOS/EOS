@@ -12,51 +12,53 @@ Classes:
     PVForecastAkkudoktor: Primary class to manage PV power forecasts, handle data retrieval, caching, and integration with Akkudoktor.net.
 
 Example:
-    # Set up the configuration with necessary fields for URL generation
-    settings_data = {
-        "general": {
-            "latitude": 52.52,
-            "longitude": 13.405,
-        },
-        "prediction": {
-            "hours": 48,
-            "historic_hours": 24,
-        },
-        "pvforecast": {
-            "provider": "PVForecastAkkudoktor",
-            "planes": [
-                {
-                    "peakpower": 5.0,
-                    "surface_azimuth": 170,
-                    "surface_tilt": 7,
-                    "userhorizon": [20, 27, 22, 20],
-                    "inverter_paco": 10000,
-                },
-                {
-                    "peakpower": 4.8,
-                    "surface_azimuth": 90,
-                    "surface_tilt": 7,
-                    "userhorizon": [30, 30, 30, 50],
-                    "inverter_paco": 10000,
-                }
-            ]
+    .. code-block:: python
+
+        # Set up the configuration with necessary fields for URL generation
+        settings_data = {
+            "general": {
+                "latitude": 52.52,
+                "longitude": 13.405,
+            },
+            "prediction": {
+                "hours": 48,
+                "historic_hours": 24,
+            },
+            "pvforecast": {
+                "provider": "PVForecastAkkudoktor",
+                "planes": [
+                    {
+                        "peakpower": 5.0,
+                        "surface_azimuth": 170,
+                        "surface_tilt": 7,
+                        "userhorizon": [20, 27, 22, 20],
+                        "inverter_paco": 10000,
+                    },
+                    {
+                        "peakpower": 4.8,
+                        "surface_azimuth": 90,
+                        "surface_tilt": 7,
+                        "userhorizon": [30, 30, 30, 50],
+                        "inverter_paco": 10000,
+                    }
+                ]
+            }
         }
-    }
 
-    # Create the config instance from the provided data
-    config = PVForecastAkkudoktorSettings(**settings_data)
+        # Create the config instance from the provided data
+        config = PVForecastAkkudoktorSettings(**settings_data)
 
-    # Initialize the forecast object with the generated configuration
-    forecast = PVForecastAkkudoktor(settings=config)
+        # Initialize the forecast object with the generated configuration
+        forecast = PVForecastAkkudoktor(settings=config)
 
-    # Get an actual forecast
-    forecast.update_data()
+        # Get an actual forecast
+        forecast.update_data()
 
-    # Update the AC power measurement for a specific date and time
-    forecast.update_value(to_datetime(None, to_maxtime=False), "pvforecastakkudoktor_ac_power_measured", 1000.0)
+        # Update the AC power measurement for a specific date and time
+        forecast.update_value(to_datetime(None, to_maxtime=False), "pvforecastakkudoktor_ac_power_measured", 1000.0)
 
-    # Report the DC and AC power forecast along with AC measurements
-    print(forecast.report_ac_power_and_measurement())
+        # Report the DC and AC power forecast along with AC measurements
+        print(forecast.report_ac_power_and_measurement())
 
 Attributes:
     hours (int): Number of hours into the future to forecast. Default is 48.
@@ -157,13 +159,13 @@ class PVForecastAkkudoktorDataRecord(PVForecastDataRecord):
     """Represents a Akkudoktor specific pvforecast data record containing various pvforecast attributes at a specific datetime."""
 
     pvforecastakkudoktor_ac_power_measured: Optional[float] = Field(
-        default=None, description="Total AC power measured (W)"
+        default=None, json_schema_extra={"description": "Total AC power measured (W)"}
     )
     pvforecastakkudoktor_wind_speed_10m: Optional[float] = Field(
-        default=None, description="Wind Speed 10m (kmph)"
+        default=None, json_schema_extra={"description": "Wind Speed 10m (kmph)"}
     )
     pvforecastakkudoktor_temp_air: Optional[float] = Field(
-        default=None, description="Temperature (°C)"
+        default=None, json_schema_extra={"description": "Temperature (°C)"}
     )
 
     # Computed fields
@@ -191,25 +193,12 @@ class PVForecastAkkudoktor(PVForecastProvider):
     from the PVForecastAkkudoktor API and maps it to `PVForecastDataRecord` fields, applying
     any necessary scaling or unit corrections. It manages the forecast over a range
     of hours into the future and retains historical data.
-
-    Attributes:
-        hours (int, optional): Number of hours in the future for the forecast.
-        historic_hours (int, optional): Number of past hours for retaining data.
-        latitude (float, optional): The latitude in degrees, validated to be between -90 and 90.
-        longitude (float, optional): The longitude in degrees, validated to be between -180 and 180.
-        start_datetime (datetime, optional): Start datetime for forecasts, defaults to the current datetime.
-        end_datetime (datetime, computed): The forecast's end datetime, computed based on `start_datetime` and `hours`.
-        keep_datetime (datetime, computed): The datetime to retain historical data, computed from `start_datetime` and `historic_hours`.
-
-    Methods:
-        provider_id(): Returns a unique identifier for the provider.
-        _request_forecast(): Fetches the forecast from the Akkudoktor API.
-        _update_data(): Processes and updates forecast data from Akkudoktor in PVForecastDataRecord format.
     """
 
     # overload
     records: List[PVForecastAkkudoktorDataRecord] = Field(
-        default_factory=list, description="List of PVForecastAkkudoktorDataRecord records"
+        default_factory=list,
+        json_schema_extra={"description": "List of PVForecastAkkudoktorDataRecord records"},
     )
 
     @classmethod
@@ -330,8 +319,8 @@ class PVForecastAkkudoktor(PVForecastProvider):
             logger.error(f"Akkudoktor schema change: {error_msg}")
             raise ValueError(error_msg)
 
-        if not self.start_datetime:
-            raise ValueError(f"Start DateTime not set: {self.start_datetime}")
+        if not self.ems_start_datetime:
+            raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
 
         # Iterate over forecast data points
         for forecast_values in zip(*akkudoktor_data.values):
@@ -339,7 +328,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
             dt = to_datetime(original_datetime, in_timezone=self.config.general.timezone)
 
             # Skip outdated forecast data
-            if compare_datetimes(dt, self.start_datetime.start_of("day")).lt:
+            if compare_datetimes(dt, self.ems_start_datetime.start_of("day")).lt:
                 continue
 
             sum_dc_power = sum(values.dcPower for values in forecast_values)
@@ -357,7 +346,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
         if len(self) < self.config.prediction.hours:
             raise ValueError(
                 f"The forecast must cover at least {self.config.prediction.hours} hours, "
-                f"but only {len(self)} hours starting from {self.start_datetime} "
+                f"but only {len(self)} hours starting from {self.ems_start_datetime} "
                 f"were predicted."
             )
 

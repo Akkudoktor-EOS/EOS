@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.prediction import get_prediction
@@ -19,18 +19,44 @@ weather_providers = [
 ]
 
 
+class WeatherCommonProviderSettings(SettingsBaseModel):
+    """Weather Forecast Provider Configuration."""
+
+    WeatherImport: Optional[WeatherImportCommonSettings] = Field(
+        default=None,
+        json_schema_extra={"description": "WeatherImport settings", "examples": [None]},
+    )
+
+
 class WeatherCommonSettings(SettingsBaseModel):
     """Weather Forecast Configuration."""
 
     provider: Optional[str] = Field(
         default=None,
-        description="Weather provider id of provider to be used.",
-        examples=["WeatherImport"],
+        json_schema_extra={
+            "description": "Weather provider id of provider to be used.",
+            "examples": ["WeatherImport"],
+        },
     )
 
-    provider_settings: Optional[WeatherImportCommonSettings] = Field(
-        default=None, description="Provider settings", examples=[None]
+    provider_settings: WeatherCommonProviderSettings = Field(
+        default_factory=WeatherCommonProviderSettings,
+        json_schema_extra={
+            "description": "Provider settings",
+            "examples": [
+                # Example 1: Empty/default settings (all providers None)
+                {
+                    "WeatherImport": None,
+                },
+            ],
+        },
     )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def providers(self) -> list[str]:
+        """Available weather provider ids."""
+        return weather_providers
 
     # Validators
     @field_validator("provider", mode="after")

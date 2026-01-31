@@ -1,0 +1,100 @@
+{
+  "general": {
+    "data_folder_path": null,
+    "data_output_subpath": "output",
+    "latitude": 52.5,
+    "longitude": 13.4
+  },
+  "cache": {
+    "subpath": "cache",
+    "cleanup_interval": 300.0
+  },
+  "ems": {
+     "startup_delay": 5.0,
+     "interval": 300.0
+  },
+  "logging": {
+    "console_level": "INFO"
+  },
+  "devices": {
+    "batteries": [
+      {
+        "device_id": "pv_akku",
+        "capacity_wh": 30000,
+        "charging_efficiency": 0.88,
+        "discharging_efficiency": 0.88,
+        "max_charge_power_w": 5000,
+        "min_soc_percentage": 0,
+        "max_soc_percentage": 100
+      }
+    ],
+    "electric_vehicles": [
+      {
+        "charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+      }
+    ],
+    "inverters": [],
+    "home_appliances": []
+  },
+  "measurement": {
+    "load_emr_keys": ["Household"]
+  },
+  "optimization": {
+    "horizon_hours": 48,
+    "genetic": {
+      "penalties": {
+        "ev_soc_miss": 10
+      }
+    }
+  },
+  "prediction": {
+    "hours": 48,
+    "historic_hours": 48
+  },
+  "elecprice": {
+    "provider": "ElecPriceAkkudoktor",
+    "charges_kwh": 0.21
+  },
+  "load": {
+    "provider_settings": {
+      "LoadAkkudoktor": {
+        "loadakkudoktor_year_energy_kwh": 13000
+      }
+    }
+  },
+  "pvforecast": {
+    "provider": "PVForecastAkkudoktor",
+    "planes": [
+      {
+        "surface_tilt": 87.907,
+        "surface_azimuth": 175.0,
+        "userhorizon": [28.0, 34.0, 32.0, 60.0],
+        "peakpower": 13.110,
+        "pvtechchoice": "crystSi",
+        "mountingplace": "free",
+        "loss": 18.6,
+        "trackingtype": 0,
+        "optimal_surface_tilt": false,
+        "optimalangles": false,
+        "albedo": 0.25,
+        "module_model": null,
+        "inverter_model": null,
+        "inverter_paco": 15000,
+        "modules_per_string": 20,
+        "strings_per_inverter": 2
+      }
+    ]
+  },
+  "weather": {
+    "provider": "WeatherImport"
+  },
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8503,
+    "verbose": true,
+    "startup_eosdash": true,
+    "eosdash_host": "0.0.0.0",
+    "eosdash_port": 8504
+  },
+  "utils": {}
+}

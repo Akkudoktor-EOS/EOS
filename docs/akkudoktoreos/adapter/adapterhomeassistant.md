@@ -1,0 +1,246 @@
+% SPDX-License-Identifier: Apache-2.0
+(adapter-homeassistant-page)=
+
+# Home Assistant Adapter
+
+The Home Assistant adapter provides a **bidirectional interface** between
+**Home Assistant (HA)** and the **Akkudoktor-EOS (EOS)** energy optimisation system.
+
+It allows EOS to:
+
+* **Read** entity states and attributes from Home Assistant
+* **Write** optimisation results and control instructions back to Home Assistant
+
+This enables EOS to integrate seamlessly with Home Assistant–managed devices,
+sensors, and energy meters, while keeping EOS **device simulations and optimisation
+logic decoupled from HA-specific implementations**.
+
+## 1. Exchanging data between EOS and Home Assistant
+
+### Basic concept
+
+EOS **reads** configuration data and measurements from **Home Assistant entity states**
+before each energy management run.
+
+EOS **publishes results** by writing states and attributes to Home Assistant entities.
+After each optimisation run, these values are available as standard Home Assistant entities
+and can be used like any other sensor or state.
+
+Typical use cases in Home Assistant:
+
+* Dashboards and visualisation
+* Automations and scripts
+* Device or manufacturer integrations
+* Debugging and validation
+
+### Configuration steps in EOS
+
+#### 1. Enable and configure the Home Assistant adapter
+
+EOS must be configured with access to the Home Assistant API. It must be run
+as a Home Assistant add-on.
+
+#### 2. Define source entity IDs
+
+Configure EOS to read configuration and measurement entities from Home Assistant.
+Typical sources include:
+
+* Configuration entities
+* Measurement entities
+
+#### 3. Define target entity IDs
+
+Configure EOS to write the results back to Home Assistant.
+Typical targets include:
+
+* Device instruction entities
+* Solution / optimisation result entities
+
+#### 4. Run energy optimisation
+
+* EOS reads the source entities before optimisation.
+* After the run, EOS writes the device instruction and solution entities back to Home Assistant.
+
+### Configuration steps in Home Assistant
+
+#### 1. Accept entities created by EOS
+
+Entities written by EOS automatically appear in Home Assistant’s state machine.
+
+#### 2. Make entities usable in the UI
+
+* Entities created by EOS have **no unique ID**.
+* To use them properly in dashboards, history, or automations, wrap them in **template sensors**.
+
+#### 3. Use EOS data
+
+EOS entities can be referenced in:
+
+* Automations
+* Scripts
+* Dashboards
+* Device control logic
+
+:::{admonition} Warning
+:class: warning
+Entities created by EOS have **no unique ID**. The unique ID cannot be set by an add-on.
+To use the entity information in the Home Assistant UI, a template sensor should be used.
+:::
+
+##### Example: UI-usable template sensor for an EOS entity
+
+<!-- pyml disable line-length -->
+```yaml
+template:
+  - sensor:
+      - name: "Battery1 Operation Mode"
+        unique_id: "battery1_op_mode"
+        state: >
+          {% set battery1_op_mode = states('sensor.eos_battery1') -%}
+          {{ battery1_op_mode }}
+        state_class: measurement
+````
+<!-- pyml enable line-length -->
+
+## 2. Data obtained *from EOS*
+
+### 2.1 Device instruction entity IDs
+
+After each energy optimisation run, EOS produces **device instructions** for the
+controlled resources. These instructions are written back to Home Assistant via
+dedicated entities.
+
+* The **entity state** represents the device's selected **operation mode**.
+* **Entity attributes** provide additional parameters for the operation mode, such as:
+
+  * `operation_mode_factor`
+  * Power or rate limits
+  * Mode-specific control parameters
+
+> **Note:** Home Assistant automations or device integrations can react to these updates to execute control actions.
+
+### 2.2 Solution entity IDs
+
+Each energy management run produces an **optimisation solution**.
+
+EOS can publish solution-level details to dedicated Home Assistant entities for:
+
+* Debugging and validation
+* Visualisation and dashboards
+* Gaining deeper insight into optimisation decisions
+
+EOS updates these entities **after each energy management run**.
+
+## 3. Data read by EOS from Home Assistant
+
+Before starting an energy optimisation run, EOS retrieves several categories of
+data from Home Assistant, including:
+
+### 3.1 Configuration entity IDs
+
+EOS can synchronise parts of its configuration from Home Assistant entity states.
+This is particularly useful for **device (resource) parameters** already provided
+by Home Assistant integrations, such as:
+
+* Battery capacity
+* Maximum charge or discharge power
+* Nominal device ratings
+
+These values are typically consumed by EOS **device simulations** during optimisation.
+
+### 3.2 Device measurement entity IDs
+
+EOS retrieves **measurement values** that describe the *current state* of devices, such as:
+
+* Battery state of charge (SoC)
+* Current power or energy levels
+* Device availability or readiness indicators
+
+These measurements are used as input for EOS simulations and strongly influence
+optimisation results.
+
+### 3.3 Energy meter entity IDs
+
+**Energy Meter Readings (EMR)** are used to adapt and refine **predictions**.
+
+* **Load** energy meter readings
+* **Grid export** energy meter readings
+* **Grid import** energy meter readings
+* **PV production** energy meter readings
+
+EOS retrieves these readings from Home Assistant **before each energy management run**
+to align forecasts with actual consumption.
+
+## 4. Entity state and value conversion
+
+When reading configuration values and measurements from entity states, the adapter
+applies the following heuristics to convert the Home Assistant state into a suitable
+EOS value:
+
+* **Boolean `True`**: `["y", "yes", "on", "true", "home", "open"]`
+* **Boolean `False`**: `["n", "no", "off", "false", "closed"]`
+* **`None`**: `["unavailable", "none"]`
+* **`float`**: if the value can be converted to a floating-point number
+* **`str`**: if none of the above apply
+
+### Recommendation: value conversion in Home Assistant
+
+To adapt, scale, or transform Home Assistant entity values to match EOS
+expectations, it is recommended to use
+[template sensors](https://www.home-assistant.io/integrations/template/#sensor).
+
+This keeps value conversion fully within Home Assistant, ensuring a clean and
+consistent EOS configuration.
+
+### Example: Battery SoC conversion
+
+Convert a battery state of charge from percentage `[0..100]` to a normalised factor
+`[0.0..1.0]`:
+
+<!-- pyml disable line-length -->
+```yaml
+template:
+  - sensor:
+      - name: "Battery1 SoC Factor"
+        unique_id: "battery1_soc_factor"
+        state: >
+          {% set bat_charge_soc = states('sensor.battery1_soc_percent') | float(100) -%}
+          {{ bat_charge_soc / 100.0 }}
+        state_class: measurement
+```
+<!-- pyml enable line-length -->
+
+## 5. Further processing of EOS data in Home Assistant
+
+Once published, EOS data behaves like any other Home Assistant entity and can be:
+
+* Used as triggers or conditions in automations
+* Mapped to device-specific services or integrations
+* Visualised in dashboards
+* Compared with measured values for monitoring and validation
+
+EOS does **not** directly control devices.
+It provides **structured optimisation results**, while Home Assistant remains
+responsible for executing the actual control actions.
+
+## 6. Data sent *to EOS* and how
+
+All data sent to EOS is provided via **Home Assistant entity states and attributes**.
+
+| Data type             | HA entity type  | Purpose in EOS       |
+| --------------------- | --------------- | -------------------- |
+| Configuration values  | Sensor / Number | Device modelling     |
+| Measurements          | Sensor          | Initial device state |
+| Energy meter readings | Sensor          | Forecast correction  |
+| Availability flags    | Binary sensor   | Device availability  |
+
+> EOS always **reads** this data; Home Assistant remains the authoritative source for measurements and configuration.
+
+### Summary
+
+* **EOS** focuses on **forecasting, simulation, and optimisation**
+* **Home Assistant** focuses on **measurement, integration, and execution**
+
+The Home Assistant adapter provides a clear, structured interface between both
+systems, allowing flexible integration without coupling EOS to Home Assistant
+device specifics.

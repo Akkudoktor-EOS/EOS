@@ -42,6 +42,10 @@ class InterceptHandler(pylogging.Handler):
         Args:
             record (logging.LogRecord): A record object containing log message and metadata.
         """
+        # Skip DEBUG logs from matplotlib - very noisy
+        if record.name.startswith("matplotlib") and record.levelno <= pylogging.DEBUG:
+            return
+
         try:
             level = logger.level(record.levelname).name
         except AttributeError:
@@ -61,7 +65,7 @@ console_handler_id = None
 file_handler_id = None
 
 
-def track_logging_config(config_eos: Any, path: str, old_value: Any, value: Any) -> None:
+def logging_track_config(config_eos: Any, path: str, old_value: Any, value: Any) -> None:
     """Track logging config changes."""
     global console_handler_id, file_handler_id
 

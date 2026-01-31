@@ -21,7 +21,7 @@ class ElecPriceDataRecord(PredictionRecord):
     """
 
     elecprice_marketprice_wh: Optional[float] = Field(
-        None, description="Electricity market price per Wh (€/Wh)"
+        None, json_schema_extra={"description": "Electricity market price per Wh (€/Wh)"}
     )
 
     # Computed fields
@@ -59,7 +59,8 @@ class ElecPriceProvider(PredictionProvider):
 
     # overload
     records: List[ElecPriceDataRecord] = Field(
-        default_factory=list, description="List of ElecPriceDataRecord records"
+        default_factory=list,
+        json_schema_extra={"description": "List of ElecPriceDataRecord records"},
     )
 
     @classmethod

@@ -11,7 +11,6 @@ and manipulation of configuration and prediction data in a clear, scalable, and 
 from typing import List, Optional
 
 from loguru import logger
-from pendulum import DateTime
 from pydantic import Field, computed_field
 
 from akkudoktoreos.core.coreabc import MeasurementMixin
@@ -23,7 +22,7 @@ from akkudoktoreos.core.dataabc import (
     DataRecord,
     DataSequence,
 )
-from akkudoktoreos.utils.datetimeutil import to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
 
 
 class PredictionBase(DataBase, MeasurementMixin):
@@ -71,26 +70,28 @@ class PredictionSequence(DataSequence):
         Derived classes have to provide their own records field with correct record type set.
 
     Usage:
-        # Example of creating, adding, and using PredictionSequence
-        class DerivedSequence(PredictionSquence):
-            records: List[DerivedPredictionRecord] = Field(default_factory=list,
-                                                        description="List of prediction records")
+        .. code-block:: python
 
-        seq = DerivedSequence()
-        seq.insert(DerivedPredictionRecord(date_time=datetime.now(), temperature=72))
-        seq.insert(DerivedPredictionRecord(date_time=datetime.now(), temperature=75))
+            # Example of creating, adding, and using PredictionSequence
+            class DerivedSequence(PredictionSquence):
+                records: List[DerivedPredictionRecord] = Field(default_factory=list, json_schema_extra={ "description": "List of prediction records" })
 
-        # Convert to JSON and back
-        json_data = seq.to_json()
-        new_seq = DerivedSequence.from_json(json_data)
+            seq = DerivedSequence()
+            seq.insert(DerivedPredictionRecord(date_time=datetime.now(), temperature=72))
+            seq.insert(DerivedPredictionRecord(date_time=datetime.now(), temperature=75))
 
-        # Convert to Pandas Series
-        series = seq.key_to_series('temperature')
+            # Convert to JSON and back
+            json_data = seq.to_json()
+            new_seq = DerivedSequence.from_json(json_data)
+
+            # Convert to Pandas Series
+            series = seq.key_to_series('temperature')
+
     """
 
     # To be overloaded by derived classes.
     records: List[PredictionRecord] = Field(
-        default_factory=list, description="List of prediction records"
+        default_factory=list, json_schema_extra={"description": "List of prediction records"}
     )
 
 
@@ -119,17 +120,21 @@ class PredictionStartEndKeepMixin(PredictionBase):
         Returns:
             Optional[DateTime]: The calculated end datetime, or `None` if inputs are missing.
         """
-        if self.start_datetime and self.config.prediction.hours:
-            end_datetime = self.start_datetime + to_duration(
+        if self.ems_start_datetime and self.config.prediction.hours:
+            end_datetime = self.ems_start_datetime + to_duration(
                 f"{self.config.prediction.hours} hours"
             )
-            dst_change = end_datetime.offset_hours - self.start_datetime.offset_hours
-            logger.debug(f"Pre: {self.start_datetime}..{end_datetime}: DST change: {dst_change}")
+            dst_change = end_datetime.offset_hours - self.ems_start_datetime.offset_hours
+            logger.debug(
+                f"Pre: {self.ems_start_datetime}..{end_datetime}: DST change: {dst_change}"
+            )
             if dst_change < 0:
                 end_datetime = end_datetime + to_duration(f"{abs(int(dst_change))} hours")
             elif dst_change > 0:
                 end_datetime = end_datetime - to_duration(f"{abs(int(dst_change))} hours")
-            logger.debug(f"Pst: {self.start_datetime}..{end_datetime}: DST change: {dst_change}")
+            logger.debug(
+                f"Pst: {self.ems_start_datetime}..{end_datetime}: DST change: {dst_change}"
+            )
             return end_datetime
         return None
 
@@ -141,7 +146,7 @@ class PredictionStartEndKeepMixin(PredictionBase):
         Returns:
             Optional[DateTime]: The calculated retention cutoff datetime, or `None` if inputs are missing.
         """
-        if self.start_datetime is None:
+        if self.ems_start_datetime is None:
             return None
         historic_hours = self.historic_hours_min()
         if (
@@ -149,7 +154,7 @@ class PredictionStartEndKeepMixin(PredictionBase):
             and self.config.prediction.historic_hours > historic_hours
         ):
             historic_hours = int(self.config.prediction.historic_hours)
-        return self.start_datetime - to_duration(f"{historic_hours} hours")
+        return self.ems_start_datetime - to_duration(f"{historic_hours} hours")
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -162,7 +167,7 @@ class PredictionStartEndKeepMixin(PredictionBase):
         end_dt = self.end_datetime
         if end_dt is None:
             return None
-        duration = end_dt - self.start_datetime
+        duration = end_dt - self.ems_start_datetime
         return int(duration.total_hours())
 
     @computed_field  # type: ignore[prop-decorator]
@@ -176,7 +181,7 @@ class PredictionStartEndKeepMixin(PredictionBase):
         keep_dt = self.keep_datetime
         if keep_dt is None:
             return None
-        duration = self.start_datetime - keep_dt
+        duration = self.ems_start_datetime - keep_dt
         return int(duration.total_hours())
 
 
@@ -222,9 +227,10 @@ class PredictionImportProvider(PredictionProvider, DataImportProvider):
     """Abstract base class for prediction providers that import prediction data.
 
     This class is designed to handle prediction data provided in the form of a key-value dictionary.
+
     - **Keys**: Represent identifiers from the record keys of a specific prediction.
     - **Values**: Are lists of prediction values starting at a specified `start_datetime`, where
-      each value corresponds to a subsequent time interval (e.g., hourly).
+        each value corresponds to a subsequent time interval (e.g., hourly).
 
     Subclasses must implement the logic for managing prediction data based on the imported records.
     """
@@ -246,5 +252,5 @@ class PredictionContainer(PredictionStartEndKeepMixin, DataContainer):
 
     # To be overloaded by derived classes.
     providers: List[PredictionProvider] = Field(
-        default_factory=list, description="List of prediction providers"
+        default_factory=list, json_schema_extra={"description": "List of prediction providers"}
     )

@@ -1,0 +1,29 @@
+{
+  "elecprice": {
+    "charges_kwh": 0.21,
+    "provider": "ElecPriceImport"
+  },
+  "prediction": {
+    "historic_hours": 48,
+    "hours": 48
+  },
+  "optimization": {
+    "horizon_hours": 48,
+    "algorithm": "GENETIC",
+    "genetic": {
+      "individuals": 300,
+      "generations": 400
+    }
+  },
+  "general": {
+    "latitude": 52.5,
+    "longitude": 13.4
+  },
+  "server": {
+    "startup_eosdash": true,
+    "host": "0.0.0.0",
+    "port": 8503,
+    "eosdash_host": "0.0.0.0",
+    "eosdash_port": 8504
+  }
+}

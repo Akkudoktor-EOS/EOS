@@ -6,90 +6,77 @@ data records for measurements.
 The measurements can be added programmatically or imported from a file or JSON string.
 """
 
-from typing import Any, ClassVar, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 from loguru import logger
 from numpydantic import NDArray, Shape
-from pendulum import DateTime, Duration
 from pydantic import Field, computed_field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import SingletonMixin
 from akkudoktoreos.core.dataabc import DataImportMixin, DataRecord, DataSequence
-from akkudoktoreos.utils.datetimeutil import to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_duration
 
 
 class MeasurementCommonSettings(SettingsBaseModel):
     """Measurement Configuration."""
 
-    load0_name: Optional[str] = Field(
-        default=None, description="Name of the load0 source", examples=["Household", "Heat Pump"]
+    load_emr_keys: Optional[list[str]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "The keys of the measurements that are energy meter readings of a load [kWh].",
+            "examples": [["load0_emr"]],
+        },
     )
-    load1_name: Optional[str] = Field(
-        default=None, description="Name of the load1 source", examples=[None]
+
+    grid_export_emr_keys: Optional[list[str]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "The keys of the measurements that are energy meter readings of energy export to grid [kWh].",
+            "examples": [["grid_export_emr"]],
+        },
     )
-    load2_name: Optional[str] = Field(
-        default=None, description="Name of the load2 source", examples=[None]
+
+    grid_import_emr_keys: Optional[list[str]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "The keys of the measurements that are energy meter readings of energy import from grid [kWh].",
+            "examples": [["grid_import_emr"]],
+        },
     )
-    load3_name: Optional[str] = Field(
-        default=None, description="Name of the load3 source", examples=[None]
+
+    pv_production_emr_keys: Optional[list[str]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "The keys of the measurements that are PV production energy meter readings [kWh].",
+            "examples": [["pv1_emr"]],
+        },
     )
-    load4_name: Optional[str] = Field(
-        default=None, description="Name of the load4 source", examples=[None]
-    )
+
+    ## Computed fields
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def keys(self) -> list[str]:
+        """The keys of the measurements that can be stored."""
+        key_list = []
+        for key in self.__class__.model_fields.keys():
+            if key.endswith("_keys") and (value := getattr(self, key)):
+                key_list.extend(value)
+        return sorted(set(key_list))
 
 
 class MeasurementDataRecord(DataRecord):
-    """Represents a measurement data record containing various measurements at a specific datetime.
+    """Represents a measurement data record containing various measurements at a specific datetime."""
 
-    Attributes:
-        date_time (Optional[DateTime]): The datetime of the record.
-    """
-
-    # Single loads, to be aggregated to total load
-    load0_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load0 meter reading [kWh]", examples=[40421]
-    )
-    load1_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load1 meter reading [kWh]", examples=[None]
-    )
-    load2_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load2 meter reading [kWh]", examples=[None]
-    )
-    load3_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load3 meter reading [kWh]", examples=[None]
-    )
-    load4_mr: Optional[float] = Field(
-        default=None, ge=0, description="Load4 meter reading [kWh]", examples=[None]
-    )
-
-    max_loads: ClassVar[int] = 5  # Maximum number of loads that can be set
-
-    grid_export_mr: Optional[float] = Field(
-        default=None, ge=0, description="Export to grid meter reading [kWh]", examples=[1000]
-    )
-
-    grid_import_mr: Optional[float] = Field(
-        default=None, ge=0, description="Import from grid meter reading [kWh]", examples=[1000]
-    )
-
-    # Computed fields
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def loads(self) -> List[str]:
-        """Compute a list of active loads."""
-        active_loads = []
-
-        # Loop through loadx
-        for i in range(self.max_loads):
-            load_attr = f"load{i}_mr"
-
-            # Check if either attribute is set and add to active loads
-            if getattr(self, load_attr, None):
-                active_loads.append(load_attr)
-
-        return active_loads
+    @classmethod
+    def configured_data_keys(cls) -> Optional[list[str]]:
+        """Return the keys for the configured field like data."""
+        keys = cls.config.measurement.keys
+        # Add measurment keys that are needed/ handled by the resource/ device simulations.
+        if cls.config.devices.measurement_keys:
+            keys.extend(cls.config.devices.measurement_keys)
+        return keys
 
 
 class Measurement(SingletonMixin, DataImportMixin, DataSequence):
@@ -98,13 +85,9 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
     Measurements can be provided programmatically or read from JSON string or file.
     """
 
-    records: List[MeasurementDataRecord] = Field(
-        default_factory=list, description="List of measurement data records"
+    records: list[MeasurementDataRecord] = Field(
+        default_factory=list, json_schema_extra={"description": "list of measurement data records"}
     )
-
-    topics: ClassVar[List[str]] = [
-        "load",
-    ]
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         if hasattr(self, "_initialized"):
@@ -140,34 +123,6 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
 
         # Return ceiling of division to include partial intervals
         return int(np.ceil(diff_seconds / interval_seconds))
-
-    def name_to_key(self, name: str, topic: str) -> Optional[str]:
-        """Provides measurement key for given name and topic."""
-        topic = topic.lower()
-
-        if topic not in self.topics:
-            return None
-
-        topic_keys = [
-            key for key in self.config.measurement.model_fields.keys() if key.startswith(topic)
-        ]
-        key = None
-        if topic == "load":
-            for config_key in topic_keys:
-                if (
-                    config_key.endswith("_name")
-                    and getattr(self.config.measurement, config_key) == name
-                ):
-                    key = topic + config_key[len(topic) : len(topic) + 1] + "_mr"
-                    break
-
-        if key is not None and key not in self.record_keys:
-            # Should never happen
-            error_msg = f"Key '{key}' not available."
-            logger.error(error_msg)
-            raise KeyError(error_msg)
-
-        return key
 
     def _energy_from_meter_readings(
         self,
@@ -221,7 +176,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             logger.debug(debug_msg)
         return energy_array
 
-    def load_total(
+    def load_total_kwh(
         self,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
@@ -252,20 +207,23 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
         if end_datetime is None:
             end_datetime = self[-1].date_time
         size = self._interval_count(start_datetime, end_datetime, interval)
-        load_total_array = np.zeros(size)
-        # Loop through load<x>_mr
-        for i in range(self.record_class().max_loads):
-            key = f"load{i}_mr"
-            # Calculate load per interval
-            load_array = self._energy_from_meter_readings(
-                key=key, start_datetime=start_datetime, end_datetime=end_datetime, interval=interval
-            )
-            # Add calculated load to total load
-            load_total_array += load_array
-            debug_msg = f"Total load '{key}' calculation: {load_total_array}"
-            logger.debug(debug_msg)
+        load_total_kwh_array = np.zeros(size)
+        # Loop through all loads
+        if isinstance(self.config.measurement.load_emr_keys, list):
+            for key in self.config.measurement.load_emr_keys:
+                # Calculate load per interval
+                load_array = self._energy_from_meter_readings(
+                    key=key,
+                    start_datetime=start_datetime,
+                    end_datetime=end_datetime,
+                    interval=interval,
+                )
+                # Add calculated load to total load
+                load_total_kwh_array += load_array
+                debug_msg = f"Total load '{key}' calculation: {load_total_kwh_array}"
+                logger.debug(debug_msg)
 
-        return load_total_array
+        return load_total_kwh_array
 
 
 def get_measurement() -> Measurement:

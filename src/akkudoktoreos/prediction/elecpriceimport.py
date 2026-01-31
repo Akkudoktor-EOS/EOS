@@ -9,7 +9,6 @@ format, enabling consistent access to forecasted and historical elecprice attrib
 from pathlib import Path
 from typing import Optional, Union
 
-from loguru import logger
 from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
@@ -22,14 +21,18 @@ class ElecPriceImportCommonSettings(SettingsBaseModel):
 
     import_file_path: Optional[Union[str, Path]] = Field(
         default=None,
-        description="Path to the file to import elecprice data from.",
-        examples=[None, "/path/to/prices.json"],
+        json_schema_extra={
+            "description": "Path to the file to import elecprice data from.",
+            "examples": [None, "/path/to/prices.json"],
+        },
     )
 
     import_json: Optional[str] = Field(
         default=None,
-        description="JSON string, dictionary of electricity price forecast value lists.",
-        examples=['{"elecprice_marketprice_wh": [0.0003384, 0.0003318, 0.0003284]}'],
+        json_schema_extra={
+            "description": "JSON string, dictionary of electricity price forecast value lists.",
+            "examples": ['{"elecprice_marketprice_wh": [0.0003384, 0.0003318, 0.0003284]}'],
+        },
     )
 
     # Validators
@@ -61,15 +64,13 @@ class ElecPriceImport(ElecPriceProvider, PredictionImportProvider):
         return "ElecPriceImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.elecprice.provider_settings is None:
-            logger.debug(f"{self.provider_id()} data update without provider settings.")
-            return
-        if self.config.elecprice.provider_settings.import_file_path:
+        if self.config.elecprice.elecpriceimport.import_file_path:
             self.import_from_file(
-                self.config.elecprice.provider_settings.import_file_path,
+                self.config.elecprice.elecpriceimport.import_file_path,
                 key_prefix="elecprice",
             )
-        if self.config.elecprice.provider_settings.import_json:
+        if self.config.elecprice.elecpriceimport.import_json:
             self.import_from_json(
-                self.config.elecprice.provider_settings.import_json, key_prefix="elecprice"
+                self.config.elecprice.elecpriceimport.import_json,
+                key_prefix="elecprice",
             )

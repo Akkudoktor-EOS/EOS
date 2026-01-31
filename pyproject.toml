@@ -1,6 +1,6 @@
 [project]
 name = "akkudoktor-eos"
-version = "0.0.1"
+dynamic = ["version"] # Get version information dynamically
 authors = [
   { name="Andreas Schmitz", email="author@example.com" },
 ]
@@ -25,6 +25,8 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 optional-dependencies = {dev = { file = ["requirements-dev.txt"] }}
+# version.txt must be generated
+version = { file = "version.txt" }
 
 [tool.setuptools.packages.find]
 where = ["src/"]
@@ -85,6 +87,9 @@ convention = "google"
 minversion = "8.3.3"
 pythonpath = [ "src", ]
 testpaths = [ "tests", ]
+markers = [
+    "docker: marks tests that require a local Docker engine"
+]
 
 [tool.mypy]
 files = ["src", "tests"]
@@ -107,3 +112,12 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "xprocess.*"
 ignore_missing_imports = true
+
+[tool.commitizen]
+# Only used as linter
+name = "cz_conventional_commits"
+version_scheme = "semver"
+
+# Enforce commit message and branch style:
+branch_validation = true
+branch_pattern = "^(feat|fix|chore|docs|refactor|test)/[a-z0-9._-]+$"

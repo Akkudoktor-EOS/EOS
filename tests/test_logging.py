@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 from loguru import logger
 
-from akkudoktoreos.core.logging import track_logging_config
+from akkudoktoreos.core.logging import logging_track_config
 
 # -----------------------------
 # logsettings
@@ -20,14 +20,14 @@ class TestLoggingCommonSettings:
         logger.remove()
 
     def test_valid_console_level_sets_logging(self, config_eos, caplog):
-        config_eos.track_nested_value("/logging", track_logging_config)
+        config_eos.track_nested_value("/logging", logging_track_config)
         config_eos.set_nested_value("/logging/console_level", "INFO")
         assert config_eos.get_nested_value("/logging/console_level") == "INFO"
         assert config_eos.logging.console_level == "INFO"
         assert any("console: INFO" in message for message in caplog.messages)
 
     def test_valid_console_level_calls_tracking_callback(self, config_eos):
-        with patch("akkudoktoreos.core.logging.track_logging_config") as mock_setup:
+        with patch("akkudoktoreos.core.logging.logging_track_config") as mock_setup:
             config_eos.track_nested_value("/logging", mock_setup)
             config_eos.set_nested_value("/logging/console_level", "INFO")
             assert config_eos.get_nested_value("/logging/console_level") == "INFO"

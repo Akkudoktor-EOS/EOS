@@ -8,21 +8,21 @@ optimization is executed. In EOS, a standard set of predictions is managed, incl
 
 - Household Load Prediction
 - Electricity Price Prediction
+- Feed In Tariff Prediction
 - PV Power Prediction
 - Weather Prediction
 
 ## Storing Predictions
 
 EOS stores predictions in a **key-value store**, where the term `prediction key` refers to the
-unique key used to retrieve specific prediction data. The key-value store is in memory. Stored
-data is lost on re-start of the EOS REST server.
+unique key used to retrieve specific prediction data.
 
 ## Prediction Providers
 
 Most predictions can be sourced from various providers. The specific provider to use is configured
 in the EOS configuration and can be set by prediction type. For example:
 
-```python
+```json
 {
   "weather": {
     "provider": "ClearOutside"
@@ -48,15 +48,18 @@ The prediction data must be provided in one of the following formats:
 
 A dictionary with the following structure:
 
-```python
+```json
     {
         "start_datetime": "2024-01-01 00:00:00",
-        "interval": "1 Hour",
+        "interval": "1 hour",
         "<prediction key>": [value, value, ...],
         "<prediction key>": [value, value, ...],
         ...
     }
 ```
+
+If `start_datetime` is not provided EOS defaults to the `start_datetime` of the current energy
+management run. If `interval` is not provided EOS defaults to one hour.
 
 #### 2. DateTimeDataFrame
 
@@ -123,8 +126,10 @@ Configuration options:
     - `ElecPriceImport`: Imports from a file or JSON string.
 
   - `charges_kwh`: Electricity price charges (€/kWh).
-  - `provider_settings.import_file_path`: Path to the file to import electricity price forecast data from.
-  - `provider_settings.import_json`: JSON string, dictionary of electricity price forecast value lists.
+  - `vat_rate`: VAT rate factor applied to electricity price when charges are used (default: 1.19).
+  - `elecpriceimport.import_file_path`: Path to the file to import electricity price forecast data from.
+  - `elecpriceimport.import_json`: JSON string, dictionary of electricity price forecast value lists.
+  - `energycharts.bidding_zone`: Bidding zone Energy Charts shall provide price data for.
 
 ### ElecPriceAkkudoktor Provider
 
@@ -147,7 +152,7 @@ real-time market data with historical price trends.
 Charges and VAT
 
 - If `charges_kwh` configuration option is greater than 0, the electricity price is calculated as:
-  `(market price + charges_kwh) * 1.19 VAT` (including 19% VAT).
+  `(market price + charges_kwh) * vat_rate` where `vat_rate` is configurable (default: 1.19 for 19% VAT).
 - If `charges_kwh` is set to 0, the electricity price is simply: `market_price` (no VAT applied).
 
 **Note:** For the most accurate forecasts, it is recommended to set the `historic_hours` parameter to 840.
@@ -169,11 +174,31 @@ The electricity proce forecast data must be provided in one of the formats descr
 The data may additionally or solely be provided by the
 **PUT** `/v1/prediction/import/ElecPriceImport` endpoint.
 
+## Feed In Tariff Prediction
+
+Prediction keys:
+
+- `feed_in_tarif_wh`: Feed in tarif per Wh (€/Wh).
+- `feed_in_tarif_kwh`: Feed in tarif per kWh (€/kWh)
+
+Configuration options:
+
+- `feedintarif`: Feed in tariff configuration.
+
+  - `provider`: Feed in tariff provider id of provider to be used.
+
+    - `FeedInTariffFixed`: Provides fixed feed in tariff values.
+    - `FeedInTariffImport`: Imports from a file or JSON string.
+
+  - `provider_settings.feed_in_tariff_kwh`: Fixed feed in tariff (€/kWh).
+  - `provider_settings.import_file_path`: Path to the file to import feed in tariff forecast data from.
+  - `provider_settings.import_json`: JSON string, dictionary of feed in tariff value lists.
+
 ## Load Prediction
 
 Prediction keys:
 
-- `load_mean`: Predicted load mean value (W).
+- `loadforecast_power_w`: Predicted load mean value (W).
 - `load_std`: Predicted load standard deviation (W).
 - `load_mean_adjusted`: Predicted load mean value adjusted by load measurement (W).
 
@@ -187,15 +212,27 @@ Configuration options:
     - `LoadVrm`: Retrieves data from the VRM API by Victron Energy.
     - `LoadImport`: Imports from a file or JSON string.
 
-  - `provider_settings.loadakkudoktor_year_energy`: Yearly energy consumption (kWh).
-  - `provider_settings.loadimport_file_path`: Path to the file to import load forecast data from.
-  - `provider_settings.loadimport_json`: JSON string, dictionary of load forecast value lists.
+  - `provider_settings.LoadAkkudoktor.loadakkudoktor_year_energy_kwh`: Yearly energy consumption (kWh).
+  - `provider_settings.LoadVRM.load_vrm_token`: API token.
+  - `provider_settings.LoadVRM.load_vrm_idsite`: load_vrm_idsite.
+  - `provider_settings.LoadImport.loadimport_file_path`: Path to the file to import load forecast data from.
+  - `provider_settings.LoadImport.loadimport_json`: JSON string, dictionary of load forecast value lists.
 
 ### LoadAkkudoktor Provider
 
-The `LoadAkkudoktor` provider retrieves generic load data from a local database and tailors it to
-align with the annual energy consumption specified in the `loadakkudoktor_year_energy` configuration
-option.
+The `LoadAkkudoktor` provider retrieves generic load data from the local database and scales
+it to match the annual energy consumption specified in the
+`LoadAkkudoktor.loadakkudoktor_year_energy` configuration option.
+
+### LoadAkkudoktorAdjusted Provider
+
+The `LoadAkkudoktorAdjusted` provider retrieves generic load data from the local database and scales
+it to match the annual energy consumption specified in the
+`LoadAkkudoktor.loadakkudoktor_year_energy` configuration option. In addition, the provider refines
+the forecast by incorporating available measured load data, ensuring a more realistic and
+site-specific consumption profile.
+
+For details on how to supply load measurements, see the [Measurements](measurement-page) section.
 
 ### LoadVrm Provider
 
@@ -204,13 +241,17 @@ To receive forecasts, the system data must be configured under Dynamic ESS in th
 To query the forecasts, an API token is required, which can also be created in the VRM portal under Preferences.
 This token must be stored in the EOS configuration along with the VRM-Installations-ID.
 
-```python
+```json
     {
         "load": {
             "provider": "LoadVrm",
             "provider_settings": {
-                "load_vrm_token": "dummy-token",
-                "load_vrm_idsite": 12345
+                "LoadVRM": {
+                    "load_vrm_token": "dummy-token",
+                    "load_vrm_idsite": 12345
+                }
+             }
+        }
     }
 ```
 
@@ -364,10 +405,11 @@ represent equal angular distance around the horizon. For instance, if you have 3
 point is due north, the next is 10 degrees east of north, and so on, until the last point, 10
 degrees west of north.
 
----
+![Userhorizon PVGIS](../_static/horizon_eyefish_en.png)
 
 Most of the configuration options are in line with the
-[PVLib](https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html) definition for PVGIS data.
+[PVLib](https://pvlib-python.readthedocs.io/en/stable/_modules/pvlib/iotools/pvgis.html) definition
+for PVGIS data.
 
 Detailed definitions from **PVLib** for PVGIS data.
 
@@ -375,12 +417,14 @@ Detailed definitions from **PVLib** for PVGIS data.
 
 Tilt angle from horizontal plane.
 
+![Tilt PVGIS](../_static/slope.gif)
+
 - `surface_azimuth`
 
 Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180,
 west=270). This is offset 180 degrees from the convention used by PVGIS.
 
----
+![Azimuth PVGIS](../_static/azimuth.gif)
 
 ### PVForecastAkkudoktor Provider
 
@@ -509,7 +553,7 @@ Prediction keys:
 - `weather_temp_air`: Temperature (°C)
 - `weather_total_clouds`: Total Clouds (% Sky Obscured)
 - `weather_visibility`: Visibility (m)
-- `weather_wind_direction`: "Wind Direction (°)
+- `weather_wind_direction`: Wind Direction (°)
 - `weather_wind_speed`: Wind Speed (kmph)
 
 Configuration options:
@@ -541,7 +585,7 @@ The provider provides forecast data for the following prediction keys:
 - `weather_temp_air`: Temperature (°C)
 - `weather_total_clouds`: Total Clouds (% Sky Obscured)
 - `weather_visibility`: Visibility (m)
-- `weather_wind_direction`: "Wind Direction (°)
+- `weather_wind_direction`: Wind Direction (°)
 - `weather_wind_speed`: Wind Speed (kmph)
 
 ### ClearOutside Provider
@@ -571,7 +615,7 @@ The provider provides forecast data for the following prediction keys:
 - `weather_temp_air`: Temperature (°C)
 - `weather_total_clouds`: Total Clouds (% Sky Obscured)
 - `weather_visibility`: Visibility (m)
-- `weather_wind_direction`: "Wind Direction (°)
+- `weather_wind_direction`: Wind Direction (°)
 - `weather_wind_speed`: Wind Speed (kmph)
 
 ### WeatherImport Provider
@@ -602,7 +646,7 @@ The prediction keys for the weather forecast data are:
 - `weather_temp_air`: Temperature (°C)
 - `weather_total_clouds`: Total Clouds (% Sky Obscured)
 - `weather_visibility`: Visibility (m)
-- `weather_wind_direction`: "Wind Direction (°)
+- `weather_wind_direction`: Wind Direction (°)
 - `weather_wind_speed`: Wind Speed (kmph)
 
 The PV forecast data must be provided in one of the formats described in

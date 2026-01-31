@@ -4,7 +4,8 @@ networks:
     name: "eos"
 services:
   eos:
-    image: "akkudoktor/eos:${EOS_VERSION}"
+    image: "akkudoktor/eos:${VERSION}"
+    container_name: "akkudoktoreos"
     read_only: true
     build:
       context: .
@@ -14,32 +15,28 @@ services:
     env_file:
       - .env
     environment:
-      - EOS_CONFIG_DIR=config
+      - OPENBLAS_NUM_THREADS=1
+      - OMP_NUM_THREADS=1
+      - MKL_NUM_THREADS=1
+      - PIP_PROGRESS_BAR=off
+      - PIP_NO_COLOR=1
       - EOS_SERVER__EOSDASH_SESSKEY=s3cr3t
-      - EOS_PREDICTION__LATITUDE=52.2
-      - EOS_PREDICTION__LONGITUDE=13.4
-      - EOS_ELECPRICE__PROVIDER=ElecPriceAkkudoktor
-      - EOS_ELECPRICE__CHARGES_KWH=0.21
+      - EOS_SERVER__HOST=0.0.0.0
+      - EOS_SERVER__PORT=8503
+      - EOS_SERVER__EOSDASH_HOST=0.0.0.0
+      - EOS_SERVER__EOSDASH_PORT=8504
+      - DOCKER_COMPOSE_DATA_DIR=${HOME}/.local/share/net.akkudoktor.eos
+    ulimits:
+      nproc: 65535
+      nofile: 65535
+    security_opt:
+      - seccomp:unconfined
+    restart: unless-stopped
     ports:
       # Configure what ports to expose on host
       - "${EOS_SERVER__PORT}:8503"
       - "${EOS_SERVER__EOSDASH_PORT}:8504"
 
-    # Volume mount configuration (optional)
-    # IMPORTANT: When mounting local directories, the default config won't be available.
-    # You must create an EOS.config.json file in your local config directory with:
-    # {
-    #   "server": {
-    #     "host": "0.0.0.0",        # Required for Docker container accessibility
-    #     "port": 8503,
-    #     "startup_eosdash": true,
-    #     "eosdash_host": "0.0.0.0", # Required for Docker container accessibility
-    #     "eosdash_port": 8504
-    #   }
-    # }
-    #
-    # Example volume mounts (uncomment to use):
-    # volumes:
-    #   - ./config:/opt/eos/config     # Mount local config directory
-    #   - ./cache:/opt/eos/cache       # Mount local cache directory
-    #   - ./output:/opt/eos/output     # Mount local output directory
+    # Volume mount configuration
+    volumes:
+      - ${DOCKER_COMPOSE_DATA_DIR}:/data:rw

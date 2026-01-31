@@ -7,13 +7,20 @@ https://www.sphinx-doc.org/en/master/usage/configuration.html
 import sys
 from pathlib import Path
 
+# Add the src directory to sys.path so Sphinx can import akkudoktoreos
+PROJECT_ROOT = Path(__file__).parent.parent
+SRC_DIR = PROJECT_ROOT / "src"
+sys.path.insert(0, str(SRC_DIR))
+
+from akkudoktoreos.core.version import __version__
+
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Akkudoktor EOS"
-copyright = "2024, Andreas Schmitz"
+copyright = "2025, Andreas Schmitz"
 author = "Andreas Schmitz"
-release = "0.0.1"
+release = __version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -22,6 +29,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
+    "sphinx.ext.todo",
     "sphinx_rtd_theme",
     "myst_parser",
     "sphinx_tabs.tabs",
@@ -99,7 +107,7 @@ html_theme_options = {
     "logo_only": False,
     "titles_only": True,
 }
-html_css_files = ["eos.css"]
+html_css_files = ["eos.css"]  # Make body size wider
 
 # -- Options for autodoc -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/extensions/autodoc.html

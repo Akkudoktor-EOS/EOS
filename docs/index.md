@@ -27,6 +27,12 @@ develop/getting_started.md
 :caption: How-To Guides
 
 develop/CONTRIBUTING.md
+develop/install.md
+akkudoktoreos/configuration.md
+develop/update.md
+develop/revert.md
+akkudoktoreos/adapter/adapterhomeassistant.md
+akkudoktoreos/adapter/adapternodered.md
 
 ```
 
@@ -36,13 +42,27 @@ develop/CONTRIBUTING.md
 
 akkudoktoreos/architecture.md
 akkudoktoreos/configuration.md
-akkudoktoreos/optimization.md
+akkudoktoreos/configtimewindow.md
+akkudoktoreos/optimpost.md
+akkudoktoreos/optimauto.md
+akkudoktoreos/resource.md
 akkudoktoreos/prediction.md
 akkudoktoreos/measurement.md
 akkudoktoreos/integration.md
 akkudoktoreos/logging.md
+akkudoktoreos/adapter.md
 akkudoktoreos/serverapi.md
 akkudoktoreos/api.rst
+
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: Development
+
+develop/develop.md
+develop/release.md
+develop/CHANGELOG.md
 
 ```
 

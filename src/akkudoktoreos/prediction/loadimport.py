@@ -22,24 +22,28 @@ class LoadImportCommonSettings(SettingsBaseModel):
 
     import_file_path: Optional[Union[str, Path]] = Field(
         default=None,
-        description="Path to the file to import load data from.",
-        examples=[None, "/path/to/yearly_load.json"],
+        json_schema_extra={
+            "description": "Path to the file to import load data from.",
+            "examples": [None, "/path/to/yearly_load.json"],
+        },
     )
     import_json: Optional[str] = Field(
         default=None,
-        description="JSON string, dictionary of load forecast value lists.",
-        examples=['{"load0_mean": [676.71, 876.19, 527.13]}'],
+        json_schema_extra={
+            "description": "JSON string, dictionary of load forecast value lists.",
+            "examples": ['{"load0_mean": [676.71, 876.19, 527.13]}'],
+        },
     )
 
     # Validators
     @field_validator("import_file_path", mode="after")
     @classmethod
     def validate_loadimport_file_path(cls, value: Optional[Union[str, Path]]) -> Optional[Path]:
+        """Ensure file is available."""
         if value is None:
             return None
         if isinstance(value, str):
             value = Path(value)
-        """Ensure file is available."""
         value.resolve()
         if not value.is_file():
             raise ValueError(f"Import file path '{value}' is not a file.")
@@ -60,10 +64,14 @@ class LoadImport(LoadProvider, PredictionImportProvider):
         return "LoadImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.load.provider_settings is None:
+        if self.config.load.provider_settings.LoadImport is None:
             logger.debug(f"{self.provider_id()} data update without provider settings.")
             return
-        if self.config.load.provider_settings.import_file_path:
-            self.import_from_file(self.config.provider_settings.import_file_path, key_prefix="load")
-        if self.config.load.provider_settings.import_json:
-            self.import_from_json(self.config.load.provider_settings.import_json, key_prefix="load")
+        if self.config.load.provider_settings.LoadImport.import_file_path:
+            self.import_from_file(
+                self.config.provider_settings.LoadImport.import_file_path, key_prefix="load"
+            )
+        if self.config.load.provider_settings.LoadImport.import_json:
+            self.import_from_json(
+                self.config.load.provider_settings.LoadImport.import_json, key_prefix="load"
+            )

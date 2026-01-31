@@ -1,184 +1,75 @@
 import traceback
-from typing import Any, ClassVar, Optional
+from asyncio import Lock, get_running_loop
+from concurrent.futures import ThreadPoolExecutor
+from enum import Enum
+from functools import partial
+from typing import ClassVar, Optional
 
-import numpy as np
 from loguru import logger
-from numpydantic import NDArray, Shape
-from pendulum import DateTime
-from pydantic import (
-    AliasChoices,
-    ConfigDict,
-    Field,
-    computed_field,
-    field_validator,
-    model_validator,
+from pydantic import computed_field
+
+from akkudoktoreos.core.cache import CacheEnergyManagementStore
+from akkudoktoreos.core.coreabc import (
+    AdapterMixin,
+    ConfigMixin,
+    PredictionMixin,
+    SingletonMixin,
 )
-from typing_extensions import Self
+from akkudoktoreos.core.emplan import EnergyManagementPlan
+from akkudoktoreos.core.emsettings import EnergyManagementMode
+from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticOptimizationParameters,
+)
+from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.optimization import OptimizationSolution
+from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_datetime
 
-from akkudoktoreos.core.cache import CacheUntilUpdateStore
-from akkudoktoreos.core.coreabc import ConfigMixin, PredictionMixin, SingletonMixin
-from akkudoktoreos.core.pydantic import ParametersBaseModel, PydanticBaseModel
-from akkudoktoreos.devices.battery import Battery
-from akkudoktoreos.devices.generic import HomeAppliance
-from akkudoktoreos.devices.inverter import Inverter
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
-from akkudoktoreos.utils.utils import NumpyEncoder
-
-
-class EnergyManagementParameters(ParametersBaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    pv_forecast_wh: list[float] = Field(
-        description="An array of floats representing the forecasted photovoltaic output in watts for different time intervals.",
-        alias="pv_prognose_wh",
-    )
-    electricity_price_per_wh: list[float] = Field(
-        description="An array of floats representing the electricity price per watt-hour for different time intervals.",
-        validation_alias=AliasChoices(
-            "electricity_price_per_wh", "electricity_price_euro_per_wh", "strompreis_euro_pro_wh"
-        ),
-    )
-    feed_in_tariff_per_wh: list[float] | float = Field(
-        description="A float or array of floats representing the feed-in compensation per watt-hour.",
-        validation_alias=AliasChoices(
-            "feed_in_tariff_per_wh", "feed_in_tariff_euro_per_wh", "einspeiseverguetung_euro_pro_wh"
-        ),
-    )
-    price_per_wh_battery: float = Field(
-        description="A float representing the cost of battery energy per watt-hour.",
-        validation_alias=AliasChoices(
-            "price_per_wh_battery", "price_euro_per_wh_battery", "preis_euro_pro_wh_akku"
-        ),
-    )
-    total_load: list[float] = Field(
-        description="An array of floats representing the total load (consumption) in watts for different time intervals.",
-        alias="gesamtlast",
-    )
-
-    @model_validator(mode="after")
-    def validate_list_length(self) -> Self:
-        pv_forecast_length = len(self.pv_forecast_wh)
-        if (
-            pv_forecast_length != len(self.electricity_price_per_wh)
-            or pv_forecast_length != len(self.total_load)
-            or (
-                isinstance(self.feed_in_tariff_per_wh, list)
-                and pv_forecast_length != len(self.feed_in_tariff_per_wh)
-            )
-        ):
-            raise ValueError("Input lists have different lengths")
-        return self
+# The executor to execute the CPU heavy energy management run
+executor = ThreadPoolExecutor(max_workers=1)
 
 
-class SimulationResult(ParametersBaseModel):
-    """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
+class EnergyManagementStage(Enum):
+    """Enumeration of the main stages in the energy management lifecycle."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    IDLE = "IDLE"
+    DATA_ACQUISITION = "DATA_AQUISITION"
+    FORECAST_RETRIEVAL = "FORECAST_RETRIEVAL"
+    OPTIMIZATION = "OPTIMIZATION"
+    CONTROL_DISPATCH = "CONTROL_DISPATCH"
 
-    load_wh_per_hour: list[Optional[float]] = Field(description="TBD", alias="Last_Wh_pro_Stunde")
-    ev_soc_per_hour: list[Optional[float]] = Field(
-        description="The state of charge of the EV for each hour.", alias="EAuto_SoC_pro_Stunde"
-    )
-    revenue_per_hour: list[Optional[float]] = Field(
-        description="The revenue from grid feed-in or other sources per hour.",
-        validation_alias=AliasChoices(
-            "revenue_per_hour", "revenue_euro_per_hour", "Einnahmen_Euro_pro_Stunde"
-        ),
-    )
-    total_losses: float = Field(
-        description="The total losses in watt-hours over the entire period.",
-        alias="Gesamt_Verluste",
-    )
-    total_balance: float = Field(
-        description="The total balance of revenues minus costs.",
-        validation_alias=AliasChoices("total_balance", "total_balance_euro", "Gesamtbilanz_Euro"),
-    )
-    total_revenue: float = Field(
-        description="The total revenues.",
-        validation_alias=AliasChoices(
-            "total_revenue", "total_revenue_euro", "Gesamteinnahmen_Euro"
-        ),
-    )
-    total_costs: float = Field(
-        description="The total costs.",
-        validation_alias=AliasChoices("total_costs", "total_costs_euro", "Gesamtkosten_Euro"),
-    )
-    Home_appliance_wh_per_hour: list[Optional[float]] = Field(
-        description="The energy consumption of a household appliance in watt-hours per hour."
-    )
-    costs_per_hour: list[Optional[float]] = Field(
-        description="The costs per hour.",
-        validation_alias=AliasChoices(
-            "costs_per_hour", "costs_euro_per_hour", "Kosten_Euro_pro_Stunde"
-        ),
-    )
-    grid_consumption_wh_per_hour: list[Optional[float]] = Field(
-        description="The grid energy drawn in watt-hours per hour.", alias="Netzbezug_Wh_pro_Stunde"
-    )
-    grid_feed_in_wh_per_hour: list[Optional[float]] = Field(
-        description="The energy fed into the grid in watt-hours per hour.",
-        alias="Netzeinspeisung_Wh_pro_Stunde",
-    )
-    losses_per_hour: list[Optional[float]] = Field(
-        description="The losses in watt-hours per hour.", alias="Verluste_Pro_Stunde"
-    )
-    battery_soc_per_hour: list[Optional[float]] = Field(
-        description="The state of charge of the battery (not the EV) in percentage per hour.",
-        alias="akku_soc_pro_stunde",
-    )
-    Electricity_price: list[Optional[float]] = Field(
-        description="Used Electricity Price, including predictions"
-    )
-
-    @field_validator(
-        "load_wh_per_hour",
-        "grid_feed_in_wh_per_hour",
-        "battery_soc_per_hour",
-        "grid_consumption_wh_per_hour",
-        "costs_per_hour",
-        "revenue_per_hour",
-        "ev_soc_per_hour",
-        "losses_per_hour",
-        "Home_appliance_wh_per_hour",
-        "Electricity_price",
-        mode="before",
-    )
-    def convert_numpy(cls, field: Any) -> Any:
-        return NumpyEncoder.convert_numpy(field)[0]
-
-    def __getattribute__(self, name: str) -> Any:
-        """Provide backward compatibility for German field names."""
-        # Map old German field names to new field names
-        field_mapping = {
-            "Gesamtbilanz_Euro": "total_balance",
-            "Gesamteinnahmen_Euro": "total_revenue",
-            "Gesamtkosten_Euro": "total_costs",
-            "Kosten_Euro_pro_Stunde": "costs_per_hour",
-            "Einnahmen_Euro_pro_Stunde": "revenue_per_hour",
-            "Last_Wh_pro_Stunde": "load_wh_per_hour",
-            "EAuto_SoC_pro_Stunde": "ev_soc_per_hour",
-            "Netzbezug_Wh_pro_Stunde": "grid_consumption_wh_per_hour",
-            "Netzeinspeisung_Wh_pro_Stunde": "grid_feed_in_wh_per_hour",
-            "Verluste_Pro_Stunde": "losses_per_hour",
-            "akku_soc_pro_stunde": "battery_soc_per_hour",
-            "Gesamt_Verluste": "total_losses",
-        }
-
-        if name in field_mapping:
-            return super().__getattribute__(field_mapping[name])
-        return super().__getattribute__(name)
+    def __str__(self) -> str:
+        """Return the string representation of the stage."""
+        return self.value
 
 
-class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBaseModel):
-    # Disable validation on assignment to speed up simulation runs.
-    model_config = ConfigDict(
-        validate_assignment=False,
-    )
+class EnergyManagement(
+    SingletonMixin, ConfigMixin, PredictionMixin, AdapterMixin, PydanticBaseModel
+):
+    """Energy management."""
 
     # Start datetime.
     _start_datetime: ClassVar[Optional[DateTime]] = None
 
     # last run datetime. Used by energy management task
-    _last_datetime: ClassVar[Optional[DateTime]] = None
+    _last_run_datetime: ClassVar[Optional[DateTime]] = None
+
+    # Current energy management stage
+    _stage: ClassVar[EnergyManagementStage] = EnergyManagementStage.IDLE
+
+    # energy management plan of latest energy management run with optimization
+    _plan: ClassVar[Optional[EnergyManagementPlan]] = None
+
+    # opimization solution of the latest energy management run
+    _optimization_solution: ClassVar[Optional[OptimizationSolution]] = None
+
+    # Solution of the genetic algorithm of latest energy management run with optimization
+    # For classic API
+    _genetic_solution: ClassVar[Optional[GeneticSolution]] = None
+
+    # energy management lock (for energy management run)
+    _run_lock: ClassVar[Lock] = Lock()
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -188,9 +79,15 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
             EnergyManagement.set_start_datetime()
         return EnergyManagement._start_datetime
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def last_run_datetime(self) -> Optional[DateTime]:
+        """The datetime the last energy management was run."""
+        return EnergyManagement._last_run_datetime
+
     @classmethod
     def set_start_datetime(cls, start_datetime: Optional[DateTime] = None) -> DateTime:
-        """Set the start datetime for the next energy management cycle.
+        """Set the start datetime for the next energy management run.
 
         If no datetime is provided, the current datetime is used.
 
@@ -209,140 +106,248 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         cls._start_datetime = start_datetime.set(minute=0, second=0, microsecond=0)
         return cls._start_datetime
 
-    # -------------------------
-    # TODO: Take from prediction
-    # -------------------------
+    @classmethod
+    def stage(cls) -> EnergyManagementStage:
+        """Get the the stage of the energy management.
 
-    load_energy_array: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        description="An array of floats representing the total load (consumption) in watts for different time intervals.",
-    )
-    pv_prediction_wh: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        description="An array of floats representing the forecasted photovoltaic output in watts for different time intervals.",
-    )
-    elect_price_hourly: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        description="An array of floats representing the electricity price in euros per watt-hour for different time intervals.",
-    )
-    elect_revenue_per_hour_arr: Optional[NDArray[Shape["*"], float]] = Field(
-        default=None,
-        description="An array of floats representing the feed-in compensation in euros per watt-hour.",
-    )
+        Returns:
+            EnergyManagementStage: The current stage of energy management.
+        """
+        return cls._stage
 
-    # -------------------------
-    # TODO: Move to devices
-    # -------------------------
+    @classmethod
+    def plan(cls) -> Optional[EnergyManagementPlan]:
+        """Get the latest energy management plan.
 
-    battery: Optional[Battery] = Field(default=None, description="TBD.")
-    ev: Optional[Battery] = Field(default=None, description="TBD.")
-    home_appliance: Optional[HomeAppliance] = Field(default=None, description="TBD.")
-    inverter: Optional[Inverter] = Field(default=None, description="TBD.")
+        Returns:
+            Optional[EnergyManagementPlan]: The latest energy management plan or None.
+        """
+        return cls._plan
 
-    # -------------------------
-    # TODO: Move to devices
-    # -------------------------
+    @classmethod
+    def optimization_solution(cls) -> Optional[OptimizationSolution]:
+        """Get the latest optimization solution.
 
-    ac_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(default=None, description="TBD")
-    dc_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(default=None, description="TBD")
-    ev_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(default=None, description="TBD")
+        Returns:
+            Optional[OptimizationSolution]: The latest optimization solution.
+        """
+        return cls._optimization_solution
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        if hasattr(self, "_initialized"):
-            return
-        super().__init__(*args, **kwargs)
+    @classmethod
+    def genetic_solution(cls) -> Optional[GeneticSolution]:
+        """Get the latest solution of the genetic algorithm.
 
-    def set_parameters(
-        self,
-        parameters: EnergyManagementParameters,
-        ev: Optional[Battery] = None,
-        home_appliance: Optional[HomeAppliance] = None,
-        inverter: Optional[Inverter] = None,
-    ) -> None:
-        self.load_energy_array = np.array(parameters.total_load, float)
-        self.pv_prediction_wh = np.array(parameters.pv_forecast_wh, float)
-        self.elect_price_hourly = np.array(parameters.electricity_price_per_wh, float)
-        self.elect_revenue_per_hour_arr = (
-            parameters.feed_in_tariff_per_wh
-            if isinstance(parameters.feed_in_tariff_per_wh, list)
-            else np.full(len(self.load_energy_array), parameters.feed_in_tariff_per_wh, float)
-        )
-        if inverter:
-            self.battery = inverter.battery
-        else:
-            self.battery = None
-        self.ev = ev
-        self.home_appliance = home_appliance
-        self.inverter = inverter
-        self.ac_charge_hours = np.full(self.config.prediction.hours, 0.0)
-        self.dc_charge_hours = np.full(self.config.prediction.hours, 1.0)
-        self.ev_charge_hours = np.full(self.config.prediction.hours, 0.0)
+        Returns:
+            Optional[GeneticSolution]: The latest solution of the genetic algorithm.
+        """
+        return cls._genetic_solution
 
-    def set_akku_discharge_hours(self, ds: np.ndarray) -> None:
-        if self.battery:
-            self.battery.set_discharge_per_hour(ds)
-
-    def set_akku_ac_charge_hours(self, ds: np.ndarray) -> None:
-        self.ac_charge_hours = ds
-
-    def set_akku_dc_charge_hours(self, ds: np.ndarray) -> None:
-        self.dc_charge_hours = ds
-
-    def set_ev_charge_hours(self, ds: np.ndarray) -> None:
-        self.ev_charge_hours = ds
-
-    def set_home_appliance_start(self, ds: int, global_start_hour: int = 0) -> None:
-        if self.home_appliance:
-            self.home_appliance.set_starting_time(ds, global_start_hour=global_start_hour)
-
-    def reset(self) -> None:
-        if self.ev:
-            self.ev.reset()
-        if self.battery:
-            self.battery.reset()
-
-    def run(
-        self,
-        start_hour: Optional[int] = None,
+    @classmethod
+    def _run(
+        cls,
+        start_datetime: Optional[DateTime] = None,
+        mode: Optional[EnergyManagementMode] = None,
+        genetic_parameters: Optional[GeneticOptimizationParameters] = None,
+        genetic_individuals: Optional[int] = None,
+        genetic_seed: Optional[int] = None,
         force_enable: Optional[bool] = False,
         force_update: Optional[bool] = False,
     ) -> None:
-        """Run energy management.
+        """Run the energy management.
 
-        Sets `start_datetime` to current hour, updates the configuration and the prediction, and
-        starts simulation at current hour.
+        This method initializes the energy management run by setting its
+
+        start datetime, updating predictions, and optionally starting
+        optimization depending on the selected mode or configuration.
 
         Args:
-            start_hour (int, optional): Hour to take as start time for the energy management. Defaults
-            to now.
-            force_enable (bool, optional): If True, forces to update even if disabled. This
-            is mostly relevant to prediction providers.
-            force_update (bool, optional): If True, forces to update the data even if still cached.
+            start_datetime (DateTime, optional): The starting timestamp
+                of the energy management run. Defaults to the current datetime
+                if not provided.
+            mode (EnergyManagementMode, optional): The management mode to use. Must be one of:
+                - "OPTIMIZATION": Runs the optimization process.
+                - "PREDICTION": Updates the forecast without optimization.
+
+                Defaults to the mode defined in the current configuration.
+            genetic_parameters (GeneticOptimizationParameters, optional): The
+                parameter set for the genetic algorithm. If not provided, it will
+                be constructed based on the current configuration and predictions.
+            genetic_individuals (int, optional): The number of individuals for the
+                genetic algorithm. Defaults to the algorithm's internal default (400)
+                if not specified.
+            genetic_seed (int, optional): The seed for the genetic algorithm. Defaults
+                to the algorithm's internal random seed if not specified.
+            force_enable (bool, optional): If True, bypasses any disabled state
+                to force the update process. This is mostly applicable to
+                prediction providers.
+            force_update (bool, optional): If True, forces data to be refreshed
+                even if a cached version is still valid.
+
+        Returns:
+            None
         """
-        # Throw away any cached results of the last run.
-        CacheUntilUpdateStore().clear()
-        self.set_start_hour(start_hour=start_hour)
+        # Ensure there is only one optimization/ energy management run at a time
+        if mode not in (None, "PREDICTION", "OPTIMIZATION"):
+            raise ValueError(f"Unknown energy management mode {mode}.")
 
-        # Check for run definitions
-        if self.start_datetime is None:
-            error_msg = "Start datetime unknown."
+        logger.info("Starting energy management run.")
+
+        cls._stage = EnergyManagementStage.DATA_ACQUISITION
+
+        # Remember/ set the start datetime of this energy management run.
+        # None leads
+        cls.set_start_datetime(start_datetime)
+
+        # Throw away any memory cached results of the last energy management run.
+        CacheEnergyManagementStore().clear()
+
+        # Do data aquisition by adapters
+        try:
+            cls.adapter.update_data(force_enable)
+        except Exception as e:
+            trace = "".join(traceback.TracebackException.from_exception(e).format())
+            error_msg = f"Adapter update failed - phase {cls._stage}: {e}\n{trace}"
             logger.error(error_msg)
-            raise ValueError(error_msg)
-        if self.config.prediction.hours is None:
-            error_msg = "Prediction hours unknown."
+
+        cls._stage = EnergyManagementStage.FORECAST_RETRIEVAL
+
+        if mode is None:
+            mode = cls.config.ems.mode
+        if mode is None or mode == "PREDICTION":
+            # Update the predictions
+            cls.prediction.update_data(force_enable=force_enable, force_update=force_update)
+            logger.info("Energy management run done (predictions updated)")
+            cls._stage = EnergyManagementStage.IDLE
+            return
+
+        # Prepare optimization parameters
+        # This also creates default configurations for missing values and updates the predictions
+        logger.info(
+            "Starting energy management prediction update and optimzation parameter preparation."
+        )
+        if genetic_parameters is None:
+            genetic_parameters = GeneticOptimizationParameters.prepare()
+
+        if not genetic_parameters:
+            logger.error(
+                "Energy management run canceled. Could not prepare optimisation parameters."
+            )
+            cls._stage = EnergyManagementStage.IDLE
+            return
+
+        cls._stage = EnergyManagementStage.OPTIMIZATION
+        logger.info("Starting energy management optimization.")
+
+        # Take values from config if not given
+        if genetic_individuals is None:
+            genetic_individuals = cls.config.optimization.genetic.individuals
+        if genetic_seed is None:
+            genetic_seed = cls.config.optimization.genetic.seed
+
+        if cls._start_datetime is None:  # Make mypy happy - already set by us
+            raise RuntimeError("Start datetime not set.")
+
+        try:
+            optimization = GeneticOptimization(
+                verbose=bool(cls.config.server.verbose),
+                fixed_seed=genetic_seed,
+            )
+            solution = optimization.optimierung_ems(
+                start_hour=cls._start_datetime.hour,
+                parameters=genetic_parameters,
+                ngen=genetic_individuals,
+            )
+        except:
+            logger.exception("Energy management optimization failed.")
+            cls._stage = EnergyManagementStage.IDLE
+            return
+
+        cls._stage = EnergyManagementStage.CONTROL_DISPATCH
+
+        # Make genetic solution public
+        cls._genetic_solution = solution
+
+        # Make optimization solution public
+        cls._optimization_solution = solution.optimization_solution()
+
+        # Make plan public
+        cls._plan = solution.energy_management_plan()
+
+        logger.debug("Energy management genetic solution:\n{}", cls._genetic_solution)
+        logger.debug("Energy management optimization solution:\n{}", cls._optimization_solution)
+        logger.debug("Energy management plan:\n{}", cls._plan)
+        logger.info("Energy management run done (optimization updated)")
+
+        # Do control dispatch by adapters
+        try:
+            cls.adapter.update_data(force_enable)
+        except Exception as e:
+            trace = "".join(traceback.TracebackException.from_exception(e).format())
+            error_msg = f"Adapter update failed - phase {cls._stage}: {e}\n{trace}"
             logger.error(error_msg)
-            raise ValueError(error_msg)
-        if self.config.optimization.hours is None:
-            error_msg = "Optimization hours unknown."
-            logger.error(error_msg)
-            raise ValueError(error_msg)
 
-        self.prediction.update_data(force_enable=force_enable, force_update=force_update)
-        # TODO: Create optimisation problem that calls into devices.update_data() for simulations.
+        # energy management run finished
+        cls._stage = EnergyManagementStage.IDLE
 
-        logger.info("Energy management run (crippled version - prediction update only)")
+    async def run(
+        self,
+        start_datetime: Optional[DateTime] = None,
+        mode: Optional[EnergyManagementMode] = None,
+        genetic_parameters: Optional[GeneticOptimizationParameters] = None,
+        genetic_individuals: Optional[int] = None,
+        genetic_seed: Optional[int] = None,
+        force_enable: Optional[bool] = False,
+        force_update: Optional[bool] = False,
+    ) -> None:
+        """Run the energy management.
 
-    def manage_energy(self) -> None:
+        This method initializes the energy management run by setting its
+        start datetime, updating predictions, and optionally starting
+        optimization depending on the selected mode or configuration.
+
+        Args:
+            start_datetime (DateTime, optional): The starting timestamp
+                of the energy management run. Defaults to the current datetime
+                if not provided.
+            mode (EnergyManagementMode, optional): The management mode to use. Must be one of:
+                - "OPTIMIZATION": Runs the optimization process.
+                - "PREDICTION": Updates the forecast without optimization.
+
+                Defaults to the mode defined in the current configuration.
+            genetic_parameters (GeneticOptimizationParameters, optional): The
+                parameter set for the genetic algorithm. If not provided, it will
+                be constructed based on the current configuration and predictions.
+            genetic_individuals (int, optional): The number of individuals for the
+                genetic algorithm. Defaults to the algorithm's internal default (400)
+                if not specified.
+            genetic_seed (int, optional): The seed for the genetic algorithm. Defaults
+                to the algorithm's internal random seed if not specified.
+            force_enable (bool, optional): If True, bypasses any disabled state
+                to force the update process. This is mostly applicable to
+                prediction providers.
+            force_update (bool, optional): If True, forces data to be refreshed
+                even if a cached version is still valid.
+
+        Returns:
+            None
+        """
+        async with self._run_lock:
+            loop = get_running_loop()
+            # Create a partial function with parameters "baked in"
+            func = partial(
+                EnergyManagement._run,
+                start_datetime=start_datetime,
+                mode=mode,
+                genetic_parameters=genetic_parameters,
+                genetic_individuals=genetic_individuals,
+                genetic_seed=genetic_seed,
+                force_enable=force_enable,
+                force_update=force_update,
+            )
+            # Run optimization in background thread to avoid blocking event loop
+            await loop.run_in_executor(executor, func)
+
+    async def manage_energy(self) -> None:
         """Repeating task for managing energy.
 
         This task should be executed by the server regularly (e.g., every 10 seconds)
@@ -363,13 +368,13 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
         current_datetime = to_datetime()
         interval = self.config.ems.interval  # interval maybe changed in between
 
-        if EnergyManagement._last_datetime is None:
+        if EnergyManagement._last_run_datetime is None:
             # Never run before
             try:
                 # Remember energy run datetime.
-                EnergyManagement._last_datetime = current_datetime
+                EnergyManagement._last_run_datetime = current_datetime
                 # Try to run a first energy management. May fail due to config incomplete.
-                self.run()
+                await self.run()
             except Exception as e:
                 trace = "".join(traceback.TracebackException.from_exception(e).format())
                 message = f"EOS init: {e}\n{trace}"
@@ -381,14 +386,14 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
             return
 
         if (
-            compare_datetimes(current_datetime, EnergyManagement._last_datetime).time_diff
+            compare_datetimes(current_datetime, EnergyManagement._last_run_datetime).time_diff
             < interval
         ):
             # Wait for next run
             return
 
         try:
-            self.run()
+            await self.run()
         except Exception as e:
             trace = "".join(traceback.TracebackException.from_exception(e).format())
             message = f"EOS run: {e}\n{trace}"
@@ -396,186 +401,13 @@ class EnergyManagement(SingletonMixin, ConfigMixin, PredictionMixin, PydanticBas
 
         # Remember the energy management run - keep on interval even if we missed some intervals
         while (
-            compare_datetimes(current_datetime, EnergyManagement._last_datetime).time_diff
+            compare_datetimes(current_datetime, EnergyManagement._last_run_datetime).time_diff
             >= interval
         ):
-            EnergyManagement._last_datetime = EnergyManagement._last_datetime.add(seconds=interval)
+            EnergyManagement._last_run_datetime = EnergyManagement._last_run_datetime.add(
+                seconds=interval
+            )
 
-    def set_start_hour(self, start_hour: Optional[int] = None) -> None:
-        """Sets start datetime to given hour.
-
-        Args:
-            start_hour (int, optional): Hour to take as start time for the energy management. Defaults
-            to now.
-        """
-        if start_hour is None:
-            self.set_start_datetime()
-        else:
-            start_datetime = to_datetime().set(hour=start_hour, minute=0, second=0, microsecond=0)
-            self.set_start_datetime(start_datetime)
-
-    def simulate_start_now(self) -> dict[str, Any]:
-        start_hour = to_datetime().now().hour
-        return self.simulate(start_hour)
-
-    def simulate(self, start_hour: int) -> dict[str, Any]:
-        """Simulate energy usage and costs for the given start hour.
-
-        akku_soc_pro_stunde begin of the hour, initial hour state!
-        last_wh_pro_stunde integral of last hour (end state)
-        """
-        # Check for simulation integrity
-        required_attrs = [
-            "load_energy_array",
-            "pv_prediction_wh",
-            "elect_price_hourly",
-            "ev_charge_hours",
-            "ac_charge_hours",
-            "dc_charge_hours",
-            "elect_revenue_per_hour_arr",
-        ]
-        missing_data = [
-            attr.replace("_", " ").title() for attr in required_attrs if getattr(self, attr) is None
-        ]
-
-        if missing_data:
-            logger.error("Mandatory data missing - %s", ", ".join(missing_data))
-            raise ValueError(f"Mandatory data missing: {', '.join(missing_data)}")
-
-        # Pre-fetch data
-        load_energy_array = np.array(self.load_energy_array)
-        pv_prediction_wh = np.array(self.pv_prediction_wh)
-        elect_price_hourly = np.array(self.elect_price_hourly)
-        ev_charge_hours = np.array(self.ev_charge_hours)
-        ac_charge_hours = np.array(self.ac_charge_hours)
-        dc_charge_hours = np.array(self.dc_charge_hours)
-        elect_revenue_per_hour_arr = np.array(self.elect_revenue_per_hour_arr)
-
-        # Fetch objects
-        battery = self.battery
-        if battery is None:
-            raise ValueError(f"battery not set: {battery}")
-        ev = self.ev
-        home_appliance = self.home_appliance
-        inverter = self.inverter
-
-        if not (len(load_energy_array) == len(pv_prediction_wh) == len(elect_price_hourly)):
-            error_msg = f"Array sizes do not match: Load Curve = {len(load_energy_array)}, PV Forecast = {len(pv_prediction_wh)}, Electricity Price = {len(elect_price_hourly)}"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        end_hour = len(load_energy_array)
-        total_hours = end_hour - start_hour
-
-        # Pre-allocate arrays for the results, optimized for speed
-        loads_energy_per_hour = np.full((total_hours), np.nan)
-        feedin_energy_per_hour = np.full((total_hours), np.nan)
-        consumption_energy_per_hour = np.full((total_hours), np.nan)
-        costs_per_hour = np.full((total_hours), np.nan)
-        revenue_per_hour = np.full((total_hours), np.nan)
-        soc_per_hour = np.full((total_hours), np.nan)
-        soc_ev_per_hour = np.full((total_hours), np.nan)
-        losses_wh_per_hour = np.full((total_hours), np.nan)
-        home_appliance_wh_per_hour = np.full((total_hours), np.nan)
-        electricity_price_per_hour = np.full((total_hours), np.nan)
-
-        # Set initial state
-        soc_per_hour[0] = battery.current_soc_percentage()
-        if ev:
-            soc_ev_per_hour[0] = ev.current_soc_percentage()
-
-        for hour in range(start_hour, end_hour):
-            hour_idx = hour - start_hour
-
-            # save begin states
-            soc_per_hour[hour_idx] = battery.current_soc_percentage()
-
-            if ev:
-                soc_ev_per_hour[hour_idx] = ev.current_soc_percentage()
-
-            # Accumulate loads and PV generation
-            consumption = load_energy_array[hour]
-            losses_wh_per_hour[hour_idx] = 0.0
-
-            # Home appliances
-            if home_appliance:
-                ha_load = home_appliance.get_load_for_hour(hour)
-                consumption += ha_load
-                home_appliance_wh_per_hour[hour_idx] = ha_load
-
-            # E-Auto handling
-            if ev and ev_charge_hours[hour] > 0:
-                loaded_energy_ev, ev_losses = ev.charge_energy(
-                    None, hour, relative_power=ev_charge_hours[hour]
-                )
-                consumption += loaded_energy_ev
-                losses_wh_per_hour[hour_idx] += ev_losses
-
-            # Process inverter logic
-            energy_feedin_grid_actual = energy_consumption_grid_actual = losses = (
-                self_consumption
-            ) = 0.0
-
-            hour_ac_charge = ac_charge_hours[hour]
-            hour_dc_charge = dc_charge_hours[hour]
-            hourly_electricity_price = elect_price_hourly[hour]
-            hourly_energy_revenue = elect_revenue_per_hour_arr[hour]
-
-            battery.set_charge_allowed_for_hour(hour_dc_charge, hour)
-
-            if inverter:
-                energy_produced = pv_prediction_wh[hour]
-                (
-                    energy_feedin_grid_actual,
-                    energy_consumption_grid_actual,
-                    losses,
-                    self_consumption,
-                ) = inverter.process_energy(energy_produced, consumption, hour)
-
-            # AC PV Battery Charge
-            if hour_ac_charge > 0.0:
-                battery.set_charge_allowed_for_hour(1, hour)
-                battery_charged_energy_actual, battery_losses_actual = battery.charge_energy(
-                    None, hour, relative_power=hour_ac_charge
-                )
-
-                total_battery_energy = battery_charged_energy_actual + battery_losses_actual
-                consumption += total_battery_energy
-                energy_consumption_grid_actual += total_battery_energy
-                losses_wh_per_hour[hour_idx] += battery_losses_actual
-
-            # Update hourly arrays
-            feedin_energy_per_hour[hour_idx] = energy_feedin_grid_actual
-            consumption_energy_per_hour[hour_idx] = energy_consumption_grid_actual
-            losses_wh_per_hour[hour_idx] += losses
-            loads_energy_per_hour[hour_idx] = consumption
-            electricity_price_per_hour[hour_idx] = hourly_electricity_price
-
-            # Financial calculations
-            costs_per_hour[hour_idx] = energy_consumption_grid_actual * hourly_electricity_price
-            revenue_per_hour[hour_idx] = energy_feedin_grid_actual * hourly_energy_revenue
-
-        total_cost = np.nansum(costs_per_hour)
-        total_losses = np.nansum(losses_wh_per_hour)
-        total_revenue = np.nansum(revenue_per_hour)
-
-        # Prepare output dictionary
-        return {
-            "load_wh_per_hour": loads_energy_per_hour,
-            "grid_feed_in_wh_per_hour": feedin_energy_per_hour,
-            "grid_consumption_wh_per_hour": consumption_energy_per_hour,
-            "costs_per_hour": costs_per_hour,
-            "battery_soc_per_hour": soc_per_hour,
-            "revenue_per_hour": revenue_per_hour,
-            "total_balance": total_cost - total_revenue,
-            "ev_soc_per_hour": soc_ev_per_hour,
-            "total_revenue": total_revenue,
-            "total_costs": total_cost,
-            "losses_per_hour": losses_wh_per_hour,
-            "total_losses": total_losses,
-            "Home_appliance_wh_per_hour": home_appliance_wh_per_hour,
-            "Electricity_price": electricity_price_per_hour,
-        }
 
 
 # Initialize the Energy Management System, it is a singleton.

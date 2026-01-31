@@ -19,8 +19,10 @@ def pvforecast_instance(config_eos):
         "pvforecast": {
             "provider": "PVForecastVrm",
             "provider_settings": {
-                "pvforecast_vrm_token": "dummy-token",
-                "pvforecast_vrm_idsite": 12345
+                "PVForecastVrm": {
+                    "pvforecast_vrm_token": "dummy-token",
+                    "pvforecast_vrm_idsite": 12345,
+                },
             }
         }
     }

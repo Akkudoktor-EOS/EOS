@@ -15,21 +15,20 @@ from akkudoktoreos.core.logabc import LOGGING_LEVELS
 class LoggingCommonSettings(SettingsBaseModel):
     """Logging Configuration."""
 
-    level: Optional[str] = Field(
-        default=None,
-        deprecated="This is deprecated. Use console_level and file_level instead.",
-    )
-
     console_level: Optional[str] = Field(
         default=None,
-        description="Logging level when logging to console.",
-        examples=LOGGING_LEVELS,
+        json_schema_extra={
+            "description": "Logging level when logging to console.",
+            "examples": LOGGING_LEVELS,
+        },
     )
 
     file_level: Optional[str] = Field(
         default=None,
-        description="Logging level when logging to file.",
-        examples=LOGGING_LEVELS,
+        json_schema_extra={
+            "description": "Logging level when logging to file.",
+            "examples": LOGGING_LEVELS,
+        },
     )
 
     @computed_field  # type: ignore[prop-decorator]

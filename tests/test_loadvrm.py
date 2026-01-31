@@ -19,8 +19,10 @@ def load_vrm_instance(config_eos):
         "load": {
             "provider": "LoadVrm",
             "provider_settings": {
-                "load_vrm_token": "dummy-token",
-                "load_vrm_idsite": 12345
+                "LoadVrm": {
+                    "load_vrm_token": "dummy-token",
+                    "load_vrm_idsite": 12345,
+                },
             }
         }
     }
@@ -60,11 +62,11 @@ def test_update_data_calls_update_value(load_vrm_instance):
         expected_calls = [
             call(
                 pendulum.datetime(2025, 1, 1, 0, 0, 0, tz='Europe/Berlin'),
-                {"load_mean": 100.5, "load_std": 0.0, "load_mean_adjusted": 100.5}
+                {"loadforecast_power_w": 100.5,}
             ),
             call(
                 pendulum.datetime(2025, 1, 1, 1, 0, 0, tz='Europe/Berlin'),
-                {"load_mean": 101.2, "load_std": 0.0, "load_mean_adjusted": 101.2}
+                {"loadforecast_power_w": 101.2,}
             ),
         ]
 

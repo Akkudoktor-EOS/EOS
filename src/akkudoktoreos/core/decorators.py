@@ -12,22 +12,24 @@ class classproperty:
     the class rather than any instance of the class.
 
     Example:
-        class MyClass:
-            _value = 42
+        .. code-block:: python
 
-            @classproperty
-            def value(cls):
-                return cls._value
+            class MyClass:
+                _value = 42
 
-        print(MyClass.value)  # Outputs: 42
+                @classproperty
+                def value(cls):
+                    return cls._value
+
+            print(MyClass.value)  # Outputs: 42
 
     Methods:
         __get__: Retrieves the value of the class property by calling the
-                 decorated method on the class.
+            decorated method on the class.
 
     Parameters:
         fget (Callable[[Any], Any]): A method that takes the class as an
-                                      argument and returns a value.
+            argument and returns a value.
 
     Raises:
         RuntimeError: If `fget` is not defined when `__get__` is called.

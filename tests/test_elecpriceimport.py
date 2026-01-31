@@ -18,7 +18,7 @@ def provider(sample_import_1_json, config_eos):
     settings = {
         "elecprice": {
             "provider": "ElecPriceImport",
-            "provider_settings": {
+            "elecpriceimport": {
                 "import_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
                 "import_json": json.dumps(sample_import_1_json),
             },
@@ -54,7 +54,7 @@ def test_invalid_provider(provider, config_eos):
     settings = {
         "elecprice": {
             "provider": "<invalid>",
-            "provider_settings": {
+            "elecpriceimport": {
                 "import_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
             },
         }
@@ -86,20 +86,20 @@ def test_import(provider, sample_import_1_json, start_datetime, from_file, confi
     ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
-        config_eos.elecprice.provider_settings.import_json = None
-        assert config_eos.elecprice.provider_settings.import_json is None
+        config_eos.elecprice.elecpriceimport.import_json = None
+        assert config_eos.elecprice.elecpriceimport.import_json is None
     else:
-        config_eos.elecprice.provider_settings.import_file_path = None
-        assert config_eos.elecprice.provider_settings.import_file_path is None
+        config_eos.elecprice.elecpriceimport.import_file_path = None
+        assert config_eos.elecprice.elecpriceimport.import_file_path is None
     provider.clear()
 
     # Call the method
     provider.update_data()
 
     # Assert: Verify the result is as expected
-    assert provider.start_datetime is not None
+    assert provider.ems_start_datetime is not None
     assert provider.total_hours is not None
-    assert compare_datetimes(provider.start_datetime, ems_eos.start_datetime).equal
+    assert compare_datetimes(provider.ems_start_datetime, ems_eos.start_datetime).equal
     values = sample_import_1_json["elecprice_marketprice_wh"]
     value_datetime_mapping = provider.import_datetimes(ems_eos.start_datetime, len(values))
     for i, mapping in enumerate(value_datetime_mapping):

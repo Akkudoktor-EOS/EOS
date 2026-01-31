@@ -47,48 +47,68 @@ class WeatherDataRecord(PredictionRecord):
     """
 
     weather_total_clouds: Optional[float] = Field(
-        default=None, description="Total Clouds (% Sky Obscured)"
+        default=None, json_schema_extra={"description": "Total Clouds (% Sky Obscured)"}
     )
     weather_low_clouds: Optional[float] = Field(
-        default=None, description="Low Clouds (% Sky Obscured)"
+        default=None, json_schema_extra={"description": "Low Clouds (% Sky Obscured)"}
     )
     weather_medium_clouds: Optional[float] = Field(
-        default=None, description="Medium Clouds (% Sky Obscured)"
+        default=None, json_schema_extra={"description": "Medium Clouds (% Sky Obscured)"}
     )
     weather_high_clouds: Optional[float] = Field(
-        default=None, description="High Clouds (% Sky Obscured)"
+        default=None, json_schema_extra={"description": "High Clouds (% Sky Obscured)"}
     )
-    weather_visibility: Optional[float] = Field(default=None, description="Visibility (m)")
-    weather_fog: Optional[float] = Field(default=None, description="Fog (%)")
-    weather_precip_type: Optional[str] = Field(default=None, description="Precipitation Type")
+    weather_visibility: Optional[float] = Field(
+        default=None, json_schema_extra={"description": "Visibility (m)"}
+    )
+    weather_fog: Optional[float] = Field(default=None, json_schema_extra={"description": "Fog (%)"})
+    weather_precip_type: Optional[str] = Field(
+        default=None, json_schema_extra={"description": "Precipitation Type"}
+    )
     weather_precip_prob: Optional[float] = Field(
-        default=None, description="Precipitation Probability (%)"
+        default=None, json_schema_extra={"description": "Precipitation Probability (%)"}
     )
     weather_precip_amt: Optional[float] = Field(
-        default=None, description="Precipitation Amount (mm)"
+        default=None, json_schema_extra={"description": "Precipitation Amount (mm)"}
     )
     weather_preciptable_water: Optional[float] = Field(
-        default=None, description="Precipitable Water (cm)"
+        default=None, json_schema_extra={"description": "Precipitable Water (cm)"}
     )
-    weather_wind_speed: Optional[float] = Field(default=None, description="Wind Speed (kmph)")
-    weather_wind_direction: Optional[float] = Field(default=None, description="Wind Direction (°)")
-    weather_frost_chance: Optional[str] = Field(default=None, description="Chance of Frost")
-    weather_temp_air: Optional[float] = Field(default=None, description="Temperature (°C)")
-    weather_feels_like: Optional[float] = Field(default=None, description="Feels Like (°C)")
-    weather_dew_point: Optional[float] = Field(default=None, description="Dew Point (°C)")
+    weather_wind_speed: Optional[float] = Field(
+        default=None, json_schema_extra={"description": "Wind Speed (kmph)"}
+    )
+    weather_wind_direction: Optional[float] = Field(
+        default=None, json_schema_extra={"description": "Wind Direction (°)"}
+    )
+    weather_frost_chance: Optional[str] = Field(
+        default=None, json_schema_extra={"description": "Chance of Frost"}
+    )
+    weather_temp_air: Optional[float] = Field(
+        default=None, json_schema_extra={"description": "Temperature (°C)"}
+    )
+    weather_feels_like: Optional[float] = Field(
+        default=None, json_schema_extra={"description": "Feels Like (°C)"}
+    )
+    weather_dew_point: Optional[float] = Field(
+        default=None, json_schema_extra={"description": "Dew Point (°C)"}
+    )
     weather_relative_humidity: Optional[float] = Field(
-        default=None, description="Relative Humidity (%)"
+        default=None, json_schema_extra={"description": "Relative Humidity (%)"}
     )
-    weather_pressure: Optional[float] = Field(default=None, description="Pressure (mb)")
-    weather_ozone: Optional[float] = Field(default=None, description="Ozone (du)")
+    weather_pressure: Optional[float] = Field(
+        default=None, json_schema_extra={"description": "Pressure (mb)"}
+    )
+    weather_ozone: Optional[float] = Field(
+        default=None, json_schema_extra={"description": "Ozone (du)"}
+    )
     weather_ghi: Optional[float] = Field(
-        default=None, description="Global Horizontal Irradiance (W/m2)"
+        default=None, json_schema_extra={"description": "Global Horizontal Irradiance (W/m2)"}
     )
     weather_dni: Optional[float] = Field(
-        default=None, description="Direct Normal Irradiance (W/m2)"
+        default=None, json_schema_extra={"description": "Direct Normal Irradiance (W/m2)"}
     )
     weather_dhi: Optional[float] = Field(
-        default=None, description="Diffuse Horizontal Irradiance (W/m2)"
+        default=None, json_schema_extra={"description": "Diffuse Horizontal Irradiance (W/m2)"}
     )
 
 
@@ -114,7 +134,7 @@ class WeatherProvider(PredictionProvider):
 
     # overload
     records: List[WeatherDataRecord] = Field(
-        default_factory=list, description="List of WeatherDataRecord records"
+        default_factory=list, json_schema_extra={"description": "List of WeatherDataRecord records"}
     )
 
     @classmethod

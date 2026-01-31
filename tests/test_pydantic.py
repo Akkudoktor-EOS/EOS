@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 import pendulum
@@ -11,15 +11,46 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeDataFrame,
     PydanticDateTimeSeries,
     PydanticModelNestedValueMixin,
+    merge_models,
 )
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_datetime
 
 
 class PydanticTestModel(PydanticBaseModel):
-    datetime_field: pendulum.DateTime = Field(
-        ..., description="A datetime field with pendulum support."
+    """Minimal test model for exercising PydanticBaseModel helpers."""
+
+    datetime_field: DateTime = Field(
+        ...,
+        description="A datetime field with pendulum support.",
+        json_schema_extra={"description": "A datetime field with pendulum support."},
     )
-    optional_field: Optional[str] = Field(default=None, description="An optional field.")
+
+    optional_field: Optional[str] = Field(
+        default=None,
+        # optional field with no description
+    )
+
+    # ---------------------------------------------------------------------
+    # Additional fields to support metadata-based testing
+    # ---------------------------------------------------------------------
+
+    described_field: str = Field(
+        default="x",
+        description="A described string",
+        json_schema_extra={"description": "A described string"},
+    )
+
+    deprecated_field: str = Field(
+        default="y",
+        description="A deprecated string field",
+        json_schema_extra={"deprecated": "Use new_field instead"},
+    )
+
+    example_field: str = Field(
+        default="z",
+        description="An example-backed string field",
+        json_schema_extra={"examples": ["a", "b", "c"]},
+    )
 
 
 class Address(PydanticBaseModel):
@@ -31,6 +62,108 @@ class User(PydanticBaseModel):
     name: str
     addresses: Optional[list[Address]] = None
     settings: Optional[dict[str, str]] = None
+
+
+class SampleNestedModel(PydanticBaseModel):
+    threshold: int
+    enabled: bool = True
+
+
+class SampleModel(PydanticBaseModel):
+    name: str
+    count: int
+    config: SampleNestedModel
+    optional: str | None = None
+
+
+class TestMergeModels:
+    """Test suite for the merge_models utility function with None overriding."""
+
+    def test_flat_override(self):
+        """Top-level fields in update_dict override those in source, including None."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5})
+        update = {"name": "Updated"}
+        result = merge_models(source, update)
+
+        assert result["name"] == "Updated"
+        assert result["count"] == 10
+        assert result["config"]["threshold"] == 5
+
+    def test_flat_override_with_none(self):
+        """Update with None value should override source value."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5}, optional="keep me")
+        update = {"optional": None}
+        result = merge_models(source, update)
+
+        assert result["optional"] is None
+
+    def test_nested_override(self):
+        """Nested fields in update_dict override nested fields in source, including None."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5, "enabled": True})
+        update = {"config": {"threshold": 99, "enabled": False}}
+        result = merge_models(source, update)
+
+        assert result["config"]["threshold"] == 99
+        assert result["config"]["enabled"] is False
+
+    def test_nested_override_with_none(self):
+        """Nested update with None should override nested source values."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5, "enabled": True})
+        update = {"config": {"threshold": None}}
+        result = merge_models(source, update)
+
+        assert result["config"]["threshold"] is None
+        assert result["config"]["enabled"] is True  # untouched because not in update
+
+    def test_preserve_source_values(self):
+        """Source values are preserved if not overridden in update_dict."""
+        source = SampleModel(name="Source", count=7, config={"threshold": 1})
+        update: dict[str, Any] = {}
+        result = merge_models(source, update)
+
+        assert result["name"] == "Source"
+        assert result["count"] == 7
+        assert result["config"]["threshold"] == 1
+
+    def test_update_extends_source(self):
+        """Optional fields in update_dict are added to result."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5})
+        update = {"optional": "new value"}
+        result = merge_models(source, update)
+
+        assert result["optional"] == "new value"
+
+    def test_update_extends_source_with_none(self):
+        """Optional field with None in update_dict is added and overrides source."""
+        source = SampleModel(name="Test", count=10, config={"threshold": 5}, optional="value")
+        update = {"optional": None}
+        result = merge_models(source, update)
+
+        assert result["optional"] is None
+
+    def test_deep_merge_behavior(self):
+        """Nested updates merge with source, overriding only specified subkeys."""
+        source = SampleModel(name="Model", count=3, config={"threshold": 1, "enabled": False})
+        update = {"config": {"enabled": True}}
+        result = merge_models(source, update)
+
+        assert result["config"]["enabled"] is True
+        assert result["config"]["threshold"] == 1
+
+    def test_override_all(self):
+        """All fields in update_dict override all fields in source, including None."""
+        source = SampleModel(name="Orig", count=1, config={"threshold": 10, "enabled": True})
+        update = {
+            "name": "New",
+            "count": None,
+            "config": {"threshold": 50, "enabled": None}
+        }
+        result = merge_models(source, update)
+
+        assert result["name"] == "New"
+        assert result["count"] is None
+        assert result["config"]["threshold"] == 50
+        assert result["config"]["enabled"] is None
 
 
 class TestPydanticModelNestedValueMixin:
@@ -242,7 +375,7 @@ class TestPydanticBaseModel:
         assert model.datetime_field == dt
 
     def test_invalid_datetime_string(self):
-        with pytest.raises(ValidationError, match="Cannot convert 'invalid_datetime' to datetime"):
+        with pytest.raises(ValueError):
             PydanticTestModel(datetime_field="invalid_datetime")
 
     def test_iso8601_serialization(self):
@@ -274,6 +407,36 @@ class TestPydanticBaseModel:
         restored_model = PydanticTestModel.from_json(json_data)
         assert restored_model.datetime_field == dt
 
+    def test_field_extra_dict(self):
+        field = PydanticTestModel.model_fields["described_field"]
+        extra = PydanticTestModel._field_extra_dict(field)
+        assert isinstance(extra, dict)
+        assert extra.get("description") == "A described string"
+
+    def test_field_description(self):
+        result = PydanticTestModel.field_description("described_field")
+        assert result == "A described string"
+
+    def test_field_description_missing(self):
+        result = PydanticTestModel.field_description("optional_field")
+        assert result is None
+
+    def test_field_deprecated(self):
+        result = PydanticTestModel.field_deprecated("deprecated_field")
+        assert result == "Use new_field instead"
+
+    def test_field_deprecated_missing(self):
+        result = PydanticTestModel.field_deprecated("described_field")
+        assert result is None
+
+    def test_field_examples(self):
+        result = PydanticTestModel.field_examples("example_field")
+        assert result == ["a", "b", "c"]
+
+    def test_field_examples_missing(self):
+        result = PydanticTestModel.field_examples("optional_field")
+        assert result is None
+
 
 class TestPydanticDateTimeData:
     def test_valid_list_lengths(self):
@@ -299,6 +462,7 @@ class TestPydanticDateTimeData:
 
 class TestPydanticDateTimeDataFrame:
     def test_valid_dataframe(self):
+        """Ensure conversion from and to DataFrame preserves index and values."""
         df = pd.DataFrame(
             {
                 "value": [100, 200],
@@ -308,12 +472,100 @@ class TestPydanticDateTimeDataFrame:
         model = PydanticDateTimeDataFrame.from_dataframe(df)
         result = model.to_dataframe()
 
-        # Check index
         assert len(result.index) == len(df.index)
         for i, dt in enumerate(df.index):
             expected_dt = to_datetime(dt)
             result_dt = to_datetime(result.index[i])
             assert compare_datetimes(result_dt, expected_dt).equal
+
+    def test_add_row(self):
+        """Verify that a new row can be inserted with matching columns."""
+        model = PydanticDateTimeDataFrame(
+            data={"2024-12-21T00:00:00": {"value": 100}}, dtypes={"value": "int64"}
+        )
+        model.add_row("2024-12-22T00:00:00", {"value": 200})
+
+        # Normalize key the same way the model stores it
+        key = model._normalize_index("2024-12-22T00:00:00")
+
+        assert key in model.data
+        assert model.data[key]["value"] == 200
+
+    def test_add_row_column_mismatch_raises(self):
+        """Ensure adding a row with mismatched columns raises ValueError."""
+        model = PydanticDateTimeDataFrame(
+            data={"2024-12-21T00:00:00": {"value": 100}}, dtypes={"value": "int64"}
+        )
+        with pytest.raises(ValueError):
+            model.add_row("2024-12-22T00:00:00", {"wrong": 200})
+
+    def test_update_row(self):
+        """Check updating an existing row's values works."""
+        model = PydanticDateTimeDataFrame(
+            data={"2024-12-21T00:00:00": {"value": 100}}, dtypes={"value": "int64"}
+        )
+        model.update_row("2024-12-21T00:00:00", {"value": 999})
+
+        key = model._normalize_index("2024-12-21T00:00:00")
+        assert model.data[key]["value"] == 999
+
+    def test_update_row_missing_raises(self):
+        """Verify updating a non-existing row raises KeyError."""
+        model = PydanticDateTimeDataFrame(
+            data={"2024-12-21T00:00:00": {"value": 100}}, dtypes={"value": "int64"}
+        )
+        with pytest.raises(KeyError):
+            model.update_row("2024-12-22T00:00:00", {"value": 999})
+
+    def test_delete_row(self):
+        """Ensure rows can be deleted by index."""
+        model = PydanticDateTimeDataFrame(
+            data={"2024-12-21T00:00:00": {"value": 100}}, dtypes={"value": "int64"}
+        )
+        model.delete_row("2024-12-21T00:00:00")
+        assert "2024-12-21T00:00:00" not in model.data
+
+    def test_set_and_get_value(self):
+        """Confirm set_value and get_value operate correctly."""
+        model = PydanticDateTimeDataFrame(
+            data={"2024-12-21T00:00:00": {"value": 100}}, dtypes={"value": "int64"}
+        )
+        model.set_value("2024-12-21T00:00:00", "value", 555)
+        assert model.get_value("2024-12-21T00:00:00", "value") == 555
+
+    def test_add_column(self):
+        """Check that a new column can be added with default value."""
+        model = PydanticDateTimeDataFrame(
+            data={"2024-12-21T00:00:00": {"value": 100}}, dtypes={"value": "int64"}
+        )
+        model.add_column("extra", default=0, dtype="int64")
+
+        key = model._normalize_index("2024-12-21T00:00:00")
+        assert model.data[key]["extra"] == 0
+        assert model.dtypes["extra"] == "int64"
+
+    def test_rename_column(self):
+        """Ensure renaming a column updates all rows and dtypes."""
+        model = PydanticDateTimeDataFrame(
+            data={"2024-12-21T00:00:00": {"value": 100}}, dtypes={"value": "int64"}
+        )
+        model.rename_column("value", "renamed")
+
+        key = model._normalize_index("2024-12-21T00:00:00")
+        assert "renamed" in model.data[key]
+        assert "value" not in model.data[key]
+        assert model.dtypes["renamed"] == "int64"
+
+    def test_drop_column(self):
+        """Verify dropping a column removes it from both data and dtypes."""
+        model = PydanticDateTimeDataFrame(
+            data={"2024-12-21T00:00:00": {"value": 100, "extra": 1}}, dtypes={"value": "int64", "extra": "int64"}
+        )
+        model.drop_column("extra")
+
+        key = model._normalize_index("2024-12-21T00:00:00")
+        assert "extra" not in model.data[key]
+        assert "extra" not in model.dtypes
 
 
 class TestPydanticDateTimeSeries:

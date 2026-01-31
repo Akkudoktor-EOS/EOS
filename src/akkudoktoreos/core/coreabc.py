@@ -14,14 +14,55 @@ import threading
 from typing import Any, ClassVar, Dict, Optional, Type
 
 from loguru import logger
-from pendulum import DateTime
-from pydantic import computed_field
 
+from akkudoktoreos.core.decorators import classproperty
+from akkudoktoreos.utils.datetimeutil import DateTime
+
+adapter_eos: Any = None
 config_eos: Any = None
 measurement_eos: Any = None
 prediction_eos: Any = None
-devices_eos: Any = None
 ems_eos: Any = None
+
+
+class AdapterMixin:
+    """Mixin class for managing EOS adapter.
+
+    This class serves as a foundational component for EOS-related classes requiring access
+    to the global EOS adapters. It provides a `adapter` property that dynamically retrieves
+    the adapter instance.
+
+    Usage:
+        Subclass this base class to gain access to the `adapter` attribute, which retrieves the
+        global adapter instance lazily to avoid import-time circular dependencies.
+
+    Attributes:
+        adapter (Adapter): Property to access the global EOS adapter.
+
+    Example:
+        .. code-block:: python
+
+            class MyEOSClass(AdapterMixin):
+                def my_method(self):
+                    self.adapter.update_date()
+
+    """
+
+    @classproperty
+    def adapter(cls) -> Any:
+        """Convenience class method/ attribute to retrieve the EOS adapters.
+
+        Returns:
+            Adapter: The adapters.
+        """
+        # avoid circular dependency at import time
+        global adapter_eos
+        if adapter_eos is None:
+            from akkudoktoreos.adapter.adapter import get_adapter
+
+            adapter_eos = get_adapter()
+
+        return adapter_eos
 
 
 class ConfigMixin:
@@ -39,16 +80,17 @@ class ConfigMixin:
         config (ConfigEOS): Property to access the global EOS configuration.
 
     Example:
-        ```python
-        class MyEOSClass(ConfigMixin):
-            def my_method(self):
-                if self.config.myconfigval:
-        ```
+        .. code-block:: python
+
+            class MyEOSClass(ConfigMixin):
+                def my_method(self):
+                    if self.config.myconfigval:
+
     """
 
-    @property
-    def config(self) -> Any:
-        """Convenience method/ attribute to retrieve the EOS configuration data.
+    @classproperty
+    def config(cls) -> Any:
+        """Convenience class method/ attribute to retrieve the EOS configuration data.
 
         Returns:
             ConfigEOS: The configuration.
@@ -78,17 +120,18 @@ class MeasurementMixin:
         measurement (Measurement): Property to access the global EOS measurement data.
 
     Example:
-        ```python
-        class MyOptimizationClass(MeasurementMixin):
-            def analyze_mymeasurement(self):
-                measurement_data = self.measurement.mymeasurement
-                # Perform analysis
-        ```
+        .. code-block:: python
+
+            class MyOptimizationClass(MeasurementMixin):
+                def analyze_mymeasurement(self):
+                    measurement_data = self.measurement.mymeasurement
+                    # Perform analysis
+
     """
 
-    @property
-    def measurement(self) -> Any:
-        """Convenience method/ attribute to retrieve the EOS measurement data.
+    @classproperty
+    def measurement(cls) -> Any:
+        """Convenience class method/ attribute to retrieve the EOS measurement data.
 
         Returns:
             Measurement: The measurement.
@@ -118,17 +161,18 @@ class PredictionMixin:
         prediction (Prediction): Property to access the global EOS prediction data.
 
     Example:
-        ```python
-        class MyOptimizationClass(PredictionMixin):
-            def analyze_myprediction(self):
-                prediction_data = self.prediction.mypredictionresult
-                # Perform analysis
-        ```
+        .. code-block:: python
+
+            class MyOptimizationClass(PredictionMixin):
+                def analyze_myprediction(self):
+                    prediction_data = self.prediction.mypredictionresult
+                    # Perform analysis
+
     """
 
-    @property
-    def prediction(self) -> Any:
-        """Convenience method/ attribute to retrieve the EOS prediction data.
+    @classproperty
+    def prediction(cls) -> Any:
+        """Convenience class method/ attribute to retrieve the EOS prediction data.
 
         Returns:
             Prediction: The prediction.
@@ -141,46 +185,6 @@ class PredictionMixin:
             prediction_eos = get_prediction()
 
         return prediction_eos
-
-
-class DevicesMixin:
-    """Mixin class for managing EOS devices simulation data.
-
-    This class serves as a foundational component for EOS-related classes requiring access
-    to global devices simulation data. It provides a `devices` property that dynamically retrieves
-    the devices instance, ensuring up-to-date access to devices simulation results.
-
-    Usage:
-        Subclass this base class to gain access to the `devices` attribute, which retrieves the
-        global devices instance lazily to avoid import-time circular dependencies.
-
-    Attributes:
-        devices (Devices): Property to access the global EOS devices simulation data.
-
-    Example:
-        ```python
-        class MyOptimizationClass(DevicesMixin):
-            def analyze_mydevicesimulation(self):
-                device_simulation_data = self.devices.mydevicesresult
-                # Perform analysis
-        ```
-    """
-
-    @property
-    def devices(self) -> Any:
-        """Convenience method/ attribute to retrieve the EOS devices simulation data.
-
-        Returns:
-            Devices: The devices simulation.
-        """
-        # avoid circular dependency at import time
-        global devices_eos
-        if devices_eos is None:
-            from akkudoktoreos.devices.devices import get_devices
-
-            devices_eos = get_devices()
-
-        return devices_eos
 
 
 class EnergyManagementSystemMixin:
@@ -199,17 +203,18 @@ class EnergyManagementSystemMixin:
         ems (EnergyManagementSystem): Property to access the global EOS energy management system.
 
     Example:
-        ```python
-        class MyOptimizationClass(EnergyManagementSystemMixin):
-            def analyze_myprediction(self):
-                ems_data = self.ems.the_ems_method()
-                # Perform analysis
-        ```
+        .. code-block:: python
+
+            class MyOptimizationClass(EnergyManagementSystemMixin):
+                def analyze_myprediction(self):
+                    ems_data = self.ems.the_ems_method()
+                    # Perform analysis
+
     """
 
-    @property
-    def ems(self) -> Any:
-        """Convenience method/ attribute to retrieve the EOS energy management system.
+    @classproperty
+    def ems(cls) -> Any:
+        """Convenience class method/ attribute to retrieve the EOS energy management system.
 
         Returns:
             EnergyManagementSystem: The energy management system.
@@ -231,16 +236,21 @@ class StartMixin(EnergyManagementSystemMixin):
         - `start_datetime`: The starting datetime of the current or latest energy management.
     """
 
-    # Computed field for start_datetime
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def start_datetime(self) -> Optional[DateTime]:
-        """Returns the start datetime of the current or latest energy management.
+    @classproperty
+    def ems_start_datetime(cls) -> Optional[DateTime]:
+        """Convenience class method/ attribute to retrieve the start datetime of the current or latest energy management.
 
         Returns:
             DateTime: The starting datetime of the current or latest energy management, or None.
         """
-        return self.ems.start_datetime
+        # avoid circular dependency at import time
+        global ems_eos
+        if ems_eos is None:
+            from akkudoktoreos.core.ems import get_ems
+
+            ems_eos = get_ems()
+
+        return ems_eos.start_datetime
 
 
 class SingletonMixin:
@@ -259,22 +269,25 @@ class SingletonMixin:
         - Avoid using `__init__` to reinitialize the singleton instance after it has been created.
 
     Example:
-        class MySingletonModel(SingletonMixin, PydanticBaseModel):
-            name: str
+        .. code-block:: python
 
-            # implement __init__ to avoid re-initialization of parent classes:
-            def __init__(self, *args: Any, **kwargs: Any) -> None:
-                if hasattr(self, "_initialized"):
-                    return
-                # Your initialisation here
-                ...
-                super().__init__(*args, **kwargs)
+            class MySingletonModel(SingletonMixin, PydanticBaseModel):
+                name: str
 
-        instance1 = MySingletonModel(name="Instance 1")
-        instance2 = MySingletonModel(name="Instance 2")
+                # implement __init__ to avoid re-initialization of parent classes:
+                def __init__(self, *args: Any, **kwargs: Any) -> None:
+                    if hasattr(self, "_initialized"):
+                        return
+                    # Your initialisation here
+                    ...
+                    super().__init__(*args, **kwargs)
 
-        assert instance1 is instance2  # True
-        print(instance1.name)          # Output: "Instance 1"
+            instance1 = MySingletonModel(name="Instance 1")
+            instance2 = MySingletonModel(name="Instance 2")
+
+            assert instance1 is instance2  # True
+            print(instance1.name)          # Output: "Instance 1"
+
     """
 
     _lock: ClassVar[threading.Lock] = threading.Lock()

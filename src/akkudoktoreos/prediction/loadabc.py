@@ -15,12 +15,8 @@ from akkudoktoreos.prediction.predictionabc import PredictionProvider, Predictio
 class LoadDataRecord(PredictionRecord):
     """Represents a load data record containing various load attributes at a specific datetime."""
 
-    load_mean: Optional[float] = Field(default=None, description="Predicted load mean value (W).")
-    load_std: Optional[float] = Field(
-        default=None, description="Predicted load standard deviation (W)."
-    )
-    load_mean_adjusted: Optional[float] = Field(
-        default=None, description="Predicted load mean value adjusted by load measurement (W)."
+    loadforecast_power_w: Optional[float] = Field(
+        default=None, json_schema_extra={"description": "Predicted load mean value (W)."}
     )
 
 
@@ -46,7 +42,7 @@ class LoadProvider(PredictionProvider):
 
     # overload
     records: List[LoadDataRecord] = Field(
-        default_factory=list, description="List of LoadDataRecord records"
+        default_factory=list, json_schema_extra={"description": "List of LoadDataRecord records"}
     )
 
     @classmethod

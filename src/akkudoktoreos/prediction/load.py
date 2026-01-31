@@ -1,8 +1,8 @@
 """Load forecast module for load predictions."""
 
-from typing import Optional, Union
+from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.loadabc import LoadProvider
@@ -21,18 +21,52 @@ load_providers = [
 ]
 
 
+class LoadCommonProviderSettings(SettingsBaseModel):
+    """Load Prediction Provider Configuration."""
+
+    LoadAkkudoktor: Optional[LoadAkkudoktorCommonSettings] = Field(
+        default=None,
+        json_schema_extra={"description": "LoadAkkudoktor settings", "examples": [None]},
+    )
+    LoadVrm: Optional[LoadVrmCommonSettings] = Field(
+        default=None, json_schema_extra={"description": "LoadVrm settings", "examples": [None]}
+    )
+    LoadImport: Optional[LoadImportCommonSettings] = Field(
+        default=None, json_schema_extra={"description": "LoadImport settings", "examples": [None]}
+    )
+
+
 class LoadCommonSettings(SettingsBaseModel):
     """Load Prediction Configuration."""
 
     provider: Optional[str] = Field(
         default=None,
-        description="Load provider id of provider to be used.",
-        examples=["LoadAkkudoktor"],
+        json_schema_extra={
+            "description": "Load provider id of provider to be used.",
+            "examples": ["LoadAkkudoktor"],
+        },
     )
 
-    provider_settings: Optional[
-        Union[LoadAkkudoktorCommonSettings, LoadVrmCommonSettings, LoadImportCommonSettings]
-    ] = Field(default=None, description="Provider settings", examples=[None])
+    provider_settings: LoadCommonProviderSettings = Field(
+        default_factory=LoadCommonProviderSettings,
+        json_schema_extra={
+            "description": "Provider settings",
+            "examples": [
+                # Example 1: Empty/default settings (all providers None)
+                {
+                    "LoadAkkudoktor": None,
+                    "LoadVrm": None,
+                    "LoadImport": None,
+                },
+            ],
+        },
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def providers(self) -> list[str]:
+        """Available load provider ids."""
+        return load_providers
 
     # Validators
     @field_validator("provider", mode="after")

@@ -1,9 +1,12 @@
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
+from akkudoktoreos.prediction.elecpriceenergycharts import (
+    ElecPriceEnergyChartsCommonSettings,
+)
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImportCommonSettings
 from akkudoktoreos.prediction.prediction import get_prediction
 
@@ -22,16 +25,43 @@ class ElecPriceCommonSettings(SettingsBaseModel):
 
     provider: Optional[str] = Field(
         default=None,
-        description="Electricity price provider id of provider to be used.",
-        examples=["ElecPriceAkkudoktor"],
+        json_schema_extra={
+            "description": "Electricity price provider id of provider to be used.",
+            "examples": ["ElecPriceAkkudoktor"],
+        },
     )
     charges_kwh: Optional[float] = Field(
-        default=None, ge=0, description="Electricity price charges (€/kWh).", examples=[0.21]
+        default=None,
+        ge=0,
+        json_schema_extra={
+            "description": "Electricity price charges [€/kWh]. Will be added to variable market price.",
+            "examples": [0.21],
+        },
+    )
+    vat_rate: Optional[float] = Field(
+        default=1.19,
+        ge=0,
+        json_schema_extra={
+            "description": "VAT rate factor applied to electricity price when charges are used.",
+            "examples": [1.19],
+        },
     )
 
-    provider_settings: Optional[ElecPriceImportCommonSettings] = Field(
-        default=None, description="Provider settings", examples=[None]
+    elecpriceimport: ElecPriceImportCommonSettings = Field(
+        default_factory=ElecPriceImportCommonSettings,
+        json_schema_extra={"description": "Import provider settings."},
     )
+
+    energycharts: ElecPriceEnergyChartsCommonSettings = Field(
+        default_factory=ElecPriceEnergyChartsCommonSettings,
+        json_schema_extra={"description": "Energy Charts provider settings."},
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def providers(self) -> list[str]:
+        """Available electricity price provider ids."""
+        return elecprice_providers
 
     # Validators
     @field_validator("provider", mode="after")

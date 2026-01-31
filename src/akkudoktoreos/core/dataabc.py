@@ -14,14 +14,23 @@ from abc import abstractmethod
 from collections.abc import MutableMapping, MutableSequence
 from itertools import chain
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, Union, overload
+from typing import (
+    Any,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    overload,
+)
 
 import numpy as np
 import pandas as pd
 import pendulum
 from loguru import logger
 from numpydantic import NDArray, Shape
-from pendulum import DateTime, Duration
 from pydantic import (
     AwareDatetime,
     ConfigDict,
@@ -29,6 +38,7 @@ from pydantic import (
     ValidationError,
     computed_field,
     field_validator,
+    model_validator,
 )
 
 from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin, StartMixin
@@ -37,7 +47,13 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeData,
     PydanticDateTimeDataFrame,
 )
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import (
+    DateTime,
+    Duration,
+    compare_datetimes,
+    to_datetime,
+    to_duration,
+)
 
 
 class DataBase(ConfigMixin, StartMixin, PydanticBaseModel):
@@ -55,6 +71,11 @@ class DataRecord(DataBase, MutableMapping):
     Fields can be accessed and mutated both using dictionary-style access (`record['field_name']`)
     and attribute-style access (`record.field_name`).
 
+    The data record also provides configured field like data. Configuration has to be done by the
+    derived class. Configuration is a list of key strings, which is usually taken from the EOS
+    configuration. The internal field for these data `configured_data` is mostly hidden from
+    dictionary-style and attribute-style access.
+
     Attributes:
         date_time (Optional[DateTime]): Aware datetime indicating when the data record applies.
 
@@ -63,10 +84,47 @@ class DataRecord(DataBase, MutableMapping):
         - Supports non-standard data types like `datetime`.
     """
 
-    date_time: Optional[DateTime] = Field(default=None, description="DateTime")
+    date_time: Optional[DateTime] = Field(
+        default=None, json_schema_extra={"description": "DateTime"}
+    )
+
+    configured_data: dict[str, Any] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "description": "Configured field like data",
+            "examples": [{"load0_mr": 40421}],
+        },
+    )
 
     # Pydantic v2 model configuration
     model_config = ConfigDict(arbitrary_types_allowed=True, populate_by_name=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def init_configured_field_like_data(cls, data: Any) -> Any:
+        """Extracts configured data keys from the input and assigns them to `configured_data`.
+
+        This validator is called before the model is initialized. It filters out any keys from the input
+        dictionary that are listed in the configured data keys, and moves them into
+        the `configured_data` field of the model. This enables flexible, key-driven population of
+        dynamic data while keeping the model schema clean.
+
+        Args:
+            data (Any): The raw input data used to initialize the model.
+
+        Returns:
+            Any: The modified input data dictionary, with configured keys moved to `configured_data`.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        configured_keys: Union[list[str], set] = cls.configured_data_keys() or set()
+        extracted = {k: data.pop(k) for k in list(data.keys()) if k in configured_keys}
+
+        if extracted:
+            data.setdefault("configured_data", {}).update(extracted)
+
+        return data
 
     @field_validator("date_time", mode="before")
     @classmethod
@@ -78,17 +136,38 @@ class DataRecord(DataBase, MutableMapping):
         return to_datetime(value)
 
     @classmethod
+    def configured_data_keys(cls) -> Optional[list[str]]:
+        """Return the keys for the configured field like data.
+
+        Can be overwritten by derived classes to define specific field like data. Usually provided
+        by configuration data.
+        """
+        return None
+
+    @classmethod
     def record_keys(cls) -> List[str]:
         """Returns the keys of all fields in the data record."""
         key_list = []
         key_list.extend(list(cls.model_fields.keys()))
         key_list.extend(list(cls.__pydantic_decorators__.computed_fields.keys()))
+        # Add also keys that may be added by configuration
+        key_list.remove("configured_data")
+        configured_keys = cls.configured_data_keys()
+        if configured_keys is not None:
+            key_list.extend(configured_keys)
         return key_list
 
     @classmethod
     def record_keys_writable(cls) -> List[str]:
         """Returns the keys of all fields in the data record that are writable."""
-        return list(cls.model_fields.keys())
+        keys_writable = []
+        keys_writable.extend(list(cls.model_fields.keys()))
+        # Add also keys that may be added by configuration
+        keys_writable.remove("configured_data")
+        configured_keys = cls.configured_data_keys()
+        if configured_keys is not None:
+            keys_writable.extend(configured_keys)
+        return keys_writable
 
     def _validate_key_writable(self, key: str) -> None:
         """Verify that a specified key exists and is writable in the current record keys.
@@ -104,6 +183,40 @@ class DataRecord(DataBase, MutableMapping):
                 f"Key '{key}' is not in writable record keys: {self.record_keys_writable()}"
             )
 
+    def __dir__(self) -> list[str]:
+        """Extend the default `dir()` output to include configured field like data keys.
+
+        This enables editor auto-completion and interactive introspection, while hiding the internal
+        `configured_data` dictionary.
+
+        This ensures the configured field like data values appear like native fields,
+        in line with the base model's attribute behavior.
+        """
+        base = super().__dir__()
+        keys = set(base)
+        # Expose configured data keys as attributes
+        configured_keys = self.configured_data_keys()
+        if configured_keys is not None:
+            keys.update(configured_keys)
+        # Explicitly hide the 'configured_data' internal dict
+        keys.discard("configured_data")
+        return sorted(keys)
+
+    def __eq__(self, other: Any) -> bool:
+        """Ensure equality comparison includes the contents of the `configured_data` dict.
+
+        Contents of the `configured_data` dict are in addition to the base model fields.
+        """
+        if not isinstance(other, self.__class__):
+            return NotImplemented
+        # Compare all fields except `configured_data`
+        if self.model_dump(exclude={"configured_data"}) != other.model_dump(
+            exclude={"configured_data"}
+        ):
+            return False
+        # Compare `configured_data` explicitly
+        return self.configured_data == other.configured_data
+
     def __getitem__(self, key: str) -> Any:
         """Retrieve the value of a field by key name.
 
@@ -116,9 +229,11 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             KeyError: If the specified key does not exist.
         """
-        if key in self.model_fields:
-            return getattr(self, key)
-        raise KeyError(f"'{key}' not found in the record fields.")
+        try:
+            # Let getattr do the work
+            return self.__getattr__(key)
+        except:
+            raise KeyError(f"'{key}' not found in the record fields.")
 
     def __setitem__(self, key: str, value: Any) -> None:
         """Set the value of a field by key name.
@@ -130,9 +245,10 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             KeyError: If the specified key does not exist in the fields.
         """
-        if key in self.model_fields:
-            setattr(self, key, value)
-        else:
+        try:
+            # Let setattr do the work
+            self.__setattr__(key, value)
+        except:
             raise KeyError(f"'{key}' is not a recognized field.")
 
     def __delitem__(self, key: str) -> None:
@@ -144,9 +260,9 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             KeyError: If the specified key does not exist in the fields.
         """
-        if key in self.model_fields:
-            setattr(self, key, None)  # Optional: set to None instead of deleting
-        else:
+        try:
+            self.__delattr__(key)
+        except:
             raise KeyError(f"'{key}' is not a recognized field.")
 
     def __iter__(self) -> Iterator[str]:
@@ -155,7 +271,7 @@ class DataRecord(DataBase, MutableMapping):
         Returns:
             Iterator[str]: An iterator over field names.
         """
-        return iter(self.model_fields)
+        return iter(self.record_keys_writable())
 
     def __len__(self) -> int:
         """Return the number of fields in the data record.
@@ -163,7 +279,7 @@ class DataRecord(DataBase, MutableMapping):
         Returns:
             int: The number of defined fields.
         """
-        return len(self.model_fields)
+        return len(self.record_keys_writable())
 
     def __repr__(self) -> str:
         """Provide a string representation of the data record.
@@ -171,7 +287,7 @@ class DataRecord(DataBase, MutableMapping):
         Returns:
             str: A string representation showing field names and their values.
         """
-        field_values = {field: getattr(self, field) for field in self.model_fields}
+        field_values = {field: getattr(self, field) for field in self.__class__.model_fields}
         return f"{self.__class__.__name__}({field_values})"
 
     def __getattr__(self, key: str) -> Any:
@@ -186,8 +302,13 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             AttributeError: If the field does not exist.
         """
-        if key in self.model_fields:
+        if key in self.__class__.model_fields:
             return getattr(self, key)
+        if key in self.configured_data.keys():
+            return self.configured_data[key]
+        configured_keys = self.configured_data_keys()
+        if configured_keys is not None and key in configured_keys:
+            return None
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
 
     def __setattr__(self, key: str, value: Any) -> None:
@@ -200,10 +321,14 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             AttributeError: If the attribute/field does not exist.
         """
-        if key in self.model_fields:
+        if key in self.__class__.model_fields:
             super().__setattr__(key, value)
-        else:
-            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
+            return
+        configured_keys = self.configured_data_keys()
+        if configured_keys is not None and key in configured_keys:
+            self.configured_data[key] = value
+            return
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
 
     def __delattr__(self, key: str) -> None:
         """Delete an attribute by setting it to None if it exists as a field.
@@ -214,10 +339,21 @@ class DataRecord(DataBase, MutableMapping):
         Raises:
             AttributeError: If the attribute/field does not exist.
         """
-        if key in self.model_fields:
-            setattr(self, key, None)  # Optional: set to None instead of deleting
-        else:
-            super().__delattr__(key)
+        if key in self.__class__.model_fields:
+            data: Optional[dict]
+            if key == "configured_data":
+                data = dict()
+            else:
+                data = None
+            setattr(self, key, data)
+            return
+        if key in self.configured_data:
+            del self.configured_data[key]
+            return
+        configured_keys = self.configured_data_keys()
+        if configured_keys is not None and key in configured_keys:
+            return
+        super().__delattr__(key)
 
     @classmethod
     def key_from_description(cls, description: str, threshold: float = 0.8) -> Optional[str]:
@@ -236,10 +372,11 @@ class DataRecord(DataBase, MutableMapping):
             return None
 
         # Get all descriptions from the fields
-        descriptions = {
-            field_name: field_info.description
-            for field_name, field_info in cls.model_fields.items()
-        }
+        descriptions: dict[str, str] = {}
+        for field_name in cls.model_fields.keys():
+            desc = cls.field_description(field_name)
+            if desc:
+                descriptions[field_name] = desc
 
         # Use difflib to get close matches
         matches = difflib.get_close_matches(
@@ -295,25 +432,29 @@ class DataSequence(DataBase, MutableSequence):
         Derived classes have to provide their own records field with correct record type set.
 
     Usage:
-        # Example of creating, adding, and using DataSequence
-        class DerivedSequence(DataSquence):
-            records: List[DerivedDataRecord] = Field(default_factory=list,
-                                                        description="List of data records")
+        .. code-block:: python
 
-        seq = DerivedSequence()
-        seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=72))
-        seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=75))
+            # Example of creating, adding, and using DataSequence
+            class DerivedSequence(DataSquence):
+                records: List[DerivedDataRecord] = Field(default_factory=list, json_schema_extra={ "description": "List of data records" })
 
-        # Convert to JSON and back
-        json_data = seq.to_json()
-        new_seq = DerivedSequence.from_json(json_data)
+            seq = DerivedSequence()
+            seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=72))
+            seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=75))
 
-        # Convert to Pandas Series
-        series = seq.key_to_series('temperature')
+            # Convert to JSON and back
+            json_data = seq.to_json()
+            new_seq = DerivedSequence.from_json(json_data)
+
+            # Convert to Pandas Series
+            series = seq.key_to_series('temperature')
+
     """
 
     # To be overloaded by derived classes.
-    records: List[DataRecord] = Field(default_factory=list, description="List of data records")
+    records: List[DataRecord] = Field(
+        default_factory=list, json_schema_extra={"description": "List of data records"}
+    )
 
     # Derived fields (computed)
     @computed_field  # type: ignore[prop-decorator]
@@ -352,10 +493,7 @@ class DataSequence(DataBase, MutableSequence):
     @property
     def record_keys(self) -> List[str]:
         """Returns the keys of all fields in the data records."""
-        key_list = []
-        key_list.extend(list(self.record_class().model_fields.keys()))
-        key_list.extend(list(self.record_class().__pydantic_decorators__.computed_fields.keys()))
-        return key_list
+        return self.record_class().record_keys()
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -369,7 +507,7 @@ class DataSequence(DataBase, MutableSequence):
         Returns:
             List[str]: A list of field keys that are writable in the data records.
         """
-        return list(self.record_class().model_fields.keys())
+        return self.record_class().record_keys_writable()
 
     @classmethod
     def record_class(cls) -> Type:
@@ -602,9 +740,12 @@ class DataSequence(DataBase, MutableSequence):
             **kwargs: Key-value pairs as keyword arguments
 
         Examples:
-            >>> update_value(date, 'temperature', 25.5)
-            >>> update_value(date, {'temperature': 25.5, 'humidity': 80})
-            >>> update_value(date, temperature=25.5, humidity=80)
+            .. code-block:: python
+
+                update_value(date, 'temperature', 25.5)
+                update_value(date, {'temperature': 25.5, 'humidity': 80})
+                update_value(date, temperature=25.5, humidity=80)
+
         """
         # Process input arguments into a dictionary
         values: Dict[str, Any] = {}
@@ -706,6 +847,38 @@ class DataSequence(DataBase, MutableSequence):
                 )
 
         return filtered_data
+
+    def key_to_value(self, key: str, target_datetime: DateTime) -> Optional[float]:
+        """Returns the value corresponding to the specified key that is nearest to the given datetime.
+
+        Args:
+            key (str): The key of the attribute in DataRecord to extract.
+            target_datetime (datetime): The datetime to search nearest to.
+
+        Returns:
+            Optional[float]: The value nearest to the given datetime, or None if no valid records are found.
+
+        Raises:
+            KeyError: If the specified key is not found in any of the DataRecords.
+        """
+        self._validate_key(key)
+
+        # Filter out records with None or NaN values for the key
+        valid_records = [
+            record
+            for record in self.records
+            if record.date_time is not None
+            and getattr(record, key, None) not in (None, float("nan"))
+        ]
+
+        if not valid_records:
+            return None
+
+        # Find the record with datetime nearest to target_datetime
+        target = to_datetime(target_datetime)
+        nearest_record = min(valid_records, key=lambda r: abs(r.date_time - target))
+
+        return getattr(nearest_record, key, None)
 
     def key_to_lists(
         self,
@@ -845,7 +1018,7 @@ class DataSequence(DataBase, MutableSequence):
         end_datetime: Optional[DateTime] = None,
         interval: Optional[Duration] = None,
         fill_method: Optional[str] = None,
-        dropna: Optional[bool] = None,
+        dropna: Optional[bool] = True,
     ) -> NDArray[Shape["*"], Any]:
         """Extract an array indexed by fixed time intervals from data records within an optional date range.
 
@@ -859,28 +1032,39 @@ class DataSequence(DataBase, MutableSequence):
                 - 'ffill': Forward fill missing values.
                 - 'bfill': Backward fill missing values.
                 - 'none': Defaults to 'linear' for numeric values, otherwise 'ffill'.
-            dropna: (bool, optional): Whether to drop NAN/ None values before processing. Defaults to True.
+            dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+                Defaults to True.
 
         Returns:
-            np.ndarray: A NumPy Array of the values extracted from the specified key.
+            np.ndarray: A NumPy Array of the values at the chosen frequency extracted from the
+                specified key.
 
         Raises:
             KeyError: If the specified key is not found in any of the DataRecords.
         """
         self._validate_key(key)
+
+        # Validate fill method
+        if fill_method not in ("ffill", "bfill", "linear", "none", None):
+            raise ValueError(f"Unsupported fill method: {fill_method}")
+
         # Ensure datetime objects are normalized
         start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
         end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
 
-        resampled = None
         if interval is None:
             interval = to_duration("1 hour")
+            resample_freq = "1h"
+        else:
+            resample_freq = to_duration(interval, as_string="pandas")
 
+        # Load raw lists (already sorted & filtered)
         dates, values = self.key_to_lists(key=key, dropna=dropna)
         values_len = len(values)
 
+        # Bring lists into shape
         if values_len < 1:
-            # No values, assume at at least one value set to None
+            # No values, assume at least one value set to None
             if start_datetime is not None:
                 dates.append(start_datetime - interval)
             else:
@@ -902,6 +1086,11 @@ class DataSequence(DataBase, MutableSequence):
                 # Truncate all values before latest value before start_datetime
                 dates = dates[start_index - 1 :]
                 values = values[start_index - 1 :]
+            # We have a start_datetime, align to start datetime
+            resample_origin = start_datetime
+        else:
+            # We do not have a start_datetime, align resample buckets to midnight of first day
+            resample_origin = "start_day"
 
         if end_datetime is not None:
             if compare_datetimes(dates[-1], end_datetime).lt:
@@ -909,40 +1098,48 @@ class DataSequence(DataBase, MutableSequence):
                 dates.append(end_datetime)
                 values.append(values[-1])
 
-        series = pd.Series(data=values, index=pd.DatetimeIndex(dates), name=key)
-        if not series.index.inferred_type == "datetime64":
+        # Construct series
+        series = pd.Series(values, index=pd.DatetimeIndex(dates), name=key)
+        if series.index.inferred_type != "datetime64":
             raise TypeError(
                 f"Expected DatetimeIndex, but got {type(series.index)} "
                 f"infered to {series.index.inferred_type}: {series}"
             )
 
-        # Handle missing values
-        if series.dtype in [np.float64, np.float32, np.int64, np.int32]:
-            # Numeric types
-            if fill_method is None:
+        # Determine default fill method depending on dtype
+        if fill_method is None:
+            if pd.api.types.is_numeric_dtype(series):
                 fill_method = "linear"
-            # Resample the series to the specified interval
-            resampled = series.resample(interval, origin="start").first()
-            if fill_method == "linear":
-                resampled = resampled.interpolate(method="linear")
-            elif fill_method == "ffill":
-                resampled = resampled.ffill()
-            elif fill_method == "bfill":
-                resampled = resampled.bfill()
-            elif fill_method != "none":
-                raise ValueError(f"Unsupported fill method: {fill_method}")
-        else:
-            # Non-numeric types
-            if fill_method is None:
+            else:
                 fill_method = "ffill"
-            # Resample the series to the specified interval
-            resampled = series.resample(interval, origin="start").first()
-            if fill_method == "ffill":
-                resampled = resampled.ffill()
-            elif fill_method == "bfill":
-                resampled = resampled.bfill()
-            elif fill_method != "none":
-                raise ValueError(f"Unsupported fill method for non-numeric data: {fill_method}")
+
+        # Perform the resampling
+        if pd.api.types.is_numeric_dtype(series):
+            # numeric → use mean
+            resampled = series.resample(interval, origin=resample_origin).mean()
+        else:
+            # non-numeric → fallback (first, last, mode, or ffill)
+            resampled = series.resample(interval, origin=resample_origin).first()
+
+        # Handle missing values after resampling
+        if fill_method == "linear" and pd.api.types.is_numeric_dtype(series):
+            resampled = resampled.interpolate("linear")
+        elif fill_method == "ffill":
+            resampled = resampled.ffill()
+        elif fill_method == "bfill":
+            resampled = resampled.bfill()
+        elif fill_method == "none":
+            pass
+        else:
+            raise ValueError(f"Unsupported fill method: {fill_method}")
+
+        logger.debug(
+            "Resampled for '{}' with length {}: {}...{}",
+            key,
+            len(resampled),
+            resampled[:10],
+            resampled[-10:],
+        )
 
         # Convert the resampled series to a NumPy array
         if start_datetime is not None and len(resampled) > 0:
@@ -950,6 +1147,20 @@ class DataSequence(DataBase, MutableSequence):
         if end_datetime is not None and len(resampled) > 0:
             resampled = resampled.truncate(after=end_datetime.subtract(seconds=1))
         array = resampled.values
+
+        # Convert NaN to None if there are actually NaNs
+        if (
+            isinstance(array, np.ndarray)
+            and np.issubdtype(array.dtype.type, np.floating)
+            and pd.isna(array).any()
+        ):
+            array = array.astype(object)
+            array[pd.isna(array)] = None
+
+        logger.debug(
+            "Array for '{}' with length {}: {}...{}", key, len(array), array[:10], array[-10:]
+        )
+
         return array
 
     def to_dataframe(
@@ -1130,7 +1341,7 @@ class DataProvider(SingletonMixin, DataSequence):
     """
 
     update_datetime: Optional[AwareDatetime] = Field(
-        None, description="Latest update datetime for generic data"
+        None, json_schema_extra={"description": "Latest update datetime for generic data"}
     )
 
     @abstractmethod
@@ -1189,15 +1400,18 @@ class DataImportMixin:
     """Mixin class for import of generic data.
 
     This class is designed to handle generic data provided in the form of a key-value dictionary.
+
     - **Keys**: Represent identifiers from the record keys of a specific data.
-    - **Values**: Are lists of data values starting at a specified `start_datetime`, where
+    - **Values**: Are lists of data values starting at a specified start_datetime, where
       each value corresponds to a subsequent time interval (e.g., hourly).
 
-    Two special keys are handled. `start_datetime` may be used to defined the starting datetime of
-    the values. `ìnterval` may be used to define the fixed time interval between two values.
+    Two special keys are handled. start_datetime may be used to defined the starting datetime of
+    the values. ìnterval may be used to define the fixed time interval between two values.
 
-    On import `self.update_value(datetime, key, value)` is called which has to be provided.
-    Also `self.start_datetime` may be necessary as a default in case `start_datetime`is not given.
+    On import self.update_value(datetime, key, value) is called which has to be provided.
+    Also self.ems_start_datetime may be necessary as a default in case start_datetime is not
+    given.
+
     """
 
     # Attributes required but defined elsehere.
@@ -1229,16 +1443,20 @@ class DataImportMixin:
         Behavior:
             - Skips invalid timestamps during DST spring forward transitions.
             - Includes both instances of repeated timestamps during DST fall back transitions.
-            - Ensures the list contains exactly `value_count` entries.
+            - Ensures the list contains exactly 'value_count' entries.
 
         Example:
-            >>> start_datetime = pendulum.datetime(2024, 11, 3, 0, 0, tz="America/New_York")
-            >>> import_datetimes(start_datetime, 5)
-            [(DateTime(2024, 11, 3, 0, 0, tzinfo=Timezone('America/New_York')), 0),
-            (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),
-            (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),  # Repeated hour
-            (DateTime(2024, 11, 3, 2, 0, tzinfo=Timezone('America/New_York')), 2),
-            (DateTime(2024, 11, 3, 3, 0, tzinfo=Timezone('America/New_York')), 3)]
+            .. code-block:: python
+
+                start_datetime = pendulum.datetime(2024, 11, 3, 0, 0, tz="America/New_York")
+                import_datetimes(start_datetime, 5)
+
+                [(DateTime(2024, 11, 3, 0, 0, tzinfo=Timezone('America/New_York')), 0),
+                (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),
+                (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),  # Repeated hour
+                (DateTime(2024, 11, 3, 2, 0, tzinfo=Timezone('America/New_York')), 2),
+                (DateTime(2024, 11, 3, 3, 0, tzinfo=Timezone('America/New_York')), 3)]
+
         """
         timestamps_with_indices: List[Tuple[DateTime, int]] = []
 
@@ -1315,7 +1533,7 @@ class DataImportMixin:
                 raise ValueError(f"Invalid start_datetime in import data: {e}")
 
         if start_datetime is None:
-            start_datetime = self.start_datetime  # type: ignore
+            start_datetime = self.ems_start_datetime  # type: ignore
 
         if "interval" in import_data:
             try:
@@ -1406,7 +1624,7 @@ class DataImportMixin:
                 raise ValueError(f"Invalid datetime index in DataFrame: {e}")
         else:
             if start_datetime is None:
-                start_datetime = self.start_datetime  # type: ignore
+                start_datetime = self.ems_start_datetime  # type: ignore
             has_datetime_index = False
 
         # Filter columns based on key_prefix and record_keys_writable
@@ -1463,7 +1681,7 @@ class DataImportMixin:
 
         If start_datetime and or interval is given in the JSON dict it will be used. Otherwise
         the given parameters are used. If None is given start_datetime defaults to
-        'self.start_datetime' and interval defaults to 1 hour.
+        'self.ems_start_datetime' and interval defaults to 1 hour.
 
         Args:
             json_str (str): The JSON string containing the generic data.
@@ -1476,18 +1694,27 @@ class DataImportMixin:
             JSONDecodeError: If the file content is not valid JSON.
 
         Example:
-            Given a JSON string with the following content:
-            ```json
-            {
-                "start_datetime": "2024-11-10 00:00:00"
-                "interval": "30 minutes"
-                "load_mean": [20.5, 21.0, 22.1],
-                "other_xyz: [10.5, 11.0, 12.1],
-            }
-            ```
-            and `key_prefix = "load"`, only the "load_mean" key will be processed even though
-            both keys are in the record.
+            Given a JSON string with the following content and `key_prefix = "load"`, only the
+            "loadforecast_power_w" key will be processed even though both keys are in the record.
+
+            .. code-block:: json
+
+                {
+                    "start_datetime": "2024-11-10 00:00:00",
+                    "interval": "30 minutes",
+                    "loadforecast_power_w": [20.5, 21.0, 22.1],
+                    "other_xyz: [10.5, 11.0, 12.1]
+                }
+
         """
+        # Strip quotes if provided - does not effect unquoted string
+        json_str = json_str.strip()  # strip white space at start and end
+        if (json_str.startswith("'") and json_str.endswith("'")) or (
+            json_str.startswith('"') and json_str.endswith('"')
+        ):
+            json_str = json_str[1:-1]  # strip outer quotes
+        json_str = json_str.strip()  # strip remaining white space at start and end
+
         # Try pandas dataframe with orient="split"
         try:
             import_data = PydanticDateTimeDataFrame.model_validate_json(json_str)
@@ -1517,10 +1744,15 @@ class DataImportMixin:
             logger.debug(f"PydanticDateTimeData import: {error_msg}")
 
         # Use simple dict format
-        import_data = json.loads(json_str)
-        self.import_from_dict(
-            import_data, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval
-        )
+        try:
+            import_data = json.loads(json_str)
+            self.import_from_dict(
+                import_data, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval
+            )
+        except Exception as e:
+            error_msg = f"Invalid JSON string '{json_str}': {e}"
+            logger.debug(error_msg)
+            raise ValueError(error_msg) from e
 
     def import_from_file(
         self,
@@ -1538,7 +1770,7 @@ class DataImportMixin:
 
         If start_datetime and or interval is given in the JSON dict it will be used. Otherwise
         the given parameters are used. If None is given start_datetime defaults to
-        'self.start_datetime' and interval defaults to 1 hour.
+        'self.ems_start_datetime' and interval defaults to 1 hour.
 
         Args:
             import_file_path (Path): The path to the JSON file containing the generic data.
@@ -1552,15 +1784,16 @@ class DataImportMixin:
             JSONDecodeError: If the file content is not valid JSON.
 
         Example:
-            Given a JSON file with the following content:
-            ```json
-            {
-                "load_mean": [20.5, 21.0, 22.1],
-                "other_xyz: [10.5, 11.0, 12.1],
-            }
-            ```
-            and `key_prefix = "load"`, only the "load_mean" key will be processed even though
-            both keys are in the record.
+            Given a JSON file with the following content and `key_prefix = "load"`, only the
+            "loadforecast_power_w" key will be processed even though both keys are in the record.
+
+            .. code-block:: json
+
+                {
+                    "loadforecast_power_w": [20.5, 21.0, 22.1],
+                    "other_xyz: [10.5, 11.0, 12.1],
+                }
+
         """
         with import_file_path.open("r", encoding="utf-8", newline=None) as import_file:
             import_str = import_file.read()
@@ -1573,9 +1806,10 @@ class DataImportProvider(DataImportMixin, DataProvider):
     """Abstract base class for data providers that import generic data.
 
     This class is designed to handle generic data provided in the form of a key-value dictionary.
+
     - **Keys**: Represent identifiers from the record keys of a specific data.
     - **Values**: Are lists of data values starting at a specified `start_datetime`, where
-      each value corresponds to a subsequent time interval (e.g., hourly).
+        each value corresponds to a subsequent time interval (e.g., hourly).
 
     Subclasses must implement the logic for managing generic data based on the imported records.
     """
@@ -1597,7 +1831,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
 
     # To be overloaded by derived classes.
     providers: List[DataProvider] = Field(
-        default_factory=list, description="List of data providers"
+        default_factory=list, json_schema_extra={"description": "List of data providers"}
     )
 
     @field_validator("providers", mode="after")
@@ -1749,7 +1983,12 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
             force_update (bool, optional): If True, forces the providers to update the data even if still cached.
         """
         for provider in self.providers:
-            provider.update_data(force_enable=force_enable, force_update=force_update)
+            try:
+                provider.update_data(force_enable=force_enable, force_update=force_update)
+            except Exception as ex:
+                error = f"Provider {provider.provider_id()} fails on update - enabled={provider.enabled()}, force_enable={force_enable}, force_update={force_update}: {ex}"
+                logger.error(error)
+                raise RuntimeError(error)
 
     def key_to_series(
         self,
@@ -1854,7 +2093,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
     ) -> pd.DataFrame:
         """Retrieve a dataframe indexed by fixed time intervals for specified keys from the data in each DataProvider.
 
-        Generates a pandas DataFrame using the NumPy arrays for each specified key, ensuring a common time index..
+        Generates a pandas DataFrame using the NumPy arrays for each specified key, ensuring a common time index.
 
         Args:
             keys (list[str]): A list of field names to retrieve.
@@ -1903,8 +2142,15 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
                 end_datetime.add(seconds=1)
 
         # Create a DatetimeIndex based on start, end, and interval
+        if start_datetime is None or end_datetime is None:
+            raise ValueError(
+                f"Can not determine datetime range. Got '{start_datetime}'..'{end_datetime}'."
+            )
         reference_index = pd.date_range(
-            start=start_datetime, end=end_datetime, freq=interval, inclusive="left"
+            start=start_datetime,
+            end=end_datetime,
+            freq=interval,
+            inclusive="left",
         )
 
         data = {}

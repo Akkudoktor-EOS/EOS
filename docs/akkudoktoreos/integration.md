@@ -32,8 +32,7 @@ emphasizes local control and user privacy.
 
 ### Home Assistant Resources
 
-- Duetting's [EOS Home Assistant Addon](https://github.com/Duetting/ha_eos_addon) — Additional
-  details can be found in this [discussion thread](https://github.com/Akkudoktor-EOS/EOS/discussions/294).
+- Duetting's [EOS Home Assistant Addon](https://github.com/Duetting/ha_eos_addon).
 
 ## EOS Connect
 

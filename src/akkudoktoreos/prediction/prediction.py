@@ -34,7 +34,12 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
-from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktor
+from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
+from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
+from akkudoktoreos.prediction.loadakkudoktor import (
+    LoadAkkudoktor,
+    LoadAkkudoktorAdjusted,
+)
 from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.loadvrm import LoadVrm
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
@@ -47,30 +52,20 @@ from akkudoktoreos.prediction.weatherimport import WeatherImport
 
 
 class PredictionCommonSettings(SettingsBaseModel):
-    """General Prediction Configuration.
-
-    This class provides configuration for prediction settings, allowing users to specify
-    parameters such as the forecast duration (in hours).
-    Validators ensure each parameter is within a specified range.
-
-    Attributes:
-        hours (Optional[int]): Number of hours into the future for predictions.
-            Must be non-negative.
-        historic_hours (Optional[int]): Number of hours into the past for historical data.
-            Must be non-negative.
-
-    Validators:
-        validate_hours (int): Ensures `hours` is a non-negative integer.
-        validate_historic_hours (int): Ensures `historic_hours` is a non-negative integer.
-    """
+    """General Prediction Configuration."""
 
     hours: Optional[int] = Field(
-        default=48, ge=0, description="Number of hours into the future for predictions"
+        default=48,
+        ge=0,
+        json_schema_extra={"description": "Number of hours into the future for predictions"},
     )
+
     historic_hours: Optional[int] = Field(
         default=48,
         ge=0,
-        description="Number of hours into the past for historical predictions data",
+        json_schema_extra={
+            "description": "Number of hours into the past for historical predictions data"
+        },
     )
 
 
@@ -88,7 +83,10 @@ class Prediction(PredictionContainer):
             ElecPriceAkkudoktor,
             ElecPriceEnergyCharts,
             ElecPriceImport,
+            FeedInTariffFixed,
+            FeedInTariffImport,
             LoadAkkudoktor,
+            LoadAkkudoktorAdjusted,
             LoadVrm,
             LoadImport,
             PVForecastAkkudoktor,
@@ -98,16 +96,21 @@ class Prediction(PredictionContainer):
             WeatherClearOutside,
             WeatherImport,
         ]
-    ] = Field(default_factory=list, description="List of prediction providers")
+    ] = Field(
+        default_factory=list, json_schema_extra={"description": "List of prediction providers"}
+    )
 
 
 # Initialize forecast providers, all are singletons.
 elecprice_akkudoktor = ElecPriceAkkudoktor()
 elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_import = ElecPriceImport()
-load_akkudoktor = LoadAkkudoktor()
-load_vrm = LoadVrm()
-load_import = LoadImport()
+feedintariff_fixed = FeedInTariffFixed()
+feedintariff_import = FeedInTariffImport()
+loadforecast_akkudoktor = LoadAkkudoktor()
+loadforecast_akkudoktor_adjusted = LoadAkkudoktorAdjusted()
+loadforecast_vrm = LoadVrm()
+loadforecast_import = LoadImport()
 pvforecast_akkudoktor = PVForecastAkkudoktor()
 pvforecast_vrm = PVForecastVrm()
 pvforecast_import = PVForecastImport()
@@ -125,9 +128,12 @@ def get_prediction() -> Prediction:
             elecprice_akkudoktor,
             elecprice_energy_charts,
             elecprice_import,
-            load_akkudoktor,
-            load_vrm,
-            load_import,
+            feedintariff_fixed,
+            feedintariff_import,
+            loadforecast_akkudoktor,
+            loadforecast_akkudoktor_adjusted,
+            loadforecast_vrm,
+            loadforecast_import,
             pvforecast_akkudoktor,
             pvforecast_vrm,
             pvforecast_import,

@@ -1,13 +1,26 @@
 import tempfile
 from pathlib import Path
-from typing import Union
+from typing import Any, Optional, Union
 from unittest.mock import patch
 
+import numpy as np
 import pytest
 from loguru import logger
-from pydantic import ValidationError
+from pydantic import IPvAnyAddress, ValidationError
 
 from akkudoktoreos.config.config import ConfigEOS, GeneralSettings
+from akkudoktoreos.devices.devices import BATTERY_DEFAULT_CHARGE_RATES
+
+
+def assert_values_equal(actual, expected):
+    """Compare values, handling lists and numpy arrays."""
+    if isinstance(actual, (list, np.ndarray)) or isinstance(expected, (list, np.ndarray)):
+        # Convert both to numpy arrays for comparison
+        actual_arr = np.array(actual)
+        expected_arr = np.array(expected)
+        assert np.array_equal(actual_arr, expected_arr), f"Expected {expected_arr}, but got {actual_arr}"
+    else:
+        assert actual == expected, f"Expected {expected}, but got {actual}"
 
 
 # overwrite config_mixin fixture from conftest
@@ -20,11 +33,11 @@ def test_fixture_new_config_file(config_default_dirs):
     """Assure fixture stash_config_file is working."""
     config_default_dir_user, config_default_dir_cwd, _, _ = config_default_dirs
 
-    config_file_path_user = config_default_dir_user.joinpath(ConfigEOS.CONFIG_FILE_NAME)
-    config_file_path_cwd = config_default_dir_cwd.joinpath(ConfigEOS.CONFIG_FILE_NAME)
+    config_file_user = config_default_dir_user.joinpath(ConfigEOS.CONFIG_FILE_NAME)
+    config_file_cwd = config_default_dir_cwd.joinpath(ConfigEOS.CONFIG_FILE_NAME)
 
-    assert not config_file_path_user.exists()
-    assert not config_file_path_cwd.exists()
+    assert not config_file_user.exists()
+    assert not config_file_cwd.exists()
 
 
 def test_config_constants(config_eos):
@@ -39,7 +52,9 @@ def test_config_constants(config_eos):
 def test_computed_paths(config_eos):
     """Test computed paths for output and cache."""
     # Don't actually try to create the data folder
-    with patch("pathlib.Path.mkdir"):
+    with patch("pathlib.Path.mkdir"), \
+         patch("pathlib.Path.is_dir", return_value=True), \
+         patch("pathlib.Path.exists", return_value=True):
         config_eos.merge_settings_from_dict(
             {
                 "general": {
@@ -62,6 +77,38 @@ def test_computed_paths(config_eos):
     config_eos.reset_settings()
 
 
+def test_config_from_env(monkeypatch, config_eos):
+    """Test configuration from env."""
+    assert config_eos.server.port == 8503
+    assert config_eos.server.eosdash_port is None
+
+    monkeypatch.setenv("EOS_SERVER__PORT", "8553")
+    monkeypatch.setenv("EOS_SERVER__EOSDASH_PORT", "8555")
+
+    config_eos.reset_settings()
+
+    assert config_eos.server.port == 8553
+    assert config_eos.server.eosdash_port == 8555
+
+
+def test_config_ipaddress(monkeypatch, config_eos):
+    """Test configuration for IP adresses."""
+    assert config_eos.server.host == "127.0.0.1"
+
+    monkeypatch.setenv("EOS_SERVER__HOST", "0.0.0.0")
+    config_eos.reset_settings()
+    assert config_eos.server.host == "0.0.0.0"
+
+    monkeypatch.setenv("EOS_SERVER__HOST", "mail.akkudoktor.net")
+    config_eos.reset_settings()
+    assert config_eos.server.host == "mail.akkudoktor.net"
+
+    # keep last
+    monkeypatch.setenv("EOS_SERVER__HOST", "localhost")
+    config_eos.reset_settings()
+    assert config_eos.server.host == "localhost"
+
+
 def test_singleton_behavior(config_eos, config_default_dirs):
     """Test that ConfigEOS behaves as a singleton."""
     initial_cfg_file = config_eos.general.config_file_path
@@ -75,31 +122,35 @@ def test_singleton_behavior(config_eos, config_default_dirs):
     assert instance1.general.config_file_path == initial_cfg_file
 
 
-def test_default_config_path(config_eos, config_default_dirs):
-    """Test that the default config file path is computed correctly."""
-    _, _, config_default_dir_default, _ = config_default_dirs
-
-    expected_path = config_default_dir_default.joinpath("default.config.json")
-    assert config_eos.config_default_file_path == expected_path
-    assert config_eos.config_default_file_path.is_file()
-
-
 def test_config_file_priority(config_default_dirs):
-    """Test config file priority."""
-    from akkudoktoreos.config.config import get_config
+    """Test config file priority.
+
+    Priority is:
+        1. environment variable directory
+        2. user configuration directory
+        3. current working directory
+    """
 
     config_default_dir_user, config_default_dir_cwd, _, _ = config_default_dirs
+    config_file_cwd = Path(config_default_dir_cwd) / ConfigEOS.CONFIG_FILE_NAME
+    config_file_user = Path(config_default_dir_user) / ConfigEOS.CONFIG_FILE_NAME
 
-    config_file = Path(config_default_dir_cwd) / ConfigEOS.CONFIG_FILE_NAME
-    config_file.write_text("{}")
-    config_eos = get_config()
-    assert config_eos.general.config_file_path == config_file
+    assert not config_file_cwd.exists()
+    assert not config_file_user.exists()
 
-    config_file = Path(config_default_dir_user) / ConfigEOS.CONFIG_FILE_NAME
-    config_file.parent.mkdir()
-    config_file.write_text("{}")
+    # current working directory (prio 3)
+    config_file_cwd.write_text("{}")
+
+    config_eos = ConfigEOS()
     config_eos.update()
-    assert config_eos.general.config_file_path == config_file
+    assert config_eos.general.config_file_path == config_file_cwd
+
+    # user configuration directory (prio 2)
+    config_file_user.parent.mkdir()
+    config_file_user.write_text("{}")
+
+    config_eos.update()
+    assert config_eos.general.config_file_path == config_file_user
 
 
 @patch("akkudoktoreos.config.config.user_config_dir")
@@ -220,6 +271,7 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
     assert config_no_coords.timezone is None
 
 
+
 # Test partial assignments and possible side effects
 @pytest.mark.parametrize(
     "path, value, expected, exception",
@@ -280,13 +332,20 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
             [("general.latitude", 52.52), ("general.longitude", 13.405)],
             ValueError,
         ),
+        # Correct value assignment - preparation for list
+        (
+            "devices/max_electric_vehicles",
+            1,
+            [("devices.max_electric_vehicles", 1), ],
+            None,
+        ),
         # Correct value for list
         (
-            "optimization/ev_available_charge_rates_percent/0",
-            0.1,
+            "devices/electric_vehicles/0/charge_rates",
+            [0.1, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
             [
                 (
-                    "optimization.ev_available_charge_rates_percent",
+                    "devices.electric_vehicles[0].charge_rates",
                     [0.1, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
                 )
             ],
@@ -294,48 +353,48 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
         ),
         # Invalid value for list
         (
-            "optimization/ev_available_charge_rates_percent/0",
+            "devices/electric_vehicles/0/charge_rates",
             "invalid",
             [
                 (
-                    "optimization.ev_available_charge_rates_percent",
-                    [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                    "devices.electric_vehicles[0].charge_rates",
+                    BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
-            TypeError,
+            ValueError,
         ),
         # Invalid index (out of bound)
         (
-            "optimization/ev_available_charge_rates_percent/10",
+            "devices/electric_vehicles/0/charge_rates/10",
             0,
             [
                 (
-                    "optimization.ev_available_charge_rates_percent",
-                    [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                    "devices.electric_vehicles[0].charge_rates",
+                    BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
             TypeError,
         ),
         # Invalid index (no number)
         (
-            "optimization/ev_available_charge_rates_percent/test",
+            "devices/electric_vehicles/0/charge_rates/test",
             0,
             [
                 (
-                    "optimization.ev_available_charge_rates_percent",
-                    [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                    "devices.electric_vehicles[0].charge_rates",
+                    BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
             IndexError,
         ),
         # Unset value (set None)
         (
-            "optimization/ev_available_charge_rates_percent",
+            "devices/electric_vehicles/0/charge_rates",
             None,
             [
                 (
-                    "optimization.ev_available_charge_rates_percent",
-                    None,
+                    "devices.electric_vehicles[0].charge_rates",
+                    BATTERY_DEFAULT_CHARGE_RATES,
                 )
             ],
             None,
@@ -347,17 +406,13 @@ def test_set_nested_key(path, value, expected, exception, config_eos):
         config_eos.set_nested_value(path, value)
         for expected_path, expected_value in expected:
             actual_value = eval(f"config_eos.{expected_path}")
-            assert actual_value == expected_value, (
-                f"Expected {expected_value} at {expected_path}, but got {actual_value}"
-            )
+            assert_values_equal(actual_value, expected_value)
     else:
         try:
             config_eos.set_nested_value(path, value)
             for expected_path, expected_value in expected:
                 actual_value = eval(f"config_eos.{expected_path}")
-                assert actual_value == expected_value, (
-                    f"Expected {expected_value} at {expected_path}, but got {actual_value}"
-                )
+                assert_values_equal(actual_value, expected_value)
             pytest.fail(
                 f"Expected exception {exception} but none was raised. Set '{expected_path}' to '{actual_value}'"
             )
@@ -373,18 +428,6 @@ def test_set_nested_key(path, value, expected, exception, config_eos):
         ("general/latitude", 52.52, None),
         ("general/latitude/", 52.52, None),
         ("general/latitude/test", None, KeyError),
-        (
-            "optimization/ev_available_charge_rates_percent/1",
-            0.375,
-            None,
-        ),
-        ("optimization/ev_available_charge_rates_percent/10", 0, IndexError),
-        ("optimization/ev_available_charge_rates_percent/test", 0, IndexError),
-        (
-            "optimization/ev_available_charge_rates_percent",
-            [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
-            None,
-        ),
     ],
 )
 def test_get_nested_key(path, expected_value, exception, config_eos):
@@ -409,7 +452,8 @@ def test_merge_settings_from_dict_invalid(config_eos):
 
 def test_merge_settings_partial(config_eos):
     """Test merging only a subset of settings."""
-    partial_settings: dict[str, dict[str, Union[float, None, str]]] = {
+
+    partial_settings: dict[str, Any] = {
         "general": {
             "latitude": 51.1657  # Only latitude is updated
         },
@@ -419,6 +463,8 @@ def test_merge_settings_partial(config_eos):
     assert config_eos.general.latitude == 51.1657
     assert config_eos.general.longitude == 13.405  # Should remain unchanged
 
+    #-----------------
+
     partial_settings = {
         "weather": {
             "provider": "BrightSky",
@@ -427,6 +473,8 @@ def test_merge_settings_partial(config_eos):
 
     config_eos.merge_settings_from_dict(partial_settings)
     assert config_eos.weather.provider == "BrightSky"
+
+    #-----------------
 
     partial_settings = {
         "general": {
@@ -445,6 +493,36 @@ def test_merge_settings_partial(config_eos):
     config_eos.update()
     assert config_eos.general.latitude is None
     assert config_eos.weather.provider == "ClearOutside"
+
+    #-----------------
+
+    partial_settings = {
+        "devices": {
+            "max_electric_vehicles": 1,
+            "electric_vehicles": [
+                {
+                    "charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+                }
+            ],
+        }
+    }
+
+    config_eos.merge_settings_from_dict(partial_settings)
+    assert config_eos.devices.max_electric_vehicles == 1
+    assert len(config_eos.devices.electric_vehicles) == 1
+    assert_values_equal(config_eos.devices.electric_vehicles[0].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
+
+    # Assure re-apply generates the same config
+    config_eos.merge_settings_from_dict(partial_settings)
+    assert config_eos.devices.max_electric_vehicles == 1
+    assert len(config_eos.devices.electric_vehicles) == 1
+    assert_values_equal(config_eos.devices.electric_vehicles[0].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
+
+    # Assure update keeps same values
+    config_eos.update()
+    assert config_eos.devices.max_electric_vehicles == 1
+    assert len(config_eos.devices.electric_vehicles) == 1
+    assert_values_equal(config_eos.devices.electric_vehicles[0].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
 
 
 def test_merge_settings_empty(config_eos):

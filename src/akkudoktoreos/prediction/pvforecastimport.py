@@ -22,14 +22,18 @@ class PVForecastImportCommonSettings(SettingsBaseModel):
 
     import_file_path: Optional[Union[str, Path]] = Field(
         default=None,
-        description="Path to the file to import PV forecast data from.",
-        examples=[None, "/path/to/pvforecast.json"],
+        json_schema_extra={
+            "description": "Path to the file to import PV forecast data from.",
+            "examples": [None, "/path/to/pvforecast.json"],
+        },
     )
 
     import_json: Optional[str] = Field(
         default=None,
-        description="JSON string, dictionary of PV forecast value lists.",
-        examples=['{"pvforecast_ac_power": [0, 8.05, 352.91]}'],
+        json_schema_extra={
+            "description": "JSON string, dictionary of PV forecast value lists.",
+            "examples": ['{"pvforecast_ac_power": [0, 8.05, 352.91]}'],
+        },
     )
 
     # Validators
@@ -61,16 +65,16 @@ class PVForecastImport(PVForecastProvider, PredictionImportProvider):
         return "PVForecastImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.pvforecast.provider_settings is None:
+        if self.config.pvforecast.provider_settings.PVForecastImport is None:
             logger.debug(f"{self.provider_id()} data update without provider settings.")
             return
-        if self.config.pvforecast.provider_settings.import_file_path is not None:
+        if self.config.pvforecast.provider_settings.PVForecastImport.import_file_path is not None:
             self.import_from_file(
-                self.config.pvforecast.provider_settings.import_file_path,
+                self.config.pvforecast.provider_settings.PVForecastImport.import_file_path,
                 key_prefix="pvforecast",
             )
-        if self.config.pvforecast.provider_settings.import_json is not None:
+        if self.config.pvforecast.provider_settings.PVForecastImport.import_json is not None:
             self.import_from_json(
-                self.config.pvforecast.provider_settings.import_json,
+                self.config.pvforecast.provider_settings.PVForecastImport.import_json,
                 key_prefix="pvforecast",
             )
