@@ -84,7 +84,7 @@ class ElectricVehicleResult(DeviceOptimizeResult):
 class GeneticSimulationResult(GeneticParametersBaseModel):
     """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     load_wh_per_hour: list[float] = Field(
         validation_alias=AliasChoices("Last_Wh_pro_Stunde", "load_wh_per_hour"),

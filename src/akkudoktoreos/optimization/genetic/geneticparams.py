@@ -43,7 +43,7 @@ from akkudoktoreos.utils.datetimeutil import to_duration
 class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
     """Encapsulates energy-related forecasts and costs used in GENETIC optimization."""
 
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     pv_forecast_wh: list[float] = Field(
         validation_alias=AliasChoices("pv_prognose_wh", "pv_forecast_wh"),
