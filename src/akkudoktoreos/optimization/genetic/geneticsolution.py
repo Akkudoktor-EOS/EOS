@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 import pandas as pd
 from loguru import logger
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, ConfigDict, Field, computed_field, field_validator
 
 from akkudoktoreos.core.coreabc import (
     ConfigMixin,
@@ -84,62 +84,148 @@ class ElectricVehicleResult(DeviceOptimizeResult):
 class GeneticSimulationResult(GeneticParametersBaseModel):
     """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
 
-    Last_Wh_pro_Stunde: list[float] = Field(json_schema_extra={"description": "TBD"})
-    EAuto_SoC_pro_Stunde: list[float] = Field(
-        json_schema_extra={"description": "The state of charge of the EV for each hour."}
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    load_wh_per_hour: list[float] = Field(
+        validation_alias=AliasChoices("Last_Wh_pro_Stunde", "load_wh_per_hour"),
+        json_schema_extra={"description": "The load in watt-hours per hour."},
     )
-    Einnahmen_Euro_pro_Stunde: list[float] = Field(
+    ev_soc_per_hour: list[float] = Field(
+        validation_alias=AliasChoices("EAuto_SoC_pro_Stunde", "ev_soc_per_hour"),
+        json_schema_extra={"description": "The state of charge of the EV for each hour."},
+    )
+    revenue_per_hour: list[float] = Field(
+        validation_alias=AliasChoices("Einnahmen_Euro_pro_Stunde", "revenue_per_hour"),
         json_schema_extra={
-            "description": "The revenue from grid feed-in or other sources in euros per hour."
-        }
+            "description": "The revenue from grid feed-in or other sources per hour."
+        },
     )
-    Gesamt_Verluste: float = Field(
-        json_schema_extra={"description": "The total losses in watt-hours over the entire period."}
+    total_losses: float = Field(
+        validation_alias=AliasChoices("Gesamt_Verluste", "total_losses"),
+        json_schema_extra={"description": "The total losses in watt-hours over the entire period."},
     )
-    Gesamtbilanz_Euro: float = Field(
-        json_schema_extra={"description": "The total balance of revenues minus costs in euros."}
+    total_balance: float = Field(
+        validation_alias=AliasChoices("Gesamtbilanz_Euro", "total_balance"),
+        json_schema_extra={"description": "The total balance of revenues minus costs."},
     )
-    Gesamteinnahmen_Euro: float = Field(
-        json_schema_extra={"description": "The total revenues in euros."}
+    total_revenue: float = Field(
+        validation_alias=AliasChoices("Gesamteinnahmen_Euro", "total_revenue"),
+        json_schema_extra={"description": "The total revenues."},
     )
-    Gesamtkosten_Euro: float = Field(json_schema_extra={"description": "The total costs in euros."})
-    Home_appliance_wh_per_hour: list[Optional[float]] = Field(
+    total_costs: float = Field(
+        validation_alias=AliasChoices("Gesamtkosten_Euro", "total_costs"),
+        json_schema_extra={"description": "The total costs."},
+    )
+    home_appliance_wh_per_hour: list[Optional[float]] = Field(
+        validation_alias=AliasChoices("Home_appliance_wh_per_hour", "home_appliance_wh_per_hour"),
         json_schema_extra={
             "description": "The energy consumption of a household appliance in watt-hours per hour."
-        }
+        },
     )
-    Kosten_Euro_pro_Stunde: list[float] = Field(
-        json_schema_extra={"description": "The costs in euros per hour."}
+    costs_per_hour: list[float] = Field(
+        validation_alias=AliasChoices("Kosten_Euro_pro_Stunde", "costs_per_hour"),
+        json_schema_extra={"description": "The costs per hour."},
     )
-    Netzbezug_Wh_pro_Stunde: list[float] = Field(
-        json_schema_extra={"description": "The grid energy drawn in watt-hours per hour."}
+    grid_consumption_wh_per_hour: list[float] = Field(
+        validation_alias=AliasChoices("Netzbezug_Wh_pro_Stunde", "grid_consumption_wh_per_hour"),
+        json_schema_extra={"description": "The grid energy drawn in watt-hours per hour."},
     )
-    Netzeinspeisung_Wh_pro_Stunde: list[float] = Field(
-        json_schema_extra={"description": "The energy fed into the grid in watt-hours per hour."}
+    grid_feed_in_wh_per_hour: list[float] = Field(
+        validation_alias=AliasChoices("Netzeinspeisung_Wh_pro_Stunde", "grid_feed_in_wh_per_hour"),
+        json_schema_extra={"description": "The energy fed into the grid in watt-hours per hour."},
     )
-    Verluste_Pro_Stunde: list[float] = Field(
-        json_schema_extra={"description": "The losses in watt-hours per hour."}
+    losses_per_hour: list[float] = Field(
+        validation_alias=AliasChoices("Verluste_Pro_Stunde", "losses_per_hour"),
+        json_schema_extra={"description": "The losses in watt-hours per hour."},
     )
-    akku_soc_pro_stunde: list[float] = Field(
+    battery_soc_per_hour: list[float] = Field(
+        validation_alias=AliasChoices("akku_soc_pro_stunde", "battery_soc_per_hour"),
         json_schema_extra={
             "description": "The state of charge of the battery (not the EV) in percentage per hour."
-        }
+        },
     )
-    Electricity_price: list[float] = Field(
-        json_schema_extra={"description": "Used Electricity Price, including predictions"}
+    electricity_price: list[float] = Field(
+        validation_alias=AliasChoices("Electricity_price", "electricity_price"),
+        json_schema_extra={"description": "Used Electricity Price, including predictions"},
     )
 
+    # Computed fields for backward compatibility (deprecated German names)
+    @computed_field
+    def Last_Wh_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use load_wh_per_hour instead."""
+        return self.load_wh_per_hour
+
+    @computed_field
+    def EAuto_SoC_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use ev_soc_per_hour instead."""
+        return self.ev_soc_per_hour
+
+    @computed_field
+    def Einnahmen_Euro_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use revenue_per_hour instead."""
+        return self.revenue_per_hour
+
+    @computed_field
+    def Gesamt_Verluste(self) -> float:
+        """Deprecated: Use total_losses instead."""
+        return self.total_losses
+
+    @computed_field
+    def Gesamtbilanz_Euro(self) -> float:
+        """Deprecated: Use total_balance instead."""
+        return self.total_balance
+
+    @computed_field
+    def Gesamteinnahmen_Euro(self) -> float:
+        """Deprecated: Use total_revenue instead."""
+        return self.total_revenue
+
+    @computed_field
+    def Gesamtkosten_Euro(self) -> float:
+        """Deprecated: Use total_costs instead."""
+        return self.total_costs
+
+    @computed_field
+    def Kosten_Euro_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use costs_per_hour instead."""
+        return self.costs_per_hour
+
+    @computed_field
+    def Netzbezug_Wh_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use grid_consumption_wh_per_hour instead."""
+        return self.grid_consumption_wh_per_hour
+
+    @computed_field
+    def Netzeinspeisung_Wh_pro_Stunde(self) -> list[float]:
+        """Deprecated: Use grid_feed_in_wh_per_hour instead."""
+        return self.grid_feed_in_wh_per_hour
+
+    @computed_field
+    def Verluste_Pro_Stunde(self) -> list[float]:
+        """Deprecated: Use losses_per_hour instead."""
+        return self.losses_per_hour
+
+    @computed_field
+    def akku_soc_pro_stunde(self) -> list[float]:
+        """Deprecated: Use battery_soc_per_hour instead."""
+        return self.battery_soc_per_hour
+
+    @computed_field
+    def Electricity_price(self) -> list[float]:
+        """Deprecated: Use electricity_price instead."""
+        return self.electricity_price
+
     @field_validator(
-        "Last_Wh_pro_Stunde",
-        "Netzeinspeisung_Wh_pro_Stunde",
-        "akku_soc_pro_stunde",
-        "Netzbezug_Wh_pro_Stunde",
-        "Kosten_Euro_pro_Stunde",
-        "Einnahmen_Euro_pro_Stunde",
-        "EAuto_SoC_pro_Stunde",
-        "Verluste_Pro_Stunde",
-        "Home_appliance_wh_per_hour",
-        "Electricity_price",
+        "load_wh_per_hour",
+        "grid_feed_in_wh_per_hour",
+        "battery_soc_per_hour",
+        "grid_consumption_wh_per_hour",
+        "costs_per_hour",
+        "revenue_per_hour",
+        "ev_soc_per_hour",
+        "losses_per_hour",
+        "home_appliance_wh_per_hour",
+        "electricity_price",
         mode="before",
     )
     def convert_numpy(cls, field: Any) -> Any:
@@ -147,7 +233,7 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
 
 
 class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
-    """**Note**: The first value of "Last_Wh_per_hour", "Netzeinspeisung_Wh_per_hour", and "Netzbezug_Wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
+    """**Note**: The first value of "load_wh_per_hour", "grid_feed_in_wh_per_hour", and "grid_consumption_wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
 
     ac_charge: list[float] = Field(
         json_schema_extra={
@@ -281,7 +367,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
         # --- Create index based on list length and interval ---
         # Ensure we only use the minimum of results and commands if differing
-        periods = min(len(self.result.Kosten_Euro_pro_Stunde), len(self.ac_charge) - start_day_hour)
+        periods = min(len(self.result.costs_per_hour), len(self.ac_charge) - start_day_hour)
         time_index = pd.date_range(
             start=start_datetime,
             periods=periods,
@@ -305,12 +391,12 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             {
                 "date_time": time_index,
                 # result starts at start_day_hour
-                "load_energy_wh": self.result.Last_Wh_pro_Stunde[:n_points],
-                "grid_feedin_energy_wh": self.result.Netzeinspeisung_Wh_pro_Stunde[:n_points],
-                "grid_consumption_energy_wh": self.result.Netzbezug_Wh_pro_Stunde[:n_points],
-                "costs_amt": self.result.Kosten_Euro_pro_Stunde[:n_points],
-                "revenue_amt": self.result.Einnahmen_Euro_pro_Stunde[:n_points],
-                "losses_energy_wh": self.result.Verluste_Pro_Stunde[:n_points],
+                "load_energy_wh": self.result.load_wh_per_hour[:n_points],
+                "grid_feedin_energy_wh": self.result.grid_feed_in_wh_per_hour[:n_points],
+                "grid_consumption_energy_wh": self.result.grid_consumption_wh_per_hour[:n_points],
+                "costs_amt": self.result.costs_per_hour[:n_points],
+                "revenue_amt": self.result.revenue_per_hour[:n_points],
+                "losses_energy_wh": self.result.losses_per_hour[:n_points],
             },
             index=time_index,
         )
@@ -318,7 +404,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         # Add battery data
         solution["battery1_soc_factor"] = [
             v / 100
-            for v in self.result.akku_soc_pro_stunde[:n_points]  # result starts at start_day_hour
+            for v in self.result.battery_soc_per_hour[:n_points]  # result starts at start_day_hour
         ]
         operation: dict[str, list[float]] = {
             "genetic_ac_charge_factor": [],
@@ -361,7 +447,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
         # Add EV battery solution
         # eautocharge_hours_float start at hour 0 of start day
-        # result.EAuto_SoC_pro_Stunde start at start_datetime.hour
+        # result.ev_soc_per_hour start at start_datetime.hour
         if self.eauto_obj:
             if self.eautocharge_hours_float is None:
                 # Electric vehicle is full enough. No load times.
@@ -382,7 +468,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                         solution[factor_key] = [0.0] * n_points
             else:
                 solution[f"{self.eauto_obj.device_id}_soc_factor"] = [
-                    v / 100 for v in self.result.EAuto_SoC_pro_Stunde[:n_points]
+                    v / 100 for v in self.result.ev_soc_per_hour[:n_points]
                 ]
                 operation = {
                     "genetic_ev_charge_factor": [],
@@ -553,11 +639,11 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             comment="Optimization solution derived from GeneticSolution.",
             valid_from=start_datetime,
             valid_until=start_datetime.add(hours=self.config.optimization.horizon_hours),
-            total_losses_energy_wh=self.result.Gesamt_Verluste,
-            total_revenues_amt=self.result.Gesamteinnahmen_Euro,
-            total_costs_amt=self.result.Gesamtkosten_Euro,
+            total_losses_energy_wh=self.result.total_losses,
+            total_revenues_amt=self.result.total_revenue,
+            total_costs_amt=self.result.total_costs,
             fitness_score={
-                self.result.Gesamtkosten_Euro,
+                self.result.total_costs,
             },
             prediction=PydanticDateTimeDataFrame.from_dataframe(prediction),
             solution=PydanticDateTimeDataFrame.from_dataframe(solution),
