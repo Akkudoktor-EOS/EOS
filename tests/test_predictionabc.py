@@ -7,7 +7,7 @@ import pendulum
 import pytest
 from pydantic import Field
 
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings
 from akkudoktoreos.prediction.predictionabc import (
     PredictionBase,

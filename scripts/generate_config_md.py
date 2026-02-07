@@ -14,7 +14,8 @@ from loguru import logger
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
-from akkudoktoreos.config.config import ConfigEOS, GeneralSettings, get_config
+from akkudoktoreos.config.config import ConfigEOS
+from akkudoktoreos.core.coreabc import get_config, singletons_init
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
@@ -362,10 +363,9 @@ def generate_config_md(file_path: Optional[Union[str, Path]], config_eos: Config
         str: The Markdown representation of the configuration spec.
     """
     # Fix file path for general settings to not show local/test file path
-    GeneralSettings._config_file_path = Path(
+    ConfigEOS._config_file_path = Path(
         "/home/user/.config/net.akkudoktoreos.net/EOS.config.json"
     )
-    GeneralSettings._config_folder_path = config_eos.general.config_file_path.parent
 
     markdown = ""
 
@@ -477,7 +477,18 @@ def main():
     )
 
     args = parser.parse_args()
-    config_eos = get_config()
+
+    # Make minimal config to make the generation reproducable
+    config_eos = get_config(init={
+            "with_init_settings": True,
+            "with_env_settings": False,
+            "with_dotenv_settings": False,
+            "with_file_settings": False,
+            "with_file_secret_settings": False,
+        })
+
+    # Also init other singletons to get same list of e.g. providers
+    singletons_init()
 
     try:
         config_md = generate_config_md(args.output_file, config_eos)

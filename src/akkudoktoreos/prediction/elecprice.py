@@ -3,21 +3,28 @@ from typing import Optional
 from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
 from akkudoktoreos.prediction.elecpriceenergycharts import (
     ElecPriceEnergyChartsCommonSettings,
 )
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImportCommonSettings
-from akkudoktoreos.prediction.prediction import get_prediction
 
-prediction_eos = get_prediction()
 
-# Valid elecprice providers
-elecprice_providers = [
-    provider.provider_id()
-    for provider in prediction_eos.providers
-    if isinstance(provider, ElecPriceProvider)
-]
+def elecprice_provider_ids() -> list[str]:
+    """Valid elecprice provider ids."""
+    try:
+        prediction_eos = get_prediction()
+    except:
+        # Prediction may not be initialized
+        # Return at least provider used in example
+        return ["ElecPriceAkkudoktor"]
+
+    return [
+        provider.provider_id()
+        for provider in prediction_eos.providers
+        if isinstance(provider, ElecPriceProvider)
+    ]
 
 
 class ElecPriceCommonSettings(SettingsBaseModel):
@@ -61,14 +68,14 @@ class ElecPriceCommonSettings(SettingsBaseModel):
     @property
     def providers(self) -> list[str]:
         """Available electricity price provider ids."""
-        return elecprice_providers
+        return elecprice_provider_ids()
 
     # Validators
     @field_validator("provider", mode="after")
     @classmethod
     def validate_provider(cls, value: Optional[str]) -> Optional[str]:
-        if value is None or value in elecprice_providers:
+        if value is None or value in elecprice_provider_ids():
             return value
         raise ValueError(
-            f"Provider '{value}' is not a valid electricity price provider: {elecprice_providers}."
+            f"Provider '{value}' is not a valid electricity price provider: {elecprice_provider_ids()}."
         )

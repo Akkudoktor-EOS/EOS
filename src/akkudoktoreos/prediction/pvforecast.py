@@ -5,19 +5,26 @@ from typing import Any, List, Optional, Self
 from pydantic import Field, computed_field, field_validator, model_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrmCommonSettings
 
-prediction_eos = get_prediction()
 
-# Valid PV forecast providers
-pvforecast_providers = [
-    provider.provider_id()
-    for provider in prediction_eos.providers
-    if isinstance(provider, PVForecastProvider)
-]
+def pvforecast_provider_ids() -> list[str]:
+    """Valid PV forecast providers."""
+    try:
+        prediction_eos = get_prediction()
+    except:
+        # Prediction may not be initialized
+        # Return at least provider used in example
+        return ["PVForecastAkkudoktor", "PVForecastImport", "PVForecastVrm"]
+
+    return [
+        provider.provider_id()
+        for provider in prediction_eos.providers
+        if isinstance(provider, PVForecastProvider)
+    ]
 
 
 class PVForecastPlaneSetting(SettingsBaseModel):
@@ -264,16 +271,16 @@ class PVForecastCommonSettings(SettingsBaseModel):
     @property
     def providers(self) -> list[str]:
         """Available PVForecast provider ids."""
-        return pvforecast_providers
+        return pvforecast_provider_ids()
 
     # Validators
     @field_validator("provider", mode="after")
     @classmethod
     def validate_provider(cls, value: Optional[str]) -> Optional[str]:
-        if value is None or value in pvforecast_providers:
+        if value is None or value in pvforecast_provider_ids():
             return value
         raise ValueError(
-            f"Provider '{value}' is not a valid PV forecast provider: {pvforecast_providers}."
+            f"Provider '{value}' is not a valid PV forecast provider: {pvforecast_provider_ids()}."
         )
 
     ## Computed fields

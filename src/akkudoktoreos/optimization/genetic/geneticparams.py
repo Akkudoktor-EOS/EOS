@@ -18,6 +18,7 @@ from akkudoktoreos.core.coreabc import (
     ConfigMixin,
     MeasurementMixin,
     PredictionMixin,
+    get_ems,
 )
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticdevices import (
@@ -161,9 +162,6 @@ class GeneticOptimizationParameters(
         Raises:
             ValueError: If required configuration values like start time are missing.
         """
-        # Avoid circular dependency
-        from akkudoktoreos.core.ems import get_ems
-
         ems = get_ems()
 
         # The optimization paramters

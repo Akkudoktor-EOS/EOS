@@ -407,12 +407,3 @@ class EnergyManagement(
             EnergyManagement._last_run_datetime = EnergyManagement._last_run_datetime.add(
                 seconds=interval
             )
-
-
-# Initialize the Energy Management System, it is a singleton.
-ems = EnergyManagement()
-
-
-def get_ems() -> EnergyManagement:
-    """Gets the EOS Energy Management System."""
-    return ems

@@ -4,8 +4,8 @@ import numpy as np
 import pendulum
 import pytest
 
-from akkudoktoreos.core.ems import get_ems
-from akkudoktoreos.measurement.measurement import MeasurementDataRecord, get_measurement
+from akkudoktoreos.core.coreabc import get_ems, get_measurement
+from akkudoktoreos.measurement.measurement import MeasurementDataRecord
 from akkudoktoreos.prediction.loadakkudoktor import (
     LoadAkkudoktor,
     LoadAkkudoktorAdjusted,

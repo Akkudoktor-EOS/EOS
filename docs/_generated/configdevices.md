@@ -50,19 +50,7 @@
                        1.0
                    ],
                    "min_soc_percentage": 0,
-                   "max_soc_percentage": 100,
-                   "measurement_key_soc_factor": "battery1-soc-factor",
-                   "measurement_key_power_l1_w": "battery1-power-l1-w",
-                   "measurement_key_power_l2_w": "battery1-power-l2-w",
-                   "measurement_key_power_l3_w": "battery1-power-l3-w",
-                   "measurement_key_power_3_phase_sym_w": "battery1-power-3-phase-sym-w",
-                   "measurement_keys": [
-                       "battery1-soc-factor",
-                       "battery1-power-l1-w",
-                       "battery1-power-l2-w",
-                       "battery1-power-l3-w",
-                       "battery1-power-3-phase-sym-w"
-                   ]
+                   "max_soc_percentage": 100
                }
            ],
            "max_batteries": 1,
@@ -89,19 +77,7 @@
                        1.0
                    ],
                    "min_soc_percentage": 0,
-                   "max_soc_percentage": 100,
-                   "measurement_key_soc_factor": "battery1-soc-factor",
-                   "measurement_key_power_l1_w": "battery1-power-l1-w",
-                   "measurement_key_power_l2_w": "battery1-power-l2-w",
-                   "measurement_key_power_l3_w": "battery1-power-l3-w",
-                   "measurement_key_power_3_phase_sym_w": "battery1-power-3-phase-sym-w",
-                   "measurement_keys": [
-                       "battery1-soc-factor",
-                       "battery1-power-l1-w",
-                       "battery1-power-l2-w",
-                       "battery1-power-l3-w",
-                       "battery1-power-3-phase-sym-w"
-                   ]
+                   "max_soc_percentage": 100
                }
            ],
            "max_electric_vehicles": 1,

@@ -18,7 +18,7 @@ from akkudoktoreos.core.version import __version__
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "Akkudoktor EOS"
-copyright = "2025, Andreas Schmitz"
+copyright = "2025..2026, Andreas Schmitz"
 author = "Andreas Schmitz"
 release = __version__
 
