@@ -14,8 +14,10 @@ DIR_DOCS_GENERATED = DIR_PROJECT_ROOT / "docs" / "_generated"
 DIR_TEST_GENERATED = DIR_TESTDATA / "docs" / "_generated"
 
 
-def test_openapi_spec_current(config_eos):
+def test_openapi_spec_current(config_eos, set_other_timezone):
     """Verify the openapi spec hasn´t changed."""
+    set_other_timezone("UTC") # CI runs on UTC
+
     expected_spec_path = DIR_PROJECT_ROOT / "openapi.json"
     new_spec_path = DIR_TESTDATA / "openapi-new.json"
 
@@ -39,7 +41,7 @@ def test_openapi_spec_current(config_eos):
     expected_spec_str = json.dumps(expected_spec, indent=4, sort_keys=True)
 
     try:
-        assert spec_str == expected_spec_str
+        assert json.loads(spec_str) == json.loads(expected_spec_str)
     except AssertionError as e:
         pytest.fail(
             f"Expected {new_spec_path} to equal {expected_spec_path}.\n"
@@ -47,8 +49,10 @@ def test_openapi_spec_current(config_eos):
         )
 
 
-def test_openapi_md_current(config_eos):
+def test_openapi_md_current(config_eos, set_other_timezone):
     """Verify the generated openapi markdown hasn´t changed."""
+    set_other_timezone("UTC") # CI runs on UTC
+
     expected_spec_md_path = DIR_PROJECT_ROOT / "docs" / "_generated" / "openapi.md"
     new_spec_md_path = DIR_TESTDATA / "openapi-new.md"
 
@@ -76,8 +80,10 @@ def test_openapi_md_current(config_eos):
         )
 
 
-def test_config_md_current(config_eos):
+def test_config_md_current(config_eos, set_other_timezone):
     """Verify the generated configuration markdown hasn´t changed."""
+    set_other_timezone("UTC") # CI runs on UTC
+
     assert DIR_DOCS_GENERATED.exists()
 
     # Remove any leftover files from last run

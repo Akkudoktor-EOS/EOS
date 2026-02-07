@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.2.0.dev34665390"
+    "version": "v0.2.0.dev16429623"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -4355,7 +4355,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev34665390"
+            "default": "0.2.0.dev16429623"
           },
           "data_folder_path": {
             "anyOf": [
@@ -4429,7 +4429,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev34665390"
+            "default": "0.2.0.dev16429623"
           },
           "data_folder_path": {
             "anyOf": [
