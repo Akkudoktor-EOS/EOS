@@ -10,7 +10,7 @@
 | homeassistant | `EOS_ADAPTER__HOMEASSISTANT` | `HomeAssistantAdapterCommonSettings` | `rw` | `required` | Home Assistant adapter settings. |
 | nodered | `EOS_ADAPTER__NODERED` | `NodeREDAdapterCommonSettings` | `rw` | `required` | NodeRED adapter settings. |
 | provider | `EOS_ADAPTER__PROVIDER` | `Optional[list[str]]` | `rw` | `None` | List of adapter provider id(s) of provider(s) to be used. |
-| providers | | `list[str]` | `ro` | `N/A` | Available electricity price provider ids. |
+| providers | | `list[str]` | `ro` | `N/A` | Available adapter provider ids. |
 :::
 <!-- pyml enable line-length -->
 
@@ -33,10 +33,7 @@
                "pv_production_emr_entity_ids": null,
                "device_measurement_entity_ids": null,
                "device_instruction_entity_ids": null,
-               "solution_entity_ids": null,
-               "homeassistant_entity_ids": [],
-               "eos_solution_entity_ids": [],
-               "eos_device_instruction_entity_ids": []
+               "solution_entity_ids": null
            },
            "nodered": {
                "host": "127.0.0.1",

@@ -8,6 +8,7 @@ import pytest
 from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.core.dataabc import (
     DataBase,
     DataContainer,
@@ -16,7 +17,6 @@ from akkudoktoreos.core.dataabc import (
     DataRecord,
     DataSequence,
 )
-from akkudoktoreos.core.ems import get_ems
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
 # Derived classes for testing

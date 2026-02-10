@@ -8,13 +8,11 @@ from typing import Any, MutableMapping
 
 from loguru import logger
 
-from akkudoktoreos.config.config import get_config
+from akkudoktoreos.core.coreabc import get_config
 from akkudoktoreos.server.server import (
     validate_ip_or_hostname,
     wait_for_port_free,
 )
-
-config_eos = get_config()
 
 # Loguru to HA stdout
 logger.add(sys.stdout, format="{time} | {level} | {message}", enqueue=True)
@@ -285,6 +283,8 @@ async def run_eosdash_supervisor() -> None:
     global eosdash_log_queue
 
     eosdash_path = Path(__file__).parent.resolve().joinpath("eosdash.py")
+
+    config_eos = get_config()
 
     while True:
         await asyncio.sleep(5)

@@ -8,7 +8,7 @@ import requests
 from loguru import logger
 
 from akkudoktoreos.core.cache import CacheFileStore
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.elecpriceakkudoktor import (
     AkkudoktorElecPrice,
     AkkudoktorElecPriceValue,

@@ -5,8 +5,7 @@ from unittest.mock import Mock, patch
 import pytest
 from loguru import logger
 
-from akkudoktoreos.core.ems import get_ems
-from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.core.coreabc import get_ems, get_prediction
 from akkudoktoreos.prediction.pvforecastakkudoktor import (
     AkkudoktorForecastHorizon,
     AkkudoktorForecastMeta,

@@ -109,17 +109,18 @@ def test_config_ipaddress(monkeypatch, config_eos):
     assert config_eos.server.host == "localhost"
 
 
-def test_singleton_behavior(config_eos, config_default_dirs):
+def test_singleton_behavior(config_eos, config_default_dirs, monkeypatch):
     """Test that ConfigEOS behaves as a singleton."""
-    initial_cfg_file = config_eos.general.config_file_path
-    with patch(
-        "akkudoktoreos.config.config.user_config_dir", return_value=str(config_default_dirs[0])
-    ):
-        instance1 = ConfigEOS()
-        instance2 = ConfigEOS()
-    assert instance1 is config_eos
+    config_eos.reset_instance()
+
+    monkeypatch.setenv("EOS_CONFIG_DIR", str(config_default_dirs[0]))
+
+    instance1 = ConfigEOS()
+    instance2 = ConfigEOS()
+
+    assert instance1 is not config_eos
     assert instance1 is instance2
-    assert instance1.general.config_file_path == initial_cfg_file
+    assert instance1._config_file_path == instance2._config_file_path
 
 
 def test_config_file_priority(config_default_dirs):
@@ -169,17 +170,22 @@ def test_get_config_file_path(user_config_dir_patch, config_eos, config_default_
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_dir_path = Path(temp_dir)
         monkeypatch.setenv("EOS_DIR", str(temp_dir_path))
+        monkeypatch.delenv("EOS_CONFIG_DIR", raising=False)
         assert config_eos._get_config_file_path() == (cfg_file(temp_dir_path), False)
 
         monkeypatch.setenv("EOS_CONFIG_DIR", "config")
+        config_dir = temp_dir_path / "config"
+        config_dir.mkdir(exist_ok=True)
         assert config_eos._get_config_file_path() == (
-            cfg_file(temp_dir_path / "config"),
+            cfg_file(config_dir),
             False,
         )
 
         monkeypatch.setenv("EOS_CONFIG_DIR", str(temp_dir_path / "config2"))
+        config_dir = temp_dir_path / "config2"
+        config_dir.mkdir(exist_ok=True)
         assert config_eos._get_config_file_path() == (
-            cfg_file(temp_dir_path / "config2"),
+            cfg_file(config_dir),
             False,
         )
 
@@ -188,8 +194,10 @@ def test_get_config_file_path(user_config_dir_patch, config_eos, config_default_
         assert config_eos._get_config_file_path() == (cfg_file(config_default_dir_user), False)
 
         monkeypatch.setenv("EOS_CONFIG_DIR", str(temp_dir_path / "config3"))
+        config_dir = temp_dir_path / "config3"
+        config_dir.mkdir(exist_ok=True)
         assert config_eos._get_config_file_path() == (
-            cfg_file(temp_dir_path / "config3"),
+            cfg_file(config_dir),
             False,
         )
 
@@ -199,7 +207,7 @@ def test_config_copy(config_eos, monkeypatch):
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_folder_path = Path(temp_dir)
         temp_config_file_path = temp_folder_path.joinpath(config_eos.CONFIG_FILE_NAME).resolve()
-        monkeypatch.setenv(config_eos.EOS_DIR, str(temp_folder_path))
+        monkeypatch.setenv("EOS_CONFIG_DIR", str(temp_folder_path))
         assert not temp_config_file_path.exists()
         with patch("akkudoktoreos.config.config.user_config_dir", return_value=temp_dir):
             assert config_eos._get_config_file_path() == (temp_config_file_path, False)

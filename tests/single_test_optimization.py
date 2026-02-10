@@ -12,13 +12,11 @@ from typing import Any
 import numpy as np
 from loguru import logger
 
-from akkudoktoreos.config.config import get_config
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.coreabc import get_config, get_ems, get_prediction
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
-from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 config_eos = get_config()

@@ -12,11 +12,11 @@ import pytest
 from akkudoktoreos.adapter.adapter import (
     Adapter,
     AdapterCommonSettings,
-    get_adapter,
 )
 from akkudoktoreos.adapter.adapterabc import AdapterContainer
 from akkudoktoreos.adapter.homeassistant import HomeAssistantAdapter
 from akkudoktoreos.adapter.nodered import NodeREDAdapter
+from akkudoktoreos.core.coreabc import get_adapter
 
 # ---------- Typed aliases for fixtures ----------
 AdapterFixture: TypeAlias = Adapter

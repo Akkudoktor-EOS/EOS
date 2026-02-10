@@ -196,6 +196,18 @@ class PredictionProvider(PredictionStartEndKeepMixin, DataProvider):
         Derived classes have to provide their own records field with correct record type set.
     """
 
+    def db_keep_datetime(self) -> Optional[DateTime]:
+        """Earliest datetime from which database records should be retained.
+
+        Used when removing old records from database to free space.
+
+        May be overridden by derived prediction class.
+
+        Returns:
+            Datetime or None.
+        """
+        return self.keep_datetime
+
     def update_data(
         self,
         force_enable: Optional[bool] = False,

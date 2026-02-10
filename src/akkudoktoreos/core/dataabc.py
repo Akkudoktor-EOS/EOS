@@ -10,6 +10,7 @@ and manipulation of configuration and generic data in a clear, scalable, and str
 
 import difflib
 import json
+import pickle
 from abc import abstractmethod
 from collections.abc import MutableMapping, MutableSequence
 from itertools import chain
@@ -41,7 +42,13 @@ from pydantic import (
     model_validator,
 )
 
-from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin, StartMixin
+from akkudoktoreos.core.coreabc import (
+    ConfigMixin,
+    DatabaseMixin,
+    SingletonMixin,
+    StartMixin,
+)
+from akkudoktoreos.core.datadb import DATADB_METADATA_KEY
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeData,
@@ -63,6 +70,9 @@ class DataBase(ConfigMixin, StartMixin, PydanticBaseModel):
     """
 
     pass
+
+
+# ==================== DataRecord ====================
 
 
 class DataRecord(DataBase, MutableMapping):
@@ -414,13 +424,21 @@ class DataRecord(DataBase, MutableMapping):
         return keys
 
 
-class DataSequence(DataBase, MutableSequence):
+# ==================== DataSequence ====================
+
+
+class DataSequence(DatabaseMixin, DataBase, MutableSequence):
     """A managed sequence of DataRecord instances with list-like behavior.
 
     The DataSequence class provides an ordered, mutable collection of DataRecord
-    instances, allowing list-style access for adding, deleting, and retrieving records. It also
-    supports advanced data operations such as JSON serialization, conversion to Pandas Series,
-    and sorting by timestamp.
+    instances, allowing list-style access for adding, deleting, and retrieving records.
+
+    It also supports advanced data operations such as
+
+    - JSON serialization,
+    - conversion to Pandas Series,
+    - sorting by timestamp,
+    - and data storage in a database.
 
     Attributes:
         records (List[DataRecord]): A list of DataRecord instances representing
@@ -469,9 +487,15 @@ class DataSequence(DataBase, MutableSequence):
             Optional[DateTime]: The earliest datetime in the sequence, or `None` if no
                 data records exist.
         """
+        db_min_datetime, _ = self.db_datetime_range()
         if len(self.records) == 0:
-            return None
-        return self.records[0].date_time
+            return db_min_datetime
+        if db_min_datetime is None:
+            return self.records[0].date_time
+        rec_min_datetime = self.records[0].date_time
+        if compare_datetimes(db_min_datetime, rec_min_datetime).le:
+            return db_min_datetime
+        return rec_min_datetime
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -485,9 +509,15 @@ class DataSequence(DataBase, MutableSequence):
             Optional[DateTime]: The latest datetime in the sequence, or `None` if no
                 data records exist.
         """
+        _, db_max_datetime = self.db_datetime_range()
         if len(self.records) == 0:
-            return None
-        return self.records[-1].date_time
+            return db_max_datetime
+        if db_max_datetime is None:
+            return self.records[-1].date_time
+        rec_max_datetime = self.records[-1].date_time
+        if compare_datetimes(db_max_datetime, rec_max_datetime).ge:
+            return db_max_datetime
+        return rec_max_datetime
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -596,6 +626,9 @@ class DataSequence(DataBase, MutableSequence):
         Raises:
             IndexError: If the index is invalid or out of range.
         """
+        # Ensure all data is loaded for index access
+        self.db_ensure_loaded()
+
         if isinstance(index, int):
             # Single item access logic
             return self.records[index]
@@ -672,7 +705,7 @@ class DataSequence(DataBase, MutableSequence):
         """
         return f"{self.__class__.__name__}([{', '.join(repr(record) for record in self.records)}])"
 
-    def insert(self, index: int, value: DataRecord) -> None:
+    def insert(self, index: int, record: DataRecord) -> None:
         """Insert a DataRecord at a specified index in the sequence.
 
         This method inserts a `DataRecord` at the specified index within the sequence of records,
@@ -684,40 +717,47 @@ class DataSequence(DataBase, MutableSequence):
             index (int): The position before which to insert the new record. An index of 0 inserts
                         the record at the start, while an index equal to the length of the sequence
                         appends it to the end.
-            value (DataRecord): The `DataRecord` instance to insert into the sequence.
+            record (DataRecord): The `DataRecord` instance to insert into the sequence.
 
         Raises:
             ValueError: If `value` is not an instance of `DataRecord`.
         """
-        self.records.insert(index, value)
+        self.records.insert(index, record)
 
-    def insert_by_datetime(self, value: DataRecord) -> None:
+    def insert_by_datetime(self, record: DataRecord) -> None:
         """Insert or merge a DataRecord into the sequence based on its date.
 
         If a record with the same date exists, merges new data fields with the existing record.
         Otherwise, appends the record and maintains chronological order.
 
         Args:
-            value (DataRecord): The record to add or merge.
+            record (DataRecord): The record to add or merge.
         """
-        self._validate_record(value)
+        self._validate_record(record)
+
+        # Ensure required record is loaded if available
+        self.db_ensure_loaded(record.date_time, record.date_time)
+
         # Check if a record with the given date already exists
-        for record in self.records:
-            if not isinstance(record.date_time, DateTime):
+        for rec in self.records:
+            if not isinstance(rec.date_time, DateTime):
                 raise ValueError(
-                    f"Record date '{record.date_time}' is not a datetime, but a `{type(record.date_time).__name__}`."
+                    f"Record date '{rec.date_time}' is not a datetime, but a `{type(rec.date_time).__name__}`."
                 )
-            if compare_datetimes(record.date_time, value.date_time).equal:
+            if compare_datetimes(rec.date_time, record.date_time).equal:
                 # Merge values, only updating fields where data record has a non-None value
-                for field, val in value.model_dump(exclude_unset=True).items():
-                    if field in value.record_keys_writable():
-                        setattr(record, field, val)
+                for field, val in record.model_dump(exclude_unset=True).items():
+                    if field in record.record_keys_writable():
+                        setattr(rec, field, val)
                 break
         else:
             # Add data record if the date does not exist
-            self.records.append(value)
+            self.records.append(record)
             # Sort the list by datetime after adding/updating
             self.sort_by_datetime()
+
+        # Check if auto-save should trigger and execute if needed.
+        self._db_check_auto_save()
 
     @overload
     def update_value(self, date: DateTime, key: str, value: Any) -> None: ...
@@ -781,6 +821,9 @@ class DataSequence(DataBase, MutableSequence):
             self.records.append(record)
             # Sort the list by datetime after adding/updating
             self.sort_by_datetime()
+
+        # Check if auto-save should trigger and execute if needed.
+        self._db_check_auto_save()
 
     def to_datetimeindex(self) -> pd.DatetimeIndex:
         """Generate a Pandas DatetimeIndex from the date_time fields of all records in the sequence.
@@ -979,6 +1022,9 @@ class DataSequence(DataBase, MutableSequence):
         Raises:
             KeyError: If the specified key is not found in any of the DataRecords.
         """
+        # Ensure required range is loaded
+        self.db_ensure_loaded(start_datetime, end_datetime)
+
         dates, values = self.key_to_lists(
             key=key, start_datetime=start_datetime, end_datetime=end_datetime, dropna=dropna
         )
@@ -1052,6 +1098,9 @@ class DataSequence(DataBase, MutableSequence):
         start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
         end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
 
+        # Ensure required range is loaded
+        self.db_ensure_loaded(start_datetime, end_datetime)
+
         if interval is None:
             interval = to_duration("1 hour")
             resample_freq = "1h"
@@ -1106,15 +1155,19 @@ class DataSequence(DataBase, MutableSequence):
                 f"infered to {series.index.inferred_type}: {series}"
             )
 
+        # Check for numeric values
+        numeric = pd.to_numeric(series.dropna(), errors="coerce")
+        is_numeric = numeric.notna().all()
+
         # Determine default fill method depending on dtype
         if fill_method is None:
-            if pd.api.types.is_numeric_dtype(series):
+            if is_numeric:
                 fill_method = "linear"
             else:
                 fill_method = "ffill"
 
         # Perform the resampling
-        if pd.api.types.is_numeric_dtype(series):
+        if is_numeric:
             # numeric → use mean
             resampled = series.resample(interval, origin=resample_origin).mean()
         else:
@@ -1122,7 +1175,8 @@ class DataSequence(DataBase, MutableSequence):
             resampled = series.resample(interval, origin=resample_origin).first()
 
         # Handle missing values after resampling
-        if fill_method == "linear" and pd.api.types.is_numeric_dtype(series):
+        if fill_method == "linear" and is_numeric:
+            resampled = pd.to_numeric(resampled, errors="coerce")
             resampled = resampled.interpolate("linear")
         elif fill_method == "ffill":
             resampled = resampled.ffill()
@@ -1294,6 +1348,7 @@ class DataSequence(DataBase, MutableSequence):
             KeyError: If `key` is not a valid attribute of the records.
         """
         self._validate_key_writable(key)
+
         # Ensure datetime objects are normalized
         start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
         end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
@@ -1320,6 +1375,9 @@ class DataSequence(DataBase, MutableSequence):
         start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
         end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
 
+        # Ensure required range is loaded
+        self.db_ensure_loaded(start_datetime, end_datetime)
+
         filtered_records = [
             record
             for record in self.records
@@ -1327,6 +1385,514 @@ class DataSequence(DataBase, MutableSequence):
             and (end_datetime is None or compare_datetimes(record.date_time, end_datetime).lt)
         ]
         return self.__class__(records=filtered_records)
+
+    # ----------------------- DataSequence Database Protocol ---------------------
+
+    # Database configuration
+    _db_loaded_range: Optional[tuple[DateTime, DateTime]] = None
+    _db_write_buffer: List[tuple[DateTime, DataRecord]] = []
+    _db_dirty: bool = False
+    _db_metadata: Optional[Dict[str, Any]] = None
+    _db_version: int = 1
+
+    @property
+    def db_enabled(self) -> bool:
+        """Check if database storage is enabled."""
+        return self.database.is_open
+
+    def db_keep_datetime(self) -> Optional[DateTime]:
+        """Earliest datetime from which database records should be retained.
+
+        Used when removing old records from database to free space.
+
+        To be implemented by derived class.
+
+        Returns:
+            Datetime or None.
+        """
+        return None
+
+    def db_namespace(self) -> str:
+        """Namespace of database.
+
+        To be implemented by derived class.
+        """
+        raise NotImplementedError
+
+    def save(self) -> bool:
+        """Save data records to persistent storage.
+
+        Returns:
+            True in case the data records were saved, False otherwise.
+        """
+        if not self.db_enabled:
+            return False
+
+        self.db_save_records()
+        return True
+
+    def load(self) -> bool:
+        """Load data records from from persistent storage.
+
+        Returns:
+            True in case the data records were loaded, False otherwise.
+        """
+        if not self.db_enabled:
+            return False
+
+        # Load or initialize metadata
+        existing_metadata = self._db_load_metadata()
+        if existing_metadata:
+            self._db_metadata = existing_metadata
+        else:
+            self._db_metadata = {
+                "version": self._db_version,
+                "created": to_datetime(as_string=True),
+                "provider_id": getattr(self, "provider_id", lambda: "unknown")(),
+                "compression": self.database.compression,
+                "backend": self.database.__class__.__name__,
+            }
+            self._db_save_metadata(self._db_metadata)
+
+        logger.info(
+            f"Initialized {self.database.__class__.__name__} storage at {self.database.storage_path} "
+            f"(max_in_memory={self.config.database.max_records_in_memory}, auto_save={self.config.database.auto_save})"
+        )
+
+        self.db_load_records()
+        return True
+
+    def _db_datetime_to_key(self, dt: DateTime) -> bytes:
+        """Convert DateTime to database key (sortable byte string)."""
+        timestamp = dt.isoformat()
+        return timestamp.encode("utf-8")
+
+    def _db_datetime_to_key_after(self, dt: DateTime) -> bytes:
+        """Convert DateTime to database key (sortable byte string) after this datetime.
+
+        A minimal time span is added to the DateTime to get the first possible key
+        after DateTime.
+        """
+        timestamp = dt.add(microseconds=1000).isoformat()
+        return timestamp.encode("utf-8")
+
+    def _db_key_to_datetime(self, dbkey: bytes) -> DateTime:
+        """Convert database key back to DateTime."""
+        timestamp = dbkey.decode("utf-8")
+        return to_datetime(timestamp)
+
+    def _db_serialize_record(self, record: DataRecord) -> bytes:
+        """Serialize a DataRecord to bytes."""
+        if self.database is None:
+            raise ValueError("Database not defined.")
+        data = pickle.dumps(record.model_dump(), protocol=pickle.HIGHEST_PROTOCOL)
+        return self.database.serialize_data(data)
+
+    def _db_deserialize_record(self, data: bytes) -> DataRecord:
+        """Deserialize bytes to a DataRecord."""
+        if self.database is None:
+            raise ValueError("Database not defined.")
+        data = self.database.deserialize_data(data)
+        record_data = pickle.loads(data)  # noqa: S301
+        return self.record_class()(**record_data)
+
+    def _db_save_metadata(self, metadata: dict) -> None:
+        """Save metadata to database."""
+        if not self.db_enabled:
+            return
+
+        key = DATADB_METADATA_KEY
+        value = pickle.dumps(metadata)
+        self.database.save_record(key, value, namespace=self.db_namespace())
+
+    def _db_load_metadata(self) -> Optional[dict]:
+        """Load metadata from database."""
+        if not self.db_enabled:
+            return None
+
+        try:
+            for key, value in self.database.load_records(
+                DATADB_METADATA_KEY, DATADB_METADATA_KEY + b"\xff", self.db_namespace()
+            ):
+                return pickle.loads(value)  # noqa: S301
+        except:
+            logger.debug("Can not load metadata.")
+        return None
+
+    def _db_check_auto_save(self) -> None:
+        """Check if auto-save should trigger and execute if needed."""
+        if not self.db_enabled or not self.config.database.auto_save:
+            return
+
+        self._db_dirty = True
+        max_records_in_memory = self.config.database.max_records_in_memory
+
+        if len(self.records) > max_records_in_memory:
+            logger.debug(
+                f"Auto-save triggered: {len(self.records)} records > "
+                f"{max_records_in_memory} threshold"
+            )
+            # Save older records, keep recent ones in memory
+            if len(self.records) > 0 and self.records[0].date_time:
+                cutoff_index = len(self.records) - max_records_in_memory
+                if cutoff_index > 0:
+                    cutoff_datetime = self.records[cutoff_index].date_time
+                    self.db_save_records(clear_memory=True, end_datetime=cutoff_datetime)
+
+    def db_save_records(
+        self,
+        clear_memory: bool = True,
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+    ) -> int:
+        """Save records to database storage.
+
+        Args:
+            clear_memory: If True, clear in-memory records after saving
+            start_datetime: Only save records from this datetime (inclusive)
+            end_datetime: Only save records until this datetime (exclusive)
+
+        Returns:
+            Number of records saved
+        """
+        if not self.db_enabled:
+            raise RuntimeError("Database not enabled. Configure database first.")
+
+        # Filter records to save
+        if start_datetime or end_datetime:
+            records_to_save = self.filter_by_datetime(start_datetime, end_datetime).records
+        else:
+            records_to_save = self.records
+
+        saved_count = 0
+
+        for record in records_to_save:
+            if record.date_time is None:
+                continue
+
+            db_key = self._db_datetime_to_key(record.date_time)
+            value = self._db_serialize_record(record)
+            self.database.save_record(db_key, value, self.db_namespace())
+            saved_count += 1
+
+        if clear_memory:
+            if start_datetime or end_datetime:
+                self.delete_by_datetime(start_datetime, end_datetime)
+                logger.debug(
+                    f"Cleared {saved_count} records from memory "
+                    f"({start_datetime} to {end_datetime})"
+                )
+            else:
+                self.records.clear()
+                self._db_loaded_range = None
+                logger.debug(f"Cleared all {saved_count} records from memory")
+
+        self._db_dirty = False
+        logger.info(f"Saved {saved_count} records to database")
+        return saved_count
+
+    def _db_insert_record_in_memory(self, record: DataRecord) -> None:
+        """Insert record into self.records preserving sort order without touching DB.
+
+        This avoids calling public insert_by_datetime which may attempt DB writes
+        and could re-enter db_load_records.
+        """
+        if not record or record.date_time is None:
+            # append to end if no datetime
+            self.records.append(record)
+            return
+
+        # use binary search for insertion point
+        lo, hi = 0, len(self.records)
+        target = record.date_time
+        while lo < hi:
+            mid = (lo + hi) // 2
+            mid_dt = self.records[mid].date_time
+            if mid_dt is None or compare_datetimes(mid_dt, target).lt:
+                lo = mid + 1
+            else:
+                hi = mid
+        self.records.insert(lo, record)
+
+    def db_load_records(
+        self,
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+        merge: bool = True,
+    ) -> int:
+        """Load records from database into memory.
+
+        Args:
+            start_datetime: Load records from this datetime (inclusive)
+            end_datetime: Load records until this datetime (exclusive)
+            merge: If True, merge with existing in-memory records
+
+        Returns:
+            Number of records loaded
+        """
+        if not self.db_enabled:
+            raise RuntimeError("Database not initialized. Call load() first.")
+
+        if not merge:
+            self.records.clear()
+
+        # Normalize datetime bounds
+        start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
+        end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
+
+        db_start_key = self._db_datetime_to_key(start_datetime) if start_datetime else None
+        db_end_key = self._db_datetime_to_key(end_datetime) if end_datetime else None
+
+        loaded_count = 0
+
+        for db_key, value in self.database.load_records(
+            db_start_key, db_end_key, self.db_namespace()
+        ):
+            if db_key == DATADB_METADATA_KEY:
+                continue
+
+            record = self._db_deserialize_record(value)
+
+            if merge:
+                # Insert into memory only (no DB operations)
+                self._db_insert_record_in_memory(record)
+            else:
+                self.records.append(record)
+
+            loaded_count += 1
+
+        if not merge:
+            self.sort_by_datetime()
+
+        self._db_loaded_range = (
+            start_datetime or self.min_datetime,
+            end_datetime or self.max_datetime,
+        )
+
+        logger.debug(
+            f"Loaded {loaded_count} records from database ({start_datetime} to {end_datetime})"
+        )
+        return loaded_count
+
+    def db_ensure_loaded(
+        self, start_datetime: Optional[DateTime] = None, end_datetime: Optional[DateTime] = None
+    ) -> None:
+        """Ensure records in the specified range are loaded into memory.
+
+        Implements lazy loading - only loads from database if needed.
+
+        Args:
+            start_datetime: Start of required datetime range (inclusive)
+            end_datetime: End of required datetime range (exclusive)
+        """
+        if not self.db_enabled:
+            return
+
+        # Normalize datetime bounds
+        start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
+        end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
+
+        # Check if already loaded
+        if self._db_loaded_range:
+            loaded_start, loaded_end = self._db_loaded_range
+
+            start_covered = (
+                start_datetime is None
+                or loaded_start is None
+                or compare_datetimes(start_datetime, loaded_start).ge
+            )
+            end_covered = (
+                end_datetime is None
+                or loaded_end is None
+                or compare_datetimes(end_datetime, loaded_end).le
+            )
+
+            if start_covered and end_covered:
+                logger.debug("Requested range already in memory")
+                return
+
+        logger.debug(f"Loading range from database: {start_datetime} to {end_datetime}")
+        self.db_load_records(start_datetime, end_datetime, merge=True)
+
+    def db_count_records(self) -> int:
+        """Count total records in database storage."""
+        if not self.db_enabled:
+            return 0
+
+        return self.database.count_records(self.db_namespace())
+
+    def db_datetime_range(self) -> tuple[Optional[DateTime], Optional[DateTime]]:
+        """Get the datetime range of records in database storage."""
+        if not self.db_enabled:
+            return None, None
+
+        db_min_key, db_max_key = self.database.get_key_range(self.db_namespace())
+
+        if db_min_key is None or db_max_key is None:
+            return None, None
+
+        return self._db_key_to_datetime(db_min_key), self._db_key_to_datetime(db_max_key)
+
+    def db_flush(self) -> None:
+        """Force synchronization of pending writes to storage."""
+        if not self.db_enabled:
+            raise RuntimeError("Database not enabled. Call load() first.")
+
+        # Flush write buffer (data keys)
+        if self._db_write_buffer:
+            for dt, record in self._db_write_buffer:
+                key = self._db_datetime_to_key(dt)
+                value = self._db_serialize_record(record)
+                self.database.save_record(key, value)
+            self._db_write_buffer.clear()
+
+        # Ensure metadata is written via the same serialization path (if we have metadata to save)
+        if self._db_metadata:
+            try:
+                self._db_save_metadata(self._db_metadata)
+            except Exception:
+                logger.exception("Failed to flush metadata")
+
+        self.database.flush(self.db_namespace())
+        self._db_dirty = False
+        logger.debug("Flushed database writes")
+
+    def db_save_records_batch(self, records: List[DataRecord], clear_memory: bool = False) -> int:
+        """Save multiple records in batch for efficiency.
+
+        Args:
+            records: List of records to save
+            clear_memory: If True, remove these records from memory after saving
+
+        Returns:
+            Number of records saved
+        """
+        if not self.db_enabled:
+            raise RuntimeError("Database not enabled. Call load() first.")
+
+        saved_count = 0
+        records_to_remove = []
+        ns = self.db_namespace()
+
+        for record in records:
+            if record.date_time is None:
+                continue
+
+            key = self._db_datetime_to_key(record.date_time)
+            value = self._db_serialize_record(record)
+            self.database.save_record(key, value, namespace=ns)
+            saved_count += 1
+
+            if clear_memory:
+                records_to_remove.append(record)
+
+        if clear_memory:
+            for record in records_to_remove:
+                if record in self.records:
+                    self.records.remove(record)
+
+        self._db_dirty = False
+        logger.info(f"Batch saved {saved_count} records to database:{ns}")
+        return saved_count
+
+    def db_vacuum(
+        self, keep_hours: Optional[int] = None, keep_datetime: Optional[DateTime] = None
+    ) -> int:
+        """Remove old records from database to free space.
+
+        Semantics:
+
+        - keep_hours is relative to the DB's max datetime: cutoff = db_max - keep_hours, and records
+            with datetime < cutoff are deleted.
+        - keep_datetime is an absolute cutoff; records with datetime < cutoff are deleted (exclusive).
+
+        Args:
+            keep_hours: Keep only records from the last N hours (relative to the data's max datetime)
+            keep_datetime: Keep only records from this datetime on (absolute cutoff)
+
+        Returns:
+            Number of records deleted
+        """
+        ns = self.db_namespace()
+
+        if not self.db_enabled:
+            raise RuntimeError(f"Database:{ns} not initialized.")
+
+        # Determine cutoff datetime
+        if keep_datetime is not None:
+            cutoff_datetime = to_datetime(keep_datetime, to_maxtime=False)
+        elif keep_hours is not None:
+            # Use the latest datetime present in the DB as the reference point.
+            _, db_max = self.db_datetime_range()
+            if db_max is None:
+                # Nothing in DB to vacuum
+                return 0
+            if keep_hours <= 0:
+                cutoff_datetime = db_max
+            else:
+                cutoff_datetime = db_max.subtract(hours=keep_hours)
+            # Add a small time gap to account for exclusive end datetime
+            cutoff_datetime = cutoff_datetime.add(microseconds=1000)
+        elif self.db_keep_datetime() is not None:
+            cutoff_datetime = self.db_keep_datetime()
+        else:
+            raise ValueError("Must specify either keep_hours or keep_datetime")
+        cutoff_key = self._db_datetime_to_key(cutoff_datetime)
+
+        # ensure we do not have the records in memory
+        self.delete_by_datetime(end_datetime=cutoff_datetime)
+
+        deleted_count = 0
+
+        # iterate_records should yield keys < cutoff_key when end_key=cutoff_key (exclusive)
+        for key, _ in self.database.iterate_records(end_key=cutoff_key, namespace=ns):
+            # skip metadata or other non-data keys if necessary
+            if not key or key == DATADB_METADATA_KEY:
+                continue
+            if self.database.delete_record(key, namespace=ns):
+                deleted_count += 1
+
+        logger.info(
+            f"Vacuumed {deleted_count} old records from database:{self.db_namespace()} (before {cutoff_datetime})"
+        )
+        return deleted_count
+
+    def db_get_stats(self) -> dict:
+        """Get comprehensive statistics about database storage.
+
+        Returns:
+            Dictionary with statistics
+        """
+        if not self.db_enabled:
+            return {"enabled": False}
+
+        ns = self.db_namespace()
+
+        stats = {
+            "enabled": True,
+            "backend": self.database.__class__.__name__,
+            "path": str(self.database.storage_path),
+            "memory_records": len(self.records),
+            "compression_enabled": self.database.compression,
+            "dirty": self._db_dirty,
+            "auto_save": self.config.database.auto_save,
+            "max_records_in_memory": self.config.database.max_records_in_memory,
+            "total_records": self.database.count_records(namespace=ns),
+        }
+
+        # Add backend-specific stats
+        stats.update(self.database.get_backend_stats(namespace=ns))
+
+        min_dt, max_dt = self.db_datetime_range()
+        stats["datetime_range"] = {
+            "min": min_dt.isoformat() if min_dt else None,
+            "max": max_dt.isoformat() if max_dt else None,
+        }
+
+        return stats
+
+
+# ==================== DataProvider ====================
 
 
 class DataProvider(SingletonMixin, DataSequence):
@@ -1374,6 +1940,10 @@ class DataProvider(SingletonMixin, DataSequence):
             return
         super().__init__(*args, **kwargs)
 
+    def db_namespace(self) -> str:
+        """Namespace of database."""
+        return self.provider_id()
+
     def update_data(
         self,
         force_enable: Optional[bool] = False,
@@ -1394,6 +1964,9 @@ class DataProvider(SingletonMixin, DataSequence):
 
         # Assure records are sorted.
         self.sort_by_datetime()
+
+
+# ==================== DataImportMixin ====================
 
 
 class DataImportMixin:
@@ -1802,6 +2375,9 @@ class DataImportMixin:
         )
 
 
+# ==================== DataImportProvider ====================
+
+
 class DataImportProvider(DataImportMixin, DataProvider):
     """Abstract base class for data providers that import generic data.
 
@@ -1815,6 +2391,9 @@ class DataImportProvider(DataImportMixin, DataProvider):
     """
 
     pass
+
+
+# ==================== DataContainer ====================
 
 
 class DataContainer(SingletonMixin, DataBase, MutableMapping):
@@ -2197,3 +2776,32 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
             logger.error(error_msg)
             raise ValueError(error_msg)
         return providers[provider_id]
+
+    # ----------------------- DataContainer Database Protocol ---------------------
+
+    def db_vacuum(self) -> None:
+        """Remove old records of all providers from database to free space."""
+        for provider in self.providers:
+            try:
+                provider.db_vacuum()
+            except Exception as ex:
+                error = f"Provider {provider.provider_id()} fails on db vacuum: {ex}"
+                logger.error(error)
+                raise RuntimeError(error)
+
+    def db_get_stats(self) -> dict:
+        """Get comprehensive statistics about database storage for all providers.
+
+        Returns:
+            Dictionary with statistics
+        """
+        db_stats = {}
+        for provider in self.providers:
+            try:
+                provider.db_vacuum()
+                db_stats[provider.db_namespace()] = provider.db_get_stats()
+            except Exception as ex:
+                error = f"Provider {provider.provider_id()} fails on db vacuum: {ex}"
+                logger.error(error)
+                raise RuntimeError(error)
+        return db_stats

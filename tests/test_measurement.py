@@ -3,10 +3,10 @@ import pytest
 from pendulum import datetime, duration
 
 from akkudoktoreos.config.config import SettingsEOS
+from akkudoktoreos.core.coreabc import get_measurement
 from akkudoktoreos.measurement.measurement import (
     MeasurementCommonSettings,
     MeasurementDataRecord,
-    get_measurement,
 )
 
 
