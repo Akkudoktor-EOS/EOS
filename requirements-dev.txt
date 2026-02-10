@@ -12,7 +12,7 @@
 pre-commit==4.5.1
 mypy==1.19.1
 types-requests==2.32.4.20260107 # for mypy
-pandas-stubs==2.3.3.260113 # for mypy
+pandas-stubs==3.0.0.260204 # for mypy
 tokenize-rt==6.2.0 # for mypy
 types-docutils==0.22.3.20251115 # for mypy
 types-PyYaml==6.0.12.20250915 # for mypy
