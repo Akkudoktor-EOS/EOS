@@ -9,7 +9,7 @@ fastapi[standard-no-fastapi-cloud-cli]==0.128.0
 fastapi_cli==0.0.20
 rich-toolkit==0.18.1
 python-fasthtml==0.12.41
-MonsterUI==1.0.42
+MonsterUI==1.0.43
 markdown-it-py==4.0.0
 mdit-py-plugins==0.5.0
 bokeh==3.8.2
