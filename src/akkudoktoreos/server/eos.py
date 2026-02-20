@@ -319,7 +319,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title="Akkudoktor-EOS",
-    description="This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.",
+    description="""This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
+
+## Currency Information
+
+All monetary values in this API are expressed in the locally configured currency of the EOS installation. The system is designed to work with any currency (e.g., EUR, SEK, CHF, USD, GBP, etc.). Each installation uses a single, consistent currency throughout all endpoints and responses.
+
+Field names containing cost, price, revenue, tariff, or similar monetary terms (e.g., `total_costs`, `electricity_price_per_wh`, `revenue_per_hour`) represent amounts in the configured currency, without explicit currency designation in the field name to maintain currency-neutrality.
+""",
     summary="Comprehensive solution for simulating and optimizing an energy system based on renewable energy sources",
     version=f"v{__version__}",
     license_info={
