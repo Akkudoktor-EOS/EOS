@@ -10,12 +10,12 @@ from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.adapter.adapterabc import AdapterProvider
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.core.coreabc import get_adapter
 from akkudoktoreos.core.emplan import (
     DDBCInstruction,
     FRBCInstruction,
 )
 from akkudoktoreos.core.ems import EnergyManagementStage
-from akkudoktoreos.devices.devices import get_resource_registry
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 # Supervisor API endpoint and token (injected automatically in add-on container)
@@ -28,8 +28,6 @@ HEADERS = {
 }
 
 HOMEASSISTANT_ENTITY_ID_PREFIX = "sensor.eos_"
-
-resources_eos = get_resource_registry()
 
 
 class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
@@ -146,8 +144,6 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
     def homeassistant_entity_ids(self) -> list[str]:
         """Entity IDs available at Home Assistant."""
         try:
-            from akkudoktoreos.adapter.adapter import get_adapter
-
             adapter_eos = get_adapter()
             result = adapter_eos.provider_by_id("HomeAssistant").get_homeassistant_entity_ids()
         except:
@@ -159,8 +155,6 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
     def eos_solution_entity_ids(self) -> list[str]:
         """Entity IDs for optimization solution available at EOS."""
         try:
-            from akkudoktoreos.adapter.adapter import get_adapter
-
             adapter_eos = get_adapter()
             result = adapter_eos.provider_by_id("HomeAssistant").get_eos_solution_entity_ids()
         except:
@@ -172,8 +166,6 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
     def eos_device_instruction_entity_ids(self) -> list[str]:
         """Entity IDs for energy management instructions available at EOS."""
         try:
-            from akkudoktoreos.adapter.adapter import get_adapter
-
             adapter_eos = get_adapter()
             result = adapter_eos.provider_by_id(
                 "HomeAssistant"

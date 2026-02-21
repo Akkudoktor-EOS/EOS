@@ -4,6 +4,7 @@
 
 ../_generated/configadapter.md
 ../_generated/configcache.md
+../_generated/configdatabase.md
 ../_generated/configdevices.md
 ../_generated/configelecprice.md
 ../_generated/configems.md

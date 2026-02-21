@@ -11,8 +11,7 @@ import numpy as np
 import pendulum
 from matplotlib.backends.backend_pdf import PdfPages
 
-from akkudoktoreos.core.coreabc import ConfigMixin
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.coreabc import ConfigMixin, get_ems
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimizationParameters
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 

@@ -12,7 +12,7 @@ from monsterui.core import FastHTML, Theme
 from starlette.middleware import Middleware
 from starlette.requests import Request
 
-from akkudoktoreos.config.config import get_config
+from akkudoktoreos.core.coreabc import get_config
 from akkudoktoreos.core.logabc import LOGGING_LEVELS
 from akkudoktoreos.core.logging import logging_track_config
 from akkudoktoreos.core.version import __version__
@@ -39,7 +39,7 @@ from akkudoktoreos.server.server import (
 )
 from akkudoktoreos.utils.stringutil import str2bool
 
-config_eos = get_config()
+config_eos = get_config(init=True)
 
 
 # ------------------------------------

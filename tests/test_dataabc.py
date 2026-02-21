@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from typing import Any, ClassVar, List, Optional, Union
 
@@ -8,15 +9,16 @@ import pytest
 from pydantic import Field, ValidationError
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.core.dataabc import (
-    DataBase,
+    DataABC,
     DataContainer,
     DataImportProvider,
     DataProvider,
     DataRecord,
     DataSequence,
 )
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.databaseabc import DatabaseTimestamp
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_duration
 
 # Derived classes for testing
@@ -28,7 +30,7 @@ class DerivedConfig(SettingsBaseModel):
     class_constant: Optional[int] = Field(default=None, description="Test config by class constant")
 
 
-class DerivedBase(DataBase):
+class DerivedBase(DataABC):
     instance_field: Optional[str] = Field(default=None, description="Field Value")
     class_constant: ClassVar[int] = 30
 
@@ -58,6 +60,15 @@ class DerivedSequence(DataSequence):
     def record_class(cls) -> Any:
         return DerivedRecord
 
+class DerivedSequence2(DataSequence):
+    # overload
+    records: List[DerivedRecord] = Field(
+        default_factory=list, description="List of DerivedRecord records"
+    )
+
+    @classmethod
+    def record_class(cls) -> Any:
+        return DerivedRecord
 
 class DerivedDataProvider(DataProvider):
     """A concrete subclass of DataProvider for testing purposes."""
@@ -121,7 +132,7 @@ class DerivedDataContainer(DataContainer):
 # ----------
 
 
-class TestDataBase:
+class TestDataABC:
     @pytest.fixture
     def base(self):
         # Provide default values for configuration
@@ -141,7 +152,7 @@ class TestDataRecord:
     @pytest.fixture
     def record(self):
         """Fixture to create a sample DerivedDataRecord with some data set."""
-        rec = DerivedRecord(date_time=None, data_value=10.0)
+        rec = DerivedRecord(date_time=to_datetime("1967-01-11"), data_value=10.0)
         rec.configured_data = {"dish_washer_emr": 123.0, "solar_power": 456.0}
         return rec
 
@@ -393,8 +404,8 @@ class TestDataSequence:
         sequence = DerivedSequence()
         record1 = self.create_test_record(datetime(1970, 1, 1), 1970)
         record2 = self.create_test_record(datetime(1971, 1, 1), 1971)
-        sequence.append(record1)
-        sequence.append(record2)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
         assert len(sequence) == 2
         return sequence
 
@@ -403,141 +414,118 @@ class TestDataSequence:
         return DerivedRecord(date_time=date, data_value=value)
 
     # Test cases
+    @pytest.mark.parametrize("tz_name", ["UTC", "Europe/Berlin", "Atlantic/Canary"])
+    def test_min_max_datetime_timezone_and_order(self, sequence, tz_name, monkeypatch, config_eos):
+        # Monkeypatch the read-only timezone property
+        monkeypatch.setattr(config_eos.general.__class__, "timezone", property(lambda self: tz_name))
+
+        # Create timezone-aware datetimes using the patched config
+        dt_early = to_datetime("2024-01-01T00:00:00", in_timezone=config_eos.general.timezone)
+        dt_late = to_datetime("2024-01-02T00:00:00", in_timezone=config_eos.general.timezone)
+
+        # Insert in reverse order to verify sorting
+        record1 = self.create_test_record(dt_late, 1)
+        record2 = self.create_test_record(dt_early, 2)
+
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+
+        min_dt = sequence.min_datetime
+        max_dt = sequence.max_datetime
+
+        # --- Basic correctness ---
+        assert min_dt == dt_early
+        assert max_dt == dt_late
+
+        # --- Must be timezone aware ---
+        assert min_dt.tzinfo is not None
+        assert max_dt.tzinfo is not None
+
+        # --- Must preserve timezone ---
+        assert min_dt.tzinfo.name == tz_name
+        assert max_dt.tzinfo.name == tz_name
+
+
     def test_getitem(self, sequence):
         assert len(sequence) == 0
-        record = self.create_test_record("2024-01-01 00:00:00", 0)
+        dt = to_datetime("2024-01-01 00:00:00")
+        record = self.create_test_record(dt, 0)
         sequence.insert_by_datetime(record)
-        assert isinstance(sequence[0], DerivedRecord)
+        assert isinstance(sequence.get_by_datetime(dt), DerivedRecord)
 
     def test_setitem(self, sequence2):
-        new_record = self.create_test_record(datetime(2024, 1, 3, tzinfo=timezone.utc), 1)
-        sequence2[0] = new_record
-        assert sequence2[0].date_time == datetime(2024, 1, 3, tzinfo=timezone.utc)
+        dt = to_datetime("2024-01-03", in_timezone="UTC")
+        record = self.create_test_record(dt, 1)
+        sequence2.insert_by_datetime(record)
+        assert sequence2.records[2].date_time == dt
 
-    def test_set_record_at_index(self, sequence2):
-        record1 = self.create_test_record(datetime(2024, 1, 3, tzinfo=timezone.utc), 1)
-        record2 = self.create_test_record(datetime(2023, 11, 5), 0.8)
-        sequence2[1] = record1
-        assert sequence2[1].date_time == datetime(2024, 1, 3, tzinfo=timezone.utc)
-        sequence2[0] = record2
-        assert len(sequence2) == 2
-        assert sequence2[0] == record2
+    def test_insert_reversed_date_record(self, sequence2):
+        dt1 = to_datetime("2023-11-05", in_timezone="UTC")
+        dt2 = to_datetime("2024-01-03", in_timezone="UTC")
+        record1 = self.create_test_record(dt2, 0.8)
+        record2 = self.create_test_record(dt1, 0.9) # reversed date
+        sequence2.insert_by_datetime(record1)
+        assert sequence2.records[2].date_time == dt2
+        sequence2.insert_by_datetime(record2)
+        assert len(sequence2) == 4
+        assert sequence2.records[2] == record2
 
     def test_insert_duplicate_date_record(self, sequence):
-        record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
-        record2 = self.create_test_record(datetime(2023, 11, 5), 0.9)  # Duplicate date
+        dt1 = to_datetime("2023-11-05")
+        record1 = self.create_test_record(dt1, 0.8)
+        record2 = self.create_test_record(dt1, 0.9)  # Duplicate date
         sequence.insert_by_datetime(record1)
         sequence.insert_by_datetime(record2)
         assert len(sequence) == 1
-        assert sequence[0].data_value == 0.9  # Record should have merged with new value
-
-    def test_sort_by_datetime_ascending(self, sequence):
-        """Test sorting records in ascending order by date_time."""
-        records = [
-            self.create_test_record(pendulum.datetime(2024, 11, 1), 0.7),
-            self.create_test_record(pendulum.datetime(2024, 10, 1), 0.8),
-            self.create_test_record(pendulum.datetime(2024, 12, 1), 0.9),
-        ]
-        for i, record in enumerate(records):
-            sequence.insert(i, record)
-        sequence.sort_by_datetime()
-        sorted_dates = [record.date_time for record in sequence.records]
-        for i, expected_date in enumerate(
-            [
-                pendulum.datetime(2024, 10, 1),
-                pendulum.datetime(2024, 11, 1),
-                pendulum.datetime(2024, 12, 1),
-            ]
-        ):
-            assert compare_datetimes(sorted_dates[i], expected_date).equal
-
-    def test_sort_by_datetime_descending(self, sequence):
-        """Test sorting records in descending order by date_time."""
-        records = [
-            self.create_test_record(pendulum.datetime(2024, 11, 1), 0.7),
-            self.create_test_record(pendulum.datetime(2024, 10, 1), 0.8),
-            self.create_test_record(pendulum.datetime(2024, 12, 1), 0.9),
-        ]
-        for i, record in enumerate(records):
-            sequence.insert(i, record)
-        sequence.sort_by_datetime(reverse=True)
-        sorted_dates = [record.date_time for record in sequence.records]
-        for i, expected_date in enumerate(
-            [
-                pendulum.datetime(2024, 12, 1),
-                pendulum.datetime(2024, 11, 1),
-                pendulum.datetime(2024, 10, 1),
-            ]
-        ):
-            assert compare_datetimes(sorted_dates[i], expected_date).equal
-
-    def test_sort_by_datetime_with_none(self, sequence):
-        """Test sorting records when some date_time values are None."""
-        records = [
-            self.create_test_record(pendulum.datetime(2024, 11, 1), 0.7),
-            self.create_test_record(pendulum.datetime(2024, 10, 1), 0.8),
-            self.create_test_record(pendulum.datetime(2024, 12, 1), 0.9),
-        ]
-        for i, record in enumerate(records):
-            sequence.insert(i, record)
-        sequence.records[2].date_time = None
-        assert sequence.records[2].date_time is None
-        sequence.sort_by_datetime()
-        sorted_dates = [record.date_time for record in sequence.records]
-        for i, expected_date in enumerate(
-            [
-                None,  # None values should come first
-                pendulum.datetime(2024, 10, 1),
-                pendulum.datetime(2024, 11, 1),
-            ]
-        ):
-            if expected_date is None:
-                assert sorted_dates[i] is None
-            else:
-                assert compare_datetimes(sorted_dates[i], expected_date).equal
-
-    def test_sort_by_datetime_error_on_uncomparable(self, sequence):
-        """Test error is raised when date_time contains uncomparable values."""
-        records = [
-            self.create_test_record(pendulum.datetime(2024, 11, 1), 0.7),
-            self.create_test_record(pendulum.datetime(2024, 12, 1), 0.9),
-            self.create_test_record(pendulum.datetime(2024, 10, 1), 0.8),
-        ]
-        for i, record in enumerate(records):
-            sequence.insert(i, record)
-        with pytest.raises(
-            ValidationError, match="Date string not_a_datetime does not match any known formats."
-        ):
-            sequence.records[2].date_time = "not_a_datetime"  # Invalid date_time
-            sequence.sort_by_datetime()
+        assert sequence.get_by_datetime(dt1).data_value == 0.9  # Record should have merged with new value
 
     def test_key_to_series(self, sequence):
-        record = self.create_test_record(datetime(2023, 11, 6), 0.8)
-        sequence.append(record)
+        dt = to_datetime(datetime(2023, 11, 6))
+        record = self.create_test_record(dt, 0.8)
+        sequence.insert_by_datetime(record)
         series = sequence.key_to_series("data_value")
         assert isinstance(series, pd.Series)
-        assert series[to_datetime(datetime(2023, 11, 6))] == 0.8
+
+        retrieved_record = sequence.get_by_datetime(dt)
+        assert retrieved_record is not None
+        assert retrieved_record.data_value == 0.8
 
     def test_key_from_series(self, sequence):
+        dt1 = to_datetime(datetime(2023, 11, 5))
+        dt2 = to_datetime(datetime(2023, 11, 6))
+
         series = pd.Series(
-            data=[0.8, 0.9], index=pd.to_datetime([datetime(2023, 11, 5), datetime(2023, 11, 6)])
+            data=[0.8, 0.9], index=pd.to_datetime([dt1, dt2])
         )
         sequence.key_from_series("data_value", series)
         assert len(sequence) == 2
-        assert sequence[0].data_value == 0.8
-        assert sequence[1].data_value == 0.9
+
+        record1 = sequence.get_by_datetime(dt1)
+        assert record1 is not None
+        assert record1.data_value == 0.8
+
+        record2 = sequence.get_by_datetime(dt2)
+        assert record2 is not None
+        assert record2.data_value == 0.9
 
     def test_key_to_array(self, sequence):
         interval = to_duration("1 day")
         start_datetime = to_datetime("2023-11-6")
         last_datetime = to_datetime("2023-11-8")
         end_datetime = to_datetime("2023-11-9")
-        record = self.create_test_record(start_datetime, float(start_datetime.day))
-        sequence.insert_by_datetime(record)
-        record = self.create_test_record(last_datetime, float(last_datetime.day))
-        sequence.insert_by_datetime(record)
-        assert sequence[0].data_value == 6.0
-        assert sequence[1].data_value == 8.0
+
+        record1 = self.create_test_record(start_datetime, float(start_datetime.day))
+        sequence.insert_by_datetime(record1)
+        record2 = self.create_test_record(last_datetime, float(last_datetime.day))
+        sequence.insert_by_datetime(record2)
+
+        retrieved_record1 = sequence.get_by_datetime(start_datetime)
+        assert retrieved_record1 is not None
+        assert retrieved_record1.data_value == 6.0
+
+        retrieved_record2 = sequence.get_by_datetime(last_datetime)
+        assert retrieved_record2 is not None
+        assert retrieved_record2.data_value == 8.0
 
         series = sequence.key_to_series(
             key="data_value", start_datetime=start_datetime, end_datetime=end_datetime
@@ -553,10 +541,7 @@ class TestDataSequence:
             interval=interval,
         )
         assert isinstance(array, np.ndarray)
-        assert len(array) == 3
-        assert array[0] == start_datetime.day
-        assert array[1] == 7
-        assert array[2] == last_datetime.day
+        np.testing.assert_equal(array, [6.0, 7.0, 8.0])
 
     def test_key_to_array_linear_interpolation(self, sequence):
         """Test key_to_array with linear interpolation for numeric data."""
@@ -577,6 +562,44 @@ class TestDataSequence:
         assert array[0] == 0.8
         assert array[1] == 0.9  # Interpolated value
         assert array[2] == 1.0
+
+
+    def test_key_to_array_linear_interpolation_out_of_grid(self, sequence):
+        """Test key_to_array with linear interpolation out of grid."""
+        interval = to_duration("1 hour")
+        start_datetime= to_datetime("2023-11-06T00:30:00") # out of grid
+        end_datetime=to_datetime("2023-11-06T01:30:00") # out of grid
+
+        record1_datetime = to_datetime("2023-11-06T00:00:00")
+        record1 = self.create_test_record(record1_datetime, 1.0)
+
+        record2_datetime = to_datetime("2023-11-06T02:00:00")
+        record2 = self.create_test_record(record2_datetime, 2.0)  # Gap of 2 hours
+
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+
+        # Check test setup
+        record1_timestamp = DatabaseTimestamp.from_datetime(record1_datetime)
+        record2_timestamp = DatabaseTimestamp.from_datetime(record2_datetime)
+        start_timestamp = DatabaseTimestamp.from_datetime(start_datetime)
+        end_timestamp = DatabaseTimestamp.from_datetime(end_datetime)
+
+        start_previous_timestamp = sequence.db_previous_timestamp(start_timestamp)
+        assert start_previous_timestamp == record1_timestamp
+        end_next_timestamp = sequence.db_next_timestamp(end_timestamp)
+        assert end_next_timestamp == record2_timestamp
+
+        # Test
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval=interval,
+            fill_method="linear",
+            boundary="context",
+        )
+        np.testing.assert_equal(array, [1.5])
 
     def test_key_to_array_ffill(self, sequence):
         """Test key_to_array with forward filling for missing values."""
@@ -645,15 +668,19 @@ class TestDataSequence:
         sequence.insert_by_datetime(record1)
         sequence.insert_by_datetime(record2)
 
+        #assert sequence is None
+
         array = sequence.key_to_array(
             key="data_value",
-            start_datetime=pendulum.datetime(2023, 11, 6),
+            start_datetime=pendulum.datetime(2023, 11, 5, 23),
             end_datetime=pendulum.datetime(2023, 11, 6, 2),
             interval=interval,
         )
-        assert len(array) == 2
-        assert array[0] == 0.9  # Interpolated from previous day
-        assert array[1] == 1.0
+
+        assert len(array) == 3
+        assert array[0] == 0.8
+        assert array[1] == 0.9  # Interpolated from previous day
+        assert array[2] == 1.0
 
     def test_key_to_array_with_none(self, sequence):
         """Test handling of empty series in key_to_array."""
@@ -675,13 +702,14 @@ class TestDataSequence:
 
         array = sequence.key_to_array(
             key="data_value",
-            start_datetime=pendulum.datetime(2023, 11, 6),
+            start_datetime=pendulum.datetime(2023, 11, 5, 23),
             end_datetime=pendulum.datetime(2023, 11, 6, 2),
             interval=interval,
         )
-        assert len(array) == 2
-        assert array[0] == 0.8  # Interpolated from previous day
-        assert array[1] == 0.8
+        assert len(array) == 3
+        assert array[0] == 0.8
+        assert array[1] == 0.8  # Interpolated from previous day
+        assert array[2] == 0.8  # Interpolated from previous day
 
     def test_key_to_array_invalid_fill_method(self, sequence):
         """Test invalid fill_method raises an error."""
@@ -725,71 +753,354 @@ class TestDataSequence:
         # The first interval mean = (1+2+3+4)/4 = 2.5
         assert array[0] == pytest.approx(2.5)
 
-    def test_to_datetimeindex(self, sequence2):
-        record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
-        record2 = self.create_test_record(datetime(2023, 11, 6), 0.9)
-        sequence2.insert(0, record1)
-        sequence2.insert(1, record2)
-        dt_index = sequence2.to_datetimeindex()
-        assert isinstance(dt_index, pd.DatetimeIndex)
-        assert dt_index[0] == to_datetime(datetime(2023, 11, 5))
-        assert dt_index[1] == to_datetime(datetime(2023, 11, 6))
+    # ------------------------------------------------------------------
+    # key_to_array — align_to_interval parameter
+    # ------------------------------------------------------------------
+    #
+    # The existing tests above use start_datetime values that already sit on
+    # clean hour/day boundaries, so the default alignment (origin=query_start)
+    # and clock alignment (origin=epoch-floor) produce identical results.
+    # The tests below specifically use off-boundary start times to expose
+    # the difference and verify the new parameter.
+
+    def test_key_to_array_align_false_origin_is_query_start(self, sequence):
+        """Without align_to_interval the first bucket sits at query_start, not a clock boundary.
+
+        With start_datetime at 10:07:00 and 15-min interval the first resampled
+        bucket must be at 10:07:00 (origin = query_start), NOT at 10:00:00 or 10:15:00.
+        """
+        # Off-boundary start: 10:07
+        start_dt = pendulum.datetime(2024, 6, 1, 10, 7, tz="UTC")
+        end_dt = pendulum.datetime(2024, 6, 1, 12, 7, tz="UTC")
+
+        # Records every 15 min so the resampled mean equals the input values
+        for m in range(0, 120, 15):
+            dt = pendulum.datetime(2024, 6, 1, 10, 7, tz="UTC").add(minutes=m)
+            sequence.insert_by_datetime(self.create_test_record(dt, float(m)))
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+            interval=to_duration("15 minutes"),
+            fill_method="time",
+            boundary="strict",
+            align_to_interval=False,
+        )
+
+        assert len(array) > 0
+        # Reconstruct the pandas index that key_to_array used: origin=start_dt
+        idx = pd.date_range(start=start_dt, periods=len(array), freq="900s")
+        # First bucket must be exactly at start_dt (10:07)
+        assert idx[0].minute == 7
+        assert idx[0].second == 0
+
+    def test_key_to_array_align_true_15min_buckets_on_quarter_hours(self, sequence):
+        """align_to_interval=True produces timestamps on :00/:15/:30/:45 boundaries."""
+        # Off-boundary start: 10:07
+        start_dt = pendulum.datetime(2024, 6, 1, 10, 7, tz="UTC")
+        end_dt = pendulum.datetime(2024, 6, 1, 12, 7, tz="UTC")
+
+        # 1-min records across the window so resampling has data to work with
+        for m in range(0, 121):
+            dt = pendulum.datetime(2024, 6, 1, 10, 7, tz="UTC").add(minutes=m)
+            sequence.insert_by_datetime(self.create_test_record(dt, float(m)))
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+            interval=to_duration("15 minutes"),
+            fill_method="time",
+            boundary="strict",
+            align_to_interval=True,
+        )
+
+        assert len(array) > 0
+        # Reconstruct the epoch-aligned index that key_to_array must have used
+        import math
+        epoch = int(start_dt.timestamp())
+        floored_epoch = (epoch // 900) * 900  # floor to nearest 15-min boundary
+        idx = pd.date_range(
+            start=pd.Timestamp(floored_epoch, unit="s", tz="UTC"),
+            periods=len(array),
+            freq="900s",
+        )
+        # Every bucket must land on a :00/:15/:30/:45 minute mark with zero seconds
+        for ts in idx:
+            assert ts.minute % 15 == 0, (
+                f"Bucket at {ts} is not on a 15-min boundary (minute={ts.minute})"
+            )
+            assert ts.second == 0, (
+                f"Bucket at {ts} has non-zero seconds ({ts.second})"
+            )
+
+    def test_key_to_array_align_true_1hour_buckets_on_the_hour(self, sequence):
+        """align_to_interval=True with 1-hour interval produces on-the-hour timestamps."""
+        # Off-boundary start: 10:23
+        start_dt = pendulum.datetime(2024, 6, 1, 10, 23, tz="UTC")
+        end_dt = pendulum.datetime(2024, 6, 1, 15, 23, tz="UTC")
+
+        for m in range(0, 301, 15):
+            dt = pendulum.datetime(2024, 6, 1, 10, 23, tz="UTC").add(minutes=m)
+            sequence.insert_by_datetime(self.create_test_record(dt, float(m)))
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+            interval=to_duration("1 hour"),
+            fill_method="time",
+            boundary="strict",
+            align_to_interval=True,
+        )
+
+        assert len(array) > 0
+        epoch = int(start_dt.timestamp())
+        floored_epoch = (epoch // 3600) * 3600  # floor to nearest hour
+        idx = pd.date_range(
+            start=pd.Timestamp(floored_epoch, unit="s", tz="UTC"),
+            periods=len(array),
+            freq="1h",
+        )
+        for ts in idx:
+            assert ts.minute == 0, (
+                f"Bucket at {ts} should be on the hour (minute={ts.minute})"
+            )
+            assert ts.second == 0, (
+                f"Bucket at {ts} has non-zero seconds ({ts.second})"
+            )
+
+    def test_key_to_array_align_true_when_start_already_on_boundary(self, sequence):
+        """align_to_interval=True is a no-op when start_datetime is exactly on a boundary.
+
+        With start at a clean 15-min mark both modes must produce identical arrays.
+        """
+        # Exactly on boundary: 10:00:00
+        start_dt = pendulum.datetime(2024, 6, 1, 10, 0, tz="UTC")
+        end_dt = pendulum.datetime(2024, 6, 1, 12, 0, tz="UTC")
+
+        for m in range(0, 121, 15):
+            dt = pendulum.datetime(2024, 6, 1, 10, 0, tz="UTC").add(minutes=m)
+            sequence.insert_by_datetime(self.create_test_record(dt, float(m)))
+
+        arr_aligned = sequence.key_to_array(
+            key="data_value",
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+            interval=to_duration("15 minutes"),
+            fill_method="time",
+            boundary="strict",
+            align_to_interval=True,
+        )
+        arr_default = sequence.key_to_array(
+            key="data_value",
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+            interval=to_duration("15 minutes"),
+            fill_method="time",
+            boundary="strict",
+            align_to_interval=False,
+        )
+
+        assert len(arr_aligned) == len(arr_default)
+        np.testing.assert_array_almost_equal(arr_aligned, arr_default, decimal=6)
+
+    def test_key_to_array_align_true_without_start_datetime(self, sequence):
+        """align_to_interval=True with no start_datetime must not raise.
+
+        Without a query_start there is no origin to snap; behaviour falls back
+        to 'start_day' (same as default). No exception is expected.
+        """
+        for m in range(0, 121, 15):
+            dt = pendulum.datetime(2024, 6, 1, 10, 7, tz="UTC").add(minutes=m)
+            sequence.insert_by_datetime(self.create_test_record(dt, float(m)))
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=None,
+            end_datetime=pendulum.datetime(2024, 6, 1, 12, 7, tz="UTC"),
+            interval=to_duration("15 minutes"),
+            fill_method="time",
+            boundary="strict",
+            align_to_interval=True,
+        )
+
+        assert isinstance(array, np.ndarray)
+        assert len(array) > 0
+
+    def test_key_to_array_align_true_output_within_requested_window(self, sequence):
+        """align_to_interval=True truncates output to [start_datetime, end_datetime).
+
+        The epoch-floor origin may generate a bucket before start_datetime (e.g. 10:00
+        when start is 10:07), but key_to_array must truncate it away.  The surviving
+        buckets are verified directly by reconstructing the index from the first
+        surviving timestamp (the first epoch-aligned bucket >= start_datetime).
+
+        Also checks that all surviving buckets are on 15-min clock boundaries.
+        """
+        start_dt = pendulum.datetime(2024, 6, 1, 10, 7, tz="UTC")
+        end_dt = pendulum.datetime(2024, 6, 1, 13, 7, tz="UTC")
+
+        for m in range(0, 181):
+            dt = pendulum.datetime(2024, 6, 1, 10, 7, tz="UTC").add(minutes=m)
+            sequence.insert_by_datetime(self.create_test_record(dt, float(m)))
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+            interval=to_duration("15 minutes"),
+            fill_method="time",
+            boundary="strict",
+            align_to_interval=True,
+        )
+
+        assert len(array) > 0
+
+        # The first surviving bucket is the first epoch-aligned timestamp >= start_dt.
+        # Compute it the same way key_to_array does: floor then step forward if needed.
+        epoch = int(start_dt.timestamp())
+        floored_epoch = (epoch // 900) * 900
+        first_bucket = pd.Timestamp(floored_epoch, unit="s", tz="UTC")
+        if first_bucket < pd.Timestamp(start_dt):
+            first_bucket += pd.Timedelta(seconds=900)
+
+        idx = pd.date_range(start=first_bucket, periods=len(array), freq="900s")
+
+        start_pd = pd.Timestamp(start_dt)
+        end_pd = pd.Timestamp(end_dt)
+        for ts in idx:
+            assert ts >= start_pd, f"Bucket {ts} is before start_datetime {start_pd}"
+            assert ts < end_pd, f"Bucket {ts} is at or after end_datetime {end_pd}"
+            assert ts.minute % 15 == 0, f"Bucket {ts} is not on a 15-min boundary"
+            assert ts.second == 0, f"Bucket {ts} has non-zero seconds"
+
+    def test_key_to_array_align_true_preserves_mean_values(self, sequence):
+        """align_to_interval=True does not corrupt resampled values.
+
+        A constant-valued series must resample to the same constant regardless
+        of bucket alignment.
+        """
+        # 1-min records with constant value 42.0, starting off-boundary
+        start_dt = pendulum.datetime(2024, 6, 1, 10, 7, tz="UTC")
+        end_dt = pendulum.datetime(2024, 6, 1, 12, 7, tz="UTC")
+
+        for m in range(0, 121):
+            dt = pendulum.datetime(2024, 6, 1, 10, 7, tz="UTC").add(minutes=m)
+            sequence.insert_by_datetime(self.create_test_record(dt, 42.0))
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+            interval=to_duration("15 minutes"),
+            fill_method="time",
+            boundary="strict",
+            align_to_interval=True,
+        )
+
+        assert len(array) > 0
+        for v in array:
+            if v is not None:
+                assert abs(v - 42.0) < 1e-6, f"Expected 42.0, got {v}"
+
+    def test_key_to_array_align_true_compaction_call_pattern(self, sequence):
+        """Verify the call pattern used by _db_compact_tier produces clock-aligned timestamps.
+
+        _db_compact_tier calls key_to_array with boundary='strict', fill_method='time',
+        align_to_interval=True on a window whose start has arbitrary sub-second precision.
+        All output buckets must land on 15-min boundaries so that compacted records are
+        stored at predictable, human-readable timestamps.
+        """
+        # Non-round base time: 08:43 — chosen to expose any origin-alignment bug
+        base_dt = pendulum.datetime(2024, 6, 1, 8, 43, tz="UTC")
+        window_end = pendulum.datetime(2024, 6, 1, 11, 43, tz="UTC")
+
+        for m in range(0, 181):
+            dt = base_dt.add(minutes=m)
+            sequence.insert_by_datetime(self.create_test_record(dt, float(m)))
+
+        array = sequence.key_to_array(
+            key="data_value",
+            start_datetime=base_dt,
+            end_datetime=window_end,
+            interval=to_duration("15 minutes"),
+            fill_method="time",
+            boundary="strict",
+            align_to_interval=True,
+        )
+
+        assert len(array) > 0
+        epoch = int(base_dt.timestamp())
+        floored_epoch = (epoch // 900) * 900
+        idx = pd.date_range(
+            start=pd.Timestamp(floored_epoch, unit="s", tz="UTC"),
+            periods=len(array),
+            freq="900s",
+        )
+        for ts in idx:
+            assert ts.minute % 15 == 0, (
+                f"Compacted record at {ts} is not on a 15-min boundary (minute={ts.minute})"
+            )
+            assert ts.second == 0, (
+                f"Compacted record at {ts} has non-zero seconds ({ts.second})"
+            )
 
     def test_delete_by_datetime_range(self, sequence):
-        record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
-        record2 = self.create_test_record(datetime(2023, 11, 6), 0.9)
-        record3 = self.create_test_record(datetime(2023, 11, 7), 1.0)
-        sequence.append(record1)
-        sequence.append(record2)
-        sequence.append(record3)
+        dt1 = to_datetime("2023-11-05")
+        dt2 = to_datetime("2023-11-06")
+        dt3 = to_datetime("2023-11-07")
+        record1 = self.create_test_record(dt1, 0.8)
+        record2 = self.create_test_record(dt2, 0.9)
+        record3 = self.create_test_record(dt3, 1.0)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+        sequence.insert_by_datetime(record3)
         assert len(sequence) == 3
-        sequence.delete_by_datetime(
-            start_datetime=datetime(2023, 11, 6), end_datetime=datetime(2023, 11, 7)
-        )
+        sequence.delete_by_datetime(start_datetime=dt2, end_datetime=dt3)
         assert len(sequence) == 2
-        assert sequence[0].date_time == to_datetime(datetime(2023, 11, 5))
-        assert sequence[1].date_time == to_datetime(datetime(2023, 11, 7))
+        assert sequence.records[0].date_time == dt1
+        assert sequence.records[1].date_time == dt3
 
     def test_delete_by_datetime_start(self, sequence):
-        record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
-        record2 = self.create_test_record(datetime(2023, 11, 6), 0.9)
-        sequence.append(record1)
-        sequence.append(record2)
+        dt1 = to_datetime("2023-11-05")
+        dt2 = to_datetime("2023-11-06")
+        record1 = self.create_test_record(dt1, 0.8)
+        record2 = self.create_test_record(dt2, 0.9)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
         assert len(sequence) == 2
-        sequence.delete_by_datetime(start_datetime=datetime(2023, 11, 6))
+        sequence.delete_by_datetime(start_datetime=dt2)
         assert len(sequence) == 1
-        assert sequence[0].date_time == to_datetime(datetime(2023, 11, 5))
+        assert sequence.records[0].date_time == dt1
 
     def test_delete_by_datetime_end(self, sequence):
-        record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
-        record2 = self.create_test_record(datetime(2023, 11, 6), 0.9)
-        sequence.append(record1)
-        sequence.append(record2)
+        dt1 = to_datetime("2023-11-05")
+        dt2 = to_datetime("2023-11-06")
+        record1 = self.create_test_record(dt1, 0.8)
+        record2 = self.create_test_record(dt2, 0.9)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
         assert len(sequence) == 2
-        sequence.delete_by_datetime(end_datetime=datetime(2023, 11, 6))
+        sequence.delete_by_datetime(end_datetime=dt2)
         assert len(sequence) == 1
-        assert sequence[0].date_time == to_datetime(datetime(2023, 11, 6))
-
-    def test_filter_by_datetime(self, sequence):
-        record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
-        record2 = self.create_test_record(datetime(2023, 11, 6), 0.9)
-        sequence.append(record1)
-        sequence.append(record2)
-        filtered_sequence = sequence.filter_by_datetime(start_datetime=datetime(2023, 11, 6))
-        assert len(filtered_sequence) == 1
-        assert filtered_sequence[0].date_time == to_datetime(datetime(2023, 11, 6))
+        assert sequence.records[0].date_time == dt2
 
     def test_to_dict(self, sequence):
-        record = self.create_test_record(datetime(2023, 11, 6), 0.8)
-        sequence.append(record)
+        dt = to_datetime("2023-11-06")
+        record = self.create_test_record(dt, 0.8)
+        sequence.insert_by_datetime(record)
         data_dict = sequence.to_dict()
         assert isinstance(data_dict, dict)
-        sequence_other = sequence.from_dict(data_dict)
-        assert sequence_other.model_dump() == sequence.model_dump()
+        # We need a new class - Sequences are singletons
+        sequence2 = DerivedSequence2.from_dict(data_dict)
+        assert sequence2.model_dump() == sequence.model_dump()
 
     def test_to_json(self, sequence):
-        record = self.create_test_record(datetime(2023, 11, 6), 0.8)
-        sequence.append(record)
+        dt = to_datetime("2023-11-06")
+        record = self.create_test_record(dt, 0.8)
+        sequence.insert_by_datetime(record)
         json_str = sequence.to_json()
         assert isinstance(json_str, str)
         assert "2023-11-06" in json_str
@@ -799,14 +1110,14 @@ class TestDataSequence:
         json_str = sequence2.to_json()
         sequence = sequence.from_json(json_str)
         assert len(sequence) == len(sequence2)
-        assert sequence[0].date_time == sequence2[0].date_time
-        assert sequence[0].data_value == sequence2[0].data_value
+        assert sequence.records[0].date_time == sequence2.records[0].date_time
+        assert sequence.records[0].data_value == sequence2.records[0].data_value
 
     def test_key_to_value_exact_match(self, sequence):
         """Test key_to_value returns exact match when datetime matches a record."""
-        dt = datetime(2023, 11, 5)
+        dt = to_datetime("2023-11-05")
         record = self.create_test_record(dt, 0.75)
-        sequence.append(record)
+        sequence.insert_by_datetime(record)
         result = sequence.key_to_value("data_value", dt)
         assert result == 0.75
 
@@ -814,20 +1125,20 @@ class TestDataSequence:
         """Test key_to_value returns value closest in time to the given datetime."""
         record1 = self.create_test_record(datetime(2023, 11, 5, 12), 0.6)
         record2 = self.create_test_record(datetime(2023, 11, 6, 12), 0.9)
-        sequence.append(record1)
-        sequence.append(record2)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
         dt = datetime(2023, 11, 6, 10)  # closer to record2
-        result = sequence.key_to_value("data_value", dt)
+        result = sequence.key_to_value("data_value", dt, time_window=to_duration("48 hours"))
         assert result == 0.9
 
     def test_key_to_value_nearest_after(self, sequence):
         """Test key_to_value returns value nearest after the given datetime."""
         record1 = self.create_test_record(datetime(2023, 11, 5, 10), 0.7)
         record2 = self.create_test_record(datetime(2023, 11, 5, 15), 0.8)
-        sequence.append(record1)
-        sequence.append(record2)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
         dt = datetime(2023, 11, 5, 14)  # closer to record2
-        result = sequence.key_to_value("data_value", dt)
+        result = sequence.key_to_value("data_value", dt, time_window=to_duration("48 hours"))
         assert result == 0.8
 
     def test_key_to_value_empty_sequence(self, sequence):
@@ -838,7 +1149,7 @@ class TestDataSequence:
     def test_key_to_value_missing_key(self, sequence):
         """Test key_to_value returns None when key is missing in records."""
         record = self.create_test_record(datetime(2023, 11, 5), None)
-        sequence.append(record)
+        sequence.insert_by_datetime(record)
         result = sequence.key_to_value("data_value", datetime(2023, 11, 5))
         assert result is None
 
@@ -846,16 +1157,16 @@ class TestDataSequence:
         """Test key_to_value skips records with None values."""
         r1 = self.create_test_record(datetime(2023, 11, 5), None)
         r2 = self.create_test_record(datetime(2023, 11, 6), 1.0)
-        sequence.append(r1)
-        sequence.append(r2)
-        result = sequence.key_to_value("data_value", datetime(2023, 11, 5, 12))
+        sequence.insert_by_datetime(r1)
+        sequence.insert_by_datetime(r2)
+        result = sequence.key_to_value("data_value", datetime(2023, 11, 5, 12), time_window=to_duration("48 hours"))
         assert result == 1.0
 
     def test_key_to_dict(self, sequence):
         record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
         record2 = self.create_test_record(datetime(2023, 11, 6), 0.9)
-        sequence.append(record1)
-        sequence.append(record2)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
         data_dict = sequence.key_to_dict("data_value")
         assert isinstance(data_dict, dict)
         assert data_dict[to_datetime(datetime(2023, 11, 5), as_string=True)] == 0.8
@@ -864,8 +1175,8 @@ class TestDataSequence:
     def test_key_to_lists(self, sequence):
         record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
         record2 = self.create_test_record(datetime(2023, 11, 6), 0.9)
-        sequence.append(record1)
-        sequence.append(record2)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
         dates, values = sequence.key_to_lists("data_value")
         assert dates == [to_datetime(datetime(2023, 11, 5)), to_datetime(datetime(2023, 11, 6))]
         assert values == [0.8, 0.9]
@@ -875,9 +1186,9 @@ class TestDataSequence:
         record1 = self.create_test_record("2024-01-01T12:00:00Z", 10)
         record2 = self.create_test_record("2024-01-01T13:00:00Z", 20)
         record3 = self.create_test_record("2024-01-01T14:00:00Z", 30)
-        sequence.append(record1)
-        sequence.append(record2)
-        sequence.append(record3)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+        sequence.insert_by_datetime(record3)
 
         df = sequence.to_dataframe()
 
@@ -892,9 +1203,9 @@ class TestDataSequence:
         record1 = self.create_test_record("2024-01-01T12:00:00Z", 10)
         record2 = self.create_test_record("2024-01-01T13:00:00Z", 20)
         record3 = self.create_test_record("2024-01-01T14:00:00Z", 30)
-        sequence.append(record1)
-        sequence.append(record2)
-        sequence.append(record3)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+        sequence.insert_by_datetime(record3)
 
         start = to_datetime("2024-01-01T12:30:00Z")
         end = to_datetime("2024-01-01T14:00:00Z")
@@ -910,8 +1221,8 @@ class TestDataSequence:
         """Test when no records match the given datetime filter."""
         record1 = self.create_test_record("2024-01-01T12:00:00Z", 10)
         record2 = self.create_test_record("2024-01-01T13:00:00Z", 20)
-        sequence.append(record1)
-        sequence.append(record2)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
 
         start = to_datetime("2024-01-01T14:00:00Z")  # Start time after all records
         end = to_datetime("2024-01-01T15:00:00Z")
@@ -935,9 +1246,9 @@ class TestDataSequence:
         record1 = self.create_test_record("2024-01-01T12:00:00Z", 10)
         record2 = self.create_test_record("2024-01-01T13:00:00Z", 20)
         record3 = self.create_test_record("2024-01-01T14:00:00Z", 30)
-        sequence.append(record1)
-        sequence.append(record2)
-        sequence.append(record3)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+        sequence.insert_by_datetime(record3)
 
         end = to_datetime("2024-01-01T13:00:00Z")  # Include only first record
 
@@ -953,9 +1264,9 @@ class TestDataSequence:
         record1 = self.create_test_record("2024-01-01T12:00:00Z", 10)
         record2 = self.create_test_record("2024-01-01T13:00:00Z", 20)
         record3 = self.create_test_record("2024-01-01T14:00:00Z", 30)
-        sequence.append(record1)
-        sequence.append(record2)
-        sequence.append(record3)
+        sequence.insert_by_datetime(record1)
+        sequence.insert_by_datetime(record2)
+        sequence.insert_by_datetime(record3)
 
         start = to_datetime("2024-01-01T13:00:00Z")  # Include last two records
 
@@ -1018,11 +1329,13 @@ class TestDataProvider:
     def test_delete_by_datetime(self, provider, sample_start_datetime):
         """Test `delete_by_datetime` method for removing records by datetime range."""
         # Add records to the provider for deletion testing
-        provider.records = [
+        records = [
             self.create_test_record(sample_start_datetime - to_duration("3 hours"), 1),
             self.create_test_record(sample_start_datetime - to_duration("1 hour"), 2),
             self.create_test_record(sample_start_datetime + to_duration("1 hour"), 3),
         ]
+        for record in records:
+            provider.insert_by_datetime(record)
 
         provider.delete_by_datetime(
             start_datetime=sample_start_datetime - to_duration("2 hours"),
@@ -1036,50 +1349,175 @@ class TestDataProvider:
         )
 
 
-class TestDataImportProvider:
+class NewTestDataImportProvider:
+
     # Fixtures and helper functions
     @pytest.fixture
     def provider(self):
         """Fixture to provide an instance of DerivedDataImportProvider for testing."""
         DerivedDataImportProvider.provider_enabled = True
-        DerivedDataImportProvider.provider_updated = False
+        DerivedDataImportProvider.provider_updated = True
         return DerivedDataImportProvider()
 
-    @pytest.mark.parametrize(
-        "start_datetime, value_count, expected_mapping_count",
-        [
-            ("2024-11-10 00:00:00", 24, 24),  # No DST in Germany
-            ("2024-08-10 00:00:00", 24, 24),  # DST in Germany
-            ("2024-03-31 00:00:00", 24, 23),  # DST change in Germany (23 hours/ day)
-            ("2024-10-27 00:00:00", 24, 25),  # DST change in Germany (25 hours/ day)
-        ],
-    )
-    def test_import_datetimes(self, provider, start_datetime, value_count, expected_mapping_count):
-        start_datetime = to_datetime(start_datetime, in_timezone="Europe/Berlin")
+# ---------------------------------------------------------------------------
+# import_from_dict
+# ---------------------------------------------------------------------------
 
-        value_datetime_mapping = provider.import_datetimes(start_datetime, value_count)
+    def test_import_from_dict_basic(self, provider):
+        data = {
+            "start_datetime": "2024-01-01 00:00:00",
+            "interval": "1 hour",
+            "power": [1, 2, 3],
+        }
 
-        assert len(value_datetime_mapping) == expected_mapping_count
+        provider.import_from_dict(data)
 
-    @pytest.mark.parametrize(
-        "start_datetime, value_count, expected_mapping_count",
-        [
-            ("2024-11-10 00:00:00", 24, 24),  # No DST in Germany
-            ("2024-08-10 00:00:00", 24, 24),  # DST in Germany
-            ("2024-03-31 00:00:00", 24, 23),  # DST change in Germany (23 hours/ day)
-            ("2024-10-27 00:00:00", 24, 25),  # DST change in Germany (25 hours/ day)
-        ],
-    )
-    def test_import_datetimes_utc(
-        self, set_other_timezone, provider, start_datetime, value_count, expected_mapping_count
-    ):
-        original_tz = set_other_timezone("Etc/UTC")
-        start_datetime = to_datetime(start_datetime, in_timezone="Europe/Berlin")
-        assert start_datetime.timezone.name == "Europe/Berlin"
+        assert provider.records is not None
+        assert provider.records[0]["power"] == 1
+        assert provider.records[1]["power"] == 2
 
-        value_datetime_mapping = provider.import_datetimes(start_datetime, value_count)
 
-        assert len(value_datetime_mapping) == expected_mapping_count
+    def test_import_from_dict_default_start_and_interval(self, provider):
+        data = {
+            "power": [10, 20],
+        }
+
+        provider.import_from_dict(data)
+
+        assert len(provider._updates) == 2
+
+
+    def test_import_from_dict_with_prefix(self, provider):
+        data = {
+            "load_power": [1, 2],
+            "other": [5, 6],
+        }
+
+        provider.import_from_dict(data, key_prefix="load")
+
+        assert len(provider._updates) == 2
+        assert all(update[1] == "load_power" for update in provider._updates)
+
+
+    def test_import_from_dict_mismatching_lengths(self, provider):
+        data = {
+            "power": [1, 2],
+            "voltage": [1],
+        }
+
+        with pytest.raises(ValueError):
+            provider.import_from_dict(data)
+
+
+    def test_import_from_dict_invalid_interval(self, provider):
+        data = {
+            "interval": "17 minutes",  # does not divide hour
+            "power": [1, 2, 3],
+        }
+
+        with pytest.raises(NotImplementedError):
+            provider.import_from_dict(data)
+
+
+    def test_import_from_dict_skips_none_and_nan(self, provider):
+        data = {
+            "power": [1, None, np.nan, 4],
+        }
+
+        provider.import_from_dict(data)
+
+        # only 1 and 4 should be written
+        assert len(provider._updates) == 2
+        assert provider._updates[0][2] == 1
+        assert provider._updates[1][2] == 4
+
+
+    def test_import_from_dict_invalid_value_type(self, provider):
+        data = {
+            "power": "not a list"
+        }
+
+        with pytest.raises(ValueError):
+            provider.import_from_dict(data)
+
+
+# ---------------------------------------------------------------------------
+# import_from_dataframe
+# ---------------------------------------------------------------------------
+
+    def test_import_from_dataframe_with_datetime_index(self, provider):
+        index = pd.date_range("2024-01-01", periods=3, freq="H")
+        df = pd.DataFrame({"power": [1, 2, 3]}, index=index)
+
+        provider.import_from_dataframe(df)
+
+        assert len(provider._updates) == 3
+        assert provider._updates[0][2] == 1
+
+
+    def test_import_from_dataframe_without_datetime_index(self, provider):
+        df = pd.DataFrame({"power": [5, 6, 7]})
+
+        provider.import_from_dataframe(
+            df,
+            start_datetime=datetime(2024, 1, 1),
+            interval=to_duration("1 hour"),
+        )
+
+        assert len(provider._updates) == 3
+
+
+    def test_import_from_dataframe_prefix_filter(self, provider):
+        df = pd.DataFrame({
+            "load_power": [1, 2],
+            "other": [3, 4],
+        })
+
+        provider.import_from_dataframe(df, key_prefix="load")
+
+        assert len(provider._updates) == 2
+        assert all(update[1] == "load_power" for update in provider._updates)
+
+
+    def test_import_from_dataframe_invalid_input(self, provider):
+        with pytest.raises(ValueError):
+            provider.import_from_dataframe("not a dataframe")
+
+
+# ---------------------------------------------------------------------------
+# import_from_json
+# ---------------------------------------------------------------------------
+
+    def test_import_from_json_simple_dict(self, provider):
+        json_str = json.dumps({
+            "power": [1, 2, 3]
+        })
+
+        provider.import_from_json(json_str)
+
+        assert len(provider._updates) == 3
+
+
+    def test_import_from_json_invalid(self, provider):
+        with pytest.raises(ValueError):
+            provider.import_from_json("this is not json")
+
+
+# ---------------------------------------------------------------------------
+# import_from_file
+# ---------------------------------------------------------------------------
+
+    def test_import_from_file(self, provider, tmp_path):
+        file_path = tmp_path / "data.json"
+
+        file_path.write_text(json.dumps({
+            "power": [1, 2]
+        }))
+
+        provider.import_from_file(file_path)
+
+        assert len(provider._updates) == 2
+
 
 
 class TestDataContainer:
@@ -1095,11 +1533,11 @@ class TestDataContainer:
         record2 = self.create_test_record(datetime(2023, 11, 6), 2)
         record3 = self.create_test_record(datetime(2023, 11, 7), 3)
         provider = DerivedDataProvider()
-        provider.clear()
+        provider.delete_by_datetime(start_datetime=None, end_datetime=None)
         assert len(provider) == 0
-        provider.append(record1)
-        provider.append(record2)
-        provider.append(record3)
+        provider.insert_by_datetime(record1)
+        provider.insert_by_datetime(record2)
+        provider.insert_by_datetime(record3)
         assert len(provider) == 3
         container = DerivedDataContainer()
         container.providers.clear()

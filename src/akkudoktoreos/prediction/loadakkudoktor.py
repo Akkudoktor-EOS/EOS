@@ -132,23 +132,32 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
         compare_dt = compare_start
         for i in range(len(load_total_kwh_array)):
             load_total_wh = load_total_kwh_array[i] * 1000
+            hour = compare_dt.hour
+
+            # Weight calculated by distance in days to the latest measurement
+            weight = 1 / ((compare_end - compare_dt).days + 1)
+
             # Extract mean (index 0) and standard deviation (index 1) for the given day and hour
             # Day indexing starts at 0, -1 because of that
-            hourly_stats = data_year_energy[compare_dt.day_of_year - 1, :, compare_dt.hour]
-            weight = 1 / ((compare_end - compare_dt).days + 1)
+            day_idx = compare_dt.day_of_year - 1
+            hourly_stats = data_year_energy[day_idx, :, hour]
+
+            # Calculate adjustments (working days and weekend)
             if compare_dt.day_of_week < 5:
-                weekday_adjust[compare_dt.hour] += (load_total_wh - hourly_stats[0]) * weight
-                weekday_adjust_weight[compare_dt.hour] += weight
+                weekday_adjust[hour] += (load_total_wh - hourly_stats[0]) * weight
+                weekday_adjust_weight[hour] += weight
             else:
-                weekend_adjust[compare_dt.hour] += (load_total_wh - hourly_stats[0]) * weight
-                weekend_adjust_weight[compare_dt.hour] += weight
+                weekend_adjust[hour] += (load_total_wh - hourly_stats[0]) * weight
+                weekend_adjust_weight[hour] += weight
+
             compare_dt += compare_interval
+
         # Calculate mean
-        for i in range(24):
-            if weekday_adjust_weight[i] > 0:
-                weekday_adjust[i] = weekday_adjust[i] / weekday_adjust_weight[i]
-            if weekend_adjust_weight[i] > 0:
-                weekend_adjust[i] = weekend_adjust[i] / weekend_adjust_weight[i]
+        for hour in range(24):
+            if weekday_adjust_weight[hour] > 0:
+                weekday_adjust[hour] = weekday_adjust[hour] / weekday_adjust_weight[hour]
+            if weekend_adjust_weight[hour] > 0:
+                weekend_adjust[hour] = weekend_adjust[hour] / weekend_adjust_weight[hour]
 
         return (weekday_adjust, weekend_adjust)
 

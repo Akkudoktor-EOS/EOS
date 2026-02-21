@@ -8,6 +8,8 @@ from pydantic import Field, field_validator
 
 from akkudoktoreos.core.coreabc import (
     ConfigMixin,
+    get_ems,
+    get_prediction,
 )
 from akkudoktoreos.core.emplan import (
     DDBCInstruction,
@@ -22,7 +24,6 @@ from akkudoktoreos.devices.devicesabc import (
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.optimization.genetic.geneticdevices import GeneticParametersBaseModel
 from akkudoktoreos.optimization.optimization import OptimizationSolution
-from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 from akkudoktoreos.utils.utils import NumpyEncoder
 
@@ -272,8 +273,6 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         - GRID_SUPPORT_EXPORT: ac_charge == 0 and discharge_allowed == 1
         - GRID_SUPPORT_IMPORT: ac_charge  > 0 and discharge_allowed == 0 or 1
         """
-        from akkudoktoreos.core.ems import get_ems
-
         start_datetime = get_ems().start_datetime
         start_day_hour = start_datetime.in_timezone(self.config.general.timezone).hour
         interval_hours = 1
@@ -567,8 +566,6 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
     def energy_management_plan(self) -> EnergyManagementPlan:
         """Provide the genetic solution as an energy management plan."""
-        from akkudoktoreos.core.ems import get_ems
-
         start_datetime = get_ems().start_datetime
         start_day_hour = start_datetime.in_timezone(self.config.general.timezone).hour
         plan = EnergyManagementPlan(

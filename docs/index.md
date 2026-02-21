@@ -50,6 +50,7 @@ akkudoktoreos/prediction.md
 akkudoktoreos/measurement.md
 akkudoktoreos/integration.md
 akkudoktoreos/logging.md
+akkudoktoreos/database.md
 akkudoktoreos/adapter.md
 akkudoktoreos/serverapi.md
 akkudoktoreos/api.rst

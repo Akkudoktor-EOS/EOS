@@ -15,17 +15,17 @@ from pydantic import Field, computed_field
 
 from akkudoktoreos.core.coreabc import MeasurementMixin
 from akkudoktoreos.core.dataabc import (
-    DataBase,
+    DataABC,
     DataContainer,
     DataImportProvider,
     DataProvider,
     DataRecord,
     DataSequence,
 )
-from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_duration
 
 
-class PredictionBase(DataBase, MeasurementMixin):
+class PredictionABC(DataABC, MeasurementMixin):
     """Base class for handling prediction data.
 
     Enables access to EOS configuration data (attribute `config`) and EOS measurement data
@@ -95,7 +95,7 @@ class PredictionSequence(DataSequence):
     )
 
 
-class PredictionStartEndKeepMixin(PredictionBase):
+class PredictionStartEndKeepMixin(PredictionABC):
     """A mixin to manage start, end, and historical retention datetimes for prediction data.
 
     The starting datetime for prediction data generation is provided by the energy management
@@ -196,6 +196,35 @@ class PredictionProvider(PredictionStartEndKeepMixin, DataProvider):
         Derived classes have to provide their own records field with correct record type set.
     """
 
+    def db_keep_datetime(self) -> Optional[DateTime]:
+        """Earliest datetime from which database records should be retained.
+
+        Used when removing old records from database to free space.
+
+        Subclasses may override this method to provide a domain-specific default.
+
+        Returns:
+            Datetime or None.
+        """
+        return self.keep_datetime
+
+    def db_initial_time_window(self) -> Optional[Duration]:
+        """Return the initial time window used for database loading.
+
+        This window defines the initial symmetric time span around a target datetime
+        that should be loaded from the database when no explicit search time window
+        is specified. It serves as a loading hint and may be expanded by the caller
+        if no records are found within the initial range.
+
+        Subclasses may override this method to provide a domain-specific default.
+
+        Returns:
+            The initial loading time window as a Duration, or ``None`` to indicate
+            that no initial window constraint should be applied.
+        """
+        hours = max(self.config.prediction.hours, self.config.prediction_historic_hours, 24)
+        return to_duration(hours * 3600)
+
     def update_data(
         self,
         force_enable: Optional[bool] = False,
@@ -218,9 +247,6 @@ class PredictionProvider(PredictionStartEndKeepMixin, DataProvider):
 
         # Call the custom update logic
         self._update_data(force_update=force_update)
-
-        # Assure records are sorted.
-        self.sort_by_datetime()
 
 
 class PredictionImportProvider(PredictionProvider, DataImportProvider):

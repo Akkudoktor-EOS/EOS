@@ -431,8 +431,3 @@ class ResourceRegistry(SingletonMixin, ConfigMixin, PydanticBaseModel):
                 self.history = loaded.history
             except Exception as e:
                 logger.error("Can not load resource registry: {}", e)
-
-
-def get_resource_registry() -> ResourceRegistry:
-    """Gets the EOS resource registry."""
-    return ResourceRegistry()
