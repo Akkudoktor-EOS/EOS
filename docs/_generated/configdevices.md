@@ -206,8 +206,11 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
+| ac_to_dc_efficiency | `float` | `rw` | `1.0` | Efficiency of AC to DC conversion for grid-to-battery AC charging (0-1). Set to 0 to disable AC charging. Default 1.0 (no additional inverter loss). |
 | battery_id | `Optional[str]` | `rw` | `None` | ID of battery controlled by this inverter. |
+| dc_to_ac_efficiency | `float` | `rw` | `1.0` | Efficiency of DC to AC conversion for battery discharging to AC load/grid (0-1). Default 1.0 (no additional inverter loss). |
 | device_id | `str` | `rw` | `<unknown>` | ID of device |
+| max_ac_charge_power_w | `Optional[float]` | `rw` | `None` | Maximum AC charging power in watts. null means no additional limit. Set to 0 to disable AC charging. |
 | max_power_w | `Optional[float]` | `rw` | `None` | Maximum power [W]. |
 | measurement_keys | `Optional[list[str]]` | `ro` | `N/A` | Measurement keys for the inverter stati that are measurements. |
 :::
@@ -225,7 +228,10 @@
                {
                    "device_id": "battery1",
                    "max_power_w": 10000.0,
-                   "battery_id": null
+                   "battery_id": null,
+                   "ac_to_dc_efficiency": 0.95,
+                   "dc_to_ac_efficiency": 0.95,
+                   "max_ac_charge_power_w": null
                }
            ]
        }
@@ -246,6 +252,9 @@
                    "device_id": "battery1",
                    "max_power_w": 10000.0,
                    "battery_id": null,
+                   "ac_to_dc_efficiency": 0.95,
+                   "dc_to_ac_efficiency": 0.95,
+                   "max_ac_charge_power_w": null,
                    "measurement_keys": []
                }
            ]

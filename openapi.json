@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.2.0.dev2602240695620513"
+    "version": "v0.2.0.dev2602240861432935"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -4451,7 +4451,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev2602240695620513"
+            "default": "0.2.0.dev2602240861432935"
           },
           "data_folder_path": {
             "type": "string",
@@ -4514,7 +4514,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev2602240695620513"
+            "default": "0.2.0.dev2602240861432935"
           },
           "data_folder_path": {
             "type": "string",
@@ -5784,6 +5784,49 @@
               null,
               "battery1"
             ]
+          },
+          "ac_to_dc_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Ac To Dc Efficiency",
+            "description": "Efficiency of AC to DC conversion for grid-to-battery AC charging (0-1). Set to 0 to disable AC charging. Default 1.0 (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0,
+              0.0
+            ]
+          },
+          "dc_to_ac_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Dc To Ac Efficiency",
+            "description": "Efficiency of DC to AC conversion for battery discharging to AC load/grid (0-1). Default 1.0 (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0
+            ]
+          },
+          "max_ac_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ac Charge Power W",
+            "description": "Maximum AC charging power in watts. null means no additional limit. Set to 0 to disable AC charging.",
+            "examples": [
+              null,
+              0,
+              5000
+            ]
           }
         },
         "type": "object",
@@ -5834,6 +5877,49 @@
             "examples": [
               null,
               "battery1"
+            ]
+          },
+          "ac_to_dc_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Ac To Dc Efficiency",
+            "description": "Efficiency of AC to DC conversion for grid-to-battery AC charging (0-1). Set to 0 to disable AC charging. Default 1.0 (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0,
+              0.0
+            ]
+          },
+          "dc_to_ac_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Dc To Ac Efficiency",
+            "description": "Efficiency of DC to AC conversion for battery discharging to AC load/grid (0-1). Default 1.0 (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0
+            ]
+          },
+          "max_ac_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ac Charge Power W",
+            "description": "Maximum AC charging power in watts. null means no additional limit. Set to 0 to disable AC charging.",
+            "examples": [
+              null,
+              0,
+              5000
             ]
           },
           "measurement_keys": {
@@ -5908,6 +5994,49 @@
             "examples": [
               null,
               "battery1"
+            ]
+          },
+          "ac_to_dc_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Ac To Dc Efficiency",
+            "description": "Efficiency of AC to DC conversion (for AC/grid charging of battery). Set to 0 to disable AC charging via inverter. Default 1.0 for backward compatibility (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0,
+              0.0
+            ]
+          },
+          "dc_to_ac_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Dc To Ac Efficiency",
+            "description": "Efficiency of DC to AC conversion (for battery discharging to AC load/grid). Default 1.0 for backward compatibility (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0
+            ]
+          },
+          "max_ac_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ac Charge Power W",
+            "description": "Maximum AC charging power in watts. None means no additional limit (battery's own max_charge_power_w applies). Set to 0 to disable AC charging.",
+            "examples": [
+              null,
+              0,
+              5000
             ]
           }
         },
@@ -8785,13 +8914,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",

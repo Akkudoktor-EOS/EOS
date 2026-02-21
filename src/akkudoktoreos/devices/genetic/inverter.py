@@ -26,6 +26,9 @@ class Inverter:
         self.max_power_wh = (
             self.parameters.max_power_wh
         )  # Maximum power that the inverter can handle
+        self.dc_to_ac_efficiency = self.parameters.dc_to_ac_efficiency
+        self.ac_to_dc_efficiency = self.parameters.ac_to_dc_efficiency
+        self.max_ac_charge_power_w = self.parameters.max_ac_charge_power_w
 
     def process_energy(
         self, generation: float, consumption: float, hour: int
@@ -34,6 +37,9 @@ class Inverter:
         grid_export = 0.0
         grid_import = 0.0
         self_consumption = 0.0
+
+        # Cache inverter DC→AC efficiency for discharge path
+        dc_to_ac_eff = self.dc_to_ac_efficiency
 
         if generation >= consumption:
             if consumption > self.max_power_wh:
@@ -56,21 +62,29 @@ class Inverter:
                 if remaining_load_evq > 0:
                     # Akku muss den Restverbrauch decken
                     if self.battery:
-                        from_battery, discharge_losses = self.battery.discharge_energy(
-                            remaining_load_evq, hour
+                        # Request more DC from battery to account for DC→AC conversion loss
+                        dc_request = remaining_load_evq / dc_to_ac_eff
+                        from_battery_dc, discharge_losses = self.battery.discharge_energy(
+                            dc_request, hour
                         )
-                        remaining_load_evq -= from_battery  # Restverbrauch nach Akkuentladung
-                        losses += discharge_losses
+                        # Convert DC output to AC
+                        from_battery_ac = from_battery_dc * dc_to_ac_eff
+                        inverter_discharge_losses = from_battery_dc - from_battery_ac
+                        remaining_load_evq -= from_battery_ac
+                        losses += discharge_losses + inverter_discharge_losses
+                    else:
+                        from_battery_ac = 0.0
 
                     # Wenn der Akku den Restverbrauch nicht vollständig decken kann, wird der Rest ins Netz gezogen
                     if remaining_load_evq > 0:
                         grid_import += remaining_load_evq
                         remaining_load_evq = 0
                 else:
-                    from_battery = 0.0
+                    from_battery_ac = 0.0
 
                 if remaining_power > 0:
-                    # Load battery with excess energy
+                    # Load battery with excess energy (DC path, no inverter conversion needed)
+                    charge_losses = 0.0
                     if self.battery:
                         charged_energie, charge_losses = self.battery.charge_energy(
                             remaining_power, hour
@@ -88,7 +102,7 @@ class Inverter:
 
                     losses += charge_losses
                 self_consumption = (
-                    consumption + from_battery
+                    consumption + from_battery_ac
                 )  # Self-consumption is equal to the load
 
         else:
@@ -98,15 +112,21 @@ class Inverter:
 
             # Discharge battery to cover shortfall, if possible
             if self.battery:
-                battery_discharge, discharge_losses = self.battery.discharge_energy(
-                    min(shortfall, available_ac_power), hour
+                # Need shortfall in AC, request more DC from battery for DC→AC conversion
+                ac_needed = min(shortfall, available_ac_power)
+                dc_request = ac_needed / dc_to_ac_eff
+                battery_discharge_dc, discharge_losses = self.battery.discharge_energy(
+                    dc_request, hour
                 )
-                losses += discharge_losses
+                # Convert DC output to AC
+                battery_discharge_ac = battery_discharge_dc * dc_to_ac_eff
+                inverter_discharge_losses = battery_discharge_dc - battery_discharge_ac
+                losses += discharge_losses + inverter_discharge_losses
             else:
-                battery_discharge = 0
+                battery_discharge_ac = 0
 
-            # Draw remaining required power from the grid (discharge_losses are already substraved in the battery)
-            grid_import = shortfall - battery_discharge
-            self_consumption = generation + battery_discharge
+            # Draw remaining required power from the grid (discharge_losses are already subtracted in the battery)
+            grid_import = shortfall - battery_discharge_ac
+            self_consumption = generation + battery_discharge_ac
 
         return grid_export, grid_import, losses, self_consumption

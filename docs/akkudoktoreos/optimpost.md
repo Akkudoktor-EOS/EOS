@@ -71,7 +71,10 @@ passed to the request. You have to set the parameters even if given in the confi
     "inverter": {
         "device_id": "inverter1",
         "max_power_wh": 10000,
-        "battery_id": "battery1"
+        "battery_id": "battery1",
+        "ac_to_dc_efficiency": 0.95,
+        "dc_to_ac_efficiency": 0.95,
+        "max_ac_charge_power_w": 5000
     },
     "eauto": {
         "device_id": "ev1",
@@ -160,6 +163,65 @@ Verify prices against your local tariffs.
 - `device_id`: ID of inverter
 - `max_power_wh`: Maximum inverter power in Wh
 - `battery_id`: ID of battery
+- `ac_to_dc_efficiency`: Efficiency of AC→DC conversion for grid-to-battery AC charging (0-1).
+  Set to `0` to disable AC charging via inverter. Default `1.0` (backward compatible, no additional
+  inverter loss — existing battery `charging_efficiency` applies).
+- `dc_to_ac_efficiency`: Efficiency of DC→AC conversion for battery discharging to AC load/grid
+  (0-1). Must be > 0. Default `1.0` (backward compatible).
+- `max_ac_charge_power_w`: Maximum AC charging power in watts. `null` means no additional limit
+  (battery's own `max_charge_power_w` applies). Set to `0` to disable AC charging. Default `null`.
+
+#### Efficiency Model
+
+The inverter efficiency parameters cleanly separate the **DC battery efficiency** from the
+**AC↔DC inverter conversion efficiency**:
+
+- **DC charging from PV surplus**: PV → Battery (direct DC, only `charging_efficiency` applies)
+- **AC charging from grid**: Grid (AC) → Inverter (`ac_to_dc_efficiency`) → Battery
+  (`charging_efficiency`)
+- **Discharging to AC load/grid**: Battery (`discharging_efficiency`) → Inverter
+  (`dc_to_ac_efficiency`) → Load/Grid (AC)
+
+Round-trip efficiency for AC charging and discharging:
+`η_round_trip = ac_to_dc_efficiency × charging_efficiency × discharging_efficiency × dc_to_ac_efficiency`
+
+For profitability, the discharge electricity price must exceed:
+`buy_price / η_round_trip`
+
+**Backward compatibility**: With default values (`ac_to_dc_efficiency=1.0`,
+`dc_to_ac_efficiency=1.0`, `max_ac_charge_power_w=null`), existing configurations work identically.
+To model realistic inverter losses, set both efficiencies to a value like `0.95` and adjust
+battery efficiencies to reflect pure DC losses only (typically `0.96`–`0.99` for Li-ion).
+
+#### AC Charging Break-Even Penalty
+
+The genetic optimizer includes an economic break-even check as a fitness penalty to guide
+convergence away from unprofitable AC grid charging. For each scheduled AC charging hour the
+optimizer checks whether the best future discharge price (after accounting for round-trip losses)
+actually recovers the charging cost.
+
+**Free PV energy handling**: Energy already stored in the battery from PV generation (zero
+grid cost) is treated as a free resource that covers the most expensive future hours first.
+AC grid charging is only evaluated against the *remaining* uncovered hours.
+
+The penalty magnitude is:
+
+```text
+penalty = ac_wh_charged × (break_even_price − best_uncovered_price) × factor
+```
+
+where:
+- `break_even_price = charge_price / η_round_trip`
+- `best_uncovered_price` = highest future price not already covered by free PV battery energy
+- `factor` = `optimization.genetic.penalties.ac_charge_break_even` (default `1.0`)
+
+The penalty does not replace the simulation cost — it amplifies the economic loss signal so the
+algorithm converges faster away from unprofitable charging regions.
+
+To tune the aggressiveness of this penalty, set `penalties.ac_charge_break_even` in the
+optimization configuration. A value of `1.0` corresponds to the exact economic loss in €.
+Larger values (e.g. `3.0`) make the algorithm more aggressively avoid unprofitable AC charging;
+smaller values (e.g. `0.0`) disable the penalty entirely.
 
 ### Electric Vehicle (EV)
 
