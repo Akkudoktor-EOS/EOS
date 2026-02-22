@@ -87,7 +87,7 @@ class Battery:
     def reset(self) -> None:
         """Resets the battery state to its initial values."""
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
-        self.soc_wh = min(max(self.soc_wh, self.min_soc_wh), self.max_soc_wh)
+        self.soc_wh = min(self.soc_wh, self.max_soc_wh)  # Only clamp to max
         self.discharge_array = np.full(self.prediction_hours, 0)
         self.charge_array = np.full(self.prediction_hours, 0)
 

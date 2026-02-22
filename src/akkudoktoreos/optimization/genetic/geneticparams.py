@@ -18,6 +18,7 @@ from akkudoktoreos.core.coreabc import (
     ConfigMixin,
     MeasurementMixin,
     PredictionMixin,
+    get_ems,
 )
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticdevices import (
@@ -161,9 +162,6 @@ class GeneticOptimizationParameters(
         Raises:
             ValueError: If required configuration values like start time are missing.
         """
-        # Avoid circular dependency
-        from akkudoktoreos.core.ems import get_ems
-
         ems = get_ems()
 
         # The optimization paramters
@@ -439,6 +437,7 @@ class GeneticOptimizationParameters(
                     initial_soc_factor = cls.measurement.key_to_value(
                         key=battery_config.measurement_key_soc_factor,
                         target_datetime=ems.start_datetime,
+                        time_window=to_duration(to_duration("48 hours")),
                     )
                     if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
                         logger.error(
@@ -510,6 +509,7 @@ class GeneticOptimizationParameters(
                     initial_soc_factor = cls.measurement.key_to_value(
                         key=electric_vehicle_config.measurement_key_soc_factor,
                         target_datetime=ems.start_datetime,
+                        time_window=to_duration(to_duration("48 hours")),
                     )
                     if initial_soc_factor > 1.0 or initial_soc_factor < 0.0:
                         logger.error(

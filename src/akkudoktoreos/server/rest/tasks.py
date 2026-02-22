@@ -90,3 +90,73 @@ def repeat_every(
         return wrapped
 
     return decorator
+
+
+def make_repeated_task(
+    func: NoArgsNoReturnAnyFuncT,
+    *,
+    seconds: float,
+    wait_first: float | None = None,
+    max_repetitions: int | None = None,
+    on_complete: NoArgsNoReturnAnyFuncT | None = None,
+    on_exception: ExcArgNoReturnAnyFuncT | None = None,
+) -> NoArgsNoReturnAsyncFuncT:
+    """Create a version of the given function that runs periodically.
+
+    This function wraps `func` with the `repeat_every` decorator at runtime,
+    allowing decorator parameters to be determined dynamically rather than at import time.
+
+    Args:
+        func (Callable[[], None] | Callable[[], Coroutine[Any, Any, None]]):
+            The function to execute periodically. Must accept no arguments.
+        seconds (float):
+            Interval in seconds between repeated calls.
+        wait_first (float | None, optional):
+            If provided, the function will wait this many seconds before the first call.
+        max_repetitions (int | None, optional):
+            Maximum number of times to repeat the function. If None, repeats indefinitely.
+        on_complete (Callable[[], None] | Callable[[], Coroutine[Any, Any, None]] | None, optional):
+            Function to call once the repetitions are complete.
+        on_exception (Callable[[Exception], None] | Callable[[Exception], Coroutine[Any, Any, None]] | None, optional):
+            Function to call if an exception is raised by `func`.
+
+    Returns:
+        Callable[[], Coroutine[Any, Any, None]]:
+            An async function that starts the periodic execution when called.
+
+    Usage:
+        .. code-block:: python
+
+            from my_task import my_task
+
+            from akkudoktoreos.core.coreabc import get_config
+            from akkudoktoreos.server.rest.tasks import make_repeated_task
+
+            config = get_config()
+
+            # Create a periodic task using configuration-dependent interval
+            repeated_task = make_repeated_task(
+                my_task,
+                seconds=config.server.poll_interval,
+                wait_first=5,
+                max_repetitions=None
+            )
+
+            # Run the task in the event loop
+            import asyncio
+            asyncio.run(repeated_task())
+
+
+    Notes:
+        - This pattern avoids starting the loop at import time.
+        - Arguments such as `seconds` can be read from runtime sources (config, CLI args, environment variables).
+        - The returned function must be awaited to start the periodic loop.
+    """
+    # Return decorated function
+    return repeat_every(
+        seconds=seconds,
+        wait_first=wait_first,
+        max_repetitions=max_repetitions,
+        on_complete=on_complete,
+        on_exception=on_exception,
+    )(func)

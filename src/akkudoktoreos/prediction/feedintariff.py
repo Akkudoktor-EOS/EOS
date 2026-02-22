@@ -3,19 +3,26 @@ from typing import Optional
 from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixedCommonSettings
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImportCommonSettings
-from akkudoktoreos.prediction.prediction import get_prediction
 
-prediction_eos = get_prediction()
 
-# Valid feedintariff providers
-feedintariff_providers = [
-    provider.provider_id()
-    for provider in prediction_eos.providers
-    if isinstance(provider, FeedInTariffProvider)
-]
+def elecprice_provider_ids() -> list[str]:
+    """Valid feedintariff provider ids."""
+    try:
+        prediction_eos = get_prediction()
+    except:
+        # Prediction may not be initialized
+        # Return at least provider used in example
+        return ["FeedInTariffFixed", "FeedInTarifImport"]
+
+    return [
+        provider.provider_id()
+        for provider in prediction_eos.providers
+        if isinstance(provider, FeedInTariffProvider)
+    ]
 
 
 class FeedInTariffCommonProviderSettings(SettingsBaseModel):
@@ -60,14 +67,14 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
     @property
     def providers(self) -> list[str]:
         """Available feed in tariff provider ids."""
-        return feedintariff_providers
+        return elecprice_provider_ids()
 
     # Validators
     @field_validator("provider", mode="after")
     @classmethod
     def validate_provider(cls, value: Optional[str]) -> Optional[str]:
-        if value is None or value in feedintariff_providers:
+        if value is None or value in elecprice_provider_ids():
             return value
         raise ValueError(
-            f"Provider '{value}' is not a valid feed in tariff provider: {feedintariff_providers}."
+            f"Provider '{value}' is not a valid feed in tariff provider: {elecprice_provider_ids()}."
         )

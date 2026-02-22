@@ -14,8 +14,10 @@ DIR_DOCS_GENERATED = DIR_PROJECT_ROOT / "docs" / "_generated"
 DIR_TEST_GENERATED = DIR_TESTDATA / "docs" / "_generated"
 
 
-def test_openapi_spec_current(config_eos):
+def test_openapi_spec_current(config_eos, set_other_timezone):
     """Verify the openapi spec hasn´t changed."""
+    set_other_timezone("UTC") # CI runs on UTC
+
     expected_spec_path = DIR_PROJECT_ROOT / "openapi.json"
     new_spec_path = DIR_TESTDATA / "openapi-new.json"
 
@@ -23,7 +25,7 @@ def test_openapi_spec_current(config_eos):
         expected_spec = json.load(f_expected)
 
     # Patch get_config and import within guard to patch global variables within the eos module.
-    with patch("akkudoktoreos.config.config.get_config", return_value=config_eos):
+    with patch("akkudoktoreos.core.coreabc.get_config", return_value=config_eos):
         # Ensure the script works correctly as part of a package
         root_dir = Path(__file__).resolve().parent.parent
         sys.path.insert(0, str(root_dir))
@@ -39,7 +41,7 @@ def test_openapi_spec_current(config_eos):
     expected_spec_str = json.dumps(expected_spec, indent=4, sort_keys=True)
 
     try:
-        assert spec_str == expected_spec_str
+        assert json.loads(spec_str) == json.loads(expected_spec_str)
     except AssertionError as e:
         pytest.fail(
             f"Expected {new_spec_path} to equal {expected_spec_path}.\n"
@@ -47,8 +49,10 @@ def test_openapi_spec_current(config_eos):
         )
 
 
-def test_openapi_md_current(config_eos):
+def test_openapi_md_current(config_eos, set_other_timezone):
     """Verify the generated openapi markdown hasn´t changed."""
+    set_other_timezone("UTC") # CI runs on UTC
+
     expected_spec_md_path = DIR_PROJECT_ROOT / "docs" / "_generated" / "openapi.md"
     new_spec_md_path = DIR_TESTDATA / "openapi-new.md"
 
@@ -56,7 +60,7 @@ def test_openapi_md_current(config_eos):
         expected_spec_md = f_expected.read()
 
     # Patch get_config and import within guard to patch global variables within the eos module.
-    with patch("akkudoktoreos.config.config.get_config", return_value=config_eos):
+    with patch("akkudoktoreos.core.coreabc.get_config", return_value=config_eos):
         # Ensure the script works correctly as part of a package
         root_dir = Path(__file__).resolve().parent.parent
         sys.path.insert(0, str(root_dir))
@@ -76,8 +80,10 @@ def test_openapi_md_current(config_eos):
         )
 
 
-def test_config_md_current(config_eos):
+def test_config_md_current(config_eos, set_other_timezone):
     """Verify the generated configuration markdown hasn´t changed."""
+    set_other_timezone("UTC") # CI runs on UTC
+
     assert DIR_DOCS_GENERATED.exists()
 
     # Remove any leftover files from last run
@@ -88,7 +94,7 @@ def test_config_md_current(config_eos):
     DIR_TEST_GENERATED.mkdir(parents=True, exist_ok=True)
 
     # Patch get_config and import within guard to patch global variables within the eos module.
-    with patch("akkudoktoreos.config.config.get_config", return_value=config_eos):
+    with patch("akkudoktoreos.core.coreabc.get_config", return_value=config_eos):
         # Ensure the script works correctly as part of a package
         root_dir = Path(__file__).resolve().parent.parent
         sys.path.insert(0, str(root_dir))
@@ -106,7 +112,11 @@ def test_config_md_current(config_eos):
             tested.append(DIR_TEST_GENERATED / file_name)
 
         # Create test files
-        config_md = generate_config_md.generate_config_md(tested[0], config_eos)
+        try:
+            config_eos._force_documentation_mode = True
+            config_md = generate_config_md.generate_config_md(tested[0], config_eos)
+        finally:
+            config_eos._force_documentation_mode = False
 
     # Check test files are the same as the expected files
     for i, expected_path in enumerate(expected):

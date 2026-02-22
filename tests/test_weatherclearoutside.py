@@ -10,7 +10,7 @@ import pytest
 from bs4 import BeautifulSoup
 
 from akkudoktoreos.core.cache import CacheFileStore
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
 

@@ -7,7 +7,7 @@ import pytest
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
@@ -18,7 +18,7 @@ from akkudoktoreos.utils.visualize import (
     prepare_visualize,  # Import the new prepare_visualize
 )
 
-ems_eos = get_ems()
+ems_eos = get_ems(init=True) # init once
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 

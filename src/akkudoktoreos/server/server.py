@@ -14,6 +14,7 @@ from loguru import logger
 from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.core.coreabc import get_config
 
 
 def get_default_host() -> str:
@@ -258,8 +259,6 @@ def fix_data_directories_permissions(run_as_user: Optional[str] = None) -> None:
         run_as_user (Optional[str]): The user who should own the data directories and files.
             Defaults to current one.
     """
-    from akkudoktoreos.config.config import get_config
-
     config_eos = get_config()
 
     base_dirs = [

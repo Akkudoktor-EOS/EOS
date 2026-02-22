@@ -4,8 +4,8 @@ import numpy as np
 import pendulum
 import pytest
 
-from akkudoktoreos.core.ems import get_ems
-from akkudoktoreos.measurement.measurement import MeasurementDataRecord, get_measurement
+from akkudoktoreos.core.coreabc import get_ems, get_measurement
+from akkudoktoreos.measurement.measurement import MeasurementDataRecord
 from akkudoktoreos.prediction.loadakkudoktor import (
     LoadAkkudoktor,
     LoadAkkudoktorAdjusted,
@@ -63,7 +63,7 @@ def measurement_eos():
     dt = to_datetime("2024-01-01T00:00:00")
     interval = to_duration("1 hour")
     for i in range(25):
-        measurement.records.append(
+        measurement.insert_by_datetime(
             MeasurementDataRecord(
                 date_time=dt,
                 load0_mr=load0_mr,
@@ -138,7 +138,7 @@ def test_update_data(mock_load_data, loadakkudoktor):
     ems_eos.set_start_datetime(pendulum.datetime(2024, 1, 1))
 
     # Assure there are no prediction records
-    loadakkudoktor.clear()
+    loadakkudoktor.delete_by_datetime(start_datetime=None, end_datetime=None)
     assert len(loadakkudoktor) == 0
 
     # Execute the method
@@ -151,6 +151,24 @@ def test_update_data(mock_load_data, loadakkudoktor):
 def test_calculate_adjustment(loadakkudoktoradjusted, measurement_eos):
     """Test `_calculate_adjustment` for various scenarios."""
     data_year_energy = np.random.rand(365, 2, 24)
+
+    # Check the test setup
+    assert loadakkudoktoradjusted.measurement is measurement_eos
+    assert measurement_eos.min_datetime == to_datetime("2024-01-01T00:00:00")
+    assert measurement_eos.max_datetime == to_datetime("2024-01-02T00:00:00")
+    # Use same calculation as in _calculate_adjustment
+    compare_start = measurement_eos.max_datetime - to_duration("7 days")
+    if compare_datetimes(compare_start, measurement_eos.min_datetime).lt:
+        # Not enough measurements for 7 days - use what is available
+        compare_start = measurement_eos.min_datetime
+    compare_end = measurement_eos.max_datetime
+    compare_interval = to_duration("1 hour")
+    load_total_kwh_array = measurement_eos.load_total_kwh(
+        start_datetime=compare_start,
+        end_datetime=compare_end,
+        interval=compare_interval,
+    )
+    np.testing.assert_allclose(load_total_kwh_array, [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
 
     # Call the method and validate results
     weekday_adjust, weekend_adjust = loadakkudoktoradjusted._calculate_adjustment(data_year_energy)

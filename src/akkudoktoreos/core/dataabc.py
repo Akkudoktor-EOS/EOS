@@ -11,24 +11,24 @@ and manipulation of configuration and generic data in a clear, scalable, and str
 import difflib
 import json
 from abc import abstractmethod
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import KeysView, MutableMapping
 from itertools import chain
 from pathlib import Path
 from typing import (
     Any,
     Dict,
     Iterator,
-    List,
+    Literal,
     Optional,
     Tuple,
     Type,
     Union,
+    get_args,
     overload,
 )
 
 import numpy as np
 import pandas as pd
-import pendulum
 from loguru import logger
 from numpydantic import NDArray, Shape
 from pydantic import (
@@ -41,7 +41,17 @@ from pydantic import (
     model_validator,
 )
 
-from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin, StartMixin
+from akkudoktoreos.core.coreabc import (
+    ConfigMixin,
+    SingletonMixin,
+    StartMixin,
+)
+from akkudoktoreos.core.databaseabc import (
+    UNBOUND_WINDOW,
+    DatabaseRecordProtocolMixin,
+    DatabaseTimestamp,
+    DatabaseTimeWindowType,
+)
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeData,
@@ -56,7 +66,7 @@ from akkudoktoreos.utils.datetimeutil import (
 )
 
 
-class DataBase(ConfigMixin, StartMixin, PydanticBaseModel):
+class DataABC(ConfigMixin, StartMixin, PydanticBaseModel):
     """Base class for handling generic data.
 
     Enables access to EOS configuration data (attribute `config`).
@@ -65,7 +75,10 @@ class DataBase(ConfigMixin, StartMixin, PydanticBaseModel):
     pass
 
 
-class DataRecord(DataBase, MutableMapping):
+# ==================== DataRecord ====================
+
+
+class DataRecord(DataABC, MutableMapping):
     """Base class for data records, enabling dynamic access to fields defined in derived classes.
 
     Fields can be accessed and mutated both using dictionary-style access (`record['field_name']`)
@@ -77,7 +90,8 @@ class DataRecord(DataBase, MutableMapping):
     dictionary-style and attribute-style access.
 
     Attributes:
-        date_time (Optional[DateTime]): Aware datetime indicating when the data record applies.
+        date_time (DateTime): Aware datetime indicating when the data record applies. Defaults
+            to now.
 
     Configurations:
         - Allows mutation after creation.
@@ -145,7 +159,7 @@ class DataRecord(DataBase, MutableMapping):
         return None
 
     @classmethod
-    def record_keys(cls) -> List[str]:
+    def record_keys(cls) -> list[str]:
         """Returns the keys of all fields in the data record."""
         key_list = []
         key_list.extend(list(cls.model_fields.keys()))
@@ -158,7 +172,7 @@ class DataRecord(DataBase, MutableMapping):
         return key_list
 
     @classmethod
-    def record_keys_writable(cls) -> List[str]:
+    def record_keys_writable(cls) -> list[str]:
         """Returns the keys of all fields in the data record that are writable."""
         keys_writable = []
         keys_writable.extend(list(cls.model_fields.keys()))
@@ -394,18 +408,18 @@ class DataRecord(DataBase, MutableMapping):
 
     @classmethod
     def keys_from_descriptions(
-        cls, descriptions: List[str], threshold: float = 0.8
-    ) -> List[Optional[str]]:
+        cls, descriptions: list[str], threshold: float = 0.8
+    ) -> list[Optional[str]]:
         """Returns a list of attribute keys that best matches the provided list of descriptions.
 
         Fuzzy matching is used.
 
         Args:
-            descriptions (List[str]): A list of description texts to search for.
+            descriptions (list[str]): A list of description texts to search for.
             threshold (float): The minimum ratio for a match (0-1). Default is 0.8.
 
         Returns:
-            List[Optional[str]]: A list of attribute keys matching the descriptions, with None for unmatched descriptions.
+            list[Optional[str]]: A list of attribute keys matching the descriptions, with None for unmatched descriptions.
         """
         keys = []
         for description in descriptions:
@@ -414,19 +428,31 @@ class DataRecord(DataBase, MutableMapping):
         return keys
 
 
-class DataSequence(DataBase, MutableSequence):
-    """A managed sequence of DataRecord instances with list-like behavior.
+# ==================== DataSequence ====================
+
+
+class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
+    """A managed sequence of DataRecord instances with ltime series behavior.
 
     The DataSequence class provides an ordered, mutable collection of DataRecord
-    instances, allowing list-style access for adding, deleting, and retrieving records. It also
-    supports advanced data operations such as JSON serialization, conversion to Pandas Series,
-    and sorting by timestamp.
+    instances.
+
+    It also supports advanced data operations such as
+
+    - JSON serialization,
+    - conversion to Pandas Series,
+    - sorting by timestamp,
+    - and data storage in a database.
 
     Attributes:
-        records (List[DataRecord]): A list of DataRecord instances representing
+        records (list[DataRecord]): A list of DataRecord instances representing
                                           individual generic data points.
-        record_keys (Optional[List[str]]): A list of field names (keys) expected in each
+        record_keys (Optional[list[str]]): A list of field names (keys) expected in each
                                            DataRecord.
+
+    Invariant:
+        ``self.records`` is always kept sorted in ascending ``date_time`` order
+        whenever it contains any records.
 
     Note:
         Derived classes have to provide their own records field with correct record type set.
@@ -436,7 +462,7 @@ class DataSequence(DataBase, MutableSequence):
 
             # Example of creating, adding, and using DataSequence
             class DerivedSequence(DataSquence):
-                records: List[DerivedDataRecord] = Field(default_factory=list, json_schema_extra={ "description": "List of data records" })
+                records: list[DerivedDataRecord] = Field(default_factory=list, json_schema_extra={ "description": "List of data records" })
 
             seq = DerivedSequence()
             seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=72))
@@ -452,86 +478,11 @@ class DataSequence(DataBase, MutableSequence):
     """
 
     # To be overloaded by derived classes.
-    records: List[DataRecord] = Field(
+    records: list[DataRecord] = Field(
         default_factory=list, json_schema_extra={"description": "List of data records"}
     )
 
-    # Derived fields (computed)
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def min_datetime(self) -> Optional[DateTime]:
-        """Minimum (earliest) datetime in the sorted sequence of data records.
-
-        This property computes the earliest datetime from the sequence of data records.
-        If no records are present, it returns `None`.
-
-        Returns:
-            Optional[DateTime]: The earliest datetime in the sequence, or `None` if no
-                data records exist.
-        """
-        if len(self.records) == 0:
-            return None
-        return self.records[0].date_time
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def max_datetime(self) -> DateTime:
-        """Maximum (latest) datetime in the sorted sequence of data records.
-
-        This property computes the latest datetime from the sequence of data records.
-        If no records are present, it returns `None`.
-
-        Returns:
-            Optional[DateTime]: The latest datetime in the sequence, or `None` if no
-                data records exist.
-        """
-        if len(self.records) == 0:
-            return None
-        return self.records[-1].date_time
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def record_keys(self) -> List[str]:
-        """Returns the keys of all fields in the data records."""
-        return self.record_class().record_keys()
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def record_keys_writable(self) -> List[str]:
-        """Get the keys of all writable fields in the data records.
-
-        This property retrieves the keys of all fields in the data records that
-        can be written to. It uses the `record_class` to determine the model's
-        field structure.
-
-        Returns:
-            List[str]: A list of field keys that are writable in the data records.
-        """
-        return self.record_class().record_keys_writable()
-
-    @classmethod
-    def record_class(cls) -> Type:
-        """Get the class of the data record handled by this data sequence.
-
-        This method determines the class of the data record type associated with
-        the `records` field of the model. The field is expected to be a list, and
-        the element type of the list should be a subclass of `DataRecord`.
-
-        Raises:
-            ValueError: If the record type is not a subclass of `DataRecord`.
-
-        Returns:
-            Type: The class of the data record handled by the data sequence.
-        """
-        # Access the model field metadata
-        field_info = cls.model_fields["records"]
-        # Get the list element type from the 'type_' attribute
-        list_element_type = field_info.annotation.__args__[0]
-        if not isinstance(list_element_type(), DataRecord):
-            raise ValueError(
-                f"Data record must be an instance of DataRecord: '{list_element_type}'."
-            )
-        return list_element_type
+    # Sequence helpers
 
     def _validate_key(self, key: str) -> None:
         """Verify that a specified key exists in the current record keys.
@@ -576,93 +527,124 @@ class DataSequence(DataBase, MutableSequence):
         # Assure datetime value can be converted to datetime object
         value.date_time = to_datetime(value.date_time)
 
-    @overload
-    def __getitem__(self, index: int) -> DataRecord: ...
+    # Sequence state
 
-    @overload
-    def __getitem__(self, index: slice) -> list[DataRecord]: ...
+    # Derived fields (computed)
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def min_datetime(self) -> Optional[DateTime]:
+        """Minimum (earliest) datetime in the time series sequence of data records.
 
-    def __getitem__(self, index: Union[int, slice]) -> Union[DataRecord, list[DataRecord]]:
-        """Retrieve a DataRecord or list of DataRecords by index or slice.
-
-        Supports both single item and slice-based access to the sequence.
-
-        Args:
-            index (int or slice): The index or slice to access.
+        This property computes the earliest datetime from the sequence of data records.
+        If no records are present, it returns `None`.
 
         Returns:
-            DataRecord or list[DataRecord]: A single DataRecord or a list of DataRecords.
+            Optional[DateTime]: The earliest datetime in the sequence, or `None` if no
+                data records exist.
+        """
+        min_timestamp, _ = self.db_timestamp_range()
+        if min_timestamp is None:
+            return None
+        # Timestamps are in UTC - convert to timezone
+        utc_datetime = DatabaseTimestamp.to_datetime(min_timestamp)
+        return utc_datetime.in_timezone(self.config.general.timezone)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def max_datetime(self) -> Optional[DateTime]:
+        """Maximum (latest) datetime in the time series sequence of data records.
+
+        This property computes the latest datetime from the sequence of data records.
+        If no records are present, it returns `None`.
+
+        Returns:
+            Optional[DateTime]: The latest datetime in the sequence, or `None` if no
+                data records exist.
+        """
+        _, max_timestamp = self.db_timestamp_range()
+        if max_timestamp is None:
+            return None
+        # Timestamps are in UTC - convert to timezone
+        utc_datetime = DatabaseTimestamp.to_datetime(max_timestamp)
+        return utc_datetime.in_timezone(self.config.general.timezone)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def record_keys(self) -> list[str]:
+        """Returns the keys of all fields in the data records."""
+        return self.record_class().record_keys()
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def record_keys_writable(self) -> list[str]:
+        """Get the keys of all writable fields in the data records.
+
+        This property retrieves the keys of all fields in the data records that
+        can be written to. It uses the `record_class` to determine the model's
+        field structure.
+
+        Returns:
+            list[str]: A list of field keys that are writable in the data records.
+        """
+        return self.record_class().record_keys_writable()
+
+    @classmethod
+    def record_class(cls) -> Type:
+        """Get the class of the data record handled by this data sequence.
+
+        This method determines the class of the data record type associated with
+        the `records` field of the model. The field is expected to be a list, and
+        the element type of the list should be a subclass of `DataRecord`.
 
         Raises:
-            IndexError: If the index is invalid or out of range.
+            ValueError: If the record type is not a subclass of `DataRecord`.
+
+        Returns:
+            Type: The class of the data record handled by the data sequence.
         """
-        if isinstance(index, int):
-            # Single item access logic
-            return self.records[index]
-        elif isinstance(index, slice):
-            # Slice access logic
-            return self.records[index]
-        raise IndexError("Invalid index")
+        # Access the model field metadata
+        field_info = cls.model_fields["records"]
+        # Get the list element type from the 'type_' attribute
+        list_element_type = get_args(field_info.annotation)[0]
+        if not isinstance(list_element_type(), DataRecord):
+            raise ValueError(
+                f"Data record must be an instance of DataRecord: '{list_element_type}'."
+            )
+        return list_element_type
 
-    def __setitem__(self, index: Any, value: Any) -> None:
-        """Replace a data record or slice of records with new value(s).
+    @classmethod
+    def from_dict(cls, data: dict) -> "DataSequence":
+        """Reconstruct a sequence from its serialized dictionary form.
 
-        Supports setting a single record at an integer index or
-        multiple records using a slice.
-
-        Args:
-            index (int or slice): The index or slice to modify.
-            value (DataRecord or list[DataRecord]):
-                Single record or list of records to set.
-
-        Raises:
-            ValueError: If the number of records does not match the slice length.
-            IndexError: If the index is out of range.
+        Fully subclass-safe and invariant-safe.
         """
-        if isinstance(index, int):
-            if isinstance(value, list):
-                raise ValueError("Cannot assign list to single index")
-            self._validate_record(value)
-            self.records[index] = value
-        elif isinstance(index, slice):
-            if isinstance(value, DataRecord):
-                raise ValueError("Cannot assign single record to slice")
-            for record in value:
-                self._validate_record(record)
-            self.records[index] = value
-        else:
-            # Should never happen
-            raise TypeError("Invalid type for index")
+        if not isinstance(data, dict):
+            raise TypeError("from_dict() expects a dictionary")
 
-    def __delitem__(self, index: Any) -> None:
-        """Remove a single data record or a slice of records.
+        records_data = data.get("records", [])
+        if not isinstance(records_data, list):
+            raise ValueError("'records' must be a list")
 
-        Supports deleting a single record by integer index
-        or multiple records using a slice.
+        # Create empty instance of *actual class*
+        sequence = cls()
 
-        Args:
-            index (int or slice): The index or slice to delete.
+        # Rebuild records using the sequence's record model
+        record_model = sequence.record_class()
 
-        Raises:
-            IndexError: If the index is out of range.
-        """
-        del self.records[index]
+        for record_dict in records_data:
+            if not isinstance(record_dict, dict):
+                raise ValueError("Each record must be a dictionary")
+
+            record = record_model(**record_dict)
+
+            # Important: use insert_by_datetime to rebuild invariants
+            sequence.insert_by_datetime(record)
+
+        return sequence
 
     def __len__(self) -> int:
-        """Get the number of DataRecords in the sequence.
-
-        Returns:
-            int: The count of records in the sequence.
-        """
-        return len(self.records)
-
-    def __iter__(self) -> Iterator[DataRecord]:
-        """Create an iterator for accessing DataRecords sequentially.
-
-        Returns:
-            Iterator[DataRecord]: An iterator for the records.
-        """
-        return iter(self.records)
+        """Get total number of DataRecords in sequence (DB + memory-only)."""
+        return self.db_count_records()
 
     def __repr__(self) -> str:
         """Provide a string representation of the DataSequence.
@@ -672,52 +654,88 @@ class DataSequence(DataBase, MutableSequence):
         """
         return f"{self.__class__.__name__}([{', '.join(repr(record) for record in self.records)}])"
 
-    def insert(self, index: int, value: DataRecord) -> None:
-        """Insert a DataRecord at a specified index in the sequence.
+    # Sequence methods
 
-        This method inserts a `DataRecord` at the specified index within the sequence of records,
-        shifting subsequent records to the right. If `index` is 0, the record is added at the beginning
-        of the sequence, and if `index` is equal to the length of the sequence, the record is appended
-        at the end.
+    def __iter__(self) -> Iterator[DataRecord]:
+        """Create an iterator for accessing DataRecords sequentially.
+
+        Returns:
+            Iterator[DataRecord]: An iterator for the records.
+        """
+        return iter(self.records)
+
+    def get_by_datetime(
+        self, target_datetime: DateTime, *, time_window: Optional[Duration] = None
+    ) -> Optional[DataRecord]:
+        """Get the record at the specified datetime, with an optional fallback search window.
 
         Args:
-            index (int): The position before which to insert the new record. An index of 0 inserts
-                        the record at the start, while an index equal to the length of the sequence
-                        appends it to the end.
-            value (DataRecord): The `DataRecord` instance to insert into the sequence.
+            target_datetime: The datetime to search for.
+            time_window: Optional total width of the symmetric search window centered on
+                ``target_datetime``. If provided and no exact match exists, the nearest
+                record within this window is returned.
+
+        Returns:
+            The matching DataRecord, the nearest DataRecord within the specified time window
+            if no exact match exists, or ``None`` if no suitable record is found.
+        """
+        # Ensure datetime objects are normalized
+        db_target = DatabaseTimestamp.from_datetime(target_datetime)
+
+        return self.db_get_record(db_target, time_window=time_window)
+
+    def get_nearest_by_datetime(
+        self, target_datetime: DateTime, time_window: Optional[Duration] = None
+    ) -> Optional[DataRecord]:
+        """Get the record nearest to the specified datetime within an optional time window.
+
+        Args:
+            target_datetime: The datetime to search near.
+            time_window: Total width of the symmetric search window centered on
+                ``target_datetime``. If ``None``, searches all records.
+
+        Returns:
+            The nearest DataRecord within the specified time window, or ``None`` if no records
+            exist or no records fall within the window.
 
         Raises:
-            ValueError: If `value` is not an instance of `DataRecord`.
+            ValueError: If ``time_window`` is negative.
         """
-        self.records.insert(index, value)
+        # Ensure datetime objects are normalized
+        db_target = DatabaseTimestamp.from_datetime(target_datetime)
 
-    def insert_by_datetime(self, value: DataRecord) -> None:
+        if time_window is None:
+            twin: DatabaseTimeWindowType = UNBOUND_WINDOW
+        else:
+            twin = time_window
+        return self.db_get_record(db_target, time_window=twin)
+
+    def insert_by_datetime(self, record: DataRecord) -> None:
         """Insert or merge a DataRecord into the sequence based on its date.
 
         If a record with the same date exists, merges new data fields with the existing record.
         Otherwise, appends the record and maintains chronological order.
 
         Args:
-            value (DataRecord): The record to add or merge.
+            record (DataRecord): The record to add or merge.
+
+        Note:
+            record.date_time shall be a DateTime or None
         """
-        self._validate_record(value)
-        # Check if a record with the given date already exists
-        for record in self.records:
-            if not isinstance(record.date_time, DateTime):
-                raise ValueError(
-                    f"Record date '{record.date_time}' is not a datetime, but a `{type(record.date_time).__name__}`."
-                )
-            if compare_datetimes(record.date_time, value.date_time).equal:
-                # Merge values, only updating fields where data record has a non-None value
-                for field, val in value.model_dump(exclude_unset=True).items():
-                    if field in value.record_keys_writable():
-                        setattr(record, field, val)
-                break
+        self._validate_record(record)
+
+        # Ensure datetime objects are normalized
+        record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
+
+        avail_record = self.db_get_record(record_date_time_timestamp)
+        if avail_record:
+            # Merge values, only updating fields where data record has a non-None value
+            for field, val in record.model_dump(exclude_unset=True).items():
+                if field in record.record_keys_writable():
+                    setattr(avail_record, field, val)
+            self.db_mark_dirty_record(record)
         else:
-            # Add data record if the date does not exist
-            self.records.append(value)
-            # Sort the list by datetime after adding/updating
-            self.sort_by_datetime()
+            self.db_insert_record(record)
 
     @overload
     def update_value(self, date: DateTime, key: str, value: Any) -> None: ...
@@ -762,41 +780,19 @@ class DataSequence(DataBase, MutableSequence):
             self._validate_key_writable(key)
 
         # Ensure datetime objects are normalized
-        date = to_datetime(date, to_maxtime=False)
+        db_target = DatabaseTimestamp.from_datetime(date)
 
         # Check if a record with the given date already exists
-        for record in self.records:
-            if not isinstance(record.date_time, DateTime):
-                raise ValueError(
-                    f"Record date '{record.date_time}' is not a datetime, but a `{type(record.date_time).__name__}`."
-                )
-            if compare_datetimes(record.date_time, date).equal:
-                # Update the DataRecord with all new values
-                for key, value in values.items():
-                    setattr(record, key, value)
-                break
-        else:
+        record = self.db_get_record(db_target)
+        if record is None:
             # Create a new record and append to the list
-            record = self.record_class()(date_time=date, **values)
-            self.records.append(record)
-            # Sort the list by datetime after adding/updating
-            self.sort_by_datetime()
-
-    def to_datetimeindex(self) -> pd.DatetimeIndex:
-        """Generate a Pandas DatetimeIndex from the date_time fields of all records in the sequence.
-
-        Returns:
-            pd.DatetimeIndex: An index of datetime values corresponding to each record's date_time attribute.
-
-        Raises:
-            ValueError: If any record does not have a valid date_time attribute.
-        """
-        date_times = [record.date_time for record in self.records if record.date_time is not None]
-
-        if not date_times:
-            raise ValueError("No valid date_time values found in the records.")
-
-        return pd.DatetimeIndex(date_times)
+            new_record = self.record_class()(date_time=date, **values)
+            self.db_insert_record(new_record)
+        else:
+            # Update the DataRecord with all new values
+            for key, value in values.items():
+                setattr(record, key, value)
+            self.db_mark_dirty_record(record)
 
     def key_to_dict(
         self,
@@ -824,36 +820,45 @@ class DataSequence(DataBase, MutableSequence):
             KeyError: If the specified key is not found in any of the DataRecords.
         """
         self._validate_key(key)
+
         # Ensure datetime objects are normalized
-        start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
-        end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
+        start_timestamp = (
+            DatabaseTimestamp.from_datetime(start_datetime) if start_datetime else None
+        )
+        end_timestamp = DatabaseTimestamp.from_datetime(end_datetime) if end_datetime else None
 
         # Create a dictionary to hold date_time and corresponding values
         if dropna is None:
             dropna = True
         filtered_data = {}
-        for record in self.records:
+        for record in self.db_iterate_records(start_timestamp, end_timestamp):
             if (
                 record.date_time is None
                 or (dropna and getattr(record, key, None) is None)
                 or (dropna and getattr(record, key, None) == float("nan"))
             ):
                 continue
-            if (
-                start_datetime is None or compare_datetimes(record.date_time, start_datetime).ge
-            ) and (end_datetime is None or compare_datetimes(record.date_time, end_datetime).lt):
+            record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
+            if (start_timestamp is None or record_date_time_timestamp >= start_timestamp) and (
+                end_timestamp is None or record_date_time_timestamp < end_timestamp
+            ):
                 filtered_data[to_datetime(record.date_time, as_string=True)] = getattr(
                     record, key, None
                 )
 
         return filtered_data
 
-    def key_to_value(self, key: str, target_datetime: DateTime) -> Optional[float]:
+    def key_to_value(
+        self, key: str, target_datetime: DateTime, time_window: Optional[Duration] = None
+    ) -> Optional[float]:
         """Returns the value corresponding to the specified key that is nearest to the given datetime.
 
         Args:
             key (str): The key of the attribute in DataRecord to extract.
-            target_datetime (datetime): The datetime to search nearest to.
+            target_datetime (datetime): The datetime to search for.
+            time_window: Optional total width of the symmetric search window centered on
+                ``target_datetime``. If provided and no exact match exists, the nearest
+                record within this window is returned.
 
         Returns:
             Optional[float]: The value nearest to the given datetime, or None if no valid records are found.
@@ -863,22 +868,12 @@ class DataSequence(DataBase, MutableSequence):
         """
         self._validate_key(key)
 
-        # Filter out records with None or NaN values for the key
-        valid_records = [
-            record
-            for record in self.records
-            if record.date_time is not None
-            and getattr(record, key, None) not in (None, float("nan"))
-        ]
+        # Ensure datetime objects are normalized
+        db_target = DatabaseTimestamp.from_datetime(to_datetime(target_datetime))
 
-        if not valid_records:
-            return None
+        record = self.db_get_record(db_target, time_window=time_window)
 
-        # Find the record with datetime nearest to target_datetime
-        target = to_datetime(target_datetime)
-        nearest_record = min(valid_records, key=lambda r: abs(r.date_time - target))
-
-        return getattr(nearest_record, key, None)
+        return getattr(record, key, None)
 
     def key_to_lists(
         self,
@@ -886,7 +881,7 @@ class DataSequence(DataBase, MutableSequence):
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
         dropna: Optional[bool] = None,
-    ) -> Tuple[List[DateTime], List[Optional[float]]]:
+    ) -> Tuple[list[DateTime], list[Optional[float]]]:
         """Extracts two lists from data records within an optional date range.
 
         The lists are:
@@ -906,35 +901,41 @@ class DataSequence(DataBase, MutableSequence):
             KeyError: If the specified key is not found in any of the DataRecords.
         """
         self._validate_key(key)
+
         # Ensure datetime objects are normalized
-        start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
-        end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
+        start_timestamp = (
+            DatabaseTimestamp.from_datetime(start_datetime) if start_datetime else None
+        )
+        end_timestamp = DatabaseTimestamp.from_datetime(end_datetime) if end_datetime else None
 
         # Create two lists to hold date_time and corresponding values
         if dropna is None:
             dropna = True
         filtered_records = []
-        for record in self.records:
+        for record in self.db_iterate_records(start_timestamp, end_timestamp):
             if (
                 record.date_time is None
                 or (dropna and getattr(record, key, None) is None)
                 or (dropna and getattr(record, key, None) == float("nan"))
             ):
                 continue
-            if (
-                start_datetime is None or compare_datetimes(record.date_time, start_datetime).ge
-            ) and (end_datetime is None or compare_datetimes(record.date_time, end_datetime).lt):
+            record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
+            if (start_timestamp is None or record_date_time_timestamp >= start_timestamp) and (
+                end_timestamp is None or record_date_time_timestamp < end_timestamp
+            ):
                 filtered_records.append(record)
         dates = [record.date_time for record in filtered_records]
         values = [getattr(record, key, None) for record in filtered_records]
 
         return dates, values
 
-    def key_from_lists(self, key: str, dates: List[DateTime], values: List[float]) -> None:
+    def key_from_lists(self, key: str, dates: list[DateTime], values: list[float]) -> None:
         """Update the DataSequence from lists of datetime and value elements.
 
         The dates list should represent the date_time of each DataRecord, and the values list
         should represent the corresponding data values for the specified key.
+
+        The list must be ordered starting with the oldest date.
 
         Args:
             key (str): The field name in the DataRecord that corresponds to the values in the Series.
@@ -945,17 +946,17 @@ class DataSequence(DataBase, MutableSequence):
 
         for i, date_time in enumerate(dates):
             # Ensure datetime objects are normalized
-            date_time = to_datetime(date_time, to_maxtime=False) if date_time else None
+            db_target = DatabaseTimestamp.from_datetime(date_time)
             # Check if there's an existing record for this date_time
-            existing_record = next((r for r in self.records if r.date_time == date_time), None)
-            if existing_record:
-                # Update existing record's specified key
-                setattr(existing_record, key, values[i])
-            else:
+            avail_record = self.db_get_record(db_target)
+            if avail_record is None:
                 # Create a new DataRecord if none exists
                 new_record = self.record_class()(date_time=date_time, **{key: values[i]})
-                self.records.append(new_record)
-        self.sort_by_datetime()
+                self.db_insert_record(new_record)
+            else:
+                # Update existing record's specified key
+                setattr(avail_record, key, values[i])
+                self.db_mark_dirty_record(avail_record)
 
     def key_to_series(
         self,
@@ -999,17 +1000,17 @@ class DataSequence(DataBase, MutableSequence):
 
         for date_time, value in series.items():
             # Ensure datetime objects are normalized
-            date_time = to_datetime(date_time, to_maxtime=False) if date_time else None
+            db_target = DatabaseTimestamp.from_datetime(to_datetime(date_time))
             # Check if there's an existing record for this date_time
-            existing_record = next((r for r in self.records if r.date_time == date_time), None)
-            if existing_record:
-                # Update existing record's specified key
-                setattr(existing_record, key, value)
-            else:
+            avail_record = self.db_get_record(db_target)
+            if avail_record is None:
                 # Create a new DataRecord if none exists
                 new_record = self.record_class()(date_time=date_time, **{key: value})
-                self.records.append(new_record)
-        self.sort_by_datetime()
+                self.db_insert_record(new_record)
+            else:
+                # Update existing record's specified key
+                setattr(avail_record, key, value)
+                self.db_mark_dirty_record(avail_record)
 
     def key_to_array(
         self,
@@ -1019,6 +1020,8 @@ class DataSequence(DataBase, MutableSequence):
         interval: Optional[Duration] = None,
         fill_method: Optional[str] = None,
         dropna: Optional[bool] = True,
+        boundary: Literal["strict", "context"] = "context",
+        align_to_interval: bool = False,
     ) -> NDArray[Shape["*"], Any]:
         """Extract an array indexed by fixed time intervals from data records within an optional date range.
 
@@ -1029,11 +1032,31 @@ class DataSequence(DataBase, MutableSequence):
             interval (duration, optional): The fixed time interval. Defaults to 1 hour.
             fill_method (str): Method to handle missing values during resampling.
                 - 'linear': Linearly interpolate missing values (for numeric data only).
+                - 'time': Interpolate missing values (for numeric data only).
                 - 'ffill': Forward fill missing values.
                 - 'bfill': Backward fill missing values.
                 - 'none': Defaults to 'linear' for numeric values, otherwise 'ffill'.
             dropna: (bool, optional): Whether to drop NAN/ None values before processing.
                 Defaults to True.
+            boundary (Literal["strict", "context"]):
+                "strict"  → only values inside [start, end)
+                "context" → include one value before and after for proper resampling
+            align_to_interval (bool): When True, snap the resample origin to the nearest
+                UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+                that bucket timestamps always fall on wall-clock-round times regardless of
+                when ``start_datetime`` falls:
+
+                - 15-minute interval → buckets on :00, :15, :30, :45
+                - 1-hour interval    → buckets on the hour
+
+                When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+                no start is given), preserving the existing behaviour where buckets are
+                aligned to the query window rather than the clock.
+
+                Set to True when storing compacted records back to the database so that the
+                resulting timestamps are predictable and human-readable.  Leave False for
+                forecast or reporting queries where alignment to the exact query window is
+                more important than clock-round boundaries.
 
         Returns:
             np.ndarray: A NumPy Array of the values at the chosen frequency extracted from the
@@ -1045,8 +1068,11 @@ class DataSequence(DataBase, MutableSequence):
         self._validate_key(key)
 
         # Validate fill method
-        if fill_method not in ("ffill", "bfill", "linear", "none", None):
+        if fill_method not in ("ffill", "bfill", "linear", "time", "none", None):
             raise ValueError(f"Unsupported fill method: {fill_method}")
+
+        if boundary not in ("strict", "context"):
+            raise ValueError(f"Unsupported boundary mode: {boundary}")
 
         # Ensure datetime objects are normalized
         start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
@@ -1058,80 +1084,131 @@ class DataSequence(DataBase, MutableSequence):
         else:
             resample_freq = to_duration(interval, as_string="pandas")
 
+        # Extend window for context resampling
+        query_start = start_datetime
+        query_end = end_datetime
+
+        if boundary == "context":
+            # include one timestamp before and after for proper resampling
+            if query_start is not None:
+                # We have a start datetime - look for previous entry
+                start_timestamp = DatabaseTimestamp.from_datetime(query_start)
+                query_start_timestamp = self.db_previous_timestamp(start_timestamp)
+                if query_start_timestamp:
+                    query_start = DatabaseTimestamp.to_datetime(query_start_timestamp)
+            if end_datetime is not None:
+                # We have a end datetime - look for next entry
+                end_timestamp = DatabaseTimestamp.from_datetime(query_end)
+                query_end_timestamp = self.db_next_timestamp(end_timestamp)
+                if query_end_timestamp is None:
+                    # Ensure at least end_datetime is included (excluded by definition)
+                    query_end = end_datetime.add(seconds=1)
+                else:
+                    query_end = DatabaseTimestamp.to_datetime(query_end_timestamp).add(seconds=1)
+
         # Load raw lists (already sorted & filtered)
-        dates, values = self.key_to_lists(key=key, dropna=dropna)
+        dates, values = self.key_to_lists(
+            key=key, start_datetime=query_start, end_datetime=query_end, dropna=dropna
+        )
         values_len = len(values)
 
         # Bring lists into shape
         if values_len < 1:
             # No values, assume at least one value set to None
-            if start_datetime is not None:
-                dates.append(start_datetime - interval)
+            if query_start is not None:
+                dates.append(query_start - interval)
             else:
                 dates.append(to_datetime(to_maxtime=False))
             values.append(None)
 
-        if start_datetime is not None:
+        if query_start is not None:
             start_index = 0
             while start_index < values_len:
-                if compare_datetimes(dates[start_index], start_datetime).ge:
+                if compare_datetimes(dates[start_index], query_start).ge:
                     break
                 start_index += 1
             if start_index == 0:
                 # No value before start
                 # Add dummy value
-                dates.insert(0, start_datetime - interval)
+                dates.insert(0, query_start - interval)
                 values.insert(0, values[0])
             elif start_index > 1:
-                # Truncate all values before latest value before start_datetime
+                # Truncate all values before latest value before query_start
                 dates = dates[start_index - 1 :]
                 values = values[start_index - 1 :]
-            # We have a start_datetime, align to start datetime
-            resample_origin = start_datetime
+
+            # Determine resample origin
+            if align_to_interval:
+                # Snap to nearest UTC epoch-aligned floor of the interval so that bucket
+                # timestamps land on wall-clock-round boundaries (:00, :15, :30, :45 etc.)
+                # regardless of sub-second jitter in query_start.
+                interval_sec = int(interval.total_seconds())
+                if interval_sec > 0:
+                    start_epoch = int(query_start.timestamp())
+                    floored_epoch = (start_epoch // interval_sec) * interval_sec
+                    resample_origin: Union[str, pd.Timestamp] = pd.Timestamp(
+                        floored_epoch, unit="s", tz="UTC"
+                    )
+                else:
+                    resample_origin = query_start
+            else:
+                # Original behaviour: align to the query window start.
+                resample_origin = query_start
         else:
-            # We do not have a start_datetime, align resample buckets to midnight of first day
+            # We do not have a query_start, align resample buckets to midnight of first day
             resample_origin = "start_day"
 
-        if end_datetime is not None:
-            if compare_datetimes(dates[-1], end_datetime).lt:
-                # Add dummy value at end_datetime
-                dates.append(end_datetime)
+        if query_end is not None:
+            if compare_datetimes(dates[-1], query_end).lt:
+                # Add dummy value at query_end
+                dates.append(query_end)
                 values.append(values[-1])
 
         # Construct series
-        series = pd.Series(values, index=pd.DatetimeIndex(dates), name=key)
+        index = pd.to_datetime(dates, utc=True)
+        series = pd.Series(values, index=index, name=key)
         if series.index.inferred_type != "datetime64":
             raise TypeError(
                 f"Expected DatetimeIndex, but got {type(series.index)} "
                 f"infered to {series.index.inferred_type}: {series}"
             )
 
+        # Check for numeric values
+        numeric = pd.to_numeric(series.dropna(), errors="coerce")
+        is_numeric = numeric.notna().all()
+
         # Determine default fill method depending on dtype
         if fill_method is None:
-            if pd.api.types.is_numeric_dtype(series):
-                fill_method = "linear"
+            if is_numeric:
+                fill_method = "time"
             else:
                 fill_method = "ffill"
 
         # Perform the resampling
-        if pd.api.types.is_numeric_dtype(series):
-            # numeric → use mean
-            resampled = series.resample(interval, origin=resample_origin).mean()
-        else:
-            # non-numeric → fallback (first, last, mode, or ffill)
-            resampled = series.resample(interval, origin=resample_origin).first()
+        if is_numeric:
+            # Step 1: aggregate — collapses sub-interval data (e.g. 4x 15min → 1h mean).
+            # Produces NaN for buckets where no data existed at all.
+            resampled = pd.to_numeric(
+                series.resample(resample_freq, origin=resample_origin).mean(),
+                errors="coerce",  # ← ensures float64, not object dtype
+            )
 
-        # Handle missing values after resampling
-        if fill_method == "linear" and pd.api.types.is_numeric_dtype(series):
-            resampled = resampled.interpolate("linear")
-        elif fill_method == "ffill":
-            resampled = resampled.ffill()
-        elif fill_method == "bfill":
-            resampled = resampled.bfill()
-        elif fill_method == "none":
-            pass
+            # Step 2: fill gaps — interpolates or fills the NaN buckets from step 1.
+            if fill_method in ("linear", "time"):
+                # Both are equivalent post-resample (equally-spaced index),
+                # but 'time' is kept as the label for clarity.
+                resampled = resampled.interpolate("time")
+            elif fill_method == "ffill":
+                resampled = resampled.ffill()
+            elif fill_method == "bfill":
+                resampled = resampled.bfill()
+            # fill_method == "none": leave NaNs in place
         else:
-            raise ValueError(f"Unsupported fill method: {fill_method}")
+            resampled = series.resample(resample_freq, origin=resample_origin).first()
+            if fill_method == "ffill":
+                resampled = resampled.ffill()
+            elif fill_method == "bfill":
+                resampled = resampled.bfill()
 
         logger.debug(
             "Resampled for '{}' with length {}: {}...{}",
@@ -1182,11 +1259,19 @@ class DataSequence(DataBase, MutableSequence):
         if not self.records:
             return pd.DataFrame()  # Return empty DataFrame if no records exist
 
-        # Use filter_by_datetime to get filtered records
-        filtered_records = self.filter_by_datetime(start_datetime, end_datetime)
+        # Ensure datetime objects are normalized
+        start_timestamp = (
+            DatabaseTimestamp.from_datetime(start_datetime) if start_datetime else None
+        )
+        end_timestamp = DatabaseTimestamp.from_datetime(end_datetime) if end_datetime else None
 
         # Convert filtered records to a dictionary list
-        data = [record.model_dump() for record in filtered_records]
+        data = [
+            record.model_dump()
+            for record in self.db_iterate_records(
+                start_timestamp=start_timestamp, end_timestamp=end_timestamp
+            )
+        ]
 
         # Convert to DataFrame
         df = pd.DataFrame(data)
@@ -1201,74 +1286,30 @@ class DataSequence(DataBase, MutableSequence):
         df.index = pd.DatetimeIndex(df["date_time"])
         return df
 
-    def sort_by_datetime(self, reverse: bool = False) -> None:
-        """Sort the DataRecords in the sequence by their date_time attribute.
-
-        This method modifies the existing list of records in place, arranging them in order
-        based on the date_time attribute of each DataRecord.
-
-        Args:
-            reverse (bool, optional): If True, sorts in descending order.
-                                      If False (default), sorts in ascending order.
-
-        Raises:
-            TypeError: If any record's date_time attribute is None or not comparable.
-        """
-        try:
-            # Use a default value (-inf or +inf) for None to make all records comparable
-            self.records.sort(
-                key=lambda record: record.date_time or pendulum.datetime(1, 1, 1, 0, 0, 0),
-                reverse=reverse,
-            )
-        except TypeError as e:
-            # Provide a more informative error message
-            none_records = [i for i, record in enumerate(self.records) if record.date_time is None]
-            if none_records:
-                raise TypeError(
-                    f"Cannot sort: {len(none_records)} record(s) have None date_time "
-                    f"at indices {none_records}"
-                ) from e
-            raise
-
     def delete_by_datetime(
-        self, start_datetime: Optional[DateTime] = None, end_datetime: Optional[DateTime] = None
-    ) -> None:
-        """Delete DataRecords from the sequence within a specified datetime range.
+        self,
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+    ) -> int:
+        """Delete records in the given datetime range.
 
-        Removes records with `date_time` attributes that fall between `start_datetime` (inclusive)
-        and `end_datetime` (exclusive). If only `start_datetime` is provided, records from that date
-        onward will be removed. If only `end_datetime` is provided, records up to that date will be
-        removed. If none is given, no record will be deleted.
+        Deletes records from memory and, if database storage is enabled, from the database.
+        Returns the maximum of in-memory and database deletions.
 
         Args:
-            start_datetime (datetime, optional): The start date to begin deleting records (inclusive).
-            end_datetime (datetime, optional): The end date to stop deleting records (exclusive).
+            start_datetime: Start datetime (inclusive)
+            end_datetime: End datetime (exclusive)
 
-        Raises:
-            ValueError: If both `start_datetime` and `end_datetime` are None.
+        Returns:
+            Number of records deleted (max of memory and database deletions)
         """
         # Ensure datetime objects are normalized
-        start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
-        end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
+        start_timestamp = (
+            DatabaseTimestamp.from_datetime(start_datetime) if start_datetime else None
+        )
+        end_timestamp = DatabaseTimestamp.from_datetime(end_datetime) if end_datetime else None
 
-        # Retain records that are outside the specified range
-        retained_records = []
-        for record in self.records:
-            if record.date_time is None:
-                continue
-            if (
-                (
-                    start_datetime is not None
-                    and compare_datetimes(record.date_time, start_datetime).lt
-                )
-                or (
-                    end_datetime is not None
-                    and compare_datetimes(record.date_time, end_datetime).ge
-                )
-                or (start_datetime is None and end_datetime is None)
-            ):
-                retained_records.append(record)
-        self.records = retained_records
+        return self.db_delete_records(start_timestamp=start_timestamp, end_timestamp=end_timestamp)
 
     def key_delete_by_datetime(
         self,
@@ -1294,39 +1335,49 @@ class DataSequence(DataBase, MutableSequence):
             KeyError: If `key` is not a valid attribute of the records.
         """
         self._validate_key_writable(key)
+
         # Ensure datetime objects are normalized
-        start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
-        end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
+        start_timestamp = (
+            DatabaseTimestamp.from_datetime(start_datetime) if start_datetime else None
+        )
+        end_timestamp = DatabaseTimestamp.from_datetime(end_datetime) if end_datetime else None
 
-        for record in self.records:
-            if (
-                start_datetime is None or compare_datetimes(record.date_time, start_datetime).ge
-            ) and (end_datetime is None or compare_datetimes(record.date_time, end_datetime).lt):
-                del record[key]
+        for record in self.db_iterate_records(start_timestamp, end_timestamp):
+            del record[key]
+            self.db_mark_dirty_record(record)
 
-    def filter_by_datetime(
-        self, start_datetime: Optional[DateTime] = None, end_datetime: Optional[DateTime] = None
-    ) -> "DataSequence":
-        """Returns a new DataSequence object containing only records within the specified datetime range.
-
-        Args:
-            start_datetime (Optional[datetime]): The start of the datetime range (inclusive). If None, no lower limit.
-            end_datetime (Optional[datetime]): The end of the datetime range (exclusive). If None, no upper limit.
+    def save(self) -> bool:
+        """Save data records to persistent storage.
 
         Returns:
-            DataSequence: A new DataSequence object with filtered records.
+            True in case the data records were saved, False otherwise.
         """
-        # Ensure datetime objects are normalized
-        start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
-        end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
+        if not self.db_enabled:
+            return False
 
-        filtered_records = [
-            record
-            for record in self.records
-            if (start_datetime is None or compare_datetimes(record.date_time, start_datetime).ge)
-            and (end_datetime is None or compare_datetimes(record.date_time, end_datetime).lt)
-        ]
-        return self.__class__(records=filtered_records)
+        saved = self.db_save_records()
+        return saved > 0
+
+    def load(self) -> bool:
+        """Load data records from from persistent storage.
+
+        Returns:
+            True in case the data records were loaded, False otherwise.
+        """
+        if not self.db_enabled:
+            return False
+
+        loaded = self.db_load_records()
+        return loaded > 0
+
+    # ----------------------- DataSequence Database Protocol ---------------------
+
+    # Required interface propagated to derived class.
+    # - db_keep_duration
+    # - db_namespace
+
+
+# ==================== DataProvider ====================
 
 
 class DataProvider(SingletonMixin, DataSequence):
@@ -1374,6 +1425,10 @@ class DataProvider(SingletonMixin, DataSequence):
             return
         super().__init__(*args, **kwargs)
 
+    def db_namespace(self) -> str:
+        """Namespace of database."""
+        return self.provider_id()
+
     def update_data(
         self,
         force_enable: Optional[bool] = False,
@@ -1392,11 +1447,11 @@ class DataProvider(SingletonMixin, DataSequence):
         # Call the custom update logic
         self._update_data(force_update=force_update)
 
-        # Assure records are sorted.
-        self.sort_by_datetime()
+
+# ==================== DataImportMixin ====================
 
 
-class DataImportMixin:
+class DataImportMixin(StartMixin):
     """Mixin class for import of generic data.
 
     This class is designed to handle generic data provided in the form of a key-value dictionary.
@@ -1417,89 +1472,7 @@ class DataImportMixin:
     # Attributes required but defined elsehere.
     # - start_datetime
     # - record_keys_writable
-    # - update_valu
-
-    def import_datetimes(
-        self, start_datetime: DateTime, value_count: int, interval: Optional[Duration] = None
-    ) -> List[Tuple[DateTime, int]]:
-        """Generates a list of tuples containing timestamps and their corresponding value indices.
-
-        The function accounts for daylight saving time (DST) transitions:
-        - During a spring forward transition (e.g., DST begins), skipped hours are omitted.
-        - During a fall back transition (e.g., DST ends), repeated hours are included,
-        but they share the same value index.
-
-        Args:
-            start_datetime (DateTime): Start datetime of values
-            value_count (int): The number of timestamps to generate.
-            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
-
-        Returns:
-            List[Tuple[DateTime, int]]:
-                A list of tuples, where each tuple contains:
-                - A `DateTime` object representing an hourly step from `start_datetime`.
-                - An integer value index corresponding to the logical hour.
-
-        Behavior:
-            - Skips invalid timestamps during DST spring forward transitions.
-            - Includes both instances of repeated timestamps during DST fall back transitions.
-            - Ensures the list contains exactly 'value_count' entries.
-
-        Example:
-            .. code-block:: python
-
-                start_datetime = pendulum.datetime(2024, 11, 3, 0, 0, tz="America/New_York")
-                import_datetimes(start_datetime, 5)
-
-                [(DateTime(2024, 11, 3, 0, 0, tzinfo=Timezone('America/New_York')), 0),
-                (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),
-                (DateTime(2024, 11, 3, 1, 0, tzinfo=Timezone('America/New_York')), 1),  # Repeated hour
-                (DateTime(2024, 11, 3, 2, 0, tzinfo=Timezone('America/New_York')), 2),
-                (DateTime(2024, 11, 3, 3, 0, tzinfo=Timezone('America/New_York')), 3)]
-
-        """
-        timestamps_with_indices: List[Tuple[DateTime, int]] = []
-
-        if interval is None:
-            interval = to_duration("1 hour")
-        interval_steps_per_hour = int(3600 / interval.total_seconds())
-        if interval.total_seconds() * interval_steps_per_hour != 3600:
-            error_msg = f"Interval {interval} does not fit into hour."
-            logger.error(error_msg)
-            raise NotImplementedError(error_msg)
-
-        value_datetime = start_datetime
-        value_index = 0
-
-        while value_index < value_count:
-            i = len(timestamps_with_indices)
-            logger.debug(f"{i}: Insert at {value_datetime} with index {value_index}")
-            timestamps_with_indices.append((value_datetime, value_index))
-
-            next_time = value_datetime.add(seconds=interval.total_seconds())
-
-            # Check if there is a DST transition
-            if next_time.dst() != value_datetime.dst():
-                if next_time.hour == value_datetime.hour:
-                    # We jump back by 1 hour
-                    # Repeat the value(s) (reuse value index)
-                    for i in range(interval_steps_per_hour):
-                        logger.debug(f"{i + 1}: Repeat at {next_time} with index {value_index}")
-                        timestamps_with_indices.append((next_time, value_index))
-                        next_time = next_time.add(seconds=interval.total_seconds())
-                else:
-                    # We jump forward by 1 hour
-                    # Drop the value(s)
-                    logger.debug(
-                        f"{i + 1}: Skip {interval_steps_per_hour} at {next_time} with index {value_index}"
-                    )
-                    value_index += interval_steps_per_hour
-
-            # Increment value index and value_datetime for new interval
-            value_index += 1
-            value_datetime = next_time
-
-        return timestamps_with_indices
+    # - update_value
 
     def import_from_dict(
         self,
@@ -1533,13 +1506,21 @@ class DataImportMixin:
                 raise ValueError(f"Invalid start_datetime in import data: {e}")
 
         if start_datetime is None:
-            start_datetime = self.ems_start_datetime  # type: ignore
+            start_datetime = self.ems_start_datetime
 
         if "interval" in import_data:
             try:
                 interval = to_duration(import_data["interval"])
             except (ValueError, TypeError) as e:
                 raise ValueError(f"Invalid interval in import data: {e}")
+
+        if interval is None:
+            interval = to_duration("1 hour")
+        interval_steps_per_hour = int(3600 / interval.total_seconds())
+        if interval.total_seconds() * interval_steps_per_hour != 3600:
+            error_msg = f"Interval {interval} does not fit into hour."
+            logger.error(error_msg)
+            raise NotImplementedError(error_msg)
 
         # Filter keys based on key_prefix and record_keys_writable
         valid_keys = [
@@ -1567,20 +1548,20 @@ class DataImportMixin:
                 f"{dict(zip(valid_keys, value_lengths))}"
             )
 
-        # Generate datetime mapping once for the common length
         values_count = value_lengths[0]
-        value_datetime_mapping = self.import_datetimes(
-            start_datetime, values_count, interval=interval
-        )
 
         # Process each valid key
+        start_timestamp = DatabaseTimestamp.from_datetime(start_datetime)
         for key in valid_keys:
             try:
-                value_list = import_data[key]
+                values = import_data[key]
 
                 # Update values, skipping any None/NaN
-                for value_datetime, value_index in value_datetime_mapping:
-                    value = value_list[value_index]
+                for value_index, value_db_datetime in enumerate(
+                    self.db_generate_timestamps(start_timestamp, values_count, interval)  # type: ignore[attr-defined]
+                ):
+                    value = values[value_index]
+                    value_datetime = DatabaseTimestamp.to_datetime(value_db_datetime)
                     if value is not None and not pd.isna(value):
                         self.update_value(value_datetime, key, value)  # type: ignore
 
@@ -1624,7 +1605,7 @@ class DataImportMixin:
                 raise ValueError(f"Invalid datetime index in DataFrame: {e}")
         else:
             if start_datetime is None:
-                start_datetime = self.ems_start_datetime  # type: ignore
+                start_datetime = self.ems_start_datetime
             has_datetime_index = False
 
         # Filter columns based on key_prefix and record_keys_writable
@@ -1642,8 +1623,10 @@ class DataImportMixin:
 
         # Generate value_datetime_mapping once if not using datetime index
         if not has_datetime_index:
-            value_datetime_mapping = self.import_datetimes(
-                start_datetime, values_count, interval=interval
+            # Create values datetime list
+            start_timestamp = DatabaseTimestamp.from_datetime(start_datetime)
+            value_db_datetimes = list(
+                self.db_generate_timestamps(start_timestamp, values_count, interval)  # type: ignore[attr-defined]
             )
 
         # Process each valid column
@@ -1657,9 +1640,12 @@ class DataImportMixin:
                         if value is not None and not pd.isna(value):
                             self.update_value(dt, column, value)  # type: ignore
                 else:
-                    # Use the pre-generated datetime mapping
-                    for value_datetime, value_index in value_datetime_mapping:
+                    # Use the pre-generated datetime index
+                    for value_index in range(values_count):
                         value = values[value_index]
+                        value_datetime = DatabaseTimestamp.to_datetime(
+                            value_db_datetimes[value_index]
+                        )
                         if value is not None and not pd.isna(value):
                             self.update_value(value_datetime, column, value)  # type: ignore
 
@@ -1802,6 +1788,9 @@ class DataImportMixin:
         )
 
 
+# ==================== DataImportProvider ====================
+
+
 class DataImportProvider(DataImportMixin, DataProvider):
     """Abstract base class for data providers that import generic data.
 
@@ -1817,7 +1806,10 @@ class DataImportProvider(DataImportMixin, DataProvider):
     pass
 
 
-class DataContainer(SingletonMixin, DataBase, MutableMapping):
+# ==================== DataContainer ====================
+
+
+class DataContainer(SingletonMixin, DataABC, MutableMapping):
     """A container for managing multiple DataProvider instances.
 
     This class enables access to data from multiple data providers, supporting retrieval and
@@ -1830,12 +1822,12 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
     """
 
     # To be overloaded by derived classes.
-    providers: List[DataProvider] = Field(
+    providers: list[DataProvider] = Field(
         default_factory=list, json_schema_extra={"description": "List of data providers"}
     )
 
     @field_validator("providers", mode="after")
-    def check_providers(cls, value: List[DataProvider]) -> List[DataProvider]:
+    def check_providers(cls, value: list[DataProvider]) -> list[DataProvider]:
         # Check each item in the list
         for item in value:
             if not isinstance(item, DataProvider):
@@ -1845,7 +1837,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
         return value
 
     @property
-    def enabled_providers(self) -> List[Any]:
+    def enabled_providers(self) -> list[Any]:
         """List of providers that are currently enabled."""
         enab = []
         for provider in self.providers:
@@ -1971,6 +1963,9 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
         """
         return f"{self.__class__.__name__}({self.providers})"
 
+    def keys(self) -> KeysView[str]:
+        return dict.fromkeys(self.record_keys).keys()
+
     def update_data(
         self,
         force_enable: Optional[bool] = False,
@@ -2039,6 +2034,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
         end_datetime: Optional[DateTime] = None,
         interval: Optional[Duration] = None,
         fill_method: Optional[str] = None,
+        boundary: Optional[str] = "context",
     ) -> NDArray[Shape["*"], Any]:
         """Retrieve an array indexed by fixed time intervals for a specified key from the data in each DataProvider.
 
@@ -2073,6 +2069,7 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
                     end_datetime=end_datetime,
                     interval=interval,
                     fill_method=fill_method,
+                    boundary=boundary,
                 )
                 break
             except KeyError:
@@ -2197,3 +2194,61 @@ class DataContainer(SingletonMixin, DataBase, MutableMapping):
             logger.error(error_msg)
             raise ValueError(error_msg)
         return providers[provider_id]
+
+    # ----------------------- DataContainer Database Protocol ---------------------
+
+    def save(self) -> None:
+        """Save data records to persistent storage."""
+        for provider in self.providers:
+            try:
+                provider.save()
+            except Exception as ex:
+                error = f"Provider {provider.provider_id()} fails on save: {ex}"
+                logger.error(error)
+                raise RuntimeError(error)
+
+    def load(self) -> None:
+        """Load data records from from persistent storage."""
+        for provider in self.providers:
+            try:
+                provider.load()
+            except Exception as ex:
+                error = f"Provider {provider.provider_id()} fails on load: {ex}"
+                logger.error(error)
+                raise RuntimeError(error)
+
+    def db_vacuum(self) -> None:
+        """Remove old records of all providers from database to free space."""
+        for provider in self.providers:
+            try:
+                provider.db_vacuum()
+            except Exception as ex:
+                error = f"Provider {provider.provider_id()} fails on db vacuum: {ex}"
+                logger.error(error)
+                raise RuntimeError(error)
+
+    def db_compact(self) -> None:
+        """Apply tiered compaction to all providers to reduce storage while retaining coverage."""
+        for provider in self.providers:
+            try:
+                provider.db_compact()
+            except Exception as ex:
+                error = f"Provider {provider.provider_id()} fails on db_compact: {ex}"
+                logger.error(error)
+                raise RuntimeError(error)
+
+    def db_get_stats(self) -> dict:
+        """Get comprehensive statistics about database storage for all providers.
+
+        Returns:
+            Dictionary with statistics
+        """
+        db_stats = {}
+        for provider in self.providers:
+            try:
+                db_stats[provider.db_namespace()] = provider.db_get_stats()
+            except Exception as ex:
+                error = f"Provider {provider.provider_id()} fails on db vacuum: {ex}"
+                logger.error(error)
+                raise RuntimeError(error)
+        return db_stats

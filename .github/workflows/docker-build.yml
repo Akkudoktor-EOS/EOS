@@ -60,6 +60,9 @@ jobs:
           - linux/arm64
         exclude: ${{ fromJSON(needs.platform-excludes.outputs.excludes) }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Prepare
         run: |
           platform=${{ matrix.platform }}
@@ -114,6 +117,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
+          context: .
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}

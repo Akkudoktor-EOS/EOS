@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.2.0.dev84352035`
+**Version**: `v0.2.0.dev58204789`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -328,6 +328,56 @@ Save the current cache management data.
 
 Returns:
     data (dict): The management data that was saved.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## GET /v1/admin/database/stats
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_admin_database_stats_get_v1_admin_database_stats_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_admin_database_stats_get_v1_admin_database_stats_get)
+<!-- pyml enable line-length -->
+
+Fastapi Admin Database Stats Get
+
+<!-- pyml disable line-length -->
+```python
+"""
+Get statistics from database.
+
+Returns:
+    data (dict): The database statistics
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## POST /v1/admin/database/vacuum
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_admin_database_vacuum_post_v1_admin_database_vacuum_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_admin_database_vacuum_post_v1_admin_database_vacuum_post)
+<!-- pyml enable line-length -->
+
+Fastapi Admin Database Vacuum Post
+
+<!-- pyml disable line-length -->
+```python
+"""
+Remove old records from database.
+
+Returns:
+    data (dict): The database stats after removal of old records.
 """
 ```
 <!-- pyml enable line-length -->

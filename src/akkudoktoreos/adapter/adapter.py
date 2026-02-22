@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Union
+from typing import Optional, Union
 
 from pydantic import Field, computed_field, field_validator
 
@@ -9,9 +9,6 @@ from akkudoktoreos.adapter.homeassistant import (
 )
 from akkudoktoreos.adapter.nodered import NodeREDAdapter, NodeREDAdapterCommonSettings
 from akkudoktoreos.config.configabc import SettingsBaseModel
-
-if TYPE_CHECKING:
-    adapter_providers: list[str]
 
 
 class AdapterCommonSettings(SettingsBaseModel):
@@ -38,8 +35,9 @@ class AdapterCommonSettings(SettingsBaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def providers(self) -> list[str]:
-        """Available electricity price provider ids."""
-        return adapter_providers
+        """Available adapter provider ids."""
+        adapter_provider_ids = [provider.provider_id() for provider in adapter_providers()]
+        return adapter_provider_ids
 
     # Validators
     @field_validator("provider", mode="after")
@@ -47,29 +45,13 @@ class AdapterCommonSettings(SettingsBaseModel):
     def validate_provider(cls, value: Optional[list[str]]) -> Optional[list[str]]:
         if value is None:
             return value
+        adapter_provider_ids = [provider.provider_id() for provider in adapter_providers()]
         for provider_id in value:
-            if provider_id not in adapter_providers:
+            if provider_id not in adapter_provider_ids:
                 raise ValueError(
-                    f"Provider '{value}' is not a valid adapter provider: {adapter_providers}."
+                    f"Provider '{value}' is not a valid adapter provider: {adapter_provider_ids}."
                 )
         return value
-
-
-class Adapter(AdapterContainer):
-    """Adapter container to manage multiple adapter providers.
-
-    Attributes:
-        providers (List[Union[PVForecastAkkudoktor, WeatherBrightSky, WeatherClearOutside]]):
-            List of forecast provider instances, in the order they should be updated.
-            Providers may depend on updates from others.
-    """
-
-    providers: list[
-        Union[
-            HomeAssistantAdapter,
-            NodeREDAdapter,
-        ]
-    ] = Field(default_factory=list, json_schema_extra={"description": "List of adapter providers"})
 
 
 # Initialize adapter providers, all are singletons.
@@ -77,18 +59,25 @@ homeassistant_adapter = HomeAssistantAdapter()
 nodered_adapter = NodeREDAdapter()
 
 
-def get_adapter() -> Adapter:
-    """Gets the EOS adapter data."""
-    # Initialize Adapter instance with providers in the required order
-    # Care for provider sequence as providers may rely on others to be updated before.
-    adapter = Adapter(
-        providers=[
-            homeassistant_adapter,
-            nodered_adapter,
+def adapter_providers() -> list[Union["HomeAssistantAdapter", "NodeREDAdapter"]]:
+    """Return list of adapter providers."""
+    global homeassistant_adapter, nodered_adapter
+
+    return [
+        homeassistant_adapter,
+        nodered_adapter,
+    ]
+
+
+class Adapter(AdapterContainer):
+    """Adapter container to manage multiple adapter providers."""
+
+    providers: list[
+        Union[
+            HomeAssistantAdapter,
+            NodeREDAdapter,
         ]
+    ] = Field(
+        default_factory=adapter_providers,
+        json_schema_extra={"description": "List of adapter providers"},
     )
-    return adapter
-
-
-# Valid adapter providers
-adapter_providers = [provider.provider_id() for provider in get_adapter().providers]

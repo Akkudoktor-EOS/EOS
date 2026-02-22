@@ -26,12 +26,19 @@ from fastapi.responses import (
 )
 from loguru import logger
 
-from akkudoktoreos.config.config import ConfigEOS, SettingsEOS, get_config
-from akkudoktoreos.core.cache import CacheFileStore
+from akkudoktoreos.config.config import ConfigEOS, SettingsEOS
+from akkudoktoreos.core.cache import CacheFileStore, cache_clear, cache_load, cache_save
+from akkudoktoreos.core.coreabc import (
+    get_config,
+    get_ems,
+    get_measurement,
+    get_prediction,
+    get_resource_registry,
+    singletons_init,
+)
 from akkudoktoreos.core.emplan import EnergyManagementPlan, ResourceStatus
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.ems import ems_manage_energy
 from akkudoktoreos.core.emsettings import EnergyManagementMode
-from akkudoktoreos.core.logabc import LOGGING_LEVELS
 from akkudoktoreos.core.logging import logging_track_config, read_file_log
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
@@ -40,8 +47,7 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeSeries,
 )
 from akkudoktoreos.core.version import __version__
-from akkudoktoreos.devices.devices import ResourceKey, get_resource_registry
-from akkudoktoreos.measurement.measurement import get_measurement
+from akkudoktoreos.devices.devices import ResourceKey
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
@@ -50,152 +56,19 @@ from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonProviderSettings, LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
-from akkudoktoreos.prediction.prediction import get_prediction
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
+from akkudoktoreos.server.rest.cli import cli_apply_args_to_config, cli_parse_args
 from akkudoktoreos.server.rest.error import create_error_page
 from akkudoktoreos.server.rest.starteosdash import run_eosdash_supervisor
-from akkudoktoreos.server.rest.tasks import repeat_every
+from akkudoktoreos.server.rest.tasks import make_repeated_task
+from akkudoktoreos.server.retentionmanager import RetentionManager
 from akkudoktoreos.server.server import (
     drop_root_privileges,
     fix_data_directories_permissions,
-    get_default_host,
     get_host_ip,
     wait_for_port_free,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
-from akkudoktoreos.utils.stringutil import str2bool
-
-config_eos = get_config()
-measurement_eos = get_measurement()
-prediction_eos = get_prediction()
-ems_eos = get_ems()
-resource_registry_eos = get_resource_registry()
-
-# ------------------------------------
-# Logging configuration at import time
-# ------------------------------------
-
-logger.remove()
-logging_track_config(config_eos, "logging", None, None)
-
-# -----------------------------
-# Configuration change tracking
-# -----------------------------
-
-config_eos.track_nested_value("/logging", logging_track_config)
-
-# ----------------------------
-# Safe argparse at import time
-# ----------------------------
-
-parser = argparse.ArgumentParser(description="Start EOS server.")
-
-parser.add_argument(
-    "--host",
-    type=str,
-    help="Host for the EOS server (default: value from config)",
-)
-parser.add_argument(
-    "--port",
-    type=int,
-    help="Port for the EOS server (default: value from config)",
-)
-parser.add_argument(
-    "--log_level",
-    type=str,
-    default="none",
-    help='Log level for the server console. Options: "critical", "error", "warning", "info", "debug", "trace" (default: "none")',
-)
-parser.add_argument(
-    "--reload",
-    type=str2bool,
-    default=False,
-    help="Enable or disable auto-reload. Useful for development. Options: True or False (default: False)",
-)
-parser.add_argument(
-    "--startup_eosdash",
-    type=str2bool,
-    default=None,
-    help="Enable or disable automatic EOSdash startup. Options: True or False (default: value from config)",
-)
-parser.add_argument(
-    "--run_as_user",
-    type=str,
-    help="The unprivileged user account the EOS server shall switch to after performing root-level startup tasks.",
-)
-
-# Command line arguments
-args: argparse.Namespace
-args_unknown: list[str]
-args, args_unknown = parser.parse_known_args()
-
-
-# -----------------------------
-# Prepare config at import time
-# -----------------------------
-
-# Set config to actual environment variable & config file content
-config_eos.reset_settings()
-
-# Setup parameters from args, config_eos and default
-# Remember parameters in config
-
-# Setup EOS logging level - first to have the other logging messages logged
-if args and args.log_level is not None:
-    log_level = args.log_level.upper()
-    # Ensure log_level from command line is in config settings
-    if log_level in LOGGING_LEVELS:
-        # Setup console logging level using nested value
-        # - triggers logging configuration by logging_track_config
-        config_eos.set_nested_value("logging/console_level", log_level)
-        logger.debug(f"logging/console_level configuration set by argument to {log_level}")
-
-# Setup EOS server host
-if args and args.host:
-    host = args.host
-    logger.debug(f"server/host configuration set by argument to {host}")
-elif config_eos.server.host:
-    host = config_eos.server.host
-else:
-    host = get_default_host()
-# Ensure host from command line is in config settings
-config_eos.set_nested_value("server/host", host)
-
-# Setup EOS server port
-if args and args.port:
-    port = args.port
-    logger.debug(f"server/port configuration set by argument to {port}")
-elif config_eos.server.port:
-    port = config_eos.server.port
-else:
-    port = 8503
-# Ensure port from command line is in config settings
-config_eos.set_nested_value("server/port", port)
-
-# Setup EOS reload for development
-if args is None or args.reload is None:
-    reload = False
-else:
-    logger.debug(f"reload set by argument to {args.reload}")
-    reload = args.reload
-
-# Setup EOSdash startup
-if args and args.startup_eosdash is not None:
-    # Ensure startup_eosdash from command line is in config settings
-    config_eos.set_nested_value("server/startup_eosdash", args.startup_eosdash)
-    logger.debug(f"server/startup_eosdash configuration set by argument to {args.startup_eosdash}")
-
-if config_eos.server.startup_eosdash:
-    # Ensure EOSdash host and port config settings are at least set to default values
-
-    # Setup EOS server host
-    if config_eos.server.eosdash_host is None:
-        config_eos.set_nested_value("server/eosdash_host", host)
-
-    # Setup EOS server host
-    if config_eos.server.eosdash_port is None:
-        config_eos.set_nested_value("server/eosdash_port", port + 1)
-
 
 # ----------------------
 # EOS REST Server
@@ -204,14 +77,18 @@ if config_eos.server.startup_eosdash:
 
 def save_eos_state() -> None:
     """Save EOS state."""
-    resource_registry_eos.save()
+    get_resource_registry().save()
+    get_prediction().save()
+    get_measurement().save()
     cache_save()  # keep last
 
 
 def load_eos_state() -> None:
     """Load EOS state."""
     cache_load()  # keep first
-    resource_registry_eos.load()
+    get_measurement().load()
+    get_prediction().load()
+    get_resource_registry().load()
 
 
 def terminate_eos() -> None:
@@ -225,58 +102,25 @@ def terminate_eos() -> None:
     logger.info(f"🚀 EOS terminated, PID {pid}")
 
 
-def cache_clear(clear_all: Optional[bool] = None) -> None:
-    """Cleanup expired cache files."""
-    if clear_all:
-        CacheFileStore().clear(clear_all=True)
-    else:
-        CacheFileStore().clear(before_datetime=to_datetime())
+def save_eos_database() -> None:
+    """Save EOS database."""
+    get_prediction().save()
+    get_measurement().save()
 
 
-def cache_load() -> dict:
-    """Load cache from cachefilestore.json."""
-    return CacheFileStore().load_store()
-
-
-def cache_save() -> dict:
-    """Save cache to cachefilestore.json."""
-    return CacheFileStore().save_store()
-
-
-def cache_cleanup_on_exception(e: Exception) -> None:
-    logger.error("Cache cleanup task caught an exception: {}", e, exc_info=True)
-
-
-@repeat_every(
-    seconds=float(config_eos.cache.cleanup_interval),
-    on_exception=cache_cleanup_on_exception,
-)
-def cache_cleanup_task() -> None:
-    """Repeating task to clear cache from expired cache files."""
-    logger.debug("Clear cache")
-    cache_clear()
-
-
-def energy_management_on_exception(e: Exception) -> None:
-    logger.error("Energy management task caught an exception: {}", e, exc_info=True)
-
-
-@repeat_every(
-    seconds=10,
-    wait_first=config_eos.ems.startup_delay,
-    on_exception=energy_management_on_exception,
-)
-async def energy_management_task() -> None:
-    """Repeating task for energy management."""
-    logger.debug("Check EMS run")
-    await ems_eos.manage_energy()
+def compact_eos_database() -> None:
+    """Compact EOS database."""
+    get_prediction().db_compact()
+    get_measurement().db_compact()
+    get_prediction().db_vacuum()
+    get_measurement().db_vacuum()
 
 
 async def server_shutdown_task() -> None:
     """One-shot task for shutting down the EOS server.
 
     This coroutine performs the following actions:
-    1. Ensures the cache is saved by calling the cache_save function.
+    1. Ensures the EOS state is saved by calling the save_eos_state function.
     2. Waits for 5 seconds to allow the EOS server to complete any ongoing tasks.
     3. Gracefully shuts down the current process by sending the appropriate signal.
 
@@ -303,15 +147,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     load_eos_state()
 
-    # Start EOS tasks
-    if config_eos.cache.cleanup_interval is None:
-        logger.warning("Cache file cleanup disabled. Set cache.cleanup_interval.")
-    else:
-        await cache_cleanup_task()
-    await energy_management_task()
+    config_eos = get_config()
+
+    # Prepare the Manager and all task that are handled by the manager
+    manager = RetentionManager(config_getter=get_config().get_nested_value, shutdown_timeout=10)
+    manager.register("cache_clear", cache_clear, interval_attr="cache/cleanup_interval")
+    manager.register(
+        "save_eos_database", save_eos_database, interval_attr="database/autosave_interval_sec"
+    )
+    manager.register(
+        "compact_eos_database", save_eos_database, interval_attr="database/compact_interval_sec"
+    )
+    manager.register("manage_energy", ems_manage_energy, interval_attr="ems/interval")
+
+    # Start EOS repeated tasks
+    tick_task = make_repeated_task(manager.tick, seconds=5, wait_first=2)
+    await tick_task()
 
     # Handover to application
     yield
+
+    # waits for any in-flight job to finish cleanly
+    await manager.shutdown()
 
     # On shutdown
     save_eos_state()
@@ -410,6 +267,46 @@ def fastapi_admin_cache_get() -> dict:
     return data
 
 
+@app.get("/v1/admin/database/stats", tags=["admin"])
+def fastapi_admin_database_stats_get() -> dict:
+    """Get statistics from database.
+
+    Returns:
+        data (dict): The database statistics
+    """
+    data = {}
+    try:
+        # Get the stats
+        data[get_measurement().db_namespace()] = get_measurement().db_get_stats()
+        data[get_prediction().__class__.__name__] = get_prediction().db_get_stats()
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        raise HTTPException(
+            status_code=400, detail=f"Error on database statistic retrieval: {e}\n{trace}"
+        )
+    return data
+
+
+@app.post("/v1/admin/database/vacuum", tags=["admin"])
+def fastapi_admin_database_vacuum_post() -> dict:
+    """Remove old records from database.
+
+    Returns:
+        data (dict): The database stats after removal of old records.
+    """
+    data = {}
+    try:
+        get_measurement().db_vacuum()
+        get_prediction().db_vacuum()
+        # Get the stats
+        data[get_measurement().db_namespace()] = get_measurement().db_get_stats()
+        data[get_prediction().__class__.__name__] = get_prediction().db_get_stats()
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        raise HTTPException(status_code=400, detail=f"Error on database vacuum: {e}\n{trace}")
+    return data
+
+
 @app.post("/v1/admin/server/restart", tags=["admin"])
 async def fastapi_admin_server_restart_post() -> dict:
     """Restart the server.
@@ -424,8 +321,8 @@ async def fastapi_admin_server_restart_post() -> dict:
     # Force a new process group to make the new process easily distinguishable from the current one
     # Set environment before any subprocess run, to keep custom config dir
     env = os.environ.copy()
-    env["EOS_DIR"] = str(config_eos.general.data_folder_path)
-    env["EOS_CONFIG_DIR"] = str(config_eos.general.config_folder_path)
+    env["EOS_DIR"] = str(get_config().general.data_folder_path)
+    env["EOS_CONFIG_DIR"] = str(get_config().general.config_folder_path)
 
     if os.name == "nt":
         # Windows
@@ -491,8 +388,8 @@ def fastapi_health_get():  # type: ignore
             "pid": psutil.Process().pid,
             "version": __version__,
             "energy-management": {
-                "start_datetime": to_datetime(ems_eos.start_datetime, as_string=True),
-                "last_run_datetime": to_datetime(ems_eos.last_run_datetime, as_string=True),
+                "start_datetime": to_datetime(get_ems().start_datetime, as_string=True),
+                "last_run_datetime": to_datetime(get_ems().last_run_datetime, as_string=True),
             },
         }
     )
@@ -506,13 +403,13 @@ def fastapi_config_reset_post() -> ConfigEOS:
         configuration (ConfigEOS): The current configuration after update.
     """
     try:
-        config_eos.reset_settings()
+        get_config().reset_settings()
     except Exception as e:
         raise HTTPException(
             status_code=404,
             detail=f"Cannot reset configuration: {e}",
         )
-    return config_eos
+    return get_config()
 
 
 @app.get("/v1/config/backup", tags=["config"])
@@ -523,7 +420,7 @@ def fastapi_config_backup_get() -> dict[str, dict[str, Any]]:
         dict[str, dict[str, Any]]: Mapping of backup identifiers to metadata.
     """
     try:
-        result = config_eos.list_backups()
+        result = get_config().list_backups()
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -542,13 +439,13 @@ def fastapi_config_revert_put(
         configuration (ConfigEOS): The current configuration after revert.
     """
     try:
-        config_eos.revert_settings(backup_id)
+        get_config().revert_settings(backup_id)
     except Exception as e:
         raise HTTPException(
             status_code=400,
             detail=f"Error on reverting of configuration: {e}",
         )
-    return config_eos
+    return get_config()
 
 
 @app.put("/v1/config/file", tags=["config"])
@@ -559,13 +456,13 @@ def fastapi_config_file_put() -> ConfigEOS:
         configuration (ConfigEOS): The current configuration that was saved.
     """
     try:
-        config_eos.to_config_file()
+        get_config().to_config_file()
     except:
         raise HTTPException(
             status_code=404,
-            detail=f"Cannot save configuration to file '{config_eos.config_file_path}'.",
+            detail=f"Cannot save configuration to file '{get_config().config_file_path}'.",
         )
-    return config_eos
+    return get_config()
 
 
 @app.get("/v1/config", tags=["config"])
@@ -575,7 +472,7 @@ def fastapi_config_get() -> ConfigEOS:
     Returns:
         configuration (ConfigEOS): The current configuration.
     """
-    return config_eos
+    return get_config()
 
 
 @app.put("/v1/config", tags=["config"])
@@ -593,10 +490,10 @@ def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
         configuration (ConfigEOS): The current configuration after the write.
     """
     try:
-        config_eos.merge_settings(settings)
+        get_config().merge_settings(settings)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
-    return config_eos
+    return get_config()
 
 
 @app.put("/v1/config/{path:path}", tags=["config"])
@@ -618,7 +515,7 @@ def fastapi_config_put_key(
         configuration (ConfigEOS): The current configuration after the update.
     """
     try:
-        config_eos.set_nested_value(path, value)
+        get_config().set_nested_value(path, value)
     except Exception as e:
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         raise HTTPException(
@@ -626,7 +523,7 @@ def fastapi_config_put_key(
             detail=f"Error on update of configuration '{path}','{value}': {e}\n{trace}",
         )
 
-    return config_eos
+    return get_config()
 
 
 @app.get("/v1/config/{path:path}", tags=["config"])
@@ -644,7 +541,7 @@ def fastapi_config_get_key(
         value (Any): The value of the selected nested key.
     """
     try:
-        return config_eos.get_nested_value(path)
+        return get_config().get_nested_value(path)
     except IndexError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except KeyError as e:
@@ -682,7 +579,7 @@ async def fastapi_logging_get_log(
     Returns:
         JSONResponse: A JSON list of log entries.
     """
-    log_path = config_eos.logging.file_path
+    log_path = get_config().logging.file_path
     try:
         logs = read_file_log(
             log_path=log_path,
@@ -710,9 +607,9 @@ def fastapi_devices_status_get(
         latest_status: The latest status of a resource/ device.
     """
     key = ResourceKey(resource_id=resource_id, actuator_id=actuator_id)
-    if not resource_registry_eos.status_exists(key):
+    if not get_resource_registry().status_exists(key):
         raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-    status_latest = resource_registry_eos.status_latest(key)
+    status_latest = get_resource_registry().status_latest(key)
     if status_latest is None:
         raise HTTPException(status_code=404, detail=f"Key '{key}' does not have a status.")
     return status_latest
@@ -731,13 +628,13 @@ def fastapi_devices_status_put(
     """
     key = ResourceKey(resource_id=resource_id, actuator_id=actuator_id)
     try:
-        resource_registry_eos.update_status(key, status)
+        get_resource_registry().update_status(key, status)
     except Exception as e:
         raise HTTPException(
             status_code=400,
             detail=f"Error on resource status update key='{key}', status='{status}': {e}",
         )
-    status_latest = resource_registry_eos.status_latest(key)
+    status_latest = get_resource_registry().status_latest(key)
     if status_latest is None:
         raise HTTPException(status_code=404, detail=f"Key '{key}' does not have a status.")
     return status_latest
@@ -746,7 +643,7 @@ def fastapi_devices_status_put(
 @app.get("/v1/measurement/keys", tags=["measurement"])
 def fastapi_measurement_keys_get() -> list[str]:
     """Get a list of available measurement keys."""
-    return sorted(measurement_eos.record_keys)
+    return sorted(get_measurement().record_keys)
 
 
 @app.get("/v1/measurement/series", tags=["measurement"])
@@ -754,9 +651,9 @@ def fastapi_measurement_series_get(
     key: Annotated[str, Query(description="Measurement key.")],
 ) -> PydanticDateTimeSeries:
     """Get the measurements of given key as series."""
-    if key not in measurement_eos.record_keys:
+    if key not in get_measurement().record_keys:
         raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-    pdseries = measurement_eos.key_to_series(key=key)
+    pdseries = get_measurement().key_to_series(key=key)
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
@@ -767,7 +664,7 @@ def fastapi_measurement_value_put(
     value: Union[float | str],
 ) -> PydanticDateTimeSeries:
     """Merge the measurement of given key and value into EOS measurements at given datetime."""
-    if key not in measurement_eos.record_keys:
+    if key not in get_measurement().record_keys:
         raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     if isinstance(value, str):
         # Try to convert to float
@@ -777,8 +674,8 @@ def fastapi_measurement_value_put(
             logger.debug(
                 f'/v1/measurement/value key: {key} value: "{value}" - string value not convertable to float'
             )
-    measurement_eos.update_value(datetime, key, value)
-    pdseries = measurement_eos.key_to_series(key=key)
+    get_measurement().update_value(datetime, key, value)
+    pdseries = get_measurement().key_to_series(key=key)
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
@@ -787,11 +684,11 @@ def fastapi_measurement_series_put(
     key: Annotated[str, Query(description="Measurement key.")], series: PydanticDateTimeSeries
 ) -> PydanticDateTimeSeries:
     """Merge measurement given as series into given key."""
-    if key not in measurement_eos.record_keys:
+    if key not in get_measurement().record_keys:
         raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     pdseries = series.to_series()  # make pandas series from PydanticDateTimeSeries
-    measurement_eos.key_from_series(key=key, series=pdseries)
-    pdseries = measurement_eos.key_to_series(key=key)
+    get_measurement().key_from_series(key=key, series=pdseries)
+    pdseries = get_measurement().key_to_series(key=key)
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
@@ -799,14 +696,14 @@ def fastapi_measurement_series_put(
 def fastapi_measurement_dataframe_put(data: PydanticDateTimeDataFrame) -> None:
     """Merge the measurement data given as dataframe into EOS measurements."""
     dataframe = data.to_dataframe()
-    measurement_eos.import_from_dataframe(dataframe)
+    get_measurement().import_from_dataframe(dataframe)
 
 
 @app.put("/v1/measurement/data", tags=["measurement"])
 def fastapi_measurement_data_put(data: PydanticDateTimeData) -> None:
     """Merge the measurement data given as datetime data into EOS measurements."""
     datetimedata = data.to_dict()
-    measurement_eos.import_from_dict(datetimedata)
+    get_measurement().import_from_dict(datetimedata)
 
 
 @app.get("/v1/prediction/providers", tags=["prediction"])
@@ -823,7 +720,7 @@ def fastapi_prediction_providers_get(enabled: Optional[bool] = None) -> list[str
     return sorted(
         [
             provider.provider_id()
-            for provider in prediction_eos.providers
+            for provider in get_prediction().providers
             if provider.enabled() in enabled_status
         ]
     )
@@ -832,7 +729,7 @@ def fastapi_prediction_providers_get(enabled: Optional[bool] = None) -> list[str
 @app.get("/v1/prediction/keys", tags=["prediction"])
 def fastapi_prediction_keys_get() -> list[str]:
     """Get a list of available prediction keys."""
-    return sorted(prediction_eos.record_keys)
+    return sorted(get_prediction().record_keys)
 
 
 @app.get("/v1/prediction/series", tags=["prediction"])
@@ -856,17 +753,17 @@ def fastapi_prediction_series_get(
         end_datetime (Optional[str]: Ending datetime (exclusive).
             Defaults to end datetime of latest prediction.
     """
-    if key not in prediction_eos.record_keys:
+    if key not in get_prediction().record_keys:
         raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     if start_datetime is None:
-        start_datetime = prediction_eos.ems_start_datetime
+        start_datetime = get_prediction().ems_start_datetime
     else:
         start_datetime = to_datetime(start_datetime)
     if end_datetime is None:
-        end_datetime = prediction_eos.end_datetime
+        end_datetime = get_prediction().end_datetime
     else:
         end_datetime = to_datetime(end_datetime)
-    pdseries = prediction_eos.key_to_series(
+    pdseries = get_prediction().key_to_series(
         key=key, start_datetime=start_datetime, end_datetime=end_datetime
     )
     return PydanticDateTimeSeries.from_series(pdseries)
@@ -899,20 +796,20 @@ def fastapi_prediction_dataframe_get(
     Defaults to end datetime of latest prediction.
     """
     for key in keys:
-        if key not in prediction_eos.record_keys:
+        if key not in get_prediction().record_keys:
             raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     if start_datetime is None:
-        start_datetime = prediction_eos.ems_start_datetime
+        start_datetime = get_prediction().ems_start_datetime
     else:
         start_datetime = to_datetime(start_datetime)
     if end_datetime is None:
-        end_datetime = prediction_eos.end_datetime
+        end_datetime = get_prediction().end_datetime
     else:
         end_datetime = to_datetime(end_datetime)
-    df = prediction_eos.keys_to_dataframe(
+    df = get_prediction().keys_to_dataframe(
         keys=keys, start_datetime=start_datetime, end_datetime=end_datetime, interval=interval
     )
-    return PydanticDateTimeDataFrame.from_dataframe(df, tz=config_eos.general.timezone)
+    return PydanticDateTimeDataFrame.from_dataframe(df, tz=get_config().general.timezone)
 
 
 @app.get("/v1/prediction/list", tags=["prediction"])
@@ -942,26 +839,30 @@ def fastapi_prediction_list_get(
         interval (Optional[str]): Time duration for each interval.
             Defaults to 1 hour.
     """
-    if key not in prediction_eos.record_keys:
+    if key not in get_prediction().record_keys:
         raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     if start_datetime is None:
-        start_datetime = prediction_eos.ems_start_datetime
+        start_datetime = get_prediction().ems_start_datetime
     else:
         start_datetime = to_datetime(start_datetime)
     if end_datetime is None:
-        end_datetime = prediction_eos.end_datetime
+        end_datetime = get_prediction().end_datetime
     else:
         end_datetime = to_datetime(end_datetime)
     if interval is None:
         interval = to_duration("1 hour")
     else:
         interval = to_duration(interval)
-    prediction_list = prediction_eos.key_to_array(
-        key=key,
-        start_datetime=start_datetime,
-        end_datetime=end_datetime,
-        interval=interval,
-    ).tolist()
+    prediction_list = (
+        get_prediction()
+        .key_to_array(
+            key=key,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval=interval,
+        )
+        .tolist()
+    )
     return prediction_list
 
 
@@ -980,14 +881,14 @@ def fastapi_prediction_import_provider(
             Defaults to False.
     """
     try:
-        provider = prediction_eos.provider_by_id(provider_id)
+        provider = get_prediction().provider_by_id(provider_id)
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not found.")
     if not provider.enabled() and not force_enable:
         raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not enabled.")
     try:
         provider.import_from_json(json_str=json.dumps(data))
-        provider.update_datetime = to_datetime(in_timezone=config_eos.general.timezone)
+        provider.update_datetime = to_datetime(in_timezone=get_config().general.timezone)
     except Exception as e:
         raise HTTPException(
             status_code=400, detail=f"Error on import for provider '{provider_id}': {e}"
@@ -1009,7 +910,7 @@ async def fastapi_prediction_update(
     """
     # Ensure there is only one optimization/ energy management run at a time
     try:
-        await ems_eos.run(
+        await get_ems().run(
             mode=EnergyManagementMode.PREDICTION,
             force_update=force_update,
             force_enable=force_enable,
@@ -1038,13 +939,13 @@ async def fastapi_prediction_update_provider(
             Defaults to False.
     """
     try:
-        provider = prediction_eos.provider_by_id(provider_id)
+        provider = get_prediction().provider_by_id(provider_id)
     except ValueError:
         raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not found.")
 
     # Ensure there is only one optimization/ energy management run at a time
     try:
-        await ems_eos.run(
+        await get_ems().run(
             mode=EnergyManagementMode.PREDICTION,
             force_update=force_update,
             force_enable=force_enable,
@@ -1062,7 +963,7 @@ async def fastapi_prediction_update_provider(
 @app.get("/v1/energy-management/optimization/solution", tags=["energy-management"])
 def fastapi_energy_management_optimization_solution_get() -> OptimizationSolution:
     """Get the latest solution of the optimization."""
-    solution = ems_eos.optimization_solution()
+    solution = get_ems().optimization_solution()
     if solution is None:
         raise HTTPException(
             status_code=404,
@@ -1074,7 +975,7 @@ def fastapi_energy_management_optimization_solution_get() -> OptimizationSolutio
 @app.get("/v1/energy-management/plan", tags=["energy-management"])
 def fastapi_energy_management_plan_get() -> EnergyManagementPlan:
     """Get the latest energy management plan."""
-    plan = ems_eos.plan()
+    plan = get_ems().plan()
     if plan is None:
         raise HTTPException(
             status_code=404,
@@ -1106,11 +1007,11 @@ async def fastapi_strompreis() -> list[float]:
             provider="ElecPriceAkkudoktor",
         )
     )
-    config_eos.merge_settings(settings=settings)
+    get_config().merge_settings(settings=settings)
 
     # Ensure there is only one optimization/ energy management run at a time
     try:
-        await ems_eos.run(
+        await get_ems().run(
             mode=EnergyManagementMode.PREDICTION,
             force_update=True,
         )
@@ -1124,11 +1025,15 @@ async def fastapi_strompreis() -> list[float]:
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
-        elecprice = prediction_eos.key_to_array(
-            key="elecprice_marketprice_wh",
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-        ).tolist()
+        elecprice = (
+            get_prediction()
+            .key_to_array(
+                key="elecprice_marketprice_wh",
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+            )
+            .tolist()
+        )
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -1178,12 +1083,12 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
             "load_emr_keys": ["gesamtlast_emr"],
         },
     }
-    config_eos.merge_settings_from_dict(settings)
+    get_config().merge_settings_from_dict(settings)
 
     # Insert measured data into EOS measurement
     # Convert from energy per interval to dummy energy meter readings
     measurement_key = "gesamtlast_emr"
-    measurement_eos.key_delete_by_datetime(
+    get_measurement().key_delete_by_datetime(
         key=measurement_key
     )  # delete all gesamtlast_emr measurements
     energy = {}
@@ -1210,11 +1115,11 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
             energy_mr_values.append(0.0)
         energy_mr_dates.append(dt)
         energy_mr_values.append(energy_mr)
-    measurement_eos.key_from_lists(measurement_key, energy_mr_dates, energy_mr_values)
+    get_measurement().key_from_lists(measurement_key, energy_mr_dates, energy_mr_values)
 
     # Ensure there is only one optimization/ energy management run at a time
     try:
-        await ems_eos.run(
+        await get_ems().run(
             mode=EnergyManagementMode.PREDICTION,
             force_update=True,
         )
@@ -1228,11 +1133,15 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
-        prediction_list = prediction_eos.key_to_array(
-            key="loadforecast_power_w",
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-        ).tolist()
+        prediction_list = (
+            get_prediction()
+            .key_to_array(
+                key="loadforecast_power_w",
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+            )
+            .tolist()
+        )
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -1271,11 +1180,11 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
             ),
         )
     )
-    config_eos.merge_settings(settings=settings)
+    get_config().merge_settings(settings=settings)
 
     # Ensure there is only one optimization/ energy management run at a time
     try:
-        await ems_eos.run(
+        await get_ems().run(
             mode=EnergyManagementMode.PREDICTION,
             force_update=True,
         )
@@ -1289,11 +1198,15 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
-        prediction_list = prediction_eos.key_to_array(
-            key="loadforecast_power_w",
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-        ).tolist()
+        prediction_list = (
+            get_prediction()
+            .key_to_array(
+                key="loadforecast_power_w",
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+            )
+            .tolist()
+        )
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -1326,11 +1239,11 @@ async def fastapi_pvforecast() -> ForecastResponse:
         '/v1/prediction/list?key=pvforecastakkudoktor_temp_air' instead.
     """
     settings = SettingsEOS(pvforecast=PVForecastCommonSettings(provider="PVForecastAkkudoktor"))
-    config_eos.merge_settings(settings=settings)
+    get_config().merge_settings(settings=settings)
 
     # Ensure there is only one optimization/ energy management run at a time
     try:
-        await ems_eos.run(
+        await get_ems().run(
             mode=EnergyManagementMode.PREDICTION,
             force_update=True,
         )
@@ -1344,16 +1257,24 @@ async def fastapi_pvforecast() -> ForecastResponse:
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
-        ac_power = prediction_eos.key_to_array(
-            key="pvforecast_ac_power",
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-        ).tolist()
-        temp_air = prediction_eos.key_to_array(
-            key="pvforecastakkudoktor_temp_air",
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-        ).tolist()
+        ac_power = (
+            get_prediction()
+            .key_to_array(
+                key="pvforecast_ac_power",
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+            )
+            .tolist()
+        )
+        temp_air = (
+            get_prediction()
+            .key_to_array(
+                key="pvforecastakkudoktor_temp_air",
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+            )
+            .tolist()
+        )
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -1388,7 +1309,7 @@ async def fastapi_optimize(
 
     # Ensure there is only one optimization/ energy management run at a time
     try:
-        await ems_eos.run(
+        await get_ems().run(
             start_datetime=start_datetime,
             mode=EnergyManagementMode.OPTIMIZATION,
             genetic_parameters=parameters,
@@ -1397,7 +1318,7 @@ async def fastapi_optimize(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Optimize error: {e}.")
 
-    solution = ems_eos.genetic_solution()
+    solution = get_ems().genetic_solution()
     if solution is None:
         raise HTTPException(status_code=400, detail="Optimize error: no solution stored by run.")
 
@@ -1407,7 +1328,7 @@ async def fastapi_optimize(
 @app.get("/visualization_results.pdf", response_class=PdfResponse, tags=["optimize"])
 def get_pdf() -> PdfResponse:
     # Endpoint to serve the generated PDF with visualization results
-    output_path = config_eos.general.data_output_path
+    output_path = get_config().general.data_output_path
     if output_path is None or not output_path.is_dir():
         raise HTTPException(status_code=404, detail=f"Output path does not exist: {output_path}.")
     file_path = output_path / "visualization_results.pdf"
@@ -1447,11 +1368,11 @@ async def redirect_put(request: Request, path: str) -> Response:
 def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectResponse]:
     # Path is not for EOSdash
     if not (path.startswith("eosdash") or path == ""):
-        host = config_eos.server.eosdash_host
+        host = get_config().server.eosdash_host
         if host is None:
-            host = config_eos.server.host
+            host = get_config().server.host
         host = str(host)
-        port = config_eos.server.eosdash_port
+        port = get_config().server.eosdash_port
         if port is None:
             port = 8504
         if host == "0.0.0.0":  # noqa: S104
@@ -1470,13 +1391,13 @@ Did you want to connect to <a href="{url}" class="back-button">EOSdash</a>?
         )
         return HTMLResponse(content=error_page, status_code=404)
 
-    host = str(config_eos.server.eosdash_host)
+    host = str(get_config().server.eosdash_host)
     if host == "0.0.0.0":  # noqa: S104
         # Use IP of EOS host
         host = get_host_ip()
-    if host and config_eos.server.eosdash_port:
+    if host and get_config().server.eosdash_port:
         # Redirect to EOSdash server
-        url = f"http://{host}:{config_eos.server.eosdash_port}/{path}"
+        url = f"http://{host}:{get_config().server.eosdash_port}/{path}"
         return RedirectResponse(url=url, status_code=303)
 
     # Redirect the root URL to the site map
@@ -1492,8 +1413,35 @@ def run_eos() -> None:
     Returns:
         None
     """
+    # get_config(init=True) creates the configuration
+    # this should not be done before nor later
+    config_eos = get_config(init=True)
+
+    # set logging to what is in config
+    logger.remove()
+    logging_track_config(config_eos, "logging", None, None)
+
+    # make logger track logging changes in config
+    config_eos.track_nested_value("/logging", logging_track_config)
+
+    # Set config to actual environment variable & config file content
+    config_eos.reset_settings()
+
+    # add arguments to config
+    args: argparse.Namespace
+    args_unknown: list[str]
+    args, args_unknown = cli_parse_args()
+    cli_apply_args_to_config(args)
+
+    # prepare runtime arguments
     if args:
         run_as_user = args.run_as_user
+        # Setup EOS reload for development
+        if args.reload is None:
+            reload = False
+        else:
+            logger.debug(f"reload set by argument to {args.reload}")
+            reload = args.reload
     else:
         run_as_user = None
 
@@ -1503,7 +1451,13 @@ def run_eos() -> None:
     # Switch privileges to run_as_user
     drop_root_privileges(run_as_user=run_as_user)
 
+    # Init the other singletons (besides config_eos)
+    singletons_init()
+
     # Wait for EOS port to be free - e.g. in case of restart
+    port = config_eos.server.port
+    if port is None:
+        port = 8503
     wait_for_port_free(port, timeout=120, waiting_app_name="EOS")
 
     try:
@@ -1511,7 +1465,7 @@ def run_eos() -> None:
         uvicorn.run(
             "akkudoktoreos.server.eos:app",
             host=str(config_eos.server.host),
-            port=config_eos.server.port,
+            port=port,
             log_level="info",  # Fix log level for uvicorn to info
             access_log=True,  # Fix server access logging to True
             reload=reload,

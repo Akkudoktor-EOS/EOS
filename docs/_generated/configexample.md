@@ -15,10 +15,7 @@
                "pv_production_emr_entity_ids": null,
                "device_measurement_entity_ids": null,
                "device_instruction_entity_ids": null,
-               "solution_entity_ids": null,
-               "homeassistant_entity_ids": [],
-               "eos_solution_entity_ids": [],
-               "eos_device_instruction_entity_ids": []
+               "solution_entity_ids": null
            },
            "nodered": {
                "host": "127.0.0.1",
@@ -28,6 +25,15 @@
        "cache": {
            "subpath": "cache",
            "cleanup_interval": 300.0
+       },
+       "database": {
+           "provider": "LMDB",
+           "compression_level": 0,
+           "initial_load_window_h": 48,
+           "keep_duration_h": 48,
+           "autosave_interval_sec": 5,
+           "compaction_interval_sec": 604800,
+           "batch_size": 100
        },
        "devices": {
            "batteries": [
@@ -53,19 +59,7 @@
                        1.0
                    ],
                    "min_soc_percentage": 0,
-                   "max_soc_percentage": 100,
-                   "measurement_key_soc_factor": "battery1-soc-factor",
-                   "measurement_key_power_l1_w": "battery1-power-l1-w",
-                   "measurement_key_power_l2_w": "battery1-power-l2-w",
-                   "measurement_key_power_l3_w": "battery1-power-l3-w",
-                   "measurement_key_power_3_phase_sym_w": "battery1-power-3-phase-sym-w",
-                   "measurement_keys": [
-                       "battery1-soc-factor",
-                       "battery1-power-l1-w",
-                       "battery1-power-l2-w",
-                       "battery1-power-l3-w",
-                       "battery1-power-3-phase-sym-w"
-                   ]
+                   "max_soc_percentage": 100
                }
            ],
            "max_batteries": 1,
@@ -92,19 +86,7 @@
                        1.0
                    ],
                    "min_soc_percentage": 0,
-                   "max_soc_percentage": 100,
-                   "measurement_key_soc_factor": "battery1-soc-factor",
-                   "measurement_key_power_l1_w": "battery1-power-l1-w",
-                   "measurement_key_power_l2_w": "battery1-power-l2-w",
-                   "measurement_key_power_l3_w": "battery1-power-l3-w",
-                   "measurement_key_power_3_phase_sym_w": "battery1-power-3-phase-sym-w",
-                   "measurement_keys": [
-                       "battery1-soc-factor",
-                       "battery1-power-l1-w",
-                       "battery1-power-l2-w",
-                       "battery1-power-l3-w",
-                       "battery1-power-3-phase-sym-w"
-                   ]
+                   "max_soc_percentage": 100
                }
            ],
            "max_electric_vehicles": 1,
@@ -138,8 +120,8 @@
            }
        },
        "general": {
-           "version": "0.2.0.dev84352035",
-           "data_folder_path": null,
+           "version": "0.2.0.dev58204789",
+           "data_folder_path": "/home/user/.local/share/net.akkudoktoreos.net",
            "data_output_subpath": "output",
            "latitude": 52.52,
            "longitude": 13.405
@@ -157,6 +139,7 @@
            "file_level": "TRACE"
        },
        "measurement": {
+           "historic_hours": 17520,
            "load_emr_keys": [
                "load0_emr"
            ],

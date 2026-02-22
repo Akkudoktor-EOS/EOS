@@ -1460,6 +1460,17 @@ class TestTimeWindowSequence:
         # - without local timezone as UTC
         (
             "TC014",
+            "UTC",
+            "2024-01-03",
+            None,
+            "UTC",
+            None,
+            False,
+            pendulum.datetime(2024, 1, 3, 0, 0, 0, tz="UTC"),
+            False,
+        ),
+        (
+            "TC015",
             "Atlantic/Canary",
             "02/02/24",
             None,
@@ -1470,7 +1481,7 @@ class TestTimeWindowSequence:
             False,
         ),
         (
-            "TC015",
+            "TC016",
             "Atlantic/Canary",
             "2024-03-03T10:20:30.000Z",  # No dalight saving time at this date
             None,
@@ -1484,7 +1495,7 @@ class TestTimeWindowSequence:
         # from pendulum.datetime to pendulum.datetime object
         # ---------------------------------------
         (
-            "TC016",
+            "TC017",
             "Atlantic/Canary",
             pendulum.datetime(2024, 4, 4, 0, 0, 0),
             None,
@@ -1495,7 +1506,7 @@ class TestTimeWindowSequence:
             False,
         ),
         (
-            "TC017",
+            "TC018",
             "Atlantic/Canary",
             pendulum.datetime(2024, 4, 4, 1, 0, 0),
             None,
@@ -1506,7 +1517,7 @@ class TestTimeWindowSequence:
             False,
         ),
         (
-            "TC018",
+            "TC019",
             "Atlantic/Canary",
             pendulum.datetime(2024, 4, 4, 1, 0, 0, tz="Etc/UTC"),
             None,
@@ -1517,7 +1528,7 @@ class TestTimeWindowSequence:
             False,
         ),
         (
-            "TC019",
+            "TC020",
             "Atlantic/Canary",
             pendulum.datetime(2024, 4, 4, 2, 0, 0, tz="Europe/Berlin"),
             None,
@@ -1533,7 +1544,7 @@ class TestTimeWindowSequence:
         # - no timezone
         #   local timezone UTC
         (
-            "TC020",
+            "TC021",
             "Etc/UTC",
             "2023-11-06T00:00:00",
             "UTC",
@@ -1545,7 +1556,7 @@ class TestTimeWindowSequence:
         ),
         #    local timezone "Europe/Berlin"
         (
-            "TC021",
+            "TC022",
             "Europe/Berlin",
             "2023-11-06T00:00:00",
             "UTC",
@@ -1557,7 +1568,7 @@ class TestTimeWindowSequence:
         ),
         # - no microseconds
         (
-            "TC022",
+            "TC023",
             "Atlantic/Canary",
             "2024-10-30T00:00:00+01:00",
             "UTC",
@@ -1568,7 +1579,7 @@ class TestTimeWindowSequence:
             False,
         ),
         (
-            "TC023",
+            "TC024",
             "Atlantic/Canary",
             "2024-10-30T01:00:00+01:00",
             "utc",
@@ -1580,7 +1591,7 @@ class TestTimeWindowSequence:
         ),
         # - with microseconds
         (
-            "TC024",
+            "TC025",
             "Atlantic/Canary",
             "2024-10-07T10:20:30.000+02:00",
             "UTC",
@@ -1596,7 +1607,7 @@ class TestTimeWindowSequence:
         # - no timezone
         #   local timezone
         (
-            "TC025",
+            "TC026",
             None,
             None,
             None,

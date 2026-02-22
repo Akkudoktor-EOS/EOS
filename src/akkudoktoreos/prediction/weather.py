@@ -5,18 +5,25 @@ from typing import Optional
 from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.prediction.prediction import get_prediction
+from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.weatherabc import WeatherProvider
 from akkudoktoreos.prediction.weatherimport import WeatherImportCommonSettings
 
-prediction_eos = get_prediction()
 
-# Valid weather providers
-weather_providers = [
-    provider.provider_id()
-    for provider in prediction_eos.providers
-    if isinstance(provider, WeatherProvider)
-]
+def weather_provider_ids() -> list[str]:
+    """Valid weather provider ids."""
+    try:
+        prediction_eos = get_prediction()
+    except:
+        # Prediction may not be initialized
+        # Return at least provider used in example
+        return ["WeatherImport"]
+
+    return [
+        provider.provider_id()
+        for provider in prediction_eos.providers
+        if isinstance(provider, WeatherProvider)
+    ]
 
 
 class WeatherCommonProviderSettings(SettingsBaseModel):
@@ -56,14 +63,14 @@ class WeatherCommonSettings(SettingsBaseModel):
     @property
     def providers(self) -> list[str]:
         """Available weather provider ids."""
-        return weather_providers
+        return weather_provider_ids()
 
     # Validators
     @field_validator("provider", mode="after")
     @classmethod
     def validate_provider(cls, value: Optional[str]) -> Optional[str]:
-        if value is None or value in weather_providers:
+        if value is None or value in weather_provider_ids():
             return value
         raise ValueError(
-            f"Provider '{value}' is not a valid weather provider: {weather_providers}."
+            f"Provider '{value}' is not a valid weather provider: {weather_provider_ids()}."
         )

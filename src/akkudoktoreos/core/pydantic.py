@@ -47,7 +47,12 @@ from pydantic import (
 )
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 
-from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import (
+    DateTime,
+    to_datetime,
+    to_duration,
+    to_timezone,
+)
 
 # Global weakref dictionary to hold external state per model instance
 # Used as a workaround for PrivateAttr not working in e.g. Mixin Classes
@@ -683,13 +688,8 @@ class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
         self, *args: Any, include_computed_fields: bool = True, **kwargs: Any
     ) -> dict[str, Any]:
         """Custom dump method to serialize computed fields by default."""
-        result = super().model_dump(*args, **kwargs)
-
-        if not include_computed_fields:
-            for computed_field_name in self.__class__.model_computed_fields:
-                result.pop(computed_field_name, None)
-
-        return result
+        kwargs.setdefault("exclude_computed_fields", not include_computed_fields)
+        return super().model_dump(*args, **kwargs)
 
     def to_dict(self) -> dict:
         """Convert this PredictionRecord instance to a dictionary representation.
@@ -1061,8 +1061,8 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
         valid_base_dtypes = {"int64", "float64", "bool", "object", "string"}
 
         def is_valid_dtype(dtype: str) -> bool:
-            # Allow timezone-aware or naive datetime64
-            if dtype.startswith("datetime64[ns"):
+            # Allow timezone-aware or naive datetime64 - pandas 3.0 also has us
+            if dtype.startswith("datetime64[ns") or dtype.startswith("datetime64[us"):
                 return True
             return dtype in valid_base_dtypes
 
@@ -1102,7 +1102,7 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
 
         # Apply dtypes
         for col, dtype in self.dtypes.items():
-            if dtype.startswith("datetime64[ns"):
+            if dtype.startswith("datetime64[ns") or dtype.startswith("datetime64[us"):
                 df[col] = pd.to_datetime(df[col], utc=True)
             elif dtype in dtype_mapping.keys():
                 df[col] = df[col].astype(dtype_mapping[dtype])
@@ -1112,19 +1112,58 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
         return df
 
     @classmethod
+    def _detect_data_tz(cls, df: pd.DataFrame) -> Optional[str]:
+        """Detect timezone of pandas data."""
+        # Index first (strongest signal)
+        if isinstance(df.index, pd.DatetimeIndex) and df.index.tz is not None:
+            return str(df.index.tz)
+
+        # Then datetime columns
+        for col in df.columns:
+            if is_datetime64_any_dtype(df[col]):
+                tz = getattr(df[col].dt, "tz", None)
+                if tz is not None:
+                    return str(tz)
+
+        return None
+
+    @classmethod
     def from_dataframe(
         cls, df: pd.DataFrame, tz: Optional[str] = None
     ) -> "PydanticDateTimeDataFrame":
         """Create a PydanticDateTimeDataFrame instance from a pandas DataFrame."""
-        index = pd.Index([to_datetime(dt, as_string=True, in_timezone=tz) for dt in df.index])
+        # resolve timezone
+        data_tz = cls._detect_data_tz(df)
+
+        if tz is not None:
+            if data_tz and data_tz != tz:
+                raise ValueError(f"Timezone mismatch: tz='{tz}' but data uses '{data_tz}'")
+            resolved_tz = tz
+        else:
+            if data_tz:
+                resolved_tz = data_tz
+            else:
+                # Use local timezone
+                resolved_tz = to_timezone(as_string=True)
+
+        # normalize index
+        index = pd.Index(
+            [to_datetime(dt, as_string=True, in_timezone=resolved_tz) for dt in df.index]
+        )
         df.index = index
 
+        # normalize datetime columns
         datetime_columns = [col for col in df.columns if is_datetime64_any_dtype(df[col])]
+        for col in datetime_columns:
+            if df[col].dt.tz is None:
+                df[col] = df[col].dt.tz_localize(resolved_tz)
+            else:
+                df[col] = df[col].dt.tz_convert(resolved_tz)
 
         return cls(
             data=df.to_dict(orient="index"),
             dtypes={col: str(dtype) for col, dtype in df.dtypes.items()},
-            tz=tz,
+            tz=resolved_tz,
             datetime_columns=datetime_columns,
         )
 

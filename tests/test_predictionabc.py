@@ -7,10 +7,10 @@ import pendulum
 import pytest
 from pydantic import Field
 
-from akkudoktoreos.core.ems import get_ems
+from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings
 from akkudoktoreos.prediction.predictionabc import (
-    PredictionBase,
+    PredictionABC,
     PredictionContainer,
     PredictionProvider,
     PredictionRecord,
@@ -28,7 +28,7 @@ class DerivedConfig(PredictionCommonSettings):
     class_constant: Optional[int] = Field(default=None, description="Test config by class constant")
 
 
-class DerivedBase(PredictionBase):
+class DerivedBase(PredictionABC):
     instance_field: Optional[str] = Field(default=None, description="Field Value")
     class_constant: ClassVar[int] = 30
 
@@ -84,7 +84,7 @@ class DerivedPredictionContainer(PredictionContainer):
 # ----------
 
 
-class TestPredictionBase:
+class TestPredictionABC:
     @pytest.fixture
     def base(self, monkeypatch):
         # Provide default values for configuration
@@ -216,17 +216,19 @@ class TestPredictionProvider:
     def test_delete_by_datetime(self, provider, sample_start_datetime):
         """Test `delete_by_datetime` method for removing records by datetime range."""
         # Add records to the provider for deletion testing
-        provider.records = [
+        records = [
             self.create_test_record(sample_start_datetime - to_duration("3 hours"), 1),
             self.create_test_record(sample_start_datetime - to_duration("1 hour"), 2),
             self.create_test_record(sample_start_datetime + to_duration("1 hour"), 3),
         ]
+        for record in records:
+            provider.insert_by_datetime(record)
 
         provider.delete_by_datetime(
             start_datetime=sample_start_datetime - to_duration("2 hours"),
             end_datetime=sample_start_datetime + to_duration("2 hours"),
         )
-        assert len(provider.records) == 1, (
+        assert len(provider) == 1, (
             "Only one record should remain after deletion by datetime."
         )
         assert provider.records[0].date_time == sample_start_datetime - to_duration("3 hours"), (
@@ -243,15 +245,17 @@ class TestPredictionContainer:
 
     @pytest.fixture
     def container_with_providers(self):
-        record1 = self.create_test_record(datetime(2023, 11, 5), 1)
-        record2 = self.create_test_record(datetime(2023, 11, 6), 2)
-        record3 = self.create_test_record(datetime(2023, 11, 7), 3)
+        records = [
+            # Test records - include 'prediction_value' key
+            self.create_test_record(datetime(2023, 11, 5), 1),
+            self.create_test_record(datetime(2023, 11, 6), 2),
+            self.create_test_record(datetime(2023, 11, 7), 3),
+        ]
         provider = DerivedPredictionProvider()
-        provider.clear()
+        provider.delete_by_datetime(start_datetime=None, end_datetime=None)
         assert len(provider) == 0
-        provider.append(record1)
-        provider.append(record2)
-        provider.append(record3)
+        for record in records:
+            provider.insert_by_datetime(record)
         assert len(provider) == 3
         container = DerivedPredictionContainer()
         container.providers.clear()
@@ -378,7 +382,9 @@ class TestPredictionContainer:
         assert len(container_with_providers.providers) == 1
         # check all keys are available (don't care for position)
         for key in ["prediction_value", "date_time"]:
-            assert key in list(container_with_providers.keys())
+            assert key in container_with_providers.record_keys
+        for key in ["prediction_value", "date_time"]:
+            assert key in container_with_providers.keys()
         series = container_with_providers["prediction_value"]
         assert isinstance(series, pd.Series)
         assert series.name == "prediction_value"

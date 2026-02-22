@@ -24,7 +24,7 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimization import OptimizationSolution
-from akkudoktoreos.utils.datetimeutil import DateTime, compare_datetimes, to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 # The executor to execute the CPU heavy energy management run
 executor = ThreadPoolExecutor(max_workers=1)
@@ -42,6 +42,15 @@ class EnergyManagementStage(Enum):
     def __str__(self) -> str:
         """Return the string representation of the stage."""
         return self.value
+
+
+async def ems_manage_energy() -> None:
+    """Repeating task for managing energy.
+
+    This task should be executed by the server regularly
+    to ensure proper energy management.
+    """
+    await EnergyManagement().run()
 
 
 class EnergyManagement(
@@ -286,6 +295,9 @@ class EnergyManagement(
             error_msg = f"Adapter update failed - phase {cls._stage}: {e}\n{trace}"
             logger.error(error_msg)
 
+        # Remember energy run datetime.
+        EnergyManagement._last_run_datetime = to_datetime()
+
         # energy management run finished
         cls._stage = EnergyManagementStage.IDLE
 
@@ -346,73 +358,3 @@ class EnergyManagement(
             )
             # Run optimization in background thread to avoid blocking event loop
             await loop.run_in_executor(executor, func)
-
-    async def manage_energy(self) -> None:
-        """Repeating task for managing energy.
-
-        This task should be executed by the server regularly (e.g., every 10 seconds)
-        to ensure proper energy management. Configuration changes to the energy management interval
-        will only take effect if this task is executed.
-
-        - Initializes and runs the energy management for the first time if it has never been run
-          before.
-        - If the energy management interval is not configured or invalid (NaN), the task will not
-          trigger any repeated energy management runs.
-        - Compares the current time with the last run time and runs the energy management if the
-          interval has elapsed.
-        - Logs any exceptions that occur during the initialization or execution of the energy
-          management.
-
-        Note: The task maintains the interval even if some intervals are missed.
-        """
-        current_datetime = to_datetime()
-        interval = self.config.ems.interval  # interval maybe changed in between
-
-        if EnergyManagement._last_run_datetime is None:
-            # Never run before
-            try:
-                # Remember energy run datetime.
-                EnergyManagement._last_run_datetime = current_datetime
-                # Try to run a first energy management. May fail due to config incomplete.
-                await self.run()
-            except Exception as e:
-                trace = "".join(traceback.TracebackException.from_exception(e).format())
-                message = f"EOS init: {e}\n{trace}"
-                logger.error(message)
-            return
-
-        if interval is None or interval == float("nan"):
-            # No Repetition
-            return
-
-        if (
-            compare_datetimes(current_datetime, EnergyManagement._last_run_datetime).time_diff
-            < interval
-        ):
-            # Wait for next run
-            return
-
-        try:
-            await self.run()
-        except Exception as e:
-            trace = "".join(traceback.TracebackException.from_exception(e).format())
-            message = f"EOS run: {e}\n{trace}"
-            logger.error(message)
-
-        # Remember the energy management run - keep on interval even if we missed some intervals
-        while (
-            compare_datetimes(current_datetime, EnergyManagement._last_run_datetime).time_diff
-            >= interval
-        ):
-            EnergyManagement._last_run_datetime = EnergyManagement._last_run_datetime.add(
-                seconds=interval
-            )
-
-
-# Initialize the Energy Management System, it is a singleton.
-ems = EnergyManagement()
-
-
-def get_ems() -> EnergyManagement:
-    """Gets the EOS Energy Management System."""
-    return ems
