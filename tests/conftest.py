@@ -24,7 +24,7 @@ from xprocess import ProcessStarter, XProcess
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import get_config, get_prediction, singletons_init
-from akkudoktoreos.core.version import _version_hash, version
+from akkudoktoreos.core.version import _version_date_hash, version
 from akkudoktoreos.server.server import get_default_host
 
 # -----------------------------------------------
@@ -510,26 +510,41 @@ def server_base(
         if extra_env:
             env.update(extra_env)
 
-        # assure server to be installed
-        try:
-            project_dir = Path(__file__).parent.parent
-            subprocess.run(
-                [sys.executable, "-c", "import", "akkudoktoreos.server.eos"],
-                check=True,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=project_dir,
-            )
-        except subprocess.CalledProcessError:
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", "-e", str(project_dir)],
-                env=env,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                cwd=project_dir,
-            )
+        project_dir = Path(__file__).parent.parent
+
+        @staticmethod
+        def _ensure_package(env: dict, project_dir: Path) -> None:
+            """Ensure 'akkudoktoreos' is importable in this Python environment."""
+            try:
+                subprocess.run(
+                    [sys.executable, "-c", "import akkudoktoreos.server.eos"],
+                    check=True,
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    cwd=project_dir,
+                )
+            except subprocess.CalledProcessError:
+                # If inside a normal venv or uv-managed environment, install in place
+                uv_root = os.getenv("UV_VENV_ROOT")  # set by uv if active
+                venv_active = hasattr(sys, "real_prefix") or sys.prefix != sys.base_prefix
+                if uv_root or venv_active:
+                    print("Package not found, installing in current environment...")
+                    subprocess.run(
+                        [sys.executable, "-m", "pip", "install", "-e", str(project_dir)],
+                        check=True,
+                        env=env,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        cwd=project_dir,
+                    )
+                else:
+                    raise RuntimeError(
+                        "Cannot import 'akkudoktoreos.server.eos' in the system Python. "
+                        "Activate a virtual environment first."
+                    )
+
+        _ensure_package(env, project_dir)
 
         # Set command to start server process
         args = [
@@ -644,7 +659,7 @@ def version_and_hash() -> Generator[dict[str, Optional[str]], None, None]:
     Runs once per test session.
     """
     info = version()
-    info["hash_current"] = _version_hash()
+    _, info["hash_current"] = _version_date_hash()
 
     yield info
 

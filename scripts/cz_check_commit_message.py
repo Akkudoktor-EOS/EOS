@@ -2,6 +2,12 @@
 """Commitizen commit message checker that is .venv aware.
 
 Works for commits with -m or commit message file.
+
+Cross-platform + uv/.venv aware:
+- Prefers activated virtual environment (VIRTUAL_ENV)
+- Falls back to uv-managed .uv/venv
+- Falls back to .venv
+- Falls back to global cz
 """
 
 import os
@@ -10,19 +16,40 @@ import sys
 from pathlib import Path
 
 
-def find_cz() -> str:
-    """Find Commitizen executable, preferring virtualenv."""
-    venv = os.getenv("VIRTUAL_ENV")
-    paths = []
-    if venv:
-        paths.append(Path(venv))
-    paths.append(Path.cwd() / ".venv")
+def find_cz() -> list[str]:
+    """Return command to invoke Commitizen via virtualenv or globally."""
+    candidates = []
 
-    for base in paths:
-        cz = base / ("Scripts" if os.name == "nt" else "bin") / ("cz.exe" if os.name == "nt" else "cz")
-        if cz.exists():
-            return str(cz)
-    return "cz"
+    # 1️⃣ Currently active virtualenv
+    venv = os.getenv("VIRTUAL_ENV")
+    if venv:
+        candidates.append(Path(venv))
+
+    # 2️⃣ uv-managed virtualenv
+    uv_venv = Path(".uv") / "venv"
+    if uv_venv.exists():
+        candidates.append(uv_venv)
+
+    # 3️⃣ traditional .venv
+    dot_venv = Path(".venv")
+    if dot_venv.exists():
+        candidates.append(dot_venv)
+
+    # Check each candidate for Commitizen binary
+    for base in candidates:
+        cz_path = base / ("Scripts" if os.name == "nt" else "bin") / ("cz.exe" if os.name == "nt" else "cz")
+        if cz_path.exists():
+            return [str(cz_path)]
+
+    # 4️⃣ fallback to uv run cz
+    try:
+        subprocess.run(["uv", "run", "cz", "--version"], check=True, stdout=subprocess.DEVNULL)
+        return ["uv", "run", "cz"]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    # 5️⃣ fallback to system cz
+    return ["cz"]
 
 
 def main():
@@ -47,7 +74,7 @@ def main():
     print(f"🔍 Checking commit message using {cz}...")
 
     try:
-        subprocess.check_call([cz, "check", "--commit-msg-file", commit_msg_file])
+        subprocess.check_call(cz + ["check", "--commit-msg-file", commit_msg_file])
         print("✅ Commit message follows Commitizen convention.")
         return 0
     except subprocess.CalledProcessError:

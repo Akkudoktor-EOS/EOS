@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.2.0.dev58204789`
+**Version**: `v0.2.0.dev2602231150315077`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.

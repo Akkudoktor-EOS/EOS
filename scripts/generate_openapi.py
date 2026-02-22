@@ -18,6 +18,12 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
+
+# Add the src directory to sys.path so import akkudoktoreos works in all cases
+PROJECT_ROOT = Path(__file__).parent.parent
+SRC_DIR = PROJECT_ROOT / "src"
+sys.path.insert(0, str(SRC_DIR))
 
 from akkudoktoreos.core.coreabc import get_config
 from akkudoktoreos.server.eos import app

@@ -51,7 +51,7 @@ git checkout v0.1.0
 Then reinstall dependencies:
 
 ```bash
-.venv/bin/pip install -r requirements.txt --upgrade
+uv sync
 ```
 
 #### Release package (M2)
@@ -62,7 +62,7 @@ Refer to **Method 2** in the [Installation Guideline](install-page).
 ### 3) Restart EOS (M1/M2)
 
 ```bash
-.venv/bin/python -m akkudoktoreos.server.eos
+uv run python -m akkudoktoreos.server.eos
 ```
 
 ### 4) Restore configuration (optional) (M1/M2)

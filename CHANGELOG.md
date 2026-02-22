@@ -16,7 +16,7 @@ in Home Assistant.
 The prediction and measurement data can now be backed by a database. The database allows
 to keep historic prediction data and measurement data for long time without keeping
 it in memory. The database supports backend selection, compression, incremental data load,
-automatic data saving to storage, automatic vaccum and compaction. Two database backends
+automatic data saving to storage, automatic vacuum and compaction. Two database backends
 are integrated and can be configured, LMDB and SQLight3.
 
 In addition, bugs were fixed and new features were added.
@@ -63,7 +63,7 @@ In addition, bugs were fixed and new features were added.
   real (test) environment pathes.
 - development version scheme
   The development versioning scheme is adaptet to fit to docker and
-  home assistant expectations. The new scheme is x.y.z and x.y.z.dev<hash>.
+  home assistant expectations. The new scheme is x.y.z and x.y.z.dev'date''hash'.
   Hash is only digits as expected by home assistant. Development version
   is appended by .dev as expected by docker.
 - use mean value in interval on resampling for array
@@ -133,6 +133,8 @@ In addition, bugs were fixed and new features were added.
 - add home assistant add-on development environment
   Add VSCode devcontainer and task definition for home assistant add-on
   development.
+- Use uv to manage the virtual environment for development.
+  This enormously increases dependency updates.
 - improve documentation
 
 ## 0.2.0 (2025-11-09)
