@@ -9,7 +9,6 @@ format, enabling consistent access to forecasted and historical load attributes.
 from pathlib import Path
 from typing import Optional, Union
 
-from loguru import logger
 from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
@@ -64,14 +63,7 @@ class LoadImport(LoadProvider, PredictionImportProvider):
         return "LoadImport"
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
-        if self.config.load.provider_settings.LoadImport is None:
-            logger.debug(f"{self.provider_id()} data update without provider settings.")
-            return
-        if self.config.load.provider_settings.LoadImport.import_file_path:
-            self.import_from_file(
-                self.config.provider_settings.LoadImport.import_file_path, key_prefix="load"
-            )
-        if self.config.load.provider_settings.LoadImport.import_json:
-            self.import_from_json(
-                self.config.load.provider_settings.LoadImport.import_json, key_prefix="load"
-            )
+        if self.config.load.loadimport.import_file_path:
+            self.import_from_file(self.config.load.loadimport.import_file_path, key_prefix="load")
+        if self.config.load.loadimport.import_json:
+            self.import_from_json(self.config.load.loadimport.import_json, key_prefix="load")
