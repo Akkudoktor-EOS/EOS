@@ -80,21 +80,15 @@ This is recommended for developers who want to modify the source code and test c
 
      .. code-block:: powershell
 
-        python -m venv .venv
-        .venv\Scripts\pip install --upgrade pip
-        .venv\Scripts\pip install -r requirements-dev.txt
-        .venv\Scripts\pip install build
-        .venv\Scripts\pip install -e .
+        uv run python scripts/get_version.py > version.txt
+        uv sync --extra dev
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        python3 -m venv .venv
-        .venv/bin/pip install --upgrade pip
-        .venv/bin/pip install -r requirements-dev.txt
-        .venv/bin/pip install build
-        .venv/bin/pip install -e .
+        uv run python scripts/get_version.py > version.txt
+        uv sync --extra dev
 
   .. tab:: Linux Make
 
@@ -103,25 +97,7 @@ This is recommended for developers who want to modify the source code and test c
         make install
 ```
 
-### Step 2.2 – Activate the Virtual Environment
-
-```{eval-rst}
-.. tabs::
-
-  .. tab:: Windows
-
-     .. code-block:: powershell
-
-        .venv\Scripts\activate.bat
-
-  .. tab:: Linux
-
-     .. code-block:: bash
-
-        source .venv/bin/activate
-```
-
-### Step 2.3 - Install pre-commit
+### Step 2.2 - Install pre-commit
 
 Our code style and commit message checks use [`pre-commit`](https://pre-commit.com).
 
@@ -157,13 +133,13 @@ Make EOS accessible at [http://localhost:8503/docs](http://localhost:8503/docs) 
 
      .. code-block:: powershell
 
-        python -m akkudoktoreos.server.eos
+        uv run python -m akkudoktoreos.server.eos
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        python -m akkudoktoreos.server.eos
+        uv run python -m akkudoktoreos.server.eos
 
   .. tab:: Linux Make
 
@@ -194,13 +170,13 @@ interfere with the EOS server trying to start EOSdash.
 
      .. code-block:: powershell
 
-        python -m akkudoktoreos.server.eosdash --host localhost --port 8504 --log_level DEBUG --reload true
+        uv run python -m akkudoktoreos.server.eosdash --host localhost --port 8504 --log_level DEBUG --reload true
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        python -m akkudoktoreos.server.eosdash --host localhost --port 8504 --log_level DEBUG --reload true
+        uv run python -m akkudoktoreos.server.eosdash --host localhost --port 8504 --log_level DEBUG --reload true
 
   .. tab:: Linux Make
 
@@ -216,13 +192,13 @@ interfere with the EOS server trying to start EOSdash.
 
      .. code-block:: powershell
 
-        python -m akkudoktoreos.server.eos --host localhost --port 8503 --log_level DEBUG --startup_eosdash false --reload true
+        uv run python -m akkudoktoreos.server.eos --host localhost --port 8503 --log_level DEBUG --startup_eosdash false --reload true
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        python -m akkudoktoreos.server.eos --host localhost --port 8503 --log_level DEBUG --startup_eosdash false --reload true
+        uv run python -m akkudoktoreos.server.eos --host localhost --port 8503 --log_level DEBUG --startup_eosdash false --reload true
 
   .. tab:: Linux Make
 
@@ -381,13 +357,13 @@ At a minimum, you should run the module tests:
 
      .. code-block:: powershell
 
-        pytest -vs --cov src --cov-report term-missing
+        uv run pytest -vs --cov src --cov-report term-missing
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        pytest -vs --cov src --cov-report term-missing
+        uv run pytest -vs --cov src --cov-report term-missing
 
   .. tab:: Linux Make
 
@@ -413,13 +389,13 @@ resources:
 
      .. code-block:: powershell
 
-        pytest --system-test -vs --cov src --cov-report term-missing
+        uv run pytest --system-test -vs --cov src --cov-report term-missing
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        pytest --system-test -vs --cov src --cov-report term-missing
+        uv run pytest --system-test -vs --cov src --cov-report term-missing
 
   .. tab:: Linux Make
 
@@ -437,13 +413,13 @@ To do profiling use:
 
      .. code-block:: powershell
 
-        python tests/single_test_optimization.py --profile
+        uv run python tests/single_test_optimization.py --profile
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        python tests/single_test_optimization.py --profile
+        uv run python tests/single_test_optimization.py --profile
 
   .. tab:: Linux Make
 
@@ -575,13 +551,13 @@ Ensure your changes do not break existing functionality:
 
      .. code-block:: powershell
 
-        pytest -vs --cov src --cov-report term-missing
+        uv run pytest -vs --cov src --cov-report term-missing
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        pytest -vs --cov src --cov-report term-missing
+        uv run pytest -vs --cov src --cov-report term-missing
 
   .. tab:: Linux Make
 

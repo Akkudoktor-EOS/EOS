@@ -18,15 +18,18 @@ jobs:
         with:
           python-version: "3.13.9"
 
-      - name: Install dependencies
+      - name: Install uv
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+          pip install uv
 
-      - name: Run Pytest
+      - name: Sync environment with uv
         run: |
-          pip install -e .
-          python -m pytest --finalize --check-config-side-effect -vs --cov src --cov-report term-missing
+          uv sync --extra dev
+
+      - name: Run tests
+        run: |
+          uv run pytest --finalize --check-config-side-effect -vs --cov src --cov-report term-missing
 
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4

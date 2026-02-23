@@ -11,16 +11,40 @@ import sys
 from pathlib import Path
 
 
-def find_cz() -> str:
-    venv = os.getenv("VIRTUAL_ENV")
-    paths = [Path(venv)] if venv else []
-    paths.append(Path.cwd() / ".venv")
+def find_cz() -> list[str]:
+    """Return command to invoke Commitizen via virtualenv or globally."""
+    candidates = []
 
-    for base in paths:
-        cz = base / ("Scripts" if os.name == "nt" else "bin") / ("cz.exe" if os.name == "nt" else "cz")
-        if cz.exists():
-            return str(cz)
-    return "cz"
+    # 1️⃣ Currently active virtualenv
+    venv = os.getenv("VIRTUAL_ENV")
+    if venv:
+        candidates.append(Path(venv))
+
+    # 2️⃣ uv-managed virtualenv
+    uv_venv = Path(".uv") / "venv"
+    if uv_venv.exists():
+        candidates.append(uv_venv)
+
+    # 3️⃣ traditional .venv
+    dot_venv = Path(".venv")
+    if dot_venv.exists():
+        candidates.append(dot_venv)
+
+    # Check each candidate for Commitizen binary
+    for base in candidates:
+        cz_path = base / ("Scripts" if os.name == "nt" else "bin") / ("cz.exe" if os.name == "nt" else "cz")
+        if cz_path.exists():
+            return [str(cz_path)]
+
+    # 4️⃣ fallback to uv run cz
+    try:
+        subprocess.run(["uv", "run", "cz", "--version"], check=True, stdout=subprocess.DEVNULL)
+        return ["uv", "run", "cz"]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    # 5️⃣ fallback to system cz
+    return ["cz"]
 
 
 def main():

@@ -27,13 +27,13 @@ Example:
 
      .. code-block:: powershell
 
-        .venv\Scripts\python src/akkudoktoreos/server/eos.py --log-level DEBUG
+        uv run python src/akkudoktoreos/server/eos.py --log-level DEBUG
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        .venv/bin/python src/akkudoktoreos/server/eos.py --log-level DEBUG
+        uv run python src/akkudoktoreos/server/eos.py --log-level DEBUG
 
 ```
 

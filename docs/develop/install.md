@@ -25,8 +25,8 @@ Before installing, ensure you have the following:
 
 ### For Source / Release Installation (M1/M2)
 
-- Python 3.10 or higher
-- pip
+- Python 3.11+
+- uv (recommended)
 - Git (only for source)
 - Tar/Zip (for release package)
 
@@ -51,6 +51,24 @@ Akkudoktor-EOS is a [Home Assistant add-on](https://www.home-assistant.io/addons
 [Home Assistant Container](https://www.home-assistant.io/installation/) installations don’t
 have access to add-ons.
 :::
+
+## Install uv (one-time setup)
+
+```{eval-rst}
+.. tabs::
+
+  .. tab:: Windows
+
+     .. code-block:: powershell
+
+        irm https://astral.sh/uv/install.ps1 | iex
+
+  .. tab:: Linux
+
+     .. code-block:: bash
+
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
 ## Installation from Source (GitHub) (M1)
 
@@ -85,17 +103,13 @@ Recommended for developers or users wanting the latest updates.
 
      .. code-block:: powershell
 
-        python -m venv .venv
-        .venv\Scripts\pip install -r requirements.txt
-        .venv\Scripts\pip install -e .
+        uv sync --extra dev
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        python -m venv .venv
-        .venv/bin/pip install -r requirements.txt
-        .venv/bin/pip install -e .
+        uv sync --extra dev
 
 ```
 
@@ -108,13 +122,13 @@ Recommended for developers or users wanting the latest updates.
 
      .. code-block:: powershell
 
-        .venv\Scripts\python -m akkudoktoreos.server.eos
+        uv run python -m akkudoktoreos.server.eos
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        .venv/bin/python -m akkudoktoreos.server.eos
+        uv run python -m akkudoktoreos.server.eos
 
 ```
 
@@ -134,13 +148,13 @@ stage of the installation provide appropriate IP addresses on startup.
 
      .. code-block:: powershell
 
-        .venv\Scripts\python -m akkudoktoreos.server.eos --host 0.0.0.0 --eosdash-host 0.0.0.0
+        uv run python -m akkudoktoreos.server.eos --host 0.0.0.0 --eosdash-host 0.0.0.0
 
   .. tab:: Linux
 
      .. code-block:: bash
 
-        .venv/bin/python -m akkudoktoreos.server.eos --host 0.0.0.0 --eosdash-host 0.0.0.0
+        uv run python -m akkudoktoreos.server.eos --host 0.0.0.0 --eosdash-host 0.0.0.0
 
 ```
 <!-- pyml enable line-length -->

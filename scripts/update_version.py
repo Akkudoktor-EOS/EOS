@@ -11,6 +11,12 @@ import sys
 from pathlib import Path
 from typing import List
 
+# Add the src directory to sys.path so import akkudoktoreos works in all cases
+PROJECT_ROOT = Path(__file__).parent.parent
+SRC_DIR = PROJECT_ROOT / "src"
+sys.path.insert(0, str(SRC_DIR))
+
+
 # --- Patterns to match version strings ---
 VERSION_PATTERNS = [
     # Python: __version__ = "1.2.3"
@@ -88,6 +94,21 @@ def update_version_in_file(file_path: Path, new_version: str) -> bool:
     return file_would_be_updated
 
 
+def update_version_date_file() -> str:
+    """Write current version date to __version_date__.py"""
+    from akkudoktoreos.core.version import VERSION_DATE_FILE, _version_date_hash
+
+    version_date, _ =  _version_date_hash()
+    version_date_str =  version_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    content = f'VERSION_DATE = "{version_date_str}"\n'
+
+    VERSION_DATE_FILE.write_text(content)
+
+    print(f"Updated {VERSION_DATE_FILE} with UTC date {version_date_str}")
+
+    return str(VERSION_DATE_FILE)
+
+
 def main(version: str, files: List[str]):
     if not version:
         raise ValueError("No version provided")
@@ -102,6 +123,8 @@ def main(version: str, files: List[str]):
             continue
         if update_version_in_file(path, version):
             updated_files.append(str(path))
+
+    updated_files.append(update_version_date_file())
 
     if updated_files:
         print(f"Updated files: {', '.join(updated_files)}")

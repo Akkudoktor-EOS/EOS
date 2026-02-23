@@ -14,6 +14,11 @@ from loguru import logger
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
+# Add the src directory to sys.path so import akkudoktoreos works in all cases
+PROJECT_ROOT = Path(__file__).parent.parent
+SRC_DIR = PROJECT_ROOT / "src"
+sys.path.insert(0, str(SRC_DIR))
+
 from akkudoktoreos.config.config import ConfigEOS, default_data_folder_path
 from akkudoktoreos.core.coreabc import get_config, singletons_init
 from akkudoktoreos.core.pydantic import PydanticBaseModel

@@ -59,20 +59,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libopenblas-dev liblapack-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# - Copy project metadata first (better Docker layer caching)
+COPY pyproject.toml .
+
 # - Create venv
 RUN python3 -m venv ${VENV_PATH}
 
 # - Upgrade pip inside venv
 RUN pip install --upgrade pip setuptools wheel
 
-# - Install deps
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 # Install EOS/ EOSdash
 # - Copy source
 COPY src/ ./src
-COPY pyproject.toml .
 
 # - Create version information
 COPY scripts/get_version.py ./scripts/get_version.py

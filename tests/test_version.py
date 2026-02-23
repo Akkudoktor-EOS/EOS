@@ -14,10 +14,11 @@ from akkudoktoreos.core.version import (
     EXCLUDED_FILES,
     HashConfig,
     _version_calculate,
-    _version_hash,
+    _version_date_hash,
     collect_files,
     hash_files,
 )
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 DIR_PROJECT_ROOT = Path(__file__).parent.parent
 GET_VERSION_SCRIPT = DIR_PROJECT_ROOT / "scripts" / "get_version.py"
@@ -127,7 +128,7 @@ def write_file(path: Path, content: str):
 
 # -- Test version calculation ---
 
-def test_version_hash() -> None:
+def test_version_date_hash() -> None:
     """Test which files are used for version hash calculation."""
 
     watched_paths = [DIR_PACKAGE_ROOT]
@@ -196,22 +197,26 @@ def test_version_non_dev(monkeypatch):
 
 def test_version_dev_precision_8(monkeypatch):
     """Test that a dev version appends exactly 8 digits derived from the hash."""
-    fake_hash = "abcdef1234567890"  # deterministic fake digest
+    fake_hash = "abcdef1234567890"
+    fake_date = "2025-02-22T09:28:22Z"
+    fake_date_hash = (to_datetime(fake_date), fake_hash)  # deterministic fake digest
 
-    monkeypatch.setattr("akkudoktoreos.core.version._version_hash", lambda: fake_hash)
+    monkeypatch.setattr("akkudoktoreos.core.version._version_date_hash", lambda: fake_date_hash)
     monkeypatch.setattr("akkudoktoreos.core.version.VERSION_BASE", "0.2.0.dev")
-    monkeypatch.setattr("akkudoktoreos.core.version.VERSION_DEV_PRECISION", 8)
+    monkeypatch.setattr("akkudoktoreos.core.version.VERSION_DEV_HASH_PRECISION", 8)
 
     result = _version_calculate()
 
     # Compute expected suffix using the same logic as _version_calculate
     hash_value = int(fake_hash, 16)
-    expected_digits = str(hash_value % (10 ** 8)).zfill(8)
+    expected_hash_digits = str(hash_value % (10 ** 8)).zfill(8)
 
-    expected = f"0.2.0.dev{expected_digits}"
+    expected_date_digits = to_datetime(fake_date, as_string="YYMMDDHH")
+
+    expected = f"0.2.0.dev{expected_date_digits}{expected_hash_digits}"
 
     assert result == expected
-    assert len(expected_digits) == 8
+    assert len(expected_hash_digits) == 8
     assert result.startswith("0.2.0.dev")
     assert result == expected
 
@@ -219,21 +224,25 @@ def test_version_dev_precision_8(monkeypatch):
 def test_version_dev_precision_8_different_hash(monkeypatch):
     """A different hash must produce a different 8-digit suffix."""
     fake_hash = "1234abcd9999ffff"
+    fake_date = "2025-02-22T09:28:22Z"
+    fake_date_hash = (to_datetime(fake_date), fake_hash)  # deterministic fake digest
 
-    monkeypatch.setattr("akkudoktoreos.core.version._version_hash", lambda: fake_hash)
+    monkeypatch.setattr("akkudoktoreos.core.version._version_date_hash", lambda: fake_date_hash)
     monkeypatch.setattr("akkudoktoreos.core.version.VERSION_BASE", "0.2.0.dev")
-    monkeypatch.setattr("akkudoktoreos.core.version.VERSION_DEV_PRECISION", 8)
+    monkeypatch.setattr("akkudoktoreos.core.version.VERSION_DEV_HASH_PRECISION", 8)
 
     result = _version_calculate()
 
     # Compute expected suffix using the same logic as _version_calculate
     hash_value = int(fake_hash, 16)
-    expected_digits = str(hash_value % (10 ** 8)).zfill(8)
+    expected_hash_digits = str(hash_value % (10 ** 8)).zfill(8)
 
-    expected = f"0.2.0.dev{expected_digits}"
+    expected_date_digits = to_datetime(fake_date, as_string="YYMMDDHH")
+
+    expected = f"0.2.0.dev{expected_date_digits}{expected_hash_digits}"
 
     assert result == expected
-    assert len(expected_digits) == 8
+    assert len(expected_hash_digits) == 8
     assert result.startswith("0.2.0.dev")
     assert result == expected
 
