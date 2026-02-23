@@ -25,7 +25,7 @@ dependencies = [
     "fastapi_cli==0.0.21",
     "rich-toolkit==0.19.4",
     "python-fasthtml==0.12.47",
-    "MonsterUI==1.0.43",
+    "MonsterUI==1.0.44",
     "markdown-it-py==4.0.0",
     "mdit-py-plugins==0.5.0",
     "bokeh==3.8.2",
