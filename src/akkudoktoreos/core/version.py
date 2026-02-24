@@ -60,6 +60,8 @@ class HashConfig:
         for path in self.paths:
             if not path.exists():
                 raise ValueError(f"Path does not exist: {path}")
+        # Normalize exclude files (for easy comparison)
+        self.excluded_files = {p.resolve() for p in self.excluded_files}
 
 
 def is_excluded_dir(path: Path, patterns: set[str]) -> bool:
@@ -104,7 +106,7 @@ def collect_files(config: HashConfig) -> list[Path]:
 
     for root in config.paths:
         for p in sorted(root.rglob("*")):
-            # Skip excluded directories
+            # Skip directories that match exclusion
             if p.is_dir() and is_excluded_dir(p, config.excluded_dir_patterns):
                 continue
 
@@ -112,13 +114,19 @@ def collect_files(config: HashConfig) -> list[Path]:
             if any(is_excluded_dir(parent, config.excluded_dir_patterns) for parent in p.parents):
                 continue
 
-            # Skip excluded files
-            if p.resolve() in config.excluded_files:
+            if not p.is_file():
                 continue
 
-            # Collect only allowed file types
-            if p.is_file() and p.suffix.lower() in config.allowed_suffixes:
-                collected_files.append(p.resolve())
+            if p.suffix.lower() not in config.allowed_suffixes:
+                continue
+
+            resolved_p = p.resolve()
+
+            # Skip excluded files (already resolved in config)
+            if resolved_p in config.excluded_files:
+                continue
+
+            collected_files.append(resolved_p)
 
     return sorted(collected_files)
 

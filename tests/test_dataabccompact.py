@@ -207,11 +207,14 @@ def configure_database(tmp_path):
     yield
 
     # Teardown
-    _reset_singletons()
     try:
-        Database.reset_instance()
-    except Exception:
-        pass
+        db.close()
+    finally:
+        _reset_singletons()
+        try:
+            Database.reset_instance()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
