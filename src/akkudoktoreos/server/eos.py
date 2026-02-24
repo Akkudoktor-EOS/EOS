@@ -60,7 +60,6 @@ from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.server.rest.cli import cli_apply_args_to_config, cli_parse_args
 from akkudoktoreos.server.rest.error import create_error_page
 from akkudoktoreos.server.rest.starteosdash import run_eosdash_supervisor
-from akkudoktoreos.server.rest.tasks import make_repeated_task
 from akkudoktoreos.server.retentionmanager import RetentionManager
 from akkudoktoreos.server.server import (
     drop_root_privileges,
@@ -143,7 +142,7 @@ async def server_shutdown_task() -> None:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
-    asyncio.create_task(run_eosdash_supervisor())
+    eosdash_supervisor_task = asyncio.create_task(run_eosdash_supervisor())
 
     load_eos_state()
 
@@ -156,19 +155,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         "save_eos_database", save_eos_database, interval_attr="database/autosave_interval_sec"
     )
     manager.register(
-        "compact_eos_database", save_eos_database, interval_attr="database/compact_interval_sec"
+        "compact_eos_database", save_eos_database, interval_attr="database/compaction_interval_sec"
     )
     manager.register("manage_energy", ems_manage_energy, interval_attr="ems/interval")
 
-    # Start EOS repeated tasks
-    tick_task = make_repeated_task(manager.tick, seconds=5, wait_first=2)
-    await tick_task()
+    # Start the manager an by this all EOS repeated tasks
+    retention_manager_task = asyncio.create_task(manager.run())
 
     # Handover to application
     yield
 
     # waits for any in-flight job to finish cleanly
-    await manager.shutdown()
+    retention_manager_task.cancel()
+    await asyncio.gather(retention_manager_task, return_exceptions=True)
+    eosdash_supervisor_task.cancel()
+    await asyncio.gather(eosdash_supervisor_task, return_exceptions=True)
 
     # On shutdown
     save_eos_state()
