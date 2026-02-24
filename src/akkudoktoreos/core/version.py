@@ -247,7 +247,10 @@ def newest_commit_or_dirty_datetime(files: list[Path]) -> datetime:
             exec(VERSION_DATE_FILE.read_text(), {}, ns)  # noqa: S102
             date_str = ns.get("VERSION_DATE")
             if date_str:
-                return datetime.fromisoformat(date_str).astimezone(timezone.utc)
+                dt = datetime.fromisoformat(date_str)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)  # treat naive as UTC, don't convert
+                return dt.astimezone(timezone.utc)
         except Exception:  # noqa: S110
             pass
 
