@@ -809,32 +809,45 @@ class TestDataSequenceSparseGuard:
         insert a "newest anchor" record 1 second before now so that
         db_max ≈ now, making cutoff = db_max - age_threshold ≈ now - age_minutes.
 
-        The test records are placed at now - (age_minutes + margin) + offset,
-        which puts them clearly before the cutoff and inside the compaction window.
+        Critically, _db_compact_tier FLOORS the cutoff to the interval boundary:
+            window_end_epoch = floor(anchor_epoch - age_sec, interval_sec)
 
-        resampled_count = age_minutes / interval_minutes (the window width in
-        buckets).  We require len(offsets_minutes) > resampled_count so the
-        snapping path is entered rather than the pure-skip path.
+        We replicate that exact floor here so that all test records are
+        guaranteed to land before window_end regardless of what wall-clock
+        time the test runs at (UTC CI vs. local non-UTC machines).
+
+        The test records are placed at base + offset_minutes where base is
+        chosen so that base + max(offsets) < window_end.
+
+        resampled_count = window_width / interval_sec (ceiling).
+        We require len(offsets_minutes) > resampled_count so the snapping
+        path is entered rather than the pure-skip path.
 
         Returns (seq, age_threshold, target_interval, record_datetimes).
         """
         age_td = to_duration(f"{age_minutes} minutes")
         interval_td = to_duration(f"{interval_minutes} minutes")
         interval_sec = interval_minutes * 60
+        age_sec = age_minutes * 60
 
-        # Margin must be larger than the maximum offset so that ALL test records
-        # land before window_end = floor(now - age_minutes, interval_sec).
-        # We need: base + max(offsets) < now - age_minutes
-        #   => now - (age_minutes + margin) + max(offsets) < now - age_minutes
-        #   => max(offsets) < margin
-        # Use margin = max(offsets_minutes) + 2*interval_minutes + 1 (generous).
+        # Replicate the exact window_end the implementation will compute:
+        #   anchor = now - 1s
+        #   raw_cutoff = anchor - age_td
+        #   window_end = floor(raw_cutoff, interval_sec)
+        anchor_epoch = int(now.subtract(seconds=1).timestamp())
+        raw_cutoff_epoch = anchor_epoch - age_sec
+        window_end_epoch = (raw_cutoff_epoch // interval_sec) * interval_sec
+
+        # Place base interval_sec before window_end so all records
+        # (base + max_offset) are safely inside [window_start, window_end).
+        # We need: base_epoch + max(offsets)*60 < window_end_epoch
+        # Use: base_epoch = window_end_epoch - (max_offset + 2*interval_minutes + 1) * 60
+        # Then floor base to interval boundary.
         max_offset = max(offsets_minutes) if offsets_minutes else 0
-        margin = max_offset + 2 * interval_minutes + 1
-
-        # Floor base to interval boundary so snapping arithmetic is exact
-        raw_base = now.subtract(minutes=age_minutes + margin).set(second=0, microsecond=0)
-        base_epoch = int(raw_base.timestamp())
-        base = raw_base.subtract(seconds=base_epoch % interval_sec)
+        margin_sec = (max_offset + 2 * interval_minutes + 1) * 60
+        raw_base_epoch = window_end_epoch - margin_sec
+        base_epoch = (raw_base_epoch // interval_sec) * interval_sec
+        base = DateTime.fromtimestamp(base_epoch, tz="UTC")
 
         seq = EnergySequence()
         dts = []
@@ -858,12 +871,10 @@ class TestDataSequenceSparseGuard:
         """
         now = to_datetime().in_timezone("UTC")
         # 4 records at :03, :08, :13, :18 — all misaligned for a 10-min interval
-        seq, age_td, interval_td, _ = self._make_snapping_seq(
+        seq, age_td, interval_td, dts = self._make_snapping_seq(
             now, offsets_minutes=[3, 8, 13, 18]
         )
-        # before includes the anchor record which is NOT in the compaction window
-        # and therefore NOT deleted.  Only the 4 test records are in-window.
-        n_test_records = len([3, 8, 13, 18])  # offsets_minutes
+        n_test_records = len([3, 8, 13, 18])
         deleted = seq._db_compact_tier(age_td, interval_td)
         after = seq.db_count_records()
 
@@ -871,16 +882,17 @@ class TestDataSequenceSparseGuard:
             f"All {n_test_records} in-window records must be deleted (whole-window delete); "
             f"got deleted={deleted}"
         )
-        # Net count after: anchor(1) + snapped buckets re-inserted.
-        # Implementation uses FLOOR division: (epoch // interval_sec) * interval_sec
-        # offsets [3,8,13,18] with interval=10min map to buckets:
-        #   3  // 10 = 0  → :00
-        #   8  // 10 = 0  → :00  (collision with :03)
-        #   13 // 10 = 1  → :10
-        #   18 // 10 = 1  → :10  (collision with :13)
-        # → 2 unique buckets
-        interval_minutes = 10
-        n_snapped = len({(off // interval_minutes) * interval_minutes for off in [3, 8, 13, 18]})
+
+        # Compute expected snapped buckets using the ABSOLUTE epochs of the
+        # inserted records (same arithmetic _db_compact_tier uses), not
+        # offset-relative floor division.  This is correct on any host timezone.
+        interval_sec = 10 * 60
+        snapped_buckets = {
+            (int(dt.timestamp()) // interval_sec) * interval_sec
+            for dt in dts
+        }
+        n_snapped = len(snapped_buckets)
+
         assert after == 1 + n_snapped, (
             f"Expected 1 anchor + {n_snapped} snapped buckets = {1 + n_snapped} records; "
             f"got {after}"
