@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.2.0.dev2602242106748274"
+    "version": "v0.2.0.dev2602250574650225"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -4451,7 +4451,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev2602242106748274"
+            "default": "0.2.0.dev2602250574650225"
           },
           "data_folder_path": {
             "type": "string",
@@ -4514,7 +4514,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev2602242106748274"
+            "default": "0.2.0.dev2602250574650225"
           },
           "data_folder_path": {
             "type": "string",
@@ -5942,55 +5942,6 @@
         "title": "LoadAkkudoktorCommonSettings",
         "description": "Common settings for load data import from file."
       },
-      "LoadCommonProviderSettings": {
-        "properties": {
-          "LoadAkkudoktor": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LoadAkkudoktorCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "LoadAkkudoktor settings",
-            "examples": [
-              null
-            ]
-          },
-          "LoadVrm": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LoadVrmCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "LoadVrm settings",
-            "examples": [
-              null
-            ]
-          },
-          "LoadImport": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LoadImportCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "LoadImport settings",
-            "examples": [
-              null
-            ]
-          }
-        },
-        "type": "object",
-        "title": "LoadCommonProviderSettings",
-        "description": "Load Prediction Provider Configuration."
-      },
       "LoadCommonSettings-Input": {
         "properties": {
           "provider": {
@@ -6008,12 +5959,17 @@
               "LoadAkkudoktor"
             ]
           },
-          "provider_settings": {
-            "$ref": "#/components/schemas/LoadCommonProviderSettings",
-            "description": "Provider settings",
-            "examples": [
-              {}
-            ]
+          "loadakkudoktor": {
+            "$ref": "#/components/schemas/LoadAkkudoktorCommonSettings",
+            "description": "LoadAkkudoktor provider settings."
+          },
+          "loadvrm": {
+            "$ref": "#/components/schemas/LoadVrmCommonSettings",
+            "description": "LoadVrm provider settings."
+          },
+          "loadimport": {
+            "$ref": "#/components/schemas/LoadImportCommonSettings",
+            "description": "LoadImport provider settings."
           }
         },
         "type": "object",
@@ -6037,12 +5993,17 @@
               "LoadAkkudoktor"
             ]
           },
-          "provider_settings": {
-            "$ref": "#/components/schemas/LoadCommonProviderSettings",
-            "description": "Provider settings",
-            "examples": [
-              {}
-            ]
+          "loadakkudoktor": {
+            "$ref": "#/components/schemas/LoadAkkudoktorCommonSettings",
+            "description": "LoadAkkudoktor provider settings."
+          },
+          "loadvrm": {
+            "$ref": "#/components/schemas/LoadVrmCommonSettings",
+            "description": "LoadVrm provider settings."
+          },
+          "loadimport": {
+            "$ref": "#/components/schemas/LoadImportCommonSettings",
+            "description": "LoadImport provider settings."
           },
           "providers": {
             "items": {
@@ -8785,13 +8746,6 @@
           "type": {
             "type": "string",
             "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
           }
         },
         "type": "object",
