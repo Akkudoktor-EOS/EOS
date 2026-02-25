@@ -30,7 +30,7 @@ dependencies = [
     "mdit-py-plugins==0.5.0",
     "bokeh==3.8.2",
     "uvicorn==0.41.0",
-    "scipy==1.17.0",
+    "scipy==1.17.1",
     "tzfpy==1.1.1",
     "deap==1.4.3",
     "requests==2.32.5",
