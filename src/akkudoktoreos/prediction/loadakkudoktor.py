@@ -56,9 +56,7 @@ class LoadAkkudoktor(LoadProvider):
             )
             # Calculate values in W by relative profile data and yearly consumption given in kWh
             data_year_energy = (
-                profile_data
-                * self.config.load.provider_settings.LoadAkkudoktor.loadakkudoktor_year_energy_kwh
-                * 1000
+                profile_data * self.config.load.loadakkudoktor.loadakkudoktor_year_energy_kwh * 1000
             )
         except FileNotFoundError:
             error_msg = f"Error: File {load_file} not found."

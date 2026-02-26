@@ -18,12 +18,10 @@ def load_vrm_instance(config_eos):
     settings = {
         "load": {
             "provider": "LoadVrm",
-            "provider_settings": {
-                "LoadVrm": {
-                    "load_vrm_token": "dummy-token",
-                    "load_vrm_idsite": 12345,
-                },
-            }
+            "loadvrm": {
+                "load_vrm_token": "dummy-token",
+                "load_vrm_idsite": 12345,
+            },
         }
     }
     config_eos.merge_settings_from_dict(settings)

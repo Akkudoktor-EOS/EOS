@@ -1982,8 +1982,14 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
                 provider.update_data(force_enable=force_enable, force_update=force_update)
             except Exception as ex:
                 error = f"Provider {provider.provider_id()} fails on update - enabled={provider.enabled()}, force_enable={force_enable}, force_update={force_update}: {ex}"
-                logger.error(error)
-                raise RuntimeError(error)
+                if provider.enabled():
+                    # The active provider failed — this is a real error worth propagating.
+                    logger.error(error)
+                    raise RuntimeError(error)
+                else:
+                    # A non-active provider failed (e.g. missing config while force_enable=True).
+                    # Log as warning and continue so the remaining providers still run.
+                    logger.warning(error)
 
     def key_to_series(
         self,

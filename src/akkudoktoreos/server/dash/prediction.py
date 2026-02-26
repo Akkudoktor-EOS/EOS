@@ -154,9 +154,7 @@ def LoadForecast(predictions: pd.DataFrame, config: dict, date_time_tz: str, dar
     source = ColumnDataSource(predictions)
     provider = config["load"]["provider"]
     if provider == "LoadAkkudoktorAdjusted":
-        year_energy = config["load"]["provider_settings"]["LoadAkkudoktor"][
-            "loadakkudoktor_year_energy_kwh"
-        ]
+        year_energy = config["load"]["loadakkudoktor"]["loadakkudoktor_year_energy_kwh"]
         provider = f"{provider}, {year_energy} kWh"
 
     plot = figure(

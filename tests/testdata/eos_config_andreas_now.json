@@ -56,10 +56,8 @@
     "charges_kwh": 0.21
   },
   "load": {
-    "provider_settings": {
-      "LoadAkkudoktor": {
-        "loadakkudoktor_year_energy_kwh": 13000
-      }
+    "loadakkudoktor": {
+      "loadakkudoktor_year_energy_kwh": 13000
     }
   },
   "pvforecast": {

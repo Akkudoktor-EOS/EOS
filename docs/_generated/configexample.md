@@ -120,7 +120,7 @@
            }
        },
        "general": {
-           "version": "0.2.0.dev2602242106748274",
+           "version": "0.2.0.dev2602250574650225",
            "data_folder_path": "/home/user/.local/share/net.akkudoktoreos.net",
            "data_output_subpath": "output",
            "latitude": 52.52,
@@ -128,10 +128,16 @@
        },
        "load": {
            "provider": "LoadAkkudoktor",
-           "provider_settings": {
-               "LoadAkkudoktor": null,
-               "LoadVrm": null,
-               "LoadImport": null
+           "loadakkudoktor": {
+               "loadakkudoktor_year_energy_kwh": null
+           },
+           "loadvrm": {
+               "load_vrm_token": "your-token",
+               "load_vrm_idsite": 12345
+           },
+           "loadimport": {
+               "import_file_path": null,
+               "import_json": null
            }
        },
        "logging": {

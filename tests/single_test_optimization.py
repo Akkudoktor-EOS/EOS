@@ -97,10 +97,8 @@ def prepare_optimization_real_parameters() -> GeneticOptimizationParameters:
         # Load Forecast
         "load": {
             "provider": "LoadAkkudoktor",
-            "provider_settings": {
-                "LoadAkkudoktor": {
-                    "loadakkudoktor_year_energy_kwh": 5000,  # Energy consumption per year in kWh
-                },
+            "loadakkudoktor": {
+                "loadakkudoktor_year_energy_kwh": 5000,  # Energy consumption per year in kWh
             },
         },
         # -- Simulations --

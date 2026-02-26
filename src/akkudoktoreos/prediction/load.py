@@ -28,21 +28,6 @@ def load_providers() -> list[str]:
     ]
 
 
-class LoadCommonProviderSettings(SettingsBaseModel):
-    """Load Prediction Provider Configuration."""
-
-    LoadAkkudoktor: Optional[LoadAkkudoktorCommonSettings] = Field(
-        default=None,
-        json_schema_extra={"description": "LoadAkkudoktor settings", "examples": [None]},
-    )
-    LoadVrm: Optional[LoadVrmCommonSettings] = Field(
-        default=None, json_schema_extra={"description": "LoadVrm settings", "examples": [None]}
-    )
-    LoadImport: Optional[LoadImportCommonSettings] = Field(
-        default=None, json_schema_extra={"description": "LoadImport settings", "examples": [None]}
-    )
-
-
 class LoadCommonSettings(SettingsBaseModel):
     """Load Prediction Configuration."""
 
@@ -54,19 +39,19 @@ class LoadCommonSettings(SettingsBaseModel):
         },
     )
 
-    provider_settings: LoadCommonProviderSettings = Field(
-        default_factory=LoadCommonProviderSettings,
-        json_schema_extra={
-            "description": "Provider settings",
-            "examples": [
-                # Example 1: Empty/default settings (all providers None)
-                {
-                    "LoadAkkudoktor": None,
-                    "LoadVrm": None,
-                    "LoadImport": None,
-                },
-            ],
-        },
+    loadakkudoktor: LoadAkkudoktorCommonSettings = Field(
+        default_factory=LoadAkkudoktorCommonSettings,
+        json_schema_extra={"description": "LoadAkkudoktor provider settings."},
+    )
+
+    loadvrm: LoadVrmCommonSettings = Field(
+        default_factory=LoadVrmCommonSettings,
+        json_schema_extra={"description": "LoadVrm provider settings."},
+    )
+
+    loadimport: LoadImportCommonSettings = Field(
+        default_factory=LoadImportCommonSettings,
+        json_schema_extra={"description": "LoadImport provider settings."},
     )
 
     @computed_field  # type: ignore[prop-decorator]
