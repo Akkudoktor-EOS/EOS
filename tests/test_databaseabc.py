@@ -787,15 +787,21 @@ class TestDbCompact:
         """Second call processes only the new window, not the full history."""
         seq = SampleSequence()
         now = to_datetime().in_timezone("UTC")
-        base = now.subtract(weeks=3)
+        # Floor to the minute to avoid sub-minute microseconds causing duplicate
+        # timestamps when interval arithmetic lands exactly on `base`.
+        now_floored = now.set(second=0, microsecond=0)
+        base = now_floored.subtract(weeks=3)
         # Dense 1-min data for 3 weeks
         _insert_records_every_n_minutes(seq, base, count=3 * 7 * 24 * 60, interval_minutes=1)
 
         seq.db_compact()
         count_after_first = seq.db_count_records()
 
-        # Add one more day of dense data in the past (simulate new old data arriving)
-        extra_base = now.subtract(weeks=3).subtract(days=1)
+        # Start 2 days before `base` and insert only 1 day worth of records,
+        # so the window [extra_base, extra_base + 1439min] stays entirely
+        # before `base - 1day` and never collides with compacted timestamps
+        # that were snapped to clean hour/15-min boundaries inside the original range.
+        extra_base = now_floored.subtract(weeks=3).subtract(days=2)
         _insert_records_every_n_minutes(seq, extra_base, count=24 * 60, interval_minutes=1)
 
         seq.db_compact()

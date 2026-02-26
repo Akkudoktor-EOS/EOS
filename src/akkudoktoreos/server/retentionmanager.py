@@ -10,23 +10,6 @@ Responsibilities:
       immediately without a server restart.
     - Track per-job state: last run time, last duration, last error, run count.
     - Expose that state for health-check / metrics endpoints.
-
-Example:
-    Typical usage inside your FastAPI lifespan::
-
-        from akkudoktoreos.core.coreabc import get_config
-        from akkudoktoreos.server.rest.retention_manager import RetentionManager
-        from akkudoktoreos.server.rest.tasks import make_repeated_task
-
-        manager = RetentionManager(get_config().get_nested_value)
-        manager.register("cache_cleanup", cache_cleanup_fn, interval_attr="server/cache_cleanup_interval")
-        manager.register("db_autosave",   db_autosave_fn,   interval_attr="server/db_autosave_interval")
-
-        @asynccontextmanager
-        async def lifespan(app: FastAPI):
-            tick_task = make_repeated_task(manager.tick, seconds=5, wait_first=2)
-            await tick_task()
-            yield
 """
 
 from __future__ import annotations
@@ -102,10 +85,11 @@ class JobState:
             if value is None:
                 return None
             return float(value) if value else self.fallback_interval
-        except (KeyError, IndexError):
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
-                "RetentionManager: config key '{}' not found, using fallback {}s",
+                "RetentionManager: config key '{}' failed with {!r}, using fallback {}s",
                 self.interval_attr,
+                exc,
                 self.fallback_interval,
             )
             return self.fallback_interval
@@ -153,8 +137,7 @@ class JobState:
 class RetentionManager:
     """Orchestrates all periodic server-maintenance jobs.
 
-    The manager itself is driven by an external ``make_repeated_task`` heartbeat
-    (the *compaction tick*). A ``config_getter`` callable — accepting a string key
+    A ``config_getter`` callable — accepting a string key
     and returning the corresponding value — is supplied at initialisation and
     stored on every registered job, keeping the manager decoupled from any
     specific config implementation.
@@ -227,6 +210,22 @@ class RetentionManager:
         if name in self._jobs:
             raise ValueError(f"RetentionManager: job '{name}' is already registered")
 
+        # Validate the config key immediately so misconfiguration is caught at startup
+        try:
+            self._config_getter(interval_attr)
+        except (KeyError, IndexError):
+            logger.warning(
+                "RetentionManager: config key '{}' not found at registration of job '{}', will use fallback {}s",
+                interval_attr,
+                name,
+                fallback_interval,
+            )
+        except Exception as exc:
+            raise ValueError(
+                f"RetentionManager: interval_attr '{interval_attr}' for job '{name}' "
+                f"is not accessible via config_getter: {exc}"
+            ) from exc
+
         self._jobs[name] = JobState(
             name=name,
             func=func,
@@ -251,6 +250,39 @@ class RetentionManager:
     # Tick — called by the external heartbeat loop
     # ------------------------------------------------------------------
 
+    async def run(self, *, tick_interval: float = 5.0) -> None:
+        """Run the RetentionManager tick loop indefinitely.
+
+        Calls `tick` every ``tick_interval`` seconds until the task is
+        cancelled (e.g. during application shutdown). On cancellation,
+        `shutdown` is awaited so any in-flight jobs can finish cleanly
+        before the loop exits.
+
+        Args:
+            tick_interval: Seconds between ticks. Defaults to ``5.0``.
+
+        Example::
+
+            @asynccontextmanager
+            async def lifespan(app: FastAPI):
+                task = asyncio.create_task(manager.run())
+                yield
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+        """
+        logger.info("RetentionManager: tick loop started (interval={}s)", tick_interval)
+        try:
+            while True:
+                try:
+                    await self.tick()
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("RetentionManager: unhandled exception in tick: {}", exc)
+                await asyncio.sleep(tick_interval)
+        except asyncio.CancelledError:
+            logger.info("RetentionManager: tick loop cancelled, shutting down...")
+            await self.shutdown()
+            raise
+
     async def tick(self) -> None:
         """Single compaction tick: check every job and fire those that are due.
 
@@ -263,10 +295,8 @@ class RetentionManager:
 
         Jobs that are still running from a previous tick are skipped to prevent
         overlapping executions.
-
-        Note:
-            This is the function you pass to ``make_repeated_task``.
         """
+        logger.info("RetentionManager: tick")
         due = [job for job in self._jobs.values() if not job.is_running and job.is_due()]
 
         if not due:
@@ -290,16 +320,6 @@ class RetentionManager:
         is not blocked indefinitely.
 
         Returns immediately if no tasks are running.
-
-        Example::
-
-            @asynccontextmanager
-            async def lifespan(app: FastAPI):
-                tick_task = make_repeated_task(manager.tick, seconds=5, wait_first=2)
-                await tick_task()
-
-        Yield:
-                await manager.shutdown()
         """
         if not self._running_tasks:
             return

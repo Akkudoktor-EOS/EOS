@@ -8,11 +8,14 @@ Usage:
 #!/usr/bin/env python3
 import re
 import sys
+from datetime import timezone
 from pathlib import Path
 from typing import List
 
-# Add the src directory to sys.path so import akkudoktoreos works in all cases
 PROJECT_ROOT = Path(__file__).parent.parent
+PACKAGE_DIR = PROJECT_ROOT / "src" / "akkudoktoreos"
+
+# Add the src directory to sys.path so import akkudoktoreos works in all cases
 SRC_DIR = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SRC_DIR))
 
@@ -95,17 +98,19 @@ def update_version_in_file(file_path: Path, new_version: str) -> bool:
 
 
 def update_version_date_file() -> str:
-    """Write current version date to __version_date__.py"""
+    """Write current version date to _version_date.py, only if changed."""
     from akkudoktoreos.core.version import VERSION_DATE_FILE, _version_date_hash
+    version_date, _ = _version_date_hash()
+    version_date_utc = version_date.astimezone(timezone.utc)
+    version_date_str = version_date_utc.isoformat()
+    new_content = f'VERSION_DATE = "{version_date_str}"\n'
 
-    version_date, _ =  _version_date_hash()
-    version_date_str =  version_date.strftime('%Y-%m-%dT%H:%M:%SZ')
-    content = f'VERSION_DATE = "{version_date_str}"\n'
+    if VERSION_DATE_FILE.exists() and VERSION_DATE_FILE.read_text(encoding="utf-8") == new_content:
+        print(f"No change to {VERSION_DATE_FILE}")
+        return str(VERSION_DATE_FILE)
 
-    VERSION_DATE_FILE.write_text(content)
-
+    VERSION_DATE_FILE.write_text(new_content, encoding="utf-8")
     print(f"Updated {VERSION_DATE_FILE} with UTC date {version_date_str}")
-
     return str(VERSION_DATE_FILE)
 
 
@@ -124,10 +129,18 @@ def main(version: str, files: List[str]):
         if update_version_in_file(path, version):
             updated_files.append(str(path))
 
-    updated_files.append(update_version_date_file())
-
     if updated_files:
         print(f"Updated files: {', '.join(updated_files)}")
+
+        # Only update VERSION_DATE_FILE if a real package file was touched
+        # Exclude VERSION_DATE_FILE itself to avoid a self-referencing loop
+        from akkudoktoreos.core.version import VERSION_DATE_FILE
+        package_files_updated = any(
+            str(PACKAGE_DIR) in f and Path(f).resolve() != VERSION_DATE_FILE.resolve()
+            for f in updated_files
+        )
+        if package_files_updated:
+            updated_files.append(update_version_date_file())
     else:
         print("No files updated.")
 

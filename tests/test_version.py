@@ -12,6 +12,7 @@ from akkudoktoreos.core.version import (
     DIR_PACKAGE_ROOT,
     EXCLUDED_DIR_PATTERNS,
     EXCLUDED_FILES,
+    VERSION_DATE_FILE,
     HashConfig,
     _version_calculate,
     _version_date_hash,
@@ -24,6 +25,43 @@ DIR_PROJECT_ROOT = Path(__file__).parent.parent
 GET_VERSION_SCRIPT = DIR_PROJECT_ROOT / "scripts" / "get_version.py"
 BUMP_DEV_SCRIPT = DIR_PROJECT_ROOT / "scripts" / "bump_dev_version.py"
 UPDATE_SCRIPT = DIR_PROJECT_ROOT / "scripts" / "update_version.py"
+
+
+@pytest.fixture(autouse=True)
+def guard_version_date_file():
+    """Ensure no test modifies the VERSION_DATE_FILE (_version_date.py)."""
+    # Record state before test
+    if VERSION_DATE_FILE.exists():
+        before_mtime = VERSION_DATE_FILE.stat().st_mtime
+        before_content = VERSION_DATE_FILE.read_text(encoding="utf-8")
+    else:
+        before_mtime = None
+        before_content = None
+
+    yield
+
+    # Check state after test
+    if VERSION_DATE_FILE.exists():
+        after_mtime = VERSION_DATE_FILE.stat().st_mtime
+        after_content = VERSION_DATE_FILE.read_text(encoding="utf-8")
+
+        if before_content is None:
+            pytest.fail(
+                f"Test created VERSION_DATE_FILE which should not exist: {VERSION_DATE_FILE}"
+            )
+        elif after_mtime != before_mtime or after_content != before_content:
+            # Restore the original content immediately to avoid polluting subsequent tests
+            VERSION_DATE_FILE.write_text(before_content, encoding="utf-8")
+            pytest.fail(
+                f"Test modified VERSION_DATE_FILE: {VERSION_DATE_FILE}\n"
+                f"Original content:\n{before_content}\n"
+                f"Modified content:\n{after_content}"
+            )
+    else:
+        if before_content is not None:
+            pytest.fail(
+                f"Test deleted VERSION_DATE_FILE: {VERSION_DATE_FILE}"
+            )
 
 
 # --- Git helpers ---

@@ -188,7 +188,7 @@ prepare-version: install
 	$(PYTHON) ./scripts/generate_config_md.py --output-file docs/_generated/config.md
 	$(PYTHON) ./scripts/generate_openapi_md.py --output-file docs/_generated/openapi.md
 	$(PYTHON) ./scripts/generate_openapi.py --output-file openapi.json
-	$(PYTEST) -vv --finalize tests/test_version.py
+	$(PYTEST) -vv --finalize tests/test_doc.py
 
 test-version:
 	echo "Test version information to be correctly set in all version files"

@@ -9,6 +9,7 @@
 # -----------------------------------------------------------------
 
 import hashlib
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -39,6 +40,8 @@ ALLOWED_SUFFIXES: set[str] = {".py", ".md", ".json"}
 EXCLUDED_DIR_PATTERNS: set[str] = {"*_autosum", "*__pycache__", "*_generated"}
 # Excluded from hash/date calculation to avoid self-referencing loop
 EXCLUDED_FILES: set[Path] = {VERSION_DATE_FILE}
+
+IS_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
 
 
 # ------------------------------
@@ -215,30 +218,33 @@ def newest_commit_or_dirty_datetime(files: list[Path]) -> datetime:
     Raises:
         RuntimeError: If no version date can be determined from any source.
     """
-    # Check for uncommitted changes among watched files
-    try:
-        status_result = subprocess.run(  # noqa: S603
-            ["git", "status", "--porcelain", "--"] + [str(f) for f in files],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=DIR_PACKAGE_ROOT,
-        )
-        if status_result.stdout.strip():
-            return datetime.now(tz=timezone.utc)
+    # Check for uncommitted changes among watched files.
+    # When running on GitHub, only the version date file is checked. The
+    # development tag is merely a label, so any date set during development suffices.
+    if not IS_GITHUB_ACTIONS:
+        try:
+            status_result = subprocess.run(  # noqa: S603
+                ["git", "status", "--porcelain", "--"] + [str(f) for f in files],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=DIR_PACKAGE_ROOT,
+            )
+            if status_result.stdout.strip():
+                return datetime.now(tz=timezone.utc)
 
-        result = subprocess.run(  # noqa: S603
-            ["git", "log", "-1", "--format=%ct", "--"] + [str(f) for f in files],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=DIR_PACKAGE_ROOT,
-        )
-        ts = result.stdout.strip()
-        if ts:
-            return datetime.fromtimestamp(int(ts), tz=timezone.utc)
-    except (subprocess.CalledProcessError, FileNotFoundError, ValueError):  # noqa: S110
-        pass
+            result = subprocess.run(  # noqa: S603
+                ["git", "log", "-1", "--format=%ct", "--"] + [str(f) for f in files],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=DIR_PACKAGE_ROOT,
+            )
+            ts = result.stdout.strip()
+            if ts:
+                return datetime.fromtimestamp(int(ts), tz=timezone.utc)
+        except (subprocess.CalledProcessError, FileNotFoundError, ValueError):  # noqa: S110
+            pass
 
     # Fallback to VERSION_DATE_FILE
     if VERSION_DATE_FILE.exists():
@@ -247,7 +253,10 @@ def newest_commit_or_dirty_datetime(files: list[Path]) -> datetime:
             exec(VERSION_DATE_FILE.read_text(), {}, ns)  # noqa: S102
             date_str = ns.get("VERSION_DATE")
             if date_str:
-                return datetime.fromisoformat(date_str).astimezone(timezone.utc)
+                dt = datetime.fromisoformat(date_str)
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)  # treat naive as UTC, don't convert
+                return dt.astimezone(timezone.utc)
         except Exception:  # noqa: S110
             pass
 
