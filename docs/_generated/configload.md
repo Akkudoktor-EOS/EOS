@@ -7,7 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| provider | `EOS_LOAD__PROVIDER` | `Optional[str]` | `rw` | `None` | Load provider id of provider to be used. |
+| provider | `EOS_LOAD__PROVIDER` | `str | None` | `rw` | `None` | Load provider id of provider to be used. |
 | provider_settings | `EOS_LOAD__PROVIDER_SETTINGS` | `LoadCommonProviderSettings` | `rw` | `required` | Provider settings |
 | providers | | `list[str]` | `ro` | `N/A` | Available load provider ids. |
 :::
@@ -66,8 +66,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import load data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
+| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import load data from. |
+| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 
@@ -132,7 +132,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| loadakkudoktor_year_energy_kwh | `Optional[float]` | `rw` | `None` | Yearly energy consumption (kWh). |
+| loadakkudoktor_year_energy_kwh | `float | None` | `rw` | `None` | Yearly energy consumption (kWh). |
 :::
 <!-- pyml enable line-length -->
 
@@ -163,9 +163,9 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| LoadAkkudoktor | `Optional[akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktorCommonSettings]` | `rw` | `None` | LoadAkkudoktor settings |
-| LoadImport | `Optional[akkudoktoreos.prediction.loadimport.LoadImportCommonSettings]` | `rw` | `None` | LoadImport settings |
-| LoadVrm | `Optional[akkudoktoreos.prediction.loadvrm.LoadVrmCommonSettings]` | `rw` | `None` | LoadVrm settings |
+| LoadAkkudoktor | `akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktorCommonSettings | None` | `rw` | `None` | LoadAkkudoktor settings |
+| LoadImport | `akkudoktoreos.prediction.loadimport.LoadImportCommonSettings | None` | `rw` | `None` | LoadImport settings |
+| LoadVrm | `akkudoktoreos.prediction.loadvrm.LoadVrmCommonSettings | None` | `rw` | `None` | LoadVrm settings |
 :::
 <!-- pyml enable line-length -->
 

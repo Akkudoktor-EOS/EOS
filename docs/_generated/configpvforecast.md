@@ -7,14 +7,14 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| max_planes | `EOS_PVFORECAST__MAX_PLANES` | `Optional[int]` | `rw` | `0` | Maximum number of planes that can be set |
-| planes | `EOS_PVFORECAST__PLANES` | `Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]` | `rw` | `None` | Plane configuration. |
+| max_planes | `EOS_PVFORECAST__MAX_PLANES` | `int | None` | `rw` | `0` | Maximum number of planes that can be set |
+| planes | `EOS_PVFORECAST__PLANES` | `list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting] | None` | `rw` | `None` | Plane configuration. |
 | planes_azimuth | | `List[float]` | `ro` | `N/A` | Compute a list of the azimuths per active planes. |
 | planes_inverter_paco | | `Any` | `ro` | `N/A` | Compute a list of the maximum power rating of the inverter per active planes. |
 | planes_peakpower | | `List[float]` | `ro` | `N/A` | Compute a list of the peak power per active planes. |
 | planes_tilt | | `List[float]` | `ro` | `N/A` | Compute a list of the tilts per active planes. |
 | planes_userhorizon | | `Any` | `ro` | `N/A` | Compute a list of the user horizon per active planes. |
-| provider | `EOS_PVFORECAST__PROVIDER` | `Optional[str]` | `rw` | `None` | PVForecast provider id of provider to be used. |
+| provider | `EOS_PVFORECAST__PROVIDER` | `str | None` | `rw` | `None` | PVForecast provider id of provider to be used. |
 | provider_settings | `EOS_PVFORECAST__PROVIDER_SETTINGS` | `PVForecastCommonProviderSettings` | `rw` | `required` | Provider settings |
 | providers | | `list[str]` | `ro` | `N/A` | Available PVForecast provider ids. |
 :::
@@ -225,8 +225,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import PV forecast data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of PV forecast value lists. |
+| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import PV forecast data from. |
+| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of PV forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 
@@ -258,8 +258,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| PVForecastImport | `Optional[akkudoktoreos.prediction.pvforecastimport.PVForecastImportCommonSettings]` | `rw` | `None` | PVForecastImport settings |
-| PVForecastVrm | `Optional[akkudoktoreos.prediction.pvforecastvrm.PVForecastVrmCommonSettings]` | `rw` | `None` | PVForecastVrm settings |
+| PVForecastImport | `akkudoktoreos.prediction.pvforecastimport.PVForecastImportCommonSettings | None` | `rw` | `None` | PVForecastImport settings |
+| PVForecastVrm | `akkudoktoreos.prediction.pvforecastvrm.PVForecastVrmCommonSettings | None` | `rw` | `None` | PVForecastVrm settings |
 :::
 <!-- pyml enable line-length -->
 
@@ -289,22 +289,22 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| albedo | `Optional[float]` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
-| inverter_model | `Optional[str]` | `rw` | `None` | Model of the inverter of this plane. |
-| inverter_paco | `Optional[int]` | `rw` | `None` | AC power rating of the inverter [W]. |
-| loss | `Optional[float]` | `rw` | `14.0` | Sum of PV system losses in percent |
-| module_model | `Optional[str]` | `rw` | `None` | Model of the PV modules of this plane. |
-| modules_per_string | `Optional[int]` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
-| mountingplace | `Optional[str]` | `rw` | `free` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
-| optimal_surface_tilt | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
-| optimalangles | `Optional[bool]` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
-| peakpower | `Optional[float]` | `rw` | `None` | Nominal power of PV system in kW. |
-| pvtechchoice | `Optional[str]` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
-| strings_per_inverter | `Optional[int]` | `rw` | `None` | Number of the strings of the inverter of this plane. |
-| surface_azimuth | `Optional[float]` | `rw` | `180.0` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
-| surface_tilt | `Optional[float]` | `rw` | `30.0` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
-| trackingtype | `Optional[int]` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
-| userhorizon | `Optional[List[float]]` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
+| albedo | `float | None` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
+| inverter_model | `str | None` | `rw` | `None` | Model of the inverter of this plane. |
+| inverter_paco | `int | None` | `rw` | `None` | AC power rating of the inverter [W]. |
+| loss | `float | None` | `rw` | `14.0` | Sum of PV system losses in percent |
+| module_model | `str | None` | `rw` | `None` | Model of the PV modules of this plane. |
+| modules_per_string | `int | None` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
+| mountingplace | `str | None` | `rw` | `free` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
+| optimal_surface_tilt | `bool | None` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
+| optimalangles | `bool | None` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
+| peakpower | `float | None` | `rw` | `None` | Nominal power of PV system in kW. |
+| pvtechchoice | `str | None` | `rw` | `crystSi` | PV technology. One of 'crystSi', 'CIS', 'CdTe', 'Unknown'. |
+| strings_per_inverter | `int | None` | `rw` | `None` | Number of the strings of the inverter of this plane. |
+| surface_azimuth | `float | None` | `rw` | `180.0` | Orientation (azimuth angle) of the (fixed) plane. Clockwise from north (north=0, east=90, south=180, west=270). |
+| surface_tilt | `float | None` | `rw` | `30.0` | Tilt angle from horizontal plane. Ignored for two-axis tracking. |
+| trackingtype | `int | None` | `rw` | `None` | Type of suntracking. 0=fixed, 1=single horizontal axis aligned north-south, 2=two-axis tracking, 3=vertical axis tracking, 4=single horizontal axis aligned east-west, 5=single inclined axis aligned north-south. |
+| userhorizon | `List[float] | None` | `rw` | `None` | Elevation of horizon in degrees, at equally spaced azimuth clockwise from north. |
 :::
 <!-- pyml enable line-length -->
 

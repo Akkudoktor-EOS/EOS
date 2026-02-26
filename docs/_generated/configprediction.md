@@ -7,8 +7,8 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| historic_hours | `EOS_PREDICTION__HISTORIC_HOURS` | `Optional[int]` | `rw` | `48` | Number of hours into the past for historical predictions data |
-| hours | `EOS_PREDICTION__HOURS` | `Optional[int]` | `rw` | `48` | Number of hours into the future for predictions |
+| historic_hours | `EOS_PREDICTION__HISTORIC_HOURS` | `int | None` | `rw` | `48` | Number of hours into the past for historical predictions data |
+| hours | `EOS_PREDICTION__HOURS` | `int | None` | `rw` | `48` | Number of hours into the future for predictions |
 :::
 <!-- pyml enable line-length -->
 
