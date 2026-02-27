@@ -261,6 +261,67 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         # Fallback → safe idle
         return BatteryOperationMode.IDLE, 1.0
 
+    def _soc_clamped_operation_factors(
+        self,
+        ac_charge: float,
+        dc_charge: float,
+        discharge_allowed: bool,
+        soc_pct: float,
+    ) -> tuple[float, float, bool]:
+        """Clamp raw genetic gene values by the battery's actual SOC at that hour.
+
+        The raw gene values represent the optimizer's *intent* and are stored
+        verbatim in the ``genetic_*`` solution columns.  This method derives
+        the *effective* values that can physically be executed given the
+        battery's state of charge, used for the ``battery1_*_op_*`` columns
+        and for ``energy_management_plan`` instructions.
+
+        Clamping rules:
+          - AC charge factor: scaled down proportionally when the battery
+            headroom (max_soc − current_soc) is smaller than what the
+            commanded factor would store in one hour.  Set to 0 when full.
+          - DC charge factor (PV): zeroed when battery is at or above max SOC
+            (the inverter curtails automatically, but this makes intent clear).
+          - Discharge: blocked when SOC is at or below min SOC.
+        """
+        bat_list = self.config.devices.batteries
+        if not bat_list:
+            return ac_charge, dc_charge, discharge_allowed
+
+        bat = bat_list[0]
+        min_soc = float(bat.min_soc_percentage)
+        max_soc = float(bat.max_soc_percentage)
+        capacity_wh = float(bat.capacity_wh)
+        ch_eff = float(bat.charging_efficiency)
+        headroom_wh = max(0.0, (max_soc - soc_pct) / 100.0 * capacity_wh)
+
+        # --- AC charge: scale to available headroom ---
+        effective_ac = ac_charge
+        if effective_ac > 0.0:
+            if headroom_wh <= 0.0:
+                effective_ac = 0.0
+            else:
+                inv_list = self.config.devices.inverters
+                ac_to_dc_eff = float(inv_list[0].ac_to_dc_efficiency) if inv_list else 1.0
+                max_ac_cp_w = (
+                    float(inv_list[0].max_ac_charge_power_w)
+                    if inv_list
+                    else float(bat.max_charge_power_w)
+                )
+                max_dc_per_h_wh = effective_ac * max_ac_cp_w * ac_to_dc_eff * ch_eff
+                if max_dc_per_h_wh > headroom_wh:
+                    effective_ac = effective_ac * (headroom_wh / max_dc_per_h_wh)
+
+        # --- DC charge (PV): zero when battery is full ---
+        effective_dc = dc_charge
+        if effective_dc > 0.0 and headroom_wh <= 0.0:
+            effective_dc = 0.0
+
+        # --- Discharge: block at min SOC ---
+        effective_dis = discharge_allowed and (soc_pct > min_soc)
+
+        return effective_ac, effective_dc, effective_dis
+
     def optimization_solution(self) -> OptimizationSolution:
         """Provide the genetic solution as a general optimization solution.
 
@@ -333,12 +394,26 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             ac_charge_hour = self.ac_charge[hour_idx]
             dc_charge_hour = self.dc_charge[hour_idx]
             discharge_allowed_hour = bool(self.discharge_allowed[hour_idx])
-            operation_mode, operation_mode_factor = self._battery_operation_from_solution(
-                ac_charge_hour, dc_charge_hour, discharge_allowed_hour
-            )
+
+            # Raw genetic gene values — optimizer intent, stored verbatim
             operation["genetic_ac_charge_factor"].append(ac_charge_hour)
             operation["genetic_dc_charge_factor"].append(dc_charge_hour)
-            operation["genetic_discharge_allowed_factor"].append(discharge_allowed_hour)
+            operation["genetic_discharge_allowed_factor"].append(float(discharge_allowed_hour))
+
+            # SOC-clamped effective values — what can physically be executed at
+            # this hour given the expected battery state of charge.
+            result_idx = hour_idx - start_day_hour
+            soc_h_pct = (
+                self.result.akku_soc_pro_stunde[result_idx]
+                if result_idx < len(self.result.akku_soc_pro_stunde)
+                else 0.0
+            )
+            eff_ac, eff_dc, eff_dis = self._soc_clamped_operation_factors(
+                ac_charge_hour, dc_charge_hour, discharge_allowed_hour, soc_h_pct
+            )
+            operation_mode, operation_mode_factor = self._battery_operation_from_solution(
+                eff_ac, eff_dc, eff_dis
+            )
             for mode in BatteryOperationMode:
                 mode_key = f"battery1_{mode.lower()}_op_mode"
                 factor_key = f"battery1_{mode.lower()}_op_factor"
@@ -584,10 +659,24 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         for hour_idx, rate in enumerate(self.ac_charge):
             if hour_idx < start_day_hour:
                 continue
-            operation_mode, operation_mode_factor = self._battery_operation_from_solution(
+            # Derive SOC-clamped effective factors so that FRBCInstruction
+            # operation_mode_factor reflects what can physically be executed,
+            # while the raw genetic gene values are preserved in the solution
+            # dataframe (genetic_*_factor columns).
+            result_idx = hour_idx - start_day_hour
+            soc_h_pct = (
+                self.result.akku_soc_pro_stunde[result_idx]
+                if result_idx < len(self.result.akku_soc_pro_stunde)
+                else 0.0
+            )
+            eff_ac, eff_dc, eff_dis = self._soc_clamped_operation_factors(
                 self.ac_charge[hour_idx],
                 self.dc_charge[hour_idx],
                 bool(self.discharge_allowed[hour_idx]),
+                soc_h_pct,
+            )
+            operation_mode, operation_mode_factor = self._battery_operation_from_solution(
+                eff_ac, eff_dc, eff_dis
             )
             if (
                 operation_mode == last_operation_mode
