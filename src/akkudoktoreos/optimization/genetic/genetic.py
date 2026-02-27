@@ -243,11 +243,30 @@ class GeneticSimulation(PydanticBaseModel):
             soc_per_hour = np.full((total_hours), np.nan)
 
             soc_per_hour[0] = battery_fast.current_soc_percentage()
+
+            # Determine AC charging availability from inverter parameters
+            if inverter_fast:
+                ac_to_dc_eff_fast = inverter_fast.ac_to_dc_efficiency
+                dc_to_ac_eff_fast = inverter_fast.dc_to_ac_efficiency
+                max_ac_charge_w_fast = inverter_fast.max_ac_charge_power_w
+            else:
+                ac_to_dc_eff_fast = 1.0
+                dc_to_ac_eff_fast = 1.0
+                max_ac_charge_w_fast = None
+
+            ac_charging_possible = ac_to_dc_eff_fast > 0 and (
+                max_ac_charge_w_fast is None or max_ac_charge_w_fast > 0
+            )
+
+            # If AC charging is disabled via inverter, zero out AC charge hours
+            if not ac_charging_possible:
+                ac_charge_hours_fast = np.zeros_like(ac_charge_hours_fast)
+
             # Fill the charge array of the battery
             dc_charge_hours_fast[0:start_hour] = 0
             dc_charge_hours_fast[end_hour:] = 0
             ac_charge_hours_fast[0:start_hour] = 0
-            dc_charge_hours_fast[end_hour:] = 0
+            ac_charge_hours_fast[end_hour:] = 0
             battery_fast.charge_array = np.where(
                 ac_charge_hours_fast != 0, ac_charge_hours_fast, dc_charge_hours_fast
             )
@@ -258,6 +277,10 @@ class GeneticSimulation(PydanticBaseModel):
         else:
             # Default return if no battery is available
             soc_per_hour = np.full((total_hours), 0)
+            ac_to_dc_eff_fast = 1.0
+            dc_to_ac_eff_fast = 1.0
+            max_ac_charge_w_fast = None
+            ac_charging_possible = False
 
         if ev_fast:
             # Pre-allocate arrays for the results, optimized for speed
@@ -330,15 +353,37 @@ class GeneticSimulation(PydanticBaseModel):
             if battery_fast:
                 soc_per_hour[hour_idx] = battery_fast.current_soc_percentage()  # save begin state
                 hour_ac_charge = ac_charge_hours_fast[hour]
-                if hour_ac_charge > 0.0:
-                    battery_charged_energy_actual, battery_losses_actual = (
-                        battery_fast.charge_energy(None, hour, charge_factor=hour_ac_charge)
-                    )
+                if hour_ac_charge > 0.0 and ac_charging_possible:
+                    # Cap charge factor by max_ac_charge_power_w if set
+                    effective_charge_factor = hour_ac_charge
+                    if max_ac_charge_w_fast is not None and battery_fast.max_charge_power_w > 0:
+                        # DC power = max_charge_power_w * factor
+                        # AC power = DC power / ac_to_dc_eff
+                        # AC power must be <= max_ac_charge_power_w
+                        max_dc_factor = (
+                            max_ac_charge_w_fast * ac_to_dc_eff_fast
+                        ) / battery_fast.max_charge_power_w
+                        effective_charge_factor = min(effective_charge_factor, max_dc_factor)
 
-                    total_battery_energy = battery_charged_energy_actual + battery_losses_actual
-                    consumption += total_battery_energy
-                    energy_consumption_grid_actual += total_battery_energy
-                    losses_wh_per_hour[hour_idx] += battery_losses_actual
+                    if effective_charge_factor > 0:
+                        battery_charged_energy_actual, battery_losses_actual = (
+                            battery_fast.charge_energy(
+                                None, hour, charge_factor=effective_charge_factor
+                            )
+                        )
+
+                        # DC energy entering the battery (before battery internal efficiency)
+                        dc_energy = battery_charged_energy_actual + battery_losses_actual
+                        # AC energy consumed from grid (accounts for AC→DC conversion loss)
+                        ac_energy = dc_energy / ac_to_dc_eff_fast
+                        # Inverter AC→DC conversion losses
+                        inverter_charge_losses = ac_energy - dc_energy
+
+                        consumption += ac_energy
+                        energy_consumption_grid_actual += ac_energy
+                        losses_wh_per_hour[hour_idx] += (
+                            battery_losses_actual + inverter_charge_losses
+                        )
 
             # Update hourly arrays
             feedin_energy_per_hour[hour_idx] = energy_feedin_grid_actual
@@ -814,11 +859,109 @@ class GeneticOptimization(OptimizationBase):
 
         # Adjust total balance with battery value and penalties for unmet SOC
         if self.simulation.battery:
-            restwert_akku = (
-                self.simulation.battery.current_energy_content()
-                * parameters.ems.preis_euro_pro_wh_akku
-            )
+            battery_energy_content = self.simulation.battery.current_energy_content()
+            # Apply DC→AC inverter efficiency to residual battery value
+            # (stored DC energy must pass through inverter to be usable as AC)
+            if self.simulation.inverter:
+                battery_energy_content *= self.simulation.inverter.dc_to_ac_efficiency
+            restwert_akku = battery_energy_content * parameters.ems.preis_euro_pro_wh_akku
             gesamtbilanz += -restwert_akku
+
+        # --- AC charging break-even penalty ---
+        # Penalise AC charging decisions that cannot be economically justified given the
+        # round-trip losses (AC→DC charge conversion, battery internal, DC→AC discharge
+        # conversion) and the best available future electricity prices.
+        #
+        # Key insight: energy already stored in the battery (from PV, zero grid cost) covers
+        # the most expensive future hours first.  AC charging from the grid only makes sense
+        # for the hours that remain uncovered, and only when the discharge price exceeds
+        # P_charge / η_round_trip.
+        #
+        # This penalty does not double-count the simulation result – it amplifies the "bad
+        # decision" signal so that the genetic algorithm converges faster away from
+        # unprofitable charging regions.
+        if (
+            self.simulation.battery
+            and self.simulation.inverter
+            and self.simulation.ac_charge_hours is not None
+            and self.simulation.elect_price_hourly is not None
+            and self.simulation.load_energy_array is not None
+        ):
+            inv = self.simulation.inverter
+            bat = self.simulation.battery
+
+            # Full round-trip efficiency: 1 Wh drawn from grid → η Wh delivered to AC load
+            round_trip_eff = (
+                inv.ac_to_dc_efficiency
+                * bat.charging_efficiency
+                * bat.discharging_efficiency
+                * inv.dc_to_ac_efficiency
+            )
+
+            if round_trip_eff > 0:
+                ac_charge_arr = self.simulation.ac_charge_hours
+                prices_arr = self.simulation.elect_price_hourly
+                load_arr = self.simulation.load_energy_array
+                n = len(prices_arr)
+
+                # Usable AC energy already in battery from prior PV charging (zero grid cost).
+                # This covers the most expensive future hours first, pushing AC charging demand
+                # to cheaper hours where the break-even hurdle may not be met.
+                initial_soc_wh = (bat.initial_soc_percentage / 100.0) * bat.capacity_wh
+                free_ac_wh = (
+                    max(0.0, initial_soc_wh - bat.min_soc_wh)
+                    * bat.discharging_efficiency
+                    * inv.dc_to_ac_efficiency
+                )
+
+                # Configurable penalty multiplier (default 1 = economic loss in €)
+                try:
+                    ac_penalty_factor = float(
+                        self.config.optimization.genetic.penalties["ac_charge_break_even"]
+                    )
+                except Exception:
+                    ac_penalty_factor = 1.0
+
+                for hour in range(start_hour, min(len(ac_charge_arr), n)):
+                    ac_factor = ac_charge_arr[hour]
+                    if ac_factor <= 0.0:
+                        continue
+
+                    charge_price = prices_arr[hour]
+                    if charge_price <= 0:
+                        continue
+
+                    # Price that a future discharge hour must reach to break even
+                    break_even_price = charge_price / round_trip_eff
+
+                    # Build list of (price, load_wh) for all future hours in the horizon
+                    future = [
+                        (float(prices_arr[h]), float(load_arr[h])) for h in range(hour + 1, n)
+                    ]
+                    # Sort descending by price so we "use" the most expensive hours first
+                    future.sort(key=lambda x: -x[0])
+
+                    # Consume free PV energy against the highest-price future hours.
+                    # The first uncovered (partially or fully) hour defines the best
+                    # price still available for the new AC charge.
+                    remaining_free = free_ac_wh
+                    best_uncovered_price = 0.0
+                    for fp, fl in future:
+                        if remaining_free >= fl:
+                            # Entire expensive hour is already covered by free PV energy
+                            remaining_free -= fl
+                        else:
+                            # First hour not (fully) covered: this is where new charge goes
+                            best_uncovered_price = fp
+                            break
+
+                    if best_uncovered_price < break_even_price:
+                        # AC charging at this hour is economically unjustified.
+                        # Penalty = excess cost per Wh × DC energy requested this hour.
+                        dc_wh = bat.max_charge_power_w * ac_factor
+                        ac_wh = dc_wh / max(inv.ac_to_dc_efficiency, 1e-9)
+                        excess_cost_per_wh = break_even_price - best_uncovered_price
+                        gesamtbilanz += ac_wh * excess_cost_per_wh * ac_penalty_factor
 
         if self.optimize_ev and parameters.eauto and self.simulation.ev:
             try:

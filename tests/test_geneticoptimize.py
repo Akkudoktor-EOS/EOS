@@ -38,17 +38,20 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
 
 
 @pytest.mark.parametrize(
-    "fn_in, fn_out, ngen",
+    "fn_in, fn_out, ngen, break_even",
     [
-        ("optimize_input_1.json", "optimize_result_1.json", 3),
-        ("optimize_input_2.json", "optimize_result_2.json", 3),
-        ("optimize_input_2.json", "optimize_result_2_full.json", 400),
+        ("optimize_input_1.json", "optimize_result_1.json", 3, 0),
+        ("optimize_input_2.json", "optimize_result_2.json", 3, 0),
+        ("optimize_input_2.json", "optimize_result_2_full.json", 400, 0),
+        ("optimize_input_1.json", "optimize_result_1_be.json", 3, 1),
+        ("optimize_input_2.json", "optimize_result_2_be.json", 3, 1),
     ],
 )
 def test_optimize(
     fn_in: str,
     fn_out: str,
     ngen: int,
+    break_even: int,
     config_eos: ConfigEOS,
     is_finalize: bool,
 ):
@@ -69,7 +72,8 @@ def test_optimize(
                     "individuals": 300,
                     "generations": 10,
                     "penalties": {
-                        "ev_soc_miss": 10
+                        "ev_soc_miss": 10,
+                        "ac_charge_break_even": break_even,
                     }
                 }
             },

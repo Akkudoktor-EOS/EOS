@@ -7,7 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| provider | `EOS_WEATHER__PROVIDER` | `Optional[str]` | `rw` | `None` | Weather provider id of provider to be used. |
+| provider | `EOS_WEATHER__PROVIDER` | `str | None` | `rw` | `None` | Weather provider id of provider to be used. |
 | provider_settings | `EOS_WEATHER__PROVIDER_SETTINGS` | `WeatherCommonProviderSettings` | `rw` | `required` | Provider settings |
 | providers | | `list[str]` | `ro` | `N/A` | Available weather provider ids. |
 :::
@@ -61,8 +61,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import weather data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of weather forecast value lists. |
+| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import weather data from. |
+| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of weather forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 
@@ -94,7 +94,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| WeatherImport | `Optional[akkudoktoreos.prediction.weatherimport.WeatherImportCommonSettings]` | `rw` | `None` | WeatherImport settings |
+| WeatherImport | `akkudoktoreos.prediction.weatherimport.WeatherImportCommonSettings | None` | `rw` | `None` | WeatherImport settings |
 :::
 <!-- pyml enable line-length -->
 

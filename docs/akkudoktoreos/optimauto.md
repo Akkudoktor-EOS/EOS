@@ -182,11 +182,21 @@ The behavior of the genetic algorithm can be customized using the following conf
 :::{note}
 **Supported Penalty Functions**
 
-Currently, the only supported penalty function parameter is:
-
 - `ev_soc_miss`:
   Applies a penalty when the **state of charge (SOC)** of the electric vehicle battery falls below
   the required minimum. This encourages the optimizer to ensure sufficient EV charging.
+  Default: `10`.
+
+- `ac_charge_break_even`:
+  Applies a penalty for each scheduled AC grid-charging hour where the round-trip losses
+  (AC→DC inverter, battery internal, DC→AC inverter) mean the stored energy can never be
+  discharged at a price that recovers the charging cost. Energy already stored in the battery
+  from PV generation is treated as free and covers the most expensive future hours first, so
+  the penalty only fires for the hours that remain genuinely uncovered.
+
+  A value of `1.0` (default) means the penalty equals the actual economic loss in €.
+  Use larger values (e.g. `3.0`) to make the optimizer more aggressively avoid unprofitable
+  AC charging, or `0.0` to disable this penalty entirely.
 :::
 
 #### Value Formats
@@ -214,7 +224,8 @@ Currently, the only supported penalty function parameter is:
             "generations": 400,
             "seed": null,
             "penalties": {
-                "ev_soc_miss": 10
+                "ev_soc_miss": 10,
+                "ac_charge_break_even": 1.0
             }
         }
     }
@@ -254,12 +265,24 @@ that is configured, even if more devices are configured.
             {
                 "device_id": "inv1",
                 "max_power_w": 10000,
-                "battery_id": "bat1"
+                "battery_id": "bat1",
+                "ac_to_dc_efficiency": 0.95,
+                "dc_to_ac_efficiency": 0.95,
+                "max_ac_charge_power_w": 5000
             }
         ]
     }
 }
 ```
+
+The inverter supports separate AC↔DC conversion efficiencies:
+
+- `ac_to_dc_efficiency`: Conversion loss when charging the battery from AC grid power (0-1).
+  Set to `0` to disable AC charging. Default `1.0`.
+- `dc_to_ac_efficiency`: Conversion loss when discharging battery to AC load/grid (0-1).
+  Must be > 0. Default `1.0`.
+- `max_ac_charge_power_w`: Maximum AC charging power in watts. `null` = no additional limit.
+  Set to `0` to disable AC charging. Default `null`.
 
 #### Electric vehicle simulation configuration
 

@@ -7,7 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| provider | `EOS_FEEDINTARIFF__PROVIDER` | `Optional[str]` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
+| provider | `EOS_FEEDINTARIFF__PROVIDER` | `str | None` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
 | provider_settings | `EOS_FEEDINTARIFF__PROVIDER_SETTINGS` | `FeedInTariffCommonProviderSettings` | `rw` | `required` | Provider settings |
 | providers | | `list[str]` | `ro` | `N/A` | Available feed in tariff provider ids. |
 :::
@@ -62,8 +62,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import feed in tariff data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of feed in tariff forecast value lists. |
+| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import feed in tariff data from. |
+| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of feed in tariff forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 
@@ -95,7 +95,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| feed_in_tariff_kwh | `Optional[float]` | `rw` | `None` | Electricity price feed in tariff [€/kWH]. |
+| feed_in_tariff_kwh | `float | None` | `rw` | `None` | Electricity price feed in tariff [€/kWH]. |
 :::
 <!-- pyml enable line-length -->
 
@@ -126,8 +126,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| FeedInTariffFixed | `Optional[akkudoktoreos.prediction.feedintarifffixed.FeedInTariffFixedCommonSettings]` | `rw` | `None` | FeedInTariffFixed settings |
-| FeedInTariffImport | `Optional[akkudoktoreos.prediction.feedintariffimport.FeedInTariffImportCommonSettings]` | `rw` | `None` | FeedInTariffImport settings |
+| FeedInTariffFixed | `akkudoktoreos.prediction.feedintarifffixed.FeedInTariffFixedCommonSettings | None` | `rw` | `None` | FeedInTariffFixed settings |
+| FeedInTariffImport | `akkudoktoreos.prediction.feedintariffimport.FeedInTariffImportCommonSettings | None` | `rw` | `None` | FeedInTariffImport settings |
 :::
 <!-- pyml enable line-length -->
 

@@ -224,6 +224,11 @@ class GeneticOptimizationParameters(
         if "ev_soc_miss" not in cls.config.optimization.genetic.penalties:
             logger.info("ev_soc_miss penalty function parameter unknown - defaulting to 10.")
             cls.config.optimization.genetic.penalties["ev_soc_miss"] = 10
+        if "ac_charge_break_even" not in cls.config.optimization.genetic.penalties:
+            # Default multiplier 1.0: penalty equals the exact economic loss in € from
+            # charging at a price that cannot be recovered given the round-trip efficiency
+            # and the best available future discharge price (after free PV energy is used).
+            cls.config.optimization.genetic.penalties["ac_charge_break_even"] = 1.0
 
         # Get start solution from last run
         start_solution = None
@@ -548,6 +553,9 @@ class GeneticOptimizationParameters(
                         device_id=inverter_config.device_id,
                         max_power_wh=inverter_config.max_power_w,
                         battery_id=inverter_config.battery_id,
+                        ac_to_dc_efficiency=inverter_config.ac_to_dc_efficiency,
+                        dc_to_ac_efficiency=inverter_config.dc_to_ac_efficiency,
+                        max_ac_charge_power_w=inverter_config.max_ac_charge_power_w,
                     )
                 except:
                     logger.info(

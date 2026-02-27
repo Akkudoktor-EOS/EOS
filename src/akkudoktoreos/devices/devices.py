@@ -193,6 +193,44 @@ class InverterCommonSettings(DevicesBaseSettings):
         },
     )
 
+    ac_to_dc_efficiency: float = Field(
+        default=1.0,
+        ge=0,
+        le=1,
+        json_schema_extra={
+            "description": (
+                "Efficiency of AC to DC conversion for grid-to-battery AC charging (0-1). "
+                "Set to 0 to disable AC charging. Default 1.0 (no additional inverter loss)."
+            ),
+            "examples": [0.95, 1.0, 0.0],
+        },
+    )
+
+    dc_to_ac_efficiency: float = Field(
+        default=1.0,
+        gt=0,
+        le=1,
+        json_schema_extra={
+            "description": (
+                "Efficiency of DC to AC conversion for battery discharging to AC load/grid (0-1). "
+                "Default 1.0 (no additional inverter loss)."
+            ),
+            "examples": [0.95, 1.0],
+        },
+    )
+
+    max_ac_charge_power_w: Optional[float] = Field(
+        default=None,
+        ge=0,
+        json_schema_extra={
+            "description": (
+                "Maximum AC charging power in watts. "
+                "null means no additional limit. Set to 0 to disable AC charging."
+            ),
+            "examples": [None, 0, 5000],
+        },
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def measurement_keys(self) -> Optional[list[str]]:
