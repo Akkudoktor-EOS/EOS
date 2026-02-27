@@ -120,7 +120,7 @@
            }
        },
        "general": {
-           "version": "0.2.0.dev2602250574650225",
+           "version": "0.2.0.dev2602272006923535",
            "data_folder_path": "/home/user/.local/share/net.akkudoktoreos.net",
            "data_output_subpath": "output",
            "latitude": 52.52,
