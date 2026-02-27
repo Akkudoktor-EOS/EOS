@@ -54,7 +54,7 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
-from akkudoktoreos.prediction.load import LoadCommonProviderSettings, LoadCommonSettings
+from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.server.rest.cli import cli_apply_args_to_config, cli_parse_args
@@ -1074,10 +1074,8 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
         },
         "load": {
             "provider": "LoadAkkudoktorAdjusted",
-            "provider_settings": {
-                "LoadAkkudoktor": {
-                    "loadakkudoktor_year_energy_kwh": request.year_energy,
-                },
+            "loadakkudoktor": {
+                "loadakkudoktor_year_energy_kwh": request.year_energy,
             },
         },
         "measurement": {
@@ -1174,10 +1172,8 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     settings = SettingsEOS(
         load=LoadCommonSettings(
             provider="LoadAkkudoktor",
-            provider_settings=LoadCommonProviderSettings(
-                LoadAkkudoktor=LoadAkkudoktorCommonSettings(
-                    loadakkudoktor_year_energy_kwh=year_energy / 1000,  # Convert to kWh
-                ),
+            loadakkudoktor=LoadAkkudoktorCommonSettings(
+                loadakkudoktor_year_energy_kwh=year_energy / 1000,  # Convert to kWh
             ),
         )
     )

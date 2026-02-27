@@ -85,6 +85,9 @@ class PVForecastVrm(PVForecastProvider):
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update forecast data in the PVForecastDataRecord format."""
+        if self.enabled is False:
+            logger.info("PVForecastVrm is disabled, skipping update.")
+            return
         start_date = self.ems_start_datetime.start_of("day")
         end_date = self.ems_start_datetime.add(hours=self.config.prediction.hours)
         start_ts = int(start_date.timestamp())

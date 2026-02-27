@@ -62,8 +62,9 @@ class LoadVrm(LoadProvider):
     def _request_forecast(self, start_ts: int, end_ts: int) -> VrmForecastResponse:
         """Fetch forecast data from Victron VRM API."""
         base_url = "https://vrmapi.victronenergy.com/v2/installations"
-        installation_id = self.config.load.provider_settings.LoadVrm.load_vrm_idsite
-        api_token = self.config.load.provider_settings.LoadVrm.load_vrm_token
+        vrm_settings = self.config.load.loadvrm
+        installation_id = vrm_settings.load_vrm_idsite
+        api_token = vrm_settings.load_vrm_token
 
         url = f"{base_url}/{installation_id}/stats?type=forecast&start={start_ts}&end={end_ts}&interval=hours"
         headers = {"X-Authorization": f"Token {api_token}", "Content-Type": "application/json"}
@@ -85,6 +86,9 @@ class LoadVrm(LoadProvider):
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Fetch and store VRM load forecast as loadforecast_power_w and related values."""
+        if self.enabled is False:
+            logger.info("LoadVrm is disabled, skipping update.")
+            return
         start_date = self.ems_start_datetime.start_of("day")
         end_date = self.ems_start_datetime.add(hours=self.config.prediction.hours)
         start_ts = int(start_date.timestamp())

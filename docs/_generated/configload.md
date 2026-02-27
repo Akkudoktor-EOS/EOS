@@ -7,8 +7,10 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| provider | `EOS_LOAD__PROVIDER` | `str | None` | `rw` | `None` | Load provider id of provider to be used. |
-| provider_settings | `EOS_LOAD__PROVIDER_SETTINGS` | `LoadCommonProviderSettings` | `rw` | `required` | Provider settings |
+| loadakkudoktor | `EOS_LOAD__LOADAKKUDOKTOR` | `LoadAkkudoktorCommonSettings` | `rw` | `required` | LoadAkkudoktor provider settings. |
+| loadimport | `EOS_LOAD__LOADIMPORT` | `LoadImportCommonSettings` | `rw` | `required` | LoadImport provider settings. |
+| loadvrm | `EOS_LOAD__LOADVRM` | `LoadVrmCommonSettings` | `rw` | `required` | LoadVrm provider settings. |
+| provider | `EOS_LOAD__PROVIDER` | `Optional[str]` | `rw` | `None` | Load provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available load provider ids. |
 :::
 <!-- pyml enable line-length -->
@@ -22,10 +24,16 @@
    {
        "load": {
            "provider": "LoadAkkudoktor",
-           "provider_settings": {
-               "LoadAkkudoktor": null,
-               "LoadVrm": null,
-               "LoadImport": null
+           "loadakkudoktor": {
+               "loadakkudoktor_year_energy_kwh": null
+           },
+           "loadvrm": {
+               "load_vrm_token": "your-token",
+               "load_vrm_idsite": 12345
+           },
+           "loadimport": {
+               "import_file_path": null,
+               "import_json": null
            }
        }
    }
@@ -41,10 +49,16 @@
    {
        "load": {
            "provider": "LoadAkkudoktor",
-           "provider_settings": {
-               "LoadAkkudoktor": null,
-               "LoadVrm": null,
-               "LoadImport": null
+           "loadakkudoktor": {
+               "loadakkudoktor_year_energy_kwh": null
+           },
+           "loadvrm": {
+               "load_vrm_token": "your-token",
+               "load_vrm_idsite": 12345
+           },
+           "loadimport": {
+               "import_file_path": null,
+               "import_json": null
            },
            "providers": [
                "LoadAkkudoktor",
@@ -57,43 +71,10 @@
 ```
 <!-- pyml enable line-length -->
 
-### Common settings for load data import from file or JSON string
-
-<!-- pyml disable line-length -->
-:::{table} load::provider_settings::LoadImport
-:widths: 10 10 5 5 30
-:align: left
-
-| Name | Type | Read-Only | Default | Description |
-| ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import load data from. |
-| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
-:::
-<!-- pyml enable line-length -->
-
-<!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
-<!-- pyml enable no-emphasis-as-heading -->
-
-<!-- pyml disable line-length -->
-```json
-   {
-       "load": {
-           "provider_settings": {
-               "LoadImport": {
-                   "import_file_path": null,
-                   "import_json": "{\"load0_mean\": [676.71, 876.19, 527.13]}"
-               }
-           }
-       }
-   }
-```
-<!-- pyml enable line-length -->
-
 ### Common settings for load forecast VRM API
 
 <!-- pyml disable line-length -->
-:::{table} load::provider_settings::LoadVrm
+:::{table} load::loadvrm
 :widths: 10 10 5 5 30
 :align: left
 
@@ -112,11 +93,40 @@
 ```json
    {
        "load": {
-           "provider_settings": {
-               "LoadVrm": {
-                   "load_vrm_token": "your-token",
-                   "load_vrm_idsite": 12345
-               }
+           "loadvrm": {
+               "load_vrm_token": "your-token",
+               "load_vrm_idsite": 12345
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for load data import from file or JSON string
+
+<!-- pyml disable line-length -->
+:::{table} load::loadimport
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import load data from. |
+| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "load": {
+           "loadimport": {
+               "import_file_path": null,
+               "import_json": "{\"load0_mean\": [676.71, 876.19, 527.13]}"
            }
        }
    }
@@ -126,7 +136,7 @@
 ### Common settings for load data import from file
 
 <!-- pyml disable line-length -->
-:::{table} load::provider_settings::LoadAkkudoktor
+:::{table} load::loadakkudoktor
 :widths: 10 10 5 5 30
 :align: left
 
@@ -144,43 +154,8 @@
 ```json
    {
        "load": {
-           "provider_settings": {
-               "LoadAkkudoktor": {
-                   "loadakkudoktor_year_energy_kwh": 40421.0
-               }
-           }
-       }
-   }
-```
-<!-- pyml enable line-length -->
-
-### Load Prediction Provider Configuration
-
-<!-- pyml disable line-length -->
-:::{table} load::provider_settings
-:widths: 10 10 5 5 30
-:align: left
-
-| Name | Type | Read-Only | Default | Description |
-| ---- | ---- | --------- | ------- | ----------- |
-| LoadAkkudoktor | `akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktorCommonSettings | None` | `rw` | `None` | LoadAkkudoktor settings |
-| LoadImport | `akkudoktoreos.prediction.loadimport.LoadImportCommonSettings | None` | `rw` | `None` | LoadImport settings |
-| LoadVrm | `akkudoktoreos.prediction.loadvrm.LoadVrmCommonSettings | None` | `rw` | `None` | LoadVrm settings |
-:::
-<!-- pyml enable line-length -->
-
-<!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
-<!-- pyml enable no-emphasis-as-heading -->
-
-<!-- pyml disable line-length -->
-```json
-   {
-       "load": {
-           "provider_settings": {
-               "LoadAkkudoktor": null,
-               "LoadVrm": null,
-               "LoadImport": null
+           "loadakkudoktor": {
+               "loadakkudoktor_year_energy_kwh": 40421.0
            }
        }
    }

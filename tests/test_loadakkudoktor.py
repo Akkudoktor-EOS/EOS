@@ -20,16 +20,14 @@ def loadakkudoktor(config_eos):
     settings = {
         "load": {
             "provider": "LoadAkkudoktor",
-            "provider_settings": {
-                "LoadAkkudoktor": {
-                    "loadakkudoktor_year_energy_kwh": "1000",
-                },
+            "loadakkudoktor": {
+                "loadakkudoktor_year_energy_kwh": "1000",
             },
         },
     }
     config_eos.merge_settings_from_dict(settings)
     assert config_eos.load.provider == "LoadAkkudoktor"
-    assert config_eos.load.provider_settings.LoadAkkudoktor.loadakkudoktor_year_energy_kwh == 1000
+    assert config_eos.load.loadakkudoktor.loadakkudoktor_year_energy_kwh == 1000
     return LoadAkkudoktor()
 
 @pytest.fixture
@@ -38,10 +36,8 @@ def loadakkudoktoradjusted(config_eos):
     settings = {
         "load": {
             "provider": "LoadAkkudoktorAdjusted",
-            "provider_settings": {
-                "LoadAkkudoktor": {
-                    "loadakkudoktor_year_energy_kwh": "1000",
-                },
+            "loadakkudoktor": {
+                "loadakkudoktor_year_energy_kwh": "1000",
             },
         },
         "measurement": {
@@ -50,7 +46,7 @@ def loadakkudoktoradjusted(config_eos):
     }
     config_eos.merge_settings_from_dict(settings)
     assert config_eos.load.provider == "LoadAkkudoktorAdjusted"
-    assert config_eos.load.provider_settings.LoadAkkudoktor.loadakkudoktor_year_energy_kwh == 1000
+    assert config_eos.load.loadakkudoktor.loadakkudoktor_year_energy_kwh == 1000
     return LoadAkkudoktorAdjusted()
 
 @pytest.fixture
