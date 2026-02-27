@@ -925,6 +925,32 @@ class GeneticOptimization(OptimizationBase):
                     * inv.dc_to_ac_efficiency
                 )
 
+                # Pre-compute per-hour DC energy storable in the battery from free PV.
+                # Each hour's value = net PV surplus (PV - load), capped at the battery's
+                # max charge power, multiplied by charge efficiency → stored DC Wh.
+                # A suffix sum lets us quickly query "total free PV available from hour h
+                # onwards" in O(1) per AC-charge candidate instead of O(n).
+                future_pv_stored_suffix: Optional[np.ndarray] = None
+                if self.simulation.pv_prediction_wh is not None:
+                    pv_raw = self.simulation.pv_prediction_wh
+                    max_cp = float(bat.max_charge_power_w)
+                    ch_eff = float(bat.charging_efficiency)
+                    pv_hours = len(pv_raw)
+                    pv_stored_per_hour = np.array(
+                        [
+                            min(max(0.0, float(pv_raw[h]) - float(load_arr[h])), max_cp) * ch_eff
+                            if h < pv_hours
+                            else 0.0
+                            for h in range(n)
+                        ],
+                        dtype=float,
+                    )
+                    # Suffix sum: element [h] = sum of pv_stored_per_hour[h], [h+1], …, [n-1]
+                    future_pv_stored_suffix = np.cumsum(pv_stored_per_hour[::-1])[::-1]
+
+                # Maximum net DC energy the battery can absorb (min_soc → max_soc range)
+                bat_range_dc_wh = float(bat.capacity_wh) - float(bat.min_soc_wh)
+
                 # Configurable penalty multiplier (default 1 = economic loss in €)
                 try:
                     ac_penalty_factor = float(
@@ -945,6 +971,21 @@ class GeneticOptimization(OptimizationBase):
                     # Price that a future discharge hour must reach to break even
                     break_even_price = charge_price / round_trip_eff
 
+                    # Future free PV energy storable in the battery after this charge hour.
+                    # If PV will fill the battery for free anyway, AC charging from the grid
+                    # only displaces free solar energy → opportunity cost.  Capped at the
+                    # physical battery range so we don't over-count multi-day surpluses.
+                    if future_pv_stored_suffix is not None and (hour + 1) < n:
+                        pv_future_stored_wh = min(
+                            float(future_pv_stored_suffix[hour + 1]), bat_range_dc_wh
+                        )
+                    else:
+                        pv_future_stored_wh = 0.0
+                    # Convert stored DC Wh → usable AC Wh (same chain as free_ac_wh)
+                    free_ac_wh_effective = free_ac_wh + (
+                        pv_future_stored_wh * bat.discharging_efficiency * inv.dc_to_ac_efficiency
+                    )
+
                     # Build list of (price, load_wh) for all future hours in the horizon
                     future = [
                         (float(prices_arr[h]), float(load_arr[h])) for h in range(hour + 1, n)
@@ -952,14 +993,15 @@ class GeneticOptimization(OptimizationBase):
                     # Sort descending by price so we "use" the most expensive hours first
                     future.sort(key=lambda x: -x[0])
 
-                    # Consume free PV energy against the highest-price future hours.
-                    # The first uncovered (partially or fully) hour defines the best
-                    # price still available for the new AC charge.
-                    remaining_free = free_ac_wh
+                    # Consume free energy (initial battery + future PV DC charge) against
+                    # the highest-price future hours.  The first uncovered hour defines the
+                    # best price still available for the grid AC charge under evaluation.
+                    remaining_free = free_ac_wh_effective
                     best_uncovered_price = 0.0
                     for fp, fl in future:
                         if remaining_free >= fl:
-                            # Entire expensive hour is already covered by free PV energy
+                            # Entire expensive hour is already covered by free energy
+                            # (initial battery + expected future PV DC charge)
                             remaining_free -= fl
                         else:
                             # First hour not (fully) covered: this is where new charge goes
