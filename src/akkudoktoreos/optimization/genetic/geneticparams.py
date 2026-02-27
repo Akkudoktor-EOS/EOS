@@ -420,6 +420,7 @@ class GeneticOptimizationParameters(
                         max_charge_power_w=battery_config.max_charge_power_w,
                         min_soc_percentage=battery_config.min_soc_percentage,
                         max_soc_percentage=battery_config.max_soc_percentage,
+                        charge_rates=battery_config.charge_rates,
                     )
                 except:
                     logger.info(
