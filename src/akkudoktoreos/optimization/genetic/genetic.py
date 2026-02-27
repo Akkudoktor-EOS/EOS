@@ -335,6 +335,13 @@ class GeneticSimulation(PydanticBaseModel):
                     consumption += loaded_energy_ev
                     losses_wh_per_hour[hour_idx] += verluste_eauto
 
+            # Save battery SOC before inverter processing = true begin-of-interval state.
+            # Must be recorded here (before DC charge/discharge) so the displayed SOC at
+            # timestamp T reflects what the battery actually had at the START of interval T,
+            # not the post-DC result. Consistent with the EV SOC convention above.
+            if battery_fast:
+                soc_per_hour[hour_idx] = battery_fast.current_soc_percentage()
+
             # Process inverter logic
             energy_feedin_grid_actual = energy_consumption_grid_actual = losses = eigenverbrauch = (
                 0.0
@@ -351,7 +358,6 @@ class GeneticSimulation(PydanticBaseModel):
 
             # AC PV Battery Charge
             if battery_fast:
-                soc_per_hour[hour_idx] = battery_fast.current_soc_percentage()  # save begin state
                 hour_ac_charge = ac_charge_hours_fast[hour]
                 if hour_ac_charge > 0.0 and ac_charging_possible:
                     # Cap charge factor by max_ac_charge_power_w if set
