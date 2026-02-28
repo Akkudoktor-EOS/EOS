@@ -120,7 +120,7 @@
            }
        },
        "general": {
-           "version": "0.2.0.dev2602272006923535",
+           "version": "0.2.0.dev2602280860196123",
            "data_folder_path": "/home/user/.local/share/net.akkudoktoreos.net",
            "data_output_subpath": "output",
            "latitude": 52.52,
@@ -236,7 +236,8 @@
            "verbose": false,
            "startup_eosdash": true,
            "eosdash_host": "127.0.0.1",
-           "eosdash_port": 8504
+           "eosdash_port": 8504,
+           "eosdash_supervise_interval_sec": 10
        },
        "utils": {},
        "weather": {

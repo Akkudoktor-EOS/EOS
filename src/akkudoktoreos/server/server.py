@@ -365,6 +365,15 @@ class ServerCommonSettings(SettingsBaseModel):
             ],
         },
     )
+    eosdash_supervise_interval_sec: int = Field(
+        default=10,
+        json_schema_extra={
+            "description": "Supervision interval for EOS server to supervise EOSdash [seconds].",
+            "examples": [
+                10,
+            ],
+        },
+    )
 
     @field_validator("host", "eosdash_host", mode="before")
     def validate_server_host(cls, value: Optional[str]) -> Optional[str]:

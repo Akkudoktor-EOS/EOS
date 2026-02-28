@@ -59,7 +59,7 @@ from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.server.rest.cli import cli_apply_args_to_config, cli_parse_args
 from akkudoktoreos.server.rest.error import create_error_page
-from akkudoktoreos.server.rest.starteosdash import run_eosdash_supervisor
+from akkudoktoreos.server.rest.starteosdash import supervise_eosdash
 from akkudoktoreos.server.retentionmanager import RetentionManager
 from akkudoktoreos.server.server import (
     drop_root_privileges,
@@ -138,18 +138,37 @@ async def server_shutdown_task() -> None:
     sys.exit(0)
 
 
+def config_eos_ready() -> bool:
+    """Check whether the EOS configuration system is ready.
+
+    This function can be used as an activation condition for the
+    RetentionManager to delay the start of its tick loop until the
+    configuration system is available.
+
+    Returns:
+        bool: ``True`` if the configuration system is ready (``get_config``
+            is not ``None``), ``False`` otherwise.
+    """
+    return get_config() is not None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
-    eosdash_supervisor_task = asyncio.create_task(run_eosdash_supervisor())
-
     load_eos_state()
 
-    config_eos = get_config()
-
     # Prepare the Manager and all task that are handled by the manager
-    manager = RetentionManager(config_getter=get_config().get_nested_value, shutdown_timeout=10)
+    manager = RetentionManager(
+        config_getter=get_config().get_nested_value,
+        shutdown_timeout=10,
+    )
+    manager.register(
+        name="supervise_eosdash",
+        func=supervise_eosdash,
+        interval_attr="server/eosdash_supervise_interval_sec",
+        fallback_interval=5.0,
+    )
     manager.register("cache_clear", cache_clear, interval_attr="cache/cleanup_interval")
     manager.register(
         "save_eos_database", save_eos_database, interval_attr="database/autosave_interval_sec"
@@ -160,7 +179,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     manager.register("manage_energy", ems_manage_energy, interval_attr="ems/interval")
 
     # Start the manager an by this all EOS repeated tasks
-    retention_manager_task = asyncio.create_task(manager.run())
+    retention_manager_task = asyncio.create_task(manager.run(activation_condition=config_eos_ready))
 
     # Handover to application
     yield
@@ -168,8 +187,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # waits for any in-flight job to finish cleanly
     retention_manager_task.cancel()
     await asyncio.gather(retention_manager_task, return_exceptions=True)
-    eosdash_supervisor_task.cancel()
-    await asyncio.gather(eosdash_supervisor_task, return_exceptions=True)
 
     # On shutdown
     save_eos_state()
@@ -1457,13 +1474,25 @@ def run_eos() -> None:
         port = 8503
     wait_for_port_free(port, timeout=120, waiting_app_name="EOS")
 
+    # Normalize log_level to uvicorn log level
+    VALID_UVICORN_LEVELS = {"critical", "error", "warning", "info", "debug", "trace"}
+    uv_log_level: Optional[str] = config_eos.logging.console_level
+    if uv_log_level is None:
+        uv_log_level = "critical"  # effectively disables logging
+    else:
+        uv_log_level = uv_log_level.lower()
+    if uv_log_level == "none":
+        uv_log_level = "critical"  # effectively disables logging
+    elif uv_log_level not in VALID_UVICORN_LEVELS:
+        uv_log_level = "info"  # fallback
+
     try:
         # Let uvicorn run the fastAPI app
         uvicorn.run(
             "akkudoktoreos.server.eos:app",
             host=str(config_eos.server.host),
             port=port,
-            log_level="info",  # Fix log level for uvicorn to info
+            log_level=uv_log_level,
             access_log=True,  # Fix server access logging to True
             reload=reload,
             proxy_headers=True,

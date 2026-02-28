@@ -8,7 +8,7 @@
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | interval | `EOS_EMS__INTERVAL` | `float` | `rw` | `300.0` | Intervall between EOS energy management runs [seconds]. |
-| mode | `EOS_EMS__MODE` | `akkudoktoreos.core.emsettings.EnergyManagementMode | None` | `rw` | `None` | Energy management mode [OPTIMIZATION | PREDICTION]. |
+| mode | `EOS_EMS__MODE` | `Optional[akkudoktoreos.core.emsettings.EnergyManagementMode]` | `rw` | `None` | Energy management mode [OPTIMIZATION | PREDICTION]. |
 | startup_delay | `EOS_EMS__STARTUP_DELAY` | `float` | `rw` | `5` | Startup delay in seconds for EOS energy management runs. |
 :::
 <!-- pyml enable line-length -->

@@ -9,7 +9,7 @@
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | homeassistant | `EOS_ADAPTER__HOMEASSISTANT` | `HomeAssistantAdapterCommonSettings` | `rw` | `required` | Home Assistant adapter settings. |
 | nodered | `EOS_ADAPTER__NODERED` | `NodeREDAdapterCommonSettings` | `rw` | `required` | NodeRED adapter settings. |
-| provider | `EOS_ADAPTER__PROVIDER` | `list[str] | None` | `rw` | `None` | List of adapter provider id(s) of provider(s) to be used. |
+| provider | `EOS_ADAPTER__PROVIDER` | `Optional[list[str]]` | `rw` | `None` | List of adapter provider id(s) of provider(s) to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available adapter provider ids. |
 :::
 <!-- pyml enable line-length -->
@@ -103,8 +103,8 @@ There are two URLs that are used:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| host | `str | None` | `rw` | `127.0.0.1` | Node-RED server IP address. Defaults to 127.0.0.1. |
-| port | `int | None` | `rw` | `1880` | Node-RED server IP port number. Defaults to 1880. |
+| host | `Optional[str]` | `rw` | `127.0.0.1` | Node-RED server IP address. Defaults to 127.0.0.1. |
+| port | `Optional[int]` | `rw` | `1880` | Node-RED server IP port number. Defaults to 1880. |
 :::
 <!-- pyml enable line-length -->
 
@@ -134,21 +134,21 @@ There are two URLs that are used:
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| config_entity_ids | `dict[str, str] | None` | `rw` | `None` | Mapping of EOS config keys to Home Assistant entity IDs.
+| config_entity_ids | `Optional[dict[str, str]]` | `rw` | `None` | Mapping of EOS config keys to Home Assistant entity IDs.
 The config key has to be given by a ‘/’-separated path
 e.g. devices/batteries/0/capacity_wh |
-| device_instruction_entity_ids | `list[str] | None` | `rw` | `None` | Entity IDs for device (resource) instructions to be updated by EOS.
+| device_instruction_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity IDs for device (resource) instructions to be updated by EOS.
 The device ids (resource ids) have to be prepended by 'sensor.eos_' to build the entity_id.
 E.g. The instruction for device id 'battery1' becomes the entity_id 'sensor.eos_battery1'. |
-| device_measurement_entity_ids | `dict[str, str] | None` | `rw` | `None` | Mapping of EOS measurement keys used by device (resource) simulations to Home Assistant entity IDs. |
+| device_measurement_entity_ids | `Optional[dict[str, str]]` | `rw` | `None` | Mapping of EOS measurement keys used by device (resource) simulations to Home Assistant entity IDs. |
 | eos_device_instruction_entity_ids | `list[str]` | `ro` | `N/A` | Entity IDs for energy management instructions available at EOS. |
 | eos_solution_entity_ids | `list[str]` | `ro` | `N/A` | Entity IDs for optimization solution available at EOS. |
-| grid_export_emr_entity_ids | `list[str] | None` | `rw` | `None` | Entity ID(s) of export to grid energy meter readings [kWh] |
-| grid_import_emr_entity_ids | `list[str] | None` | `rw` | `None` | Entity ID(s) of import from grid energy meter readings [kWh] |
+| grid_export_emr_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity ID(s) of export to grid energy meter readings [kWh] |
+| grid_import_emr_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity ID(s) of import from grid energy meter readings [kWh] |
 | homeassistant_entity_ids | `list[str]` | `ro` | `N/A` | Entity IDs available at Home Assistant. |
-| load_emr_entity_ids | `list[str] | None` | `rw` | `None` | Entity ID(s) of load energy meter readings [kWh] |
-| pv_production_emr_entity_ids | `list[str] | None` | `rw` | `None` | Entity ID(s) of PV production energy meter readings [kWh] |
-| solution_entity_ids | `list[str] | None` | `rw` | `None` | Entity IDs for optimization solution keys to be updated by EOS.
+| load_emr_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity ID(s) of load energy meter readings [kWh] |
+| pv_production_emr_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity ID(s) of PV production energy meter readings [kWh] |
+| solution_entity_ids | `Optional[list[str]]` | `rw` | `None` | Entity IDs for optimization solution keys to be updated by EOS.
 The solution keys have to be prepended by 'sensor.eos_' to build the entity_id.
 E.g. solution key 'battery1_idle_op_mode' becomes the entity_id 'sensor.eos_battery1_idle_op_mode'. |
 :::

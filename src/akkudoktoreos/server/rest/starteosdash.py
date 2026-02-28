@@ -4,7 +4,7 @@ import re
 import sys
 import time
 from pathlib import Path
-from typing import Any, MutableMapping
+from typing import Any, MutableMapping, Optional
 
 from loguru import logger
 
@@ -44,6 +44,8 @@ EOSDASH_DROP_WARNING_INTERVAL = 5.0  # seconds
 # The queue to handle dropping of EOSdash logs on overload
 eosdash_log_queue: asyncio.Queue | None = None
 eosdash_last_drop_warning: float = 0.0
+eosdash_proc: Optional[asyncio.subprocess.Process] = None
+eosdash_path = Path(__file__).parent.resolve().joinpath("eosdash.py")
 
 
 async def _eosdash_log_worker() -> None:
@@ -55,14 +57,33 @@ async def _eosdash_log_worker() -> None:
 
     while True:
         item = await eosdash_log_queue.get()
-        if item is None:
-            break  # shutdown signal
 
-        log_fn, args = item
+        if item is None:
+            return  # clean shutdown
+
+        # Process current
         try:
+            log_fn, args = item
             log_fn(*args)
         except Exception:
             logger.exception("Error while emitting EOSdash log")
+
+        # Drain burst, avoid repetitive yield overhead by get()
+        for _ in range(100):
+            try:
+                item = eosdash_log_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+
+            if item is None:
+                return  # clean shutdown
+
+            try:
+                log_fn, args = item
+                log_fn(*args)
+            except Exception:
+                logger.exception("Error while emitting EOSdash log")
+                break
 
 
 def _emit_drop_warning() -> None:
@@ -275,152 +296,107 @@ async def forward_stream(stream: asyncio.StreamReader, prefix: str = "") -> None
                     _emit_drop_warning()
 
 
-# Path to eosdash
-eosdash_path = Path(__file__).parent.resolve().joinpath("eosdash.py")
+async def supervise_eosdash() -> None:
+    """Supervise EOSdash.
 
+    Tracks internal EOSdash state and ensures only one instance is started.
+    On each tick, the task checks if EOSdash should be started, monitored, or restarted.
 
-async def run_eosdash_supervisor() -> None:
-    """Starts EOSdash, pipes its logs, restarts it if it crashes.
-
-    Runs forever.
+    Safe to run repeatedly under RetentionManager.
     """
-    global eosdash_log_queue, eosdash_path
+    global eosdash_proc, eosdash_log_queue, eosdash_path
 
     config_eos = get_config()
 
-    while True:
-        await asyncio.sleep(5)
+    # Skip if EOSdash not configured to start
+    if not getattr(config_eos.server, "startup_eosdash", False):
+        return
 
-        if not config_eos.server.startup_eosdash:
-            continue
+    host = config_eos.server.eosdash_host
+    port = config_eos.server.eosdash_port
+    eos_host = config_eos.server.host
+    eos_port = config_eos.server.port
 
-        if (
-            config_eos.server.eosdash_host is None
-            or config_eos.server.eosdash_port is None
-            or config_eos.server.host is None
-            or config_eos.server.port is None
-        ):
-            error_msg = (
-                f"Invalid configuration for EOSdash server startup.\n"
-                f"- server/eosdash_host: {config_eos.server.eosdash_host}\n"
-                f"- server/eosdash_port: {config_eos.server.eosdash_port}\n"
-                f"- server/host: {config_eos.server.host}\n"
-                f"- server/port: {config_eos.server.port}"
-            )
-            logger.error(error_msg)
-            continue
+    if host is None or port is None or eos_host is None or eos_port is None:
+        logger.error("EOSdash supervisor skipped: invalid configuration")
+        return
 
-        # Get all the parameters
-        host = str(config_eos.server.eosdash_host)
-        port = config_eos.server.eosdash_port
-        eos_host = str(config_eos.server.host)
-        eos_port = config_eos.server.port
-        access_log = True
-        reload = False
-        log_level = config_eos.logging.console_level if config_eos.logging.console_level else "info"
+    # Check host validity
+    try:
+        validate_ip_or_hostname(host)
+        validate_ip_or_hostname(eos_host)
+    except Exception as ex:
+        logger.error(f"EOSdash supervisor: invalid host configuration: {ex}")
+        return
 
-        try:
-            validate_ip_or_hostname(host)
-            validate_ip_or_hostname(eos_host)
-        except Exception as ex:
-            error_msg = f"Could not start EOSdash: {ex}"
-            logger.error(error_msg)
-            continue
-
-        if eos_host != host:
-            # EOSdash runs on a different server - we can not start.
-            error_msg = (
-                f"EOSdash server startup not possible on different hosts.\n"
-                f"- server/eosdash_host: {config_eos.server.eosdash_host}\n"
-                f"- server/host: {config_eos.server.host}"
-            )
-            logger.error(error_msg)
-            continue
-
-        # Do a one time check for port free to generate warnings if not so
-        wait_for_port_free(port, timeout=0, waiting_app_name="EOSdash")
-
-        cmd = [
-            sys.executable,
-            "-m",
-            "akkudoktoreos.server.eosdash",
-            "--host",
-            str(host),
-            "--port",
-            str(port),
-            "--eos-host",
-            str(eos_host),
-            "--eos-port",
-            str(eos_port),
-            "--log_level",
-            log_level,
-            "--access_log",
-            str(access_log),
-            "--reload",
-            str(reload),
-        ]
-        # Set environment before any subprocess run, to keep custom config dir
-        eos_dir = str(config_eos.package_root_path)
-        eos_data_dir = str(config_eos.general.data_folder_path)
-        eos_config_dir = str(config_eos.general.config_folder_path)
-        env = os.environ.copy()
-        env["EOS_DIR"] = eos_dir
-        env["EOS_DATA_DIR"] = eos_data_dir
-        env["EOS_CONFIG_DIR"] = eos_config_dir
-
-        logger.info("Starting EOSdash subprocess...")
-
-        # Start EOSdash server
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-        except FileNotFoundError:
-            logger.error(
-                "Failed to start EOSdash: 'python' executable '{sys.executable}' not found."
-            )
-            continue
-        except PermissionError:
-            logger.error("Failed to start EOSdash: permission denied on 'eosdash.py'.")
-            continue
-        except asyncio.CancelledError:
-            logger.warning("EOSdash startup cancelled (shutdown?).")
+    # Only start EOSdash if not already running
+    if eosdash_proc is not None:
+        # Check if process is alive
+        if eosdash_proc.returncode is None:
+            # Still running — monitoring mode
             return
-        except Exception as e:
-            logger.exception(f"Unexpected error launching EOSdash: {e}")
-            continue
-
-        if eosdash_log_queue is None:
-            # Initialize EOSdash log queue + worker once
-            eosdash_log_queue = asyncio.Queue(maxsize=EOSDASH_LOG_QUEUE_SIZE)
-            asyncio.create_task(_eosdash_log_worker())
-
-        if proc.stdout is None:
-            logger.error("Failed to forward EOSdash output to EOS pipe.")
         else:
-            # Forward log
-            asyncio.create_task(forward_stream(proc.stdout, prefix="[EOSdash] "))
+            logger.warning("EOSdash subprocess exited — restarting...")
+            eosdash_proc = None
 
-        if proc.stderr is None:
-            logger.error("Failed to forward EOSdash error output to EOS pipe.")
-        else:
-            # Forward log
-            asyncio.create_task(forward_stream(proc.stderr, prefix="[EOSdash] "))
+    # Ensure port is free
+    wait_for_port_free(port, timeout=0, waiting_app_name="EOSdash")
 
-        # If we reach here, the subprocess started successfully
-        logger.info("EOSdash subprocess started successfully.")
+    cmd = [
+        sys.executable,
+        "-m",
+        "akkudoktoreos.server.eosdash",
+        "--host",
+        str(host),
+        "--port",
+        str(port),
+        "--eos-host",
+        str(eos_host),
+        "--eos-port",
+        str(eos_port),
+        "--log_level",
+        str(getattr(config_eos.logging, "console_level", "info")),
+        "--access_log",
+        "True",
+        "--reload",
+        "False",
+    ]
 
-        # Wait for exit
-        try:
-            exit_code = await proc.wait()
-            logger.error(f"EOSdash exited with code {exit_code}")
+    env = os.environ.copy()
+    env.update(
+        {
+            "EOS_DIR": str(config_eos.package_root_path),
+            "EOS_DATA_DIR": str(config_eos.general.data_folder_path),
+            "EOS_CONFIG_DIR": str(config_eos.general.config_folder_path),
+        }
+    )
 
-        except asyncio.CancelledError:
-            logger.warning("EOSdash wait cancelled (shutdown?).")
-            return
+    logger.info("Starting EOSdash subprocess...")
 
-        except Exception as e:
-            logger.exception(f"Error while waiting for EOSdash to terminate: {e}")
+    try:
+        eosdash_proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            env=env,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except asyncio.CancelledError:
+        logger.warning("EOSdash supervisor cancelled before start")
+        return
+    except Exception as e:
+        logger.exception(f"Failed to start EOSdash subprocess: {e}")
+        eosdash_proc = None
+        return
 
-        # Restart after a delay
-        logger.info("Restarting EOSdash...")
+    # Initialize log queue once
+    if eosdash_log_queue is None:
+        eosdash_log_queue = asyncio.Queue(maxsize=EOSDASH_LOG_QUEUE_SIZE)
+        asyncio.create_task(_eosdash_log_worker())  # existing worker
+
+    # Forward stdout/stderr
+    if eosdash_proc.stdout:
+        asyncio.create_task(forward_stream(eosdash_proc.stdout, prefix="[EOSdash] "))
+    if eosdash_proc.stderr:
+        asyncio.create_task(forward_stream(eosdash_proc.stderr, prefix="[EOSdash] "))
+
+    logger.info("EOSdash subprocess started successfully.")

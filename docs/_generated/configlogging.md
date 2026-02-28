@@ -7,9 +7,9 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| console_level | `EOS_LOGGING__CONSOLE_LEVEL` | `str | None` | `rw` | `None` | Logging level when logging to console. |
-| file_level | `EOS_LOGGING__FILE_LEVEL` | `str | None` | `rw` | `None` | Logging level when logging to file. |
-| file_path | | `pathlib.Path | None` | `ro` | `N/A` | Computed log file path based on data output path. |
+| console_level | `EOS_LOGGING__CONSOLE_LEVEL` | `Optional[str]` | `rw` | `None` | Logging level when logging to console. |
+| file_level | `EOS_LOGGING__FILE_LEVEL` | `Optional[str]` | `rw` | `None` | Logging level when logging to file. |
+| file_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Computed log file path based on data output path. |
 :::
 <!-- pyml enable line-length -->
 

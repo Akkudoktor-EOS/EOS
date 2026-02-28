@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.2.0.dev2602250574650225"
+    "version": "v0.2.0.dev2602280860196123"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -4451,7 +4451,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev2602250574650225"
+            "default": "0.2.0.dev2602280860196123"
           },
           "data_folder_path": {
             "type": "string",
@@ -4514,7 +4514,7 @@
             "type": "string",
             "title": "Version",
             "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev2602250574650225"
+            "default": "0.2.0.dev2602280860196123"
           },
           "data_folder_path": {
             "type": "string",
@@ -8349,6 +8349,15 @@
             "examples": [
               8504
             ]
+          },
+          "eosdash_supervise_interval_sec": {
+            "type": "integer",
+            "title": "Eosdash Supervise Interval Sec",
+            "description": "Supervision interval for EOS server to supervise EOSdash [seconds].",
+            "default": 10,
+            "examples": [
+              10
+            ]
           }
         },
         "type": "object",
@@ -8875,6 +8884,13 @@
           "type": {
             "type": "string",
             "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",
