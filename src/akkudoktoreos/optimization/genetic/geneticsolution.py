@@ -305,7 +305,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 ac_to_dc_eff = float(inv_list[0].ac_to_dc_efficiency) if inv_list else 1.0
                 max_ac_cp_w = (
                     float(inv_list[0].max_ac_charge_power_w)
-                    if inv_list
+                    if inv_list and inv_list[0].max_ac_charge_power_w is not None
                     else float(bat.max_charge_power_w)
                 )
                 max_dc_per_h_wh = effective_ac * max_ac_cp_w * ac_to_dc_eff * ch_eff
