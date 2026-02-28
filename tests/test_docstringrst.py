@@ -40,6 +40,9 @@ IGNORE_LOCATIONS = [
     r"\.ComputedFieldInfo.*",
     r"\.PrivateAttr$",
 
+    # numpydantic
+    r"\.Shape.*",
+
     # pathlib
     r"\.Path.*",
 
