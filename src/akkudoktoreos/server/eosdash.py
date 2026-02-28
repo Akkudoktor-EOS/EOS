@@ -119,7 +119,7 @@ config_eos.reset_settings()
 # Remember parameters in config
 config_eosdash = {}
 
-# Setup EOS logging level - first to have the other logging messages logged
+# Setup EOSdash logging level - first to have the other logging messages logged
 # - log level
 if args and args.log_level is not None:
     config_eosdash["log_level"] = args.log_level.upper()
@@ -477,12 +477,20 @@ def run_eosdash() -> None:
     # Wait for EOSdash port to be free - e.g. in case of restart
     wait_for_port_free(config_eosdash["eosdash_port"], timeout=120, waiting_app_name="EOSdash")
 
+    # Normalize log_level to uvicorn log level
+    VALID_UVICORN_LEVELS = {"critical", "error", "warning", "info", "debug", "trace"}
+    uv_log_level = config_eosdash["log_level"].lower()
+    if uv_log_level == "none":
+        uv_log_level = "critical"  # effectively disables logging
+    elif uv_log_level not in VALID_UVICORN_LEVELS:
+        uv_log_level = "info"  # fallback
+
     try:
         uvicorn.run(
             "akkudoktoreos.server.eosdash:app",
             host=config_eosdash["eosdash_host"],
             port=config_eosdash["eosdash_port"],
-            log_level=config_eosdash["log_level"].lower(),
+            log_level=uv_log_level,
             access_log=config_eosdash["access_log"],
             reload=config_eosdash["reload"],
             proxy_headers=True,

@@ -250,34 +250,121 @@ class RetentionManager:
     # Tick — called by the external heartbeat loop
     # ------------------------------------------------------------------
 
-    async def run(self, *, tick_interval: float = 5.0) -> None:
+    async def run(
+        self,
+        *,
+        tick_interval: float = 5.0,
+        activation_condition: Union[
+            Callable[[], bool],
+            Callable[[], Coroutine[Any, Any, bool]],
+            None,
+        ] = None,
+        activation_check_interval: float = 5.0,
+    ) -> None:
         """Run the RetentionManager tick loop indefinitely.
 
-        Calls `tick` every ``tick_interval`` seconds until the task is
-        cancelled (e.g. during application shutdown). On cancellation,
-        `shutdown` is awaited so any in-flight jobs can finish cleanly
-        before the loop exits.
+        Starts a periodic loop that calls `tick()` every ``tick_interval`` seconds
+        until the task is cancelled. If an ``activation_condition`` coroutine is
+        provided, the manager will first wait until that condition evaluates to
+        ``True`` before entering the tick loop. The condition is polled every
+        ``activation_check_interval`` seconds.
+
+        This allows the manager task to be created early in the application
+        lifecycle while deferring actual job execution until the surrounding
+        system is fully operational (e.g. database ready, caches warmed, leader
+        elected, etc.).
+
+        If the activation condition raises an exception, it is logged and treated
+        as not satisfied. The condition will be retried after the configured
+        check interval.
+
+        On cancellation (e.g. during application shutdown), the manager waits
+        for all in-flight jobs to complete by invoking `shutdown()` before
+        exiting.
 
         Args:
-            tick_interval: Seconds between ticks. Defaults to ``5.0``.
+            tick_interval: Number of seconds between successive calls to `tick()`.
+                Defaults to ``5.0``.
+            activation_condition: Optional callable returning ``bool``. The callable
+                may be synchronous or asynchronous. When provided, the manager
+                repeatedly evaluates this callable until it returns ``True`` before
+                starting the tick loop. Asynchronous callables are awaited.
+                Defaults to ``None``.
+            activation_check_interval: Number of seconds to wait between
+                successive evaluations of ``activation_condition``. Ignored if
+                no activation condition is provided. Defaults to ``5.0``.
 
-        Example::
+        Raises:
+            asyncio.CancelledError: Propagated when the task is cancelled after
+                performing graceful shutdown of running jobs.
 
-            @asynccontextmanager
-            async def lifespan(app: FastAPI):
-                task = asyncio.create_task(manager.run())
-                yield
-                task.cancel()
-                await asyncio.gather(task, return_exceptions=True)
+        Example:
+            Using FastAPI lifespan to delay job execution until the
+            application signals readiness:
+
+            >>> from contextlib import asynccontextmanager
+            >>> from fastapi import FastAPI
+            >>>
+            >>> app = FastAPI()
+            >>> manager = RetentionManager(config_getter)
+            >>>
+            >>> async def is_system_ready() -> bool:
+            ...     return getattr(app.state, "system_ready", False)
+            >>>
+            >>> @asynccontextmanager
+            ... async def lifespan(app: FastAPI):
+            ...     task = asyncio.create_task(
+            ...         manager.run(
+            ...             activation_condition=is_system_ready,
+            ...             activation_check_interval=5.0,
+            ...         )
+            ...     )
+            ...
+            ...     # Application startup phase
+            ...     app.state.system_ready = False
+            ...     yield  # Application is now running
+            ...
+            ...     # Signal readiness after external initialization
+            ...     app.state.system_ready = True
+            ...
+            ...     # Shutdown phase
+            ...     task.cancel()
+            ...     await asyncio.gather(task, return_exceptions=True)
+            ...
+            >>> app = FastAPI(lifespan=lifespan)
         """
+        if activation_condition is not None:
+            logger.info("RetentionManager: waiting for startup condition...")
+
+            while True:
+                try:
+                    if asyncio.iscoroutinefunction(activation_condition):
+                        ready = await activation_condition()
+                    else:
+                        ready = activation_condition()
+                except Exception as exc:
+                    logger.exception(
+                        "RetentionManager: startup condition raised exception: {}", exc
+                    )
+
+                if ready:
+                    break
+
+                await asyncio.sleep(activation_check_interval)
+
+            logger.info("RetentionManager: startup condition satisfied")
+
         logger.info("RetentionManager: tick loop started (interval={}s)", tick_interval)
+
         try:
             while True:
                 try:
                     await self.tick()
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     logger.exception("RetentionManager: unhandled exception in tick: {}", exc)
+
                 await asyncio.sleep(tick_interval)
+
         except asyncio.CancelledError:
             logger.info("RetentionManager: tick loop cancelled, shutting down...")
             await self.shutdown()
@@ -296,7 +383,6 @@ class RetentionManager:
         Jobs that are still running from a previous tick are skipped to prevent
         overlapping executions.
         """
-        logger.info("RetentionManager: tick")
         due = [job for job in self._jobs.values() if not job.is_running and job.is_due()]
 
         if not due:

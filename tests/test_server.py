@@ -131,7 +131,7 @@ class TestServerStartStop:
         monkeypatch.setenv("EOS_CONFIG_DIR", str(eos_dir))
 
         # Import with environment vars set to prevent creation of EOS.config.json in wrong dir.
-        from akkudoktoreos.server.rest.starteosdash import run_eosdash_supervisor
+        from akkudoktoreos.server.rest.starteosdash import supervise_eosdash
 
         config_eos.server.host = get_default_host()
         config_eos.server.port = 8503
@@ -153,11 +153,10 @@ class TestServerStartStop:
         # Port may be blocked
         assert wait_for_port_free(config_eos.server.eosdash_port, timeout=120, waiting_app_name="EOSdash")
 
+        """Start EOSdash."""
+        await supervise_eosdash()
 
-        """Start the EOSdash supervisor as a background task for testing."""
-        task = asyncio.create_task(run_eosdash_supervisor())
-
-        # give the supervisor some time to begin starting EOSdash
+        # give EOSdash some time to startup
         await asyncio.sleep(1)
 
         # ---------------------------------
@@ -177,14 +176,6 @@ class TestServerStartStop:
                 error = str(ex)
 
             await asyncio.sleep(3)
-
-        # Graceful shutdown of the background task
-        # Do it before any assert
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
 
         assert startup, f"Connection to {eosdash_server}/eosdash/health failed: {error}"
 

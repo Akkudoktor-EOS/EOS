@@ -7,15 +7,15 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| batteries | `EOS_DEVICES__BATTERIES` | `list[akkudoktoreos.devices.devices.BatteriesCommonSettings] | None` | `rw` | `None` | List of battery devices |
-| electric_vehicles | `EOS_DEVICES__ELECTRIC_VEHICLES` | `list[akkudoktoreos.devices.devices.BatteriesCommonSettings] | None` | `rw` | `None` | List of electric vehicle devices |
-| home_appliances | `EOS_DEVICES__HOME_APPLIANCES` | `list[akkudoktoreos.devices.devices.HomeApplianceCommonSettings] | None` | `rw` | `None` | List of home appliances |
-| inverters | `EOS_DEVICES__INVERTERS` | `list[akkudoktoreos.devices.devices.InverterCommonSettings] | None` | `rw` | `None` | List of inverters |
-| max_batteries | `EOS_DEVICES__MAX_BATTERIES` | `int | None` | `rw` | `None` | Maximum number of batteries that can be set |
-| max_electric_vehicles | `EOS_DEVICES__MAX_ELECTRIC_VEHICLES` | `int | None` | `rw` | `None` | Maximum number of electric vehicles that can be set |
-| max_home_appliances | `EOS_DEVICES__MAX_HOME_APPLIANCES` | `int | None` | `rw` | `None` | Maximum number of home_appliances that can be set |
-| max_inverters | `EOS_DEVICES__MAX_INVERTERS` | `int | None` | `rw` | `None` | Maximum number of inverters that can be set |
-| measurement_keys | | `list[str] | None` | `ro` | `N/A` | Return the measurement keys for the resource/ device stati that are measurements. |
+| batteries | `EOS_DEVICES__BATTERIES` | `Optional[list[akkudoktoreos.devices.devices.BatteriesCommonSettings]]` | `rw` | `None` | List of battery devices |
+| electric_vehicles | `EOS_DEVICES__ELECTRIC_VEHICLES` | `Optional[list[akkudoktoreos.devices.devices.BatteriesCommonSettings]]` | `rw` | `None` | List of electric vehicle devices |
+| home_appliances | `EOS_DEVICES__HOME_APPLIANCES` | `Optional[list[akkudoktoreos.devices.devices.HomeApplianceCommonSettings]]` | `rw` | `None` | List of home appliances |
+| inverters | `EOS_DEVICES__INVERTERS` | `Optional[list[akkudoktoreos.devices.devices.InverterCommonSettings]]` | `rw` | `None` | List of inverters |
+| max_batteries | `EOS_DEVICES__MAX_BATTERIES` | `Optional[int]` | `rw` | `None` | Maximum number of batteries that can be set |
+| max_electric_vehicles | `EOS_DEVICES__MAX_ELECTRIC_VEHICLES` | `Optional[int]` | `rw` | `None` | Maximum number of electric vehicles that can be set |
+| max_home_appliances | `EOS_DEVICES__MAX_HOME_APPLIANCES` | `Optional[int]` | `rw` | `None` | Maximum number of home_appliances that can be set |
+| max_inverters | `EOS_DEVICES__MAX_INVERTERS` | `Optional[int]` | `rw` | `None` | Maximum number of inverters that can be set |
+| measurement_keys | | `Optional[list[str]]` | `ro` | `N/A` | Return the measurement keys for the resource/ device stati that are measurements. |
 :::
 <!-- pyml enable line-length -->
 
@@ -207,12 +207,12 @@
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
 | ac_to_dc_efficiency | `float` | `rw` | `1.0` | Efficiency of AC to DC conversion for grid-to-battery AC charging (0-1). Set to 0 to disable AC charging. Default 1.0 (no additional inverter loss). |
-| battery_id | `str | None` | `rw` | `None` | ID of battery controlled by this inverter. |
+| battery_id | `Optional[str]` | `rw` | `None` | ID of battery controlled by this inverter. |
 | dc_to_ac_efficiency | `float` | `rw` | `1.0` | Efficiency of DC to AC conversion for battery discharging to AC load/grid (0-1). Default 1.0 (no additional inverter loss). |
 | device_id | `str` | `rw` | `<unknown>` | ID of device |
-| max_ac_charge_power_w | `float | None` | `rw` | `None` | Maximum AC charging power in watts. null means no additional limit. Set to 0 to disable AC charging. |
-| max_power_w | `float | None` | `rw` | `None` | Maximum power [W]. |
-| measurement_keys | `list[str] | None` | `ro` | `N/A` | Measurement keys for the inverter stati that are measurements. |
+| max_ac_charge_power_w | `Optional[float]` | `rw` | `None` | Maximum AC charging power in watts. null means no additional limit. Set to 0 to disable AC charging. |
+| max_power_w | `Optional[float]` | `rw` | `None` | Maximum power [W]. |
+| measurement_keys | `Optional[list[str]]` | `ro` | `N/A` | Measurement keys for the inverter stati that are measurements. |
 :::
 <!-- pyml enable line-length -->
 
@@ -275,8 +275,8 @@
 | consumption_wh | `int` | `rw` | `required` | Energy consumption [Wh]. |
 | device_id | `str` | `rw` | `<unknown>` | ID of device |
 | duration_h | `int` | `rw` | `required` | Usage duration in hours [0 ... 24]. |
-| measurement_keys | `list[str] | None` | `ro` | `N/A` | Measurement keys for the home appliance stati that are measurements. |
-| time_windows | `akkudoktoreos.utils.datetimeutil.TimeWindowSequence | None` | `rw` | `None` | Sequence of allowed time windows. Defaults to optimization general time window. |
+| measurement_keys | `Optional[list[str]]` | `ro` | `N/A` | Measurement keys for the home appliance stati that are measurements. |
+| time_windows | `Optional[akkudoktoreos.utils.datetimeutil.TimeWindowSequence]` | `rw` | `None` | Sequence of allowed time windows. Defaults to optimization general time window. |
 :::
 <!-- pyml enable line-length -->
 
@@ -353,20 +353,20 @@
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
 | capacity_wh | `int` | `rw` | `8000` | Capacity [Wh]. |
-| charge_rates | `list[float] | None` | `rw` | `[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]` | Charge rates as factor of maximum charging power [0.00 ... 1.00]. None triggers fallback to default charge-rates. |
+| charge_rates | `Optional[list[float]]` | `rw` | `[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]` | Charge rates as factor of maximum charging power [0.00 ... 1.00]. None triggers fallback to default charge-rates. |
 | charging_efficiency | `float` | `rw` | `0.88` | Charging efficiency [0.01 ... 1.00]. |
 | device_id | `str` | `rw` | `<unknown>` | ID of device |
 | discharging_efficiency | `float` | `rw` | `0.88` | Discharge efficiency [0.01 ... 1.00]. |
 | levelized_cost_of_storage_kwh | `float` | `rw` | `0.0` | Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [€/kWh]. |
-| max_charge_power_w | `float | None` | `rw` | `5000` | Maximum charging power [W]. |
+| max_charge_power_w | `Optional[float]` | `rw` | `5000` | Maximum charging power [W]. |
 | max_soc_percentage | `int` | `rw` | `100` | Maximum state of charge (SOC) as percentage of capacity [%]. |
 | measurement_key_power_3_phase_sym_w | `str` | `ro` | `N/A` | Measurement key for the symmetric 3 phase power the battery is charged or discharged with [W]. |
 | measurement_key_power_l1_w | `str` | `ro` | `N/A` | Measurement key for the L1 power the battery is charged or discharged with [W]. |
 | measurement_key_power_l2_w | `str` | `ro` | `N/A` | Measurement key for the L2 power the battery is charged or discharged with [W]. |
 | measurement_key_power_l3_w | `str` | `ro` | `N/A` | Measurement key for the L3 power the battery is charged or discharged with [W]. |
 | measurement_key_soc_factor | `str` | `ro` | `N/A` | Measurement key for the battery state of charge (SoC) as factor of total capacity [0.0 ... 1.0]. |
-| measurement_keys | `list[str] | None` | `ro` | `N/A` | Measurement keys for the battery stati that are measurements. |
-| min_charge_power_w | `float | None` | `rw` | `50` | Minimum charging power [W]. |
+| measurement_keys | `Optional[list[str]]` | `ro` | `N/A` | Measurement keys for the battery stati that are measurements. |
+| min_charge_power_w | `Optional[float]` | `rw` | `50` | Minimum charging power [W]. |
 | min_soc_percentage | `int` | `rw` | `0` | Minimum state of charge (SOC) as percentage of capacity [%]. This is the target SoC for charging |
 :::
 <!-- pyml enable line-length -->

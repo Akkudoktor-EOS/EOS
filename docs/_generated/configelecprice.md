@@ -7,12 +7,12 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `float | None` | `rw` | `None` | Electricity price charges [€/kWh]. Will be added to variable market price. |
+| charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `Optional[float]` | `rw` | `None` | Electricity price charges [€/kWh]. Will be added to variable market price. |
 | elecpriceimport | `EOS_ELECPRICE__ELECPRICEIMPORT` | `ElecPriceImportCommonSettings` | `rw` | `required` | Import provider settings. |
 | energycharts | `EOS_ELECPRICE__ENERGYCHARTS` | `ElecPriceEnergyChartsCommonSettings` | `rw` | `required` | Energy Charts provider settings. |
-| provider | `EOS_ELECPRICE__PROVIDER` | `str | None` | `rw` | `None` | Electricity price provider id of provider to be used. |
+| provider | `EOS_ELECPRICE__PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available electricity price provider ids. |
-| vat_rate | `EOS_ELECPRICE__VAT_RATE` | `float | None` | `rw` | `1.19` | VAT rate factor applied to electricity price when charges are used. |
+| vat_rate | `EOS_ELECPRICE__VAT_RATE` | `Optional[float]` | `rw` | `1.19` | VAT rate factor applied to electricity price when charges are used. |
 :::
 <!-- pyml enable line-length -->
 
@@ -105,8 +105,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import elecprice data from. |
-| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of electricity price forecast value lists. |
+| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import elecprice data from. |
+| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of electricity price forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 
