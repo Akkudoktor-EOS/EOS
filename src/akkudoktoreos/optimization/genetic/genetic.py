@@ -1202,23 +1202,29 @@ class GeneticOptimization(OptimizationBase):
         else:
             discharge = discharge.tolist()
 
-        # Visualize the results
-        visualize = {
-            "ac_charge": ac_charge_hours,
-            "dc_charge": dc_charge_hours,
-            "discharge_allowed": discharge,
-            "eautocharge_hours_float": eautocharge_hours_float,
-            "result": simulation_result,
-            "eauto_obj": self.simulation.ev.to_dict() if self.simulation.ev else None,
-            "start_solution": start_solution,
-            "spuelstart": washingstart_int,
-            "extra_data": extra_data,
-            "fitness_history": self.fitness_history,
-            "fixed_seed": self.fix_seed,
-        }
-        from akkudoktoreos.utils.visualize import prepare_visualize
+        # Visualize the results in PDF
+        try:
+            from akkudoktoreos.utils.visualize import prepare_visualize
 
-        prepare_visualize(parameters, visualize, start_hour=start_hour)
+            visualize = {
+                "ac_charge": ac_charge_hours,
+                "dc_charge": dc_charge_hours,
+                "discharge_allowed": discharge,
+                "eautocharge_hours_float": eautocharge_hours_float,
+                "result": simulation_result,
+                "eauto_obj": self.simulation.ev.to_dict() if self.simulation.ev else None,
+                "start_solution": start_solution,
+                "spuelstart": washingstart_int,
+                "extra_data": extra_data,
+                "fitness_history": self.fitness_history,
+                "fixed_seed": self.fix_seed,
+            }
+
+            prepare_visualize(parameters, visualize, start_hour=start_hour)
+
+        except Exception as ex:
+            error_msg = f"Visualization failed: {ex}"
+            logger.error(error_msg)
 
         return GeneticSolution(
             **{
