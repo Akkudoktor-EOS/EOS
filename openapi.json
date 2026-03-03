@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.2.0.dev2602281697121815"
+    "version": "v0.2.0.dev2603032000228213"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -4448,10 +4448,19 @@
             "description": "EOS is running as home assistant add-on."
           },
           "version": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Version",
-            "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev2602281697121815"
+            "description": "Configuration file version.",
+            "examples": [
+              "0.0.0"
+            ]
           },
           "data_folder_path": {
             "type": "string",
@@ -4511,10 +4520,19 @@
       "GeneralSettings-Output": {
         "properties": {
           "version": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Version",
-            "description": "Configuration file version. Used to check compatibility.",
-            "default": "0.2.0.dev2602281697121815"
+            "description": "Configuration file version.",
+            "examples": [
+              "0.0.0"
+            ]
           },
           "data_folder_path": {
             "type": "string",
@@ -4685,27 +4703,20 @@
             ]
           },
           "penalties": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "integer"
-                    },
-                    {
-                      "type": "string"
-                    }
-                  ]
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
                 },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "type": "object",
             "title": "Penalties",
             "description": "A dictionary of penalty function parameters consisting of a penalty function parameter name and the associated value.",
             "examples": [

@@ -1,0 +1,596 @@
+{
+  "general": {
+    "version": "0.2.0.dev2603031877440961",
+    "data_folder_path": "/home/bobby/.local/share/net.akkudoktor.eos",
+    "data_output_subpath": "output",
+    "latitude": 52.52,
+    "longitude": 13.405,
+    "timezone": "Europe/Berlin",
+    "data_output_path": "/home/bobby/.local/share/net.akkudoktor.eos/output",
+    "config_folder_path": "/home/bobby/.config/net.akkudoktor.eos",
+    "config_file_path": "/home/bobby/.config/net.akkudoktor.eos/EOS.config.json"
+  },
+  "cache": {
+    "subpath": "cache",
+    "cleanup_interval": 300
+  },
+  "database": {
+    "provider": null,
+    "compression_level": 9,
+    "initial_load_window_h": null,
+    "keep_duration_h": null,
+    "autosave_interval_sec": 10,
+    "compaction_interval_sec": 604800,
+    "batch_size": 100,
+    "providers": [
+      "LMDB",
+      "SQLite"
+    ]
+  },
+  "ems": {
+    "startup_delay": 5,
+    "interval": 300,
+    "mode": "OPTIMIZATION"
+  },
+  "logging": {
+    "console_level": null,
+    "file_level": null,
+    "file_path": "/home/bobby/.local/share/net.akkudoktor.eos/output/eos.log"
+  },
+  "devices": {
+    "batteries": [
+      {
+        "device_id": "battery1",
+        "capacity_wh": 8000,
+        "charging_efficiency": 0.88,
+        "discharging_efficiency": 0.88,
+        "levelized_cost_of_storage_kwh": 0,
+        "max_charge_power_w": 5000,
+        "min_charge_power_w": 50,
+        "charge_rates": [
+          0,
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+          0.6,
+          0.7,
+          0.8,
+          0.9,
+          1
+        ],
+        "min_soc_percentage": 0,
+        "max_soc_percentage": 100,
+        "measurement_key_soc_factor": "battery1-soc-factor",
+        "measurement_key_power_l1_w": "battery1-power-l1-w",
+        "measurement_key_power_l2_w": "battery1-power-l2-w",
+        "measurement_key_power_l3_w": "battery1-power-l3-w",
+        "measurement_key_power_3_phase_sym_w": "battery1-power-3-phase-sym-w",
+        "measurement_keys": [
+          "battery1-soc-factor",
+          "battery1-power-l1-w",
+          "battery1-power-l2-w",
+          "battery1-power-l3-w",
+          "battery1-power-3-phase-sym-w"
+        ]
+      }
+    ],
+    "max_batteries": 1,
+    "electric_vehicles": [
+      {
+        "device_id": "ev11",
+        "capacity_wh": 50000,
+        "charging_efficiency": 0.88,
+        "discharging_efficiency": 0.88,
+        "levelized_cost_of_storage_kwh": 0,
+        "max_charge_power_w": 5000,
+        "min_charge_power_w": 50,
+        "charge_rates": [
+          0,
+          0.1,
+          0.2,
+          0.3,
+          0.4,
+          0.5,
+          0.6,
+          0.7,
+          0.8,
+          0.9,
+          1
+        ],
+        "min_soc_percentage": 70,
+        "max_soc_percentage": 100,
+        "measurement_key_soc_factor": "ev11-soc-factor",
+        "measurement_key_power_l1_w": "ev11-power-l1-w",
+        "measurement_key_power_l2_w": "ev11-power-l2-w",
+        "measurement_key_power_l3_w": "ev11-power-l3-w",
+        "measurement_key_power_3_phase_sym_w": "ev11-power-3-phase-sym-w",
+        "measurement_keys": [
+          "ev11-soc-factor",
+          "ev11-power-l1-w",
+          "ev11-power-l2-w",
+          "ev11-power-l3-w",
+          "ev11-power-3-phase-sym-w"
+        ]
+      }
+    ],
+    "max_electric_vehicles": 1,
+    "inverters": [
+      {
+        "device_id": "inverter1",
+        "max_power_w": 10000,
+        "battery_id": "battery1",
+        "ac_to_dc_efficiency": 1,
+        "dc_to_ac_efficiency": 1,
+        "max_ac_charge_power_w": null,
+        "measurement_keys": []
+      }
+    ],
+    "max_inverters": 1,
+    "home_appliances": [
+      {
+        "device_id": "dishwasher1",
+        "consumption_wh": 2000,
+        "duration_h": 3,
+        "time_windows": {
+          "windows": [
+            {
+              "start_time": "08:00:00.000000 Europe/Berlin",
+              "duration": "5 hours",
+              "day_of_week": null,
+              "date": null,
+              "locale": null
+            },
+            {
+              "start_time": "15:00:00.000000 Europe/Berlin",
+              "duration": "3 hours",
+              "day_of_week": null,
+              "date": null,
+              "locale": null
+            }
+          ]
+        },
+        "measurement_keys": []
+      }
+    ],
+    "max_home_appliances": 1,
+    "measurement_keys": [
+      "battery1-soc-factor",
+      "battery1-power-l1-w",
+      "battery1-power-l2-w",
+      "battery1-power-l3-w",
+      "battery1-power-3-phase-sym-w",
+      "ev11-soc-factor",
+      "ev11-power-l1-w",
+      "ev11-power-l2-w",
+      "ev11-power-l3-w",
+      "ev11-power-3-phase-sym-w"
+    ]
+  },
+  "measurement": {
+    "historic_hours": 17520,
+    "load_emr_keys": null,
+    "grid_export_emr_keys": null,
+    "grid_import_emr_keys": null,
+    "pv_production_emr_keys": null,
+    "keys": []
+  },
+  "optimization": {
+    "horizon_hours": 24,
+    "interval": 3600,
+    "algorithm": "GENETIC",
+    "genetic": {
+      "individuals": 300,
+      "generations": 400,
+      "seed": null,
+      "penalties": {
+        "ev_soc_miss": 10,
+        "ac_charge_break_even": 1
+      }
+    },
+    "keys": [
+      "battery1_fault_op_factor",
+      "battery1_fault_op_mode",
+      "battery1_forced_charge_op_factor",
+      "battery1_forced_charge_op_mode",
+      "battery1_forced_discharge_op_factor",
+      "battery1_forced_discharge_op_mode",
+      "battery1_frequency_regulation_op_factor",
+      "battery1_frequency_regulation_op_mode",
+      "battery1_grid_support_export_op_factor",
+      "battery1_grid_support_export_op_mode",
+      "battery1_grid_support_import_op_factor",
+      "battery1_grid_support_import_op_mode",
+      "battery1_idle_op_factor",
+      "battery1_idle_op_mode",
+      "battery1_non_export_op_factor",
+      "battery1_non_export_op_mode",
+      "battery1_outage_supply_op_factor",
+      "battery1_outage_supply_op_mode",
+      "battery1_peak_shaving_op_factor",
+      "battery1_peak_shaving_op_mode",
+      "battery1_ramp_rate_control_op_factor",
+      "battery1_ramp_rate_control_op_mode",
+      "battery1_reserve_backup_op_factor",
+      "battery1_reserve_backup_op_mode",
+      "battery1_self_consumption_op_factor",
+      "battery1_self_consumption_op_mode",
+      "battery1_soc_factor",
+      "costs_amt",
+      "date_time",
+      "ev11_fault_op_factor",
+      "ev11_fault_op_mode",
+      "ev11_forced_charge_op_factor",
+      "ev11_forced_charge_op_mode",
+      "ev11_forced_discharge_op_factor",
+      "ev11_forced_discharge_op_mode",
+      "ev11_frequency_regulation_op_factor",
+      "ev11_frequency_regulation_op_mode",
+      "ev11_grid_support_export_op_factor",
+      "ev11_grid_support_export_op_mode",
+      "ev11_grid_support_import_op_factor",
+      "ev11_grid_support_import_op_mode",
+      "ev11_idle_op_factor",
+      "ev11_idle_op_mode",
+      "ev11_non_export_op_factor",
+      "ev11_non_export_op_mode",
+      "ev11_outage_supply_op_factor",
+      "ev11_outage_supply_op_mode",
+      "ev11_peak_shaving_op_factor",
+      "ev11_peak_shaving_op_mode",
+      "ev11_ramp_rate_control_op_factor",
+      "ev11_ramp_rate_control_op_mode",
+      "ev11_reserve_backup_op_factor",
+      "ev11_reserve_backup_op_mode",
+      "ev11_self_consumption_op_factor",
+      "ev11_self_consumption_op_mode",
+      "ev11_soc_factor",
+      "genetic_ac_charge_factor",
+      "genetic_dc_charge_factor",
+      "genetic_discharge_allowed_factor",
+      "genetic_ev_charge_factor",
+      "grid_consumption_energy_wh",
+      "grid_feedin_energy_wh",
+      "homeappliance1_energy_wh",
+      "homeappliance1_off_op_factor",
+      "homeappliance1_off_op_mode",
+      "homeappliance1_run_op_factor",
+      "homeappliance1_run_op_mode",
+      "load_energy_wh",
+      "losses_energy_wh",
+      "revenue_amt"
+    ]
+  },
+  "prediction": {
+    "hours": 48,
+    "historic_hours": 48
+  },
+  "elecprice": {
+    "provider": "ElecPriceAkkudoktor",
+    "charges_kwh": null,
+    "vat_rate": 1.19,
+    "elecpriceimport": {
+      "import_file_path": null,
+      "import_json": null
+    },
+    "energycharts": {
+      "bidding_zone": "DE-LU"
+    },
+    "providers": [
+      "ElecPriceAkkudoktor",
+      "ElecPriceEnergyCharts",
+      "ElecPriceImport"
+    ]
+  },
+  "feedintariff": {
+    "provider": "FeedInTariffFixed",
+    "provider_settings": {
+      "FeedInTariffFixed": {
+        "feed_in_tariff_kwh": 0.078
+      },
+      "FeedInTariffImport": null
+    },
+    "providers": [
+      "FeedInTariffFixed",
+      "FeedInTariffImport"
+    ]
+  },
+  "load": {
+    "provider": "LoadAkkudoktorAdjusted",
+    "loadakkudoktor": {
+      "loadakkudoktor_year_energy_kwh": 3000
+    },
+    "loadvrm": {
+      "load_vrm_token": "your-token",
+      "load_vrm_idsite": 12345
+    },
+    "loadimport": {
+      "import_file_path": null,
+      "import_json": null
+    },
+    "providers": [
+      "LoadAkkudoktor",
+      "LoadAkkudoktorAdjusted",
+      "LoadVrm",
+      "LoadImport"
+    ]
+  },
+  "pvforecast": {
+    "provider": "PVForecastAkkudoktor",
+    "provider_settings": {
+      "PVForecastImport": null,
+      "PVForecastVrm": null
+    },
+    "planes": [
+      {
+        "surface_tilt": 7,
+        "surface_azimuth": 170,
+        "userhorizon": [
+          20,
+          27,
+          22,
+          20
+        ],
+        "peakpower": 5,
+        "pvtechchoice": "crystSi",
+        "mountingplace": "free",
+        "loss": 14,
+        "trackingtype": null,
+        "optimal_surface_tilt": false,
+        "optimalangles": false,
+        "albedo": null,
+        "module_model": null,
+        "inverter_model": null,
+        "inverter_paco": 10000,
+        "modules_per_string": null,
+        "strings_per_inverter": null
+      },
+      {
+        "surface_tilt": 7,
+        "surface_azimuth": 90,
+        "userhorizon": [
+          30,
+          30,
+          30,
+          50
+        ],
+        "peakpower": 4.8,
+        "pvtechchoice": "crystSi",
+        "mountingplace": "free",
+        "loss": 14,
+        "trackingtype": null,
+        "optimal_surface_tilt": false,
+        "optimalangles": false,
+        "albedo": null,
+        "module_model": null,
+        "inverter_model": null,
+        "inverter_paco": 10000,
+        "modules_per_string": null,
+        "strings_per_inverter": null
+      },
+      {
+        "surface_tilt": 60,
+        "surface_azimuth": 140,
+        "userhorizon": [
+          60,
+          30,
+          0,
+          30
+        ],
+        "peakpower": 1.4,
+        "pvtechchoice": "crystSi",
+        "mountingplace": "free",
+        "loss": 14,
+        "trackingtype": null,
+        "optimal_surface_tilt": false,
+        "optimalangles": false,
+        "albedo": null,
+        "module_model": null,
+        "inverter_model": null,
+        "inverter_paco": 2000,
+        "modules_per_string": null,
+        "strings_per_inverter": null
+      },
+      {
+        "surface_tilt": 45,
+        "surface_azimuth": 185,
+        "userhorizon": [
+          45,
+          25,
+          30,
+          60
+        ],
+        "peakpower": 1.6,
+        "pvtechchoice": "crystSi",
+        "mountingplace": "free",
+        "loss": 14,
+        "trackingtype": null,
+        "optimal_surface_tilt": false,
+        "optimalangles": false,
+        "albedo": null,
+        "module_model": null,
+        "inverter_model": null,
+        "inverter_paco": 1400,
+        "modules_per_string": null,
+        "strings_per_inverter": null
+      }
+    ],
+    "max_planes": 4,
+    "providers": [
+      "PVForecastAkkudoktor",
+      "PVForecastVrm",
+      "PVForecastImport"
+    ],
+    "planes_peakpower": [
+      5,
+      4.8,
+      1.4,
+      1.6
+    ],
+    "planes_azimuth": [
+      170,
+      90,
+      140,
+      185
+    ],
+    "planes_tilt": [
+      7,
+      7,
+      60,
+      45
+    ],
+    "planes_userhorizon": [
+      [
+        20,
+        27,
+        22,
+        20
+      ],
+      [
+        30,
+        30,
+        30,
+        50
+      ],
+      [
+        60,
+        30,
+        0,
+        30
+      ],
+      [
+        45,
+        25,
+        30,
+        60
+      ]
+    ],
+    "planes_inverter_paco": [
+      10000,
+      10000,
+      2000,
+      1400
+    ]
+  },
+  "weather": {
+    "provider": "BrightSky",
+    "provider_settings": {
+      "WeatherImport": null
+    },
+    "providers": [
+      "BrightSky",
+      "ClearOutside",
+      "WeatherImport"
+    ]
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8503,
+    "verbose": false,
+    "startup_eosdash": true,
+    "eosdash_host": "127.0.0.1",
+    "eosdash_port": 8504,
+    "eosdash_supervise_interval_sec": 10
+  },
+  "utils": {},
+  "adapter": {
+    "provider": null,
+    "homeassistant": {
+      "config_entity_ids": null,
+      "load_emr_entity_ids": null,
+      "grid_export_emr_entity_ids": null,
+      "grid_import_emr_entity_ids": null,
+      "pv_production_emr_entity_ids": null,
+      "device_measurement_entity_ids": null,
+      "device_instruction_entity_ids": null,
+      "solution_entity_ids": null,
+      "homeassistant_entity_ids": [],
+      "eos_solution_entity_ids": [
+        "sensor.eos_battery1_fault_op_factor",
+        "sensor.eos_battery1_fault_op_mode",
+        "sensor.eos_battery1_forced_charge_op_factor",
+        "sensor.eos_battery1_forced_charge_op_mode",
+        "sensor.eos_battery1_forced_discharge_op_factor",
+        "sensor.eos_battery1_forced_discharge_op_mode",
+        "sensor.eos_battery1_frequency_regulation_op_factor",
+        "sensor.eos_battery1_frequency_regulation_op_mode",
+        "sensor.eos_battery1_grid_support_export_op_factor",
+        "sensor.eos_battery1_grid_support_export_op_mode",
+        "sensor.eos_battery1_grid_support_import_op_factor",
+        "sensor.eos_battery1_grid_support_import_op_mode",
+        "sensor.eos_battery1_idle_op_factor",
+        "sensor.eos_battery1_idle_op_mode",
+        "sensor.eos_battery1_non_export_op_factor",
+        "sensor.eos_battery1_non_export_op_mode",
+        "sensor.eos_battery1_outage_supply_op_factor",
+        "sensor.eos_battery1_outage_supply_op_mode",
+        "sensor.eos_battery1_peak_shaving_op_factor",
+        "sensor.eos_battery1_peak_shaving_op_mode",
+        "sensor.eos_battery1_ramp_rate_control_op_factor",
+        "sensor.eos_battery1_ramp_rate_control_op_mode",
+        "sensor.eos_battery1_reserve_backup_op_factor",
+        "sensor.eos_battery1_reserve_backup_op_mode",
+        "sensor.eos_battery1_self_consumption_op_factor",
+        "sensor.eos_battery1_self_consumption_op_mode",
+        "sensor.eos_battery1_soc_factor",
+        "sensor.eos_costs_amt",
+        "sensor.eos_date_time",
+        "sensor.eos_ev11_fault_op_factor",
+        "sensor.eos_ev11_fault_op_mode",
+        "sensor.eos_ev11_forced_charge_op_factor",
+        "sensor.eos_ev11_forced_charge_op_mode",
+        "sensor.eos_ev11_forced_discharge_op_factor",
+        "sensor.eos_ev11_forced_discharge_op_mode",
+        "sensor.eos_ev11_frequency_regulation_op_factor",
+        "sensor.eos_ev11_frequency_regulation_op_mode",
+        "sensor.eos_ev11_grid_support_export_op_factor",
+        "sensor.eos_ev11_grid_support_export_op_mode",
+        "sensor.eos_ev11_grid_support_import_op_factor",
+        "sensor.eos_ev11_grid_support_import_op_mode",
+        "sensor.eos_ev11_idle_op_factor",
+        "sensor.eos_ev11_idle_op_mode",
+        "sensor.eos_ev11_non_export_op_factor",
+        "sensor.eos_ev11_non_export_op_mode",
+        "sensor.eos_ev11_outage_supply_op_factor",
+        "sensor.eos_ev11_outage_supply_op_mode",
+        "sensor.eos_ev11_peak_shaving_op_factor",
+        "sensor.eos_ev11_peak_shaving_op_mode",
+        "sensor.eos_ev11_ramp_rate_control_op_factor",
+        "sensor.eos_ev11_ramp_rate_control_op_mode",
+        "sensor.eos_ev11_reserve_backup_op_factor",
+        "sensor.eos_ev11_reserve_backup_op_mode",
+        "sensor.eos_ev11_self_consumption_op_factor",
+        "sensor.eos_ev11_self_consumption_op_mode",
+        "sensor.eos_ev11_soc_factor",
+        "sensor.eos_genetic_ac_charge_factor",
+        "sensor.eos_genetic_dc_charge_factor",
+        "sensor.eos_genetic_discharge_allowed_factor",
+        "sensor.eos_genetic_ev_charge_factor",
+        "sensor.eos_grid_consumption_energy_wh",
+        "sensor.eos_grid_feedin_energy_wh",
+        "sensor.eos_homeappliance1_energy_wh",
+        "sensor.eos_homeappliance1_off_op_factor",
+        "sensor.eos_homeappliance1_off_op_mode",
+        "sensor.eos_homeappliance1_run_op_factor",
+        "sensor.eos_homeappliance1_run_op_mode",
+        "sensor.eos_load_energy_wh",
+        "sensor.eos_losses_energy_wh",
+        "sensor.eos_revenue_amt"
+      ],
+      "eos_device_instruction_entity_ids": [
+        "sensor.eos_battery1",
+        "sensor.eos_ev11",
+        "sensor.eos_homeappliance1"
+      ]
+    },
+    "nodered": {
+      "host": "127.0.0.1",
+      "port": 1880
+    },
+    "providers": [
+      "HomeAssistant",
+      "NodeRED"
+    ]
+  }
+}

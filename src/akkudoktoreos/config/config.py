@@ -129,11 +129,10 @@ class GeneralSettings(SettingsBaseModel):
         exclude=True,
     )
 
-    version: str = Field(
-        default=__version__,
-        json_schema_extra={
-            "description": "Configuration file version. Used to check compatibility."
-        },
+    version: Optional[str] = Field(
+        default=None,  # keep None here, will be set elsewhere
+        json_schema_extra={"description": "Configuration file version."},
+        examples=["0.0.0"],
     )
 
     data_folder_path: Path = Field(
@@ -194,18 +193,6 @@ class GeneralSettings(SettingsBaseModel):
         return self.config._config_file_path
 
     compatible_versions: ClassVar[list[str]] = [__version__]
-
-    @field_validator("version")
-    @classmethod
-    def check_version(cls, v: str) -> str:
-        if v not in cls.compatible_versions:
-            error = (
-                f"Incompatible configuration version '{v}'. "
-                f"Expected: {', '.join(cls.compatible_versions)}."
-            )
-            logger.error(error)
-            raise ValueError(error)
-        return v
 
     @field_validator("data_folder_path", mode="after")
     @classmethod
@@ -886,6 +873,73 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
         return config_file_path
 
+    def to_config_json(self) -> str:
+        """Serialize the configuration to a normalized JSON string.
+
+        The serialization routine ensures that the resulting JSON:
+
+        - Excludes computed fields.
+        - Excludes fields set to their default values.
+        - Excludes fields with value ``None``.
+        - Uses field aliases.
+        - Recursively removes empty dictionaries and lists.
+        - Ensures that ``general.version`` is always present and set
+            to the current application version.
+
+        Returns:
+            str: A normalized, human-readable JSON string representation
+                of the configuration.
+
+        Raises:
+            TypeError: If the serialized configuration root is not a dictionary.
+        """
+
+        def remove_empty(
+            obj: Union[dict[str, Any], list[Any], Any],
+        ) -> Union[dict[str, Any], list[Any], Any]:
+            """Recursively remove empty dictionaries, lists, and None values."""
+            if isinstance(obj, dict):
+                cleaned: dict[str, Any] = {k: remove_empty(v) for k, v in obj.items()}
+                return {k: v for k, v in cleaned.items() if v not in (None, {}, [])}
+            elif isinstance(obj, list):
+                cleaned_list: list[Any] = [remove_empty(v) for v in obj]
+                return [v for v in cleaned_list if v not in (None, {}, [])]
+            else:
+                return obj
+
+        # Use model_dump_json to respect custom Pydantic serialization
+        json_str = self.model_dump_json(
+            exclude_computed_fields=True,
+            exclude_defaults=True,
+            exclude_none=True,
+            by_alias=True,
+        )
+
+        # Load as JSON
+        root: Any = json.loads(json_str)
+
+        # Remove empty values recursively
+        cleaned_root = remove_empty(root)
+
+        # Validate that root is a dictionary
+        if not isinstance(cleaned_root, dict):
+            raise TypeError(
+                f"Configuration serialization error: root element must be a dictionary, "
+                f"got {type(cleaned_root).__name__}"
+            )
+
+        # Ensure version is present and correct
+        cleaned_root.setdefault("general", {})
+        cleaned_root["general"]["version"] = __version__
+
+        # Return pretty-printed JSON
+        return json.dumps(
+            cleaned_root,
+            indent=4,
+            sort_keys=True,
+            ensure_ascii=False,
+        )
+
     def to_config_file(self) -> None:
         """Saves the current configuration to the configuration file.
 
@@ -897,8 +951,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         if not self.general.config_file_path:
             raise ValueError("Configuration file path unknown.")
         with self.general.config_file_path.open("w", encoding="utf-8", newline="\n") as f_out:
-            json_str = super().model_dump_json(indent=4)
-            f_out.write(json_str)
+            f_out.write(self.to_config_json())
 
     def update(self) -> None:
         """Updates all configuration fields.

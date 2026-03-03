@@ -215,7 +215,7 @@ class EnergyManagement(
             cls.adapter.update_data(force_enable)
         except Exception as e:
             trace = "".join(traceback.TracebackException.from_exception(e).format())
-            error_msg = f"Adapter update failed - phase {cls._stage}: {e}\n{trace}"
+            error_msg = f"Adapter update failed - phase {cls._stage}:\n{e}\n{trace}"
             logger.error(error_msg)
 
         cls._stage = EnergyManagementStage.FORECAST_RETRIEVAL
@@ -292,7 +292,7 @@ class EnergyManagement(
             cls.adapter.update_data(force_enable)
         except Exception as e:
             trace = "".join(traceback.TracebackException.from_exception(e).format())
-            error_msg = f"Adapter update failed - phase {cls._stage}: {e}\n{trace}"
+            error_msg = f"Adapter update failed - phase {cls._stage}:\n{e}\n{trace}"
             logger.error(error_msg)
 
         # Remember energy run datetime.

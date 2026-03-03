@@ -84,10 +84,10 @@ requires-dist = [
     { name = "deap", specifier = "==1.4.3" },
     { name = "deprecated", marker = "extra == 'dev'", specifier = "==1.3.1" },
     { name = "docutils", marker = "extra == 'dev'", specifier = "==0.21.2" },
-    { name = "fastapi", extras = ["standard-no-fastapi-cloud-cli"], specifier = "==0.134.0" },
+    { name = "fastapi", extras = ["standard-no-fastapi-cloud-cli"], specifier = "==0.135.1" },
     { name = "fastapi-cli", specifier = "==0.0.24" },
     { name = "gitpython", marker = "extra == 'dev'", specifier = "==3.1.46" },
-    { name = "linkify-it-py", specifier = "==2.0.3" },
+    { name = "linkify-it-py", specifier = "==2.1.0" },
     { name = "lmdb", specifier = "==1.7.5" },
     { name = "loguru", specifier = "==0.7.3" },
     { name = "markdown-it-py", specifier = "==4.0.0" },
@@ -112,7 +112,7 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.3.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==7.0.0" },
     { name = "pytest-xprocess", marker = "extra == 'dev'", specifier = "==1.0.2" },
-    { name = "python-fasthtml", specifier = "==0.12.47" },
+    { name = "python-fasthtml", specifier = "==0.12.48" },
     { name = "requests", specifier = "==2.32.5" },
     { name = "rich-toolkit", specifier = "==0.19.7" },
     { name = "scipy", specifier = "==1.17.1" },
@@ -828,7 +828,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.134.0"
+version = "0.135.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -837,9 +837,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/96/15/647ea81cb73b55b48fb095158a9cd64e42e9e4f1d34dbb5cc4a4939779d6/fastapi-0.134.0.tar.gz", hash = "sha256:3122b1ea0dbeaab48b5976e80b99ca7eda02be154bf03e126a33220e73255a9a", size = 385667, upload-time = "2026-02-27T21:18:12.931Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/7b/f8e0211e9380f7195ba3f3d40c292594fd81ba8ec4629e3854c353aaca45/fastapi-0.135.1.tar.gz", hash = "sha256:d04115b508d936d254cea545b7312ecaa58a7b3a0f84952535b4c9afae7668cd", size = 394962, upload-time = "2026-03-01T18:18:29.369Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e3/e6/fd49c28a54b7d6f5c64045155e40f6cff9ed4920055043fb5ac7969f7f2f/fastapi-0.134.0-py3-none-any.whl", hash = "sha256:f4e7214f24b2262258492e05c48cf21125e4ffc427e30dd32fb4f74049a3d56a", size = 110404, upload-time = "2026-02-27T21:18:10.809Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/72/42e900510195b23a56bde950d26a51f8b723846bfcaa0286e90287f0422b/fastapi-0.135.1-py3-none-any.whl", hash = "sha256:46e2fc5745924b7c840f71ddd277382af29ce1cdb7d5eab5bf697e3fb9999c9e", size = 116999, upload-time = "2026-03-01T18:18:30.831Z" },
 ]
 
 [package.optional-dependencies]
@@ -1315,14 +1315,14 @@ wheels = [
 
 [[package]]
 name = "linkify-it-py"
-version = "2.0.3"
+version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "uc-micro-py" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2a/ae/bb56c6828e4797ba5a4821eec7c43b8bf40f69cda4d4f5f8c8a2810ec96a/linkify-it-py-2.0.3.tar.gz", hash = "sha256:68cda27e162e9215c17d786649d1da0021a451bdc436ef9e0fa0ba5234b9b048", size = 27946, upload-time = "2024-02-04T14:48:04.179Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2e/c9/06ea13676ef354f0af6169587ae292d3e2406e212876a413bf9eece4eb23/linkify_it_py-2.1.0.tar.gz", hash = "sha256:43360231720999c10e9328dc3691160e27a718e280673d444c38d7d3aaa3b98b", size = 29158, upload-time = "2026-03-01T07:48:47.683Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/04/1e/b832de447dee8b582cac175871d2f6c3d5077cc56d5575cadba1fd1cccfa/linkify_it_py-2.0.3-py3-none-any.whl", hash = "sha256:6bcbc417b0ac14323382aef5c5192c0075bf8a9d6b41820a2b66371eac6b6d79", size = 19820, upload-time = "2024-02-04T14:48:02.496Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/de/88b3be5c31b22333b3ca2f6ff1de4e863d8fe45aaea7485f591970ec1d3e/linkify_it_py-2.1.0-py3-none-any.whl", hash = "sha256:0d252c1594ecba2ecedc444053db5d3a9b7ec1b0dd929c8f1d74dce89f86c05e", size = 19878, upload-time = "2026-03-01T07:48:46.098Z" },
 ]
 
 [[package]]
@@ -2449,7 +2449,7 @@ wheels = [
 
 [[package]]
 name = "python-fasthtml"
-version = "0.12.47"
+version = "0.12.48"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -2463,9 +2463,9 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/eb/47/afd5be266a7215921495553ad7afa26fa4c4a4b6e2f0d8f076f6098dfc1a/python_fasthtml-0.12.47.tar.gz", hash = "sha256:9efa6e1ff846e34889fcc4cbbab0b33b9e4d12c6a5d12aa1b8cf613675b7cee5", size = 71755, upload-time = "2026-02-21T02:20:52.171Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/02/20/545f9219e6212cb9813016dafc4f65de8f90f3b0b7113df0936b834bbecb/python_fasthtml-0.12.48.tar.gz", hash = "sha256:89b86391bd30bbd0edacc6806ceb9946442440e5fa0949d302232749ce3385d5", size = 71794, upload-time = "2026-03-02T17:59:49.171Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cb/47/cdd57c2283f1072671d0ccf602d65564b289e92fba2edecb12541c830701/python_fasthtml-0.12.47-py3-none-any.whl", hash = "sha256:2189dfa0ec4bd04e01c1ad28d7ecf7b17ec50a1167f63fdbc9b398d4ad6b6145", size = 75500, upload-time = "2026-02-21T02:20:50.448Z" },
+    { url = "https://files.pythonhosted.org/packages/24/97/4b98c5560342700b82588c5b670acb041842f9a7d7bf429e849a8b847251/python_fasthtml-0.12.48-py3-none-any.whl", hash = "sha256:124d3524005d3bf159880f26e6b7a6b998213c06c8af763801556b3a4612080d", size = 75512, upload-time = "2026-03-02T17:59:47.305Z" },
 ]
 
 [[package]]
