@@ -299,7 +299,7 @@ class GeneticSimulation(PydanticBaseModel):
             # Default return if no electric vehicle is available
             soc_ev_per_hour = np.full((total_hours), 0)
 
-        if home_appliance_fast and self.home_appliance_start_hour:
+        if home_appliance_fast and self.home_appliance_start_hour is not None:
             home_appliance_enabled = True
             # Pre-allocate arrays for the results, optimized for speed
             home_appliance_wh_per_hour = np.full((total_hours), np.nan)
