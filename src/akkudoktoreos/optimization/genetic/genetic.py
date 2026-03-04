@@ -113,8 +113,14 @@ class GeneticSimulation(PydanticBaseModel):
         home_appliance: Optional[HomeAppliance] = None,
         inverter: Optional[Inverter] = None,
     ) -> None:
+        """Prepare simulation runs.
+
+        Populate internal arrays and device references used during simulation.
+        """
         self.optimization_hours = optimization_hours
         self.prediction_hours = prediction_hours
+
+        # Load arrays from provided EMS parameters
         self.load_energy_array = np.array(parameters.gesamtlast, float)
         self.pv_prediction_wh = np.array(parameters.pv_prognose_wh, float)
         self.elect_price_hourly = np.array(parameters.strompreis_euro_pro_wh, float)
@@ -125,6 +131,8 @@ class GeneticSimulation(PydanticBaseModel):
                 len(self.load_energy_array), parameters.einspeiseverguetung_euro_pro_wh, float
             )
         )
+
+        # Associate devices
         if inverter:
             self.battery = inverter.battery
         else:
@@ -132,23 +140,14 @@ class GeneticSimulation(PydanticBaseModel):
         self.ev = ev
         self.home_appliance = home_appliance
         self.inverter = inverter
+
+        # Initialize per-hour action arrays for the prediction horizon
         self.ac_charge_hours = np.full(self.prediction_hours, 0.0)
         self.dc_charge_hours = np.full(self.prediction_hours, 0.0)
         self.bat_discharge_hours = np.full(self.prediction_hours, 0.0)
         self.ev_charge_hours = np.full(self.prediction_hours, 0.0)
         self.ev_discharge_hours = np.full(self.prediction_hours, 0.0)
         self.home_appliance_start_hour = None
-        """Prepare simulation runs."""
-        self.load_energy_array = np.array(parameters.gesamtlast, float)
-        self.pv_prediction_wh = np.array(parameters.pv_prognose_wh, float)
-        self.elect_price_hourly = np.array(parameters.strompreis_euro_pro_wh, float)
-        self.elect_revenue_per_hour_arr = (
-            parameters.einspeiseverguetung_euro_pro_wh
-            if isinstance(parameters.einspeiseverguetung_euro_pro_wh, list)
-            else np.full(
-                len(self.load_energy_array), parameters.einspeiseverguetung_euro_pro_wh, float
-            )
-        )
 
     def reset(self) -> None:
         if self.ev:
