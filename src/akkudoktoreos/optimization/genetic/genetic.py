@@ -811,7 +811,7 @@ class GeneticOptimization(OptimizationBase):
             if np.any(invalid_charge_mask):
                 invalid_indices = np.where(invalid_charge_mask)[0]
                 if len(invalid_indices) > 1:
-                    eautocharge_hours_index_tail[invalid_indices[1:]] = 0
+                    eautocharge_hours_index_tail[invalid_indices] = 0
 
                 eautocharge_hours_index[-min_length:] = eautocharge_hours_index_tail.tolist()
 
