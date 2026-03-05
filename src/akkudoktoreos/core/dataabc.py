@@ -680,6 +680,10 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             The matching DataRecord, the nearest DataRecord within the specified time window
             if no exact match exists, or ``None`` if no suitable record is found.
         """
+        # Ensure target_datetime is a datetime object
+        if not isinstance(target_datetime, DateTime):
+            target_datetime = to_datetime(target_datetime)
+
         # Ensure datetime objects are normalized
         db_target = DatabaseTimestamp.from_datetime(target_datetime)
 
@@ -702,6 +706,10 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         Raises:
             ValueError: If ``time_window`` is negative.
         """
+        # Ensure target_datetime is a datetime object
+        if not isinstance(target_datetime, DateTime):
+            target_datetime = to_datetime(target_datetime)
+
         # Ensure datetime objects are normalized
         db_target = DatabaseTimestamp.from_datetime(target_datetime)
 
@@ -779,6 +787,10 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         # Validate all keys are writable
         for key in values:
             self._validate_key_writable(key)
+
+        # Ensure date is a datetime object
+        if not isinstance(date, DateTime):
+            date = to_datetime(date)
 
         # Ensure datetime objects are normalized
         db_target = DatabaseTimestamp.from_datetime(date)
@@ -1083,6 +1095,8 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             interval = to_duration("1 hour")
             resample_freq = "1h"
         else:
+            # Ensure interval is normalized
+            interval = to_duration(interval)
             resample_freq = to_duration(interval, as_string="pandas")
 
         # Extend window for context resampling

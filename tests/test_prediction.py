@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
+from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
@@ -37,6 +38,7 @@ def forecast_providers():
     return [
         ElecPriceAkkudoktor(),
         ElecPriceEnergyCharts(),
+        ElecPriceFixed(),
         ElecPriceImport(),
         FeedInTariffFixed(),
         FeedInTariffImport(),
@@ -76,32 +78,34 @@ def test_prediction_common_settings_invalid(field_name, invalid_value, expected_
 def test_initialization(prediction, forecast_providers):
     """Test that Prediction is initialized with the correct providers in sequence."""
     assert isinstance(prediction, Prediction)
-    assert prediction.providers == forecast_providers
+    for idx, provider in enumerate(prediction.providers):
+        assert provider.provider_id() == forecast_providers[idx].provider_id()
 
 
 def test_provider_sequence(prediction):
     """Test the provider sequence is maintained in the Prediction instance."""
     assert isinstance(prediction.providers[0], ElecPriceAkkudoktor)
     assert isinstance(prediction.providers[1], ElecPriceEnergyCharts)
-    assert isinstance(prediction.providers[2], ElecPriceImport)
-    assert isinstance(prediction.providers[3], FeedInTariffFixed)
-    assert isinstance(prediction.providers[4], FeedInTariffImport)
-    assert isinstance(prediction.providers[5], LoadAkkudoktor)
-    assert isinstance(prediction.providers[6], LoadAkkudoktorAdjusted)
-    assert isinstance(prediction.providers[7], LoadVrm)
-    assert isinstance(prediction.providers[8], LoadImport)
-    assert isinstance(prediction.providers[9], PVForecastAkkudoktor)
-    assert isinstance(prediction.providers[10], PVForecastVrm)
-    assert isinstance(prediction.providers[11], PVForecastImport)
-    assert isinstance(prediction.providers[12], WeatherBrightSky)
-    assert isinstance(prediction.providers[13], WeatherClearOutside)
-    assert isinstance(prediction.providers[14], WeatherImport)
+    assert isinstance(prediction.providers[2], ElecPriceFixed)
+    assert isinstance(prediction.providers[3], ElecPriceImport)
+    assert isinstance(prediction.providers[4], FeedInTariffFixed)
+    assert isinstance(prediction.providers[5], FeedInTariffImport)
+    assert isinstance(prediction.providers[6], LoadAkkudoktor)
+    assert isinstance(prediction.providers[7], LoadAkkudoktorAdjusted)
+    assert isinstance(prediction.providers[8], LoadVrm)
+    assert isinstance(prediction.providers[9], LoadImport)
+    assert isinstance(prediction.providers[10], PVForecastAkkudoktor)
+    assert isinstance(prediction.providers[11], PVForecastVrm)
+    assert isinstance(prediction.providers[12], PVForecastImport)
+    assert isinstance(prediction.providers[13], WeatherBrightSky)
+    assert isinstance(prediction.providers[14], WeatherClearOutside)
+    assert isinstance(prediction.providers[15], WeatherImport)
 
 
 def test_provider_by_id(prediction, forecast_providers):
     """Test that provider_by_id method returns the correct provider."""
     for provider in forecast_providers:
-        assert prediction.provider_by_id(provider.provider_id()) == provider
+        assert prediction.provider_by_id(provider.provider_id()).provider_id() == provider.provider_id()
 
 
 def test_prediction_repr(prediction):
@@ -110,6 +114,7 @@ def test_prediction_repr(prediction):
     assert "Prediction([" in result
     assert "ElecPriceAkkudoktor" in result
     assert "ElecPriceEnergyCharts" in result
+    assert "ElecPriceFixed" in result
     assert "ElecPriceImport" in result
     assert "FeedInTariffFixed" in result
     assert "FeedInTariffImport" in result

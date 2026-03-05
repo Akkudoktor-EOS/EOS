@@ -99,6 +99,11 @@
            "provider": "ElecPriceAkkudoktor",
            "charges_kwh": 0.21,
            "vat_rate": 1.19,
+           "elecpricefixed": {
+               "time_windows": {
+                   "windows": []
+               }
+           },
            "elecpriceimport": {
                "import_file_path": null,
                "import_json": null
@@ -237,7 +242,9 @@
            "startup_eosdash": true,
            "eosdash_host": "127.0.0.1",
            "eosdash_port": 8504,
-           "eosdash_supervise_interval_sec": 10
+           "eosdash_supervise_interval_sec": 10,
+           "run_as_user": null,
+           "reload": true
        },
        "utils": {},
        "weather": {

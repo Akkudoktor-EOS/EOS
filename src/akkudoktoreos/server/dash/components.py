@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any, Callable, Optional, Union
 
 from fasthtml.common import H1, Button, Div, Li, Select
@@ -163,6 +164,44 @@ def ConfigButton(*c: Any, cls: Optional[Union[str, tuple]] = None, **kwargs: Any
         new_cls += f"{stringify(cls)}"
     kwargs["cls"] = new_cls
     return Button(*c, submit=False, **kwargs)
+
+
+def UpdateError(error_text: str) -> Alert:
+    """Renders a compact error with collapsible full detail.
+
+    Extracts the short pydantic validation message (text after
+    'validation error for ...') as the summary. Falls back to
+    the first line if no match is found.
+
+    Args:
+        error_text: The full error string from a config update failure.
+
+    Returns:
+        Alert: A collapsible error element with error styling.
+    """
+    short = None
+    match = re.search(r"validation error for [^\n]+\n([^\n]+)\n\s+([^\[]+)", error_text)
+    if match:
+        short = f"Validation error: {match.group(1).strip()}: {match.group(2).strip()}"
+    if not short:
+        short = error_text.splitlines()[0].strip()
+
+    return Alert(
+        Details(
+            Summary(
+                DivLAligned(
+                    UkIcon("triangle-alert"),
+                    P(short, cls="text-sm ml-2"),
+                ),
+                cls="list-none cursor-pointer",
+            ),
+            Pre(
+                Code(error_text, cls="language-python"),
+                cls="rounded-lg bg-muted p-3 mt-2 max-h-[30vh] overflow-y-auto overflow-x-hidden whitespace-pre-wrap text-xs",
+            ),
+        ),
+        cls=AlertT.error,
+    )
 
 
 def make_config_update_form() -> Callable[[str, str], Grid]:
@@ -456,6 +495,199 @@ def make_config_update_map_form(
     return ConfigUpdateMapForm
 
 
+def make_config_update_time_windows_windows_form(
+    value_description: Optional[str] = None,
+) -> Callable[[str, str], Grid]:
+    """Factory for a form that edits the windows field of a TimeWindowSequence.
+
+    Args:
+        value_description: If given, a numeric value field is included in the form
+            and shown in the column header (e.g. "electricity_price_kwh [Amt/kWh]").
+            If None, no value field is rendered.
+    """
+
+    def ConfigUpdateTimeWindowsWindowsForm(config_name: str, value: str) -> Grid:
+        config_id = config_name.lower().replace(".", "-")
+
+        try:
+            parsed = json.loads(value)
+            current_windows: list[dict] = parsed if isinstance(parsed, list) else []
+        except (json.JSONDecodeError, AttributeError):
+            current_windows = []
+
+        DOW_LABELS = [
+            "0 – Monday",
+            "1 – Tuesday",
+            "2 – Wednesday",
+            "3 – Thursday",
+            "4 – Friday",
+            "5 – Saturday",
+            "6 – Sunday",
+        ]
+
+        # ---- Existing windows rows ----
+        window_rows = []
+        for idx, win in enumerate(current_windows):
+            start_time = win.get("start_time", "")
+            duration = win.get("duration", "")
+            dow = win.get("day_of_week")
+            date_val = win.get("date")
+            locale_val = win.get("locale")
+
+            dow_str = f"  dow={dow}" if dow is not None else ""
+            date_str = f"  date={date_val}" if date_val else ""
+            locale_str = f"  locale={locale_val}" if locale_val else ""
+
+            if value_description is not None:
+                val = win.get("value", "")
+                val_str = f"  |  {val} {value_description}"
+            else:
+                val_str = ""
+
+            label = f"{start_time}  |  {duration}{val_str}{dow_str}{date_str}{locale_str}"
+
+            remaining = [w for i, w in enumerate(current_windows) if i != idx]
+            remaining_json = json.dumps(json.dumps(remaining))
+            window_rows.append(
+                DivHStacked(
+                    ConfigButton(
+                        UkIcon("trash-2"),
+                        hx_put=request_url_for("/eosdash/configuration"),
+                        hx_target="#page-content",
+                        hx_swap="innerHTML",
+                        hx_vals=f'js:{{ action: "update", key: "{config_name}", value: {remaining_json} }}',
+                        cls="px-2 py-1",
+                    ),
+                    P(label, cls="ml-2 text-sm font-mono"),
+                )
+            )
+
+        # ---- Column headers and inputs ----
+        num_cols = 5 + (1 if value_description is not None else 0)
+
+        header_cols = [
+            P("start_time *", cls="text-xs text-muted-foreground font-semibold"),
+            P("duration *", cls="text-xs text-muted-foreground font-semibold"),
+        ]
+        input_cols = [
+            Input(
+                placeholder="e.g. 08:00 Europe/Berlin",
+                name=f"{config_id}_tw_start_time",
+                cls="border rounded px-2 py-1 text-sm",
+            ),
+            Input(
+                placeholder="e.g. 8 hours",
+                name=f"{config_id}_tw_duration",
+                cls="border rounded px-2 py-1 text-sm",
+            ),
+        ]
+
+        if value_description is not None:
+            header_cols.append(
+                P(f"{value_description} *", cls="text-xs text-muted-foreground font-semibold")
+            )
+            input_cols.append(
+                Input(
+                    placeholder="e.g. 0.288",
+                    name=f"{config_id}_tw_value",
+                    type="number",
+                    step="0.001",
+                    cls="border rounded px-2 py-1 text-sm",
+                )
+            )
+
+        header_cols += [
+            P("day_of_week", cls="text-xs text-muted-foreground font-semibold"),
+            P("date (YYYY-MM-DD)", cls="text-xs text-muted-foreground font-semibold"),
+            P("locale", cls="text-xs text-muted-foreground font-semibold"),
+        ]
+        input_cols += [
+            Select(
+                Option("— any day —", value="", selected=True),
+                *[Option(lbl, value=str(i)) for i, lbl in enumerate(DOW_LABELS)],
+                name=f"{config_id}_tw_dow",
+                cls="border rounded px-2 py-1 text-sm",
+            ),
+            Input(
+                placeholder="e.g. 2025-12-24",
+                name=f"{config_id}_tw_date",
+                cls="border rounded px-2 py-1 text-sm",
+            ),
+            Input(
+                placeholder="e.g. de",
+                name=f"{config_id}_tw_locale",
+                cls="border rounded px-2 py-1 text-sm",
+            ),
+        ]
+
+        # ---- JS for Add button ----
+        current_json = json.dumps(json.dumps(current_windows))
+        if value_description is not None:
+            val_js_read = f"const val = parseFloat(document.querySelector(\"[name='{config_id}_tw_value']\").value);"
+            val_js_guard = "isNaN(val)"
+            val_js_field = "value: val,"
+        else:
+            val_js_read = ""
+            val_js_guard = "false"
+            val_js_field = ""
+
+        add_section = Grid(
+            Grid(*header_cols, cols=num_cols),
+            Grid(*input_cols, cols=num_cols),
+            ConfigButton(
+                UkIcon("plus"),
+                " Add window",
+                hx_put=request_url_for("/eosdash/configuration"),
+                hx_target="#page-content",
+                hx_swap="innerHTML",
+                hx_vals=f"""js:{{
+                    action: "update",
+                    key: "{config_name}",
+                    value: (() => {{
+                        const start  = document.querySelector("[name='{config_id}_tw_start_time']").value.trim();
+                        const dur    = document.querySelector("[name='{config_id}_tw_duration']").value.trim();
+                        {val_js_read}
+                        const dowRaw = document.querySelector("[name='{config_id}_tw_dow']").value;
+                        const date   = document.querySelector("[name='{config_id}_tw_date']").value.trim();
+                        const locale = document.querySelector("[name='{config_id}_tw_locale']").value.trim();
+                        if (!start || !dur || {val_js_guard}) return {current_json};
+                        const newWin = {{
+                            start_time: start,
+                            duration: dur,
+                            {val_js_field}
+                            day_of_week: dowRaw !== "" ? parseInt(dowRaw) : null,
+                            date:        date   !== "" ? date             : null,
+                            locale:      locale !== "" ? locale           : null,
+                        }};
+                        const existing = {json.dumps(current_windows)};
+                        existing.push(newWin);
+                        return JSON.stringify(existing);
+                    }})()
+                }}""",
+            ),
+            cols=1,
+            cls="gap-2 mt-2",
+        )
+
+        return Grid(
+            DivRAligned(P("update time windows")),
+            Grid(
+                *window_rows,
+                P("Add new window", cls="text-sm font-semibold mt-3 mb-1"),
+                P(
+                    "* required  |  day_of_week: overridden by date if both set",
+                    cls="text-xs text-muted-foreground mb-1",
+                ),
+                add_section,
+                cols=1,
+                cls="gap-1",
+            ),
+            id=f"{config_id}-update-time-windows-windows-form",
+        )
+
+    return ConfigUpdateTimeWindowsWindowsForm
+
+
 def ConfigCard(
     config_name: str,
     config_type: str,
@@ -548,7 +780,7 @@ def ConfigCard(
             # Last error
             Grid(
                 DivRAligned(P("update error")),
-                TextView(update_error),
+                UpdateError(update_error),
             )
             if update_error
             else None,

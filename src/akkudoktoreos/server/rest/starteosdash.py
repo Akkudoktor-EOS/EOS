@@ -309,8 +309,14 @@ async def supervise_eosdash() -> None:
     config_eos = get_config()
 
     # Skip if EOSdash not configured to start
-    if not getattr(config_eos.server, "startup_eosdash", False):
+    startup_eosdash = config_eos.server.startup_eosdash
+    if not startup_eosdash:
+        logger.debug(
+            f"EOSdash subprocess not monitored - startup_eosdash not set: '{startup_eosdash}'"
+        )
         return
+    else:
+        logger.debug(f"EOSdash subprocess monitored - startup_eosdash set: '{startup_eosdash}'")
 
     host = config_eos.server.eosdash_host
     port = config_eos.server.eosdash_port

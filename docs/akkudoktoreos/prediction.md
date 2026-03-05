@@ -123,10 +123,12 @@ Configuration options:
 
     - `ElecPriceAkkudoktor`: Retrieves from Akkudoktor.net.
     - `ElecPriceEnergyCharts`: Retrieves from Energy-Charts.info.
+    - `ElecPriceFixed`: Caluclates from configured time window prices.
     - `ElecPriceImport`: Imports from a file or JSON string.
 
   - `charges_kwh`: Electricity price charges (€/kWh).
   - `vat_rate`: VAT rate factor applied to electricity price when charges are used (default: 1.19).
+  - `elecpricefixed.time_windows.windows`: The time windows with associated electricity prices.
   - `elecpriceimport.import_file_path`: Path to the file to import electricity price forecast data from.
   - `elecpriceimport.import_json`: JSON string, dictionary of electricity price forecast value lists.
   - `energycharts.bidding_zone`: Bidding zone Energy Charts shall provide price data for.
@@ -142,12 +144,12 @@ option are added.
 ### ElecPriceEnergyCharts Provider
 
 The `ElecPriceEnergyCharts` provider retrieves day-ahead electricity market prices from
-[Energy-Charts.info](https://www.Energy-Charts.info). It supports both short-term and extended forecasting by combining
-real-time market data with historical price trends.
+[Energy-Charts.info](https://www.Energy-Charts.info). It supports both short-term and extended
+forecasting by combining real-time market data with historical price trends.
 
 - For the next 24 hours, market prices are fetched directly from Energy-Charts.info.
-- For periods beyond 24 hours, prices are estimated using extrapolation based on historical data and the latest
-  available market values.
+- For periods beyond 24 hours, prices are estimated using extrapolation based on historical data
+  and the latest available market values.
 
 Charges and VAT
 
@@ -156,6 +158,11 @@ Charges and VAT
 - If `charges_kwh` is set to 0, the electricity price is simply: `market_price` (no VAT applied).
 
 **Note:** For the most accurate forecasts, it is recommended to set the `historic_hours` parameter to 840.
+
+### ElecPriceFixed Provider
+
+The `ElecPriceFixed` provider calculates the day-ahead electricity market prices from the configuration
+of electricity price time windows set up by the user.
 
 ### ElecPriceImport Provider
 
