@@ -1,0 +1,134 @@
+{
+    "general": {
+        "version": "__ANY__",
+        "data_output_subpath": "output"
+    },
+    "cache": {
+        "subpath": "cache"
+    },
+    "ems": {
+        "mode": "OPTIMIZATION"
+    },
+    "devices": {
+        "batteries": [
+            {
+                "device_id": "battery1"
+            }
+        ],
+        "max_batteries": 1,
+        "electric_vehicles": [
+            {
+                "device_id": "ev11",
+                "capacity_wh": 50000,
+                "min_soc_percentage": 70
+            }
+        ],
+        "max_electric_vehicles": 1,
+        "inverters": [
+            {
+                "device_id": "inverter1",
+                "max_power_w": 10000.0,
+                "battery_id": "battery1"
+            }
+        ],
+        "max_inverters": 1,
+        "home_appliances": [
+            {
+                "device_id": "dishwasher1",
+                "consumption_wh": 2000,
+                "duration_h": 3,
+                "time_windows": {
+                    "windows": [
+                        {
+                            "start_time": "08:00:00.000000 Europe/Berlin",
+                            "duration": "5 hours"
+                        },
+                        {
+                            "start_time": "15:00:00.000000 Europe/Berlin",
+                            "duration": "3 hours"
+                        }
+                    ]
+                }
+            }
+        ],
+        "max_home_appliances": 1
+    },
+    "elecprice": {
+        "provider": "ElecPriceAkkudoktor"
+    },
+    "feedintariff": {
+        "provider": "FeedInTariffFixed",
+        "provider_settings": {
+            "FeedInTariffFixed": {
+                "feed_in_tariff_kwh": 0.078
+            }
+        }
+    },
+    "load": {
+        "provider": "LoadAkkudoktorAdjusted",
+        "loadakkudoktor": {
+            "loadakkudoktor_year_energy_kwh": 3000.0
+        }
+    },
+    "pvforecast": {
+        "provider": "PVForecastAkkudoktor",
+        "planes": [
+            {
+                "surface_tilt": 7.0,
+                "surface_azimuth": 170.0,
+                "userhorizon": [
+                    20.0,
+                    27.0,
+                    22.0,
+                    20.0
+                ],
+                "peakpower": 5.0,
+                "inverter_paco": 10000
+            },
+            {
+                "surface_tilt": 7.0,
+                "surface_azimuth": 90.0,
+                "userhorizon": [
+                    30.0,
+                    30.0,
+                    30.0,
+                    50.0
+                ],
+                "peakpower": 4.8,
+                "inverter_paco": 10000
+            },
+            {
+                "surface_tilt": 60.0,
+                "surface_azimuth": 140.0,
+                "userhorizon": [
+                    60.0,
+                    30.0,
+                    0.0,
+                    30.0
+                ],
+                "peakpower": 1.4,
+                "inverter_paco": 2000
+            },
+            {
+                "surface_tilt": 45.0,
+                "surface_azimuth": 185.0,
+                "userhorizon": [
+                    45.0,
+                    25.0,
+                    30.0,
+                    60.0
+                ],
+                "peakpower": 1.6,
+                "inverter_paco": 1400
+            }
+        ],
+        "max_planes": 4
+    },
+    "weather": {
+        "provider": "BrightSky"
+    },
+    "server": {
+        "eosdash_host": "127.0.0.1",
+        "eosdash_port": 8504
+    }
+}

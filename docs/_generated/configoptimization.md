@@ -75,7 +75,7 @@
 | ---- | ---- | --------- | ------- | ----------- |
 | generations | `Optional[int]` | `rw` | `400` | Number of generations to evaluate the optimal solution [>= 10]. Defaults to 400. |
 | individuals | `Optional[int]` | `rw` | `300` | Number of individuals (solutions) to generate for the (initial) generation [>= 10]. Defaults to 300. |
-| penalties | `Optional[dict[str, Union[float, int, str]]]` | `rw` | `None` | A dictionary of penalty function parameters consisting of a penalty function parameter name and the associated value. |
+| penalties | `dict[str, Union[float, int, str]]` | `rw` | `required` | A dictionary of penalty function parameters consisting of a penalty function parameter name and the associated value. |
 | seed | `Optional[int]` | `rw` | `None` | Fixed seed for genetic algorithm. Defaults to 'None' which means random seed. |
 :::
 <!-- pyml enable line-length -->

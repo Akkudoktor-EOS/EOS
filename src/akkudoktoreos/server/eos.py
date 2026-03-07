@@ -300,7 +300,7 @@ def fastapi_admin_database_stats_get() -> dict:
     except Exception as e:
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         raise HTTPException(
-            status_code=400, detail=f"Error on database statistic retrieval: {e}\n{trace}"
+            status_code=400, detail=f"Error on database statistic retrieval:\n{e}\n{trace}"
         )
     return data
 
@@ -538,7 +538,7 @@ def fastapi_config_put_key(
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         raise HTTPException(
             status_code=400,
-            detail=f"Error on update of configuration '{path}','{value}': {e}\n{trace}",
+            detail=f"Error on update of configuration '{path}','{value}':\n{e}\n{trace}",
         )
 
     return get_config()
@@ -937,7 +937,7 @@ async def fastapi_prediction_update(
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         raise HTTPException(
             status_code=400,
-            detail=f"Error on prediction update: {e}\n{trace}",
+            detail=f"Error on prediction update:\n{e}\n{trace}",
         )
 
     return Response()
@@ -972,7 +972,7 @@ async def fastapi_prediction_update_provider(
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         raise HTTPException(
             status_code=400,
-            detail=f"Error on prediction update: {e}\n{trace}",
+            detail=f"Error on prediction update:\n{e}\n{trace}",
         )
 
     return Response()

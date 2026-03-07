@@ -41,8 +41,11 @@ class GeneticCommonSettings(SettingsBaseModel):
         },
     )
 
-    penalties: Optional[dict[str, Union[float, int, str]]] = Field(
-        default=None,
+    penalties: dict[str, Union[float, int, str]] = Field(
+        default_factory=lambda: {
+            "ev_soc_miss": 10,
+            "ac_charge_break_even": 1.0,
+        },
         json_schema_extra={
             "description": "A dictionary of penalty function parameters consisting of a penalty function parameter name and the associated value.",
             "examples": [

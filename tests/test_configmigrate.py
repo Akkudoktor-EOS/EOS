@@ -22,6 +22,10 @@ MIGRATION_PAIRS = [
         DIR_TESTDATA / "eos_config_andreas_0_1_0.json",
         DIR_TESTDATA / "eos_config_andreas_now.json",
     ),
+    (
+        DIR_TESTDATA / "eos_config_unstripped.json",
+        DIR_TESTDATA / "eos_config_stripped.json",
+    ),
     # Add more pairs here:
     # (DIR_TESTDATA / "old_config_X.json", DIR_TESTDATA / "expected_config_X.json"),
 ]
@@ -124,16 +128,18 @@ class TestConfigMigration:
         new_model = SettingsEOSDefaults(**migrated_data)
         assert isinstance(new_model, SettingsEOSDefaults)
 
-    def test_migrate_config_file_already_current(self, tmp_path: Path):
+    def test_migrate_config_file_already_current(self, tmp_config_file: Path):
         """Test that a current config file returns True immediately."""
-        config_path = tmp_path / "EOS_current.json"
-        default = SettingsEOSDefaults()
-        with config_path.open("w", encoding="utf-8") as f:
-            f.write(default.model_dump_json(indent=4))
+        backup_file = tmp_config_file.with_suffix(".bak")
 
-        backup_file = config_path.with_suffix(".bak")
+        # Run migration
+        result = configmigrate.migrate_config_file(tmp_config_file, backup_file)
+        assert result is True, "Migration should succeed even from invalid version."
 
-        result = configmigrate.migrate_config_file(config_path, backup_file)
+        backup_file.unlink()
+        assert not backup_file.exists()
+
+        result = configmigrate.migrate_config_file(tmp_config_file, backup_file)
         assert result is True
         assert not backup_file.exists(), "No backup should be made if config is already current."
 
