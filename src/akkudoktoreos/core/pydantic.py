@@ -1330,7 +1330,7 @@ class PydanticDateTimeSeries(PydanticBaseModel):
             ValueError: If any key cannot be parsed as a datetime.
         """
         tz = info.data.get("tz")
-        if tz is not None:
+        if tz:
             try:
                 ZoneInfo(tz)
             except KeyError:
@@ -1347,7 +1347,7 @@ class PydanticDateTimeSeries(PydanticBaseModel):
     @field_validator("tz")
     def validate_timezone(cls, v: Optional[str]) -> Optional[str]:
         """Validate that the timezone is valid."""
-        if v is not None:
+        if v:
             try:
                 ZoneInfo(v)
             except KeyError:
