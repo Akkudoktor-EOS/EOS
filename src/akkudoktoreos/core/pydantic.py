@@ -1136,9 +1136,13 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
         data_tz = cls._detect_data_tz(df)
 
         if tz is not None:
-            if data_tz and data_tz != tz:
-                raise ValueError(f"Timezone mismatch: tz='{tz}' but data uses '{data_tz}'")
             resolved_tz = tz
+            if data_tz and data_tz != tz:
+                warning_msg = (
+                    f"Forcing Pydantic dataframe timezone to '{resolved_tz}' - "
+                    f"data timezone was '{data_tz}'."
+                )
+                logger.warning(warning_msg)
         else:
             if data_tz:
                 resolved_tz = data_tz
