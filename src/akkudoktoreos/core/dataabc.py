@@ -10,6 +10,7 @@ and manipulation of configuration and generic data in a clear, scalable, and str
 
 import difflib
 import json
+import traceback
 from abc import abstractmethod
 from collections.abc import KeysView, MutableMapping
 from itertools import chain
@@ -1980,8 +1981,15 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
         for provider in self.providers:
             try:
                 provider.update_data(force_enable=force_enable, force_update=force_update)
-            except Exception as ex:
-                error = f"Provider {provider.provider_id()} fails on update - enabled={provider.enabled()}, force_enable={force_enable}, force_update={force_update}: {ex}"
+            except Exception as e:
+                trace = "".join(traceback.TracebackException.from_exception(e).format())
+                error = (
+                    f"Provider {provider.provider_id()} fails on update - "
+                    f"enabled={provider.enabled()}, "
+                    f"force_enable={force_enable}, "
+                    f"force_update={force_update}"
+                    f":\n{e}\n{trace}"
+                )
                 if provider.enabled():
                     # The active provider failed — this is a real error worth propagating.
                     logger.error(error)

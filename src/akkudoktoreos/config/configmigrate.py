@@ -2,11 +2,25 @@
 
 import json
 import shutil
+import types
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Set, Tuple, Union, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Set,
+    Tuple,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+)
 
 from loguru import logger
 
+from akkudoktoreos.core.pydantic import BaseModel
 from akkudoktoreos.core.version import __version__
 
 if TYPE_CHECKING:
@@ -173,13 +187,27 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
     return new_config
 
 
+def remove_empty(obj: dict) -> dict:
+    """Recursively remove empty dicts and lists from a dictionary or list."""
+    if isinstance(obj, dict):
+        cleaned = {k: remove_empty(v) for k, v in obj.items()}
+        # Remove keys where value is None, empty dict, or empty list
+        return {k: v for k, v in cleaned.items() if v not in (None, {}, [])}
+    elif isinstance(obj, list):
+        cleaned = [remove_empty(v) for v in obj]
+        # Remove empty elements
+        return [v for v in cleaned if v not in (None, {}, [])]
+    else:
+        return obj
+
+
 def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
     """Migrate configuration file to the current version.
 
     Returns:
         bool: True if up-to-date or successfully migrated, False on failure.
     """
-    global migrated_source_paths, mapped_count, auto_count, skipped_paths
+    global migrated_source_paths, mapped_count, auto_count, skipped_paths, remove_empty
 
     # Reset globals at the start of each migration
     migrated_source_paths = set()
@@ -220,13 +248,26 @@ def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
                     f"Failed to backup existing config (replace: {e_replace}; copy: {e_copy}). Continuing without backup."
                 )
 
+        from akkudoktoreos.config.config import SettingsEOSDefaults
+
+        # Strip computed fields
+        config_data = _strip_computed_fields(config_data, SettingsEOSDefaults)
+
         # Migrate config data
         new_config = migrate_config_data(config_data)
 
         # Write migrated configuration
         try:
             with config_file.open("w", encoding="utf-8", newline=None) as f_out:
-                json_str = new_config.model_dump_json(indent=4)
+                # Need model_dump_json (not model_dump) because of special serialisation.
+                json_str = new_config.model_dump_json(
+                    exclude_computed_fields=True,
+                    exclude_defaults=True,
+                    exclude_none=True,
+                    by_alias=True,
+                )
+                cleaned = remove_empty(json.loads(json_str))
+                json_str = json.dumps(cleaned, indent=4, ensure_ascii=False)
                 f_out.write(json_str)
         except Exception as e_write:
             logger.error(f"Failed to write migrated configuration to '{config_file}': {e_write}")
@@ -289,3 +330,93 @@ def _migrate_matching_fields(
                 skipped_paths.append(full_path)
                 continue
     return count
+
+
+def _unwrap_model_type(annotation: Any) -> type[BaseModel] | None:
+    """Extract a BaseModel subclass from complex typing annotations.
+
+    Supports:
+    - Optional[T]
+    - T | None
+    - Union[T, ...]
+    - Annotated[T, ...]
+    """
+    origin = get_origin(annotation)
+
+    # Direct BaseModel
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
+
+    # Handle Union / Optional / |
+    if origin in (Union, types.UnionType):
+        for arg in get_args(annotation):
+            model = _unwrap_model_type(arg)
+            if model:
+                return model
+        return None
+
+    # Handle Annotated[T, ...]
+    if origin is not None:
+        for arg in get_args(annotation):
+            model = _unwrap_model_type(arg)
+            if model:
+                return model
+
+    return None
+
+
+def _strip_computed_fields(
+    data: Any,
+    model: type[BaseModel],
+) -> Any:
+    """Recursively remove computed fields from input data.
+
+    This removes only fields declared via `@computed_field`
+    in the Pydantic model hierarchy.
+
+    Unknown fields are preserved to allow later migration handling.
+
+    Args:
+        data: Raw JSON-like data.
+        model: Target Pydantic model class.
+
+    Returns:
+        Cleaned data structure.
+    """
+    if not isinstance(data, dict):
+        return data
+
+    cleaned = dict(data)
+
+    # Remove computed fields at this level
+    for field_name in model.model_computed_fields:
+        cleaned.pop(field_name, None)
+
+    # Recurse into declared model fields
+    for field_name, field in model.model_fields.items():
+        if field_name not in cleaned:
+            continue
+
+        value = cleaned[field_name]
+        annotation = field.annotation
+        origin = get_origin(annotation)
+
+        # 1️⃣ Direct nested model or Optional/Union-wrapped model
+        nested_model = _unwrap_model_type(annotation)
+        if nested_model and isinstance(value, dict):
+            cleaned[field_name] = _strip_computed_fields(value, nested_model)
+            continue
+
+        # 2️⃣ List of models
+        if origin is list:
+            item_type = get_args(annotation)[0]
+            nested_model = _unwrap_model_type(item_type)
+
+            if nested_model and isinstance(value, list):
+                cleaned[field_name] = [
+                    _strip_computed_fields(v, nested_model) if isinstance(v, dict) else v
+                    for v in value
+                ]
+            continue
+
+    return cleaned

@@ -218,17 +218,6 @@ class GeneticOptimizationParameters(
         if cls.config.optimization.genetic.generations is None:
             logger.info("Genetic generations unknown - defaulting to 400.")
             cls.config.optimization.genetic.generations = 400
-        if cls.config.optimization.genetic.penalties is None:
-            logger.info("Genetic penalties unknown - defaulting to demo config.")
-            cls.config.optimization.genetic.penalties = {"ev_soc_miss": 10}
-        if "ev_soc_miss" not in cls.config.optimization.genetic.penalties:
-            logger.info("ev_soc_miss penalty function parameter unknown - defaulting to 10.")
-            cls.config.optimization.genetic.penalties["ev_soc_miss"] = 10
-        if "ac_charge_break_even" not in cls.config.optimization.genetic.penalties:
-            # Default multiplier 1.0: penalty equals the exact economic loss in € from
-            # charging at a price that cannot be recovered given the round-trip efficiency
-            # and the best available future discharge price (after free PV energy is used).
-            cls.config.optimization.genetic.penalties["ac_charge_break_even"] = 1.0
 
         # Get start solution from last run
         start_solution = None

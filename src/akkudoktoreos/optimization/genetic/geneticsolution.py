@@ -2,6 +2,7 @@
 
 from typing import Any, Optional
 
+import numpy as np
 import pandas as pd
 from loguru import logger
 from pydantic import Field, field_validator
@@ -535,91 +536,67 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         )
         pred = get_prediction()
 
-        if "pvforecast_ac_power" in pred.record_keys:
-            prediction["pvforecast_ac_energy_wh"] = (
-                pred.key_to_array(
-                    key="pvforecast_ac_power",
+        for pred_key, pred_fill_method, pred_solution_key, pred_solution_factor in [
+            (
+                "pvforecast_ac_power",
+                "linear",
+                "pvforecast_ac_energy_wh",
+                power_to_energy_per_interval_factor,
+            ),
+            (
+                "pvforecast_dc_power",
+                "linear",
+                "pvforecast_dc_energy_wh",
+                power_to_energy_per_interval_factor,
+            ),
+            (
+                "elecprice_marketprice_wh",
+                "ffill",
+                "elec_price_amt_kwh",
+                1000.0,
+            ),
+            (
+                "feed_in_tariff_wh",
+                "linear",
+                "feed_in_tariff_amt_kwh",
+                1000.0,
+            ),
+            (
+                "weather_temp_air",
+                "linear",
+                "weather_air_temp_celcius",
+                1.0,
+            ),
+            (
+                "loadforecast_power_w",
+                "linear",
+                "loadforecast_energy_wh",
+                power_to_energy_per_interval_factor,
+            ),
+            (
+                "loadakkudoktor_std_power_w",
+                "linear",
+                "loadakkudoktor_std_energy_wh",
+                power_to_energy_per_interval_factor,
+            ),
+            (
+                "loadakkudoktor_mean_power_w",
+                "linear",
+                "loadakkudoktor_mean_energy_wh",
+                power_to_energy_per_interval_factor,
+            ),
+        ]:
+            if pred_key in pred.record_keys:
+                array = pred.key_to_array(
+                    key=pred_key,
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
                     interval=to_duration(f"{interval_hours} hours"),
-                    fill_method="linear",
+                    fill_method=pred_fill_method,
                 )
-                * power_to_energy_per_interval_factor
-            ).tolist()
-        if "pvforecast_dc_power" in pred.record_keys:
-            prediction["pvforecast_dc_energy_wh"] = (
-                pred.key_to_array(
-                    key="pvforecast_dc_power",
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval=to_duration(f"{interval_hours} hours"),
-                    fill_method="linear",
-                )
-                * power_to_energy_per_interval_factor
-            ).tolist()
-        if "elecprice_marketprice_wh" in pred.record_keys:
-            prediction["elec_price_amt_kwh"] = (
-                pred.key_to_array(
-                    key="elecprice_marketprice_wh",
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval=to_duration(f"{interval_hours} hours"),
-                    fill_method="ffill",
-                )
-                * 1000
-            ).tolist()
-        if "feed_in_tariff_wh" in pred.record_keys:
-            prediction["feed_in_tariff_amt_kwh"] = (
-                pred.key_to_array(
-                    key="feed_in_tariff_wh",
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval=to_duration(f"{interval_hours} hours"),
-                    fill_method="linear",
-                )
-                * 1000
-            ).tolist()
-        if "weather_temp_air" in pred.record_keys:
-            prediction["weather_air_temp_celcius"] = pred.key_to_array(
-                key="weather_temp_air",
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
-                interval=to_duration(f"{interval_hours} hours"),
-                fill_method="linear",
-            ).tolist()
-        if "loadforecast_power_w" in pred.record_keys:
-            prediction["loadforecast_energy_wh"] = (
-                pred.key_to_array(
-                    key="loadforecast_power_w",
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval=to_duration(f"{interval_hours} hours"),
-                    fill_method="linear",
-                )
-                * power_to_energy_per_interval_factor
-            ).tolist()
-        if "loadakkudoktor_std_power_w" in pred.record_keys:
-            prediction["loadakkudoktor_std_energy_wh"] = (
-                pred.key_to_array(
-                    key="loadakkudoktor_std_power_w",
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval=to_duration(f"{interval_hours} hours"),
-                    fill_method="linear",
-                )
-                * power_to_energy_per_interval_factor
-            ).tolist()
-        if "loadakkudoktor_mean_power_w" in pred.record_keys:
-            prediction["loadakkudoktor_mean_energy_wh"] = (
-                pred.key_to_array(
-                    key="loadakkudoktor_mean_power_w",
-                    start_datetime=start_datetime,
-                    end_datetime=end_datetime,
-                    interval=to_duration(f"{interval_hours} hours"),
-                    fill_method="linear",
-                )
-                * power_to_energy_per_interval_factor
-            ).tolist()
+                # 'key_to_array()' creates None values array if no data records are available.
+                if array is not None and array.size > 0 and not np.any(pd.isna(array)):
+                    prediction[pred_solution_key] = (array * pred_solution_factor).tolist()
 
         optimization_solution = OptimizationSolution(
             id=f"optimization-genetic@{to_datetime(as_string=True)}",
