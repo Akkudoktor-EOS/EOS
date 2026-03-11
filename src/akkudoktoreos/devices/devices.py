@@ -9,13 +9,13 @@ from loguru import logger
 from numpydantic import NDArray, Shape
 from pydantic import Field, computed_field, field_validator, model_validator
 
-from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.config.configabc import SettingsBaseModel, TimeWindowSequence
 from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin
 from akkudoktoreos.core.emplan import ResourceStatus
 from akkudoktoreos.core.pydantic import ConfigDict, PydanticBaseModel
 from akkudoktoreos.devices.devicesabc import DevicesBaseSettings
-from akkudoktoreos.utils.datetimeutil import DateTime, TimeWindowSequence, to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 # Default charge rates for battery
 BATTERY_DEFAULT_CHARGE_RATES: list[float] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]

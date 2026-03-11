@@ -4,8 +4,8 @@ from typing import Optional
 
 from pydantic import Field
 
+from akkudoktoreos.config.configabc import TimeWindowSequence
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
-from akkudoktoreos.utils.datetimeutil import TimeWindowSequence
 
 
 class DeviceParameters(GeneticParametersBaseModel):

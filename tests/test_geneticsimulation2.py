@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from akkudoktoreos.config.configabc import TimeWindow, TimeWindowSequence
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.devices.genetic.homeappliance import HomeAppliance
 from akkudoktoreos.devices.genetic.inverter import Inverter
@@ -16,12 +17,7 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSimulationResult
-from akkudoktoreos.utils.datetimeutil import (
-    TimeWindow,
-    TimeWindowSequence,
-    to_duration,
-    to_time,
-)
+from akkudoktoreos.utils.datetimeutil import to_duration, to_time
 
 start_hour = 0
 

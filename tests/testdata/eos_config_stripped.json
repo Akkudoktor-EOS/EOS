@@ -40,11 +40,11 @@
                 "time_windows": {
                     "windows": [
                         {
-                            "start_time": "08:00:00.000000 Europe/Berlin",
+                            "start_time": "08:00:00.000000",
                             "duration": "5 hours"
                         },
                         {
-                            "start_time": "15:00:00.000000 Europe/Berlin",
+                            "start_time": "15:00:00.000000",
                             "duration": "3 hours"
                         }
                     ]

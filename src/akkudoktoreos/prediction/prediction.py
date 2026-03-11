@@ -33,6 +33,7 @@ from pydantic import Field
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
+from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
@@ -72,6 +73,7 @@ class PredictionCommonSettings(SettingsBaseModel):
 # Initialize forecast providers, all are singletons.
 elecprice_akkudoktor = ElecPriceAkkudoktor()
 elecprice_energy_charts = ElecPriceEnergyCharts()
+elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
@@ -91,6 +93,7 @@ def prediction_providers() -> list[
     Union[
         ElecPriceAkkudoktor,
         ElecPriceEnergyCharts,
+        ElecPriceFixed,
         ElecPriceImport,
         FeedInTariffFixed,
         FeedInTariffImport,
@@ -110,6 +113,7 @@ def prediction_providers() -> list[
     global \
         elecprice_akkudoktor, \
         elecprice_energy_charts, \
+        elecprice_fixed, \
         elecprice_import, \
         feedintariff_fixed, \
         feedintariff_import, \
@@ -128,6 +132,7 @@ def prediction_providers() -> list[
     return [
         elecprice_akkudoktor,
         elecprice_energy_charts,
+        elecprice_fixed,
         elecprice_import,
         feedintariff_fixed,
         feedintariff_import,
@@ -151,6 +156,7 @@ class Prediction(PredictionContainer):
         Union[
             ElecPriceAkkudoktor,
             ElecPriceEnergyCharts,
+            ElecPriceFixed,
             ElecPriceImport,
             FeedInTariffFixed,
             FeedInTariffImport,

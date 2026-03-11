@@ -8,6 +8,7 @@ from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
 from akkudoktoreos.prediction.elecpriceenergycharts import (
     ElecPriceEnergyChartsCommonSettings,
 )
+from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixedCommonSettings
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImportCommonSettings
 
 
@@ -37,6 +38,7 @@ class ElecPriceCommonSettings(SettingsBaseModel):
             "examples": ["ElecPriceAkkudoktor"],
         },
     )
+
     charges_kwh: Optional[float] = Field(
         default=None,
         ge=0,
@@ -45,6 +47,7 @@ class ElecPriceCommonSettings(SettingsBaseModel):
             "examples": [0.21],
         },
     )
+
     vat_rate: Optional[float] = Field(
         default=1.19,
         ge=0,
@@ -52,6 +55,11 @@ class ElecPriceCommonSettings(SettingsBaseModel):
             "description": "VAT rate factor applied to electricity price when charges are used.",
             "examples": [1.19],
         },
+    )
+
+    elecpricefixed: ElecPriceFixedCommonSettings = Field(
+        default_factory=ElecPriceFixedCommonSettings,
+        json_schema_extra={"description": "Fixed electricity price provider settings."},
     )
 
     elecpriceimport: ElecPriceImportCommonSettings = Field(

@@ -12,6 +12,8 @@
 | eosdash_supervise_interval_sec | `EOS_SERVER__EOSDASH_SUPERVISE_INTERVAL_SEC` | `int` | `rw` | `10` | Supervision interval for EOS server to supervise EOSdash [seconds]. |
 | host | `EOS_SERVER__HOST` | `Optional[str]` | `rw` | `127.0.0.1` | EOS server IP address. Defaults to 127.0.0.1. |
 | port | `EOS_SERVER__PORT` | `Optional[int]` | `rw` | `8503` | EOS server IP port number. Defaults to 8503. |
+| reload | `EOS_SERVER__RELOAD` | `Optional[bool]` | `rw` | `False` | Enable server auto-reload for debugging or development. Default is False. Monitors the package directory for changes and reloads the server. |
+| run_as_user | `EOS_SERVER__RUN_AS_USER` | `Optional[str]` | `rw` | `None` | The name of the target user to switch to. If ``None`` (default), the current effective user is used and no privilege change is attempted. |
 | startup_eosdash | `EOS_SERVER__STARTUP_EOSDASH` | `Optional[bool]` | `rw` | `True` | EOS server to start EOSdash server. Defaults to True. |
 | verbose | `EOS_SERVER__VERBOSE` | `Optional[bool]` | `rw` | `False` | Enable debug output |
 :::
@@ -31,7 +33,9 @@
            "startup_eosdash": true,
            "eosdash_host": "127.0.0.1",
            "eosdash_port": 8504,
-           "eosdash_supervise_interval_sec": 10
+           "eosdash_supervise_interval_sec": 10,
+           "run_as_user": null,
+           "reload": true
        }
    }
 ```

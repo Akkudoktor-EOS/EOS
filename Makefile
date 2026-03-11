@@ -121,7 +121,7 @@ run-dash:
 
 run-dash-dev:
 	@echo "Starting EOSdash development server, please wait..."
-	$(PYTHON) -m akkudoktoreos.server.eosdash --host localhost --port 8504 --log_level DEBUG --reload true
+	$(PYTHON) -m akkudoktoreos.server.eosdash --host localhost --port 8504 --eos-host localhost --eos-port 8503 --log_level DEBUG --reload true
 
 # Target to setup tests.
 test-setup: install
@@ -189,6 +189,7 @@ prepare-version: install
 	$(PYTHON) ./scripts/generate_openapi_md.py --output-file docs/_generated/openapi.md
 	$(PYTHON) ./scripts/generate_openapi.py --output-file openapi.json
 	$(PYTEST) -vv --finalize tests/test_doc.py
+	$(PRECOMMIT) run --all-files
 
 test-version:
 	echo "Test version information to be correctly set in all version files"
