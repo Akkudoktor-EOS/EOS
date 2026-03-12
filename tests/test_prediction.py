@@ -24,6 +24,7 @@ from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
 from akkudoktoreos.prediction.weatherbrightsky import WeatherBrightSky
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
 from akkudoktoreos.prediction.weatherimport import WeatherImport
+from akkudoktoreos.prediction.weatheropenmeteo import WeatherOpenMeteo
 
 
 @pytest.fixture
@@ -51,6 +52,7 @@ def forecast_providers():
         PVForecastImport(),
         WeatherBrightSky(),
         WeatherClearOutside(),
+        WeatherOpenMeteo(),
         WeatherImport(),
     ]
 
@@ -99,7 +101,8 @@ def test_provider_sequence(prediction):
     assert isinstance(prediction.providers[12], PVForecastImport)
     assert isinstance(prediction.providers[13], WeatherBrightSky)
     assert isinstance(prediction.providers[14], WeatherClearOutside)
-    assert isinstance(prediction.providers[15], WeatherImport)
+    assert isinstance(prediction.providers[15], WeatherOpenMeteo)
+    assert isinstance(prediction.providers[16], WeatherImport)
 
 
 def test_provider_by_id(prediction, forecast_providers):
@@ -126,6 +129,7 @@ def test_prediction_repr(prediction):
     assert "PVForecastImport" in result
     assert "WeatherBrightSky" in result
     assert "WeatherClearOutside" in result
+    assert "WeatherOpenMeteo" in result
     assert "WeatherImport" in result
 
 
