@@ -1,6 +1,7 @@
 """Abstract and base classes for configuration."""
 
 import calendar
+import os
 from typing import Any, ClassVar, Iterator, Optional, Union
 
 import numpy as np
@@ -16,6 +17,14 @@ from akkudoktoreos.utils.datetimeutil import (
     Time,
     to_duration,
 )
+
+
+def is_home_assistant_addon() -> bool:
+    """Detect Home Assistant add-on environment.
+
+    Home Assistant sets this environment variable automatically.
+    """
+    return "HASSIO_TOKEN" in os.environ or "SUPERVISOR_TOKEN" in os.environ
 
 
 class SettingsBaseModel(PydanticBaseModel):

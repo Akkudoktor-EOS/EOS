@@ -107,10 +107,11 @@ If no interval is configured (`None`, `null`) there will be only one energy mana
 startup.
 :::
 
-The energy management can be run in two modes:
+The energy management can be run in three modes:
 
 - **OPTIMIZATION**: A full optimization is done. This includes update of predictions.
 - **PREDICTION**: Only the predictions are updated.
+- **DISABLED**: No energy management is run.
 
 **Example:**
 

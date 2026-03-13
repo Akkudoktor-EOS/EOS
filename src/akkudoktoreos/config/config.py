@@ -23,7 +23,7 @@ from pydantic import Field, computed_field, field_validator
 
 # settings
 from akkudoktoreos.adapter.adapter import AdapterCommonSettings
-from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.config.configabc import SettingsBaseModel, is_home_assistant_addon
 from akkudoktoreos.config.configmigrate import migrate_config_data, migrate_config_file
 from akkudoktoreos.core.cachesettings import CacheCommonSettings
 from akkudoktoreos.core.coreabc import SingletonMixin
@@ -67,14 +67,6 @@ def get_absolute_path(
     if basepath is not None:
         return basepath.joinpath(subpath)
     return None
-
-
-def is_home_assistant_addon() -> bool:
-    """Detect Home Assistant add-on environment.
-
-    Home Assistant sets this environment variable automatically.
-    """
-    return "HASSIO_TOKEN" in os.environ or "SUPERVISOR_TOKEN" in os.environ
 
 
 def default_data_folder_path() -> Path:

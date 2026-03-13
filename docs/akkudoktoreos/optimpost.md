@@ -17,6 +17,12 @@ The `POST /optimize` endpoint interface does not regard configurations set for t
 passed to the request. You have to set the parameters even if given in the configuration.
 :::
 
+:::{admonition} Warning
+:class: warning
+To prevent automatic optimization from interfering with `POST /optimize` requests, set `ems.mode`
+to `DISABLED` in the configuration.
+:::
+
 ## Input Payload
 
 ### Sample Request
@@ -85,6 +91,12 @@ passed to the request. You have to set the parameters even if given in the confi
         "max_charge_power_w": 11040,
         "initial_soc_percentage": 54,
         "min_soc_percentage": 0
+    },
+    "dishwasher": {
+        "device_id": "dishwasher1",
+        "consumption_wh": 2000,
+        "duration_h": 3,
+        "time_windows": null
     },
     "temperature_forecast": [
       18.3, 17.8, 16.9, 16.2, 15.6, 15.1, 14.6, 14.2, 14.3, 14.8, 15.7, 16.7, 17.4,

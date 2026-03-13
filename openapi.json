@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.2.0.dev2603130753300674"
+    "version": "v0.2.0.dev2603131189846912"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -3833,15 +3833,8 @@
             ]
           },
           "mode": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/EnergyManagementMode"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Energy management mode [OPTIMIZATION | PREDICTION].",
+            "$ref": "#/components/schemas/EnergyManagementMode",
+            "description": "Energy management mode [DISABLED | OPTIMIZATION | PREDICTION].",
             "examples": [
               "OPTIMIZATION",
               "PREDICTION"
@@ -3855,6 +3848,7 @@
       "EnergyManagementMode": {
         "type": "string",
         "enum": [
+          "DISABLED",
           "PREDICTION",
           "OPTIMIZATION"
         ],
@@ -5410,7 +5404,7 @@
             "examples": [
               [
                 {
-                  "duration": "2 hours",
+                  "duration": "3 hours",
                   "start_time": "10:00"
                 }
               ]

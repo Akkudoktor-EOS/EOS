@@ -727,9 +727,9 @@ def Configuration(
                 # Home Assistant adapter optimization solution entities
                 update_form_factory = make_config_update_list_form(eos_solution_entity_ids)
             elif config["name"].startswith("ems.mode"):
-                #  Energy managemnt mode
+                #  Energy management mode
                 update_form_factory = make_config_update_value_form(
-                    ["OPTIMIZATION", "PREDICTION", "None"]
+                    ["OPTIMIZATION", "PREDICTION", "DISABLED"]
                 )
             elif config["name"].endswith("elecpricefixed.time_windows.windows"):
                 update_form_factory = make_config_update_time_windows_windows_form(
