@@ -571,6 +571,7 @@ Configuration options:
 
     - `BrightSky`: Retrieves from [BrightSky](https://api.brightsky.dev).
     - `ClearOutside`: Retrieves from [ClearOutside](https://clearoutside.com/forecast).
+    - `OpenMeteo`: Retrieves from [OpenMeteo](https://api.open-meteo.com/v1/forecast).
     - `LoadImport`: Imports from a file or JSON string.
 
   - `provider_settings.import_file_path`: Path to the file to import weatherforecast data from.
@@ -578,7 +579,7 @@ Configuration options:
 
 ### BrightSky Provider
 
-The `BrightSky` provider retrieves the PV power forecast data directly from
+The `BrightSky` provider retrieves the weather forecast data directly from
 [**BrightSky**](https://api.brightsky.dev).
 
 The provider provides forecast data for the following prediction keys:
@@ -597,7 +598,7 @@ The provider provides forecast data for the following prediction keys:
 
 ### ClearOutside Provider
 
-The `ClearOutside` provider retrieves the PV power forecast data directly from
+The `ClearOutside` provider retrieves the weather forecast data directly from
 [**ClearOutside**](https://clearoutside.com/forecast).
 
 The provider provides forecast data for the following prediction keys:
@@ -617,6 +618,31 @@ The provider provides forecast data for the following prediction keys:
 - `weather_precip_prob`: Precipitation Probability (%)
 - `weather_preciptable_water`: Precipitable Water (cm)
 - `weather_precip_type`: Precipitation Type
+- `weather_pressure`: Pressure (mb)
+- `weather_relative_humidity`: Relative Humidity (%)
+- `weather_temp_air`: Temperature (°C)
+- `weather_total_clouds`: Total Clouds (% Sky Obscured)
+- `weather_visibility`: Visibility (m)
+- `weather_wind_direction`: Wind Direction (°)
+- `weather_wind_speed`: Wind Speed (kmph)
+
+### OpenMeteo Provider
+
+The `OpenMeteo` provider retrieves the weather forecast data directly from
+[**OpenMeteo**](https://api.open-meteo.com/v1/forecast).
+
+The provider provides forecast data for the following prediction keys:
+
+- `weather_dew_point`: Dew Point (°C)
+- `weather_dhi`: Diffuse Horizontal Irradiance (W/m2)
+- `weather_dni`: Direct Normal Irradiance (W/m2)
+- `weather_feels_like`: Feels Like (°C)
+- `weather_ghi`: Global Horizontal Irradiance (W/m2)
+- `weather_high_clouds`: High Clouds (% Sky Obscured)
+- `weather_low_clouds`: Low Clouds (% Sky Obscured)
+- `weather_medium_clouds`: Medium Clouds (% Sky Obscured)
+- `weather_precip_amt`: Precipitation Amount (mm)
+- `weather_precip_prob`: Precipitation Probability (%)
 - `weather_pressure`: Pressure (mb)
 - `weather_relative_humidity`: Relative Humidity (%)
 - `weather_temp_air`: Temperature (°C)

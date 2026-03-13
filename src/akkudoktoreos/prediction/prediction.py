@@ -50,6 +50,7 @@ from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
 from akkudoktoreos.prediction.weatherbrightsky import WeatherBrightSky
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
 from akkudoktoreos.prediction.weatherimport import WeatherImport
+from akkudoktoreos.prediction.weatheropenmeteo import WeatherOpenMeteo
 
 
 class PredictionCommonSettings(SettingsBaseModel):
@@ -86,6 +87,7 @@ pvforecast_vrm = PVForecastVrm()
 pvforecast_import = PVForecastImport()
 weather_brightsky = WeatherBrightSky()
 weather_clearoutside = WeatherClearOutside()
+weather_openmeteo = WeatherOpenMeteo()
 weather_import = WeatherImport()
 
 
@@ -106,10 +108,14 @@ def prediction_providers() -> list[
         PVForecastImport,
         WeatherBrightSky,
         WeatherClearOutside,
+        WeatherOpenMeteo,
         WeatherImport,
     ]
 ]:
-    """Return list of prediction providers."""
+    """Return list of prediction providers.
+
+    Factory for prediction container.
+    """
     global \
         elecprice_akkudoktor, \
         elecprice_energy_charts, \
@@ -126,6 +132,7 @@ def prediction_providers() -> list[
         pvforecast_import, \
         weather_brightsky, \
         weather_clearoutside, \
+        weather_openmeteo, \
         weather_import
 
     # Care for provider sequence as providers may rely on others to be updated before.
@@ -145,6 +152,7 @@ def prediction_providers() -> list[
         pvforecast_import,
         weather_brightsky,
         weather_clearoutside,
+        weather_openmeteo,
         weather_import,
     ]
 
@@ -169,6 +177,7 @@ class Prediction(PredictionContainer):
             PVForecastImport,
             WeatherBrightSky,
             WeatherClearOutside,
+            WeatherOpenMeteo,
             WeatherImport,
         ]
     ] = Field(
