@@ -26,6 +26,31 @@ EOS **publishes results** by writing states and attributes to Home Assistant ent
 After each optimisation run, these values are available as standard Home Assistant entities
 and can be used like any other sensor or state.
 
+```mermaid
+graph LR
+    subgraph EOS_Server[EOS Server]
+        Adapter[Home Assistant Adapter]
+    end
+
+    subgraph HA_Read[<b>Home Assistant Reads</b>]
+        direction TB
+        Config[• Configuration values]
+        Meas[• Measurements]
+        Energy[• Energy meter readings]
+        Avail[• Availability flags]
+    end
+
+    subgraph HA_Write[<b>Home Assistant Writes</b>]
+        direction TB
+        Device[• Device instructions]
+        Opt[• Optimization results]
+        Solution[• Solution entities]
+    end
+
+    Adapter -- Reads from HA --> HA_Read
+    Adapter -- Writes to HA --> HA_Write
+```
+
 Typical use cases in Home Assistant:
 
 * Dashboards and visualisation
