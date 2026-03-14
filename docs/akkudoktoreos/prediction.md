@@ -123,10 +123,12 @@ Configuration options:
 
     - `ElecPriceAkkudoktor`: Retrieves from Akkudoktor.net.
     - `ElecPriceEnergyCharts`: Retrieves from Energy-Charts.info.
+    - `ElecPriceFixed`: Caluclates from configured time window prices.
     - `ElecPriceImport`: Imports from a file or JSON string.
 
   - `charges_kwh`: Electricity price charges (€/kWh).
   - `vat_rate`: VAT rate factor applied to electricity price when charges are used (default: 1.19).
+  - `elecpricefixed.time_windows.windows`: The time windows with associated electricity prices.
   - `elecpriceimport.import_file_path`: Path to the file to import electricity price forecast data from.
   - `elecpriceimport.import_json`: JSON string, dictionary of electricity price forecast value lists.
   - `energycharts.bidding_zone`: Bidding zone Energy Charts shall provide price data for.
@@ -142,12 +144,12 @@ option are added.
 ### ElecPriceEnergyCharts Provider
 
 The `ElecPriceEnergyCharts` provider retrieves day-ahead electricity market prices from
-[Energy-Charts.info](https://www.Energy-Charts.info). It supports both short-term and extended forecasting by combining
-real-time market data with historical price trends.
+[Energy-Charts.info](https://www.Energy-Charts.info). It supports both short-term and extended
+forecasting by combining real-time market data with historical price trends.
 
 - For the next 24 hours, market prices are fetched directly from Energy-Charts.info.
-- For periods beyond 24 hours, prices are estimated using extrapolation based on historical data and the latest
-  available market values.
+- For periods beyond 24 hours, prices are estimated using extrapolation based on historical data
+  and the latest available market values.
 
 Charges and VAT
 
@@ -156,6 +158,11 @@ Charges and VAT
 - If `charges_kwh` is set to 0, the electricity price is simply: `market_price` (no VAT applied).
 
 **Note:** For the most accurate forecasts, it is recommended to set the `historic_hours` parameter to 840.
+
+### ElecPriceFixed Provider
+
+The `ElecPriceFixed` provider calculates the day-ahead electricity market prices from the configuration
+of electricity price time windows set up by the user.
 
 ### ElecPriceImport Provider
 
@@ -564,6 +571,7 @@ Configuration options:
 
     - `BrightSky`: Retrieves from [BrightSky](https://api.brightsky.dev).
     - `ClearOutside`: Retrieves from [ClearOutside](https://clearoutside.com/forecast).
+    - `OpenMeteo`: Retrieves from [OpenMeteo](https://api.open-meteo.com/v1/forecast).
     - `LoadImport`: Imports from a file or JSON string.
 
   - `provider_settings.import_file_path`: Path to the file to import weatherforecast data from.
@@ -571,7 +579,7 @@ Configuration options:
 
 ### BrightSky Provider
 
-The `BrightSky` provider retrieves the PV power forecast data directly from
+The `BrightSky` provider retrieves the weather forecast data directly from
 [**BrightSky**](https://api.brightsky.dev).
 
 The provider provides forecast data for the following prediction keys:
@@ -590,7 +598,7 @@ The provider provides forecast data for the following prediction keys:
 
 ### ClearOutside Provider
 
-The `ClearOutside` provider retrieves the PV power forecast data directly from
+The `ClearOutside` provider retrieves the weather forecast data directly from
 [**ClearOutside**](https://clearoutside.com/forecast).
 
 The provider provides forecast data for the following prediction keys:
@@ -610,6 +618,31 @@ The provider provides forecast data for the following prediction keys:
 - `weather_precip_prob`: Precipitation Probability (%)
 - `weather_preciptable_water`: Precipitable Water (cm)
 - `weather_precip_type`: Precipitation Type
+- `weather_pressure`: Pressure (mb)
+- `weather_relative_humidity`: Relative Humidity (%)
+- `weather_temp_air`: Temperature (°C)
+- `weather_total_clouds`: Total Clouds (% Sky Obscured)
+- `weather_visibility`: Visibility (m)
+- `weather_wind_direction`: Wind Direction (°)
+- `weather_wind_speed`: Wind Speed (kmph)
+
+### OpenMeteo Provider
+
+The `OpenMeteo` provider retrieves the weather forecast data directly from
+[**OpenMeteo**](https://api.open-meteo.com/v1/forecast).
+
+The provider provides forecast data for the following prediction keys:
+
+- `weather_dew_point`: Dew Point (°C)
+- `weather_dhi`: Diffuse Horizontal Irradiance (W/m2)
+- `weather_dni`: Direct Normal Irradiance (W/m2)
+- `weather_feels_like`: Feels Like (°C)
+- `weather_ghi`: Global Horizontal Irradiance (W/m2)
+- `weather_high_clouds`: High Clouds (% Sky Obscured)
+- `weather_low_clouds`: Low Clouds (% Sky Obscured)
+- `weather_medium_clouds`: Medium Clouds (% Sky Obscured)
+- `weather_precip_amt`: Precipitation Amount (mm)
+- `weather_precip_prob`: Precipitation Probability (%)
 - `weather_pressure`: Pressure (mb)
 - `weather_relative_humidity`: Relative Humidity (%)
 - `weather_temp_air`: Temperature (°C)

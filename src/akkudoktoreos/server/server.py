@@ -374,6 +374,31 @@ class ServerCommonSettings(SettingsBaseModel):
             ],
         },
     )
+    run_as_user: Optional[str] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "The name of the target user to switch to. If ``None`` (default), the current "
+                "effective user is used and no privilege change is attempted."
+            ),
+            "examples": [
+                None,
+                "user",
+            ],
+        },
+    )
+    reload: Optional[bool] = Field(
+        default=False,
+        json_schema_extra={
+            "description": (
+                "Enable server auto-reload for debugging or development. Default is False. "
+                "Monitors the package directory for changes and reloads the server."
+            ),
+            "examples": [
+                True,
+            ],
+        },
+    )
 
     @field_validator("host", "eosdash_host", mode="before")
     def validate_server_host(cls, value: Optional[str]) -> Optional[str]:
@@ -385,4 +410,14 @@ class ServerCommonSettings(SettingsBaseModel):
     def validate_server_port(cls, value: Optional[int]) -> Optional[int]:
         if value is not None and not (1024 <= value <= 49151):
             raise ValueError("Server port number must be between 1024 and 49151.")
+        return value
+
+    @field_validator("run_as_user")
+    def validate_user(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None:
+            # Resolve target user info
+            try:
+                pw_record = pwd.getpwnam(value)
+            except KeyError:
+                raise ValueError(f"User '{value}' does not exist.")
         return value

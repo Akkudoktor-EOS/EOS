@@ -1,13 +1,8 @@
 import numpy as np
 
+from akkudoktoreos.config.configabc import TimeWindow, TimeWindowSequence
 from akkudoktoreos.optimization.genetic.geneticdevices import HomeApplianceParameters
-from akkudoktoreos.utils.datetimeutil import (
-    TimeWindow,
-    TimeWindowSequence,
-    to_datetime,
-    to_duration,
-    to_time,
-)
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration, to_time
 
 
 class HomeAppliance:

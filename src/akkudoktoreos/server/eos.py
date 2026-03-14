@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import argparse
 import asyncio
 import json
 import os
@@ -15,7 +14,7 @@ import psutil
 import uvicorn
 from fastapi import Body, FastAPI
 from fastapi import Path as FastapiPath
-from fastapi import Query, Request
+from fastapi import Query, Request, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import (
     FileResponse,
@@ -57,13 +56,13 @@ from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
-from akkudoktoreos.server.rest.cli import cli_apply_args_to_config, cli_parse_args
 from akkudoktoreos.server.rest.error import create_error_page
 from akkudoktoreos.server.rest.starteosdash import supervise_eosdash
 from akkudoktoreos.server.retentionmanager import RetentionManager
 from akkudoktoreos.server.server import (
     drop_root_privileges,
     fix_data_directories_permissions,
+    get_default_host,
     get_host_ip,
     wait_for_port_free,
 )
@@ -458,12 +457,12 @@ def fastapi_config_revert_put(
     """
     try:
         get_config().revert_settings(backup_id)
+        return get_config()
     except Exception as e:
         raise HTTPException(
             status_code=400,
             detail=f"Error on reverting of configuration: {e}",
         )
-    return get_config()
 
 
 @app.put("/v1/config/file", tags=["config"])
@@ -475,12 +474,12 @@ def fastapi_config_file_put() -> ConfigEOS:
     """
     try:
         get_config().to_config_file()
+        return get_config()
     except:
         raise HTTPException(
             status_code=404,
             detail=f"Cannot save configuration to file '{get_config().config_file_path}'.",
         )
-    return get_config()
 
 
 @app.get("/v1/config", tags=["config"])
@@ -490,7 +489,10 @@ def fastapi_config_get() -> ConfigEOS:
     Returns:
         configuration (ConfigEOS): The current configuration.
     """
-    return get_config()
+    try:
+        return get_config()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error on configuration retrieval: {e}")
 
 
 @app.put("/v1/config", tags=["config"])
@@ -509,9 +511,9 @@ def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
     """
     try:
         get_config().merge_settings(settings)
+        return get_config()
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
-    return get_config()
 
 
 @app.put("/v1/config/{path:path}", tags=["config"])
@@ -534,14 +536,13 @@ def fastapi_config_put_key(
     """
     try:
         get_config().set_nested_value(path, value)
+        return get_config()
     except Exception as e:
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         raise HTTPException(
             status_code=400,
             detail=f"Error on update of configuration '{path}','{value}':\n{e}\n{trace}",
         )
-
-    return get_config()
 
 
 @app.get("/v1/config/{path:path}", tags=["config"])
@@ -660,8 +661,17 @@ def fastapi_devices_status_put(
 
 @app.get("/v1/measurement/keys", tags=["measurement"])
 def fastapi_measurement_keys_get() -> list[str]:
-    """Get a list of available measurement keys."""
-    return sorted(get_measurement().record_keys)
+    try:
+        """Get a list of available measurement keys."""
+        return sorted(get_measurement().record_keys)
+    except Exception as e:
+        # Log unexpected errors
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        logger.exception("Unexpected error retieving measurement keys")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error:\n{e}\n{trace}",
+        )
 
 
 @app.get("/v1/measurement/series", tags=["measurement"])
@@ -669,10 +679,22 @@ def fastapi_measurement_series_get(
     key: Annotated[str, Query(description="Measurement key.")],
 ) -> PydanticDateTimeSeries:
     """Get the measurements of given key as series."""
-    if key not in get_measurement().record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-    pdseries = get_measurement().key_to_series(key=key)
-    return PydanticDateTimeSeries.from_series(pdseries)
+    try:
+        if key not in get_measurement().record_keys:
+            raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
+        pdseries = get_measurement().key_to_series(key=key)
+        return PydanticDateTimeSeries.from_series(pdseries)
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Log unexpected errors
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        logger.exception(f"Unexpected error retieving measurement: {key}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error:\n{e}\n{trace}",
+        )
 
 
 @app.put("/v1/measurement/value", tags=["measurement"])
@@ -682,19 +704,42 @@ def fastapi_measurement_value_put(
     value: Union[float | str],
 ) -> PydanticDateTimeSeries:
     """Merge the measurement of given key and value into EOS measurements at given datetime."""
-    if key not in get_measurement().record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-    if isinstance(value, str):
-        # Try to convert to float
-        try:
-            value = float(value)
-        except:
-            logger.debug(
-                f'/v1/measurement/value key: {key} value: "{value}" - string value not convertable to float'
+    try:
+        if isinstance(value, str):
+            try:
+                value = float(value)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Value '{value}' cannot be converted to float",
+                )
+
+        if key not in get_measurement().record_keys:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Key '{key}' not found in measurements",
             )
-    get_measurement().update_value(datetime, key, value)
-    pdseries = get_measurement().key_to_series(key=key)
-    return PydanticDateTimeSeries.from_series(pdseries)
+
+        try:
+            dt = to_datetime(datetime)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid datetime '{datetime}': {e}",
+            )
+
+        get_measurement().update_value(dt, key, value)
+        pdseries = get_measurement().key_to_series(key=key)
+        return PydanticDateTimeSeries.from_series(pdseries)
+    except HTTPException:
+        raise
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        logger.exception(f"Unexpected error updating measurement: {datetime}, {key}, {value}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error:\n{e}\n{trace}",
+        )
 
 
 @app.put("/v1/measurement/series", tags=["measurement"])
@@ -702,26 +747,56 @@ def fastapi_measurement_series_put(
     key: Annotated[str, Query(description="Measurement key.")], series: PydanticDateTimeSeries
 ) -> PydanticDateTimeSeries:
     """Merge measurement given as series into given key."""
-    if key not in get_measurement().record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-    pdseries = series.to_series()  # make pandas series from PydanticDateTimeSeries
-    get_measurement().key_from_series(key=key, series=pdseries)
-    pdseries = get_measurement().key_to_series(key=key)
-    return PydanticDateTimeSeries.from_series(pdseries)
+    try:
+        if key not in get_measurement().record_keys:
+            raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
+        pdseries = series.to_series()  # make pandas series from PydanticDateTimeSeries
+        get_measurement().key_from_series(key=key, series=pdseries)
+        pdseries = get_measurement().key_to_series(key=key)
+        return PydanticDateTimeSeries.from_series(pdseries)
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        # Log unexpected errors
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        logger.exception(f"Unexpected error updating measurement: {key}, {series}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error:\n{e}\n{trace}",
+        )
 
 
 @app.put("/v1/measurement/dataframe", tags=["measurement"])
 def fastapi_measurement_dataframe_put(data: PydanticDateTimeDataFrame) -> None:
     """Merge the measurement data given as dataframe into EOS measurements."""
-    dataframe = data.to_dataframe()
-    get_measurement().import_from_dataframe(dataframe)
+    try:
+        dataframe = data.to_dataframe()
+        get_measurement().import_from_dataframe(dataframe)
+    except Exception as e:
+        # Log unexpected errors
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        logger.exception(f"Unexpected error updating measurement: {data}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error:\n{e}\n{trace}",
+        )
 
 
 @app.put("/v1/measurement/data", tags=["measurement"])
 def fastapi_measurement_data_put(data: PydanticDateTimeData) -> None:
     """Merge the measurement data given as datetime data into EOS measurements."""
-    datetimedata = data.to_dict()
-    get_measurement().import_from_dict(datetimedata)
+    try:
+        datetimedata = data.to_dict()
+        get_measurement().import_from_dict(datetimedata)
+    except Exception as e:
+        # Log unexpected errors
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        logger.exception(f"Unexpected error updating measurement: {data}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error:\n{e}\n{trace}",
+        )
 
 
 @app.get("/v1/prediction/providers", tags=["prediction"])
@@ -1427,52 +1502,42 @@ def run_eos() -> None:
     Returns:
         None
     """
-    # get_config(init=True) creates the configuration
-    # this should not be done before nor later
+    # get_config(init=True) creates the configuration, includes also ARGV args.
+    # This should not be done before nor later
     config_eos = get_config(init=True)
 
-    # set logging to what is in config
+    # Set logging to what is in config
     logger.remove()
     logging_track_config(config_eos, "logging", None, None)
 
-    # make logger track logging changes in config
+    # Make logger track logging changes in config
     config_eos.track_nested_value("/logging", logging_track_config)
 
-    # Set config to actual environment variable & config file content
-    config_eos.reset_settings()
+    # Ensure host and port config settings are at least set to default values
+    if config_eos.server.host is None:
+        config_eos.set_nested_value("server/host", get_default_host())
+    if config_eos.server.port is None:
+        config_eos.set_nested_value("server/port", 8503)
 
-    # add arguments to config
-    args: argparse.Namespace
-    args_unknown: list[str]
-    args, args_unknown = cli_parse_args()
-    cli_apply_args_to_config(args)
+    if config_eos.server.port is None:  # make mypy happy
+        raise RuntimeError("server.port is None despite default setup")
 
-    # prepare runtime arguments
-    if args:
-        run_as_user = args.run_as_user
-        # Setup EOS reload for development
-        if args.reload is None:
-            reload = False
-        else:
-            logger.debug(f"reload set by argument to {args.reload}")
-            reload = args.reload
-    else:
-        run_as_user = None
+    if config_eos.server.eosdash_host is None:
+        config_eos.set_nested_value("server/eosdash_host", config_eos.server.host)
+    if config_eos.server.eosdash_port is None:
+        config_eos.set_nested_value("server/eosdash_port", config_eos.server.port + 1)
 
     # Switch data directories ownership to user
-    fix_data_directories_permissions(run_as_user=run_as_user)
+    fix_data_directories_permissions(run_as_user=config_eos.server.run_as_user)
 
     # Switch privileges to run_as_user
-    drop_root_privileges(run_as_user=run_as_user)
+    drop_root_privileges(run_as_user=config_eos.server.run_as_user)
 
     # Init the other singletons (besides config_eos)
     singletons_init()
 
     # Wait for EOS port to be free - e.g. in case of restart
-    port = config_eos.server.port
-    if port is None:
-        port = 8503
-    wait_for_port_free(port, timeout=120, waiting_app_name="EOS")
+    wait_for_port_free(config_eos.server.port, timeout=120, waiting_app_name="EOS")
 
     # Normalize log_level to uvicorn log level
     VALID_UVICORN_LEVELS = {"critical", "error", "warning", "info", "debug", "trace"}
@@ -1486,15 +1551,21 @@ def run_eos() -> None:
     elif uv_log_level not in VALID_UVICORN_LEVELS:
         uv_log_level = "info"  # fallback
 
+    logger.info(f"Starting EOS server on {config_eos.server.host}:{config_eos.server.port}")
+    if config_eos.server.startup_eosdash:
+        logger.info(
+            f"EOSdash will be available at {config_eos.server.eosdash_host}:{config_eos.server.eosdash_port}"
+        )
+
     try:
         # Let uvicorn run the fastAPI app
         uvicorn.run(
             "akkudoktoreos.server.eos:app",
             host=str(config_eos.server.host),
-            port=port,
+            port=config_eos.server.port,
             log_level=uv_log_level,
             access_log=True,  # Fix server access logging to True
-            reload=reload,
+            reload=config_eos.server.reload,
             proxy_headers=True,
             forwarded_allow_ips="*",
         )
@@ -1504,12 +1575,7 @@ def run_eos() -> None:
 
 
 def main() -> None:
-    """Parse command-line arguments and start the EOS server with the specified options.
-
-    This function sets up the argument parser to accept command-line arguments for
-    host, port, log_level, access_log, and reload. It uses default values from the
-    config_eos module if arguments are not provided. After parsing the arguments,
-    it starts the EOS server with the specified configurations.
+    """Start the EOS server with the specified options.
 
     Command-line Arguments:
     --host (str): Host for the EOS server (default: value from config).

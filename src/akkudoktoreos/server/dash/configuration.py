@@ -34,6 +34,7 @@ from akkudoktoreos.server.dash.components import (
     TextView,
     make_config_update_list_form,
     make_config_update_map_form,
+    make_config_update_time_windows_windows_form,
     make_config_update_value_form,
 )
 from akkudoktoreos.server.dash.context import request_url_for
@@ -726,9 +727,13 @@ def Configuration(
                 # Home Assistant adapter optimization solution entities
                 update_form_factory = make_config_update_list_form(eos_solution_entity_ids)
             elif config["name"].startswith("ems.mode"):
-                #  Energy managemnt mode
+                #  Energy management mode
                 update_form_factory = make_config_update_value_form(
-                    ["OPTIMIZATION", "PREDICTION", "None"]
+                    ["OPTIMIZATION", "PREDICTION", "DISABLED"]
+                )
+            elif config["name"].endswith("elecpricefixed.time_windows.windows"):
+                update_form_factory = make_config_update_time_windows_windows_form(
+                    value_description="electricity_price_kwh [Amt/kWh]"
                 )
 
             rows.append(

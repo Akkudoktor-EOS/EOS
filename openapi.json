@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.2.0.dev2603071785688456"
+    "version": "v0.2.0.dev2603131189846912"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -929,7 +929,6 @@
           "measurement"
         ],
         "summary": "Fastapi Measurement Keys Get",
-        "description": "Get a list of available measurement keys.",
         "operationId": "fastapi_measurement_keys_get_v1_measurement_keys_get",
         "responses": {
           "200": {
@@ -3371,6 +3370,10 @@
               1.19
             ]
           },
+          "elecpricefixed": {
+            "$ref": "#/components/schemas/ElecPriceFixedCommonSettings-Input",
+            "description": "Fixed electricity price provider settings."
+          },
           "elecpriceimport": {
             "$ref": "#/components/schemas/ElecPriceImportCommonSettings",
             "description": "Import provider settings."
@@ -3434,6 +3437,10 @@
               1.19
             ]
           },
+          "elecpricefixed": {
+            "$ref": "#/components/schemas/ElecPriceFixedCommonSettings-Output",
+            "description": "Fixed electricity price provider settings."
+          },
           "elecpriceimport": {
             "$ref": "#/components/schemas/ElecPriceImportCommonSettings",
             "description": "Import provider settings."
@@ -3473,6 +3480,60 @@
         "type": "object",
         "title": "ElecPriceEnergyChartsCommonSettings",
         "description": "Common settings for Energy Charts electricity price provider."
+      },
+      "ElecPriceFixedCommonSettings-Input": {
+        "properties": {
+          "time_windows": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Input",
+            "description": "Sequence of time windows defining the fixed price schedule. If not provided, no fixed pricing is applied.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "8 hours",
+                    "start_time": "00:00",
+                    "value": 0.288
+                  },
+                  {
+                    "duration": "16 hours",
+                    "start_time": "08:00",
+                    "value": 0.34
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecPriceFixedCommonSettings",
+        "description": "Common configuration settings for fixed electricity pricing.\n\nThis model defines a fixed electricity price schedule using a sequence\nof time windows. Each window specifies a time interval and the electricity\nprice applicable during that interval."
+      },
+      "ElecPriceFixedCommonSettings-Output": {
+        "properties": {
+          "time_windows": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Output",
+            "description": "Sequence of time windows defining the fixed price schedule. If not provided, no fixed pricing is applied.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "8 hours",
+                    "start_time": "00:00",
+                    "value": 0.288
+                  },
+                  {
+                    "duration": "16 hours",
+                    "start_time": "08:00",
+                    "value": 0.34
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecPriceFixedCommonSettings",
+        "description": "Common configuration settings for fixed electricity pricing.\n\nThis model defines a fixed electricity price schedule using a sequence\nof time windows. Each window specifies a time interval and the electricity\nprice applicable during that interval."
       },
       "ElecPriceImportCommonSettings": {
         "properties": {
@@ -3772,15 +3833,8 @@
             ]
           },
           "mode": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/EnergyManagementMode"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Energy management mode [OPTIMIZATION | PREDICTION].",
+            "$ref": "#/components/schemas/EnergyManagementMode",
+            "description": "Energy management mode [DISABLED | OPTIMIZATION | PREDICTION].",
             "examples": [
               "OPTIMIZATION",
               "PREDICTION"
@@ -3794,6 +3848,7 @@
       "EnergyManagementMode": {
         "type": "string",
         "enum": [
+          "DISABLED",
           "PREDICTION",
           "OPTIMIZATION"
         ],
@@ -5349,7 +5404,7 @@
             "examples": [
               [
                 {
-                  "duration": "2 hours",
+                  "duration": "3 hours",
                   "start_time": "10:00"
                 }
               ]
@@ -8369,6 +8424,38 @@
             "examples": [
               10
             ]
+          },
+          "run_as_user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run As User",
+            "description": "The name of the target user to switch to. If ``None`` (default), the current effective user is used and no privilege change is attempted.",
+            "examples": [
+              null,
+              "user"
+            ]
+          },
+          "reload": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reload",
+            "description": "Enable server auto-reload for debugging or development. Default is False. Monitors the package directory for changes and reloads the server.",
+            "default": false,
+            "examples": [
+              true
+            ]
           }
         },
         "type": "object",
@@ -8704,13 +8791,19 @@
         "properties": {
           "start_time": {
             "title": "Start Time",
-            "description": "Start time of the time window (time of day)."
+            "description": "Naive start time of the time window (time of day, no timezone). Interpreted in the timezone of the datetime passed to contains() or earliest_start_time().",
+            "examples": [
+              "00:00:00"
+            ]
           },
           "duration": {
             "type": "string",
             "format": "duration",
             "title": "Duration",
-            "description": "Duration of the time window starting from `start_time`."
+            "description": "Duration of the time window starting from `start_time`.",
+            "examples": [
+              "2 hours"
+            ]
           },
           "day_of_week": {
             "anyOf": [
@@ -8725,7 +8818,10 @@
               }
             ],
             "title": "Day Of Week",
-            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set."
+            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set.",
+            "examples": [
+              null
+            ]
           },
           "date": {
             "anyOf": [
@@ -8738,7 +8834,10 @@
               }
             ],
             "title": "Date",
-            "description": "Optional specific calendar date for the time window. Overrides `day_of_week` if set."
+            "description": "Optional specific calendar date for the time window. Naive \u2014 matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set.",
+            "examples": [
+              null
+            ]
           },
           "locale": {
             "anyOf": [
@@ -8750,7 +8849,10 @@
               }
             ],
             "title": "Locale",
-            "description": "Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc."
+            "description": "Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc.",
+            "examples": [
+              null
+            ]
           }
         },
         "type": "object",
@@ -8759,19 +8861,25 @@
           "duration"
         ],
         "title": "TimeWindow",
-        "description": "Model defining a daily or specific date time window with optional localization support.\n\nRepresents a time interval starting at `start_time` and lasting for `duration`.\nCan restrict applicability to a specific day of the week or a specific calendar date.\nSupports day names in multiple languages via locale-aware parsing."
+        "description": "Model defining a daily or date time window with optional localization support.\n\nRepresents a time interval starting at `start_time` and lasting for `duration`.\nCan restrict applicability to a specific day of the week or a specific calendar date.\nSupports day names in multiple languages via locale-aware parsing.\n\nTimezone contract:\n\n``start_time`` is always **naive** (no ``tzinfo``).  It is interpreted as a\nlocal wall-clock time in whatever timezone the caller's ``date_time`` or\n``reference_date`` carries.  When those arguments are timezone-aware the\nwindow boundaries are evaluated in that timezone; when they are naive,\narithmetic is performed as-is (no timezone conversion occurs).\n\n``date``, being a calendar ``Date`` object, is inherently timezone-free.\n\nThis design avoids the ambiguity that arises when a stored ``start_time``\ncarries its own timezone that differs from the caller's timezone, and keeps\nthe model serialisable without timezone state."
       },
       "TimeWindow-Output": {
         "properties": {
           "start_time": {
             "type": "string",
             "title": "Start Time",
-            "description": "Start time of the time window (time of day)."
+            "description": "Naive start time of the time window (time of day, no timezone). Interpreted in the timezone of the datetime passed to contains() or earliest_start_time().",
+            "examples": [
+              "00:00:00"
+            ]
           },
           "duration": {
             "type": "string",
             "title": "Duration",
-            "description": "Duration of the time window starting from `start_time`."
+            "description": "Duration of the time window starting from `start_time`.",
+            "examples": [
+              "2 hours"
+            ]
           },
           "day_of_week": {
             "anyOf": [
@@ -8786,7 +8894,10 @@
               }
             ],
             "title": "Day Of Week",
-            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set."
+            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set.",
+            "examples": [
+              null
+            ]
           },
           "date": {
             "anyOf": [
@@ -8799,7 +8910,10 @@
               }
             ],
             "title": "Date",
-            "description": "Optional specific calendar date for the time window. Overrides `day_of_week` if set."
+            "description": "Optional specific calendar date for the time window. Naive \u2014 matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set.",
+            "examples": [
+              null
+            ]
           },
           "locale": {
             "anyOf": [
@@ -8811,7 +8925,10 @@
               }
             ],
             "title": "Locale",
-            "description": "Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc."
+            "description": "Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc.",
+            "examples": [
+              null
+            ]
           }
         },
         "type": "object",
@@ -8820,22 +8937,15 @@
           "duration"
         ],
         "title": "TimeWindow",
-        "description": "Model defining a daily or specific date time window with optional localization support.\n\nRepresents a time interval starting at `start_time` and lasting for `duration`.\nCan restrict applicability to a specific day of the week or a specific calendar date.\nSupports day names in multiple languages via locale-aware parsing."
+        "description": "Model defining a daily or date time window with optional localization support.\n\nRepresents a time interval starting at `start_time` and lasting for `duration`.\nCan restrict applicability to a specific day of the week or a specific calendar date.\nSupports day names in multiple languages via locale-aware parsing.\n\nTimezone contract:\n\n``start_time`` is always **naive** (no ``tzinfo``).  It is interpreted as a\nlocal wall-clock time in whatever timezone the caller's ``date_time`` or\n``reference_date`` carries.  When those arguments are timezone-aware the\nwindow boundaries are evaluated in that timezone; when they are naive,\narithmetic is performed as-is (no timezone conversion occurs).\n\n``date``, being a calendar ``Date`` object, is inherently timezone-free.\n\nThis design avoids the ambiguity that arises when a stored ``start_time``\ncarries its own timezone that differs from the caller's timezone, and keeps\nthe model serialisable without timezone state."
       },
       "TimeWindowSequence-Input": {
         "properties": {
           "windows": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/TimeWindow-Input"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "items": {
+              "$ref": "#/components/schemas/TimeWindow-Input"
+            },
+            "type": "array",
             "title": "Windows",
             "description": "List of TimeWindow objects that make up this sequence."
           }
@@ -8847,17 +8957,10 @@
       "TimeWindowSequence-Output": {
         "properties": {
           "windows": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/TimeWindow-Output"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "items": {
+              "$ref": "#/components/schemas/TimeWindow-Output"
+            },
+            "type": "array",
             "title": "Windows",
             "description": "List of TimeWindow objects that make up this sequence."
           }
@@ -8911,6 +9014,220 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "ValueTimeWindow-Input": {
+        "properties": {
+          "start_time": {
+            "title": "Start Time",
+            "description": "Naive start time of the time window (time of day, no timezone). Interpreted in the timezone of the datetime passed to contains() or earliest_start_time().",
+            "examples": [
+              "00:00:00"
+            ]
+          },
+          "duration": {
+            "type": "string",
+            "format": "duration",
+            "title": "Duration",
+            "description": "Duration of the time window starting from `start_time`.",
+            "examples": [
+              "2 hours"
+            ]
+          },
+          "day_of_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Of Week",
+            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set.",
+            "examples": [
+              null
+            ]
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date",
+            "description": "Optional specific calendar date for the time window. Naive \u2014 matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set.",
+            "examples": [
+              null
+            ]
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale",
+            "description": "Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc.",
+            "examples": [
+              null
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "Value applicable during this time window.",
+            "examples": [
+              0.288
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_time",
+          "duration"
+        ],
+        "title": "ValueTimeWindow",
+        "description": "Value applicable during a specific time window.\n\nThis model extends `TimeWindow` by associating a value with the defined time interval."
+      },
+      "ValueTimeWindow-Output": {
+        "properties": {
+          "start_time": {
+            "type": "string",
+            "title": "Start Time",
+            "description": "Naive start time of the time window (time of day, no timezone). Interpreted in the timezone of the datetime passed to contains() or earliest_start_time().",
+            "examples": [
+              "00:00:00"
+            ]
+          },
+          "duration": {
+            "type": "string",
+            "title": "Duration",
+            "description": "Duration of the time window starting from `start_time`.",
+            "examples": [
+              "2 hours"
+            ]
+          },
+          "day_of_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Of Week",
+            "description": "Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set.",
+            "examples": [
+              null
+            ]
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date",
+            "description": "Optional specific calendar date for the time window. Naive \u2014 matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set.",
+            "examples": [
+              null
+            ]
+          },
+          "locale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locale",
+            "description": "Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc.",
+            "examples": [
+              null
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "Value applicable during this time window.",
+            "examples": [
+              0.288
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_time",
+          "duration"
+        ],
+        "title": "ValueTimeWindow",
+        "description": "Value applicable during a specific time window.\n\nThis model extends `TimeWindow` by associating a value with the defined time interval."
+      },
+      "ValueTimeWindowSequence-Input": {
+        "properties": {
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/ValueTimeWindow-Input"
+            },
+            "type": "array",
+            "title": "Windows",
+            "description": "Ordered list of value time windows. Each window defines a time interval and an associated value."
+          }
+        },
+        "type": "object",
+        "title": "ValueTimeWindowSequence",
+        "description": "Sequence of value time windows.\n\nThis model specializes `TimeWindowSequence` to ensure that all\ncontained windows are instances of `ValueTimeWindow`.\nIt provides the full set of sequence operations (containment checks,\navailability, start time calculations) for value windows."
+      },
+      "ValueTimeWindowSequence-Output": {
+        "properties": {
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/ValueTimeWindow-Output"
+            },
+            "type": "array",
+            "title": "Windows",
+            "description": "Ordered list of value time windows. Each window defines a time interval and an associated value."
+          }
+        },
+        "type": "object",
+        "title": "ValueTimeWindowSequence",
+        "description": "Sequence of value time windows.\n\nThis model specializes `TimeWindowSequence` to ensure that all\ncontained windows are instances of `ValueTimeWindow`.\nIt provides the full set of sequence operations (containment checks,\navailability, start time calculations) for value windows."
       },
       "WeatherCommonProviderSettings": {
         "properties": {

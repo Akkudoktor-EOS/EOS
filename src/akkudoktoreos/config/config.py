@@ -23,7 +23,7 @@ from pydantic import Field, computed_field, field_validator
 
 # settings
 from akkudoktoreos.adapter.adapter import AdapterCommonSettings
-from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.config.configabc import SettingsBaseModel, is_home_assistant_addon
 from akkudoktoreos.config.configmigrate import migrate_config_data, migrate_config_file
 from akkudoktoreos.core.cachesettings import CacheCommonSettings
 from akkudoktoreos.core.coreabc import SingletonMixin
@@ -32,6 +32,7 @@ from akkudoktoreos.core.decorators import classproperty
 from akkudoktoreos.core.emsettings import (
     EnergyManagementCommonSettings,
 )
+from akkudoktoreos.core.logabc import LOGGING_LEVELS
 from akkudoktoreos.core.logsettings import LoggingCommonSettings
 from akkudoktoreos.core.pydantic import PydanticModelNestedValueMixin, merge_models
 from akkudoktoreos.core.version import __version__
@@ -44,6 +45,7 @@ from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.prediction import PredictionCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.prediction.weather import WeatherCommonSettings
+from akkudoktoreos.server.rest.cli import cli_argument_parser
 from akkudoktoreos.server.server import ServerCommonSettings
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_timezone
 from akkudoktoreos.utils.utils import UtilsCommonSettings
@@ -65,14 +67,6 @@ def get_absolute_path(
     if basepath is not None:
         return basepath.joinpath(subpath)
     return None
-
-
-def is_home_assistant_addon() -> bool:
-    """Detect Home Assistant add-on environment.
-
-    Home Assistant sets this environment variable automatically.
-    """
-    return "HASSIO_TOKEN" in os.environ or "SUPERVISOR_TOKEN" in os.environ
 
 
 def default_data_folder_path() -> Path:
@@ -421,6 +415,62 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             - It ensures that a fallback to a default configuration file is always possible.
         """
 
+        def lazy_config_cli_settings() -> dict:
+            """CLI settings.
+
+            This function runs at **instance creation**, not class definition. Ensures if ConfigEOS
+            is recreated this function is run.
+            """
+            args, args_unknown = cli_argument_parser().parse_known_args()  # defaults to sys.ARGV
+
+            # Initialize nested settings dictionary
+            settings: dict[str, Any] = {}
+
+            # Helper function to set nested dictionary values
+            def set_nested(dict_obj: dict[str, Any], path: str, value: Any) -> None:
+                """Set a value in a nested dictionary using dot notation path."""
+                parts = path.split(".")
+                current = dict_obj
+                for part in parts[:-1]:
+                    if part not in current:
+                        current[part] = {}
+                    current = current[part]
+                current[parts[-1]] = value
+
+            # Server host
+            if args.host is not None:
+                set_nested(settings, "server.host", args.host)
+                logger.debug(f"CLI arg: server.host set to {args.host}")
+
+            # Server port
+            if args.port is not None:
+                set_nested(settings, "server.port", args.port)
+                logger.debug(f"CLI arg: server.port set to {args.port}")
+
+            # Server startup_eosdash
+            if args.startup_eosdash is not None:
+                set_nested(settings, "server.startup_eosdash", args.startup_eosdash)
+                logger.debug(f"CLI arg: server.startup_eosdash set to {args.startup_eosdash}")
+
+            # Logging level (skip if "none" as that means don't change)
+            if args.log_level is not None and args.log_level.lower() != "none":
+                log_level = args.log_level.upper()
+                if log_level in LOGGING_LEVELS:
+                    set_nested(settings, "logging.console_level", log_level)
+                    logger.debug(f"CLI arg: logging.console_level set to {log_level}")
+                else:
+                    logger.warning(f"Invalid log level '{args.log_level}' ignored")
+
+            if args.run_as_user is not None:
+                set_nested(settings, "server.run_as_user", args.run_as_user)
+                logger.debug(f"CLI arg: server.run_as_user set to {args.run_as_user}")
+
+            if args.reload is not None:
+                set_nested(settings, "server.reload", args.reload)
+                logger.debug(f"CLI arg: server.reload set to {args.reload}")
+
+            return settings
+
         def lazy_config_file_settings() -> dict:
             """Config file settings.
 
@@ -561,7 +611,8 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         # The settings are all lazyly evaluated at instance creation time to allow for
         # runtime configuration.
         setting_sources = [
-            lazy_config_file_settings,  # Prio high
+            lazy_config_cli_settings,  # Prio high
+            lazy_config_file_settings,
             lazy_init_settings,
             lazy_env_settings,
             lazy_dotenv_settings,

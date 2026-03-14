@@ -485,6 +485,10 @@ def run_eosdash() -> None:
     elif uv_log_level not in VALID_UVICORN_LEVELS:
         uv_log_level = "info"  # fallback
 
+    logger.info(
+        f"Starting EOSdash server on {config_eosdash['eosdash_host']}:{config_eosdash['eosdash_port']}"
+    )
+
     try:
         uvicorn.run(
             "akkudoktoreos.server.eosdash:app",

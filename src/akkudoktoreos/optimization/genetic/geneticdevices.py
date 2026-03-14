@@ -4,8 +4,8 @@ from typing import Optional
 
 from pydantic import Field
 
+from akkudoktoreos.config.configabc import TimeWindowSequence
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
-from akkudoktoreos.utils.datetimeutil import TimeWindowSequence
 
 
 class DeviceParameters(GeneticParametersBaseModel):
@@ -139,7 +139,7 @@ class HomeApplianceParameters(DeviceParameters):
             "description": "List of allowed time windows. Defaults to optimization general time window.",
             "examples": [
                 [
-                    {"start_time": "10:00", "duration": "2 hours"},
+                    {"start_time": "10:00", "duration": "3 hours"},
                 ],
             ],
         },

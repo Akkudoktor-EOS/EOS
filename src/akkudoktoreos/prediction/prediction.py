@@ -33,6 +33,7 @@ from pydantic import Field
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
+from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
@@ -49,6 +50,7 @@ from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
 from akkudoktoreos.prediction.weatherbrightsky import WeatherBrightSky
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
 from akkudoktoreos.prediction.weatherimport import WeatherImport
+from akkudoktoreos.prediction.weatheropenmeteo import WeatherOpenMeteo
 
 
 class PredictionCommonSettings(SettingsBaseModel):
@@ -72,6 +74,7 @@ class PredictionCommonSettings(SettingsBaseModel):
 # Initialize forecast providers, all are singletons.
 elecprice_akkudoktor = ElecPriceAkkudoktor()
 elecprice_energy_charts = ElecPriceEnergyCharts()
+elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
@@ -84,6 +87,7 @@ pvforecast_vrm = PVForecastVrm()
 pvforecast_import = PVForecastImport()
 weather_brightsky = WeatherBrightSky()
 weather_clearoutside = WeatherClearOutside()
+weather_openmeteo = WeatherOpenMeteo()
 weather_import = WeatherImport()
 
 
@@ -91,6 +95,7 @@ def prediction_providers() -> list[
     Union[
         ElecPriceAkkudoktor,
         ElecPriceEnergyCharts,
+        ElecPriceFixed,
         ElecPriceImport,
         FeedInTariffFixed,
         FeedInTariffImport,
@@ -103,13 +108,18 @@ def prediction_providers() -> list[
         PVForecastImport,
         WeatherBrightSky,
         WeatherClearOutside,
+        WeatherOpenMeteo,
         WeatherImport,
     ]
 ]:
-    """Return list of prediction providers."""
+    """Return list of prediction providers.
+
+    Factory for prediction container.
+    """
     global \
         elecprice_akkudoktor, \
         elecprice_energy_charts, \
+        elecprice_fixed, \
         elecprice_import, \
         feedintariff_fixed, \
         feedintariff_import, \
@@ -122,12 +132,14 @@ def prediction_providers() -> list[
         pvforecast_import, \
         weather_brightsky, \
         weather_clearoutside, \
+        weather_openmeteo, \
         weather_import
 
     # Care for provider sequence as providers may rely on others to be updated before.
     return [
         elecprice_akkudoktor,
         elecprice_energy_charts,
+        elecprice_fixed,
         elecprice_import,
         feedintariff_fixed,
         feedintariff_import,
@@ -140,6 +152,7 @@ def prediction_providers() -> list[
         pvforecast_import,
         weather_brightsky,
         weather_clearoutside,
+        weather_openmeteo,
         weather_import,
     ]
 
@@ -151,6 +164,7 @@ class Prediction(PredictionContainer):
         Union[
             ElecPriceAkkudoktor,
             ElecPriceEnergyCharts,
+            ElecPriceFixed,
             ElecPriceImport,
             FeedInTariffFixed,
             FeedInTariffImport,
@@ -163,6 +177,7 @@ class Prediction(PredictionContainer):
             PVForecastImport,
             WeatherBrightSky,
             WeatherClearOutside,
+            WeatherOpenMeteo,
             WeatherImport,
         ]
     ] = Field(

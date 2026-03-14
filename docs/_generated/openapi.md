@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.2.0.dev2603071785688456`
+**Version**: `v0.2.0.dev2603131189846912`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -875,14 +875,6 @@ Merge the measurement data given as dataframe into EOS measurements.
 <!-- pyml enable line-length -->
 
 Fastapi Measurement Keys Get
-
-<!-- pyml disable line-length -->
-```python
-"""
-Get a list of available measurement keys.
-"""
-```
-<!-- pyml enable line-length -->
 
 **Responses**:
 

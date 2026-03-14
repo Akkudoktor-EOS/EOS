@@ -154,8 +154,8 @@ class EnergyManagement(
     @classmethod
     def _run(
         cls,
-        start_datetime: Optional[DateTime] = None,
-        mode: Optional[EnergyManagementMode] = None,
+        start_datetime: DateTime,
+        mode: EnergyManagementMode,
         genetic_parameters: Optional[GeneticOptimizationParameters] = None,
         genetic_individuals: Optional[int] = None,
         genetic_seed: Optional[int] = None,
@@ -170,14 +170,11 @@ class EnergyManagement(
         optimization depending on the selected mode or configuration.
 
         Args:
-            start_datetime (DateTime, optional): The starting timestamp
-                of the energy management run. Defaults to the current datetime
-                if not provided.
-            mode (EnergyManagementMode, optional): The management mode to use. Must be one of:
+            start_datetime (DateTime): The starting timestamp of the energy management run.
+            mode (EnergyManagementMode): The management mode to use. Must be one of:
                 - "OPTIMIZATION": Runs the optimization process.
                 - "PREDICTION": Updates the forecast without optimization.
-
-                Defaults to the mode defined in the current configuration.
+                - "DISABLED": Does not run.
             genetic_parameters (GeneticOptimizationParameters, optional): The
                 parameter set for the genetic algorithm. If not provided, it will
                 be constructed based on the current configuration and predictions.
@@ -196,8 +193,10 @@ class EnergyManagement(
             None
         """
         # Ensure there is only one optimization/ energy management run at a time
-        if mode not in (None, "PREDICTION", "OPTIMIZATION"):
+        if not EnergyManagementMode.is_valid(mode):
             raise ValueError(f"Unknown energy management mode {mode}.")
+        if mode == EnergyManagementMode.DISABLED:
+            return
 
         logger.info("Starting energy management run.")
 
@@ -220,9 +219,7 @@ class EnergyManagement(
 
         cls._stage = EnergyManagementStage.FORECAST_RETRIEVAL
 
-        if mode is None:
-            mode = cls.config.ems.mode
-        if mode is None or mode == "PREDICTION":
+        if mode == EnergyManagementMode.PREDICTION:
             # Update the predictions
             cls.prediction.update_data(force_enable=force_enable, force_update=force_update)
             logger.info("Energy management run done (predictions updated)")
@@ -346,6 +343,10 @@ class EnergyManagement(
         async with self._run_lock:
             loop = get_running_loop()
             # Create a partial function with parameters "baked in"
+            if start_datetime is None:
+                start_datetime = to_datetime()
+            if mode is None:
+                mode = self.config.ems.mode
             func = partial(
                 EnergyManagement._run,
                 start_datetime=start_datetime,
