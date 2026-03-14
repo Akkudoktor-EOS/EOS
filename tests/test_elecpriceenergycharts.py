@@ -198,8 +198,45 @@ def test_key_to_array_resampling(provider):
     assert len(array) == provider.total_hours
 
 
+@patch("requests.get")
+def test_request_forecast_url_bidding_zone_is_value(mock_get, provider, sample_energycharts_json):
+    """Test that the bidding zone in the API URL uses the enum *value* (e.g. 'DE-LU'),
+    not the enum repr (e.g. 'EnergyChartsBiddingZones.DE_LU').
+
+    Regression test for: bzn=EnergyChartsBiddingZones.DE_LU appearing in the URL
+    instead of bzn=DE-LU, which caused a 400 Bad Request from the Energy-Charts API.
+    """
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.content = json.dumps(sample_energycharts_json)
+    mock_get.return_value = mock_response
+
+    provider._request_forecast(force_update=True)
+
+    assert mock_get.called, "requests.get was never called"
+    actual_url: str = mock_get.call_args[0][0]
+
+    # Extract the bzn= query parameter value from the URL
+    from urllib.parse import parse_qs, urlparse
+    parsed = urlparse(actual_url)
+    query_params = parse_qs(parsed.query)
+
+    assert "bzn" in query_params, f"'bzn' parameter missing from URL: {actual_url}"
+    bzn_value = query_params["bzn"][0]
+
+    # Must be the raw enum value, never contain a class name or dot notation
+    assert "." not in bzn_value, (
+        f"Bidding zone in URL looks like an enum repr: '{bzn_value}'. "
+        f"Use .value when building the URL, not str(enum)."
+    )
+    assert bzn_value == provider.config.elecprice.energycharts.bidding_zone.value, (
+        f"Expected bzn='{provider.config.elecprice.energycharts.bidding_zone.value}' "
+        f"but got bzn='{bzn_value}' in URL: {actual_url}"
+    )
+
+
 # ------------------------------------------------
-# Development Akkudoktor
+# Development Energy Charts
 # ------------------------------------------------
 
 

@@ -1,7 +1,7 @@
 import traceback
 from asyncio import Lock, get_running_loop
 from concurrent.futures import ThreadPoolExecutor
-from enum import Enum
+from enum import StrEnum
 from functools import partial
 from typing import ClassVar, Optional
 
@@ -30,7 +30,7 @@ from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 executor = ThreadPoolExecutor(max_workers=1)
 
 
-class EnergyManagementStage(Enum):
+class EnergyManagementStage(StrEnum):
     """Enumeration of the main stages in the energy management lifecycle."""
 
     IDLE = "IDLE"
@@ -38,10 +38,6 @@ class EnergyManagementStage(Enum):
     FORECAST_RETRIEVAL = "FORECAST_RETRIEVAL"
     OPTIMIZATION = "OPTIMIZATION"
     CONTROL_DISPATCH = "CONTROL_DISPATCH"
-
-    def __str__(self) -> str:
-        """Return the string representation of the stage."""
-        return self.value
 
 
 async def ems_manage_energy() -> None:
@@ -193,7 +189,7 @@ class EnergyManagement(
             None
         """
         # Ensure there is only one optimization/ energy management run at a time
-        if not EnergyManagementMode.is_valid(mode):
+        if not mode in EnergyManagementMode._value2member_map_:
             raise ValueError(f"Unknown energy management mode {mode}.")
         if mode == EnergyManagementMode.DISABLED:
             return
