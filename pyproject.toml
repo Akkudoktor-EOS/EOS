@@ -28,7 +28,7 @@ dependencies = [
     "MonsterUI==1.0.44",
     "markdown-it-py==4.0.0",
     "mdit-py-plugins==0.5.0",
-    "bokeh==3.8.2",
+    "bokeh==3.9.0",
     "uvicorn==0.41.0",
     "scipy==1.17.1",
     "tzfpy==1.1.2",
