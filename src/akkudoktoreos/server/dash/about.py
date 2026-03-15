@@ -2,6 +2,7 @@ from typing import Any
 
 from fasthtml.common import Div
 
+from akkudoktoreos.config.configabc import runtime_environment
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.server.dash.markdown import Markdown
 
@@ -23,7 +24,9 @@ Documentation can be found at [Akkudoktor-EOS](https://akkudoktor-eos.readthedoc
 
 ## Version Information
 
-**Current Version:** {__version__}
+**Akkudoktor-EOS:** {__version__}
+
+**Environment:** {runtime_environment()}
 
 **License:** Apache License
 

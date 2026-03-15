@@ -2,6 +2,7 @@
 
 import calendar
 import os
+import sys
 from typing import Any, ClassVar, Iterator, Optional, Union
 
 import numpy as np
@@ -25,6 +26,28 @@ def is_home_assistant_addon() -> bool:
     Home Assistant sets this environment variable automatically.
     """
     return "HASSIO_TOKEN" in os.environ or "SUPERVISOR_TOKEN" in os.environ
+
+
+def runtime_environment() -> str:
+    """Return a human-readable description of the runtime environment."""
+    python_version = sys.version.split()[0]
+
+    # Home Assistant add-on
+    if is_home_assistant_addon():
+        ha_version = os.getenv("HOMEASSISTANT_VERSION", "unknown")
+        return f"Home Assistant add-on (HA {ha_version}, Python {python_version})"
+
+    # Home Assistant Core integration
+    if "HOMEASSISTANT_CONFIG" in os.environ:
+        ha_version = os.getenv("HOMEASSISTANT_VERSION", "unknown")
+        return f"Home Assistant Core (HA {ha_version}, Python {python_version})"
+
+    # Docker container
+    if os.path.exists("/.dockerenv"):
+        return f"Docker container (Python {python_version})"
+
+    # Default
+    return f"Standalone Python (Python {python_version})"
 
 
 class SettingsBaseModel(PydanticBaseModel):

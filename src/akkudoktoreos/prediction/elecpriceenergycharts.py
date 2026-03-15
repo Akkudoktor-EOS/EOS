@@ -7,7 +7,7 @@ format, enabling consistent access to forecasted and historical electricity pric
 """
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, List, Optional, Union
 
 import numpy as np
@@ -24,7 +24,7 @@ from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 
-class EnergyChartsBiddingZones(str, Enum):
+class EnergyChartsBiddingZones(StrEnum):
     """Energy Charts Bidding Zones."""
 
     AT = "AT"

@@ -11,7 +11,7 @@ Demand Driven Based Control.
 import uuid
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Literal, Optional, Union
 
 from loguru import logger
@@ -35,7 +35,7 @@ ID = str
 # S2 Enumerations
 
 
-class RoleType(str, Enum):
+class RoleType(StrEnum):
     """Enumeration of energy resource roles in the system."""
 
     ENERGY_PRODUCER = "ENERGY_PRODUCER"
@@ -43,7 +43,7 @@ class RoleType(str, Enum):
     ENERGY_STORAGE = "ENERGY_STORAGE"
 
 
-class Commodity(str, Enum):
+class Commodity(StrEnum):
     """Enumeration of energy commodities supported in the system."""
 
     GAS = "GAS"
@@ -52,7 +52,7 @@ class Commodity(str, Enum):
     OIL = "OIL"
 
 
-class CommodityQuantity(str, Enum):
+class CommodityQuantity(StrEnum):
     """Enumeration of specific commodity quantities and measurement types."""
 
     ELECTRIC_POWER_L1 = "ELECTRIC.POWER.L1"
@@ -89,7 +89,7 @@ class CommodityQuantity(str, Enum):
     """Currency-related quantity."""
 
 
-class Currency(str, Enum):
+class Currency(StrEnum):
     """Enumeration of currency codes following ISO 4217 standard."""
 
     AED = "AED"
@@ -255,7 +255,7 @@ class Currency(str, Enum):
     ZWL = "ZWL"
 
 
-class InstructionStatus(str, Enum):
+class InstructionStatus(StrEnum):
     """Enumeration of possible instruction status values."""
 
     NEW = "NEW"  # Instruction was newly created
@@ -267,7 +267,7 @@ class InstructionStatus(str, Enum):
     ABORTED = "ABORTED"  # Instruction was aborted
 
 
-class ControlType(str, Enum):
+class ControlType(StrEnum):
     """Enumeration of different control types supported by the system."""
 
     POWER_ENVELOPE_BASED_CONTROL = (
@@ -289,28 +289,28 @@ class ControlType(str, Enum):
     NO_SELECTION = "NO_SELECTION"  # Used if no control type is/has been selected
 
 
-class PEBCPowerEnvelopeLimitType(str, Enum):
+class PEBCPowerEnvelopeLimitType(StrEnum):
     """Enumeration of power envelope limit types for Power Envelope Based Control."""
 
     UPPER_LIMIT = "UPPER_LIMIT"  # Indicates the upper limit of a Power Envelope
     LOWER_LIMIT = "LOWER_LIMIT"  # Indicates the lower limit of a Power Envelope
 
 
-class PEBCPowerEnvelopeConsequenceType(str, Enum):
+class PEBCPowerEnvelopeConsequenceType(StrEnum):
     """Enumeration of consequences when power is limited for Power Envelope Based Control."""
 
     VANISH = "VANISH"  # Limited load or generation will be lost and not reappear
     DEFER = "DEFER"  # Limited load or generation will be postponed to a later moment
 
 
-class ReceptionStatusValues(str, Enum):
+class ReceptionStatusValues(StrEnum):
     """Enumeration of status values for data reception."""
 
     SUCCEEDED = "SUCCEEDED"  # Data received, complete, and consistent
     REJECTED = "REJECTED"  # Data could not be parsed or was incomplete/inconsistent
 
 
-class PPBCPowerSequenceStatus(str, Enum):
+class PPBCPowerSequenceStatus(StrEnum):
     """Enumeration of status values for Power Profile Based Control sequences."""
 
     NOT_SCHEDULED = "NOT_SCHEDULED"  # No PowerSequence is scheduled
