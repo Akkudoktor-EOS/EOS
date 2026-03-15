@@ -20,16 +20,52 @@ DIR_SRC = DIR_PROJECT_ROOT / "src"
 HASH_FILE = DIR_BUILD / ".sphinx_hash.json"
 
 
-def find_sphinx_build() -> str:
-    venv = os.getenv("VIRTUAL_ENV")
-    paths = [Path(venv)] if venv else []
-    paths.append(DIR_PROJECT_ROOT / ".venv")
+import os
+import subprocess
+from pathlib import Path
 
-    for base in paths:
-        cmd = base / ("Scripts" if os.name == "nt" else "bin") / ("sphinx-build.exe" if os.name == "nt" else "sphinx-build")
-        if cmd.exists():
-            return str(cmd)
-    return "sphinx-build"
+
+def find_sphinx_build() -> list[str]:
+    """Return command to invoke sphinx-build via virtualenv, uv, or globally."""
+    candidates = []
+
+    # 1️⃣ Currently active virtualenv
+    venv = os.getenv("VIRTUAL_ENV")
+    if venv:
+        candidates.append(Path(venv))
+
+    # 2️⃣ uv‑managed virtualenv
+    uv_venv = Path(".uv") / "venv"
+    if uv_venv.exists():
+        candidates.append(uv_venv)
+
+    # 3️⃣ traditional .venv
+    dot_venv = Path(".venv")
+    if dot_venv.exists():
+        candidates.append(dot_venv)
+
+    # Check each candidate for the sphinx‑build binary
+    for base in candidates:
+        sphinx_build_path = base / ("Scripts" if os.name == "nt" else "bin") / (
+            "sphinx-build.exe" if os.name == "nt" else "sphinx-build"
+        )
+        if sphinx_build_path.exists():
+            return [str(sphinx_build_path)]
+
+    # 4️⃣ fallback to uv run sphinx‑build
+    try:
+        subprocess.run(
+            ["uv", "run", "sphinx-build", "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return ["uv", "run", "sphinx-build"]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    # 5️⃣ final fallback to system sphinx‑build
+    return ["sphinx-build"]
 
 
 @pytest.fixture(scope="session")
@@ -61,8 +97,7 @@ class TestSphinxDocumentation:
     Ensures no major warnings are emitted.
     """
 
-    SPHINX_CMD = [
-        find_sphinx_build(),
+    SPHINX_CMD = find_sphinx_build() + [
         "-M",
         "html",
         str(DIR_DOCS),
@@ -105,8 +140,6 @@ class TestSphinxDocumentation:
         env["EOS_CONFIG_DIR"] = eos_dir
 
         try:
-            # Run sphinx-build
-            project_dir = Path(__file__).parent.parent
             process = subprocess.run(
                 self.SPHINX_CMD,
                 check=True,
@@ -114,13 +147,15 @@ class TestSphinxDocumentation:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                cwd=project_dir,
+                cwd=DIR_PROJECT_ROOT,          # use the existing constant
             )
-            # Combine output
             output = process.stdout + "\n" + process.stderr
             returncode = process.returncode
-        except:
-            output = f"ERROR: Could not start sphinx-build - {self.SPHINX_CMD}"
+        except subprocess.CalledProcessError as e:
+            output = e.stdout + "\n" + e.stderr if e.stdout else ""
+            returncode = e.returncode
+        except Exception as e:
+            output = f"Failed to execute command: {e}"
             returncode = -1
 
         # Remove temporary EOS_DIR

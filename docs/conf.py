@@ -33,6 +33,7 @@ extensions = [
     "sphinx_rtd_theme",
     "myst_parser",
     "sphinx_tabs.tabs",
+    "sphinxcontrib.mermaid",
 ]
 
 templates_path = ["_templates"]
@@ -141,3 +142,6 @@ napoleon_use_rtype = True
 napoleon_preprocess_types = False
 napoleon_type_aliases = None
 napoleon_attr_annotations = True
+
+# -- Options for mermaid -------------------------------------------------
+mermaid_output_format = "svg"

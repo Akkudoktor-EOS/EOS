@@ -27,6 +27,7 @@ develop/getting_started.md
 :caption: How-To Guides
 
 develop/CONTRIBUTING.md
+operate/operatorguide.md
 develop/install.md
 akkudoktoreos/configuration.md
 develop/update.md

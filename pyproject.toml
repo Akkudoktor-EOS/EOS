@@ -75,6 +75,7 @@ dev = [
     "sphinx-tabs==3.5.0",
     "GitPython==3.1.46",
     "myst-parser==5.0.0",
+    "sphinxcontrib-mermaid==2.0.1",
     "docutils==0.21.2",
 
     # Pytest
