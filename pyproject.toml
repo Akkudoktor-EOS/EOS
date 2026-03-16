@@ -40,7 +40,7 @@ dependencies = [
     "psutil==7.2.2",
     "pvlib==0.15.0",
     "pydantic==2.12.5",
-    "pydantic_extra_types==2.11.0",
+    "pydantic_extra_types==2.11.1",
     "statsmodels==0.14.6",
     "pydantic-settings==2.13.1",
     "linkify-it-py==2.1.0",
