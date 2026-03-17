@@ -1,4 +1,5 @@
 % SPDX-License-Identifier: Apache-2.0
+
 (release-page)=
 
 # Release Process
@@ -13,8 +14,9 @@ and how to set a **development version** after the release.
 | 1    | Contributor | Prepare a release branch **in your fork** |
 | 2    | Contributor | Open a **Pull Request to upstream** (`Akkudoktor-EOS/EOS`) |
 | 3    | Maintainer  | Review and **merge the release PR** |
-| 4    | CI  | Create the **GitHub Release and tag** |
-| 5    | CI  | Set the **development version marker** via a follow-up PR |
+| 4    | CI          | Create the **GitHub Release and tag** |
+| 5    | CI          | Open a **Pull Request to set the development version marker** |
+| 6    | Maintainer  | Review and **merge the development version PR** |
 
 ## 🔄 Detailed Workflow
 
@@ -26,11 +28,10 @@ and how to set a **development version** after the release.
 git clone https://github.com/<your-username>/EOS
 cd EOS
 git remote add eos https://github.com/Akkudoktor-EOS/EOS
-
 git fetch eos
 git checkout main
 git pull eos main
-````
+```
 
 #### Create the release branch
 
@@ -101,10 +102,12 @@ chore: prepare release vX.Y.Z
 This pull request prepares release **vX.Y.Z**.
 
 ### Changes
+
 - Version bump
 - Changelog update
 
 ### Changelog Summary
+
 <!-- Copy key highlights from CHANGELOG.md here -->
 
 See `CHANGELOG.md` for full details.
@@ -127,14 +130,32 @@ See `CHANGELOG.md` for full details.
 ### 4️⃣ CI: Publish the GitHub Release
 
 The new release will automatically be published by the GitHub CI action.
+See `.github/workflows/bump-version.yml` for details.
 
-See `.github/workflwows/bump-version.yml`for details.
+### 5️⃣ CI: Open Pull Request for Development Version Marker
 
-### 5️⃣ CI: Prepare the Development Version Marker
+After tagging the release, the CI automatically opens a Pull Request to bump
+the version to the next development version marker `.dev`.
+See `.github/workflows/bump-version.yml` for details.
 
-The development version marker `.dev` will automatically be set by the GitHub CI action.
+**PR Title:**
 
-See `.github/workflwows/bump-version.yml`for details.
+```text
+chore: bump dev version to vX.Y+1.0.dev
+```
+
+### 6️⃣ Maintainer: Review and Merge the Development Version PR
+
+**Review Checklist:**
+
+- ✅ Only `src/akkudoktoreos/core/version.py` is modified
+- ✅ Version has `.dev` suffix
+- ✅ No unrelated changes are included
+
+**Merge Strategy:**
+
+- Prefer **Merge Commit** (or **Squash Merge**, per project preference)
+- Use commit message: `chore: bump dev version to vX.Y+1.0.dev`
 
 ## ✅ Quick Reference
 
@@ -144,4 +165,5 @@ See `.github/workflwows/bump-version.yml`for details.
 | **2. Open release PR** | Contributor | Submit release for review |
 | **3. Review & merge release PR** | Maintainer | Finalize changes into `main` |
 | **4. Publish GitHub Release** | CI | Create tag & notify users |
-| **5. Prepare development version branch** | CI | Set development marker |
+| **5. Open development version PR** | CI | Open PR to set development marker |
+| **6. Review & merge development version PR** | Maintainer | Merge `.dev` version into `main` |

@@ -45,54 +45,36 @@ jobs:
         run: |
           echo "Version contains 'dev'. Skipping release-related steps."
 
-      # --- Step 5: Update files and commit if necessary ---
-      - name: Update files and commit
-        id: commit_release
+      # --- Step 5: Tag release version ---
+      - name: Tag release version
+        id: tagging
         if: "!contains(steps.calc.outputs.version, 'dev')"
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-
-          # Files that contain the version string
-          UPDATE_FILES="config.yaml .env"
-
-          # Update versions
-          python scripts/update_version.py "${{ steps.calc.outputs.version }}" $UPDATE_FILES
-
-          # Commit changes if any
-          git add $UPDATE_FILES
-
-          if git diff --cached --quiet; then
-            echo "No files changed. Skipping commit."
-            echo "committed=false" >> "$GITHUB_OUTPUT"
-          else
-            git commit -m "chore: bump version to ${{ steps.calc.outputs.version }}"
-            git push
-            echo "committed=true" >> "$GITHUB_OUTPUT"
-          fi
-          # Always signal this is a release, regardless of whether files changed
-          echo "is_release=true" >> "$GITHUB_OUTPUT"
-
-      # --- Step 6: Create release tag ---
-      - name: Create release tag if it does not exist
-        id: tagging
-        if: steps.commit_release.outputs.is_release == 'true'
-        run: |
           TAG="v${{ steps.calc.outputs.version }}"
           if git rev-parse --verify "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists. Skipping tag creation."
+            echo "Tag $TAG already exists. Skipping."
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
           else
             git tag -a "$TAG" -m "Release ${{ steps.calc.outputs.version }}"
             git push origin "$TAG"
+            echo "tagged=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # --- Step 7: Bump to development version ---
-      - name: Bump dev version
-        id: bump_dev
-        if: steps.commit_release.outputs.is_release == 'true'
+      # --- Step 6: Create PR to bump to dev version ---
+      - name: Bump dev version and create PR
+        if: "!contains(steps.calc.outputs.version, 'dev')"
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+          BRANCH="chore/bump-dev-version-${{ steps.calc.outputs.version }}"
+          # Skip if branch or PR already exists
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Branch $BRANCH already exists. Skipping."
+            exit 0
+          fi
+          git checkout -b "$BRANCH"
           VERSION_BASE=$(python scripts/bump_dev_version.py | tail -n1)
           if [ -z "$VERSION_BASE" ]; then
             echo "Error: bump_dev_version.py returned an empty version."
@@ -100,8 +82,15 @@ jobs:
           fi
           git add src/akkudoktoreos/core/version.py
           if git diff --cached --quiet; then
-            echo "version.py not changed. Skipping commit."
+            echo "version.py not changed. Skipping."
           else
             git commit -m "chore: bump dev version to ${VERSION_BASE}"
-            git push
+            git push origin "$BRANCH"
+            gh pr create \
+              --title "chore: bump dev version to ${VERSION_BASE}" \
+              --body "Automated dev version bump after release ${{ steps.calc.outputs.version }}." \
+              --base main \
+              --head "$BRANCH"
           fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
