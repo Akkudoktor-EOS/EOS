@@ -70,14 +70,15 @@ jobs:
             git push
             echo "committed=true" >> "$GITHUB_OUTPUT"
           fi
+          # Always signal this is a release, regardless of whether files changed
+          echo "is_release=true" >> "$GITHUB_OUTPUT"
 
       # --- Step 6: Create release tag ---
       - name: Create release tag if it does not exist
         id: tagging
-        if: steps.commit_release.outputs.committed == 'true'
+        if: steps.commit_release.outputs.is_release == 'true'
         run: |
           TAG="v${{ steps.calc.outputs.version }}"
-
           if git rev-parse --verify "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists. Skipping tag creation."
           else
@@ -88,19 +89,16 @@ jobs:
       # --- Step 7: Bump to development version ---
       - name: Bump dev version
         id: bump_dev
-        if: steps.commit_release.outputs.committed == 'true'
+        if: steps.commit_release.outputs.is_release == 'true'
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-
           VERSION_BASE=$(python scripts/bump_dev_version.py | tail -n1)
           if [ -z "$VERSION_BASE" ]; then
             echo "Error: bump_dev_version.py returned an empty version."
             exit 1
           fi
-
           git add src/akkudoktoreos/core/version.py
-
           if git diff --cached --quiet; then
             echo "version.py not changed. Skipping commit."
           else
