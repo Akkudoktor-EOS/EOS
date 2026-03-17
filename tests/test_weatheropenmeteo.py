@@ -207,27 +207,58 @@ def test_openmeteo_unit_conversions(provider):
     assert pressure_mapping[2] == 0.01  # Conversion factor
 
 
+@pytest.mark.parametrize(
+    "start_offset_days, expected_keys, forbidden_keys",
+    [
+        # Future → forecast mode
+        (1, ["forecast_days"], ["start_date", "end_date", "models"]),
+        # Today (edge case, should still be forecast)
+        (0, ["forecast_days"], ["start_date", "end_date", "models"]),
+        # Past → historical mode
+        (-2, ["start_date", "end_date", "models"], ["forecast_days"]),
+    ],
+)
 @patch("requests.get")
-def test_forecast_days_calculation(mock_get, provider, sample_openmeteo_1_json):
-    """Test that forecast_days is correctly calculated."""
+def test_openmeteo_request_mode_selection(
+    mock_get,
+    provider,
+    sample_openmeteo_1_json,
+    start_offset_days,
+    expected_keys,
+    forbidden_keys,
+):
+    """Test that Open-Meteo request switches correctly between forecast and historical modes."""
+
+    # Mock response
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.json.return_value = sample_openmeteo_1_json
-    mock_response.content = json.dumps(sample_openmeteo_1_json)
+    mock_response.content = str(sample_openmeteo_1_json)
     mock_get.return_value = mock_response
 
-    ems_eos = get_ems()
+    # Set deterministic start time
+    now = to_datetime(in_timezone="Europe/Berlin")
+    start = now + pd.Timedelta(days=start_offset_days)
 
-    # Test with 3 days forecast
-    start = to_datetime(in_timezone="Europe/Berlin")
+    ems_eos = get_ems()
     ems_eos.set_start_datetime(start)
 
+    # Execute
     provider._request_forecast()
 
-    # Check that forecast_days was set correctly
-    call_args = mock_get.call_args
-    params = call_args[1]["params"]
-    assert params["forecast_days"]
+    # Inspect request params
+    params = mock_get.call_args[1]["params"]
+
+    # Assertions
+    for key in expected_keys:
+        assert key in params, f"Expected '{key}' in params but got {params}"
+
+    for key in forbidden_keys:
+        assert key not in params, f"Did not expect '{key}' in params but got {params}"
+
+    if "forecast_days" in params:
+        assert params["forecast_days"] >= 1
+        assert params["forecast_days"] <= 16
 
 
 # ------------------------------------------------
