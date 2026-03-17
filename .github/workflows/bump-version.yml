@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write   # Required for pushing commits and tags
+  pull-requests: write   # Required to create a pull request
 
 concurrency:
   group: bump-version-main
