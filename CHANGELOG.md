@@ -2,16 +2,16 @@
 
 All notable changes to the akkudoktoreos project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## 0.3.0 (2026-02-??)
+## 0.3.0 (2026-03-17)
 
-Adapters for Home Assistant and NodeRed integration are added. These adapters
-provide a simplified interface to these HEMS besides the standard REST interface.
 Akkudoktor-EOS can now be run as Home Assistant add-on and standalone.
 As Home Assistant add-on EOS uses ingress to fully integrate the EOSdash dashboard
 in Home Assistant.
+
+Adapters for Home Assistant and NodeRed integration are added. These adapters
+provide a simplified interface to these HEMS besides the standard REST interface.
 
 The prediction and measurement data can now be backed by a database. The database allows
 to keep historic prediction data and measurement data for long time without keeping
@@ -19,10 +19,17 @@ it in memory. The database supports backend selection, compression, incremental 
 automatic data saving to storage, automatic vacuum and compaction. Two database backends
 are integrated and can be configured, LMDB and SQLight3.
 
+New prediction providers allow to access OpenMeteo weather data and to define fixed
+electricity prices for configurable time windows.
+
+An anoying bug in the genetic algorithm that created unfeasable battery charge and
+discharge amounts is now hopefully fixed.
+
 In addition, bugs were fixed and new features were added.
 
 ### Feat
 
+- add inverter AC/DC efficiency and break-even penalty
 - add database support for measurements and historic prediction data.
   The prediction and measurement data can now be backed by a database. The database allows
   to keep historic prediction data and measurement data for long time without keeping
@@ -38,15 +45,27 @@ In addition, bugs were fixed and new features were added.
   Home assistant starts all add-ons with root permissions. Eos now drops
   root permissions if an applicable user is defined by paramter --run_as_user.
   The docker image defines the user eos to be used.
+- make home assistant add-on run optimization by default
+  When running as Home Assistant add-on the only viable usage is running with
+  cyclic optimization. Make this the default to als propvide a better experience
+  for first time users. The optimization will start with demo data, which also
+  helps to configure Akkudoktor-EOS to the personal usage.
 - make eos supervise and monitor EOSdash
   Eos now not only starts EOSdash but also monitors EOSdash during runtime
   and restarts EOSdash on fault. EOSdash logging is captured by EOS
   and forwarded to the EOS log to provide better visibility.
+- add openmeteo weather provider
+- add fixed electricity prediction with time window support
 - add duration to string conversion
   Make to_duration to also return the duration as string on request.
 
 ### Fixed
 
+- genetic optimizer charge rates and soc accuracy
+- energy charts bidding zone in request
+- prevent exception when load prediction data is missing
+- eosdash startup
+  Ensure that EOSdash is only started after EOS configuration is available.
 - config eos test setup
   Make the config_eos fixture generate a new instance of the config_eos singleton.
   Use correct env names to setup data folder path.
@@ -94,6 +113,8 @@ In addition, bugs were fixed and new features were added.
 - introduce retention manager
   A single long-running background task that owns the scheduling of all periodic
   server-maintenance jobs (cache cleanup, DB autosave, …)
+- guard against visualization errors in genetic optimization
+- improve provider update error handling and add VRM provider settings validation
 - canonicalize timezone name for UTC
   Timezone names that are semantically identical to UTC are canonicalized to UTC.
 - extend config file migration for default value handling
@@ -117,6 +138,7 @@ In addition, bugs were fixed and new features were added.
   Sphinx autosummary excecutes functions. Prevent exceptions in case of pure doc
   mode.
 - adapt docker-build CI workflow to stricter GitHub handling
+- add CodeQL analysis workflow to CI
 - Use info logging to report missing optimization parameters
   In parameter preparation for automatic optimization an error was logged for missing paramters.
   Log is now down using the info level.
