@@ -23,7 +23,7 @@ from typing import Optional
 
 # For development add `.dev` to previous release
 # For release omit `.dev`.
-VERSION_BASE = "0.3.0"
+VERSION_BASE = "0.3.0.dev"
 
 # Project hash of relevant files
 HASH_EOS = ""

@@ -200,6 +200,27 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             return ElectricVehicleResult(**field.to_dict())
         return field
 
+    def _battery_device_id(self) -> str:
+        """Get battery device id."""
+        try:
+            return self.config.devices.batteries[0].device_id
+        except Exception:
+            return "battery1"
+
+    def _ev_device_id(self) -> str:
+        """Get electric vehicle device id."""
+        try:
+            return self.config.devices.electric_vehicles[0].device_id
+        except Exception:
+            return "ev1"
+
+    def _homeappliance_device_id(self) -> str:
+        """Get home appliance device id."""
+        try:
+            return self.config.devices.home_appliances[0].device_id
+        except Exception:
+            return "homeappliance1"
+
     def _battery_operation_from_solution(
         self,
         ac_charge: float,
@@ -377,7 +398,8 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         )
 
         # Add battery data
-        solution["battery1_soc_factor"] = [
+        battery_device_id = self._battery_device_id()
+        solution[f"{battery_device_id}_soc_factor"] = [
             v / 100
             for v in self.result.akku_soc_pro_stunde[:n_points]  # result starts at start_day_hour
         ]
@@ -416,8 +438,8 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 eff_ac, eff_dc, eff_dis
             )
             for mode in BatteryOperationMode:
-                mode_key = f"battery1_{mode.lower()}_op_mode"
-                factor_key = f"battery1_{mode.lower()}_op_factor"
+                mode_key = f"{battery_device_id}_{mode.lower()}_op_mode"
+                factor_key = f"{battery_device_id}_{mode.lower()}_op_factor"
                 if mode_key not in operation.keys():
                     operation[mode_key] = []
                     operation[factor_key] = []
@@ -438,17 +460,18 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         # eautocharge_hours_float start at hour 0 of start day
         # result.EAuto_SoC_pro_Stunde start at start_datetime.hour
         if self.eauto_obj:
+            ev_device_id = self._ev_device_id()
             if self.eautocharge_hours_float is None:
                 # Electric vehicle is full enough. No load times.
-                solution[f"{self.eauto_obj.device_id}_soc_factor"] = [
+                solution[f"{ev_device_id}_soc_factor"] = [
                     self.eauto_obj.initial_soc_percentage / 100.0
                 ] * n_points
                 solution["genetic_ev_charge_factor"] = [0.0] * n_points
                 # operation modes
                 operation_mode = BatteryOperationMode.IDLE
                 for mode in BatteryOperationMode:
-                    mode_key = f"{self.eauto_obj.device_id}_{mode.lower()}_op_mode"
-                    factor_key = f"{self.eauto_obj.device_id}_{mode.lower()}_op_factor"
+                    mode_key = f"{ev_device_id}_{mode.lower()}_op_mode"
+                    factor_key = f"{ev_device_id}_{mode.lower()}_op_factor"
                     if mode == operation_mode:
                         solution[mode_key] = [1.0] * n_points
                         solution[factor_key] = [1.0] * n_points
@@ -456,7 +479,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                         solution[mode_key] = [0.0] * n_points
                         solution[factor_key] = [0.0] * n_points
             else:
-                solution[f"{self.eauto_obj.device_id}_soc_factor"] = [
+                solution[f"{ev_device_id}_soc_factor"] = [
                     v / 100 for v in self.result.EAuto_SoC_pro_Stunde[:n_points]
                 ]
                 operation = {
@@ -472,8 +495,8 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                         rate, 0.0, False
                     )
                     for mode in BatteryOperationMode:
-                        mode_key = f"{self.eauto_obj.device_id}_{mode.lower()}_op_mode"
-                        factor_key = f"{self.eauto_obj.device_id}_{mode.lower()}_op_factor"
+                        mode_key = f"{ev_device_id}_{mode.lower()}_op_mode"
+                        factor_key = f"{ev_device_id}_{mode.lower()}_op_factor"
                         if mode_key not in operation.keys():
                             operation[mode_key] = []
                             operation[factor_key] = []
@@ -494,26 +517,28 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         if self.config.devices.max_home_appliances and self.config.devices.max_home_appliances > 0:
             # Use config and not self.washingstart as washingstart may be None (no start)
             # even if configured to be started.
-
+            homeappliance_device_id = self._homeappliance_device_id()
             # result starts at start_day_hour
-            solution["homeappliance1_energy_wh"] = self.result.Home_appliance_wh_per_hour[:n_points]
+            solution[f"{homeappliance_device_id}_energy_wh"] = (
+                self.result.Home_appliance_wh_per_hour[:n_points]
+            )
             operation = {
-                "homeappliance1_run_op_mode": [],
-                "homeappliance1_run_op_factor": [],
-                "homeappliance1_off_op_mode": [],
-                "homeappliance1_off_op_factor": [],
+                f"{homeappliance_device_id}_run_op_mode": [],
+                f"{homeappliance_device_id}_run_op_factor": [],
+                f"{homeappliance_device_id}_off_op_mode": [],
+                f"{homeappliance_device_id}_off_op_factor": [],
             }
-            for hour_idx, energy in enumerate(solution["homeappliance1_energy_wh"]):
+            for hour_idx, energy in enumerate(solution[f"{homeappliance_device_id}_energy_wh"]):
                 if energy > 0.0:
-                    operation["homeappliance1_run_op_mode"].append(1.0)
-                    operation["homeappliance1_run_op_factor"].append(1.0)
-                    operation["homeappliance1_off_op_mode"].append(0.0)
-                    operation["homeappliance1_off_op_factor"].append(0.0)
+                    operation[f"{homeappliance_device_id}_run_op_mode"].append(1.0)
+                    operation[f"{homeappliance_device_id}_run_op_factor"].append(1.0)
+                    operation[f"{homeappliance_device_id}_off_op_mode"].append(0.0)
+                    operation[f"{homeappliance_device_id}_off_op_factor"].append(0.0)
                 else:
-                    operation["homeappliance1_run_op_mode"].append(0.0)
-                    operation["homeappliance1_run_op_factor"].append(0.0)
-                    operation["homeappliance1_off_op_mode"].append(1.0)
-                    operation["homeappliance1_off_op_factor"].append(1.0)
+                    operation[f"{homeappliance_device_id}_run_op_mode"].append(0.0)
+                    operation[f"{homeappliance_device_id}_run_op_factor"].append(0.0)
+                    operation[f"{homeappliance_device_id}_off_op_mode"].append(1.0)
+                    operation[f"{homeappliance_device_id}_off_op_factor"].append(1.0)
             for key in operation.keys():
                 if len(operation[key]) != n_points:
                     error_msg = f"instruction {key} has invalid length {len(operation[key])} - expected {n_points}"
@@ -630,7 +655,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         # Add battery instructions (fill rate based control)
         last_operation_mode: Optional[str] = None
         last_operation_mode_factor: Optional[float] = None
-        resource_id = "battery1"
+        resource_id = self._battery_device_id()
         # ac_charge, dc_charge, discharge_allowed start at hour 0 of start day
         logger.debug("BAT: {} - {}", resource_id, self.ac_charge[start_day_hour:])
         for hour_idx, rate in enumerate(self.ac_charge):
@@ -677,7 +702,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         # Add EV battery instructions (fill rate based control)
         # eautocharge_hours_float start at hour 0 of start day
         if self.eauto_obj:
-            resource_id = self.eauto_obj.device_id
+            resource_id = self._ev_device_id()
             if self.eautocharge_hours_float is None:
                 # Electric vehicle is full enough. No load times.
                 logger.debug("EV: {} - SoC >= min, no optimization", resource_id)
@@ -725,7 +750,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         if self.config.devices.max_home_appliances and self.config.devices.max_home_appliances > 0:
             # Use config and not self.washingstart as washingstart may be None (no start)
             # even if configured to be started.
-            resource_id = "homeappliance1"
+            resource_id = self._homeappliance_device_id()
             last_energy: Optional[float] = None
             for hours, energy in enumerate(self.result.Home_appliance_wh_per_hour):
                 # hours starts at start_datetime with 0
