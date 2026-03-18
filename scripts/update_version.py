@@ -19,6 +19,11 @@ PACKAGE_DIR = PROJECT_ROOT / "src" / "akkudoktoreos"
 SRC_DIR = PROJECT_ROOT / "src"
 sys.path.insert(0, str(SRC_DIR))
 
+DEFAULT_VERSION_FILES = [
+    PROJECT_ROOT / ".env",          # Docker compose default environment
+    PROJECT_ROOT / "config.yaml",   # Home Assistant config
+]
+
 
 # --- Patterns to match version strings ---
 VERSION_PATTERNS = [
@@ -146,10 +151,13 @@ def main(version: str, files: List[str]):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print("Usage: python update_version.py <version> <file1> [file2 ...]")
+    if len(sys.argv) < 2:
+        print("Usage: python update_version.py <version> [<file1> [file2 ...]]")
         sys.exit(1)
 
     version_arg = sys.argv[1]
-    files_arg = sys.argv[2:]
+    if len(sys.argv) == 2:
+        files_arg = [str(f) for f in DEFAULT_VERSION_FILES]
+    else:
+        files_arg = sys.argv[2:]
     main(version_arg, files_arg)

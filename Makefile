@@ -178,18 +178,15 @@ docker-build:
 	@docker compose build
 
 # Propagete version info to all version files
-# Take UPDATE_FILES from GitHub action bump-version.yml
-UPDATE_FILES := $(shell sed -n 's/^[[:space:]]*UPDATE_FILES[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
-                        .github/workflows/bump-version.yml)
 prepare-version: install
-	@echo "Update version to $(VERSION) from version.py in files $(UPDATE_FILES) and doc"
-	$(PYTHON) ./scripts/update_version.py $(VERSION) $(UPDATE_FILES)
+	$(PYTHON) ./scripts/update_version.py $(VERSION)
 	$(PYTHON) ./scripts/convert_lightweight_tags.py
 	$(PYTHON) ./scripts/generate_config_md.py --output-file docs/_generated/config.md
 	$(PYTHON) ./scripts/generate_openapi_md.py --output-file docs/_generated/openapi.md
 	$(PYTHON) ./scripts/generate_openapi.py --output-file openapi.json
 	$(PYTEST) -vv --finalize tests/test_doc.py
 	$(PRECOMMIT) run --all-files
+	@echo "Updated version to $(VERSION) from version.py in config files and doc"
 
 test-version:
 	echo "Test version information to be correctly set in all version files"
