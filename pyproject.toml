@@ -45,7 +45,7 @@ dependencies = [
     "pydantic-settings==2.13.1",
     "linkify-it-py==2.1.0",
     "loguru==0.7.3",
-    "lmdb==1.8.1",
+    "lmdb==2.1.1",
 ]
 
 [project.optional-dependencies]
