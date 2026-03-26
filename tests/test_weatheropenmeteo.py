@@ -236,15 +236,28 @@ def test_openmeteo_request_mode_selection(
     mock_response.content = str(sample_openmeteo_1_json)
     mock_get.return_value = mock_response
 
-    # Set deterministic start time
-    now = to_datetime(in_timezone="Europe/Berlin")
-    start = now + pd.Timedelta(days=start_offset_days)
+    # Fixed current time to avoid timing issues
+    fixed_now = to_datetime("2026-03-26 12:00:00+01:00", in_timezone="Europe/Berlin")
 
-    ems_eos = get_ems()
-    ems_eos.set_start_datetime(start)
+    # Patch to_datetime to return fixed_now when called without a datetime argument
+    with patch("akkudoktoreos.prediction.weatheropenmeteo.to_datetime") as mock_to_datetime:
+        def to_datetime_side_effect(dt=None, in_timezone=None):
+            if dt is None:
+                return fixed_now
+            # Otherwise fall back to the real function
+            from akkudoktoreos.utils.datetimeutil import to_datetime as real_to_datetime
+            return real_to_datetime(dt, in_timezone=in_timezone)
 
-    # Execute
-    provider._request_forecast()
+        mock_to_datetime.side_effect = to_datetime_side_effect
+
+        # Set deterministic start time based on fixed_now
+        start = fixed_now + pd.Timedelta(days=start_offset_days)
+
+        ems_eos = get_ems()
+        ems_eos.set_start_datetime(start)
+
+        # Execute
+        provider._request_forecast()
 
     # Inspect request params
     params = mock_get.call_args[1]["params"]

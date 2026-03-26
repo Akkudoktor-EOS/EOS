@@ -24,7 +24,7 @@ dependencies = [
     "fastapi[standard-no-fastapi-cloud-cli]==0.135.1",
     "fastapi_cli==0.0.24",
     "rich-toolkit==0.19.7",
-    "python-fasthtml==0.12.50",
+    "python-fasthtml==0.13.0",
     "MonsterUI==1.0.44",
     "markdown-it-py==4.0.0",
     "mdit-py-plugins==0.5.0",
@@ -64,7 +64,7 @@ dev = [
     "types-requests==2.32.4.20260107", # for mypy
     "pandas-stubs==3.0.0.260204", # for mypy
     "tokenize-rt==6.2.0", # for mypy
-    "types-docutils==0.22.3.20260316", # for mypy
+    "types-docutils==0.22.3.20260322", # for mypy
     "types-PyYaml==6.0.12.20250915", # for mypy
     "commitizen==4.13.9",
     "deprecated==1.3.1", # for commitizen
