@@ -30,6 +30,7 @@ jobs:
   # Build platform matrix excludes. if-conditional with matrix on job level is not
   # supported, see https://github.com/actions/runner/issues/1985
   platform-excludes:
+    permissions: {}
     runs-on: ubuntu-latest
     outputs:
       excludes: ${{ steps.excludes.outputs.matrix }}
