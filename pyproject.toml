@@ -24,7 +24,7 @@ dependencies = [
     "fastapi[standard-no-fastapi-cloud-cli]==0.135.2",
     "fastapi_cli==0.0.24",
     "rich-toolkit==0.19.7",
-    "python-fasthtml==0.13.1",
+    "python-fasthtml==0.13.2",
     "MonsterUI==1.0.45",
     "markdown-it-py==4.0.0",
     "mdit-py-plugins==0.5.0",
@@ -61,7 +61,7 @@ dev = [
     # !!! Sync .pre-commit-config.yaml with these dependencies !!!
     "pre-commit==4.5.1",
     "mypy==1.19.1",
-    "types-requests==2.32.4.20260324", # for mypy
+    "types-requests==2.33.0.20260327", # for mypy
     "pandas-stubs==3.0.0.260204", # for mypy
     "tokenize-rt==6.2.0", # for mypy
     "types-docutils==0.22.3.20260322", # for mypy
