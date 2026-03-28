@@ -1454,6 +1454,32 @@ async def redirect_put(request: Request, path: str) -> Response:
     return redirect(request, path)
 
 
+def _sanitize_redirect_path(path: str) -> Optional[str]:
+    """Sanitize user-controlled redirect path to ensure it is a safe relative path.
+
+    Returns a normalized path segment without scheme/host information, or None if unsafe.
+    """
+    if path is None:
+        return ""
+    # Normalize backslashes and strip leading separators/spaces
+    cleaned = path.replace("\\", "/").lstrip(" /")
+    # Disallow obvious attempts to inject a new scheme/host
+    lowered = cleaned.lower()
+    if lowered.startswith(("http://", "https://", "//")) or "://" in lowered:
+        return None
+    # Prevent directory traversal outside the intended root
+    parts = [p for p in cleaned.split("/") if p not in ("", ".")]
+    depth = 0
+    for p in parts:
+        if p == "..":
+            depth -= 1
+        else:
+            depth += 1
+        if depth < 0:
+            return None
+    return "/".join(parts)
+
+
 def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectResponse]:
     # Path is not for EOSdash
     if not (path.startswith("eosdash") or path == ""):
@@ -1485,8 +1511,17 @@ Did you want to connect to <a href="{url}" class="back-button">EOSdash</a>?
         # Use IP of EOS host
         host = get_host_ip()
     if host and get_config().server.eosdash_port:
-        # Redirect to EOSdash server
-        url = f"http://{host}:{get_config().server.eosdash_port}/{path}"
+        # Redirect to EOSdash server using a sanitized relative path
+        safe_path = _sanitize_redirect_path(path)
+        if safe_path is None:
+            # Unsafe path; fall back to EOSdash root
+            safe_path = ""
+        base_url = f"http://{host}:{get_config().server.eosdash_port}"
+        # Ensure exactly one slash between base_url and path
+        if safe_path:
+            url = f"{base_url}/{safe_path}"
+        else:
+            url = f"{base_url}/"
         return RedirectResponse(url=url, status_code=303)
 
     # Redirect the root URL to the site map
