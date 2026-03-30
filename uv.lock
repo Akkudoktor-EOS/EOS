@@ -84,7 +84,7 @@ requires-dist = [
     { name = "deap", specifier = "==1.4.3" },
     { name = "deprecated", marker = "extra == 'dev'", specifier = "==1.3.1" },
     { name = "docutils", marker = "extra == 'dev'", specifier = "==0.21.2" },
-    { name = "fastapi", extras = ["standard-no-fastapi-cloud-cli"], specifier = "==0.135.1" },
+    { name = "fastapi", extras = ["standard-no-fastapi-cloud-cli"], specifier = "==0.135.2" },
     { name = "fastapi-cli", specifier = "==0.0.24" },
     { name = "gitpython", marker = "extra == 'dev'", specifier = "==3.1.46" },
     { name = "linkify-it-py", specifier = "==2.1.0" },
@@ -93,7 +93,7 @@ requires-dist = [
     { name = "markdown-it-py", specifier = "==4.0.0" },
     { name = "matplotlib", specifier = "==3.10.8" },
     { name = "mdit-py-plugins", specifier = "==0.5.0" },
-    { name = "monsterui", specifier = "==1.0.44" },
+    { name = "monsterui", specifier = "==1.0.45" },
     { name = "mypy", marker = "extra == 'dev'", specifier = "==1.19.1" },
     { name = "myst-parser", marker = "extra == 'dev'", specifier = "==5.0.0" },
     { name = "numpy", specifier = "==2.4.3" },
@@ -112,7 +112,7 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.3.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==7.1.0" },
     { name = "pytest-xprocess", marker = "extra == 'dev'", specifier = "==1.0.2" },
-    { name = "python-fasthtml", specifier = "==0.13.0" },
+    { name = "python-fasthtml", specifier = "==0.13.2" },
     { name = "requests", specifier = "==2.33.0" },
     { name = "rich-toolkit", specifier = "==0.19.7" },
     { name = "scipy", specifier = "==1.17.1" },
@@ -123,7 +123,7 @@ requires-dist = [
     { name = "tokenize-rt", marker = "extra == 'dev'", specifier = "==6.2.0" },
     { name = "types-docutils", marker = "extra == 'dev'", specifier = "==0.22.3.20260322" },
     { name = "types-pyyaml", marker = "extra == 'dev'", specifier = "==6.0.12.20250915" },
-    { name = "types-requests", marker = "extra == 'dev'", specifier = "==2.32.4.20260107" },
+    { name = "types-requests", marker = "extra == 'dev'", specifier = "==2.33.0.20260327" },
     { name = "tzfpy", specifier = "==1.1.3" },
     { name = "uvicorn", specifier = "==0.42.0" },
 ]
@@ -827,7 +827,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.135.1"
+version = "0.135.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -836,9 +836,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e7/7b/f8e0211e9380f7195ba3f3d40c292594fd81ba8ec4629e3854c353aaca45/fastapi-0.135.1.tar.gz", hash = "sha256:d04115b508d936d254cea545b7312ecaa58a7b3a0f84952535b4c9afae7668cd", size = 394962, upload-time = "2026-03-01T18:18:29.369Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c4/73/5903c4b13beae98618d64eb9870c3fac4f605523dd0312ca5c80dadbd5b9/fastapi-0.135.2.tar.gz", hash = "sha256:88a832095359755527b7f63bb4c6bc9edb8329a026189eed83d6c1afcf419d56", size = 395833, upload-time = "2026-03-23T14:12:41.697Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e4/72/42e900510195b23a56bde950d26a51f8b723846bfcaa0286e90287f0422b/fastapi-0.135.1-py3-none-any.whl", hash = "sha256:46e2fc5745924b7c840f71ddd277382af29ce1cdb7d5eab5bf697e3fb9999c9e", size = 116999, upload-time = "2026-03-01T18:18:30.831Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/ea/18f6d0457f9efb2fc6fa594857f92810cadb03024975726db6546b3d6fcf/fastapi-0.135.2-py3-none-any.whl", hash = "sha256:0af0447d541867e8db2a6a25c23a8c4bd80e2394ac5529bd87501bbb9e240ca5", size = 117407, upload-time = "2026-03-23T14:12:43.284Z" },
 ]
 
 [package.optional-dependencies]
@@ -1644,15 +1644,15 @@ wheels = [
 
 [[package]]
 name = "mistlefoot"
-version = "0.0.4"
+version = "0.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastcore" },
     { name = "mistletoe" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/75/e7/bfec1cc70349028df5fcd3224e788bcb92b83e62a78a54c308425bd5339f/mistlefoot-0.0.4.tar.gz", hash = "sha256:58cf1a9d764a8204f5fef32ebd6c2961520304c5165529a82b7ed8a4a069ed2b", size = 9581, upload-time = "2026-02-14T00:15:07.7Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/80/1c/dd59b0be99b7605a68f40f8c4f79abddbf53928c410fd8bc3721fe73f49a/mistlefoot-0.0.8.tar.gz", hash = "sha256:cd340e688d457bd06c9f65afe9c342569972377578f95d5cec5c816c0d6383c7", size = 10527, upload-time = "2026-03-26T00:00:17.792Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/83/0f/89066d678a133625f849020a9d1faae6eb2731d127ae186b92711f5e4daf/mistlefoot-0.0.4-py3-none-any.whl", hash = "sha256:9cb33f2f76c711bdff324fb925d5e33bd4a9456807182f199b612920f9445620", size = 10158, upload-time = "2026-02-14T00:15:06.258Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/66/1e8616203abda4abcd3e7a3e708389f013b4ce1a407b8e98b381f13285f8/mistlefoot-0.0.8-py3-none-any.whl", hash = "sha256:b6eaeaf5f28340122d7166c7afe9607717a2d3b858af9e625b57469ef137025d", size = 10732, upload-time = "2026-03-26T00:00:16.461Z" },
 ]
 
 [[package]]
@@ -1666,7 +1666,7 @@ wheels = [
 
 [[package]]
 name = "monsterui"
-version = "1.0.44"
+version = "1.0.45"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -1676,9 +1676,9 @@ dependencies = [
     { name = "mistletoe" },
     { name = "python-fasthtml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/59/f9/58a6752571e4d72d8ed609471d9dc09c93349e08227de160d77f907cb1c5/monsterui-1.0.44.tar.gz", hash = "sha256:0dddca5dd1bbec519c4b4c59ef4fa8b4d83fc2feb2265b13c2d0494b98b236bd", size = 37755, upload-time = "2026-02-19T03:12:22.995Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/e0/70b0a90a62390ebfcecb262b07461c5879d98e3c099de05df1aba392ccac/monsterui-1.0.45.tar.gz", hash = "sha256:93913f359a6df8e0c39b5720d4252e20a98174940a0b024f4b59dd579cec012f", size = 37720, upload-time = "2026-03-26T00:01:18.886Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a4/0c/4f2ce93386ab1a798ec58b71292fa3cb7caa8759efaa19f0f62af33ee83a/monsterui-1.0.44-py3-none-any.whl", hash = "sha256:5f6240f6fc3752287bae330895140816709d9a101cbf97aa6e3510836484bcfc", size = 36874, upload-time = "2026-02-19T03:12:21.468Z" },
+    { url = "https://files.pythonhosted.org/packages/2a/f3/d1e498072c2a05edf8b11f0cac65c564c345d8778b7746c32ee0ceca4dc4/monsterui-1.0.45-py3-none-any.whl", hash = "sha256:945aeab74080dfde7ac195af1a13dc27e3ee06fac26cf3879f64753f3f20e56a", size = 36873, upload-time = "2026-03-26T00:01:17.458Z" },
 ]
 
 [[package]]
@@ -2346,11 +2346,11 @@ wheels = [
 
 [[package]]
 name = "pygments"
-version = "2.19.2"
+version = "2.20.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b0/77/a5b8c569bf593b0140bde72ea885a803b82086995367bf2037de0159d924/pygments-2.19.2.tar.gz", hash = "sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887", size = 4968631, upload-time = "2025-06-21T13:39:12.283Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/b2/bc9c9196916376152d655522fdcebac55e66de6603a76a02bca1b6414f6c/pygments-2.20.0.tar.gz", hash = "sha256:6757cd03768053ff99f3039c1a36d6c0aa0b263438fcab17520b30a303a82b5f", size = 4955991, upload-time = "2026-03-29T13:29:33.898Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/21/705964c7812476f378728bdf590ca4b771ec72385c533964653c68e86bdc/pygments-2.19.2-py3-none-any.whl", hash = "sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b", size = 1225217, upload-time = "2025-06-21T13:39:07.939Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176", size = 1231151, upload-time = "2026-03-29T13:29:30.038Z" },
 ]
 
 [[package]]
@@ -2441,7 +2441,7 @@ wheels = [
 
 [[package]]
 name = "python-fasthtml"
-version = "0.13.0"
+version = "0.13.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -2455,9 +2455,9 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f4/2c/d532b0ee85ccb0ec9fc50a5514c5bb3e82cfe1524242f58456c9cd5c8030/python_fasthtml-0.13.0.tar.gz", hash = "sha256:101a6a1080b143277ee86cefa6e7b4922317a71973edb84fe4d702cd69e3858d", size = 72476, upload-time = "2026-03-23T22:32:16.026Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/05/887acd5cc4da54ac84f4b1fdb970d8f02032b623905d61918f24059eedac/python_fasthtml-0.13.2.tar.gz", hash = "sha256:5b445ca9861d790e586ab39ca3586e6ff0ee6a9a28014b81dd9ff27209701e0b", size = 72933, upload-time = "2026-03-27T03:55:28.132Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6f/bd/1af1f358d99d89e908e8230639832005ca1cf44cce19cde4e4df26b80c9f/python_fasthtml-0.13.0-py3-none-any.whl", hash = "sha256:ea6227f07e9321a4f1cb31b4ff496cf1f37f04b21d59df9e469c9c2dab4cc5a9", size = 76142, upload-time = "2026-03-23T22:32:14.45Z" },
+    { url = "https://files.pythonhosted.org/packages/43/63/fcf964a5f5c8a335e5dda804533f14db245a68a43ab9c6bd7af66b99cba9/python_fasthtml-0.13.2-py3-none-any.whl", hash = "sha256:03ed1a09abb3e374bf707c5f3a02b2bca42d2e0ed05e949ad6dde0fd1d061981", size = 76507, upload-time = "2026-03-27T03:55:26.526Z" },
 ]
 
 [[package]]
@@ -3019,14 +3019,14 @@ wheels = [
 
 [[package]]
 name = "types-requests"
-version = "2.32.4.20260107"
+version = "2.33.0.20260327"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0f/f3/a0663907082280664d745929205a89d41dffb29e89a50f753af7d57d0a96/types_requests-2.32.4.20260107.tar.gz", hash = "sha256:018a11ac158f801bfa84857ddec1650750e393df8a004a8a9ae2a9bec6fcb24f", size = 23165, upload-time = "2026-01-07T03:20:54.091Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/02/5f/2e3dbae6e21be6ae026563bad96cbf76602d73aa85ea09f13419ddbdabb4/types_requests-2.33.0.20260327.tar.gz", hash = "sha256:f4f74f0b44f059e3db420ff17bd1966e3587cdd34062fe38a23cda97868f8dd8", size = 23804, upload-time = "2026-03-27T04:23:38.737Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1c/12/709ea261f2bf91ef0a26a9eed20f2623227a8ed85610c1e54c5805692ecb/types_requests-2.32.4.20260107-py3-none-any.whl", hash = "sha256:b703fe72f8ce5b31ef031264fe9395cac8f46a04661a79f7ed31a80fb308730d", size = 20676, upload-time = "2026-01-07T03:20:52.929Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/55/951e733616c92cb96b57554746d2f65f4464d080cc2cc093605f897aba89/types_requests-2.33.0.20260327-py3-none-any.whl", hash = "sha256:fde0712be6d7c9a4d490042d6323115baf872d9a71a22900809d0432de15776e", size = 20737, upload-time = "2026-03-27T04:23:37.813Z" },
 ]
 
 [[package]]
