@@ -1511,18 +1511,9 @@ Did you want to connect to <a href="{url}" class="back-button">EOSdash</a>?
         # Use IP of EOS host
         host = get_host_ip()
     if host and get_config().server.eosdash_port:
-        # Redirect to EOSdash server using a sanitized relative path
-        safe_path = _sanitize_redirect_path(path)
-        if safe_path is None:
-            # Unsafe path; fall back to EOSdash root
-            safe_path = ""
         base_url = f"http://{host}:{get_config().server.eosdash_port}"
-        # Ensure exactly one slash between base_url and path
-        if safe_path:
-            url = f"{base_url}/{safe_path}"
-        else:
-            url = f"{base_url}/"
-        return RedirectResponse(url=url, status_code=303)
+        safe_path = _sanitize_redirect_path(path) or ""
+        url = f"{base_url}/{safe_path}"
 
     # Redirect the root URL to the site map
     return RedirectResponse(url="/docs", status_code=303)
