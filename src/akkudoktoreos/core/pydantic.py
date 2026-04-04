@@ -1023,7 +1023,12 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
             return v
 
         # Validate consistent columns
-        columns = set(next(iter(v.values())).keys())
+        try:
+            columns = set(next(iter(v.values())).keys())
+        except AttributeError:
+            raise ValueError(
+                "Data values must be dicts (DataFrame format), not scalars. Use DateTimeData or DateTimeSeries format instead."
+            )
         if not all(set(row.keys()) == columns for row in v.values()):
             raise ValueError("All rows must have the same columns")
 
