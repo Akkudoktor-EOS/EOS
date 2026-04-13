@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2603180781250771`
+**Version**: `v0.3.0.dev2604141105859917`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -1348,13 +1348,13 @@ Return:
 - `application/json`: {
   "anyOf": [
     {
-      "$ref": "#/components/schemas/PowerMeasurement-Input"
+      "$ref": "#/components/schemas/PowerMeasurement"
     },
     {
-      "$ref": "#/components/schemas/EnergyMeasurement-Input"
+      "$ref": "#/components/schemas/EnergyMeasurement"
     },
     {
-      "$ref": "#/components/schemas/PPBCPowerProfileStatus-Input"
+      "$ref": "#/components/schemas/PPBCPowerProfileStatus"
     },
     {
       "$ref": "#/components/schemas/OMBCStatus"
@@ -1363,7 +1363,7 @@ Return:
       "$ref": "#/components/schemas/FRBCActuatorStatus"
     },
     {
-      "$ref": "#/components/schemas/FRBCEnergyStatus-Input"
+      "$ref": "#/components/schemas/FRBCEnergyStatus"
     },
     {
       "$ref": "#/components/schemas/FRBCStorageStatus"

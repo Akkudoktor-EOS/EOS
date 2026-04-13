@@ -200,24 +200,15 @@ class GeneticOptimizationParameters(
             )
             cls.config.optimization.interval = 3600
         # Check genetic algorithm definitions
-        if cls.config.optimization.genetic is None:
-            logger.info(
-                "Genetic optimization configuration not configured - defaulting to demo config."
-            )
-            cls.config.optimization.genetic = {
-                "individuals": 300,
-                "generations": 400,
-                "seed": None,
-                "penalties": {
-                    "ev_soc_miss": 10,
-                },
-            }
         if cls.config.optimization.genetic.individuals is None:
             logger.info("Genetic individuals unknown - defaulting to 300.")
             cls.config.optimization.genetic.individuals = 300
         if cls.config.optimization.genetic.generations is None:
             logger.info("Genetic generations unknown - defaulting to 400.")
             cls.config.optimization.genetic.generations = 400
+        if "ev_soc_miss" not in cls.config.optimization.genetic.penalties:
+            logger.info("Genetic penalties unknown - defaulting to ev_soc_miss = 10.")
+            cls.config.optimization.genetic.penalties["ev_soc_miss"] = 10
 
         # Get start solution from last run
         start_solution = None

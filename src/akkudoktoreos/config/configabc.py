@@ -3,6 +3,7 @@
 import calendar
 import os
 import sys
+from enum import StrEnum
 from typing import Any, ClassVar, Iterator, Optional, Union
 
 import numpy as np
@@ -18,6 +19,13 @@ from akkudoktoreos.utils.datetimeutil import (
     Time,
     to_duration,
 )
+
+
+class ConfigSaveMode(StrEnum):
+    """Configuration file save mode."""
+
+    AUTOMATIC = "AUTOMATIC"
+    MANUAL = "MANUAL"
 
 
 def is_home_assistant_addon() -> bool:

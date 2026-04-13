@@ -7,10 +7,11 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| algorithm | `EOS_OPTIMIZATION__ALGORITHM` | `Optional[str]` | `rw` | `GENETIC` | The optimization algorithm. |
-| genetic | `EOS_OPTIMIZATION__GENETIC` | `Optional[akkudoktoreos.optimization.optimization.GeneticCommonSettings]` | `rw` | `None` | Genetic optimization algorithm configuration. |
-| horizon_hours | `EOS_OPTIMIZATION__HORIZON_HOURS` | `Optional[int]` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
-| interval | `EOS_OPTIMIZATION__INTERVAL` | `Optional[int]` | `rw` | `3600` | The optimization interval [sec]. |
+| algorithm | `EOS_OPTIMIZATION__ALGORITHM` | `str` | `rw` | `GENETIC` | The optimization algorithm. Defaults to GENETIC |
+| genetic | `EOS_OPTIMIZATION__GENETIC` | `GeneticCommonSettings` | `rw` | `required` | Genetic optimization algorithm configuration. |
+| horizon | | `int` | `ro` | `N/A` | Number of optimization steps. |
+| horizon_hours | `EOS_OPTIMIZATION__HORIZON_HOURS` | `int` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
+| interval | `EOS_OPTIMIZATION__INTERVAL` | `int` | `rw` | `3600` | The optimization interval [sec]. Defaults to 3600 seconds (1 hour) |
 | keys | | `list[str]` | `ro` | `N/A` | The keys of the solution. |
 :::
 <!-- pyml enable line-length -->
@@ -58,7 +59,8 @@
                    "ev_soc_miss": 10
                }
            },
-           "keys": []
+           "keys": [],
+           "horizon": 24
        }
    }
 ```
@@ -73,10 +75,10 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| generations | `Optional[int]` | `rw` | `400` | Number of generations to evaluate the optimal solution [>= 10]. Defaults to 400. |
-| individuals | `Optional[int]` | `rw` | `300` | Number of individuals (solutions) to generate for the (initial) generation [>= 10]. Defaults to 300. |
-| penalties | `dict[str, Union[float, int, str]]` | `rw` | `required` | A dictionary of penalty function parameters consisting of a penalty function parameter name and the associated value. |
-| seed | `Optional[int]` | `rw` | `None` | Fixed seed for genetic algorithm. Defaults to 'None' which means random seed. |
+| generations | `Optional[int]` | `rw` | `400` | Number of generations to evolve [>= 10]. Defaults to 400. |
+| individuals | `Optional[int]` | `rw` | `300` | Number of individuals (solutions) in the population [>= 10]. Defaults to 300. |
+| penalties | `dict[str, Union[float, int, str]]` | `rw` | `required` | Penalty parameters used in fitness evaluation. |
+| seed | `Optional[int]` | `rw` | `None` | Random seed for reproducibility. None = random. |
 :::
 <!-- pyml enable line-length -->
 

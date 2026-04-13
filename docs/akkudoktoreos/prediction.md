@@ -38,9 +38,22 @@ to prediction keys like:
 
 ### Prediction Import Providers
 
-The prediction import providers are designed to import prediction data from a file or a JSON
-string. An external entity should update the file or JSON string whenever new prediction data
-becomes available.
+Prediction import providers allow you to import prediction data from:
+
+- A file or a JSON string (primarily for initialization), or
+- The **PUT** `/v1/prediction/import/{provider_id}` endpoint (recommended for dynamic updates).
+
+An external entity may update the file or JSON string whenever new prediction data becomes
+available. However, for production use or regular updates, you should prefer the **PUT** endpoint
+over file or JSON string based imports.
+
+:::{admonition} Warning
+:class: warning
+Be aware that providing dynamic values via a file and/or JSON string **alongside other value
+sources** can lead to unintended data overwrites. Moreover, after a restart, even outdated values
+from the configuration may be reloaded. To avoid these issues, use the **PUT** endpoint for live
+data and rely on file/JSON imports only for initial setup.
+:::
 
 The prediction data must be provided in one of the following formats:
 
@@ -124,7 +137,7 @@ Configuration options:
     - `ElecPriceAkkudoktor`: Retrieves from Akkudoktor.net.
     - `ElecPriceEnergyCharts`: Retrieves from Energy-Charts.info.
     - `ElecPriceFixed`: Caluclates from configured time window prices.
-    - `ElecPriceImport`: Imports from a file or JSON string.
+    - `ElecPriceImport`: Imports from a file or JSON string or by endpoint data provision.
 
   - `charges_kwh`: Electricity price charges (€/kWh).
   - `vat_rate`: VAT rate factor applied to electricity price when charges are used (default: 1.19).
@@ -166,20 +179,30 @@ of electricity price time windows set up by the user.
 
 ### ElecPriceImport Provider
 
-The `ElecPriceImport` provider is designed to import electricity prices from a file or a JSON
-string. An external entity should update the file or JSON string whenever new prediction data
-becomes available.
+The `ElecPriceImport` provider is designed to import electricity prices from:
+
+- A file or a JSON string (primarily for initialization). The data source can be given in the
+  `import_file_path` or `import_json` configuration option.
+- The **PUT** `/v1/prediction/import/ElecPriceImport` endpoint (recommended for dynamic updates).
 
 The prediction key for the electricity price forecast data is:
 
 - `elecprice_marketprice_wh`: Electricity market price per Wh (€/Wh).
 
-The electricity proce forecast data must be provided in one of the formats described in
-<project:#prediction-import-providers>. The data source can be given in the
-`import_file_path` or `import_json` configuration option.
+The electricity price forecast data must be provided in one of the formats described in
+<project:#prediction-import-providers>.
 
-The data may additionally or solely be provided by the
-**PUT** `/v1/prediction/import/ElecPriceImport` endpoint.
+An external entity may update the file or JSON string whenever new prediction data becomes
+available. However, for production use or regular updates, you should prefer the **PUT** endpoint
+over file or JSON string based imports.
+
+:::{admonition} Warning
+:class: warning
+Be aware that providing dynamic values via a file and/or JSON string **alongside other value
+sources** can lead to unintended data overwrites. Moreover, after a restart, even outdated values
+from the configuration may be reloaded. To avoid these issues, use the **PUT** endpoint for live
+data and rely on file/JSON imports only for initial setup.
+:::
 
 ## Feed In Tariff Prediction
 
@@ -195,19 +218,44 @@ Configuration options:
   - `provider`: Feed in tariff provider id of provider to be used.
 
     - `FeedInTariffFixed`: Provides fixed feed in tariff values.
-    - `FeedInTariffImport`: Imports from a file or JSON string.
+    - `FeedInTariffImport`: Imports from a file or JSON string or by endpoint data provision.
 
   - `provider_settings.feed_in_tariff_kwh`: Fixed feed in tariff (€/kWh).
   - `provider_settings.import_file_path`: Path to the file to import feed in tariff forecast data from.
   - `provider_settings.import_json`: JSON string, dictionary of feed in tariff value lists.
+
+### FeedInTariffImport Provider
+
+The `FeedInTariffImport` provider is designed to import feed in tariff prices from:
+
+- A file or a JSON string (primarily for initialization). The data source can be given in the
+  `import_file_path` or `import_json` configuration option.
+- The **PUT** `/v1/prediction/import/FeedInTariffImport` endpoint (recommended for dynamic updates).
+
+The prediction key for the feed in tariff price forecast data is:
+
+- `feed_in_tariff_wh`: Feed in tariff price per Wh (€/Wh).
+
+The feed in tariff price forecast data must be provided in one of the formats described in
+<project:#prediction-import-providers>.
+
+An external entity may update the file or JSON string whenever new prediction data becomes
+available. However, for production use or regular updates, you should prefer the **PUT** endpoint
+over file or JSON string based imports.
+
+:::{admonition} Warning
+:class: warning
+Be aware that providing dynamic values via a file and/or JSON string **alongside other value
+sources** can lead to unintended data overwrites. Moreover, after a restart, even outdated values
+from the configuration may be reloaded. To avoid these issues, use the **PUT** endpoint for live
+data and rely on file/JSON imports only for initial setup.
+:::
 
 ## Load Prediction
 
 Prediction keys:
 
 - `loadforecast_power_w`: Predicted load mean value (W).
-- `load_std`: Predicted load standard deviation (W).
-- `load_mean_adjusted`: Predicted load mean value adjusted by load measurement (W).
 
 Configuration options:
 
@@ -217,7 +265,7 @@ Configuration options:
 
     - `LoadAkkudoktor`: Retrieves from local database.
     - `LoadVrm`: Retrieves data from the VRM API by Victron Energy.
-    - `LoadImport`: Imports from a file or JSON string.
+    - `LoadImport`: Imports from a file or JSON string or by endpoint data provision.
 
   - `provider_settings.LoadAkkudoktor.loadakkudoktor_year_energy_kwh`: Yearly energy consumption (kWh).
   - `provider_settings.LoadVRM.load_vrm_token`: API token.
@@ -231,6 +279,12 @@ The `LoadAkkudoktor` provider retrieves generic load data from the local databas
 it to match the annual energy consumption specified in the
 `LoadAkkudoktor.loadakkudoktor_year_energy` configuration option.
 
+Prediction keys:
+
+- `loadforecast_power_w`: Predicted load mean value (W).
+- `loadakkudoktor_mean_power_w`: Predicted load mean value (W). Same as `loadforecast_power_w`.
+- `loadakkudoktor_std_power_w`: Predicted load standard deviation (W).
+
 ### LoadAkkudoktorAdjusted Provider
 
 The `LoadAkkudoktorAdjusted` provider retrieves generic load data from the local database and scales
@@ -239,14 +293,20 @@ it to match the annual energy consumption specified in the
 the forecast by incorporating available measured load data, ensuring a more realistic and
 site-specific consumption profile.
 
+Prediction keys:
+
+- `loadforecast_power_w`: Adjusted load mean value (W).
+- `loadakkudoktor_mean_power_w`: Predicted load mean value (W).
+- `loadakkudoktor_std_power_w`: Predicted load standard deviation (W).
+
 For details on how to supply load measurements, see the [Measurements](measurement-page) section.
 
 ### LoadVrm Provider
 
 The `LoadVrm` provider retrieves load forecast data from the VRM API by Victron Energy.
 To receive forecasts, the system data must be configured under Dynamic ESS in the VRM portal.
-To query the forecasts, an API token is required, which can also be created in the VRM portal under Preferences.
-This token must be stored in the EOS configuration along with the VRM-Installations-ID.
+To query the forecasts, an API token is required, which can also be created in the VRM portal under
+Preferences. This token must be stored in the EOS configuration along with the VRM-Installations-ID.
 
 ```json
     {
@@ -262,28 +322,36 @@ This token must be stored in the EOS configuration along with the VRM-Installati
     }
 ```
 
-The prediction keys for the load forecast data are:
+The prediction key for the load forecast data is:
 
-- `load_mean`: Predicted load mean value (W).
+- `loadforecast_power_w`: Predicted load mean value (W).
 
 ### LoadImport Provider
 
-The `LoadImport` provider is designed to import load forecast data from a file or a JSON
-string. An external entity should update the file or JSON string whenever new prediction data
-becomes available.
+The `LoadImport` provider is designed to import load forecast data from:
 
-The prediction keys for the load forecast data are:
+- A file or a JSON string (primarily for initialization). The data source can be given in the
+  `loadimport_file_path` or `loadimport_json` configuration option.
+- The **PUT** `/v1/prediction/import/LoadImport` endpoint (recommended for dynamic updates).
 
-- `load_mean`: Predicted load mean value (W).
-- `load_std`: Predicted load standard deviation (W).
-- `load_mean_adjusted`: Predicted load mean value adjusted by load measurement (W).
+The prediction key for the load forecast data is:
+
+- `loadforecast_power_w`: Predicted load mean value (W).
 
 The load forecast data must be provided in one of the formats described in
-<project:#prediction-import-providers>. The data source can be given in the `loadimport_file_path`
-or `loadimport_json` configuration option.
+<project:#prediction-import-providers>.
 
-The data may additionally or solely be provided by the
-**PUT** `/v1/prediction/import/LoadImport` endpoint.
+An external entity may update the file or JSON string whenever new prediction data becomes
+available. However, for production use or regular updates, you should prefer the **PUT** endpoint
+over file or JSON string based imports.
+
+:::{admonition} Warning
+:class: warning
+Be aware that providing dynamic values via a file and/or JSON string **alongside other value
+sources** can lead to unintended data overwrites. Moreover, after a restart, even outdated values
+from the configuration may be reloaded. To avoid these issues, use the **PUT** endpoint for live
+data and rely on file/JSON imports only for initial setup.
+:::
 
 ## PV Power Prediction
 
@@ -305,7 +373,7 @@ Configuration options:
 
     - `PVForecastAkkudoktor`: Retrieves from Akkudoktor.net.
     - `PVForecastVrm`: Retrieves data from the VRM API by Victron Energy.
-    - `PVForecastImport`: Imports from a file or JSON string.
+    - `PVForecastImport`: Imports from a file or JSON string or by endpoint data provision.
 
   - `planes[].surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
   - `planes[].surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane.
@@ -572,7 +640,7 @@ Configuration options:
     - `BrightSky`: Retrieves from [BrightSky](https://api.brightsky.dev).
     - `ClearOutside`: Retrieves from [ClearOutside](https://clearoutside.com/forecast).
     - `OpenMeteo`: Retrieves from [OpenMeteo](https://api.open-meteo.com/v1/forecast).
-    - `LoadImport`: Imports from a file or JSON string.
+    - `LoadImport`: Imports from a file or JSON string or by endpoint data provision.
 
   - `provider_settings.import_file_path`: Path to the file to import weatherforecast data from.
   - `provider_settings.import_json`: JSON string, dictionary of weather forecast value lists.

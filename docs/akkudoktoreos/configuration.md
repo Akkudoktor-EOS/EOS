@@ -8,9 +8,7 @@ management.
 
 ## Storing Configuration
 
-EOS stores configuration data in a `nested structure`. Note that configuration changes inside EOS
-are updated in memory, meaning all changes will be lost upon restarting the EOS REST server if not
-saved to the `EOS configuration file`.
+EOS stores configuration data in a `nested structure`.
 
 Some `configuration keys` are read-only and cannot be altered. These keys are either set up by other
 means, such as environment variables, or determined from other information.
@@ -18,7 +16,17 @@ means, such as environment variables, or determined from other information.
 Several endpoints of the EOS REST server allow for the management and retrieval of configuration
 data.
 
+:::{admonition} Note
+:class: note
+Configuration changes inside EOS are updated in memory, meaning all changes will be lost upon
+restarting the EOS REST server unless the configuration is saved to the `EOS configuration file`.
+This can be done manually or is done automatically by default.
+:::
+
 ### Save Configuration File
+
+Configure EOS for `AUTOMATIC` (vs. `MANUAL`) configuration file update in case of configuration
+changes.
 
 Use endpoint `PUT /v1/config/file` to save the current configuration to the
 `EOS configuration file`.
@@ -39,12 +47,17 @@ The configuration sources and their priorities are as follows:
 
 ### Runtime Config Updates
 
-The EOS configuration can be updated at runtime. Note that those updates are not persistent
-automatically. However it is possible to save the configuration to the `EOS configuration file`.
+The EOS configuration can be updated at runtime.
 
 Use the following endpoints to change the current runtime configuration:
 
 - `PUT /v1/config`: Update the entire or parts of the configuration.
+
+:::{admonition} Note
+:class: note
+Those updates are not persistent automatically. However it is possible to save the configuration to
+the `EOS configuration file`. See [Save Configuration File](#save-configuration-file) above.
+:::
 
 ### Environment Variables
 

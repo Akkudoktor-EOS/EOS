@@ -1,6 +1,6 @@
 from typing import Optional, Union
 
-from pydantic import Field, computed_field, model_validator
+from pydantic import Field, computed_field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_ems
@@ -18,7 +18,7 @@ class GeneticCommonSettings(SettingsBaseModel):
         default=300,
         ge=10,
         json_schema_extra={
-            "description": "Number of individuals (solutions) to generate for the (initial) generation [>= 10]. Defaults to 300.",
+            "description": "Number of individuals (solutions) in the population [>= 10]. Defaults to 300.",
             "examples": [300],
         },
     )
@@ -27,7 +27,7 @@ class GeneticCommonSettings(SettingsBaseModel):
         default=400,
         ge=10,
         json_schema_extra={
-            "description": "Number of generations to evaluate the optimal solution [>= 10]. Defaults to 400.",
+            "description": "Number of generations to evolve [>= 10]. Defaults to 400.",
             "examples": [400],
         },
     )
@@ -36,10 +36,12 @@ class GeneticCommonSettings(SettingsBaseModel):
         default=None,
         ge=0,
         json_schema_extra={
-            "description": "Fixed seed for genetic algorithm. Defaults to 'None' which means random seed.",
-            "examples": [None],
+            "description": "Random seed for reproducibility. None = random.",
+            "examples": [None, 42],
         },
     )
+
+    # --- Penalties (existing) -------------------------------------------------
 
     penalties: dict[str, Union[float, int, str]] = Field(
         default_factory=lambda: {
@@ -47,10 +49,8 @@ class GeneticCommonSettings(SettingsBaseModel):
             "ac_charge_break_even": 1.0,
         },
         json_schema_extra={
-            "description": "A dictionary of penalty function parameters consisting of a penalty function parameter name and the associated value.",
-            "examples": [
-                {"ev_soc_miss": 10},
-            ],
+            "description": "Penalty parameters used in fitness evaluation.",
+            "examples": [{"ev_soc_miss": 10}],
         },
     )
 
@@ -58,7 +58,7 @@ class GeneticCommonSettings(SettingsBaseModel):
 class OptimizationCommonSettings(SettingsBaseModel):
     """General Optimization Configuration."""
 
-    horizon_hours: Optional[int] = Field(
+    horizon_hours: int = Field(
         default=24,
         ge=0,
         json_schema_extra={
@@ -67,23 +67,26 @@ class OptimizationCommonSettings(SettingsBaseModel):
         },
     )
 
-    interval: Optional[int] = Field(
+    interval: int = Field(
         default=3600,
         ge=15 * 60,
         le=60 * 60,
         json_schema_extra={
-            "description": "The optimization interval [sec].",
+            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
             "examples": [60 * 60, 15 * 60],
         },
     )
 
-    algorithm: Optional[str] = Field(
+    algorithm: str = Field(
         default="GENETIC",
-        json_schema_extra={"description": "The optimization algorithm.", "examples": ["GENETIC"]},
+        json_schema_extra={
+            "description": "The optimization algorithm. Defaults to GENETIC",
+            "examples": ["GENETIC"],
+        },
     )
 
-    genetic: Optional[GeneticCommonSettings] = Field(
-        default=None,
+    genetic: GeneticCommonSettings = Field(
+        default_factory=GeneticCommonSettings,
         json_schema_extra={
             "description": "Genetic optimization algorithm configuration.",
             "examples": [{"individuals": 400, "seed": None, "penalties": {"ev_soc_miss": 10}}],
@@ -109,14 +112,14 @@ class OptimizationCommonSettings(SettingsBaseModel):
             key_list = df.columns.tolist()
         return sorted(set(key_list))
 
-    # Validators
-    @model_validator(mode="after")
-    def _enforce_algorithm_configuration(self) -> "OptimizationCommonSettings":
-        """Ensure algorithm default configuration is set."""
-        if self.algorithm is not None:
-            if self.algorithm.lower() == "genetic" and self.genetic is None:
-                self.genetic = GeneticCommonSettings()
-        return self
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def horizon(self) -> int:
+        """Number of optimization steps."""
+        if self.interval is None or self.interval == 0 or self.horizon_hours is None:
+            return 0
+        num_steps = int(float(self.horizon_hours * 3600) / self.interval)
+        return num_steps
 
 
 class OptimizationSolution(PydanticBaseModel):

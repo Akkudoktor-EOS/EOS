@@ -126,7 +126,7 @@
        "load": {
            "loadimport": {
                "import_file_path": null,
-               "import_json": "{\"load0_mean\": [676.71, 876.19, 527.13]}"
+               "import_json": "{\"loadforecast_power_w\": [676.71, 876.19, 527.13]}"
            }
        }
    }

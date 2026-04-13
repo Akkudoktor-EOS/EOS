@@ -30,7 +30,7 @@ class LoadImportCommonSettings(SettingsBaseModel):
         default=None,
         json_schema_extra={
             "description": "JSON string, dictionary of load forecast value lists.",
-            "examples": ['{"load0_mean": [676.71, 876.19, 527.13]}'],
+            "examples": ['{"loadforecast_power_w": [676.71, 876.19, 527.13]}'],
         },
     )
 

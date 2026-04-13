@@ -114,6 +114,13 @@ def compact_eos_database() -> None:
     get_measurement().db_vacuum()
 
 
+def autosave_config() -> None:
+    """Save config in automatic mode."""
+    config = get_config()
+    if config:
+        config.autosave()
+
+
 async def server_shutdown_task() -> None:
     """One-shot task for shutting down the EOS server.
 
@@ -167,6 +174,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         func=supervise_eosdash,
         interval_attr="server/eosdash_supervise_interval_sec",
         fallback_interval=5.0,
+    )
+    manager.register(
+        name="autosave_config",
+        func=autosave_config,
+        interval_attr="general/config_save_interval_sec",
     )
     manager.register("cache_clear", cache_clear, interval_attr="cache/cleanup_interval")
     manager.register(
@@ -1454,6 +1466,32 @@ async def redirect_put(request: Request, path: str) -> Response:
     return redirect(request, path)
 
 
+def _sanitize_redirect_path(path: str) -> Optional[str]:
+    """Sanitize user-controlled redirect path to ensure it is a safe relative path.
+
+    Returns a normalized path segment without scheme/host information, or None if unsafe.
+    """
+    if path is None:
+        return ""
+    # Normalize backslashes and strip leading separators/spaces
+    cleaned = path.replace("\\", "/").lstrip(" /")
+    # Disallow obvious attempts to inject a new scheme/host
+    lowered = cleaned.lower()
+    if lowered.startswith(("http://", "https://", "//")) or "://" in lowered:
+        return None
+    # Prevent directory traversal outside the intended root
+    parts = [p for p in cleaned.split("/") if p not in ("", ".")]
+    depth = 0
+    for p in parts:
+        if p == "..":
+            depth -= 1
+        else:
+            depth += 1
+        if depth < 0:
+            return None
+    return "/".join(parts)
+
+
 def redirect(request: Request, path: str) -> Union[HTMLResponse, RedirectResponse]:
     # Path is not for EOSdash
     if not (path.startswith("eosdash") or path == ""):
@@ -1485,8 +1523,9 @@ Did you want to connect to <a href="{url}" class="back-button">EOSdash</a>?
         # Use IP of EOS host
         host = get_host_ip()
     if host and get_config().server.eosdash_port:
-        # Redirect to EOSdash server
-        url = f"http://{host}:{get_config().server.eosdash_port}/{path}"
+        base_url = f"http://{host}:{get_config().server.eosdash_port}"
+        safe_path = _sanitize_redirect_path(path) or ""
+        url = f"{base_url}/{safe_path}"
         return RedirectResponse(url=url, status_code=303)
 
     # Redirect the root URL to the site map
