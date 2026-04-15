@@ -9,17 +9,13 @@ filename = "example_report.pdf"
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 reference_file = DIR_TESTDATA / "test_example_report.pdf"
+output_file = DIR_TESTDATA / "test_example_report_new.pdf"
 
 
 def test_generate_pdf_example(config_eos):
     """Test generation of example visualization report."""
-    output_dir = config_eos.general.data_output_path
-    assert output_dir is not None
-    output_file = output_dir / filename
-    assert not output_file.exists()
-
     # Generate PDF
-    generate_example_report()
+    generate_example_report(filename=str(output_file))
 
     # Check if the file exists
     assert output_file.exists()

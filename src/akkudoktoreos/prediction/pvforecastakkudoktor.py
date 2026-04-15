@@ -52,10 +52,10 @@ Example:
         forecast = PVForecastAkkudoktor(settings=config)
 
         # Get an actual forecast
-        forecast.update_data()
+        await forecast.update_data()
 
         # Update the AC power measurement for a specific date and time
-        forecast.update_value(to_datetime(None, to_maxtime=False), "pvforecastakkudoktor_ac_power_measured", 1000.0)
+        await forecast.update_value(to_datetime(None, to_maxtime=False), "pvforecastakkudoktor_ac_power_measured", 1000.0)
 
         # Report the DC and AC power forecast along with AC measurements
         print(forecast.report_ac_power_and_measurement())
@@ -286,7 +286,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
 
         return akkudoktor_data
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update forecast data in the PVForecastAkkudoktorDataRecord format.
 
         Retrieves data from Akkudoktor. The processed data is inserted into the sequence as
@@ -341,7 +341,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
                 "pvforecastakkudoktor_temp_air": forecast_values[0].temperature,
             }
 
-            self.update_value(dt, data)
+            await self.update_value(dt, data)
 
         if len(self) < self.config.prediction.hours:
             raise ValueError(
@@ -385,7 +385,7 @@ class PVForecastAkkudoktor(PVForecastProvider):
 
 
 # Example of how to use the PVForecastAkkudoktor class
-if __name__ == "__main__":
+async def main() -> None:
     """Main execution block to demonstrate the use of the PVForecastAkkudoktor class.
 
     Sets up the forecast configuration fields, fetches PV power forecast data,
@@ -441,12 +441,18 @@ if __name__ == "__main__":
     forecast = PVForecastAkkudoktor()
 
     # Get an actual forecast
-    forecast.update_data()
+    await forecast.update_data()
 
     # Update the AC power measurement for a specific date and time
-    forecast.update_value(
+    await forecast.update_value(
         to_datetime(None, to_maxtime=False), "pvforecastakkudoktor_ac_power_measured", 1000.0
     )
 
     # Report the DC and AC power forecast along with AC measurements
     print(forecast.report_ac_power_and_measurement())
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    asyncio.run(main())

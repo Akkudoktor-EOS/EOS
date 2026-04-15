@@ -142,8 +142,9 @@ def test_request_forecast(mock_get, provider, sample_clearout_1_html, config_eos
     assert response.content == sample_clearout_1_html
 
 
+@pytest.mark.asyncio
 @patch("requests.get")
-def test_update_data(mock_get, provider, sample_clearout_1_html, sample_clearout_1_data):
+async def test_update_data(mock_get, provider, sample_clearout_1_html, sample_clearout_1_data):
     # Mock response object
     mock_response = Mock()
     mock_response.status_code = 200
@@ -157,7 +158,7 @@ def test_update_data(mock_get, provider, sample_clearout_1_html, sample_clearout
     # Call the method
     ems_eos = get_ems()
     ems_eos.set_start_datetime(expected_start)
-    provider.update_data()
+    await provider.update_data()
 
     # Check for correct prediction time window
     assert provider.config.prediction.hours == 48
@@ -177,9 +178,10 @@ def test_update_data(mock_get, provider, sample_clearout_1_html, sample_clearout
     #    # Check additional weather attributes as necessary
 
 
+@pytest.mark.asyncio
 @pytest.mark.skip(reason="Test fixture to be improved")
 @patch("requests.get")
-def test_cache_forecast(mock_get, provider, sample_clearout_1_html, cache_store):
+async def test_cache_forecast(mock_get, provider, sample_clearout_1_html, cache_store):
     """Test that ClearOutside forecast data is cached with TTL.
 
     This can not be tested with mock_get. Mock objects are not pickable and therefor can not be
@@ -193,11 +195,11 @@ def test_cache_forecast(mock_get, provider, sample_clearout_1_html, cache_store)
 
     cache_store.clear(clear_all=True)
 
-    provider.update_data()
+    await provider.update_data()
     mock_get.assert_called_once()
     forecast_data_first = provider.to_json()
 
-    provider.update_data()
+    await provider.update_data()
     forecast_data_second = provider.to_json()
     # Verify that cache returns the same object without calling the method again
     assert forecast_data_first == forecast_data_second
@@ -210,9 +212,10 @@ def test_cache_forecast(mock_get, provider, sample_clearout_1_html, cache_store)
 # ------------------------------------------------
 
 
+@pytest.mark.asyncio
 @pytest.mark.skip(reason="For development only")
 @patch("requests.get")
-def test_development_forecast_data(mock_get, provider, sample_clearout_1_html):
+async def test_development_forecast_data(mock_get, provider, sample_clearout_1_html):
     # Mock response object
     mock_response = Mock()
     mock_response.status_code = 200
@@ -220,7 +223,7 @@ def test_development_forecast_data(mock_get, provider, sample_clearout_1_html):
     mock_get.return_value = mock_response
 
     # Fill the instance
-    provider.update_data(force_enable=True)
+    await provider.update_data(force_enable=True)
 
     with FILE_TESTDATA_WEATHERCLEAROUTSIDE_1_DATA.open(
         "w", encoding="utf-8", newline="\n"

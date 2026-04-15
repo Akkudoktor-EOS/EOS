@@ -12,6 +12,7 @@ from threading import Lock
 from typing import (
     TYPE_CHECKING,
     Any,
+    AsyncIterator,
     Final,
     Generic,
     Iterable,
@@ -46,20 +47,38 @@ DATABASE_METADATA_KEY: bytes = b"__metadata__"
 # ==================== Abstract Database Interface ====================
 
 
-class DatabaseABC(ABC, ConfigMixin):
-    """Abstract base class for database.
+class DatabaseBackendABC(ABC, ConfigMixin, SingletonMixin):
+    """Abstract base class for database backends.
 
     All operations accept an optional `namespace` argument. Implementations should
     treat None as the default/root namespace. Concrete implementations can map
     namespace -> native namespace (LMDB DBI) or emulate namespaces (SQLite uses
     a namespace column).
+
+    The database backend provides a synchronous interface. Asynchrounous access is
+    handled by the generic database class.
     """
 
+    connection: Any
+    lock: Lock
+    _is_open: bool
+    default_namespace: Optional[str]
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the DatabaseBackendABC base.
+
+        Args:
+            **kwargs: Backend-specific options (ignored by base).
+        """
+        self.connection = None
+        self.lock = Lock()
+        self._is_open = False
+        self.default_namespace = None
+
     @property
-    @abstractmethod
     def is_open(self) -> bool:
         """Return whether the database connection is open."""
-        raise NotImplementedError
+        return self._is_open
 
     @property
     def storage_path(self) -> Path:
@@ -87,7 +106,7 @@ class DatabaseABC(ABC, ConfigMixin):
         raise NotImplementedError
 
     @abstractmethod
-    def open(self, namespace: Optional[str] = None) -> None:
+    def open(self, *, namespace: Optional[str] = None) -> None:
         """Open database connection and optionally set default namespace.
 
         Args:
@@ -104,7 +123,7 @@ class DatabaseABC(ABC, ConfigMixin):
         raise NotImplementedError
 
     @abstractmethod
-    def flush(self, namespace: Optional[str] = None) -> None:
+    def flush(self, *, namespace: Optional[str] = None) -> None:
         """Force synchronization of pending writes to storage (optional per-namespace)."""
         raise NotImplementedError
 
@@ -123,7 +142,7 @@ class DatabaseABC(ABC, ConfigMixin):
         raise NotImplementedError
 
     @abstractmethod
-    def get_metadata(self, namespace: Optional[str] = None) -> Optional[bytes]:
+    def get_metadata(self, *, namespace: Optional[str] = None) -> Optional[bytes]:
         """Load metadata for a given namespace.
 
         Returns None if no metadata exists.
@@ -140,7 +159,7 @@ class DatabaseABC(ABC, ConfigMixin):
 
     @abstractmethod
     def save_records(
-        self, records: Iterable[tuple[bytes, bytes]], namespace: Optional[str] = None
+        self, records: Iterable[tuple[bytes, bytes]], *, namespace: Optional[str] = None
     ) -> int:
         """Save multiple records into the specified namespace (or default).
 
@@ -159,7 +178,7 @@ class DatabaseABC(ABC, ConfigMixin):
         raise NotImplementedError
 
     @abstractmethod
-    def delete_records(self, keys: Iterable[bytes], namespace: Optional[str] = None) -> int:
+    def delete_records(self, keys: Iterable[bytes], *, namespace: Optional[str] = None) -> int:
         """Delete multiple records by key from the specified namespace.
 
         Args:
@@ -176,6 +195,7 @@ class DatabaseABC(ABC, ConfigMixin):
         self,
         start_key: Optional[bytes] = None,
         end_key: Optional[bytes] = None,
+        *,
         namespace: Optional[str] = None,
         reverse: bool = False,
     ) -> Iterator[tuple[bytes, bytes]]:
@@ -208,13 +228,13 @@ class DatabaseABC(ABC, ConfigMixin):
 
     @abstractmethod
     def get_key_range(
-        self, namespace: Optional[str] = None
+        self, *, namespace: Optional[str] = None
     ) -> tuple[Optional[bytes], Optional[bytes]]:
         """Return (min_key, max_key) in the given namespace or (None, None) if empty."""
         raise NotImplementedError
 
     @abstractmethod
-    def get_backend_stats(self, namespace: Optional[str] = None) -> dict[str, Any]:
+    def get_backend_stats(self, *, namespace: Optional[str] = None) -> dict[str, Any]:
         """Get backend-specific statistics; implementations may return namespace-specific data."""
         raise NotImplementedError
 
@@ -248,37 +268,6 @@ class DatabaseABC(ABC, ConfigMixin):
             except gzip.BadGzipFile:
                 pass
         return data
-
-
-class DatabaseBackendABC(DatabaseABC, SingletonMixin):
-    """Abstract base class for database backends.
-
-    All operations accept an optional `namespace` argument. Implementations should
-    treat None as the default/root namespace. Concrete implementations can map
-    namespace -> native namespace (LMDB DBI) or emulate namespaces (SQLite uses
-    a namespace column).
-    """
-
-    connection: Any
-    lock: Lock
-    _is_open: bool
-    default_namespace: Optional[str]
-
-    def __init__(self, **kwargs: Any) -> None:
-        """Initialize the DatabaseBackendABC base.
-
-        Args:
-            **kwargs: Backend-specific options (ignored by base).
-        """
-        self.connection = None
-        self.lock = Lock()
-        self._is_open = False
-        self.default_namespace = None
-
-    @property
-    def is_open(self) -> bool:
-        """Return whether the database connection is open."""
-        return self._is_open
 
 
 # ==================== Database Record Protocol Mixin ====================
@@ -442,7 +431,7 @@ class DatabaseRecordProtocol(Protocol, Generic[T_Record]):
     @property
     def db_enabled(self) -> bool: ...
 
-    def db_timestamp_range(self) -> tuple[DatabaseTimestampType, DatabaseTimestampType]: ...
+    async def db_timestamp_range(self) -> tuple[DatabaseTimestampType, DatabaseTimestampType]: ...
 
     def db_generate_timestamps(
         self,
@@ -451,52 +440,49 @@ class DatabaseRecordProtocol(Protocol, Generic[T_Record]):
         interval: Optional[Duration] = None,
     ) -> Iterator[DatabaseTimestamp]: ...
 
-    def db_get_record(self, target_timestamp: DatabaseTimestamp) -> Optional[T_Record]: ...
+    async def db_get_record(self, target_timestamp: DatabaseTimestamp) -> Optional[T_Record]: ...
 
-    def db_insert_record(
+    async def db_insert_record(
         self,
         record: T_Record,
         *,
         mark_dirty: bool = True,
     ) -> None: ...
 
-    def db_iterate_records(
+    async def db_iterate_records(
         self,
         start_timestamp: Optional[DatabaseTimestampType] = None,
         end_timestamp: Optional[DatabaseTimestampType] = None,
-    ) -> Iterator[T_Record]: ...
+    ) -> AsyncIterator[T_Record]: ...
 
-    def db_load_records(
+    async def db_load_records(
         self,
         start_timestamp: Optional[DatabaseTimestampType] = None,
         end_timestamp: Optional[DatabaseTimestampType] = None,
     ) -> int: ...
 
-    def db_delete_records(
+    async def db_delete_records(
         self,
         start_timestamp: Optional[DatabaseTimestampType] = None,
         end_timestamp: Optional[DatabaseTimestampType] = None,
     ) -> int: ...
 
     # ---- dirty tracking ----
-    def db_mark_dirty_record(self, record: T_Record) -> None: ...
+    async def db_mark_dirty_record(self, record: T_Record) -> None: ...
 
-    def db_save_records(self) -> int: ...
-
-    # ---- autosave ----
-    def db_autosave(self) -> int: ...
+    async def db_save_records(self) -> int: ...
 
     # ---- Remove old records from database to free space ----
-    def db_vacuum(
+    async def db_vacuum(
         self,
         keep_hours: Optional[int] = None,
         keep_datetime: Optional[DatabaseTimestampType] = None,
     ) -> int: ...
 
     # ---- statistics about database storage ----
-    def db_count_records(self) -> int: ...
+    async def db_count_records(self) -> int: ...
 
-    def db_get_stats(self) -> dict: ...
+    async def db_get_stats(self) -> dict: ...
 
 
 T_DatabaseRecordProtocol = TypeVar("T_DatabaseRecordProtocol", bound="DatabaseRecordProtocol")
@@ -533,10 +519,12 @@ class DatabaseRecordProtocolMixin(
 
     Completely manages in memory records and database storage.
 
-    Expects records with date_time (DatabaseTimestamp) property and the a record list
+    Expects records with date_time (DatabaseTimestamp) property and a record list
     in self.records of the derived class.
 
-    DatabaseRecordProtocolMixin expects the derived classes to be singletons.
+    DatabaseRecordProtocolMixin expects the derived classes to be singletons and to have
+    the sequence guarded against asynchronous sequence state (_sequence_lock) and
+    asynchronous record state (_record_lock) changes.
     """
 
     # Tell mypy these attributes exist (will be provided by subclasses)
@@ -549,7 +537,7 @@ class DatabaseRecordProtocolMixin(
         @property
         def record_keys_writable(self) -> list[str]: ...
 
-        def key_to_array(
+        async def key_to_array(
             self,
             key: str,
             start_datetime: Optional[DateTime] = None,
@@ -583,7 +571,18 @@ class DatabaseRecordProtocolMixin(
     # Initialization
     # -----------------------------------------------------
 
-    def _db_ensure_initialized(self) -> None:
+    async def _db_init_metadata(self) -> None:
+        """Initialize DB metadata."""
+        self._db_metadata: Optional[dict] = {
+            "version": self._db_version,
+            "created": to_datetime(as_string=True),
+            "provider_id": getattr(self, "provider_id", lambda: "unknown")(),
+            "compression": self.database.compression,
+            "backend": self.database.__class__.__name__,
+        }
+        await self._db_save_metadata(self._db_metadata)
+
+    async def _db_ensure_initialized(self) -> None:
         """Initialize DB runtime state.
 
         Idempotent — safe to call multiple times.
@@ -613,25 +612,18 @@ class DatabaseRecordProtocolMixin(
             self._db_version: int = 1
 
             # Storage
-            self._db_metadata: Optional[dict] = None
+            self._db_metadata = None
             self._db_storage_initialized: bool = False
 
             self._db_initialized: bool = True
 
         if not self._db_storage_initialized and self.db_enabled:
             # Metadata
-            existing_metadata = self._db_load_metadata()
+            existing_metadata = await self._db_load_metadata()
             if existing_metadata:
                 self._db_metadata = existing_metadata
             else:
-                self._db_metadata = {
-                    "version": self._db_version,
-                    "created": to_datetime(as_string=True),
-                    "provider_id": getattr(self, "provider_id", lambda: "unknown")(),
-                    "compression": self.database.compression,
-                    "backend": self.database.__class__.__name__,
-                }
-                self._db_save_metadata(self._db_metadata)
+                await self._db_init_metadata()
 
             logger.info(
                 f"Initialized {self.database.__class__.__name__}:{self.db_namespace()} storage at "
@@ -640,12 +632,6 @@ class DatabaseRecordProtocolMixin(
             )
 
             self._db_storage_initialized = True
-
-    def model_post_init(self, __context: Any) -> None:
-        """Initialize DB state attributes immediately after Pydantic construction."""
-        # Always call super() first — other mixins may also define model_post_init
-        super().model_post_init(__context)  # type: ignore[misc]
-        self._db_ensure_initialized()
 
     # -----------------------------------------------------
     # Helpers
@@ -669,7 +655,7 @@ class DatabaseRecordProtocolMixin(
         db_datetime_after = DatabaseTimestamp.from_datetime(target.add(seconds=1))
         return db_datetime_after
 
-    def db_previous_timestamp(
+    async def db_previous_timestamp(
         self,
         timestamp: DatabaseTimestamp,
     ) -> Optional[DatabaseTimestamp]:
@@ -677,7 +663,7 @@ class DatabaseRecordProtocolMixin(
 
         Search memory-first, then fallback to database if necessary.
         """
-        self._db_ensure_initialized()
+        await self._db_ensure_initialized()
 
         # Step 1: Memory-first search
         if self._db_sorted_timestamps:
@@ -689,7 +675,7 @@ class DatabaseRecordProtocolMixin(
         if not self.db_enabled:
             return None
 
-        db_min_key, _ = self.database.get_key_range(self.db_namespace())
+        db_min_key, _ = await self.database.get_key_range(namespace=self.db_namespace())
         if db_min_key is None:
             return None
 
@@ -710,7 +696,7 @@ class DatabaseRecordProtocolMixin(
                 start_key = self._db_key_from_timestamp(loaded_start)
 
         previous_ts: Optional[DatabaseTimestamp] = None
-        for key, _ in self.database.iterate_records(
+        async for key, _ in self.database.iterate_records(
             start_key=start_key,
             end_key=end_key,
             namespace=self.db_namespace(),
@@ -722,7 +708,7 @@ class DatabaseRecordProtocolMixin(
 
         return previous_ts
 
-    def db_next_timestamp(
+    async def db_next_timestamp(
         self,
         timestamp: DatabaseTimestamp,
     ) -> Optional[DatabaseTimestamp]:
@@ -730,7 +716,7 @@ class DatabaseRecordProtocolMixin(
 
         Search memory-first, then fallback to database if necessary.
         """
-        self._db_ensure_initialized()
+        await self._db_ensure_initialized()
 
         # Step 1: Memory-first search
         if self._db_sorted_timestamps:
@@ -742,7 +728,7 @@ class DatabaseRecordProtocolMixin(
         if not self.db_enabled:
             return None
 
-        _, db_max_key = self.database.get_key_range(self.db_namespace())
+        _, db_max_key = await self.database.get_key_range(namespace=self.db_namespace())
         if db_max_key is None:
             return None
 
@@ -762,7 +748,7 @@ class DatabaseRecordProtocolMixin(
             if isinstance(loaded_end, DatabaseTimestamp) and timestamp < loaded_end:
                 start_key = self._db_key_from_timestamp(max(timestamp, loaded_end))
 
-        for key, _ in self.database.iterate_records(
+        async for key, _ in self.database.iterate_records(
             start_key=start_key,
             end_key=end_key,
             namespace=self.db_namespace(),
@@ -796,22 +782,22 @@ class DatabaseRecordProtocolMixin(
         record_data = pickle.loads(data)  # noqa: S301
         return self.record_class()(**record_data)
 
-    def _db_save_metadata(self, metadata: dict) -> None:
+    async def _db_save_metadata(self, metadata: dict) -> None:
         """Save metadata to database."""
         if not self.db_enabled:
             return
 
         key = DATABASE_METADATA_KEY
         value = pickle.dumps(metadata)
-        self.database.set_metadata(value, namespace=self.db_namespace())
+        await self.database.set_metadata(value, namespace=self.db_namespace())
 
-    def _db_load_metadata(self) -> Optional[dict]:
+    async def _db_load_metadata(self) -> Optional[dict]:
         """Load metadata from database."""
         if not self.db_enabled:
             return None
 
         try:
-            value = self.database.get_metadata(namespace=self.db_namespace())
+            value = await self.database.get_metadata(namespace=self.db_namespace())
             return pickle.loads(value)  # noqa: S301
         except Exception:
             logger.debug("Can not load metadata.")
@@ -942,7 +928,7 @@ class DatabaseRecordProtocolMixin(
 
         return loaded_start <= start_timestamp and end_timestamp <= loaded_end
 
-    def _db_load_initial_window(
+    async def _db_load_initial_window(
         self,
         center_timestamp: Optional[DatabaseTimestampType] = None,
     ) -> None:
@@ -1001,11 +987,11 @@ class DatabaseRecordProtocolMixin(
             window = to_duration(window_h * 3600)
             start, end = self._search_window(center_timestamp, window)
 
-        self.db_load_records(start, end)
+        await self.db_load_records(start, end)
 
         self._db_load_phase = DatabaseRecordProtocolLoadPhase.INITIAL
 
-    def _db_load_full(self) -> int:
+    async def _db_load_full(self) -> int:
         """Load all remaining records from the database into memory.
 
         This method performs a **full load** of the database, ensuring that all
@@ -1038,14 +1024,14 @@ class DatabaseRecordProtocolMixin(
 
         # Perform full database load (memory is authoritative; skips duplicates)
         # This also sets _db_loaded_range
-        loaded_count = self.db_load_records()
+        loaded_count = await self.db_load_records()
 
         # Update state
         self._db_load_phase = DatabaseRecordProtocolLoadPhase.FULL
 
         return loaded_count
 
-    def _extend_boundaries(
+    async def _extend_boundaries(
         self,
         start_timestamp: DatabaseTimestampType,
         end_timestamp: DatabaseTimestampType,
@@ -1069,7 +1055,7 @@ class DatabaseRecordProtocolMixin(
         ):
             # There may be earlier DB records
             # Reverse iterate to get nearest smaller key
-            for key, _ in self.database.iterate_records(
+            async for key, _ in self.database.iterate_records(
                 start_key=UNBOUND_START,
                 end_key=self._db_key_from_timestamp(start_timestamp),
                 namespace=self.db_namespace(),
@@ -1091,7 +1077,7 @@ class DatabaseRecordProtocolMixin(
             and end_timestamp > self._db_sorted_timestamps[-1]
         ):
             # There may be later DB records
-            for key, _ in self.database.iterate_records(
+            async for key, _ in self.database.iterate_records(
                 start_key=self._db_key_from_timestamp(end_timestamp),
                 end_key=UNBOUND_END,
                 namespace=self.db_namespace(),
@@ -1107,7 +1093,7 @@ class DatabaseRecordProtocolMixin(
 
         return new_start, new_end
 
-    def _db_ensure_loaded(
+    async def _db_ensure_loaded(
         self,
         start_timestamp: Optional[DatabaseTimestampType] = None,
         end_timestamp: Optional[DatabaseTimestampType] = None,
@@ -1172,11 +1158,11 @@ class DatabaseRecordProtocolMixin(
         # Phase 0: NOTHING LOADED
         if self._db_load_phase is DatabaseRecordProtocolLoadPhase.NONE:
             if start_timestamp is UNBOUND_START and end_timestamp is UNBOUND_END:
-                self._db_load_initial_window(center_timestamp)
+                await self._db_load_initial_window(center_timestamp)
                 # _db_load_initial_window sets _db_loaded_range and _db_load_phase
             else:
                 # Load the records
-                loaded = self.db_load_records(start_timestamp, end_timestamp)
+                loaded = await self.db_load_records(start_timestamp, end_timestamp)
                 self._db_load_phase = DatabaseRecordProtocolLoadPhase.INITIAL
             return
 
@@ -1196,7 +1182,7 @@ class DatabaseRecordProtocolMixin(
                 return  # already have it
 
             if start_timestamp == UNBOUND_START and end_timestamp == UNBOUND_END:
-                self._db_load_full()
+                await self._db_load_full()
                 return
 
             current_start, current_end = self._db_loaded_range
@@ -1207,11 +1193,11 @@ class DatabaseRecordProtocolMixin(
 
             # Left expansion
             if start_timestamp < current_start:
-                self.db_load_records(start_timestamp, current_start)
+                await self.db_load_records(start_timestamp, current_start)
 
             # Right expansion
             if end_timestamp > current_end:
-                self.db_load_records(current_end, end_timestamp)
+                await self.db_load_records(current_end, end_timestamp)
 
             return
 
@@ -1251,15 +1237,15 @@ class DatabaseRecordProtocolMixin(
     def db_enabled(self) -> bool:
         return self.database.is_open
 
-    def db_timestamp_range(
+    async def db_timestamp_range(
         self,
     ) -> tuple[Optional[DatabaseTimestamp], Optional[DatabaseTimestamp]]:
         """Get the timestamp range of records in database.
 
         Regards records in storage plus extra records in memory.
         """
-        # Defensive call - model_post_init() may not have initialized metadata
-        self._db_ensure_initialized()
+        # Ensure db in memory data and metadata is initialized
+        await self._db_ensure_initialized()
 
         if self._db_sorted_timestamps:
             memory_min_timestamp: Optional[DatabaseTimestamp] = self._db_sorted_timestamps[0]
@@ -1271,7 +1257,7 @@ class DatabaseRecordProtocolMixin(
         if not self.db_enabled:
             return memory_min_timestamp, memory_max_timestamp
 
-        db_min_key, db_max_key = self.database.get_key_range(self.db_namespace())
+        db_min_key, db_max_key = await self.database.get_key_range(namespace=self.db_namespace())
 
         if db_min_key is None or db_max_key is None:
             return memory_min_timestamp, memory_max_timestamp
@@ -1331,7 +1317,7 @@ class DatabaseRecordProtocolMixin(
             yield DatabaseTimestamp.from_datetime(current_utc)
             current_utc = current_utc.add(seconds=step_seconds)
 
-    def db_get_record(
+    async def db_get_record(
         self,
         target_timestamp: DatabaseTimestamp,
         *,
@@ -1353,11 +1339,11 @@ class DatabaseRecordProtocolMixin(
         Returns:
             Exact match, nearest record within the window, or None.
         """
-        self._db_ensure_initialized()
+        await self._db_ensure_initialized()
 
         if time_window is None:
             # Exact match only — load the minimal range containing this point
-            self._db_ensure_loaded(
+            await self._db_ensure_loaded(
                 target_timestamp,
                 self._db_timestamp_after(target_timestamp),
                 center_timestamp=target_timestamp,
@@ -1367,7 +1353,7 @@ class DatabaseRecordProtocolMixin(
         # load the relevant range
         # in case of unbounded escalates to FULL
         search_start, search_end = self._search_window(target_timestamp, time_window)
-        self._db_ensure_loaded(search_start, search_end, center_timestamp=target_timestamp)
+        await self._db_ensure_loaded(search_start, search_end, center_timestamp=target_timestamp)
 
         # Exact match first (works for all three cases once loaded)
         record = self._db_record_index.get(target_timestamp, None)
@@ -1406,19 +1392,19 @@ class DatabaseRecordProtocolMixin(
 
         return record
 
-    def db_insert_record(
+    async def db_insert_record(
         self,
         record: T_Record,
         *,
         mark_dirty: bool = True,
     ) -> None:
-        # Defensive call - model_post_init() may not have initialized metadata
-        self._db_ensure_initialized()
+        # Ensure db in memory data and metadata is initialized
+        await self._db_ensure_initialized()
 
         # Ensure normalized to UTC
         db_record_date_time = DatabaseTimestamp.from_datetime(record.date_time)
 
-        self._db_ensure_loaded(
+        await self._db_ensure_loaded(
             start_timestamp=db_record_date_time,
             end_timestamp=db_record_date_time,
         )
@@ -1446,7 +1432,7 @@ class DatabaseRecordProtocolMixin(
     # Load (range)
     # -----------------------------------------------------
 
-    def db_load_records(
+    async def db_load_records(
         self,
         start_timestamp: Optional[DatabaseTimestampType] = None,
         end_timestamp: Optional[DatabaseTimestampType] = None,
@@ -1475,8 +1461,8 @@ class DatabaseRecordProtocolMixin(
         Note:
             record.date_time shall be DateTime or None
         """
-        # Defensive call - model_post_init() may not have initialized metadata
-        self._db_ensure_initialized()
+        # Ensure db in memory data and metadata is initialized
+        await self._db_ensure_initialized()
 
         if not self.db_enabled:
             return 0
@@ -1488,7 +1474,7 @@ class DatabaseRecordProtocolMixin(
             end_timestamp = UNBOUND_END
 
         # Extend boundaries to include first record < start and first record >= end
-        query_start, query_end = self._extend_boundaries(start_timestamp, end_timestamp)
+        query_start, query_end = await self._extend_boundaries(start_timestamp, end_timestamp)
 
         if isinstance(query_start, _DatabaseTimestampUnbound):
             start_key = None
@@ -1504,7 +1490,7 @@ class DatabaseRecordProtocolMixin(
         loaded_count = 0
 
         # Iterate DB records (already sorted by key)
-        for db_key, value in self.database.iterate_records(
+        async for db_key, value in self.database.iterate_records(
             start_key=start_key,
             end_key=end_key,
             namespace=namespace,
@@ -1551,16 +1537,16 @@ class DatabaseRecordProtocolMixin(
     # Delete (range)
     # -----------------------------------------------------
 
-    def db_delete_records(
+    async def db_delete_records(
         self,
         start_timestamp: Optional[DatabaseTimestampType] = None,
         end_timestamp: Optional[DatabaseTimestampType] = None,
     ) -> int:
-        # Defensive call - model_post_init() may not have initialized metadata
-        self._db_ensure_initialized()
+        # Ensure db in memory data and metadata is initialized
+        await self._db_ensure_initialized()
 
         # Deletion is global — ensure we see everything
-        self._db_ensure_loaded(
+        await self._db_ensure_loaded(
             start_timestamp=start_timestamp,
             end_timestamp=end_timestamp,
         )
@@ -1598,21 +1584,21 @@ class DatabaseRecordProtocolMixin(
     # Iteration from DB (no duplicates)
     # -----------------------------------------------------
 
-    def db_iterate_records(
+    async def db_iterate_records(
         self,
         start_timestamp: Optional[DatabaseTimestampType] = None,
         end_timestamp: Optional[DatabaseTimestampType] = None,
-    ) -> Iterator[T_Record]:
+    ) -> AsyncIterator[T_Record]:
         """Iterate records in requested range.
 
         Ensures storage is loaded into memory first,
         then iterates over in-memory records only.
         """
-        # Defensive call - model_post_init() may not have initialized metadata
-        self._db_ensure_initialized()
+        # Ensure db in memory data and metadata is initialized
+        await self._db_ensure_initialized()
 
         # Ensure memory contains required range
-        self._db_ensure_loaded(
+        await self._db_ensure_loaded(
             start_timestamp=start_timestamp,
             end_timestamp=end_timestamp,
         )
@@ -1635,9 +1621,9 @@ class DatabaseRecordProtocolMixin(
     # Dirty tracking
     # -----------------------------------------------------
 
-    def db_mark_dirty_record(self, record: T_Record) -> None:
-        # Defensive call - model_post_init() may not have initialized metadata
-        self._db_ensure_initialized()
+    async def db_mark_dirty_record(self, record: T_Record) -> None:
+        # Ensure db in memory data and metadata is initialized
+        await self._db_ensure_initialized()
 
         record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
         self._db_dirty_timestamps.add(record_date_time_timestamp)
@@ -1646,9 +1632,9 @@ class DatabaseRecordProtocolMixin(
     # Bulk save (flush dirty only)
     # -----------------------------------------------------
 
-    def db_save_records(self) -> int:
-        # Defensive call - model_post_init() may not have initialized metadata
-        self._db_ensure_initialized()
+    async def db_save_records(self) -> int:
+        # Ensure db in memory data and metadata is initialized
+        await self._db_ensure_initialized()
 
         if not self.db_enabled:
             return 0
@@ -1670,23 +1656,20 @@ class DatabaseRecordProtocolMixin(
                 save_items.append((key, value))
         saved_count = len(save_items)
         if saved_count:
-            self.database.save_records(save_items, namespace=namespace)
+            await self.database.save_records(save_items, namespace=namespace)
         self._db_dirty_timestamps.clear()
         self._db_new_timestamps.clear()
 
         # --- handle deletions ---
         if self._db_deleted_timestamps:
             delete_keys = [self._db_key_from_timestamp(dt) for dt in self._db_deleted_timestamps]
-            self.database.delete_records(delete_keys, namespace=namespace)
+            await self.database.delete_records(delete_keys, namespace=namespace)
         deleted_count = len(self._db_deleted_timestamps)
         self._db_deleted_timestamps.clear()
 
         return saved_count + deleted_count
 
-    def db_autosave(self) -> int:
-        return self.db_save_records()
-
-    def db_vacuum(
+    async def db_vacuum(
         self,
         keep_hours: Optional[int] = None,
         keep_timestamp: Optional[DatabaseTimestampType] = None,
@@ -1708,8 +1691,8 @@ class DatabaseRecordProtocolMixin(
         Returns:
             Number of records deleted
         """
-        # Defensive call - model_post_init() may not have initialized metadata
-        self._db_ensure_initialized()
+        # Ensure db in memory data and metadata is initialized
+        await self._db_ensure_initialized()
 
         if keep_hours is None and keep_timestamp is None:
             keep_duration = self.db_keep_duration()
@@ -1722,7 +1705,7 @@ class DatabaseRecordProtocolMixin(
             keep_hours = keep_duration.hours
 
         if keep_hours is not None:
-            _, db_max = self.db_timestamp_range()
+            _, db_max = await self.db_timestamp_range()
             if db_max is None or isinstance(db_max, _DatabaseTimestampUnbound):
                 # No records
                 return 0  # nothing to delete
@@ -1740,9 +1723,9 @@ class DatabaseRecordProtocolMixin(
             raise ValueError("Must specify either keep_hours or keep_timestamp")
 
         # Delete records
-        deleted_count = self.db_delete_records(end_timestamp=db_cutoff_timestamp)
+        deleted_count = await self.db_delete_records(end_timestamp=db_cutoff_timestamp)
 
-        self.db_save_records()
+        await self.db_save_records()
 
         logger.info(
             f"Vacuumed {deleted_count} old records from database '{self.db_namespace()}' "
@@ -1750,14 +1733,14 @@ class DatabaseRecordProtocolMixin(
         )
         return deleted_count
 
-    def db_count_records(self) -> int:
+    async def db_count_records(self) -> int:
         """Return total logical number of records.
 
         Memory is authoritative. If DB is enabled but not fully loaded,
         we conservatively include storage-only records.
         """
-        # Defensive call - model_post_init() may not have initialized metadata
-        self._db_ensure_initialized()
+        # Ensure db in memory data and metadata is initialized
+        await self._db_ensure_initialized()
 
         if not self.db_enabled:
             return len(self.records)
@@ -1766,13 +1749,13 @@ class DatabaseRecordProtocolMixin(
         if self._db_load_phase is DatabaseRecordProtocolLoadPhase.FULL:
             return len(self.records)
 
-        storage_count = self.database.count_records(namespace=self.db_namespace())
+        storage_count = await self.database.count_records(namespace=self.db_namespace())
         pending_deletes = len(self._db_deleted_timestamps)
         new_count = len(self._db_new_timestamps)
 
         return storage_count + new_count - pending_deletes
 
-    def db_get_stats(self) -> dict:
+    async def db_get_stats(self) -> dict:
         """Get comprehensive statistics about database storage.
 
         Returns:
@@ -1783,6 +1766,8 @@ class DatabaseRecordProtocolMixin(
 
         ns = self.db_namespace()
 
+        total_records = await self.database.count_records(namespace=ns)
+
         stats = {
             "enabled": True,
             "backend": self.database.__class__.__name__,
@@ -1791,13 +1776,14 @@ class DatabaseRecordProtocolMixin(
             "compression_enabled": self.database.compression,
             "keep_duration_h": self.config.database.keep_duration_h,
             "autosave_interval_sec": self.config.database.autosave_interval_sec,
-            "total_records": self.database.count_records(namespace=ns),
+            "total_records": total_records,
         }
 
         # Add backend-specific stats
-        stats.update(self.database.get_backend_stats(namespace=ns))
+        backend_stats = await self.database.get_backend_stats(namespace=ns)
+        stats.update(backend_stats)
 
-        min_timestamp, max_timestamp = self.db_timestamp_range()
+        min_timestamp, max_timestamp = await self.db_timestamp_range()
         stats["timestamp_range"] = {
             "min": str(min_timestamp),
             "max": str(max_timestamp),
@@ -1866,7 +1852,7 @@ class DatabaseRecordProtocolMixin(
         cutoff_str = self._db_metadata.get(key)
         return DatabaseTimestamp(cutoff_str) if cutoff_str else None
 
-    def _db_set_compact_state(
+    async def _db_set_compact_state(
         self,
         tier_interval: Duration,
         cutoff_ts: DatabaseTimestamp,
@@ -1881,13 +1867,13 @@ class DatabaseRecordProtocolMixin(
             self._db_metadata = {}
         key = f"last_compact_cutoff_{int(tier_interval.total_seconds())}"
         self._db_metadata[key] = str(cutoff_ts)
-        self._db_save_metadata(self._db_metadata)
+        await self._db_save_metadata(self._db_metadata)
 
     # ------------------------------------------------------------------
     # Single-tier worker
     # ------------------------------------------------------------------
 
-    def _db_compact_tier(
+    async def _db_compact_tier(
         self,
         age_threshold: Duration,
         target_interval: Duration,
@@ -1923,14 +1909,14 @@ class DatabaseRecordProtocolMixin(
             Number of original records deleted (before re-insertion of downsampled
             records). Returns 0 if skipped.
         """
-        self._db_ensure_initialized()
+        await self._db_ensure_initialized()
 
         interval_sec = int(target_interval.total_seconds())
         if interval_sec <= 0:
             return 0
 
         # ---- Determine raw new cutoff ------------------------------------
-        _, db_max = self.db_timestamp_range()
+        _, db_max = await self.db_timestamp_range()
         if db_max is None or isinstance(db_max, _DatabaseTimestampUnbound):
             return 0
 
@@ -1955,7 +1941,7 @@ class DatabaseRecordProtocolMixin(
             )
             return 0
 
-        db_min, _ = self.db_timestamp_range()
+        db_min, _ = await self.db_timestamp_range()
         if db_min is None or isinstance(db_min, _DatabaseTimestampUnbound):
             return 0
 
@@ -1981,7 +1967,11 @@ class DatabaseRecordProtocolMixin(
         window_end_ts = new_cutoff_ts
 
         # ---- Sparse-data guard -------------------------------------------
-        existing_count = self.database.count_records(
+        # Ensure the window is loaded into memory so the sparse guard's
+        # records_in_window list comprehension sees actual data.
+        await self._db_ensure_loaded(window_start_ts, window_end_ts)
+
+        existing_count = await self.database.count_records(
             start_key=self._db_key_from_timestamp(window_start_ts),
             end_key=self._db_key_from_timestamp(window_end_ts),
             namespace=self.db_namespace(),
@@ -1993,7 +1983,7 @@ class DatabaseRecordProtocolMixin(
 
         if existing_count == 0:
             # Nothing in window — just advance the cutoff
-            self._db_set_compact_state(target_interval, new_cutoff_ts)
+            await self._db_set_compact_state(target_interval, new_cutoff_ts)
             return 0
 
         if existing_count <= resampled_count:
@@ -2016,7 +2006,7 @@ class DatabaseRecordProtocolMixin(
                     f"and all timestamps already aligned "
                     f"(window={window_start_dt}..{window_end_dt})"
                 )
-                self._db_set_compact_state(target_interval, new_cutoff_ts)
+                await self._db_set_compact_state(target_interval, new_cutoff_ts)
                 return 0
 
             # ---- Sparse but misaligned: full window rewrite -----------------
@@ -2049,7 +2039,7 @@ class DatabaseRecordProtocolMixin(
                         bucket[key] = val
 
             # Delete entire window (aligned + misaligned)
-            deleted = self.db_delete_records(
+            deleted = await self.db_delete_records(
                 start_timestamp=window_start_ts,
                 end_timestamp=window_end_ts,
             )
@@ -2060,10 +2050,10 @@ class DatabaseRecordProtocolMixin(
                     continue
                 snapped_dt = DateTime.fromtimestamp(snapped_epoch, tz="UTC")
                 record = self.record_class()(date_time=snapped_dt, **values)
-                self.db_insert_record(record, mark_dirty=True)
+                await self.db_insert_record(record, mark_dirty=True)
 
-            self.db_save_records()
-            self._db_set_compact_state(target_interval, new_cutoff_ts)
+            await self.db_save_records()
+            await self._db_set_compact_state(target_interval, new_cutoff_ts)
             logger.info(
                 f"Rewrote sparse window in namespace '{self.db_namespace()}' "
                 f"tier {target_interval}: deleted={deleted}, "
@@ -2086,7 +2076,7 @@ class DatabaseRecordProtocolMixin(
             if key == "date_time":
                 continue
             try:
-                array = self.key_to_array(
+                array = await self.key_to_array(
                     key,
                     start_datetime=window_start_dt,
                     end_datetime=window_end_dt,
@@ -2095,7 +2085,9 @@ class DatabaseRecordProtocolMixin(
                     boundary="context",
                     align_to_interval=True,
                 )
-            except (KeyError, TypeError, ValueError):
+                logger.debug(f"key={key}, array_len={len(array)}")
+            except (KeyError, TypeError, ValueError) as e:
+                logger.error(f"key_to_array failed for {key}: {e}")
                 continue  # non-numeric or missing key — skip silently
 
             if len(array) == 0:
@@ -2125,11 +2117,11 @@ class DatabaseRecordProtocolMixin(
 
         if not compacted_data or not compacted_timestamps:
             # Nothing to write back — still advance cutoff
-            self._db_set_compact_state(target_interval, new_cutoff_ts)
+            await self._db_set_compact_state(target_interval, new_cutoff_ts)
             return 0
 
         # ---- Delete originals, re-insert downsampled records -------------
-        deleted = self.db_delete_records(
+        deleted = await self.db_delete_records(
             start_timestamp=window_start_ts,
             end_timestamp=window_end_ts,
         )
@@ -2142,12 +2134,12 @@ class DatabaseRecordProtocolMixin(
             }
             if values:
                 record = self.record_class()(date_time=dt, **values)
-                self.db_insert_record(record, mark_dirty=True)
+                await self.db_insert_record(record, mark_dirty=True)
 
-        self.db_save_records()
+        await self.db_save_records()
 
         # Persist the aligned new cutoff for this tier
-        self._db_set_compact_state(target_interval, new_cutoff_ts)
+        await self._db_set_compact_state(target_interval, new_cutoff_ts)
 
         logger.info(
             f"Compacted tier {target_interval}: deleted {deleted} records in "
@@ -2161,7 +2153,7 @@ class DatabaseRecordProtocolMixin(
     # Public entry point
     # ------------------------------------------------------------------
 
-    def db_compact(
+    async def db_compact(
         self,
         compact_tiers: Optional[list[tuple[Duration, Duration]]] = None,
     ) -> int:
@@ -2183,12 +2175,13 @@ class DatabaseRecordProtocolMixin(
             compact_tiers = self.db_compact_tiers()
 
         if not compact_tiers:
+            logger.debug(f"Compaction called but no compact_tiers '{compact_tiers}' given.")
             return 0
 
         total_deleted = 0
 
         # Coarsest tier first (reversed) to avoid redundant work
         for age_threshold, target_interval in reversed(compact_tiers):
-            total_deleted += self._db_compact_tier(age_threshold, target_interval)
+            total_deleted += await self._db_compact_tier(age_threshold, target_interval)
 
         return total_deleted

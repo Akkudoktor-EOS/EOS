@@ -24,7 +24,7 @@ prediction_eos = get_prediction()
 ems_eos = get_ems()
 
 
-def prepare_optimization_real_parameters() -> GeneticOptimizationParameters:
+async def prepare_optimization_real_parameters() -> GeneticOptimizationParameters:
     """Prepare and return optimization parameters with real world data.
 
     Returns:
@@ -43,6 +43,7 @@ def prepare_optimization_real_parameters() -> GeneticOptimizationParameters:
         "optimization": {
             "horizon_hours": 24,
             "interval": 3600,
+            "algorithm": "GENETIC",
             "genetic": {
                 "individuals": 300,
                 "generations": 400,
@@ -129,10 +130,10 @@ def prepare_optimization_real_parameters() -> GeneticOptimizationParameters:
     print(
         f"Real data prediction from {prediction_eos.ems_start_datetime} to {prediction_eos.end_datetime}"
     )
-    prediction_eos.update_data()
+    await prediction_eos.update_data()
 
     # PV Forecast (in W)
-    pv_forecast = prediction_eos.key_to_array(
+    pv_forecast = await prediction_eos.key_to_array(
         key="pvforecast_ac_power",
         start_datetime=prediction_eos.ems_start_datetime,
         end_datetime=prediction_eos.end_datetime,
@@ -140,7 +141,7 @@ def prepare_optimization_real_parameters() -> GeneticOptimizationParameters:
     print(f"pv_forecast: {pv_forecast}")
 
     # Temperature Forecast (in degree C)
-    temperature_forecast = prediction_eos.key_to_array(
+    temperature_forecast = await prediction_eos.key_to_array(
         key="weather_temp_air",
         start_datetime=prediction_eos.ems_start_datetime,
         end_datetime=prediction_eos.end_datetime,
@@ -148,7 +149,7 @@ def prepare_optimization_real_parameters() -> GeneticOptimizationParameters:
     print(f"temperature_forecast: {temperature_forecast}")
 
     # Electricity Price (in Euro per Wh)
-    strompreis_euro_pro_wh = prediction_eos.key_to_array(
+    strompreis_euro_pro_wh = await prediction_eos.key_to_array(
         key="elecprice_marketprice_wh",
         start_datetime=prediction_eos.ems_start_datetime,
         end_datetime=prediction_eos.end_datetime,
@@ -156,7 +157,7 @@ def prepare_optimization_real_parameters() -> GeneticOptimizationParameters:
     print(f"strompreis_euro_pro_wh: {strompreis_euro_pro_wh}")
 
     # Overall System Load (in W)
-    gesamtlast = prediction_eos.key_to_array(
+    gesamtlast = await prediction_eos.key_to_array(
         key="load_mean",
         start_datetime=prediction_eos.ems_start_datetime,
         end_datetime=prediction_eos.end_datetime,
@@ -215,6 +216,7 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
             "optimization": {
                 "horizon_hours": 48,
                 "interval": 3600,
+                "algorithm": "GENETIC",
                 "genetic": {
                     "individuals": 300,
                     "generations": 400,
@@ -414,7 +416,7 @@ def run_optimization(
         with open(parameters_file, "r") as f:
             parameters = GeneticOptimizationParameters(**json.load(f))
     elif real_world:
-        parameters = prepare_optimization_real_parameters()
+        parameters = asyncio.run(prepare_optimization_real_parameters())
     else:
         parameters = prepare_optimization_parameters()
     logger.info("Optimization Parameters:")

@@ -38,6 +38,7 @@ def adapter(config_eos, mock_ems: MagicMock) -> NodeREDAdapter:
     return ad
 
 
+@pytest.mark.asyncio
 class TestNodeREDAdapter:
 
     def test_provider_id(self, adapter: NodeREDAdapter):
@@ -52,37 +53,37 @@ class TestNodeREDAdapter:
         assert adapter.enabled() is True
 
     @patch("requests.get")
-    def test_update_datetime(self, mock_get, adapter: NodeREDAdapter):
+    async def test_update_datetime(self, mock_get, adapter: NodeREDAdapter):
         adapter.ems.stage.return_value = EnergyManagementStage.DATA_ACQUISITION
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = {"foo": "bar"}
         now = to_datetime()
 
-        adapter.update_data(force_enable=True)
+        await adapter.update_data(force_enable=True)
 
         mock_get.assert_called_once()
         assert compare_datetimes(adapter.update_datetime, now).approximately_equal
 
     @patch("requests.get")
-    def test_update_data_data_acquisition_success(self, mock_get    , adapter: NodeREDAdapter):
+    async def test_update_data_data_acquisition_success(self, mock_get    , adapter: NodeREDAdapter):
         adapter.ems.stage.return_value = EnergyManagementStage.DATA_ACQUISITION
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = {"foo": "bar"}
 
-        adapter.update_data(force_enable=True)
+        await adapter.update_data(force_enable=True)
 
         mock_get.assert_called_once()
         url, = mock_get.call_args[0]
         assert "/eos/data_aquisition" in url
 
     @patch("requests.get", side_effect=Exception("boom"))
-    def test_update_data_data_acquisition_failure(self, mock_get, adapter: NodeREDAdapter):
+    async def test_update_data_data_acquisition_failure(self, mock_get, adapter: NodeREDAdapter):
         adapter.ems.stage.return_value = EnergyManagementStage.DATA_ACQUISITION
         with pytest.raises(RuntimeError):
-            adapter.update_data(force_enable=True)
+            await adapter.update_data(force_enable=True)
 
     @patch("requests.post")
-    def test_update_data_control_dispatch_instructions(self, mock_post, adapter: NodeREDAdapter):
+    async def test_update_data_control_dispatch_instructions(self, mock_post, adapter: NodeREDAdapter):
         adapter.ems.stage.return_value = EnergyManagementStage.CONTROL_DISPATCH
 
         instr1 = DDBCInstruction(
@@ -98,7 +99,7 @@ class TestNodeREDAdapter:
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {}
 
-        adapter.update_data(force_enable=True)
+        await adapter.update_data(force_enable=True)
 
         _, kwargs = mock_post.call_args
         payload = kwargs["json"]
@@ -110,18 +111,18 @@ class TestNodeREDAdapter:
         assert "/eos/control_dispatch" in url
 
     @patch("requests.post")
-    def test_update_data_disabled_provider(self, mock_post, adapter: NodeREDAdapter):
+    async def test_update_data_disabled_provider(self, mock_post, adapter: NodeREDAdapter):
         adapter.config.adapter.provider = ["HomeAssistant"]  # NodeRED disabled
-        adapter.update_data(force_enable=False)
+        await adapter.update_data(force_enable=False)
         mock_post.assert_not_called()
 
     @patch("requests.post")
-    def test_update_data_force_enable_overrides_disabled(self, mock_post, adapter: NodeREDAdapter):
+    async def test_update_data_force_enable_overrides_disabled(self, mock_post, adapter: NodeREDAdapter):
         adapter.config.adapter.provider = ["HomeAssistant"]
         adapter.ems.stage.return_value = EnergyManagementStage.CONTROL_DISPATCH
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {}
 
-        adapter.update_data(force_enable=True)
+        await adapter.update_data(force_enable=True)
 
         mock_post.assert_called_once()

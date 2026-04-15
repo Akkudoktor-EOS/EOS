@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+import pytest_asyncio
 from loguru import logger
 
 from akkudoktoreos.core.coreabc import get_ems, get_prediction
@@ -132,11 +133,11 @@ def provider():
     return provider
 
 
-@pytest.fixture
-def provider_empty_instance():
+@pytest_asyncio.fixture
+async def provider_empty_instance():
     """Fixture that returns an empty instance of PVForecast."""
     empty_instance = PVForecastAkkudoktor()
-    empty_instance.delete_by_datetime(start_datetime=None, end_datetime=None)
+    await empty_instance.delete_by_datetime(start_datetime=None, end_datetime=None)
     assert len(empty_instance) == 0
     return empty_instance
 
@@ -234,7 +235,8 @@ def test_pvforecast_akkudoktor_data_record():
     )  # Assuming AC power measured is preferred
 
 
-def test_pvforecast_akkudoktor_validate_data(provider_empty_instance, sample_forecast_data_raw):
+@pytest.mark.asyncio
+async def test_pvforecast_akkudoktor_validate_data(provider_empty_instance, sample_forecast_data_raw):
     """Test validation of PV forecast data on sample data."""
     logger.info("The following errors are intentional and part of the test.")
     with pytest.raises(
@@ -246,7 +248,8 @@ def test_pvforecast_akkudoktor_validate_data(provider_empty_instance, sample_for
     # everything worked
 
 
-def test_pvforecast_akkudoktor_validate_data_single_plane(
+@pytest.mark.asyncio
+async def test_pvforecast_akkudoktor_validate_data_single_plane(
     provider_empty_instance, sample_forecast_data_single_plane_raw
 ):
     """Test validation of PV forecast data on sample data with a single plane."""
@@ -260,8 +263,9 @@ def test_pvforecast_akkudoktor_validate_data_single_plane(
     # everything worked
 
 
+@pytest.mark.asyncio
 @patch("requests.get")
-def test_pvforecast_akkudoktor_update_with_sample_forecast(
+async def test_pvforecast_akkudoktor_update_with_sample_forecast(
     mock_get, sample_settings, sample_forecast_data_raw, sample_forecast_start, provider
 ):
     """Test data processing using sample forecast data."""
@@ -274,13 +278,14 @@ def test_pvforecast_akkudoktor_update_with_sample_forecast(
     # Test that update properly inserts data records
     ems_eos = get_ems()
     ems_eos.set_start_datetime(sample_forecast_start)
-    provider.update_data(force_enable=True, force_update=True)
+    await provider.update_data(force_enable=True, force_update=True)
     assert compare_datetimes(provider.ems_start_datetime, sample_forecast_start).equal
     assert compare_datetimes(provider.records[0].date_time, to_datetime(sample_forecast_start)).equal
 
 
 # Report Generation Test
-def test_report_ac_power_and_measurement(provider, config_eos):
+@pytest.mark.asyncio
+async def test_report_ac_power_and_measurement(provider, config_eos):
     # Set the configuration
     config_eos.merge_settings_from_dict(sample_config_data)
 
@@ -289,7 +294,7 @@ def test_report_ac_power_and_measurement(provider, config_eos):
         pvforecast_dc_power=450.0,
         pvforecast_ac_power=400.0,
     )
-    provider.insert_by_datetime(record)
+    await provider.insert_by_datetime(record)
 
     report = provider.report_ac_power_and_measurement()
     assert "DC: 450.0" in report
@@ -300,8 +305,9 @@ def test_report_ac_power_and_measurement(provider, config_eos):
 @pytest.mark.skipif(
     sys.platform.startswith("win"), reason="'other_timezone' fixture not supported on Windows"
 )
+@pytest.mark.asyncio
 @patch("requests.get")
-def test_timezone_behaviour(
+async def test_timezone_behaviour(
     mock_get,
     sample_settings,
     sample_forecast_data_raw,
@@ -322,17 +328,17 @@ def test_timezone_behaviour(
     expected_datetime = to_datetime("2024-10-06T00:00:00+0200", in_timezone=other_timezone)
     assert compare_datetimes(other_start_datetime, expected_datetime).equal
 
-    provider.delete_by_datetime(start_datetime=None, end_datetime=None)
+    await provider.delete_by_datetime(start_datetime=None, end_datetime=None)
     assert len(provider) == 0
     ems_eos = get_ems()
     ems_eos.set_start_datetime(other_start_datetime)
-    provider.update_data(force_update=True)
+    await provider.update_data(force_update=True)
     assert compare_datetimes(provider.ems_start_datetime, other_start_datetime).equal
     # Check wether first record starts at requested sample start time
     assert compare_datetimes(provider.records[0].date_time, sample_forecast_start).equal
 
     # Test updating AC power measurement for a specific date.
-    provider.update_value(sample_forecast_start, "pvforecastakkudoktor_ac_power_measured", 1000)
+    await provider.update_value(sample_forecast_start, "pvforecastakkudoktor_ac_power_measured", 1000)
     # Check wether first record was filled with ac power measurement
     assert provider.records[0].pvforecastakkudoktor_ac_power_measured == 1000
 
@@ -340,7 +346,7 @@ def test_timezone_behaviour(
     other_end_datetime = other_start_datetime + to_duration("24 hours")
     expected_end_datetime = to_datetime("2024-10-07T00:00:00+0200", in_timezone=other_timezone)
     assert compare_datetimes(other_end_datetime, expected_end_datetime).equal
-    forecast_temps = provider.key_to_series(
+    forecast_temps = await provider.key_to_series(
         "pvforecastakkudoktor_temp_air", other_start_datetime, other_end_datetime
     )
     assert len(forecast_temps) == 23  # 24-1, first temperature is null
@@ -349,7 +355,7 @@ def test_timezone_behaviour(
 
     # Test fetching AC power forecast
     other_end_datetime = other_start_datetime + to_duration("48 hours")
-    forecast_measured = provider.key_to_series(
+    forecast_measured = await provider.key_to_series(
         "pvforecastakkudoktor_ac_power_measured", other_start_datetime, other_end_datetime
     )
     assert len(forecast_measured) == 1

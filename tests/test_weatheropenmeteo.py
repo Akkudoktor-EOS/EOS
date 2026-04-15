@@ -135,8 +135,9 @@ def test_request_forecast(mock_get, provider, sample_openmeteo_1_json):
     assert "diffuse_radiation" in openmeteo_data["hourly"]    # DHI
 
 
+@pytest.mark.asyncio
 @patch("requests.get")
-def test_update_data(mock_get, provider, sample_openmeteo_1_json, cache_store):
+async def test_update_data(mock_get, provider, sample_openmeteo_1_json, cache_store):
     """Test fetching and processing forecast from Open-Meteo."""
     # Mock response object
     mock_response = Mock()
@@ -151,7 +152,7 @@ def test_update_data(mock_get, provider, sample_openmeteo_1_json, cache_store):
     ems_eos = get_ems()
     start_datetime = to_datetime("2026-03-02 09:00:00+01:00", in_timezone="Europe/Berlin")
     ems_eos.set_start_datetime(start_datetime)
-    provider.update_data(force_enable=True, force_update=True)
+    await provider.update_data(force_enable=True, force_update=True)
 
     # Assert: Verify the result is as expected
     mock_get.assert_called_once()
@@ -160,9 +161,12 @@ def test_update_data(mock_get, provider, sample_openmeteo_1_json, cache_store):
     # Verify that direct radiation values were properly mapped
     # Get the first record and check for irradiance values
     value_datetime = to_datetime("2026-03-04 09:00:00+01:00", in_timezone="Europe/Berlin")
-    assert provider.key_to_value("weather_ghi", target_datetime=start_datetime) == 21.8
-    assert provider.key_to_value("weather_dni", target_datetime=start_datetime) == 1.2
-    assert provider.key_to_value("weather_dhi", target_datetime=start_datetime) == 20.5
+    weather_ghi = await provider.key_to_value("weather_ghi", target_datetime=start_datetime)
+    weather_dni = await provider.key_to_value("weather_dni", target_datetime=start_datetime)
+    weather_dhi = await provider.key_to_value("weather_dhi", target_datetime=start_datetime)
+    assert weather_ghi == 21.8
+    assert weather_dni == 1.2
+    assert weather_dhi == 20.5
 
 
 # ------------------------------------------------
@@ -279,7 +283,8 @@ def test_openmeteo_request_mode_selection(
 # ------------------------------------------------
 
 
-def test_openmeteo_development_forecast_data(provider, config_eos, is_system_test):
+@pytest.mark.asyncio
+async def test_openmeteo_development_forecast_data(provider, config_eos, is_system_test):
     """Fetch data from real Open-Meteo server for development purposes."""
     if not is_system_test:
         return
@@ -304,7 +309,7 @@ def test_openmeteo_development_forecast_data(provider, config_eos, is_system_tes
             json.dump(openmeteo_data, f_out, indent=4)
 
         # Update and process data
-        provider.update_data(force_enable=True, force_update=True)
+        await provider.update_data(force_enable=True, force_update=True)
 
         # Save processed data
         with FILE_TESTDATA_WEATHEROPENMETEO_2_JSON.open("w", encoding="utf-8", newline="\n") as f_out:
@@ -312,7 +317,7 @@ def test_openmeteo_development_forecast_data(provider, config_eos, is_system_tes
 
         # Verify radiation values
         if len(provider) > 0:
-            records = list(provider.data_records.values())
+            records = list(provider.records)
 
             # Check fo radiation values available
             has_ghi = any(hasattr(r, 'ghi') and r.ghi is not None for r in records)

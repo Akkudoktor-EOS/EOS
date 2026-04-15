@@ -68,7 +68,7 @@ class LoadAkkudoktor(LoadProvider):
             raise ValueError(error_msg)
         return data_year_energy
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Adds the load means and standard deviations."""
         data_year_energy = self.load_data()
         # We provide prediction starting at start of day, to be compatible to old system.
@@ -84,7 +84,7 @@ class LoadAkkudoktor(LoadProvider):
                 "loadakkudoktor_mean_power_w": hourly_stats[0],
                 "loadakkudoktor_std_power_w": hourly_stats[1],
             }
-            self.update_value(date, values)
+            await self.update_value(date, values)
             date += to_duration("1 hour")
         # We are working on fresh data (no cache), report update time
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
@@ -98,7 +98,9 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
         """Return the unique identifier for the LoadAkkudoktor provider."""
         return "LoadAkkudoktorAdjusted"
 
-    def _calculate_adjustment(self, data_year_energy: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    async def _calculate_adjustment(
+        self, data_year_energy: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Calculate weekday and week end adjustment from total load measurement data.
 
         Returns:
@@ -110,19 +112,22 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
         weekend_adjust = np.zeros(24)
         weekend_adjust_weight = np.zeros(24)
 
-        if self.measurement.max_datetime is None:
+        max_dt = await self.measurement.max_datetime()
+        if max_dt is None:
             # No measurements - return 0 adjustment
             return (weekday_adjust, weekday_adjust)
 
+        min_dt = await self.measurement.min_datetime()
+
         # compare predictions with real measurement - try to use last 7 days
-        compare_start = self.measurement.max_datetime - to_duration("7 days")
-        if compare_datetimes(compare_start, self.measurement.min_datetime).lt:
+        compare_start = max_dt - to_duration("7 days")
+        if compare_datetimes(compare_start, min_dt).lt:
             # Not enough measurements for 7 days - use what is available
-            compare_start = self.measurement.min_datetime
-        compare_end = self.measurement.max_datetime
+            compare_start = min_dt
+        compare_end = max_dt
         compare_interval = to_duration("1 hour")
 
-        load_total_kwh_array = self.measurement.load_total_kwh(
+        load_total_kwh_array = await self.measurement.load_total_kwh(
             start_datetime=compare_start,
             end_datetime=compare_end,
             interval=compare_interval,
@@ -159,10 +164,10 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
 
         return (weekday_adjust, weekend_adjust)
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Adds the load means and standard deviations."""
         data_year_energy = self.load_data()
-        weekday_adjust, weekend_adjust = self._calculate_adjustment(data_year_energy)
+        weekday_adjust, weekend_adjust = await self._calculate_adjustment(data_year_energy)
         # We provide prediction starting at start of day, to be compatible to old system.
         # End date for prediction is prediction hours from now.
         date = self.ems_start_datetime.start_of("day")
@@ -182,7 +187,7 @@ class LoadAkkudoktorAdjusted(LoadAkkudoktor):
                 # Saturday, Sunday (5, 6)
                 value_adjusted = hourly_stats[0] + weekend_adjust[date.hour]
             values["loadforecast_power_w"] = max(0, value_adjusted)
-            self.update_value(date, values)
+            await self.update_value(date, values)
             date += to_duration("1 hour")
         # We are working on fresh data (no cache), report update time
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)

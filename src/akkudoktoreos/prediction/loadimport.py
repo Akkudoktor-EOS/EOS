@@ -62,8 +62,12 @@ class LoadImport(LoadProvider, PredictionImportProvider):
         """Return the unique identifier for the LoadImport provider."""
         return "LoadImport"
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
+        # Both _sequence_lock and _record_lock are already held by the caller.
+        # Use internal sync methods only — never await public async counterparts.
         if self.config.load.loadimport.import_file_path:
-            self.import_from_file(self.config.load.loadimport.import_file_path, key_prefix="load")
+            await self._import_from_file(
+                self.config.load.loadimport.import_file_path, key_prefix="load"
+            )
         if self.config.load.loadimport.import_json:
-            self.import_from_json(self.config.load.loadimport.import_json, key_prefix="load")
+            await self._import_from_json(self.config.load.loadimport.import_json, key_prefix="load")

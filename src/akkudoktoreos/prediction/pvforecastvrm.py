@@ -83,7 +83,7 @@ class PVForecastVrm(PVForecastProvider):
         """Convert UNIX ms timestamp to timezone-aware datetime."""
         return to_datetime(timestamp / 1000, in_timezone=self.config.general.timezone)
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update forecast data in the PVForecastDataRecord format."""
         if self.enabled is False:
             logger.info("PVForecastVrm is disabled, skipping update.")
@@ -101,16 +101,10 @@ class PVForecastVrm(PVForecastProvider):
             date = self._ts_to_datetime(timestamp)
             dc_power = round(value, 2)
             ac_power = round(dc_power * 0.96, 2)
-            self.update_value(
+            await self.update_value(
                 date, {"pvforecast_dc_power": dc_power, "pvforecast_ac_power": ac_power}
             )
             pv_forecast.append((date, dc_power))
 
         logger.debug(f"Updated pvforecast_dc_power with {len(pv_forecast)} entries.")
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
-
-
-# Example usage
-if __name__ == "__main__":
-    pv = PVForecastVrm()
-    pv._update_data()

@@ -9,25 +9,34 @@ namespaces with a `namespace` column.
 
 from __future__ import annotations
 
+import asyncio
 import shutil
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import (
+    Any,
+    AsyncIterator,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+)
 
 import lmdb
 from loguru import logger
 from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
-from akkudoktoreos.core.coreabc import SingletonMixin
+from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin
 from akkudoktoreos.core.databaseabc import (
     DATABASE_METADATA_KEY,
-    DatabaseABC,
     DatabaseBackendABC,
 )
 
 # Valid database providers
-database_providers: List[str] = ["LMDB", "SQLite"]
+database_providers: List[str] = ["LMDB", "SQLite", "NoDB"]
 
 
 class DatabaseCommonSettings(SettingsBaseModel):
@@ -39,6 +48,8 @@ class DatabaseCommonSettings(SettingsBaseModel):
         auto_save: Whether to auto-save when threshold exceeded.
         batch_size: Batch size for batch operations.
     """
+
+    model_config = {"validate_assignment": True}  # keeps field validation on assignment
 
     provider: Optional[str] = Field(
         default=None,
@@ -177,12 +188,17 @@ class LMDBDatabase(DatabaseBackendABC):
         """Return the unique identifier for the database provider."""
         return "LMDB"
 
-    def open(self, namespace: Optional[str] = None) -> None:
+    def open(self, *, namespace: Optional[str] = None) -> None:
         """Open LMDB environment and optionally ensure a namespace DBI.
 
         Args:
             namespace: Optional default namespace to open (DBI created on demand).
         """
+        if self.is_open:
+            if namespace is not None:
+                self._ensure_dbi(namespace=namespace)
+            return
+
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
         self.env = lmdb.open(
@@ -201,7 +217,7 @@ class LMDBDatabase(DatabaseBackendABC):
         self.default_namespace = namespace
 
         if namespace is not None:
-            self._ensure_dbi(namespace)
+            self._ensure_dbi(namespace=namespace)
 
     def close(self) -> None:
         """Close the LMDB environment and clear cached DBIs."""
@@ -214,7 +230,7 @@ class LMDBDatabase(DatabaseBackendABC):
         self._dbis.clear()
         logger.debug("Closed LMDB at %s", self.storage_path)
 
-    def flush(self, namespace: Optional[str] = None) -> None:
+    def flush(self, *, namespace: Optional[str] = None) -> None:
         """Sync LMDB environment (writes to disk)."""
         if not isinstance(self.env, lmdb.Environment):
             raise ValueError(f"LMDB Environment is of wrong tpe `{type(self.env)}`.")
@@ -230,7 +246,7 @@ class LMDBDatabase(DatabaseBackendABC):
         """Return explicit namespace or default if None."""
         return namespace if namespace is not None else self.default_namespace
 
-    def _ensure_dbi(self, namespace: Optional[str]) -> Optional[Any]:
+    def _ensure_dbi(self, *, namespace: Optional[str]) -> Optional[Any]:
         """Open and cache a DBI for the given namespace.
 
         Args:
@@ -271,15 +287,15 @@ class LMDBDatabase(DatabaseBackendABC):
         if not isinstance(self.env, lmdb.Environment):
             raise RuntimeError(f"LMDB Environment is of wrong tpe `{type(self.env)}`.")
 
-        dbi = self._ensure_dbi(namespace)
+        dbi = self._ensure_dbi(namespace=namespace)
 
         with self.env.begin(write=True) as txn:
             if metadata is None:
-                txn.delete(DATABASE_METADATA_KEY)
+                txn.delete(DATABASE_METADATA_KEY, db=dbi)
             else:
-                txn.put(DATABASE_METADATA_KEY, metadata)
+                txn.put(DATABASE_METADATA_KEY, metadata, db=dbi)
 
-    def get_metadata(self, namespace: Optional[str] = None) -> Optional[bytes]:
+    def get_metadata(self, *, namespace: Optional[str] = None) -> Optional[bytes]:
         """Load metadata for a given namespace.
 
         Returns None if no metadata exists.
@@ -293,10 +309,10 @@ class LMDBDatabase(DatabaseBackendABC):
         if not isinstance(self.env, lmdb.Environment):
             raise RuntimeError(f"LMDB Environment is of wrong tpe `{type(self.env)}`.")
 
-        dbi = self._ensure_dbi(namespace)
+        dbi = self._ensure_dbi(namespace=namespace)
 
         with self.env.begin(write=False) as txn:
-            return txn.get(DATABASE_METADATA_KEY)
+            return txn.get(DATABASE_METADATA_KEY, db=dbi)
 
     # ------------------------------------------------------------------
     # Bulk Write Operations
@@ -305,6 +321,7 @@ class LMDBDatabase(DatabaseBackendABC):
     def save_records(
         self,
         records: Iterable[tuple[bytes, bytes]],
+        *,
         namespace: Optional[str] = None,
     ) -> int:
         """Save multiple records into the specified namespace (or default).
@@ -324,7 +341,7 @@ class LMDBDatabase(DatabaseBackendABC):
         if not isinstance(self.env, lmdb.Environment):
             raise RuntimeError(f"LMDB Environment is of wrong tpe `{type(self.env)}`.")
 
-        dbi = self._ensure_dbi(namespace)
+        dbi = self._ensure_dbi(namespace=namespace)
 
         saved = 0
         with self.lock:
@@ -338,6 +355,7 @@ class LMDBDatabase(DatabaseBackendABC):
     def delete_records(
         self,
         keys: Iterable[bytes],
+        *,
         namespace: Optional[str] = None,
     ) -> int:
         """Delete multiple records by key from the specified namespace.
@@ -352,7 +370,7 @@ class LMDBDatabase(DatabaseBackendABC):
         if not isinstance(self.env, lmdb.Environment):
             raise RuntimeError("Database not open")
 
-        dbi = self._ensure_dbi(namespace)
+        dbi = self._ensure_dbi(namespace=namespace)
 
         deleted = 0
         with self.lock:
@@ -371,6 +389,7 @@ class LMDBDatabase(DatabaseBackendABC):
         self,
         start_key: Optional[bytes] = None,
         end_key: Optional[bytes] = None,
+        *,
         namespace: Optional[str] = None,
         reverse: bool = False,
     ) -> Iterator[tuple[bytes, bytes]]:
@@ -391,11 +410,12 @@ class LMDBDatabase(DatabaseBackendABC):
         if not isinstance(self.env, lmdb.Environment):
             raise RuntimeError(f"LMDB Environment is of wrong type `{type(self.env)}`.")
 
-        dbi = self._ensure_dbi(namespace)
+        dbi = self._ensure_dbi(namespace=namespace)
         META = DATABASE_METADATA_KEY
 
         results: list[tuple[bytes, bytes]] = []
 
+        cursor = None
         txn = self.env.begin(write=False)
         try:
             cursor = txn.cursor(dbi)
@@ -454,7 +474,8 @@ class LMDBDatabase(DatabaseBackendABC):
 
         finally:
             # Ensure reader slot is always released
-            cursor.close()
+            if cursor is not None:
+                cursor.close()
             txn.abort()
 
         # Transaction is closed here — safe to yield
@@ -478,7 +499,7 @@ class LMDBDatabase(DatabaseBackendABC):
         if not isinstance(self.env, lmdb.Environment):
             raise RuntimeError(f"LMDB Environment is of wrong tpe `{type(self.env)}`.")
 
-        dbi = self._ensure_dbi(namespace)
+        dbi = self._ensure_dbi(namespace=namespace)
         META = DATABASE_METADATA_KEY
 
         count = 0
@@ -510,13 +531,14 @@ class LMDBDatabase(DatabaseBackendABC):
 
     def get_key_range(
         self,
+        *,
         namespace: Optional[str] = None,
     ) -> tuple[Optional[bytes], Optional[bytes]]:
         """Return (min_key, max_key) in the given namespace or (None, None) if empty."""
         if not isinstance(self.env, lmdb.Environment):
             raise RuntimeError(f"LMDB Environment is of wrong tpe `{type(self.env)}`.")
 
-        dbi = self._ensure_dbi(namespace)
+        dbi = self._ensure_dbi(namespace=namespace)
 
         with self.env.begin(write=False) as txn:
             cursor = txn.cursor(db=dbi)
@@ -541,12 +563,12 @@ class LMDBDatabase(DatabaseBackendABC):
 
             return min_key, max_key
 
-    def get_backend_stats(self, namespace: Optional[str] = None) -> dict[str, Any]:
+    def get_backend_stats(self, *, namespace: Optional[str] = None) -> dict[str, Any]:
         """Get LMDB backend-specific statistics."""
         if not self.env:
             return {}
 
-        dbi = self._ensure_dbi(namespace)
+        dbi = self._ensure_dbi(namespace=namespace)
 
         with self.env.begin(write=False) as txn:
             stat = txn.stat(db=dbi)
@@ -657,12 +679,15 @@ class SQLiteDatabase(DatabaseBackendABC):
         """Return the unique identifier for the database provider."""
         return "SQLite"
 
-    def open(self, namespace: Optional[str] = None) -> None:
+    def open(self, *, namespace: Optional[str] = None) -> None:
         """Open SQLite connection and optionally set default namespace.
 
         Args:
             namespace: Optional default namespace to use when operations omit namespace.
         """
+        if self.is_open:
+            return
+
         self.storage_path.mkdir(parents=True, exist_ok=True)
 
         self.conn = sqlite3.connect(
@@ -700,7 +725,7 @@ class SQLiteDatabase(DatabaseBackendABC):
             self._is_open = False
             logger.debug("Closed SQLite at %s", self.db_file)
 
-    def flush(self, namespace: Optional[str] = None) -> None:
+    def flush(self, *, namespace: Optional[str] = None) -> None:
         """Commit any pending transactions to disk (no-op if autocommit)."""
         if not isinstance(self.conn, sqlite3.Connection):
             raise RuntimeError(f"SQLite connection is of wrong tpe `{type(self.conn)}`.")
@@ -745,7 +770,7 @@ class SQLiteDatabase(DatabaseBackendABC):
                     (ns, metadata),
                 )
 
-    def get_metadata(self, namespace: Optional[str] = None) -> Optional[bytes]:
+    def get_metadata(self, *, namespace: Optional[str] = None) -> Optional[bytes]:
         """Load metadata for a given namespace.
 
         Returns None if no metadata exists.
@@ -777,6 +802,7 @@ class SQLiteDatabase(DatabaseBackendABC):
     def save_records(
         self,
         records: Iterable[tuple[bytes, bytes]],
+        *,
         namespace: Optional[str] = None,
     ) -> int:
         """Bulk insert or replace records.
@@ -794,18 +820,18 @@ class SQLiteDatabase(DatabaseBackendABC):
             return 0
 
         with self.lock:
-            self.conn.execute("BEGIN")
-            self.conn.executemany(
-                "INSERT OR REPLACE INTO records (namespace, key, value) VALUES (?, ?, ?)",
-                rows,
-            )
-            self.conn.execute("COMMIT")
+            with self.conn:
+                self.conn.executemany(
+                    "INSERT OR REPLACE INTO records (namespace, key, value) VALUES (?, ?, ?)",
+                    rows,
+                )
 
         return len(rows)
 
     def delete_records(
         self,
         keys: Iterable[bytes],
+        *,
         namespace: Optional[str] = None,
     ) -> int:
         """Delete multiple records by key.
@@ -817,21 +843,25 @@ class SQLiteDatabase(DatabaseBackendABC):
 
         ns = self._ns(namespace)
 
-        deleted: int = 0
-        with self.lock:
-            for key in keys:
-                cursor = self.conn.execute(
-                    "DELETE FROM records WHERE namespace = ? AND key = ?",
-                    (ns, key),
-                )
-                deleted += cursor.rowcount
+        rows = [(ns, key) for key in keys]
 
-        return deleted
+        if not rows:
+            return 0
+
+        with self.lock:
+            with self.conn:
+                cursor = self.conn.executemany(
+                    "DELETE FROM records WHERE namespace = ? AND key = ?",
+                    rows,
+                )
+
+        return cursor.rowcount
 
     def iterate_records(
         self,
         start_key: Optional[bytes] = None,
         end_key: Optional[bytes] = None,
+        *,
         namespace: Optional[str] = None,
         reverse: bool = False,
     ) -> Iterator[Tuple[bytes, bytes]]:
@@ -913,7 +943,7 @@ class SQLiteDatabase(DatabaseBackendABC):
             return int(cursor.fetchone()[0])
 
     def get_key_range(
-        self, namespace: Optional[str] = None
+        self, *, namespace: Optional[str] = None
     ) -> Tuple[Optional[bytes], Optional[bytes]]:
         """Return (min_key, max_key) for the namespace or (None, None) if empty."""
         if not isinstance(self.conn, sqlite3.Connection):
@@ -928,7 +958,7 @@ class SQLiteDatabase(DatabaseBackendABC):
             result = cursor.fetchone()
             return result[0], result[1]
 
-    def get_backend_stats(self, namespace: Optional[str] = None) -> Dict[str, Any]:
+    def get_backend_stats(self, *, namespace: Optional[str] = None) -> Dict[str, Any]:
         """Return SQLite-specific stats and namespace metrics."""
         if not self.conn:
             return {}
@@ -959,10 +989,216 @@ class SQLiteDatabase(DatabaseBackendABC):
         logger.info("SQLite vacuum completed")
 
 
-# ==================== Generic Database Implementation ====================
+# ==================== NoDB Implementation ====================
 
 
-class Database(DatabaseABC, SingletonMixin):
+class NoDB(DatabaseBackendABC):
+    """No-op database backend.
+
+    This backend implements the full database backend interface but performs
+    no actual persistence. It is intended for configurations where database
+    persistence is disabled (`provider=None`).
+
+    Characteristics:
+        - All write operations are ignored.
+        - All read operations return empty results.
+        - No files or external resources are created.
+        - Lifecycle operations are no-ops.
+        - Compression is disabled.
+
+    This backend allows the database wrapper to avoid special-case handling
+    for a missing database provider by always providing a valid backend
+    implementation.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize the no-op backend."""
+        super().__init__()
+        self._is_open = True  # Stateless
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
+    def provider_id(self) -> str:
+        """Return the unique identifier for the database provider."""
+        return "NoDB"
+
+    def open(self, *, namespace: Optional[str] = None) -> None:
+        """Mark backend as open.
+
+        Args:
+            namespace: Ignored.
+        """
+        self.default_namespace = namespace
+
+    def close(self) -> None:
+        """Mark backend as closed."""
+        return
+
+    def flush(self, *, namespace: Optional[str] = None) -> None:
+        """Flush pending writes (no-op).
+
+        Args:
+            namespace: Ignored.
+        """
+        return
+
+    # ------------------------------------------------------------------
+    # Effective backend configuration
+    # ------------------------------------------------------------------
+
+    @property
+    def is_open(self) -> bool:
+        """Return dummy not open."""
+        return False
+
+    @property
+    def storage_path(self) -> Path:
+        """Return dummy storage path."""
+        return Path("/dev/null")
+
+    @property
+    def compression_level(self) -> int:
+        """Compression is disabled."""
+        return 0
+
+    @property
+    def compression(self) -> bool:
+        """Compression is disabled."""
+        return False
+
+    # ------------------------------------------------------------------
+    # Metadata operations
+    # ------------------------------------------------------------------
+
+    def set_metadata(
+        self,
+        metadata: Optional[bytes],
+        *,
+        namespace: Optional[str] = None,
+    ) -> None:
+        """Store metadata (ignored).
+
+        Args:
+            metadata: Ignored.
+            namespace: Ignored.
+        """
+        return
+
+    def get_metadata(
+        self,
+        *,
+        namespace: Optional[str] = None,
+    ) -> Optional[bytes]:
+        """Load metadata.
+
+        Always returns:
+            None
+        """
+        return None
+
+    # ------------------------------------------------------------------
+    # Record operations
+    # ------------------------------------------------------------------
+
+    def save_records(
+        self,
+        records: Iterable[tuple[bytes, bytes]],
+        *,
+        namespace: Optional[str] = None,
+    ) -> int:
+        """Pretend to save records.
+
+        Args:
+            records: Ignored.
+            namespace: Ignored.
+
+        Returns:
+            Always 0.
+        """
+        return 0
+
+    def delete_records(
+        self,
+        keys: Iterable[bytes],
+        *,
+        namespace: Optional[str] = None,
+    ) -> int:
+        """Pretend to delete records.
+
+        Args:
+            keys: Ignored.
+            namespace: Ignored.
+
+        Returns:
+            Always 0.
+        """
+        return 0
+
+    def iterate_records(
+        self,
+        start_key: Optional[bytes] = None,
+        end_key: Optional[bytes] = None,
+        *,
+        namespace: Optional[str] = None,
+        reverse: bool = False,
+    ) -> Iterator[tuple[bytes, bytes]]:
+        """Iterate records.
+
+        Always yields:
+            Nothing
+        """
+        return iter(())
+
+    def count_records(
+        self,
+        start_key: Optional[bytes] = None,
+        end_key: Optional[bytes] = None,
+        *,
+        namespace: Optional[str] = None,
+    ) -> int:
+        """Count records.
+
+        Returns:
+            Always 0.
+        """
+        return 0
+
+    def get_key_range(
+        self,
+        *,
+        namespace: Optional[str] = None,
+    ) -> tuple[Optional[bytes], Optional[bytes]]:
+        """Return key range.
+
+        Returns:
+            Always (None, None).
+        """
+        return None, None
+
+    def get_backend_stats(
+        self,
+        *,
+        namespace: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Return backend statistics.
+
+        Returns:
+            Minimal backend information.
+        """
+        return {
+            "backend": "none",
+            "namespace": namespace,
+            "persistent": False,
+            "records": 0,
+        }
+
+
+# ==================== Generic Database ====================
+
+
+class Database(ConfigMixin, SingletonMixin):
     """Generic database.
 
     All operations accept an optional `namespace` argument. Implementations should
@@ -971,16 +1207,15 @@ class Database(DatabaseABC, SingletonMixin):
     a namespace column).
     """
 
-    _db: Optional[DatabaseBackendABC] = None
+    _db: DatabaseBackendABC = NoDB()
 
     @classmethod
     def reset_instance(cls) -> None:
         """Resets the singleton instance, forcing it to be recreated on next access."""
         with cls._lock:
             # Close current database backend
-            if cls._db:
-                cls._db.close()
-                cls._db = None
+            cls._db.close()
+            cls._db = NoDB()
             # Remove current database instance
             if cls in cls._instances:
                 del cls._instances[cls]
@@ -989,95 +1224,228 @@ class Database(DatabaseABC, SingletonMixin):
     def __init__(self) -> None:
         """Initialize database."""
         super().__init__()
-        self._db = None
+        self._db = NoDB()
 
-    def _setup_db(self) -> None:
-        """Setup database."""
+    # Database helpers
+
+    @property
+    def _database_lock(self) -> asyncio.Lock:
+        """Per-instance asyncio lock guarding database operations.
+
+        The lock guards the database state during async operations.
+        """
+        # Lock must be a loop-local asyncio lock to provide singleton + pytest async compatibility.
+        loop = asyncio.get_running_loop()
+
+        try:
+            locks = object.__getattribute__(self, "_database_locks")
+        except AttributeError:
+            locks = {}
+            object.__setattr__(self, "_database_locks", locks)
+
+        lock = locks.get(loop)
+
+        if lock is None:
+            lock = asyncio.Lock()
+            locks[loop] = lock
+
+        return lock
+
+    async def _ensure_open(
+        self,
+        *,
+        namespace: Optional[str] = None,
+    ) -> DatabaseBackendABC:
+        """Ensure the configured backend exists, is open, and namespace is prepared.
+
+        Expects the database lock to already be held when called.
+
+        Args:
+            namespace: Optional namespace to prepare/open.
+
+        Returns:
+            The active and opened backend instance.
+
+        Raises:
+            RuntimeError: If no database provider is configured.
+        """
         provider_id = self.config.database.provider
-        database: Optional[DatabaseBackendABC] = None
-        if provider_id is None:
-            database = None
-        elif provider_id == "LMDB":
-            database = LMDBDatabase()
-        elif provider_id == "SQLite":
-            database = SQLiteDatabase()
-        else:
-            raise RuntimeError("Invalid database provider '{provider_id}'")
-        if self._db is not None:
-            self._db.close()
-        self._db = database
+        old_provider_id = self._db.provider_id()
 
-    def _database(self) -> DatabaseBackendABC:
-        """Get database."""
-        provider_id = self.config.database.provider
-        if provider_id is None:
-            raise RuntimeError("Database not configured")
-
-        if self._db is None or self._db.provider_id() != provider_id:
+        if old_provider_id != provider_id:
             # No database or configuration does not match
-            self._setup_db()
-            if self._db is None:
-                raise RuntimeError("Database not configured")
+            logger.debug(
+                f"Switching database provider from '{old_provider_id}' to '{provider_id}'."
+            )
+            old_db = self._db
+
+            database: DatabaseBackendABC
+            if provider_id is None or provider_id == "NoDB":
+                database = NoDB()
+            elif provider_id == "LMDB":
+                database = LMDBDatabase()
+            elif provider_id == "SQLite":
+                database = SQLiteDatabase()
+            else:
+                raise RuntimeError(f"Invalid database provider '{provider_id}'")
+
+            # Auto-close database that was used before
+            if old_db.is_open:
+                old_db.close()
+
+            self._db = database
 
         if not self._db.is_open:
-            self._db.open()
+            await asyncio.to_thread(self._db.open, namespace=namespace)
+        elif namespace is not None:
+            # Allow backend to lazily prepare namespace resources
+            await asyncio.to_thread(self._db.open, namespace=namespace)
 
         return self._db
 
+    async def _run_db(
+        self,
+        method_name: str,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        """Execute a synchronous database backend operation in a thread-safe, non-blocking way.
+
+        The backend is automatically initialized/opened before execution.
+        If a ``namespace`` keyword argument is present, the namespace is
+        prepared during backend initialization.
+
+        This helper ensures that all interactions with the underlying synchronous
+        database backend are:
+
+        - **Serialized** using an instance-level ``asyncio.Lock`` to protect backend state.
+        - **Non-blocking** by offloading execution to a worker thread via
+          ``asyncio.to_thread``.
+
+        It should be used for all backend calls that may perform blocking I/O or
+        CPU-bound work.
+
+        Args:
+            method_name: The synchronous callable to execute (a backend method).
+            *args: Positional arguments forwarded to ``method``.
+            **kwargs: Keyword arguments forwarded to ``method``.
+
+        Returns:
+            The return value of ``method``.
+
+        Raises:
+            Any exception raised by ``func`` is propagated unchanged.
+
+        Notes:
+            - The callable is executed in a separate thread, so it must be thread-safe.
+            - The database lock is held for the duration of the call, ensuring that
+              no concurrent operations interfere with backend state.
+            - Avoid passing coroutines or async functions to this method; it is
+              intended strictly for synchronous callables.
+        """
+        namespace = kwargs.get("namespace")
+
+        async with self._database_lock:
+            db = await self._ensure_open(namespace=namespace)
+
+            # Get actual method. _ensure_open may have changed the backend
+            method = getattr(db, method_name)
+
+            def backend_call() -> Any:
+                result = method(
+                    *args,
+                    **kwargs,
+                )
+
+                # Materialize iterators inside worker thread
+                if isinstance(result, Iterator):
+                    return list(result)
+
+                return result
+
+            return await asyncio.to_thread(backend_call)
+
     def provider_id(self) -> str:
         """Return the unique identifier for the database provider."""
-        try:
-            return self._database().provider_id()
-        except:
-            return "None"
+        return self._db.provider_id()
 
     @property
     def is_open(self) -> bool:
         """Return whether the database connection is open."""
-        try:
-            return self._database().is_open
-        except:
-            return False
+        return self._db.is_open
 
     @property
     def storage_path(self) -> Path:
-        """Storage path for the database."""
-        return self._database().storage_path
+        """Return effective storage path of active backend."""
+        return self._db.storage_path
 
     @property
     def compression_level(self) -> int:
-        """Compression level for database record data."""
-        return self._database().compression_level
+        """Return effective compression level of active backend."""
+        return self._db.compression_level
 
     @property
     def compression(self) -> bool:
-        """Whether to compress stored values."""
-        return self._database().compression_level > 0
+        """Return whether the active backend compresses stored values.
+
+        Returns:
+            True if compression is enabled for the active backend,
+            False if disabled,
+            or None if no backend is currently initialized.
+        """
+        return self._db.compression_level > 0
 
     # Lifecycle
 
-    def open(self, namespace: Optional[str] = None) -> None:
-        """Open database connection and optionally set default namespace.
+    async def ensure_open(
+        self,
+        *,
+        namespace: Optional[str] = None,
+    ) -> DatabaseBackendABC:
+        """Ensure the configured backend exists, is open, and namespace is prepared.
 
         Args:
-            namespace: Optional default namespace to prepare.
+            namespace: Optional namespace to prepare/open.
+
+        Returns:
+            The active and opened backend instance.
 
         Raises:
-            RuntimeError: If the database cannot be opened.
+            RuntimeError: If no database provider is configured.
         """
-        self._database().open(namespace)
+        async with self._database_lock:
+            return await self._ensure_open(namespace=namespace)
 
-    def close(self) -> None:
+    async def open(self, *, namespace: Optional[str] = None) -> None:
+        """Ensure the database backend is initialized and open.
+
+        If the backend is already open, this operation is a no-op except
+        that the backend may prepare the specified namespace.
+
+        Args:
+            namespace: Optional namespace to prepare/open.
+
+        Raises:
+            RuntimeError: If no database provider is configured or opening fails.
+        """
+        async with self._database_lock:
+            await self._ensure_open(namespace=namespace)
+
+    async def close(self) -> None:
         """Close the database connection and cleanup resources."""
-        self._database().close()
+        async with self._database_lock:
+            if self._db is not None and self._db.is_open:
+                await asyncio.to_thread(self._db.close)
 
-    def flush(self, namespace: Optional[str] = None) -> None:
+    async def flush(self, *, namespace: Optional[str] = None) -> None:
         """Force synchronization of pending writes to storage (optional per-namespace)."""
-        return self._database().flush(namespace)
+        await self._run_db("flush", namespace=namespace)
 
     # Metadata operations
 
-    def set_metadata(self, metadata: Optional[bytes], *, namespace: Optional[str] = None) -> None:
+    async def set_metadata(
+        self, metadata: Optional[bytes], *, namespace: Optional[str] = None
+    ) -> None:
         """Save metadata for a given namespace.
 
         Metadata is treated separately from data records and stored as a single object.
@@ -1086,9 +1454,13 @@ class Database(DatabaseABC, SingletonMixin):
             metadata (bytes): Arbitrary metadata to save or None to delete metadata.
             namespace (Optional[str]): Optional namespace under which to store metadata.
         """
-        self._database().set_metadata(metadata, namespace=namespace)
+        await self._run_db(
+            "set_metadata",
+            metadata,
+            namespace=namespace,
+        )
 
-    def get_metadata(self, namespace: Optional[str] = None) -> Optional[bytes]:
+    async def get_metadata(self, *, namespace: Optional[str] = None) -> Optional[bytes]:
         """Load metadata for a given namespace.
 
         Returns None if no metadata exists.
@@ -1099,12 +1471,15 @@ class Database(DatabaseABC, SingletonMixin):
         Returns:
             Optional[bytes]: The loaded metadata, or None if not found.
         """
-        return self._database().get_metadata(namespace=namespace)
+        return await self._run_db(
+            "get_metadata",
+            namespace=namespace,
+        )
 
     # Basic record operations
 
-    def save_records(
-        self, records: Iterable[tuple[bytes, bytes]], namespace: Optional[str] = None
+    async def save_records(
+        self, records: Iterable[tuple[bytes, bytes]], *, namespace: Optional[str] = None
     ) -> int:
         """Save multiple records into the specified namespace (or default).
 
@@ -1120,9 +1495,15 @@ class Database(DatabaseABC, SingletonMixin):
         Raises:
             RuntimeError: If DB not open or write failed.
         """
-        return self._database().save_records(records, namespace)
+        return await self._run_db(
+            "save_records",
+            records,
+            namespace=namespace,
+        )
 
-    def delete_records(self, keys: Iterable[bytes], namespace: Optional[str] = None) -> int:
+    async def delete_records(
+        self, keys: Iterable[bytes], *, namespace: Optional[str] = None
+    ) -> int:
         """Delete multiple records by key from the specified namespace.
 
         Args:
@@ -1132,15 +1513,20 @@ class Database(DatabaseABC, SingletonMixin):
         Returns:
             Number of records actually deleted.
         """
-        return self._database().delete_records(keys, namespace)
+        return await self._run_db(
+            "delete_records",
+            keys,
+            namespace=namespace,
+        )
 
-    def iterate_records(
+    async def iterate_records(
         self,
         start_key: Optional[bytes] = None,
         end_key: Optional[bytes] = None,
+        *,
         namespace: Optional[str] = None,
         reverse: bool = False,
-    ) -> Iterator[tuple[bytes, bytes]]:
+    ) -> AsyncIterator[tuple[bytes, bytes]]:
         """Iterate over records for a namespace with optional bounds.
 
         Args:
@@ -1152,9 +1538,18 @@ class Database(DatabaseABC, SingletonMixin):
         Yields:
             Tuples of (key, record).
         """
-        return self._database().iterate_records(start_key, end_key, namespace, reverse)
+        records: list[tuple[bytes, bytes]] = await self._run_db(
+            "iterate_records",
+            start_key,
+            end_key,
+            namespace=namespace,
+            reverse=reverse,
+        )
 
-    def count_records(
+        for item in records:
+            yield item
+
+    async def count_records(
         self,
         start_key: Optional[bytes] = None,
         end_key: Optional[bytes] = None,
@@ -1165,14 +1560,49 @@ class Database(DatabaseABC, SingletonMixin):
 
         Excludes metadata records.
         """
-        return self._database().count_records(start_key, end_key, namespace=namespace)
+        return await self._run_db(
+            "count_records",
+            start_key,
+            end_key,
+            namespace=namespace,
+        )
 
-    def get_key_range(
-        self, namespace: Optional[str] = None
+    async def get_key_range(
+        self, *, namespace: Optional[str] = None
     ) -> Tuple[Optional[bytes], Optional[bytes]]:
         """Return (min_key, max_key) in the given namespace or (None, None) if empty."""
-        return self._database().get_key_range(namespace)
+        return await self._run_db(
+            "get_key_range",
+            namespace=namespace,
+        )
 
-    def get_backend_stats(self, namespace: Optional[str] = None) -> Dict[str, Any]:
+    async def get_backend_stats(self, *, namespace: Optional[str] = None) -> Dict[str, Any]:
         """Get backend-specific statistics; implementations may return namespace-specific data."""
-        return self._database().get_backend_stats(namespace)
+        return await self._run_db(
+            "get_backend_stats",
+            namespace=namespace,
+        )
+
+    # Compression helpers
+
+    def serialize_data(self, data: bytes) -> bytes:
+        """Optionally compress raw pickled data before storage.
+
+        Args:
+            data: Raw pickled bytes.
+
+        Returns:
+            Possibly compressed bytes.
+        """
+        return self._db.serialize_data(data)
+
+    def deserialize_data(self, data: bytes) -> bytes:
+        """Optionally decompress stored data.
+
+        Args:
+            data: Stored bytes.
+
+        Returns:
+            Raw pickled bytes (decompressed if needed).
+        """
+        return self._db.deserialize_data(data)

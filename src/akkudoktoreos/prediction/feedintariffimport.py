@@ -64,17 +64,19 @@ class FeedInTariffImport(FeedInTariffProvider, PredictionImportProvider):
         """Return the unique identifier for the FeedInTariffImport provider."""
         return "FeedInTariffImport"
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
+        # Both _sequence_lock and _record_lock are already held by the caller.
+        # Use internal sync methods only — never await public async counterparts.
         if self.config.feedintariff.provider_settings.FeedInTariffImport is None:
             logger.debug(f"{self.provider_id()} data update without provider settings.")
             return
         if self.config.feedintariff.provider_settings.FeedInTariffImport.import_file_path:
-            self.import_from_file(
+            await self._import_from_file(
                 self.config.provider_settings.FeedInTariffImport.import_file_path,
                 key_prefix="feedintariff",
             )
         if self.config.feedintariff.provider_settings.FeedInTariffImport.import_json:
-            self.import_from_json(
+            await self._import_from_json(
                 self.config.feedintariff.provider_settings.FeedInTariffImport.import_json,
                 key_prefix="feedintariff",
             )

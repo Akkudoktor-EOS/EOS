@@ -1,5 +1,6 @@
 """Abstract and base classes for adapters."""
 
+import asyncio
 from abc import abstractmethod
 from typing import Any, Optional
 
@@ -53,12 +54,27 @@ class AdapterProvider(SingletonMixin, ConfigMixin, MeasurementMixin, StartMixin,
             return self.provider_id() in self.config.adapter.provider
         return False
 
+    @property
+    def _adapter_lock(self) -> asyncio.Lock:
+        """Per-instance asyncio lock guarding adapter-level bulk operations.
+
+        The lock guards the full adapter state during bulk operations.
+        """
+        try:
+            return object.__getattribute__(self, "_adapter_lock_instance")
+        except AttributeError:
+            lock = asyncio.Lock()
+            object.__setattr__(self, "_adapter_lock_instance", lock)
+            return lock
+
     @abstractmethod
-    def _update_data(self) -> None:
+    async def _update_data(self) -> None:
         """Abstract method for custom adapter data update logic, to be implemented by derived classes.
 
         Data update may be requested at different stages of energy management. The stage can be
         detected by self.ems.stage().
+
+        This method is always called while `_adapter_lock` is held by the caller.
         """
         pass
 
@@ -67,7 +83,7 @@ class AdapterProvider(SingletonMixin, ConfigMixin, MeasurementMixin, StartMixin,
             return
         super().__init__(*args, **kwargs)
 
-    def update_data(
+    async def update_data(
         self,
         force_enable: Optional[bool] = False,
     ) -> None:
@@ -81,8 +97,9 @@ class AdapterProvider(SingletonMixin, ConfigMixin, MeasurementMixin, StartMixin,
             return
 
         # Call the custom update logic
-        logger.debug(f"Update adapter provider: {self.provider_id()}")
-        self._update_data()
+        async with self._adapter_lock:
+            logger.debug(f"Update adapter provider: {self.provider_id()}")
+            await self._update_data()
 
 
 class AdapterContainer(SingletonMixin, ConfigMixin, PydanticBaseModel):
@@ -104,6 +121,19 @@ class AdapterContainer(SingletonMixin, ConfigMixin, PydanticBaseModel):
                     f"Each item in the adapter providers list must be an AdapterProvider, got {type(item).__name__}"
                 )
         return value
+
+    @property
+    def _container_lock(self) -> asyncio.Lock:
+        """Coarse-grained lock for bulk operations across providers.
+
+        The lock guards cross-provider consistency during container operations.
+        """
+        try:
+            return object.__getattribute__(self, "_container_lock_instance")
+        except AttributeError:
+            lock = asyncio.Lock()
+            object.__setattr__(self, "_container_lock_instance", lock)
+            return lock
 
     @property
     def enabled_providers(self) -> list[Any]:
@@ -145,7 +175,7 @@ class AdapterContainer(SingletonMixin, ConfigMixin, PydanticBaseModel):
             raise ValueError(error_msg)
         return providers[provider_id]
 
-    def update_data(
+    async def update_data(
         self,
         force_enable: Optional[bool] = False,
     ) -> None:
@@ -154,7 +184,10 @@ class AdapterContainer(SingletonMixin, ConfigMixin, PydanticBaseModel):
         Args:
             force_enable (bool, optional): If True, forces the update even if the provider is disabled.
         """
+        if len(self.providers) <= 0:
+            return
+
         # Call the custom update logic
-        if len(self.providers) > 0:
+        async with self._container_lock:
             for provider in self.providers:
-                provider.update_data(force_enable=force_enable)
+                await provider.update_data(force_enable=force_enable)

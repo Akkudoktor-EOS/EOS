@@ -64,17 +64,19 @@ class PVForecastImport(PVForecastProvider, PredictionImportProvider):
         """Return the unique identifier for the PVForecastImport provider."""
         return "PVForecastImport"
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
+        # Both _sequence_lock and _record_lock are already held by the caller.
+        # Use internal sync methods only — never await public async counterparts.
         if self.config.pvforecast.provider_settings.PVForecastImport is None:
             logger.debug(f"{self.provider_id()} data update without provider settings.")
             return
         if self.config.pvforecast.provider_settings.PVForecastImport.import_file_path is not None:
-            self.import_from_file(
+            await self._import_from_file(
                 self.config.pvforecast.provider_settings.PVForecastImport.import_file_path,
                 key_prefix="pvforecast",
             )
         if self.config.pvforecast.provider_settings.PVForecastImport.import_json is not None:
-            self.import_from_json(
+            await self._import_from_json(
                 self.config.pvforecast.provider_settings.PVForecastImport.import_json,
                 key_prefix="pvforecast",
             )

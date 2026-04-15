@@ -257,8 +257,8 @@ class TestAcChargingInSimulation:
                 battery=akku,
             )
 
-            sim = GeneticSimulation()
-            sim.prepare(
+            simulation = GeneticSimulation()
+            simulation.prepare(
                 GeneticEnergyManagementParameters(
                     pv_prognose_wh=[0.0] * prediction_hours,  # No PV
                     strompreis_euro_pro_wh=[0.0003] * prediction_hours,  # ~30ct/kWh
@@ -272,7 +272,7 @@ class TestAcChargingInSimulation:
                 ev=None,
                 home_appliance=None,
             )
-            return sim, akku, inverter
+            return simulation, akku, inverter
 
         return _build
 

@@ -135,7 +135,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         clean_history = self._cap_outliers(history)
         return np.full(hours, np.median(clean_history))
 
-    def _update_data(
+    async def _update_data(
         self, force_update: Optional[bool] = False
     ) -> None:  # tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Update forecast data in the ElecPriceDataRecord format.
@@ -170,10 +170,10 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             series_data.at[orig_datetime] = price_wh
 
         # Update values using key_from_series
-        self.key_from_series("elecprice_marketprice_wh", series_data)
+        await self.key_from_series("elecprice_marketprice_wh", series_data)
 
         # Generate history array for prediction
-        history = self.key_to_array(
+        history = await self.key_to_array(
             key="elecprice_marketprice_wh", end_datetime=highest_orig_datetime, fill_method="linear"
         )
 
@@ -213,9 +213,9 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
                 for i in range(len(prediction))
             ],
         )
-        self.key_from_series("elecprice_marketprice_wh", prediction_series)
+        await self.key_from_series("elecprice_marketprice_wh", prediction_series)
 
-        # history2 = self.key_to_array(key="elecprice_marketprice_wh", fill_method="linear") + 0.0002
+        # history2 = await self.key_to_array(key="elecprice_marketprice_wh", fill_method="linear") + 0.0002
         # return history, history2, prediction  # for debug main
 
 

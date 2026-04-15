@@ -543,10 +543,10 @@ class PydanticModelNestedValueMixin:
         if not inspect.isclass(model):
             raise TypeError(f"Model '{model}' is not of class type.")
 
-        if key not in model.model_fields:
+        if key not in model.model_fields:  # type: ignore[attr-defined]
             raise TypeError(f"Field '{key}' does not exist in model '{model.__name__}'.")
 
-        field_annotation = model.model_fields[key].annotation
+        field_annotation = model.model_fields[key].annotation  # type: ignore[attr-defined]
         if not field_annotation:
             raise TypeError(
                 f"Missing type annotation for field '{key}' in model '{model.__name__}'."
@@ -692,7 +692,7 @@ class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
         return super().model_dump(*args, **kwargs)
 
     def to_dict(self) -> dict:
-        """Convert this PredictionRecord instance to a dictionary representation.
+        """Convert this pydantic model instance to a dictionary representation.
 
         Returns:
             dict: A dictionary where the keys are the field names of the PydanticBaseModel,

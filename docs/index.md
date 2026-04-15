@@ -63,6 +63,7 @@ akkudoktoreos/api.rst
 
 develop/develop.md
 develop/release.md
+develop/async.md
 develop/CHANGELOG.md
 
 ```

@@ -344,7 +344,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
         return effective_ac, effective_dc, effective_dis
 
-    def optimization_solution(self) -> OptimizationSolution:
+    async def optimization_solution(self) -> OptimizationSolution:
         """Provide the genetic solution as a general optimization solution.
 
         The battery modes are controlled by the grid control triggers:
@@ -612,7 +612,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             ),
         ]:
             if pred_key in pred.record_keys:
-                array = pred.key_to_array(
+                array = await pred.key_to_array(
                     key=pred_key,
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,

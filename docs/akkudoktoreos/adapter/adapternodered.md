@@ -38,6 +38,7 @@ Typical use cases with Node-RED:
 #### 1. Enable and configure the Node-RED adapter
 
 EOS must be configured with access to the Node-RED instance in Config->adapter.
+
 * prerequisite is an already installed and running Node-RED instance
 * adapter.nodered.host: 192.168.1.109 (example IP of your Node-RED instance)
 * adapter.nodered.port: 1880 (default)
@@ -46,10 +47,12 @@ EOS must be configured with access to the Node-RED instance in Config->adapter.
 #### 2. Run energy optimisation
 
 Before the run, EOS receives:
+
 * EOS receives measurement values via HTTP-IN "eos_data_acquisition" before optimisation.
   (The HTTP-IN Node "eos_data_acquisition" is NOT yet functional)
 
 After the run, EOS provides:
+
 * The device instruction and solution entities for the current time slot via HTTP-IN "Control Dispatch".
 
 ### Configuration steps in NodeRED

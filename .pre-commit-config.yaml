@@ -15,13 +15,13 @@ repos:
 
   # --- Import sorting ---
   - repo: https://github.com/PyCQA/isort
-    rev: 7.0.0
+    rev: 8.0.1
     hooks:
       - id: isort
 
   # --- Linting + Formatting via Ruff ---
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.7
+    rev: v0.15.21
     hooks:
       # Run the linter and fix simple isssues automatically
       - id: ruff
@@ -31,20 +31,20 @@ repos:
 
   # --- Static type checking ---
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.1
+    rev: v2.3.0
     hooks:
       - id: mypy
         additional_dependencies:
-          - types-requests==2.33.0.20260408
-          - pandas-stubs==3.0.0.260204
+          - types-requests==2.33.0.20260712
+          - pandas-stubs==3.0.3.260530
           - tokenize-rt==6.2.0
-          - types-docutils==0.22.3.20260322
-          - types-PyYaml==6.0.12.20260408
+          - types-docutils==0.22.3.20260518
+          - types-PyYaml==6.0.12.20260518
         pass_filenames: false
 
   # --- Markdown linter ---
   - repo: https://github.com/jackdewinter/pymarkdown
-    rev: v0.9.36
+    rev: v0.9.39
     hooks:
       - id: pymarkdown
         files: ^docs/

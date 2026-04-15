@@ -1,8 +1,10 @@
+import asyncio
 from unittest.mock import patch
 
 import numpy as np
 import pendulum
 import pytest
+import pytest_asyncio
 
 from akkudoktoreos.core.coreabc import get_ems, get_measurement
 from akkudoktoreos.measurement.measurement import MeasurementDataRecord
@@ -49,8 +51,8 @@ def loadakkudoktoradjusted(config_eos):
     assert config_eos.load.loadakkudoktor.loadakkudoktor_year_energy_kwh == 1000
     return LoadAkkudoktorAdjusted()
 
-@pytest.fixture
-def measurement_eos():
+@pytest_asyncio.fixture
+async def measurement_eos():
     """Fixture to initialise the Measurement instance."""
     # Load meter readings are in kWh
     measurement = get_measurement()
@@ -59,7 +61,7 @@ def measurement_eos():
     dt = to_datetime("2024-01-01T00:00:00")
     interval = to_duration("1 hour")
     for i in range(25):
-        measurement.insert_by_datetime(
+        await measurement.insert_by_datetime(
             MeasurementDataRecord(
                 date_time=dt,
                 load0_mr=load0_mr,
@@ -70,8 +72,10 @@ def measurement_eos():
         # 0.05 kWh = 50 Wh
         load0_mr += 0.05
         load1_mr += 0.05
-    assert compare_datetimes(measurement.min_datetime, to_datetime("2024-01-01T00:00:00")).equal
-    assert compare_datetimes(measurement.max_datetime, to_datetime("2024-01-02T00:00:00")).equal
+    min_dt = await measurement.min_datetime()
+    max_dt = await measurement.max_datetime()
+    assert compare_datetimes(min_dt, to_datetime("2024-01-01T00:00:00")).equal
+    assert compare_datetimes(max_dt, to_datetime("2024-01-02T00:00:00")).equal
     return measurement
 
 
@@ -87,163 +91,166 @@ def mock_load_profiles_file(tmp_path):
     return load_profiles_path
 
 
-def test_loadakkudoktor_settings_validator():
-    """Test the field validator for `loadakkudoktor_year_energy_kwh`."""
-    settings = LoadAkkudoktorCommonSettings(loadakkudoktor_year_energy_kwh=1234)
-    assert isinstance(settings.loadakkudoktor_year_energy_kwh, float)
-    assert settings.loadakkudoktor_year_energy_kwh == 1234.0
+@pytest.mark.asyncio
+class TestLoadAkkudoktor:
 
-    settings = LoadAkkudoktorCommonSettings(loadakkudoktor_year_energy_kwh=1234.56)
-    assert isinstance(settings.loadakkudoktor_year_energy_kwh, float)
-    assert settings.loadakkudoktor_year_energy_kwh == 1234.56
+    async def test_loadakkudoktor_settings_validator(self):
+        """Test the field validator for `loadakkudoktor_year_energy_kwh`."""
+        settings = LoadAkkudoktorCommonSettings(loadakkudoktor_year_energy_kwh=1234)
+        assert isinstance(settings.loadakkudoktor_year_energy_kwh, float)
+        assert settings.loadakkudoktor_year_energy_kwh == 1234.0
 
+        settings = LoadAkkudoktorCommonSettings(loadakkudoktor_year_energy_kwh=1234.56)
+        assert isinstance(settings.loadakkudoktor_year_energy_kwh, float)
+        assert settings.loadakkudoktor_year_energy_kwh == 1234.56
 
-def test_loadakkudoktor_provider_id(loadakkudoktor):
-    """Test the `provider_id` class method."""
-    assert loadakkudoktor.provider_id() == "LoadAkkudoktor"
+    async def test_loadakkudoktor_provider_id(self, loadakkudoktor):
+        """Test the `provider_id` class method."""
+        assert loadakkudoktor.provider_id() == "LoadAkkudoktor"
 
+    @patch("akkudoktoreos.prediction.loadakkudoktor.np.load")
+    async def test_load_data_from_mock(self, mock_np_load, mock_load_profiles_file, loadakkudoktor):
+        """Test the `load_data` method."""
+        # Mock numpy load to return data similar to what would be in the file
+        mock_np_load.return_value = {
+            "yearly_profiles": np.ones((365, 24)),
+            "yearly_profiles_std": np.zeros((365, 24)),
+        }
 
-@patch("akkudoktoreos.prediction.loadakkudoktor.np.load")
-def test_load_data_from_mock(mock_np_load, mock_load_profiles_file, loadakkudoktor):
-    """Test the `load_data` method."""
-    # Mock numpy load to return data similar to what would be in the file
-    mock_np_load.return_value = {
-        "yearly_profiles": np.ones((365, 24)),
-        "yearly_profiles_std": np.zeros((365, 24)),
-    }
+        # Test data loading
+        data_year_energy = loadakkudoktor.load_data()
+        assert data_year_energy is not None
+        assert data_year_energy.shape == (365, 2, 24)
 
-    # Test data loading
-    data_year_energy = loadakkudoktor.load_data()
-    assert data_year_energy is not None
-    assert data_year_energy.shape == (365, 2, 24)
+    async def test_load_data_from_file(self, loadakkudoktor):
+        """Test `load_data` loads data from the profiles file."""
+        data_year_energy = loadakkudoktor.load_data()
+        assert data_year_energy is not None
 
+    @patch("akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktor.load_data")
+    async def test_update_data(self, mock_load_data, loadakkudoktor):
+        """Test the `_update` method."""
+        mock_load_data.return_value = np.random.rand(365, 2, 24)
 
-def test_load_data_from_file(loadakkudoktor):
-    """Test `load_data` loads data from the profiles file."""
-    data_year_energy = loadakkudoktor.load_data()
-    assert data_year_energy is not None
+        # Mock methods for updating values
+        ems_eos = get_ems()
+        ems_eos.set_start_datetime(pendulum.datetime(2024, 1, 1))
 
+        # Assure there are no prediction records
+        await loadakkudoktor.delete_by_datetime(start_datetime=None, end_datetime=None)
+        assert len(loadakkudoktor) == 0
 
-@patch("akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktor.load_data")
-def test_update_data(mock_load_data, loadakkudoktor):
-    """Test the `_update` method."""
-    mock_load_data.return_value = np.random.rand(365, 2, 24)
+        # Execute the method
+        await loadakkudoktor._update_data()
 
-    # Mock methods for updating values
-    ems_eos = get_ems()
-    ems_eos.set_start_datetime(pendulum.datetime(2024, 1, 1))
-
-    # Assure there are no prediction records
-    loadakkudoktor.delete_by_datetime(start_datetime=None, end_datetime=None)
-    assert len(loadakkudoktor) == 0
-
-    # Execute the method
-    loadakkudoktor._update_data()
-
-    # Validate that update_value is called
-    assert len(loadakkudoktor) > 0
-
-
-def test_calculate_adjustment(loadakkudoktoradjusted, measurement_eos):
-    """Test `_calculate_adjustment` for various scenarios."""
-    data_year_energy = np.random.rand(365, 2, 24)
-
-    # Check the test setup
-    assert loadakkudoktoradjusted.measurement is measurement_eos
-    assert measurement_eos.min_datetime == to_datetime("2024-01-01T00:00:00")
-    assert measurement_eos.max_datetime == to_datetime("2024-01-02T00:00:00")
-    # Use same calculation as in _calculate_adjustment
-    compare_start = measurement_eos.max_datetime - to_duration("7 days")
-    if compare_datetimes(compare_start, measurement_eos.min_datetime).lt:
-        # Not enough measurements for 7 days - use what is available
-        compare_start = measurement_eos.min_datetime
-    compare_end = measurement_eos.max_datetime
-    compare_interval = to_duration("1 hour")
-    load_total_kwh_array = measurement_eos.load_total_kwh(
-        start_datetime=compare_start,
-        end_datetime=compare_end,
-        interval=compare_interval,
-    )
-    np.testing.assert_allclose(load_total_kwh_array, [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
-
-    # Call the method and validate results
-    weekday_adjust, weekend_adjust = loadakkudoktoradjusted._calculate_adjustment(data_year_energy)
-    assert weekday_adjust.shape == (24,)
-    assert weekend_adjust.shape == (24,)
-
-    data_year_energy = np.zeros((365, 2, 24))
-    weekday_adjust, weekend_adjust = loadakkudoktoradjusted._calculate_adjustment(data_year_energy)
-
-    assert weekday_adjust.shape == (24,)
-    expected = np.array(
-        [
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-            100.0,
-        ]
-    )
-    np.testing.assert_allclose(weekday_adjust, expected)
-
-    assert weekend_adjust.shape == (24,)
-    expected = np.array(
-        [
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-        ]
-    )
-    np.testing.assert_array_equal(weekend_adjust, expected)
+        # Validate that update_value is called
+        assert len(loadakkudoktor) > 0
 
 
-def test_provider_adjustments_with_mock_data(loadakkudoktoradjusted):
-    """Test full integration of adjustments with mock data."""
-    with patch(
-        "akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktorAdjusted._calculate_adjustment"
-    ) as mock_adjust:
-        mock_adjust.return_value = (np.zeros(24), np.zeros(24))
+@pytest.mark.asyncio
+class TestLoadAkkudoktorAdjusted:
 
-        # Test execution
-        loadakkudoktoradjusted._update_data()
-        assert mock_adjust.called
+    async def test_calculate_adjustment(self, loadakkudoktoradjusted, measurement_eos):
+        """Test `_calculate_adjustment` for various scenarios."""
+        data_year_energy = np.random.rand(365, 2, 24)
+
+        # Check the test setup
+        assert loadakkudoktoradjusted.measurement is measurement_eos
+        min_dt = await measurement_eos.min_datetime()
+        assert min_dt == to_datetime("2024-01-01T00:00:00")
+        max_dt = await measurement_eos.max_datetime()
+        assert max_dt == to_datetime("2024-01-02T00:00:00")
+        # Use same calculation as in _calculate_adjustment
+        compare_start = max_dt - to_duration("7 days")
+        if compare_datetimes(compare_start, min_dt).lt:
+            # Not enough measurements for 7 days - use what is available
+            compare_start = min_dt
+        compare_end = max_dt
+        compare_interval = to_duration("1 hour")
+        load_total_kwh_array = await measurement_eos.load_total_kwh(
+            start_datetime=compare_start,
+            end_datetime=compare_end,
+            interval=compare_interval,
+        )
+        np.testing.assert_allclose(load_total_kwh_array, [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+
+        # Call the method and validate results
+        weekday_adjust, weekend_adjust = await loadakkudoktoradjusted._calculate_adjustment(data_year_energy)
+        assert weekday_adjust.shape == (24,)
+        assert weekend_adjust.shape == (24,)
+
+        data_year_energy = np.zeros((365, 2, 24))
+        weekday_adjust, weekend_adjust = await loadakkudoktoradjusted._calculate_adjustment(data_year_energy)
+
+        assert weekday_adjust.shape == (24,)
+        expected = np.array(
+            [
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+                100.0,
+            ]
+        )
+        np.testing.assert_allclose(weekday_adjust, expected)
+
+        assert weekend_adjust.shape == (24,)
+        expected = np.array(
+            [
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ]
+        )
+        np.testing.assert_array_equal(weekend_adjust, expected)
+
+    async def test_provider_adjustments_with_mock_data(self, loadakkudoktoradjusted):
+        """Test full integration of adjustments with mock data."""
+        with patch(
+            "akkudoktoreos.prediction.loadakkudoktor.LoadAkkudoktorAdjusted._calculate_adjustment"
+        ) as mock_adjust:
+            mock_adjust.return_value = (np.zeros(24), np.zeros(24))
+
+            # Test execution
+            await loadakkudoktoradjusted._update_data()
+            assert mock_adjust.called

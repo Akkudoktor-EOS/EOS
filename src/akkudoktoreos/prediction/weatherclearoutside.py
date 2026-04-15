@@ -97,7 +97,7 @@ class WeatherClearOutside(WeatherProvider):
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return response
 
-    def _update_data(self, force_update: Optional[bool] = None) -> None:
+    async def _update_data(self, force_update: Optional[bool] = None) -> None:
         """Scrape weather forecast data from ClearOutside's website.
 
         This method requests weather forecast data from ClearOutside based on latitude
@@ -202,7 +202,7 @@ class WeatherClearOutside(WeatherProvider):
             raise ValueError(error_msg)
 
         # Delete all records that will be newly added
-        self.delete_by_datetime(start_datetime=forecast_start_datetime)
+        await self.delete_by_datetime(start_datetime=forecast_start_datetime)
 
         # Collect weather data, loop over all days
         for day, p_day in enumerate(p_days):
@@ -341,4 +341,4 @@ class WeatherClearOutside(WeatherProvider):
                         if corr_factor:
                             value = value * corr_factor
                         setattr(weather_record, key, value)
-                self.insert_by_datetime(weather_record)
+                await self.insert_by_datetime(weather_record)

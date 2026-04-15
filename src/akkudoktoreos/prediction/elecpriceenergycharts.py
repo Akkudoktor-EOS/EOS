@@ -195,7 +195,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         clean_history = self._cap_outliers(history)
         return np.full(hours, np.median(clean_history))
 
-    def _update_data(
+    async def _update_data(
         self, force_update: Optional[bool] = False
     ) -> None:  # tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Update forecast data in the ElecPriceDataRecord format.
@@ -217,7 +217,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         # Determine if update is needed and how many days
         past_days = 35
         if self.highest_orig_datetime:
-            history_series = self.key_to_series(
+            history_series = await self.key_to_series(
                 key="elecprice_marketprice_wh", start_datetime=self.ems_start_datetime
             )
             # If history lower, then start_datetime
@@ -244,14 +244,14 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             # Parse and store data
             series_data = self._parse_data(energy_charts_data)
             self.highest_orig_datetime = series_data.index.max()
-            self.key_from_series("elecprice_marketprice_wh", series_data)
+            await self.key_from_series("elecprice_marketprice_wh", series_data)
         else:
             logger.info(
                 f"No Update ElecPriceEnergyCharts is needed, last in history: {self.highest_orig_datetime}"
             )
 
         # Generate history array for prediction
-        history = self.key_to_array(
+        history = await self.key_to_array(
             key="elecprice_marketprice_wh",
             end_datetime=self.highest_orig_datetime,
             fill_method="linear",
@@ -293,4 +293,4 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
                 for i in range(len(prediction))
             ],
         )
-        self.key_from_series("elecprice_marketprice_wh", prediction_series)
+        await self.key_from_series("elecprice_marketprice_wh", prediction_series)

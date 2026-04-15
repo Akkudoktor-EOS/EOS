@@ -197,7 +197,7 @@ class WeatherOpenMeteo(WeatherProvider):
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return openmeteo_data
 
-    def _description_to_series(self, description: str) -> pd.Series:
+    async def _description_to_series(self, description: str) -> pd.Series:
         """Retrieve a pandas Series corresponding to a weather data description.
 
         This method fetches the key associated with the provided description
@@ -218,10 +218,10 @@ class WeatherOpenMeteo(WeatherProvider):
             error_msg = f"No WeatherDataRecord key for '{description}'"
             logger.error(error_msg)
             raise ValueError(error_msg)
-        series = self.key_to_series(key)
+        series = await self.key_to_series(key)
         return series
 
-    def _description_from_series(self, description: str, data: pd.Series) -> None:
+    async def _description_from_series(self, description: str, data: pd.Series) -> None:
         """Update a weather data with a pandas Series based on its description.
 
         This method fetches the key associated with the provided description
@@ -240,9 +240,9 @@ class WeatherOpenMeteo(WeatherProvider):
             error_msg = f"No WeatherDataRecord key for '{description}'"
             logger.error(error_msg)
             raise ValueError(error_msg)
-        self.key_from_series(key, data)
+        await self.key_from_series(key, data)
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update forecast data in the WeatherDataRecord format.
 
         Retrieves data from Open-Meteo, maps each Open-Meteo field to the corresponding
@@ -299,11 +299,11 @@ class WeatherOpenMeteo(WeatherProvider):
 
                 setattr(weather_record, key, value)
 
-            self.insert_by_datetime(weather_record)
+            await self.insert_by_datetime(weather_record)
 
         # Check whether radiation values exist (for logging)
         description_ghi = "Global Horizontal Irradiance (W/m2)"
-        ghi_series = self._description_to_series(description_ghi)
+        ghi_series = await self._description_to_series(description_ghi)
 
         if ghi_series.isnull().all():
             logger.warning("No GHI data received from Open-Meteo")
@@ -315,7 +315,7 @@ class WeatherOpenMeteo(WeatherProvider):
         # Add Precipitable Water (PWAT) using PVLib method
         key = WeatherDataRecord.key_from_description("Temperature (°C)")
         assert key  # noqa: S101
-        temperature = self.key_to_array(
+        temperature = await self.key_to_array(
             key=key,
             start_datetime=self.ems_start_datetime,
             end_datetime=self.end_datetime,
@@ -329,7 +329,7 @@ class WeatherOpenMeteo(WeatherProvider):
 
         key = WeatherDataRecord.key_from_description("Relative Humidity (%)")
         assert key  # noqa: S101
-        humidity = self.key_to_array(
+        humidity = await self.key_to_array(
             key=key,
             start_datetime=self.ems_start_datetime,
             end_datetime=self.end_datetime,
@@ -354,4 +354,4 @@ class WeatherOpenMeteo(WeatherProvider):
             ),
         )
         description = "Precipitable Water (cm)"
-        self._description_from_series(description, pwat)
+        await self._description_from_series(description, pwat)

@@ -84,7 +84,7 @@ class LoadVrm(LoadProvider):
         """Convert UNIX ms timestamp to timezone-aware datetime."""
         return to_datetime(timestamp / 1000, in_timezone=self.config.general.timezone)
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Fetch and store VRM load forecast as loadforecast_power_w and related values."""
         if self.enabled is False:
             logger.info("LoadVrm is disabled, skipping update.")
@@ -102,7 +102,7 @@ class LoadVrm(LoadProvider):
             date = self._ts_to_datetime(timestamp)
             rounded_value = round(value, 2)
 
-            self.update_value(
+            await self.update_value(
                 date,
                 {"loadforecast_power_w": rounded_value},
             )
@@ -111,8 +111,3 @@ class LoadVrm(LoadProvider):
 
         logger.debug(f"Updated loadforecast_power_w with {len(loadforecast_power_w_data)} entries.")
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
-
-
-if __name__ == "__main__":
-    lv = LoadVrm()
-    lv._update_data()

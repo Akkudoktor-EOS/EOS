@@ -9,12 +9,15 @@ A temporary SQLite database is configured for the entire test session via the
 use the real Database singleton via DatabaseMixin — have a working backend.
 """
 
+import asyncio
 from typing import List, Optional, Type
 
 import numpy as np
 import pytest
+import pytest_asyncio
 from pydantic import Field
 
+from akkudoktoreos.core.coreabc import get_database
 from akkudoktoreos.core.dataabc import (
     DataContainer,
     DataProvider,
@@ -91,7 +94,7 @@ class EnergyProvider(DataProvider):
     def enabled(self) -> bool:
         return True
 
-    def _update_data(self, force_update=False) -> None:
+    async def _update_data(self, force_update=False) -> None:
         pass
 
     def db_namespace(self) -> str:
@@ -114,7 +117,7 @@ class PriceProvider(DataProvider):
     def enabled(self) -> bool:
         return True
 
-    def _update_data(self, force_update=False) -> None:
+    async def _update_data(self, force_update=False) -> None:
         pass
 
     def db_namespace(self) -> str:
@@ -144,7 +147,7 @@ def _aligned_base(now: DateTime, interval_minutes: int = 15) -> DateTime:
     return now.subtract(seconds=epoch % interval_sec).set(microsecond=0)
 
 
-def _fill_sequence(
+async def _fill_sequence(
     seq: DataSequence,
     base: DateTime,
     count: int,
@@ -160,8 +163,13 @@ def _fill_sequence(
     for i in range(count):
         dt = base.add(minutes=i * interval_minutes)
         rec = EnergyRecord(date_time=dt, power_w=power_w + i, price_eur=price_eur)
-        seq.db_insert_record(rec)
-    seq.db_save_records()
+        await seq.db_insert_record(rec)
+    await seq.db_save_records()
+
+    records_count = await seq.db_count_records()
+    assert records_count == count
+
+    assert len(seq.records) == count
 
 
 def _reset_singletons() -> None:
@@ -178,8 +186,8 @@ def _reset_singletons() -> None:
             pass
 
 
-@pytest.fixture(autouse=True)
-def configure_database(tmp_path):
+@pytest_asyncio.fixture(autouse=True)
+async def configure_database(tmp_path, config_eos):
     """Configure a fresh temporary SQLite database for every test.
 
     DataSequence uses the real Database singleton via DatabaseMixin.
@@ -198,23 +206,29 @@ def configure_database(tmp_path):
     # Reset the Database singleton itself
     Database.reset_instance()
 
-    # Patch config to use SQLite in tmp_path
-    db = Database()
-    db.config.database.provider = "SQLite"
-    db.config.general.data_folder_path = tmp_path
-    db.open()
+    # Config to use SQLite in tmp_path
+    config_eos.database.provider = "SQLite"
+    config_eos.general.data_folder_path = tmp_path
+
+    db = get_database()
+
+    await db.open()
+
+    assert db.provider_id() == "SQLite"
+    assert db.is_open is True
 
     yield
 
     # Teardown
     try:
-        db.close()
+        await db.close()
     finally:
         _reset_singletons()
         try:
             Database.reset_instance()
         except Exception:
             pass
+        config_eos.database.provider = None
 
 
 # ---------------------------------------------------------------------------
@@ -222,45 +236,133 @@ def configure_database(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def energy_seq():
+@pytest_asyncio.fixture
+async def energy_seq():
     """Fresh EnergySequence with no data."""
-    return EnergySequence()
+    seq = EnergySequence()
+
+    # wipe all records
+    await seq.delete_by_datetime()
+    count = await seq.db_count_records()
+    assert count == 0
+
+    # Wipe DB metadata
+    await seq._db_init_metadata()
+
+    # Ensure compaction metadata is not left over from prior singleton
+    assert seq._db_metadata is not None
+    assert seq._db_metadata.get('last_compact_cutoff_900') == None
+    assert seq._db_metadata.get('last_compact_cutoff_3600') == None
+
+    return seq
 
 
-@pytest.fixture
-def dense_energy_seq():
+@pytest_asyncio.fixture
+async def dense_energy_seq():
     """EnergySequence with 4 weeks of 15-min records (~2688 records).
 
     The base timestamp is floored to a 15-min boundary so compacted bucket
     timestamps are deterministic and on clock-round marks.
     """
+    records_count = 4 * 7 * 24 * 4
     seq = EnergySequence()
+
+    # wipe all records
+    await seq.delete_by_datetime()
+    count = await seq.db_count_records()
+    assert count == 0
+
+    # Wipe DB metadata
+    await seq._db_init_metadata()
+
+    # Ensure compaction metadata is not left over from prior singleton
+    assert seq._db_metadata is not None
+    assert seq._db_metadata.get('last_compact_cutoff_900') == None
+    assert seq._db_metadata.get('last_compact_cutoff_3600') == None
+
     now = to_datetime().in_timezone("UTC")
     base = _aligned_base(now.subtract(weeks=4), interval_minutes=15)
-    _fill_sequence(seq, base, count=4 * 7 * 24 * 4, interval_minutes=15)
+    await _fill_sequence(seq, base, count=records_count, interval_minutes=15)
+
+    count = await seq.db_count_records()
+    assert count == records_count
+
     return seq, now
 
 
-@pytest.fixture
-def dense_price_seq():
+@pytest_asyncio.fixture
+async def price_seq():
+    """Fresh PriceSequence with no data."""
+    seq = PriceSequence()
+
+    # wipe all records
+    await seq.delete_by_datetime()
+    count = await seq.db_count_records()
+    assert count == 0
+
+    # Wipe DB metadata
+    await seq._db_init_metadata()
+
+    # Ensure compaction metadata is not left over from prior singleton
+    assert seq._db_metadata is not None
+    assert seq._db_metadata.get('last_compact_cutoff_900') == None
+    assert seq._db_metadata.get('last_compact_cutoff_3600') == None
+
+    return seq
+
+
+@pytest_asyncio.fixture
+async def dense_price_seq():
     """PriceSequence with 4 weeks of 15-min records.
 
     The base timestamp is floored to a 15-min boundary so compacted bucket
     timestamps are deterministic and on clock-round marks.
     """
+    records_count = 4 * 7 * 24 * 4
     seq = PriceSequence()
+
+    # wipe all records
+    await seq.delete_by_datetime()
+    count = await seq.db_count_records()
+    assert count == 0
+
+    # Wipe DB metadata
+    await seq._db_init_metadata()
+
+    # Ensure compaction metadata is not left over from prior singleton
+    assert seq._db_metadata is not None
+    assert seq._db_metadata.get('last_compact_cutoff_900') == None
+    assert seq._db_metadata.get('last_compact_cutoff_3600') == None
+
     now = to_datetime().in_timezone("UTC")
     base = _aligned_base(now.subtract(weeks=4), interval_minutes=15)
-    _fill_sequence(seq, base, count=4 * 7 * 24 * 4, interval_minutes=15)
+    await _fill_sequence(seq, base, count=records_count, interval_minutes=15)
+
+    count = await seq.db_count_records()
+    assert count == records_count
+
     return seq, now
 
 
-@pytest.fixture
-def energy_container(energy_seq):
+@pytest_asyncio.fixture
+async def energy_and_price_container():
     """DataContainer with one EnergyProvider and one PriceProvider."""
     ep = EnergyProvider()
+    # wipe all records
+    await ep.delete_by_datetime()
+    count = await ep.db_count_records()
+    assert count == 0
+    # Wipe DB metadata
+    await ep._db_init_metadata()
+
     pp = PriceProvider()
+    # wipe all records
+    await pp.delete_by_datetime()
+    count = await pp.db_count_records()
+    assert count == 0
+    # Wipe DB metadata
+    await pp._db_init_metadata()
+
     container = EnergyContainer(providers=[ep, pp])
     return container, ep, pp
 
@@ -270,34 +372,43 @@ def energy_container(energy_seq):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.asyncio
 class TestDataSequenceCompactTiers:
 
-    def test_default_tiers_two_entries(self, energy_seq):
+    async def test_default_tiers_two_entries(self, energy_seq):
         tiers = energy_seq.db_compact_tiers()
         assert len(tiers) == 2
 
-    def test_default_first_tier_2h_15min(self, energy_seq):
+    async def test_default_first_tier_2h_15min(self, energy_seq):
         tiers = energy_seq.db_compact_tiers()
         age_sec = tiers[0][0].total_seconds()
         interval_sec = tiers[0][1].total_seconds()
         assert age_sec == 2 * 3600
         assert interval_sec == 15 * 60
 
-    def test_default_second_tier_2weeks_1h(self, energy_seq):
+    async def test_default_second_tier_2weeks_1h(self, energy_seq):
         tiers = energy_seq.db_compact_tiers()
         age_sec = tiers[1][0].total_seconds()
         interval_sec = tiers[1][1].total_seconds()
         assert age_sec == 14 * 24 * 3600
         assert interval_sec == 3600
 
-    def test_price_sequence_overrides_to_single_tier(self):
-        seq = PriceSequence()
+    async def test_price_sequence_overrides_to_single_tier(self, price_seq):
+        seq = price_seq
         tiers = seq.db_compact_tiers()
         assert len(tiers) == 1
         assert tiers[0][0].total_seconds() == 14 * 24 * 3600
         assert tiers[0][1].total_seconds() == 3600
 
-    def test_empty_tiers_disables_compaction(self):
+
+# ---------------------------------------------------------------------------
+# DataSequence — compaction behaviour
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+class TestDataSequenceCompact:
+
+    async def test_empty_tiers_disables_compaction(self):
         class NoCompact(EnergySequence):
             def db_compact_tiers(self):
                 return []
@@ -305,31 +416,35 @@ class TestDataSequenceCompactTiers:
         seq = NoCompact()
         now = to_datetime().in_timezone("UTC")
         base = _aligned_base(now.subtract(weeks=4), interval_minutes=15)
-        _fill_sequence(seq, base, count=500, interval_minutes=15)
-        assert seq.db_compact() == 0
+        await _fill_sequence(seq, base, count=500, interval_minutes=15)
+        compacted = await seq.db_compact()
+        assert compacted == 0
 
+    async def test_empty_sequence_returns_zero(self, energy_seq):
+        db_enabled = energy_seq.db_enabled
+        assert db_enabled == True, "database must be enabled"
 
-# ---------------------------------------------------------------------------
-# DataSequence — compaction behaviour
-# ---------------------------------------------------------------------------
+        compacted = await energy_seq.db_compact()
+        assert compacted == 0
 
-
-class TestDataSequenceCompact:
-
-    def test_empty_sequence_returns_zero(self, energy_seq):
-        assert energy_seq.db_compact() == 0
-
-    def test_dense_data_reduces_count(self, dense_energy_seq):
+    async def test_dense_data_reduces_count(self, dense_energy_seq):
         seq, _ = dense_energy_seq
-        before = seq.db_count_records()
-        deleted = seq.db_compact()
-        assert deleted > 0
-        assert seq.db_count_records() < before
+        db_enabled = seq.db_enabled
+        assert db_enabled == True, "database must be enabled"
 
-    def test_all_fields_compacted(self, dense_energy_seq):
+        before = await seq.db_count_records()
+        deleted = await seq.db_compact()
+        assert deleted > 0
+        after = await seq.db_count_records()
+        assert after < before
+
+    async def test_all_fields_compacted(self, dense_energy_seq):
         """Both power_w and price_eur should be present on compacted records."""
         seq, now = dense_energy_seq
-        seq.db_compact()
+        db_enabled = seq.db_enabled
+        assert db_enabled == True, "database must be enabled"
+
+        await seq.db_compact()
 
         cutoff = now.subtract(weeks=2)
         old_records = [r for r in seq.records if r.date_time and r.date_time < cutoff]
@@ -339,9 +454,12 @@ class TestDataSequenceCompact:
             assert rec.power_w is not None, "power_w must survive compaction"
             assert rec.price_eur is not None, "price_eur must survive compaction"
 
-    def test_recent_records_untouched(self, dense_energy_seq):
+    async def test_recent_records_untouched(self, dense_energy_seq):
         """Records within 2 hours of now must not be compacted."""
         seq, now = dense_energy_seq
+        db_enabled = seq.db_enabled
+        assert db_enabled == True, "database must be enabled"
+
         cutoff = now.subtract(hours=2)
 
         # Snapshot recent values
@@ -351,7 +469,7 @@ class TestDataSequenceCompact:
             if r.date_time and r.date_time >= cutoff
         }
 
-        seq.db_compact()
+        await seq.db_compact()
 
         recent_after = {
             DatabaseTimestamp.from_datetime(r.date_time): r.power_w
@@ -361,20 +479,26 @@ class TestDataSequenceCompact:
 
         assert recent_before == recent_after
 
-    def test_idempotent(self, dense_energy_seq):
+    async def test_idempotent(self, dense_energy_seq):
         seq, _ = dense_energy_seq
-        seq.db_compact()
-        after_first = seq.db_count_records()
+        db_enabled = seq.db_enabled
+        assert db_enabled == True, "database must be enabled"
 
-        seq.db_compact()
-        after_second = seq.db_count_records()
+        await seq.db_compact()
+        after_first = await seq.db_count_records()
+
+        await seq.db_compact()
+        after_second = await seq.db_count_records()
 
         assert after_first == after_second
 
-    def test_price_sequence_preserves_15min_in_recent_2weeks(self, dense_price_seq):
+    async def test_price_sequence_preserves_15min_in_recent_2weeks(self, dense_price_seq):
         """PriceSequence keeps 15-min resolution for data younger than 2 weeks."""
         seq, now = dense_price_seq
-        seq.db_compact()
+        db_enabled = seq.db_enabled
+        assert db_enabled == True, "database must be enabled"
+
+        await seq.db_compact()
 
         two_weeks_ago = now.subtract(weeks=2)
         recent_records = [
@@ -394,10 +518,13 @@ class TestDataSequenceCompact:
                 f"Expected ~15min spacing in recent 2 weeks, got {avg_spacing/60:.1f} min"
             )
 
-    def test_price_sequence_compacts_older_than_2weeks_to_1h(self, dense_price_seq):
+    async def test_price_sequence_compacts_older_than_2weeks_to_1h(self, dense_price_seq):
         """PriceSequence compacts data older than 2 weeks to 1-hour resolution."""
         seq, now = dense_price_seq
-        seq.db_compact()
+        db_enabled = seq.db_enabled
+        assert db_enabled == True, "database must be enabled"
+
+        await seq.db_compact()
 
         two_weeks_ago = now.subtract(weeks=2)
         old_records = sorted(
@@ -415,19 +542,23 @@ class TestDataSequenceCompact:
                 f"Expected ~1h spacing for old price data, got {avg_spacing/60:.1f} min"
             )
 
-    def test_compact_with_custom_tiers_argument(self, dense_energy_seq):
+    async def test_compact_with_custom_tiers_argument(self, dense_energy_seq):
         """db_compact(compact_tiers=...) overrides the instance's tiers."""
         seq, _ = dense_energy_seq
-        before = seq.db_count_records()
+        db_enabled = seq.db_enabled
+        assert db_enabled == True, "database must be enabled"
 
-        deleted = seq.db_compact(
+        before = await seq.db_count_records()
+
+        deleted = await seq.db_compact(
             compact_tiers=[(to_duration("1 day"), to_duration("1 hour"))]
         )
-
         assert deleted > 0
-        assert seq.db_count_records() < before
 
-    def test_compacted_timestamps_are_clock_aligned(self, dense_energy_seq):
+        after = await seq.db_count_records()
+        assert after < before
+
+    async def test_compacted_timestamps_are_clock_aligned(self, dense_energy_seq):
         """All timestamps produced by compaction must sit on UTC clock boundaries.
 
         _db_compact_tier floors its cutoff timestamps to interval boundaries, so
@@ -439,11 +570,14 @@ class TestDataSequenceCompact:
         - Records younger than floored 2h cutoff   → unchanged
         """
         seq, now = dense_energy_seq
-        seq.db_compact()
+        db_enabled = seq.db_enabled
+        assert db_enabled == True, "database must be enabled"
+
+        await seq.db_compact()
 
         # _db_compact_tier floors new_cutoff from db_max, not from wall-clock now.
         # Compute the same floored cutoffs that the implementation used.
-        _, db_max_ts = seq.db_timestamp_range()
+        _, db_max_ts = await seq.db_timestamp_range()
         # DatabaseTimestamp already imported at top of file
         db_max_epoch = int(DatabaseTimestamp.to_datetime(db_max_ts).timestamp())
         two_weeks_cutoff_epoch = ((db_max_epoch - 14*24*3600) // 3600) * 3600
@@ -467,7 +601,7 @@ class TestDataSequenceCompact:
 # DataSequence — data integrity after compaction
 # ---------------------------------------------------------------------------
 
-
+@pytest.mark.asyncio
 class TestDataSequenceCompactIntegrity:
 
     @staticmethod
@@ -483,19 +617,19 @@ class TestDataSequenceCompactIntegrity:
         floored_epoch = (raw_epoch // interval_seconds) * interval_seconds
         return now.__class__.fromtimestamp(floored_epoch, tz=now.tzinfo)
 
-    def test_constant_power_preserved(self):
+    async def test_constant_power_preserved(self, energy_seq):
         """Mean resampling of a constant must equal the constant."""
-        seq = EnergySequence()
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         # Use aligned base so bucket boundaries are deterministic
         base = _aligned_base(now.subtract(hours=6), interval_minutes=15)
 
         for i in range(6 * 60):  # 1-min records for 6 hours
             dt = base.add(minutes=i)
-            seq.db_insert_record(EnergyRecord(date_time=dt, power_w=500.0, price_eur=0.30))
-        seq.db_save_records()
+            await seq.db_insert_record(EnergyRecord(date_time=dt, power_w=500.0, price_eur=0.30))
+        await seq.db_save_records()
 
-        seq._db_compact_tier(to_duration("2 hours"), to_duration("15 minutes"))
+        await seq._db_compact_tier(to_duration("2 hours"), to_duration("15 minutes"))
 
         cutoff = now.subtract(hours=2)
         for rec in seq.records:
@@ -503,27 +637,27 @@ class TestDataSequenceCompactIntegrity:
                 assert rec.power_w == pytest.approx(500.0, abs=1e-3)
                 assert rec.price_eur == pytest.approx(0.30, abs=1e-6)
 
-    def test_record_count_monotonically_decreases(self):
+    async def test_record_count_monotonically_decreases(self, energy_seq):
         """Each successive tier run should never increase record count."""
-        seq = EnergySequence()
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         base = _aligned_base(now.subtract(weeks=4), interval_minutes=15)
-        _fill_sequence(seq, base, count=4 * 7 * 24 * 4, interval_minutes=15)
+        await _fill_sequence(seq, base, count=4 * 7 * 24 * 4, interval_minutes=15)
 
-        counts = [seq.db_count_records()]
+        counts = [await seq.db_count_records()]
         for age, interval in reversed(seq.db_compact_tiers()):
-            seq._db_compact_tier(age, interval)
-            counts.append(seq.db_count_records())
+            await seq._db_compact_tier(age, interval)
+            counts.append(await seq.db_count_records())
 
         for i in range(1, len(counts)):
             assert counts[i] <= counts[i - 1], (
                 f"Record count increased from {counts[i-1]} to {counts[i]} at tier {i}"
             )
 
-    def test_no_duplicate_timestamps_after_compaction(self, dense_energy_seq):
+    async def test_no_duplicate_timestamps_after_compaction(self, dense_energy_seq):
         """Compaction must not create duplicate timestamps."""
         seq, _ = dense_energy_seq
-        seq.db_compact()
+        await seq.db_compact()
 
         timestamps = [
             DatabaseTimestamp.from_datetime(r.date_time)
@@ -532,15 +666,15 @@ class TestDataSequenceCompactIntegrity:
         ]
         assert len(timestamps) == len(set(timestamps)), "Duplicate timestamps after compaction"
 
-    def test_timestamps_remain_sorted(self, dense_energy_seq):
+    async def test_timestamps_remain_sorted(self, dense_energy_seq):
         """Records must remain in ascending order after compaction."""
         seq, _ = dense_energy_seq
-        seq.db_compact()
+        await seq.db_compact()
 
         dts = [r.date_time for r in seq.records if r.date_time is not None]
         assert dts == sorted(dts)
 
-    def test_compacted_old_timestamps_on_1h_boundaries(self, dense_energy_seq):
+    async def test_compacted_old_timestamps_on_1h_boundaries(self, dense_energy_seq):
         """Records older than the floored 2-week cutoff must be on whole-hour UTC boundaries.
 
         _db_compact_tier floors new_cutoff to the interval boundary, so we must
@@ -549,11 +683,11 @@ class TestDataSequenceCompactIntegrity:
         15-min resolution from the previous tier.
         """
         seq, now = dense_energy_seq
-        seq.db_compact()
+        await seq.db_compact()
 
         # _db_compact_tier floors new_cutoff from db_max (the newest record),
         # not from wall-clock now.  Derive the same floored cutoff here.
-        _, db_max_ts = seq.db_timestamp_range()
+        _, db_max_ts = await seq.db_timestamp_range()
         # DatabaseTimestamp already imported at top of file
         db_max_epoch = int(DatabaseTimestamp.to_datetime(db_max_ts).timestamp())
         two_weeks_cutoff_epoch = ((db_max_epoch - 14*24*3600) // 3600) * 3600
@@ -568,7 +702,7 @@ class TestDataSequenceCompactIntegrity:
                 f"Old record at {rec.date_time} is not on an hour boundary"
             )
 
-    def test_compacted_mid_timestamps_on_15min_boundaries(self):
+    async def test_compacted_mid_timestamps_on_15min_boundaries(self, energy_seq):
         """Records compacted by the 15-min tier must land on 15-min UTC boundaries.
 
         We run _db_compact_tier directly with the 2h/15min tier on a sequence
@@ -579,17 +713,17 @@ class TestDataSequenceCompactIntegrity:
         We replicate that exact calculation to identify which records were in
         the compaction window.
         """
-        seq = EnergySequence()
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         base = _aligned_base(now.subtract(hours=6), interval_minutes=15)
 
         # 1-min records for 6 hours; newest record is at base + 359 min
         for i in range(6 * 60):
             dt = base.add(minutes=i)
-            seq.db_insert_record(EnergyRecord(date_time=dt, power_w=500.0, price_eur=0.30))
-        seq.db_save_records()
+            await seq.db_insert_record(EnergyRecord(date_time=dt, power_w=500.0, price_eur=0.30))
+        await seq.db_save_records()
 
-        seq._db_compact_tier(to_duration("2 hours"), to_duration("15 minutes"))
+        await seq._db_compact_tier(to_duration("2 hours"), to_duration("15 minutes"))
 
         # Replicate the implementation's floored cutoff exactly:
         # newest_dt = last inserted record = base + 359min
@@ -617,17 +751,17 @@ class TestDataSequenceCompactIntegrity:
                 f"is not on a 15-min boundary (epoch % 900 = {epoch % 900})"
             )
 
-    def test_no_compacted_timestamps_between_boundaries(self, dense_energy_seq):
+    async def test_no_compacted_timestamps_between_boundaries(self, dense_energy_seq):
         """After compaction no record timestamp must fall between expected bucket boundaries.
 
         Records older than the floored 2-week cutoff (processed by the 1h tier)
         must be on hour marks.  Records in the 15-min band must be on 15-min marks.
         """
         seq, now = dense_energy_seq
-        seq.db_compact()
+        await seq.db_compact()
 
         # Derive floored cutoffs from db_max — same reference as the implementation.
-        _, db_max_ts = seq.db_timestamp_range()
+        _, db_max_ts = await seq.db_timestamp_range()
         # DatabaseTimestamp already imported at top of file
         db_max_epoch = int(DatabaseTimestamp.to_datetime(db_max_ts).timestamp())
         two_weeks_cutoff_epoch = ((db_max_epoch - 14*24*3600) // 3600) * 3600
@@ -651,39 +785,41 @@ class TestDataSequenceCompactIntegrity:
 # DataContainer — delegation
 # ---------------------------------------------------------------------------
 
-
+@pytest.mark.asyncio
 class TestDataContainerCompact:
 
-    def test_compact_delegates_to_all_providers(self, energy_container):
-        container, ep, pp = energy_container
+    async def test_compact_delegates_to_all_providers(self, energy_and_price_container):
+        container, ep, pp = energy_and_price_container
         now = to_datetime().in_timezone("UTC")
 
         # Fill both providers with 4 weeks of 15-min data
         base = _aligned_base(now.subtract(weeks=4), interval_minutes=15)
-        _fill_sequence(ep, base, count=4 * 7 * 24 * 4, interval_minutes=15)
-        _fill_sequence(pp, base, count=4 * 7 * 24 * 4, interval_minutes=15)
+        await _fill_sequence(ep, base, count=4 * 7 * 24 * 4, interval_minutes=15)
+        await _fill_sequence(pp, base, count=4 * 7 * 24 * 4, interval_minutes=15)
 
-        ep_before = ep.db_count_records()
-        pp_before = pp.db_count_records()
+        ep_before = await ep.db_count_records()
+        pp_before = await pp.db_count_records()
 
-        container.db_compact()
+        await container.db_compact()
 
-        assert ep.db_count_records() < ep_before, "EnergyProvider records should be compacted"
-        assert pp.db_count_records() < pp_before, "PriceProvider records should be compacted"
+        ep_after = await ep.db_count_records()
+        assert ep_after < ep_before, "EnergyProvider records should be compacted"
+        pp_after = await pp.db_count_records()
+        assert pp_after < pp_before, "PriceProvider records should be compacted"
 
-    def test_compact_empty_container_no_error(self):
+    async def test_compact_empty_container_no_error(self):
         container = EnergyContainer(providers=[])
-        container.db_compact()  # must not raise
+        await container.db_compact()  # must not raise
 
-    def test_compact_provider_tiers_respected(self, energy_container):
+    async def test_compact_provider_tiers_respected(self, energy_and_price_container):
         """PriceProvider with single 2-week tier must not compact recent 15-min data."""
-        container, ep, pp = energy_container
+        container, ep, pp = energy_and_price_container
         now = to_datetime().in_timezone("UTC")
 
         base = _aligned_base(now.subtract(weeks=4), interval_minutes=15)
-        _fill_sequence(pp, base, count=4 * 7 * 24 * 4, interval_minutes=15)
+        await _fill_sequence(pp, base, count=4 * 7 * 24 * 4, interval_minutes=15)
 
-        container.db_compact()
+        await container.db_compact()
 
         # Price data in last 2 weeks should still be at 15-min resolution
         two_weeks_ago = now.subtract(weeks=2)
@@ -697,14 +833,14 @@ class TestDataContainerCompact:
                 f"PriceProvider recent data should be ~15min, got {diff/60:.1f} min"
             )
 
-    def test_compact_raises_on_provider_failure(self):
+    async def test_compact_raises_on_provider_failure(self):
         """A provider that raises during compaction must bubble up as RuntimeError.
 
         Monkey-patching is blocked by Pydantic v2's __setattr__ validation, so
         we use a subclass that overrides db_compact instead.
         """
         class BrokenProvider(EnergyProvider):
-            def db_compact(self, *args, **kwargs):
+            async def db_compact(self, *args, **kwargs):
                 raise ValueError("simulated failure")
 
             def provider_id(self) -> str:
@@ -718,22 +854,24 @@ class TestDataContainerCompact:
         container = EnergyContainer(providers=[bp])
 
         with pytest.raises(RuntimeError, match="fails on db_compact"):
-            container.db_compact()
+            await container.db_compact()
 
-    def test_compact_idempotent_on_container(self, energy_container):
-        container, ep, pp = energy_container
+    async def test_compact_idempotent_on_container(self, energy_and_price_container):
+        container, ep, pp = energy_and_price_container
         now = to_datetime().in_timezone("UTC")
         base = _aligned_base(now.subtract(weeks=4), interval_minutes=15)
-        _fill_sequence(ep, base, count=4 * 7 * 24 * 4, interval_minutes=15)
-        _fill_sequence(pp, base, count=4 * 7 * 24 * 4, interval_minutes=15)
+        await _fill_sequence(ep, base, count=4 * 7 * 24 * 4, interval_minutes=15)
+        await _fill_sequence(pp, base, count=4 * 7 * 24 * 4, interval_minutes=15)
 
-        container.db_compact()
-        ep_after_first = ep.db_count_records()
-        pp_after_first = pp.db_count_records()
+        await container.db_compact()
+        ep_after_first = await ep.db_count_records()
+        pp_after_first = await pp.db_count_records()
 
-        container.db_compact()
-        assert ep.db_count_records() == ep_after_first
-        assert pp.db_count_records() == pp_after_first
+        await container.db_compact()
+        ep_after_second = await ep.db_count_records()
+        assert ep_after_second == ep_after_first
+        pp_after_second = await pp.db_count_records()
+        assert pp_after_second == pp_after_first
 
 
 # ---------------------------------------------------------------------------
@@ -750,19 +888,19 @@ class TestDataContainerCompact:
 #                                    are merged key-by-key; count decreases by 1
 # ---------------------------------------------------------------------------
 
-
+@pytest.mark.asyncio
 class TestDataSequenceSparseGuard:
 
     # ------------------------------------------------------------------
     # Case 1: sparse + already aligned → pure skip
     # ------------------------------------------------------------------
 
-    def test_sparse_aligned_data_not_modified(self):
+    async def test_sparse_aligned_data_not_modified(self, energy_seq):
         """Sparse records that already sit on interval boundaries must not be touched.
 
         deleted must be 0 and record count must be unchanged.
         """
-        seq = EnergySequence()
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         base = now.subtract(weeks=4)
 
@@ -771,25 +909,26 @@ class TestDataSequenceSparseGuard:
             raw = base.add(days=offset_days)
             # Floor to nearest hour boundary so timestamp is already aligned
             aligned = raw.set(minute=0, second=0, microsecond=0)
-            seq.db_insert_record(EnergyRecord(date_time=aligned, power_w=100.0))
-        seq.db_save_records()
+            await seq.db_insert_record(EnergyRecord(date_time=aligned, power_w=100.0))
+        await seq.db_save_records()
 
-        before = seq.db_count_records()
-        deleted = seq.db_compact()
+        before = await seq.db_count_records()
+        deleted = await seq.db_compact()
 
         assert deleted == 0, "Aligned sparse records must not be deleted"
-        assert seq.db_count_records() == before, "Record count must not change"
+        after = await seq.db_count_records()
+        assert after == before, "Record count must not change"
 
-    def test_sparse_aligned_data_values_untouched(self):
+    async def test_sparse_aligned_data_values_untouched(self, energy_seq):
         """Values of aligned sparse records must be preserved exactly."""
-        seq = EnergySequence()
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         base = now.subtract(weeks=4).set(minute=0, second=0, microsecond=0)
 
-        seq.db_insert_record(EnergyRecord(date_time=base, power_w=42.0, price_eur=0.99))
-        seq.db_save_records()
+        await seq.db_insert_record(EnergyRecord(date_time=base, power_w=42.0, price_eur=0.99))
+        await seq.db_save_records()
 
-        seq.db_compact()
+        await seq.db_compact()
 
         remaining = [r for r in seq.records if r.date_time == base]
         assert len(remaining) == 1
@@ -801,7 +940,7 @@ class TestDataSequenceSparseGuard:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _make_snapping_seq(now, offsets_minutes, interval_minutes=10, age_minutes=30):
+    async def _make_snapping_seq(seq, now, offsets_minutes, interval_minutes=10, age_minutes=30):
         """Build a sequence guaranteed to enter the sparse-snapping path.
 
         Key insight: _db_compact_tier measures age_threshold from db_max (the
@@ -849,34 +988,34 @@ class TestDataSequenceSparseGuard:
         base_epoch = (raw_base_epoch // interval_sec) * interval_sec
         base = DateTime.fromtimestamp(base_epoch, tz="UTC")
 
-        seq = EnergySequence()
         dts = []
         for off in offsets_minutes:
             dt = base.add(minutes=off)
-            seq.db_insert_record(EnergyRecord(date_time=dt, power_w=float(off * 10)))
+            await seq.db_insert_record(EnergyRecord(date_time=dt, power_w=float(off * 10)))
             dts.append(dt)
 
         # Newest anchor: makes db_max ≈ now so cutoff = now - age_threshold
         anchor = now.subtract(seconds=1)
-        seq.db_insert_record(EnergyRecord(date_time=anchor, power_w=0.0))
-        seq.db_save_records()
-        return seq, age_td, interval_td, dts
+        await seq.db_insert_record(EnergyRecord(date_time=anchor, power_w=0.0))
+        await seq.db_save_records()
+        return age_td, interval_td, dts
 
-    def test_sparse_misaligned_records_are_snapped(self):
+    async def test_sparse_misaligned_records_are_snapped(self, energy_seq):
         """Sparse misaligned records must be moved to the nearest boundary.
 
         Uses a tight window (30 min age, 10 min interval → 3 resampled buckets)
         with 4 misaligned records so existing_count(4) > resampled_count(3) and
         the snapping path is entered deterministically.
         """
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         # 4 records at :03, :08, :13, :18 — all misaligned for a 10-min interval
-        seq, age_td, interval_td, dts = self._make_snapping_seq(
-            now, offsets_minutes=[3, 8, 13, 18]
+        age_td, interval_td, dts = await self._make_snapping_seq(
+            seq, now, offsets_minutes=[3, 8, 13, 18]
         )
         n_test_records = len([3, 8, 13, 18])
-        deleted = seq._db_compact_tier(age_td, interval_td)
-        after = seq.db_count_records()
+        deleted = await seq._db_compact_tier(age_td, interval_td)
+        after = await seq.db_count_records()
 
         assert deleted == n_test_records, (
             f"All {n_test_records} in-window records must be deleted (whole-window delete); "
@@ -898,20 +1037,21 @@ class TestDataSequenceSparseGuard:
             f"got {after}"
         )
 
-    def test_sparse_misaligned_timestamps_become_aligned(self):
+    async def test_sparse_misaligned_timestamps_become_aligned(self, energy_seq):
         """After snapping, in-window timestamps must be on the target interval boundary.
 
         The anchor record lives outside the compaction window (it is younger than
         age_threshold) and is intentionally misaligned — it must NOT be checked.
         """
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         interval_minutes = 10
         age_minutes = 30
-        seq, age_td, interval_td, dts = self._make_snapping_seq(
-            now, offsets_minutes=[3, 8, 13, 18], interval_minutes=interval_minutes,
+        age_td, interval_td, dts = await self._make_snapping_seq(
+            seq, now, offsets_minutes=[3, 8, 13, 18], interval_minutes=interval_minutes,
             age_minutes=age_minutes,
         )
-        seq._db_compact_tier(age_td, interval_td)
+        await seq._db_compact_tier(age_td, interval_td)
 
         # Compute window_end the same way _db_compact_tier does
         # (anchor is db_max; raw_cutoff = anchor - age_threshold ≈ now - 30min)
@@ -931,16 +1071,16 @@ class TestDataSequenceSparseGuard:
                 f"{interval_minutes}-min boundary (epoch % {interval_sec} = {epoch % interval_sec})"
             )
 
-    def test_sparse_misaligned_values_preserved_after_snap(self):
+    async def test_sparse_misaligned_values_preserved_after_snap(self, energy_seq):
         """Snapping must not alter the field values of sparse records."""
-        seq = EnergySequence()
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         # Single misaligned record, old enough for both tiers
         dt = now.subtract(weeks=4).set(minute=7, second=0, microsecond=0)
-        seq.db_insert_record(EnergyRecord(date_time=dt, power_w=777.0, price_eur=0.55))
-        seq.db_save_records()
+        await seq.db_insert_record(EnergyRecord(date_time=dt, power_w=777.0, price_eur=0.55))
+        await seq.db_save_records()
 
-        seq.db_compact()
+        await seq.db_compact()
 
         # Exactly one record must remain and its values must be unchanged
         assert len(seq.records) == 1
@@ -951,7 +1091,7 @@ class TestDataSequenceSparseGuard:
     # Case 3: two sparse records collide on the same snapped bucket
     # ------------------------------------------------------------------
 
-    def test_sparse_collision_merges_records(self):
+    async def test_sparse_collision_merges_records(self, energy_seq):
         """Two sparse records that snap to the same bucket must be merged.
 
         Records at :03 and :04 both round to :00 with a 10-min interval.
@@ -959,6 +1099,7 @@ class TestDataSequenceSparseGuard:
         A newest-anchor record at now-1s pushes db_max ≈ now so the compaction
         cutoff lands at now-30min, which is after all test records.
         """
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         age_td = to_duration("30 minutes")
         interval_td = to_duration("10 minutes")
@@ -969,19 +1110,18 @@ class TestDataSequenceSparseGuard:
         raw_base = now.subtract(minutes=52).set(second=0, microsecond=0)
         base = raw_base.subtract(seconds=int(raw_base.timestamp()) % interval_sec)
 
-        seq = EnergySequence()
-        seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=3),
+        await seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=3),
                                           power_w=100.0, price_eur=None))
-        seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=4),
+        await seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=4),
                                           power_w=None, price_eur=0.25))
-        seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=13), power_w=10.0))
-        seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=17), power_w=20.0))
+        await seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=13), power_w=10.0))
+        await seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=17), power_w=20.0))
         # Anchor: makes db_max ≈ now → cutoff = now - 30min (after all test records)
-        seq.db_insert_record(EnergyRecord(date_time=now.subtract(seconds=1), power_w=0.0))
-        seq.db_save_records()
+        await seq.db_insert_record(EnergyRecord(date_time=now.subtract(seconds=1), power_w=0.0))
+        await seq.db_save_records()
 
         # existing_count in window = 4, resampled_count = 3 → snapping path
-        seq._db_compact_tier(age_td, interval_td)
+        await seq._db_compact_tier(age_td, interval_td)
 
         snapped_epoch = int(base.timestamp())
         snapped = [
@@ -992,7 +1132,7 @@ class TestDataSequenceSparseGuard:
         assert snapped[0].power_w == pytest.approx(100.0), "power_w from :03 must survive"
         assert snapped[0].price_eur == pytest.approx(0.25), "price_eur from :04 must survive"
 
-    def test_sparse_collision_keeps_first_value_for_shared_key(self):
+    async def test_sparse_collision_keeps_first_value_for_shared_key(self, energy_seq):
         """When two sparse records floor to the same bucket, the earlier value wins.
 
         Two records at :03 (power_w=111) and :04 (power_w=222) both floor to :00
@@ -1001,19 +1141,19 @@ class TestDataSequenceSparseGuard:
         snapping path is taken rather than full resampling.  The merged record at
         :00 must carry power_w=111 because the chronologically earlier record wins.
         """
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         interval_sec = 600
         # Place both records 52 min ago so they are before window_end ≈ now - 30min.
         # Only 2 test records → existing_count(2) <= resampled_count → sparse path.
         raw_base = now.subtract(minutes=52).set(second=0, microsecond=0)
         base = raw_base.subtract(seconds=int(raw_base.timestamp()) % interval_sec)
-        seq = EnergySequence()
-        seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=3), power_w=111.0))
-        seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=4), power_w=222.0))
+        await seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=3), power_w=111.0))
+        await seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=4), power_w=222.0))
         # Anchor at now-1s: makes db_max ≈ now so cutoff = now - 30min
-        seq.db_insert_record(EnergyRecord(date_time=now.subtract(seconds=1), power_w=0.0))
-        seq.db_save_records()
-        seq._db_compact_tier(to_duration("30 minutes"), to_duration("10 minutes"))
+        await seq.db_insert_record(EnergyRecord(date_time=now.subtract(seconds=1), power_w=0.0))
+        await seq.db_save_records()
+        await seq._db_compact_tier(to_duration("30 minutes"), to_duration("10 minutes"))
         snapped_epoch = int(base.timestamp())
         snapped = [
             r for r in seq.records
@@ -1022,7 +1162,7 @@ class TestDataSequenceSparseGuard:
         assert len(snapped) == 1, ":03 and :04 must floor-snap into one :00 record"
         assert snapped[0].power_w == pytest.approx(111.0), "Earlier record's value must win"
 
-    def test_sparse_collision_with_existing_aligned_record(self):
+    async def test_sparse_collision_with_existing_aligned_record(self, energy_seq):
         """A misaligned record that snaps onto an already-aligned record must merge
         into it without raising ValueError.  The aligned record's existing values win.
 
@@ -1030,6 +1170,7 @@ class TestDataSequenceSparseGuard:
         power_w=None, price_eur=0.30) both map to :00.  Result: power_w=50
         (aligned wins) and price_eur=0.30 (filled from :03).
         """
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         interval_sec = 600
         # base must be far enough back that all records (+17min max) land before
@@ -1037,19 +1178,18 @@ class TestDataSequenceSparseGuard:
         raw_base = now.subtract(minutes=52).set(second=0, microsecond=0)
         base = raw_base.subtract(seconds=int(raw_base.timestamp()) % interval_sec)
 
-        seq = EnergySequence()
-        seq.db_insert_record(EnergyRecord(date_time=base,
+        await seq.db_insert_record(EnergyRecord(date_time=base,
                                           power_w=50.0, price_eur=None))
-        seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=3),
+        await seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=3),
                                           power_w=None, price_eur=0.30))
-        seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=13), power_w=10.0))
-        seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=17), power_w=20.0))
+        await seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=13), power_w=10.0))
+        await seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=17), power_w=20.0))
         # Anchor: db_max ≈ now → cutoff = now - 30min, after all test records
-        seq.db_insert_record(EnergyRecord(date_time=now.subtract(seconds=1), power_w=0.0))
-        seq.db_save_records()
+        await seq.db_insert_record(EnergyRecord(date_time=now.subtract(seconds=1), power_w=0.0))
+        await seq.db_save_records()
 
         # Must not raise ValueError
-        seq._db_compact_tier(to_duration("30 minutes"), to_duration("10 minutes"))
+        await seq._db_compact_tier(to_duration("30 minutes"), to_duration("10 minutes"))
 
         snapped_epoch = int(base.timestamp())
         snapped = [
@@ -1063,13 +1203,14 @@ class TestDataSequenceSparseGuard:
         assert rec.date_time is not None
         assert int(rec.date_time.timestamp()) % interval_sec == 0
 
-    def test_sparse_no_duplicate_timestamps_after_collision(self):
+    async def test_sparse_no_duplicate_timestamps_after_collision(self, energy_seq):
         """After collision merging, no duplicate timestamps must remain.
 
         Three records at :02, :03, :04 all round to :00 with a 10-min interval.
         Together with a record at :13 this gives existing_count(4) >
         resampled_count(3) so the snapping path is entered.
         """
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         interval_sec = 600
         # base must be far enough back that all records (+17min max) land before
@@ -1077,17 +1218,16 @@ class TestDataSequenceSparseGuard:
         raw_base = now.subtract(minutes=52).set(second=0, microsecond=0)
         base = raw_base.subtract(seconds=int(raw_base.timestamp()) % interval_sec)
 
-        seq = EnergySequence()
         for offset_min in [2, 3, 4]:   # all snap to :00
-            seq.db_insert_record(EnergyRecord(
+            await seq.db_insert_record(EnergyRecord(
                 date_time=base.add(minutes=offset_min), power_w=float(offset_min)
             ))
-        seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=13), power_w=10.0))
+        await seq.db_insert_record(EnergyRecord(date_time=base.add(minutes=13), power_w=10.0))
         # Anchor: db_max ≈ now → cutoff = now - 30min, after all test records
-        seq.db_insert_record(EnergyRecord(date_time=now.subtract(seconds=1), power_w=0.0))
-        seq.db_save_records()
+        await seq.db_insert_record(EnergyRecord(date_time=now.subtract(seconds=1), power_w=0.0))
+        await seq.db_save_records()
 
-        seq._db_compact_tier(to_duration("30 minutes"), to_duration("10 minutes"))
+        await seq._db_compact_tier(to_duration("30 minutes"), to_duration("10 minutes"))
 
         timestamps = [
             int(r.date_time.timestamp())
@@ -1100,30 +1240,34 @@ class TestDataSequenceSparseGuard:
     # Existing tier-skip tests (unchanged semantics)
     # ------------------------------------------------------------------
 
-    def test_hourly_data_skips_1h_tier(self):
+    async def test_hourly_data_skips_1h_tier(self, energy_seq):
         """Data already at 1-hour resolution and aligned must not be re-compacted."""
-        seq = EnergySequence()
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         # Use an hour-aligned base so records are on clean boundaries
         base = now.subtract(weeks=3).set(minute=0, second=0, microsecond=0)
 
-        _fill_sequence(seq, base, count=3 * 7 * 24, interval_minutes=60)
+        await _fill_sequence(seq, base, count=3 * 7 * 24, interval_minutes=60)
 
-        before = seq.db_count_records()
-        deleted = seq._db_compact_tier(to_duration("14 days"), to_duration("1 hour"))
+        before = await seq.db_count_records()
 
+        deleted = await seq._db_compact_tier(to_duration("14 days"), to_duration("1 hour"))
         assert deleted == 0
-        assert seq.db_count_records() == before
 
-    def test_15min_data_younger_than_2weeks_skips_1h_tier(self):
+        after = await seq.db_count_records()
+        assert after == before
+
+    async def test_15min_data_younger_than_2weeks_skips_1h_tier(self, energy_seq):
         """15-min data between 2h and 2weeks old must NOT be compacted by the 1h tier."""
-        seq = EnergySequence()
+        seq = energy_seq
         now = to_datetime().in_timezone("UTC")
         base = now.subtract(weeks=1).set(minute=0, second=0, microsecond=0)
-        _fill_sequence(seq, base, count=7 * 24 * 4, interval_minutes=15)
+        await _fill_sequence(seq, base, count=7 * 24 * 4, interval_minutes=15)
 
-        before = seq.db_count_records()
-        deleted = seq._db_compact_tier(to_duration("14 days"), to_duration("1 hour"))
+        before = await seq.db_count_records()
 
+        deleted = await seq._db_compact_tier(to_duration("14 days"), to_duration("1 hour"))
         assert deleted == 0
-        assert seq.db_count_records() == before
+
+        after = await seq.db_count_records()
+        assert after == before

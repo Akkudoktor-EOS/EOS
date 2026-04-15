@@ -8,6 +8,7 @@ This module is designed for use in predictive modeling workflows, facilitating t
 and manipulation of configuration and generic data in a clear, scalable, and structured manner.
 """
 
+import asyncio
 import difflib
 import json
 import traceback
@@ -16,6 +17,7 @@ from collections.abc import KeysView, MutableMapping
 from itertools import chain
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     Dict,
     Iterator,
@@ -53,6 +55,7 @@ from akkudoktoreos.core.databaseabc import (
     DatabaseTimestamp,
     DatabaseTimeWindowType,
 )
+from akkudoktoreos.core.decorators import classproperty
 from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeData,
@@ -433,7 +436,7 @@ class DataRecord(DataABC, MutableMapping):
 
 
 class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
-    """A managed sequence of DataRecord instances with ltime series behavior.
+    """A managed sequence of DataRecord instances with time series behavior.
 
     The DataSequence class provides an ordered, mutable collection of DataRecord
     instances.
@@ -466,15 +469,15 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
                 records: list[DerivedDataRecord] = Field(default_factory=list, json_schema_extra={ "description": "List of data records" })
 
             seq = DerivedSequence()
-            seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=72))
-            seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=75))
+            await seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=72))
+            await seq.insert(DerivedDataRecord(date_time=datetime.now(), temperature=75))
 
             # Convert to JSON and back
-            json_data = seq.to_json()
-            new_seq = DerivedSequence.from_json(json_data)
+            json_data = await seq.to_json_async()
+            new_seq = await DerivedSequence.from_json_async(json_data)
 
             # Convert to Pandas Series
-            series = seq.key_to_series('temperature')
+            series = await seq.key_to_series('temperature')
 
     """
 
@@ -484,6 +487,39 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
     )
 
     # Sequence helpers
+
+    @property
+    def _record_lock(self) -> asyncio.Lock:
+        """Per-instance asyncio lock guarding per record check-then-act write paths.
+
+        The lock guards a single check-then-act on one record.
+
+        The Lock is created lazily on first access (so construction outside an event loop is safe)
+        and is cached on the instance so all coroutines sharing the same DataSequence share the
+        same lock.
+        """
+        try:
+            return object.__getattribute__(self, "_record_lock_instance")
+        except AttributeError:
+            lock = asyncio.Lock()
+            object.__setattr__(self, "_record_lock_instance", lock)
+            return lock
+
+    @property
+    def _sequence_lock(self) -> asyncio.Lock:
+        """Per-instance asyncio lock guarding sequence-level bulk operations.
+
+        The lock guards the full sequence state during bulk operations (save, load, import, export).
+
+        While held, all individual writes are also blocked because bulk
+        operations acquire both locks in order.
+        """
+        try:
+            return object.__getattribute__(self, "_sequence_lock_instance")
+        except AttributeError:
+            lock = asyncio.Lock()
+            object.__setattr__(self, "_sequence_lock_instance", lock)
+            return lock
 
     def _validate_key(self, key: str) -> None:
         """Verify that a specified key exists in the current record keys.
@@ -530,10 +566,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
 
     # Sequence state
 
-    # Derived fields (computed)
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def min_datetime(self) -> Optional[DateTime]:
+    async def min_datetime(self) -> Optional[DateTime]:
         """Minimum (earliest) datetime in the time series sequence of data records.
 
         This property computes the earliest datetime from the sequence of data records.
@@ -543,16 +576,14 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             Optional[DateTime]: The earliest datetime in the sequence, or `None` if no
                 data records exist.
         """
-        min_timestamp, _ = self.db_timestamp_range()
+        min_timestamp, _ = await self.db_timestamp_range()
         if min_timestamp is None:
             return None
         # Timestamps are in UTC - convert to timezone
         utc_datetime = DatabaseTimestamp.to_datetime(min_timestamp)
         return utc_datetime.in_timezone(self.config.general.timezone)
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def max_datetime(self) -> Optional[DateTime]:
+    async def max_datetime(self) -> Optional[DateTime]:
         """Maximum (latest) datetime in the time series sequence of data records.
 
         This property computes the latest datetime from the sequence of data records.
@@ -562,12 +593,14 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             Optional[DateTime]: The latest datetime in the sequence, or `None` if no
                 data records exist.
         """
-        _, max_timestamp = self.db_timestamp_range()
+        _, max_timestamp = await self.db_timestamp_range()
         if max_timestamp is None:
             return None
         # Timestamps are in UTC - convert to timezone
         utc_datetime = DatabaseTimestamp.to_datetime(max_timestamp)
         return utc_datetime.in_timezone(self.config.general.timezone)
+
+    # Derived fields (computed)
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -613,8 +646,23 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             )
         return list_element_type
 
+    async def to_dict_async(self) -> dict:
+        """Convert the sequence to a dictionary representation.
+
+        Returns:
+            dict: A dictionary where the keys are the field names of the PydanticBaseModel,
+                and the values are the corresponding field values.
+        """
+        if not self.records:
+            return {"records": []}  # Return empty records dict
+
+        # Convert records to a dictionary list
+        data = [record.model_dump() async for record in self.db_iterate_records()]
+
+        return {"records": data}
+
     @classmethod
-    def from_dict(cls, data: dict) -> "DataSequence":
+    async def from_dict_async(cls, data: dict) -> "DataSequence":
         """Reconstruct a sequence from its serialized dictionary form.
 
         Fully subclass-safe and invariant-safe.
@@ -639,13 +687,38 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             record = record_model(**record_dict)
 
             # Important: use insert_by_datetime to rebuild invariants
-            sequence.insert_by_datetime(record)
+            await sequence.insert_by_datetime(record)
 
         return sequence
 
+    async def to_json_async(self) -> str:
+        """Convert the sequence instance to a JSON string.
+
+        Returns:
+            str: The JSON representation of the instance.
+        """
+        seq_dict: dict = await self.to_dict_async()
+        return json.dumps(seq_dict, default=str)
+
+    @classmethod
+    async def from_json_async(cls, json_str: str) -> "DataSequence":
+        """Create an instance of the sequence from a JSON string.
+
+        Args:
+            json_str (str): JSON string to parse and convert into a sequence instance.
+
+        Returns:
+            DataSequence: A new instance of the class, populated with data from the JSON string.
+
+        Notes:
+            Works with derived classes by ensuring the `cls` argument is used to instantiate the object.
+        """
+        seq_dict: dict = json.loads(json_str)
+        return await cls.from_dict_async(seq_dict)
+
     def __len__(self) -> int:
-        """Get total number of DataRecords in sequence (DB + memory-only)."""
-        return self.db_count_records()
+        """Get total number of DataRecords in sequence (memory-only)."""
+        return len(self.records)
 
     def __repr__(self) -> str:
         """Provide a string representation of the DataSequence.
@@ -658,14 +731,14 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
     # Sequence methods
 
     def __iter__(self) -> Iterator[DataRecord]:
-        """Create an iterator for accessing DataRecords sequentially.
+        """Create an iterator for accessing DataRecords sequentially (memory only).
 
         Returns:
             Iterator[DataRecord]: An iterator for the records.
         """
         return iter(self.records)
 
-    def get_by_datetime(
+    async def get_by_datetime(
         self, target_datetime: DateTime, *, time_window: Optional[Duration] = None
     ) -> Optional[DataRecord]:
         """Get the record at the specified datetime, with an optional fallback search window.
@@ -687,9 +760,9 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         # Ensure datetime objects are normalized
         db_target = DatabaseTimestamp.from_datetime(target_datetime)
 
-        return self.db_get_record(db_target, time_window=time_window)
+        return await self.db_get_record(db_target, time_window=time_window)
 
-    def get_nearest_by_datetime(
+    async def get_nearest_by_datetime(
         self, target_datetime: DateTime, time_window: Optional[Duration] = None
     ) -> Optional[DataRecord]:
         """Get the record nearest to the specified datetime within an optional time window.
@@ -717,62 +790,63 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             twin: DatabaseTimeWindowType = UNBOUND_WINDOW
         else:
             twin = time_window
-        return self.db_get_record(db_target, time_window=twin)
+        return await self.db_get_record(db_target, time_window=twin)
 
-    def insert_by_datetime(self, record: DataRecord) -> None:
-        """Insert or merge a DataRecord into the sequence based on its date.
+    # sync rw write access to data sequence, needs locking in case of use in async.
 
-        If a record with the same date exists, merges new data fields with the existing record.
-        Otherwise, appends the record and maintains chronological order.
+    async def _insert_by_datetime(self, record: DataRecord) -> None:
+        """Insert or merge a DataRecord into the sequence based on its datetime.
+
+        Internal implementation of `insert_by_datetime`. Callers must
+        acquire ``self._record_lock`` before calling this method.
+
+        If a record with the same datetime exists, merges non-None fields from
+        the incoming record into the existing one. Otherwise inserts the record
+        and maintains chronological order.
 
         Args:
-            record (DataRecord): The record to add or merge.
+            record: The record to insert or merge. ``record.date_time`` must
+                be a ``DateTime`` or ``None``.
 
-        Note:
-            record.date_time shall be a DateTime or None
+        Raises:
+            ValueError: If ``record`` is not an instance of the expected record
+                class, or if ``record.date_time`` cannot be converted to a
+                ``DateTime``.
+            KeyError: If a field in ``record`` is not in the writable record keys.
         """
         self._validate_record(record)
 
         # Ensure datetime objects are normalized
         record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
 
-        avail_record = self.db_get_record(record_date_time_timestamp)
+        avail_record = await self.db_get_record(record_date_time_timestamp)
         if avail_record:
             # Merge values, only updating fields where data record has a non-None value
             for field, val in record.model_dump(exclude_unset=True).items():
                 if field in record.record_keys_writable():
                     setattr(avail_record, field, val)
-            self.db_mark_dirty_record(record)
+            await self.db_mark_dirty_record(avail_record)
         else:
-            self.db_insert_record(record)
+            await self.db_insert_record(record)
 
-    @overload
-    def update_value(self, date: DateTime, key: str, value: Any) -> None: ...
+    async def _update_value(self, date: DateTime, *args: Any, **kwargs: Any) -> None:
+        """Update or insert field values for a record at the given datetime.
 
-    @overload
-    def update_value(self, date: DateTime, values: Dict[str, Any]) -> None: ...
+        Internal implementation of `update_value`. Callers must
+        acquire ``self._record_lock`` before calling this method.
 
-    def update_value(self, date: DateTime, *args: Any, **kwargs: Any) -> None:
-        """Updates specific values in the data record for a given date.
-
-        If a record for the date exists, updates the specified attributes with the new values.
-        Otherwise, appends a new record with the given values and maintains chronological order.
+        If a record for ``date`` already exists, updates the specified fields.
+        Otherwise creates and inserts a new record with those values.
 
         Args:
-            date (datetime): The date for which the values are to be added or updated.
-            key (str), value (Any): Single key-value pair to update
-                OR
-            values (Dict[str, Any]): Dictionary of key-value pairs to update
-                OR
-            **kwargs: Key-value pairs as keyword arguments
+            date: The datetime of the record to update or create.
+            *args: Either a single ``(key, value)`` pair, or a single
+                ``dict`` of key-value pairs.
+            **kwargs: Additional key-value pairs to update.
 
-        Examples:
-            .. code-block:: python
-
-                update_value(date, 'temperature', 25.5)
-                update_value(date, {'temperature': 25.5, 'humidity': 80})
-                update_value(date, temperature=25.5, humidity=80)
-
+        Raises:
+            ValueError: If the argument combination is invalid.
+            KeyError: If any key is not in the writable record keys.
         """
         # Process input arguments into a dictionary
         values: Dict[str, Any] = {}
@@ -796,18 +870,135 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         db_target = DatabaseTimestamp.from_datetime(date)
 
         # Check if a record with the given date already exists
-        record = self.db_get_record(db_target)
+        record = await self.db_get_record(db_target)
         if record is None:
             # Create a new record and append to the list
             new_record = self.record_class()(date_time=date, **values)
-            self.db_insert_record(new_record)
+            await self.db_insert_record(new_record)
         else:
             # Update the DataRecord with all new values
             for key, value in values.items():
                 setattr(record, key, value)
-            self.db_mark_dirty_record(record)
+            await self.db_mark_dirty_record(record)
 
-    def key_to_dict(
+    async def _key_from_lists(self, key: str, dates: list[DateTime], values: list[float]) -> None:
+        """Update the sequence from parallel lists of datetimes and values.
+
+        Internal implementation of `key_from_lists`. Callers must
+        acquire ``self._record_lock`` before calling this method.
+
+        For each datetime, updates the existing record's ``key`` field if one
+        exists, otherwise inserts a new record. The lists must be ordered from
+        oldest to newest datetime.
+
+        Args:
+            key: Field name in the data record to update.
+            dates: Ordered list of datetimes, one per value.
+            values: Values corresponding to each datetime in ``dates``.
+
+        Raises:
+            KeyError: If ``key`` is not in the writable record keys.
+        """
+        self._validate_key_writable(key)
+
+        for i, date_time in enumerate(dates):
+            # Ensure datetime objects are normalized
+            db_target = DatabaseTimestamp.from_datetime(date_time)
+            # Check if there's an existing record for this date_time
+            avail_record = await self.db_get_record(db_target)
+            if avail_record is None:
+                # Create a new DataRecord if none exists
+                new_record = self.record_class()(date_time=date_time, **{key: values[i]})
+                await self.db_insert_record(new_record)
+            else:
+                # Update existing record's specified key
+                setattr(avail_record, key, values[i])
+                await self.db_mark_dirty_record(avail_record)
+
+    async def _key_from_series(self, key: str, series: pd.Series) -> None:
+        """Update the sequence from a Pandas Series.
+
+        Internal implementation of `key_from_series`. Callers must
+        acquire ``self._record_lock`` before calling this method.
+
+        The series index must contain datetime values representing the
+        ``date_time`` of each record. For each index entry, updates the
+        existing record's ``key`` field if one exists, otherwise inserts
+        a new record.
+
+        Args:
+            key: Field name in the data record to update.
+            series: Series whose index is datetime values and whose values
+                correspond to ``key`` in each record.
+
+        Raises:
+            KeyError: If ``key`` is not in the writable record keys.
+        """
+        self._validate_key_writable(key)
+
+        for date_time, value in series.items():
+            # Ensure datetime objects are normalized
+            db_target = DatabaseTimestamp.from_datetime(to_datetime(date_time))
+            # Check if there's an existing record for this date_time
+            avail_record = await self.db_get_record(db_target)
+            if avail_record is None:
+                # Create a new DataRecord if none exists
+                new_record = self.record_class()(date_time=date_time, **{key: value})
+                await self.db_insert_record(new_record)
+            else:
+                # Update existing record's specified key
+                setattr(avail_record, key, value)
+                await self.db_mark_dirty_record(avail_record)
+
+    # data sequence access usable also for async access
+
+    async def insert_by_datetime(self, record: DataRecord) -> None:
+        """Insert or merge a DataRecord into the sequence based on its date.
+
+        If a record with the same date exists, merges new data fields with the existing record.
+        Otherwise, appends the record and maintains chronological order.
+
+        Args:
+            record (DataRecord): The record to add or merge.
+
+        Note:
+            record.date_time shall be a DateTime or None
+        """
+        async with self._record_lock:
+            await self._insert_by_datetime(record)
+
+    @overload
+    async def update_value(self, date: DateTime, key: str, value: Any) -> None: ...
+
+    @overload
+    async def update_value(self, date: DateTime, values: Dict[str, Any]) -> None: ...
+
+    async def update_value(self, date: DateTime, *args: Any, **kwargs: Any) -> None:
+        """Updates specific values in the data record for a given date.
+
+        If a record for the date exists, updates the specified attributes with the new values.
+        Otherwise, appends a new record with the given values and maintains chronological order.
+
+        Args:
+            date (datetime): The date for which the values are to be added or updated.
+            key (str), value (Any): Single key-value pair to update
+                OR
+            values (Dict[str, Any]): Dictionary of key-value pairs to update
+                OR
+            **kwargs: Key-value pairs as keyword arguments
+
+        Examples:
+            .. code-block:: python
+
+                await update_value(date, 'temperature', 25.5)
+                await update_value(date, {'temperature': 25.5, 'humidity': 80})
+                await update_value(date, temperature=25.5, humidity=80)
+
+        """
+        async with self._record_lock:
+            await self._update_value(date, *args, **kwargs)
+
+    async def key_to_dict(
         self,
         key: str,
         start_datetime: Optional[DateTime] = None,
@@ -844,7 +1035,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         if dropna is None:
             dropna = True
         filtered_data = {}
-        for record in self.db_iterate_records(start_timestamp, end_timestamp):
+        async for record in self.db_iterate_records(start_timestamp, end_timestamp):
             if (
                 record.date_time is None
                 or (dropna and getattr(record, key, None) is None)
@@ -861,7 +1052,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
 
         return filtered_data
 
-    def key_to_value(
+    async def key_to_value(
         self, key: str, target_datetime: DateTime, time_window: Optional[Duration] = None
     ) -> Optional[float]:
         """Returns the value corresponding to the specified key that is nearest to the given datetime.
@@ -884,11 +1075,11 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         # Ensure datetime objects are normalized
         db_target = DatabaseTimestamp.from_datetime(to_datetime(target_datetime))
 
-        record = self.db_get_record(db_target, time_window=time_window)
+        record = await self.db_get_record(db_target, time_window=time_window)
 
         return getattr(record, key, None)
 
-    def key_to_lists(
+    async def key_to_lists(
         self,
         key: str,
         start_datetime: Optional[DateTime] = None,
@@ -925,10 +1116,10 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         if dropna is None:
             dropna = True
         filtered_records = []
-        for record in self.db_iterate_records(start_timestamp, end_timestamp):
+        async for record in self.db_iterate_records(start_timestamp, end_timestamp):
             if (
                 record.date_time is None
-                or (dropna and getattr(record, key, None) is None)
+                or (getattr(record, key, None) is None)  # key is not in record
                 or (dropna and getattr(record, key, None) == float("nan"))
             ):
                 continue
@@ -942,7 +1133,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
 
         return dates, values
 
-    def key_from_lists(self, key: str, dates: list[DateTime], values: list[float]) -> None:
+    async def key_from_lists(self, key: str, dates: list[DateTime], values: list[float]) -> None:
         """Update the DataSequence from lists of datetime and value elements.
 
         The dates list should represent the date_time of each DataRecord, and the values list
@@ -955,23 +1146,10 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             dates: List of datetime elements.
             values: List of values corresponding to the specified key in the data records.
         """
-        self._validate_key_writable(key)
+        async with self._record_lock:
+            await self._key_from_lists(key, dates, values)
 
-        for i, date_time in enumerate(dates):
-            # Ensure datetime objects are normalized
-            db_target = DatabaseTimestamp.from_datetime(date_time)
-            # Check if there's an existing record for this date_time
-            avail_record = self.db_get_record(db_target)
-            if avail_record is None:
-                # Create a new DataRecord if none exists
-                new_record = self.record_class()(date_time=date_time, **{key: values[i]})
-                self.db_insert_record(new_record)
-            else:
-                # Update existing record's specified key
-                setattr(avail_record, key, values[i])
-                self.db_mark_dirty_record(avail_record)
-
-    def key_to_series(
+    async def key_to_series(
         self,
         key: str,
         start_datetime: Optional[DateTime] = None,
@@ -993,13 +1171,13 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         Raises:
             KeyError: If the specified key is not found in any of the DataRecords.
         """
-        dates, values = self.key_to_lists(
+        dates, values = await self.key_to_lists(
             key=key, start_datetime=start_datetime, end_datetime=end_datetime, dropna=dropna
         )
         series = pd.Series(data=values, index=pd.DatetimeIndex(dates), name=key)
         return series
 
-    def key_from_series(self, key: str, series: pd.Series) -> None:
+    async def key_from_series(self, key: str, series: pd.Series) -> None:
         """Update the DataSequence from a Pandas Series.
 
         The series index should represent the date_time of each DataRecord, and the series values
@@ -1009,23 +1187,10 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             series (pd.Series): A Pandas Series containing data to update the DataSequence.
             key (str): The field name in the DataRecord that corresponds to the values in the Series.
         """
-        self._validate_key_writable(key)
+        async with self._record_lock:
+            await self._key_from_series(key, series)
 
-        for date_time, value in series.items():
-            # Ensure datetime objects are normalized
-            db_target = DatabaseTimestamp.from_datetime(to_datetime(date_time))
-            # Check if there's an existing record for this date_time
-            avail_record = self.db_get_record(db_target)
-            if avail_record is None:
-                # Create a new DataRecord if none exists
-                new_record = self.record_class()(date_time=date_time, **{key: value})
-                self.db_insert_record(new_record)
-            else:
-                # Update existing record's specified key
-                setattr(avail_record, key, value)
-                self.db_mark_dirty_record(avail_record)
-
-    def key_to_array(
+    async def key_to_array(
         self,
         key: str,
         start_datetime: Optional[DateTime] = None,
@@ -1108,13 +1273,13 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             if query_start is not None:
                 # We have a start datetime - look for previous entry
                 start_timestamp = DatabaseTimestamp.from_datetime(query_start)
-                query_start_timestamp = self.db_previous_timestamp(start_timestamp)
+                query_start_timestamp = await self.db_previous_timestamp(start_timestamp)
                 if query_start_timestamp:
                     query_start = DatabaseTimestamp.to_datetime(query_start_timestamp)
             if end_datetime is not None:
                 # We have a end datetime - look for next entry
                 end_timestamp = DatabaseTimestamp.from_datetime(query_end)
-                query_end_timestamp = self.db_next_timestamp(end_timestamp)
+                query_end_timestamp = await self.db_next_timestamp(end_timestamp)
                 if query_end_timestamp is None:
                     # Ensure at least end_datetime is included (excluded by definition)
                     query_end = end_datetime.add(seconds=1)
@@ -1122,7 +1287,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
                     query_end = DatabaseTimestamp.to_datetime(query_end_timestamp).add(seconds=1)
 
         # Load raw lists (already sorted & filtered)
-        dates, values = self.key_to_lists(
+        dates, values = await self.key_to_lists(
             key=key, start_datetime=query_start, end_datetime=query_end, dropna=dropna
         )
         values_len = len(values)
@@ -1255,7 +1420,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
 
         return array
 
-    def to_dataframe(
+    async def to_dataframe(
         self,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
@@ -1283,7 +1448,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         # Convert filtered records to a dictionary list
         data = [
             record.model_dump()
-            for record in self.db_iterate_records(
+            async for record in self.db_iterate_records(
                 start_timestamp=start_timestamp, end_timestamp=end_timestamp
             )
         ]
@@ -1301,7 +1466,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         df.index = pd.DatetimeIndex(df["date_time"])
         return df
 
-    def delete_by_datetime(
+    async def delete_by_datetime(
         self,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
@@ -1324,9 +1489,11 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         )
         end_timestamp = DatabaseTimestamp.from_datetime(end_datetime) if end_datetime else None
 
-        return self.db_delete_records(start_timestamp=start_timestamp, end_timestamp=end_timestamp)
+        return await self.db_delete_records(
+            start_timestamp=start_timestamp, end_timestamp=end_timestamp
+        )
 
-    def key_delete_by_datetime(
+    async def key_delete_by_datetime(
         self,
         key: str,
         start_datetime: Optional[DateTime] = None,
@@ -1357,12 +1524,15 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         )
         end_timestamp = DatabaseTimestamp.from_datetime(end_datetime) if end_datetime else None
 
-        for record in self.db_iterate_records(start_timestamp, end_timestamp):
+        async for record in self.db_iterate_records(start_timestamp, end_timestamp):
             del record[key]
-            self.db_mark_dirty_record(record)
+            await self.db_mark_dirty_record(record)
 
-    def save(self) -> bool:
+    async def _save(self) -> bool:
         """Save data records to persistent storage.
+
+        Internal implementation of `save`. Callers must
+        acquire ``self._sequence_lock`` and "self._record_lock" before calling this method.
 
         Returns:
             True in case the data records were saved, False otherwise.
@@ -1370,11 +1540,14 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         if not self.db_enabled:
             return False
 
-        saved = self.db_save_records()
+        saved = await self.db_save_records()
         return saved > 0
 
-    def load(self) -> bool:
+    async def _load(self) -> bool:
         """Load data records from from persistent storage.
+
+        Internal implementation of `load`. Callers must
+        acquire ``self._sequence_lock`` and "self._record_lock" before calling this method.
 
         Returns:
             True in case the data records were loaded, False otherwise.
@@ -1382,8 +1555,34 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         if not self.db_enabled:
             return False
 
-        loaded = self.db_load_records()
+        loaded = await self.db_load_records()
         return loaded > 0
+
+    async def save(self) -> bool:
+        """Save data records to persistent storage.
+
+        Acquires both the bulk and write locks for the duration, ensuring no
+        concurrent writes or other bulk operations can interleave.
+
+        Returns:
+            True if the records were saved, False otherwise.
+        """
+        async with self._sequence_lock:
+            async with self._record_lock:
+                return await self._save()
+
+    async def load(self) -> bool:
+        """Load data records from persistent storage.
+
+        Acquires both the bulk and write locks for the duration, ensuring no
+        concurrent writes or other bulk operations can interleave.
+
+        Returns:
+            True if the records were loaded, False otherwise.
+        """
+        async with self._sequence_lock:
+            async with self._record_lock:
+                return await self._load()
 
     # ----------------------- DataSequence Database Protocol ---------------------
 
@@ -1427,11 +1626,16 @@ class DataProvider(SingletonMixin, DataSequence):
         raise NotImplementedError()
 
     @abstractmethod
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
-        """Abstract method for custom data update logic, to be implemented by derived classes.
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
+        """Custom data update logic to be implemented by derived classes.
+
+        This method is always called while `_sequence_lock` and ``_record_lock`` is held by the
+        caller. Implementations must therefore use the internal ``_insert_by_datetime()``,
+        ``_update_value()``, ``_key_from_lists()``, and ``_key_from_series()``
+        methods rather than their public async counterparts, to avoid deadlock.
 
         Args:
-            force_update (bool, optional): If True, forces the provider to update the data even if still cached.
+            force_update: If True, forces update even if data is still cached.
         """
         pass
 
@@ -1444,7 +1648,7 @@ class DataProvider(SingletonMixin, DataSequence):
         """Namespace of database."""
         return self.provider_id()
 
-    def update_data(
+    async def update_data(
         self,
         force_enable: Optional[bool] = False,
         force_update: Optional[bool] = False,
@@ -1460,7 +1664,9 @@ class DataProvider(SingletonMixin, DataSequence):
             return
 
         # Call the custom update logic
-        self._update_data(force_update=force_update)
+        async with self._sequence_lock:
+            async with self._record_lock:
+                await self._update_data(force_update=force_update)
 
 
 # ==================== DataImportMixin ====================
@@ -1484,12 +1690,22 @@ class DataImportMixin(StartMixin):
 
     """
 
-    # Attributes required but defined elsehere.
-    # - start_datetime
-    # - record_keys_writable
-    # - update_value
+    # Tell mypy these attributes exist (will be provided by subclasses or other mixins)
+    if TYPE_CHECKING:
 
-    def import_from_dict(
+        @property
+        def _sequence_lock(self) -> asyncio.Lock: ...
+
+        @property
+        def _record_lock(self) -> asyncio.Lock: ...
+
+        @classproperty
+        def ems_start_datetime(cls) -> Optional[DateTime]: ...
+
+        @property
+        def record_keys_writable(self) -> list[str]: ...
+
+    async def _import_from_dict(
         self,
         import_data: dict,
         key_prefix: str = "",
@@ -1501,6 +1717,9 @@ class DataImportMixin(StartMixin):
         This method reads generic data from a dictionary, matches keys based on the
         record keys and the provided `key_prefix`, and updates the data values sequentially.
         All value lists must have the same length.
+
+        Internal implementation of `import_from_dict`. Callers must
+        acquire ``self._sequence_lock`` and "self._record_lock" before calling this method.
 
         Args:
             import_data (dict): Dictionary containing the generic data with optional
@@ -1542,7 +1761,7 @@ class DataImportMixin(StartMixin):
             key
             for key in import_data.keys()
             if key.startswith(key_prefix)
-            and key in self.record_keys_writable  # type: ignore
+            and key in self.record_keys_writable
             and key not in ("start_datetime", "interval")
         ]
 
@@ -1578,12 +1797,12 @@ class DataImportMixin(StartMixin):
                     value = values[value_index]
                     value_datetime = DatabaseTimestamp.to_datetime(value_db_datetime)
                     if value is not None and not pd.isna(value):
-                        self.update_value(value_datetime, key, value)  # type: ignore
+                        await self._update_value(value_datetime, key, value)  # type: ignore
 
             except (IndexError, TypeError) as e:
                 raise ValueError(f"Error processing values for key '{key}': {e}")
 
-    def import_from_dataframe(
+    async def _import_from_dataframe(
         self,
         df: pd.DataFrame,
         key_prefix: str = "",
@@ -1595,6 +1814,9 @@ class DataImportMixin(StartMixin):
         This method reads generic data from a DataFrame, matches columns based on the
         record keys and the provided `key_prefix`, and updates the data values using
         the DataFrame's index as timestamps.
+
+        Internal implementation of `import_from_dataframe`. Callers must
+        acquire ``self._sequence_lock`` and "self._record_lock" before calling this method.
 
         Args:
             df (pd.DataFrame): DataFrame containing the generic data with datetime index
@@ -1627,7 +1849,7 @@ class DataImportMixin(StartMixin):
         valid_columns = [
             col
             for col in df.columns
-            if col.startswith(key_prefix) and col in self.record_keys_writable  # type: ignore
+            if col.startswith(key_prefix) and col in self.record_keys_writable
         ]
 
         if not valid_columns:
@@ -1653,7 +1875,7 @@ class DataImportMixin(StartMixin):
                     # Use the DataFrame's datetime index
                     for dt, value in zip(index_datetimes, values):
                         if value is not None and not pd.isna(value):
-                            self.update_value(dt, column, value)  # type: ignore
+                            await self._update_value(dt, column, value)  # type: ignore
                 else:
                     # Use the pre-generated datetime index
                     for value_index in range(values_count):
@@ -1662,12 +1884,209 @@ class DataImportMixin(StartMixin):
                             value_db_datetimes[value_index]
                         )
                         if value is not None and not pd.isna(value):
-                            self.update_value(value_datetime, column, value)  # type: ignore
+                            await self._update_value(value_datetime, column, value)  # type: ignore
 
             except Exception as e:
                 raise ValueError(f"Error processing column '{column}': {e}")
 
-    def import_from_json(
+    async def _import_from_json(
+        self,
+        json_str: str,
+        key_prefix: str = "",
+        start_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+    ) -> None:
+        """Updates generic data by importing it from a JSON string.
+
+        This method reads generic data from a JSON string, matches keys based on the
+        record keys and the provided `key_prefix`, and updates the data values sequentially,
+        starting from the `start_datetime`.
+
+        If start_datetime and or interval is given in the JSON dict it will be used. Otherwise
+        the given parameters are used. If None is given start_datetime defaults to
+        'self.ems_start_datetime' and interval defaults to 1 hour.
+
+        Internal implementation of `import_from_json`. Callers must
+        acquire ``self._sequence_lock`` and "self._record_lock" before calling this method.
+
+        Args:
+            json_str (str): The JSON string containing the generic data.
+            key_prefix (str, optional): A prefix to filter relevant keys from the generic data.
+                Only keys starting with this prefix will be considered. Defaults to an empty string.
+            start_datetime (DateTime, optional): Start datetime of values.
+            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
+
+        Raises:
+            JSONDecodeError: If the file content is not valid JSON.
+
+        Example:
+            Given a JSON string with the following content and `key_prefix = "load"`, only the
+            "loadforecast_power_w" key will be processed even though both keys are in the record.
+
+            .. code-block:: json
+
+                {
+                    "start_datetime": "2024-11-10 00:00:00",
+                    "interval": "30 minutes",
+                    "loadforecast_power_w": [20.5, 21.0, 22.1],
+                    "other_xyz: [10.5, 11.0, 12.1]
+                }
+
+        """
+        # Strip quotes if provided - does not effect unquoted string
+        json_str = json_str.strip()  # strip white space at start and end
+        if (json_str.startswith("'") and json_str.endswith("'")) or (
+            json_str.startswith('"') and json_str.endswith('"')
+        ):
+            json_str = json_str[1:-1]  # strip outer quotes
+        json_str = json_str.strip()  # strip remaining white space at start and end
+
+        # Try pandas dataframe with orient="split"
+        try:
+            import_data = PydanticDateTimeDataFrame.model_validate_json(json_str)
+            await self._import_from_dataframe(import_data.to_dataframe())
+            return
+        except ValidationError as e:
+            error_msg = ""
+            for error in e.errors():
+                field = " -> ".join(str(x) for x in error["loc"])
+                message = error["msg"]
+                error_type = error["type"]
+                error_msg += f"Field: {field}\nError: {message}\nType: {error_type}\n"
+            logger.debug(f"PydanticDateTimeDataFrame import: {error_msg}")
+
+        # Try dictionary with special keys start_datetime and interval
+        try:
+            import_data = PydanticDateTimeData.model_validate_json(json_str)
+            await self._import_from_dict(import_data.to_dict())
+            return
+        except ValidationError as e:
+            error_msg = ""
+            for error in e.errors():
+                field = " -> ".join(str(x) for x in error["loc"])
+                message = error["msg"]
+                error_type = error["type"]
+                error_msg += f"Field: {field}\nError: {message}\nType: {error_type}\n"
+            logger.debug(f"PydanticDateTimeData import: {error_msg}")
+
+        # Use simple dict format
+        try:
+            import_data = json.loads(json_str)
+            await self._import_from_dict(
+                import_data, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval
+            )
+        except Exception as e:
+            error_msg = f"Invalid JSON string '{json_str}': {e}"
+            logger.debug(error_msg)
+            raise ValueError(error_msg) from e
+
+    async def _import_from_file(
+        self,
+        import_file_path: Path,
+        key_prefix: str = "",
+        start_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+    ) -> None:
+        """Updates generic data by importing it from a file.
+
+        This method reads generic data from a JSON file, matches keys based on the
+        record keys and the provided `key_prefix`, and updates the data values sequentially,
+        starting from the `start_datetime`. Each data value is associated with an hourly
+        interval.
+
+        If start_datetime and or interval is given in the JSON dict it will be used. Otherwise
+        the given parameters are used. If None is given start_datetime defaults to
+        'self.ems_start_datetime' and interval defaults to 1 hour.
+
+        Internal implementation of `import_from_file`. Callers must
+        acquire ``self._sequence_lock`` and "self._record_lock" before calling this method.
+
+        Args:
+            import_file_path (Path): The path to the JSON file containing the generic data.
+            key_prefix (str, optional): A prefix to filter relevant keys from the generic data.
+                Only keys starting with this prefix will be considered. Defaults to an empty string.
+            start_datetime (DateTime, optional): Start datetime of values.
+            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
+
+        Raises:
+            FileNotFoundError: If the specified file does not exist.
+            JSONDecodeError: If the file content is not valid JSON.
+
+        Example:
+            Given a JSON file with the following content and `key_prefix = "load"`, only the
+            "loadforecast_power_w" key will be processed even though both keys are in the record.
+
+            .. code-block:: json
+
+                {
+                    "loadforecast_power_w": [20.5, 21.0, 22.1],
+                    "other_xyz: [10.5, 11.0, 12.1],
+                }
+
+        """
+        with import_file_path.open("r", encoding="utf-8", newline=None) as import_file:
+            import_str = import_file.read()
+        await self._import_from_json(
+            import_str, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval
+        )
+
+    async def import_from_dict(
+        self,
+        import_data: dict,
+        key_prefix: str = "",
+        start_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+    ) -> None:
+        """Updates generic data by importing it from a dictionary.
+
+        This method reads generic data from a dictionary, matches keys based on the
+        record keys and the provided `key_prefix`, and updates the data values sequentially.
+        All value lists must have the same length.
+
+        Args:
+            import_data (dict): Dictionary containing the generic data with optional
+                'start_datetime' and 'interval' keys.
+            key_prefix (str, optional): A prefix to filter relevant keys from the generic data.
+                Only keys starting with this prefix will be considered. Defaults to an empty string.
+            start_datetime (DateTime, optional): Start datetime of values if not in dict.
+            interval (Duration, optional): The fixed time interval if not in dict.
+
+        Raises:
+            ValueError: If value lists have different lengths or if datetime conversion fails.
+        """
+        async with self._sequence_lock:
+            async with self._record_lock:
+                await self._import_from_dict(import_data, key_prefix, start_datetime, interval)
+
+    async def import_from_dataframe(
+        self,
+        df: pd.DataFrame,
+        key_prefix: str = "",
+        start_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+    ) -> None:
+        """Updates generic data by importing it from a pandas DataFrame.
+
+        This method reads generic data from a DataFrame, matches columns based on the
+        record keys and the provided `key_prefix`, and updates the data values using
+        the DataFrame's index as timestamps.
+
+        Args:
+            df (pd.DataFrame): DataFrame containing the generic data with datetime index
+                or sequential values.
+            key_prefix (str, optional): A prefix to filter relevant columns from the DataFrame.
+                Only columns starting with this prefix will be considered. Defaults to an empty string.
+            start_datetime (DateTime, optional): Start datetime if DataFrame doesn't have datetime index.
+            interval (Duration, optional): The fixed time interval if DataFrame doesn't have datetime index.
+
+        Raises:
+            ValueError: If DataFrame structure is invalid or datetime conversion fails.
+        """
+        async with self._sequence_lock:
+            async with self._record_lock:
+                await self._import_from_dataframe(df, key_prefix, start_datetime, interval)
+
+    async def import_from_json(
         self,
         json_str: str,
         key_prefix: str = "",
@@ -1708,54 +2127,11 @@ class DataImportMixin(StartMixin):
                 }
 
         """
-        # Strip quotes if provided - does not effect unquoted string
-        json_str = json_str.strip()  # strip white space at start and end
-        if (json_str.startswith("'") and json_str.endswith("'")) or (
-            json_str.startswith('"') and json_str.endswith('"')
-        ):
-            json_str = json_str[1:-1]  # strip outer quotes
-        json_str = json_str.strip()  # strip remaining white space at start and end
+        async with self._sequence_lock:
+            async with self._record_lock:
+                await self._import_from_json(json_str, key_prefix, start_datetime, interval)
 
-        # Try pandas dataframe with orient="split"
-        try:
-            import_data = PydanticDateTimeDataFrame.model_validate_json(json_str)
-            self.import_from_dataframe(import_data.to_dataframe())
-            return
-        except ValidationError as e:
-            error_msg = ""
-            for error in e.errors():
-                field = " -> ".join(str(x) for x in error["loc"])
-                message = error["msg"]
-                error_type = error["type"]
-                error_msg += f"Field: {field}\nError: {message}\nType: {error_type}\n"
-            logger.debug(f"PydanticDateTimeDataFrame import: {error_msg}")
-
-        # Try dictionary with special keys start_datetime and interval
-        try:
-            import_data = PydanticDateTimeData.model_validate_json(json_str)
-            self.import_from_dict(import_data.to_dict())
-            return
-        except ValidationError as e:
-            error_msg = ""
-            for error in e.errors():
-                field = " -> ".join(str(x) for x in error["loc"])
-                message = error["msg"]
-                error_type = error["type"]
-                error_msg += f"Field: {field}\nError: {message}\nType: {error_type}\n"
-            logger.debug(f"PydanticDateTimeData import: {error_msg}")
-
-        # Use simple dict format
-        try:
-            import_data = json.loads(json_str)
-            self.import_from_dict(
-                import_data, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval
-            )
-        except Exception as e:
-            error_msg = f"Invalid JSON string '{json_str}': {e}"
-            logger.debug(error_msg)
-            raise ValueError(error_msg) from e
-
-    def import_from_file(
+    async def import_from_file(
         self,
         import_file_path: Path,
         key_prefix: str = "",
@@ -1796,11 +2172,9 @@ class DataImportMixin(StartMixin):
                 }
 
         """
-        with import_file_path.open("r", encoding="utf-8", newline=None) as import_file:
-            import_str = import_file.read()
-        self.import_from_json(
-            import_str, key_prefix=key_prefix, start_datetime=start_datetime, interval=interval
-        )
+        async with self._sequence_lock:
+            async with self._record_lock:
+                await self._import_from_file(import_file_path, key_prefix, start_datetime, interval)
 
 
 # ==================== DataImportProvider ====================
@@ -1824,7 +2198,7 @@ class DataImportProvider(DataImportMixin, DataProvider):
 # ==================== DataContainer ====================
 
 
-class DataContainer(SingletonMixin, DataABC, MutableMapping):
+class DataContainer(SingletonMixin, DataABC):
     """A container for managing multiple DataProvider instances.
 
     This class enables access to data from multiple data providers, supporting retrieval and
@@ -1840,6 +2214,19 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
     providers: list[DataProvider] = Field(
         default_factory=list, json_schema_extra={"description": "List of data providers"}
     )
+
+    @property
+    def _container_lock(self) -> asyncio.Lock:
+        """Coarse-grained lock for bulk operations across providers.
+
+        The lock guards cross-provider consistency during container operations.
+        """
+        try:
+            return object.__getattribute__(self, "_container_lock_instance")
+        except AttributeError:
+            lock = asyncio.Lock()
+            object.__setattr__(self, "_container_lock_instance", lock)
+            return lock
 
     @field_validator("providers", mode="after")
     def check_providers(cls, value: list[DataProvider]) -> list[DataProvider]:
@@ -1883,77 +2270,6 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
             return
         super().__init__(*args, **kwargs)
 
-    def __getitem__(self, key: str) -> pd.Series:
-        """Retrieve a Pandas Series for a specified key from the data in each DataProvider.
-
-        Iterates through providers to find and return the first available Series for the specified key.
-
-        Args:
-            key (str): The field name to retrieve, representing a data attribute in DataRecords.
-
-        Returns:
-            pd.Series: A Pandas Series containing aggregated data for the specified key.
-
-        Raises:
-            KeyError: If no provider contains data for the specified key.
-        """
-        series = None
-        for provider in self.enabled_providers:
-            try:
-                series = provider.key_to_series(key)
-                break
-            except KeyError:
-                continue
-
-        if series is None:
-            raise KeyError(f"No data found for key '{key}'.")
-
-        return series
-
-    def __setitem__(self, key: str, value: pd.Series) -> None:
-        """Add or merge a Pandas Series for a specified key into the records of an appropriate provider.
-
-        Attempts to update or insert the provided Series data in each provider. If no provider supports
-        the specified key, an error is raised.
-
-        Args:
-            key (str): The field name to update, representing a data attribute in DataRecords.
-            value (pd.Series): A Pandas Series containing data for the specified key.
-
-        Raises:
-            ValueError: If `value` is not an instance of `pd.Series`.
-            KeyError: If no provider supports the specified key.
-        """
-        if not isinstance(value, pd.Series):
-            raise ValueError("Value must be an instance of pd.Series.")
-
-        for provider in self.enabled_providers:
-            try:
-                provider.key_from_series(key, value)
-                break
-            except KeyError:
-                continue
-        else:
-            raise KeyError(f"Key '{key}' not found in any provider.")
-
-    def __delitem__(self, key: str) -> None:
-        """Set the value of the specified key in the data records of each provider to None.
-
-        Args:
-            key (str): The field name in DataRecords to clear.
-
-        Raises:
-            KeyError: If the key is not found in any provider.
-        """
-        for provider in self.enabled_providers:
-            try:
-                provider.key_delete_by_datetime(key)
-                break
-            except KeyError:
-                continue
-        else:
-            raise KeyError(f"Key '{key}' not found in any provider.")
-
     def __iter__(self) -> Iterator[str]:
         """Return an iterator over all unique keys available across providers.
 
@@ -1981,39 +2297,47 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
     def keys(self) -> KeysView[str]:
         return dict.fromkeys(self.record_keys).keys()
 
-    def update_data(
+    async def update_data(
         self,
         force_enable: Optional[bool] = False,
         force_update: Optional[bool] = False,
     ) -> None:
-        """Update data.
+        """Update data from all providers.
+
+        Acquires both the bulk and write locks for the duration, ensuring no
+        concurrent writes or other bulk operations can interleave with the
+        provider updates.
 
         Args:
-            force_enable (bool, optional): If True, forces the update even if a provider is disabled.
-            force_update (bool, optional): If True, forces the providers to update the data even if still cached.
-        """
-        for provider in self.providers:
-            try:
-                provider.update_data(force_enable=force_enable, force_update=force_update)
-            except Exception as e:
-                trace = "".join(traceback.TracebackException.from_exception(e).format())
-                error = (
-                    f"Provider {provider.provider_id()} fails on update - "
-                    f"enabled={provider.enabled()}, "
-                    f"force_enable={force_enable}, "
-                    f"force_update={force_update}"
-                    f":\n{e}\n{trace}"
-                )
-                if provider.enabled():
-                    # The active provider failed — this is a real error worth propagating.
-                    logger.error(error)
-                    raise RuntimeError(error)
-                else:
-                    # A non-active provider failed (e.g. missing config while force_enable=True).
-                    # Log as warning and continue so the remaining providers still run.
-                    logger.warning(error)
+            force_enable: If True, forces the update even if a provider is disabled.
+            force_update: If True, forces providers to update even if data is cached.
 
-    def key_to_series(
+        Raises:
+            RuntimeError: If an enabled provider fails during update.
+        """
+        async with self._container_lock:
+            for provider in self.providers:
+                try:
+                    await provider.update_data(force_enable=force_enable, force_update=force_update)
+                except Exception as e:
+                    trace = "".join(traceback.TracebackException.from_exception(e).format())
+                    error = (
+                        f"Provider {provider.provider_id()} fails on update - "
+                        f"enabled={provider.enabled()}, "
+                        f"force_enable={force_enable}, "
+                        f"force_update={force_update}"
+                        f":\n{e}\n{trace}"
+                    )
+                    if provider.enabled():
+                        # The active provider failed — this is a real error worth propagating.
+                        logger.error(error)
+                        raise RuntimeError(error)
+                    else:
+                        # A non-active provider failed (e.g. missing config while force_enable=True).
+                        # Log as warning and continue so the remaining providers still run.
+                        logger.warning(error)
+
+    async def key_to_series(
         self,
         key: str,
         start_datetime: Optional[DateTime] = None,
@@ -2040,7 +2364,7 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
         series = None
         for provider in self.enabled_providers:
             try:
-                series = provider.key_to_series(
+                series = await provider.key_to_series(
                     key,
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
@@ -2055,7 +2379,7 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
 
         return series
 
-    def key_to_array(
+    async def key_to_array(
         self,
         key: str,
         start_datetime: Optional[DateTime] = None,
@@ -2091,7 +2415,7 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
         array = None
         for provider in self.enabled_providers:
             try:
-                array = provider.key_to_array(
+                array = await provider.key_to_array(
                     key,
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
@@ -2108,7 +2432,7 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
 
         return array
 
-    def keys_to_dataframe(
+    async def keys_to_dataframe(
         self,
         keys: list[str],
         start_datetime: Optional[DateTime] = None,
@@ -2146,25 +2470,22 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
         if start_datetime is None:
             # Take earliest datetime of all providers that are enabled
             for provider in self.enabled_providers:
+                min_dt = await provider.min_datetime()
                 if start_datetime is None:
-                    start_datetime = provider.min_datetime
-                elif (
-                    provider.min_datetime
-                    and compare_datetimes(provider.min_datetime, start_datetime).lt
-                ):
-                    start_datetime = provider.min_datetime
+                    start_datetime = min_dt
+                elif min_dt and compare_datetimes(min_dt, start_datetime).lt:
+                    start_datetime = min_dt
         if end_datetime is None:
             # Take latest datetime of all providers that are enabled
             for provider in self.enabled_providers:
+                max_dt = await provider.max_datetime()
                 if end_datetime is None:
-                    end_datetime = provider.max_datetime
-                elif (
-                    provider.max_datetime
-                    and compare_datetimes(provider.max_datetime, end_datetime).gt
-                ):
-                    end_datetime = provider.min_datetime
+                    end_datetime = max_dt
+                elif max_dt and compare_datetimes(max_dt, end_datetime).gt:
+                    min_dt = await provider.min_datetime()
+                    end_datetime = max_dt
             if end_datetime:
-                end_datetime.add(seconds=1)
+                end_datetime = end_datetime.add(seconds=1)
 
         # Create a DatetimeIndex based on start, end, and interval
         if start_datetime is None or end_datetime is None:
@@ -2181,7 +2502,9 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
         data = {}
         for key in keys:
             try:
-                array = self.key_to_array(key, start_datetime, end_datetime, interval, fill_method)
+                array = await self.key_to_array(
+                    key, start_datetime, end_datetime, interval, fill_method
+                )
 
                 if len(array) != len(reference_index):
                     raise ValueError(
@@ -2225,47 +2548,84 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
 
     # ----------------------- DataContainer Database Protocol ---------------------
 
-    def save(self) -> None:
-        """Save data records to persistent storage."""
-        for provider in self.providers:
-            try:
-                provider.save()
-            except Exception as ex:
-                error = f"Provider {provider.provider_id()} fails on save: {ex}"
-                logger.error(error)
-                raise RuntimeError(error)
+    async def save(self) -> bool:
+        """Save data records of all providers to persistent storage.
 
-    def load(self) -> None:
-        """Load data records from from persistent storage."""
-        for provider in self.providers:
-            try:
-                provider.load()
-            except Exception as ex:
-                error = f"Provider {provider.provider_id()} fails on load: {ex}"
-                logger.error(error)
-                raise RuntimeError(error)
+        Returns:
+            True if all providers saved successfully, False if any provider saved nothing.
 
-    def db_vacuum(self) -> None:
-        """Remove old records of all providers from database to free space."""
-        for provider in self.providers:
-            try:
-                provider.db_vacuum()
-            except Exception as ex:
-                error = f"Provider {provider.provider_id()} fails on db vacuum: {ex}"
-                logger.error(error)
-                raise RuntimeError(error)
+        Raises:
+            RuntimeError: If any provider fails to save.
+        """
+        result = True
+        async with self._container_lock:
+            for provider in self.providers:
+                try:
+                    saved = await provider.save()
+                    if not saved:
+                        result = False
+                except Exception as ex:
+                    error = f"Provider {provider.provider_id()} fails on save: {ex}"
+                    logger.error(error)
+                    raise RuntimeError(error)
+        return result
 
-    def db_compact(self) -> None:
-        """Apply tiered compaction to all providers to reduce storage while retaining coverage."""
-        for provider in self.providers:
-            try:
-                provider.db_compact()
-            except Exception as ex:
-                error = f"Provider {provider.provider_id()} fails on db_compact: {ex}"
-                logger.error(error)
-                raise RuntimeError(error)
+    async def load(self) -> bool:
+        """Load data records of all providers from persistent storage.
 
-    def db_get_stats(self) -> dict:
+        Shall never be called from any _sequence_lock-held context (DataSequence and derived
+        classes), it will deadlock because asyncio.Lock is not re-entrant.
+
+        Returns:
+            True if all providers loaded successfully, False if any provider loaded nothing.
+
+        Raises:
+            RuntimeError: If any provider fails to load.
+        """
+        result = True
+        async with self._container_lock:
+            for provider in self.providers:
+                try:
+                    loaded = await provider.load()
+                    if not loaded:
+                        result = False
+                except Exception as ex:
+                    error = f"Provider {provider.provider_id()} fails on load: {ex}"
+                    logger.error(error)
+                    raise RuntimeError(error)
+        return result
+
+    async def db_vacuum(self) -> None:
+        """Remove old records of all providers from the database.
+
+        Raises:
+            RuntimeError: If any provider fails during vacuum.
+        """
+        async with self._container_lock:
+            for provider in self.providers:
+                try:
+                    await provider.db_vacuum()
+                except Exception as ex:
+                    error = f"Provider {provider.provider_id()} fails on db vacuum: {ex}"
+                    logger.error(error)
+                    raise RuntimeError(error)
+
+    async def db_compact(self) -> None:
+        """Apply tiered compaction to all providers.
+
+        Raises:
+            RuntimeError: If any provider fails during compaction.
+        """
+        async with self._container_lock:
+            for provider in self.providers:
+                try:
+                    await provider.db_compact()
+                except Exception as ex:
+                    error = f"Provider {provider.provider_id()} fails on db_compact: {ex}"
+                    logger.error(error)
+                    raise RuntimeError(error)
+
+    async def db_get_stats(self) -> dict:
         """Get comprehensive statistics about database storage for all providers.
 
         Returns:
@@ -2274,7 +2634,7 @@ class DataContainer(SingletonMixin, DataABC, MutableMapping):
         db_stats = {}
         for provider in self.providers:
             try:
-                db_stats[provider.db_namespace()] = provider.db_get_stats()
+                db_stats[provider.db_namespace()] = await provider.db_get_stats()
             except Exception as ex:
                 error = f"Provider {provider.provider_id()} fails on db vacuum: {ex}"
                 logger.error(error)
