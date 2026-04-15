@@ -316,6 +316,26 @@ def fastapi_admin_database_stats_get() -> dict:
     return data
 
 
+@app.post("/v1/admin/database/save", tags=["admin"])
+def fastapi_admin_database_save_post() -> dict:
+    """Save in memory data to database.
+
+    Returns:
+        data (dict): The database stats after saving the records.
+    """
+    data = {}
+    try:
+        get_measurement().save()
+        get_prediction().save()
+        # Get the stats
+        data[get_measurement().db_namespace()] = get_measurement().db_get_stats()
+        data[get_prediction().__class__.__name__] = get_prediction().db_get_stats()
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        raise HTTPException(status_code=400, detail=f"Error on database save: {e}\n{trace}")
+    return data
+
+
 @app.post("/v1/admin/database/vacuum", tags=["admin"])
 def fastapi_admin_database_vacuum_post() -> dict:
     """Remove old records from database.
@@ -805,6 +825,49 @@ def fastapi_measurement_data_put(data: PydanticDateTimeData) -> None:
         # Log unexpected errors
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         logger.exception(f"Unexpected error updating measurement: {data}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error:\n{e}\n{trace}",
+        )
+
+
+@app.delete("/v1/measurement/range", tags=["measurement"])
+def fastapi_measurement_range_delete(
+    key: Annotated[str, Query(description="Measurement key.")],
+    start_datetime: Annotated[Optional[str], Query(description="Start datetime.")] = None,
+    end_datetime: Annotated[Optional[str], Query(description="End datetime.")] = None,
+) -> PydanticDateTimeSeries:
+    """Delete measurement values for a key within a datetime range."""
+    try:
+        if key not in get_measurement().record_keys:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Key '{key}' not found in measurements",
+            )
+
+        try:
+            start_dt = to_datetime(start_datetime) if start_datetime else None
+            end_dt = to_datetime(end_datetime) if end_datetime else None
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid datetime: {e}",
+            )
+
+        get_measurement().key_delete_by_datetime(
+            key=key,
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+        )
+
+        pdseries = get_measurement().key_to_series(key=key)
+        return PydanticDateTimeSeries.from_series(pdseries)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        logger.exception(f"Unexpected error deleting measurement range: {key}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error:\n{e}\n{trace}",

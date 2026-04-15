@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import signal
 import time
 from http import HTTPStatus
@@ -7,6 +8,8 @@ from pathlib import Path
 
 import pytest
 import requests
+
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
@@ -411,6 +414,266 @@ class TestSystem:
         assert result.status_code == HTTPStatus.BAD_REQUEST, (
             f"Expected 400 for invalid datetime, got {result.status_code}"
         )
+
+    def test_measurement_high_frequency_and_duplicates(self, server_setup_for_class):
+        """Simulate production-like high-frequency measurement updates."""
+
+        server = server_setup_for_class["server"]
+
+        # ----------------------------------------------------------------------
+        # 1. Configure measurement keys
+        # ----------------------------------------------------------------------
+        config = {
+            "database": {
+                "provider": "LMDB",
+            },
+            "measurement": {
+                "pv_production_emr_keys": [
+                    "pv1_emr_kwh",
+                    "pv2_emr_kwh",
+                ],
+                "load_emr_keys": [
+                    "load1_emr_kwh",
+                    "load2_emr_kwh",
+                ],
+            }
+        }
+
+        result = requests.put(f"{server}/v1/config", json=config)
+        assert result.status_code == HTTPStatus.OK
+
+        result = requests.delete(f"{server}/v1/measurement/range", params={"key": "pv1_emr_kwh"})
+        assert result.status_code in (HTTPStatus.OK, HTTPStatus.NOT_FOUND)
+        result = requests.delete(f"{server}/v1/measurement/range", params={"key": "pv2_emr_kwh"})
+        assert result.status_code in (HTTPStatus.OK, HTTPStatus.NOT_FOUND)
+        result = requests.delete(f"{server}/v1/measurement/range", params={"key": "load1_emr_kwh"})
+        assert result.status_code in (HTTPStatus.OK, HTTPStatus.NOT_FOUND)
+        result = requests.delete(f"{server}/v1/measurement/range", params={"key": "load2_emr_kwh"})
+        assert result.status_code in (HTTPStatus.OK, HTTPStatus.NOT_FOUND)
+
+        # ----------------------------------------------------------------------
+        # 2. Simulate high-frequency writes (1 Hz, mixed keys)
+        # ----------------------------------------------------------------------
+        base_time = "2026-04-10T00:00:00"
+
+        timestamps = [
+            "2026-04-10T00:00:16",
+            "2026-04-10T00:00:46",
+            "2026-04-10T00:01:46",
+            "2026-04-10T00:02:32",
+            "2026-04-10T00:02:32",  # duplicate
+            "2026-04-10T00:03:32",
+            "2026-04-10T00:03:32",  # duplicate
+        ]
+
+        test_cases = [
+            # valid
+            ("pv1_emr_kwh", -687),
+            ("pv2_emr_kwh", 0.76),
+            ("load1_emr_kwh", 500),
+            ("load2_emr_kwh", 0.0),
+
+            # invalid
+            ("invalid-key-1", 123),
+            ("invalid-key-2", 456),
+        ]
+
+        results = []
+
+        for ts in timestamps:
+            for key, value in test_cases:
+                response = requests.put(
+                    f"{server}/v1/measurement/value",
+                    params={
+                        "datetime": ts,  # NOTE: naive datetime like production
+                        "key": key,
+                        "value": str(value),
+                    },
+                )
+                results.append((ts, key, response.status_code))
+
+        result = requests.post(f"{server}/v1/admin/database/save")
+        assert result.status_code == HTTPStatus.OK
+
+        # ----------------------------------------------------------------------
+        # 3. Assertions: system must behave robustly
+        # ----------------------------------------------------------------------
+
+        # A. Invalid keys must consistently return 404
+        for ts, key, status in results:
+            if key.startswith("invalid"):
+                assert status == HTTPStatus.NOT_FOUND
+            else:
+                assert status != HTTPStatus.NOT_FOUND
+
+        # B. Valid keys must NEVER produce 500
+        for ts, key, status in results:
+            if key in ("pv1_emr_kwh", "pv2_emr_kwh"):
+                assert status != HTTPStatus.INTERNAL_SERVER_ERROR, (
+                    f"500 error for key={key}, ts={ts}"
+                )
+
+        # C. Duplicates must be handled gracefully (200 or 409 or similar, but not 500)
+        duplicate_failures = [
+            (ts, key, status)
+            for ts, key, status in results
+            if ts in ("2026-04-10T00:02:32", "2026-04-10T00:03:32")
+            and key == "pv1_emr_kwh"
+            and status == HTTPStatus.INTERNAL_SERVER_ERROR
+        ]
+
+        assert not duplicate_failures, f"Duplicate timestamp caused 500: {duplicate_failures}"
+
+        # ----------------------------------------------------------------------
+        # 4. Verify data integrity (no explosion / corruption)
+        # ----------------------------------------------------------------------
+        result = requests.get(
+            f"{server}/v1/measurement/series",
+            params={"key": "pv1_emr_kwh"},
+        )
+        assert result.status_code == HTTPStatus.OK
+
+        data = result.json()["data"]
+
+        # Should not contain excessive duplicates
+        assert len(data) <= len(set(timestamps)), "Duplicate timestamps not handled properly"
+
+    def test_measurement_realtime_stream(self, server_setup_for_class):
+        """Simulate real production stream: 1 Hz updates with jitter, duplicates, and out-of-order timestamps."""
+
+        server = server_setup_for_class["server"]
+
+        # ----------------------------------------------------------------------
+        # 1. Configure measurement keys
+        # ----------------------------------------------------------------------
+        config = {
+            "database": {
+                "provider": "LMDB",
+            },
+            "measurement": {
+                "pv_production_emr_keys": ["pv1_emr_kwh"],
+                "load_emr_keys": ["load1_emr_kwh"],
+            }
+        }
+
+        result = requests.put(f"{server}/v1/config", json=config)
+        assert result.status_code == HTTPStatus.OK
+
+        result = requests.delete(f"{server}/v1/measurement/range", params={"key": "pv1_emr_kwh"})
+        assert result.status_code in (HTTPStatus.OK, HTTPStatus.NOT_FOUND)
+        result = requests.delete(f"{server}/v1/measurement/range", params={"key": "load1_emr_kwh"})
+        assert result.status_code in (HTTPStatus.OK, HTTPStatus.NOT_FOUND)
+
+        # ----------------------------------------------------------------------
+        # 2. Real-time simulation
+        # ----------------------------------------------------------------------
+        start = to_datetime().replace(microsecond=0)
+
+        sent_timestamps = []
+        errors = []
+
+        for i in range(20):  # run ~20 seconds
+            now = to_datetime().replace(microsecond=0)
+
+            # --- main timestamp ---
+            ts = str(now)
+
+            # --- simulate normal write ---
+            response = requests.put(
+                f"{server}/v1/measurement/value",
+                params={
+                    "datetime": ts,
+                    "key": "pv1_emr_kwh",
+                    "value": str(random.uniform(0, 1000)),
+                },
+            )
+
+            if response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR:
+                errors.append(("main", ts, response.text))
+
+            sent_timestamps.append(ts)
+
+            # ------------------------------------------------------------------
+            # Inject real-world problems
+            # ------------------------------------------------------------------
+
+            # 1. Duplicate timestamp (same second, slightly later)
+            if random.random() < 0.5:
+                time.sleep(0.05)  # slight delay
+                response = requests.put(
+                    f"{server}/v1/measurement/value",
+                    params={
+                        "datetime": ts,
+                        "key": "pv1_emr_kwh",
+                        "value": str(random.uniform(0, 1000)),
+                    },
+                )
+                if response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR:
+                    errors.append(("duplicate", ts, response.text))
+
+            # 2. Out-of-order timestamp (older data arrives late)
+            if len(sent_timestamps) > 2 and random.random() < 0.5:
+                old_ts = random.choice(sent_timestamps[:-1])
+                response = requests.put(
+                    f"{server}/v1/measurement/value",
+                    params={
+                        "datetime": old_ts,
+                        "key": "pv1_emr_kwh",
+                        "value": str(random.uniform(0, 1000)),
+                    },
+                )
+                if response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR:
+                    errors.append(("out_of_order", old_ts, response.text))
+
+            # 3. Same second burst (multiple writes in same second)
+            if random.random() < 0.5:
+                for _ in range(random.randint(2, 4)):
+                    response = requests.put(
+                        f"{server}/v1/measurement/value",
+                        params={
+                            "datetime": ts,
+                            "key": "pv1_emr_kwh",
+                            "value": str(random.uniform(0, 1000)),
+                        },
+                    )
+                    if response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR:
+                        errors.append(("burst", ts, response.text))
+
+            # 4. Assure database in memory data is saved to database
+            if i in (0, 4, 9, 14, 19):
+                response = requests.post(f"{server}/v1/admin/database/save")
+                assert response.status_code == HTTPStatus.OK
+
+            # small delay to simulate real system (~1 Hz)
+            time.sleep(1)
+
+        # ----------------------------------------------------------------------
+        # 3. Assertions
+        # ----------------------------------------------------------------------
+
+        assert not errors, f"500 errors occurred: {errors}"
+
+        # ----------------------------------------------------------------------
+        # 4. Verify resulting data
+        # ----------------------------------------------------------------------
+        result = requests.get(
+            f"{server}/v1/measurement/series",
+            params={"key": "pv1_emr_kwh"},
+        )
+        assert result.status_code == HTTPStatus.OK
+
+        data = result.json()["data"]
+
+        # sanity: should not explode in size
+        assert len(data) == len(set(sent_timestamps))
+
+        parsed = [to_datetime(ts) for ts in data.keys()]
+        assert all(parsed[i] <= parsed[i+1] for i in range(len(parsed)-1)), \
+            "Timestamps are not sorted"
+
+        unique_keys = set(data.keys())
+        assert len(unique_keys) == len(data), \
+            "Duplicate timestamps detected in API output"
 
     def test_admin_cache(self, server_setup_for_class, is_system_test):
         """Test whether cache is reconstructed from cached files."""
