@@ -23,7 +23,11 @@ from pydantic import Field, computed_field, field_validator
 
 # settings
 from akkudoktoreos.adapter.adapter import AdapterCommonSettings
-from akkudoktoreos.config.configabc import SettingsBaseModel, is_home_assistant_addon
+from akkudoktoreos.config.configabc import (
+    ConfigSaveMode,
+    SettingsBaseModel,
+    is_home_assistant_addon,
+)
 from akkudoktoreos.config.configmigrate import migrate_config_data, migrate_config_file
 from akkudoktoreos.core.cachesettings import CacheCommonSettings
 from akkudoktoreos.core.coreabc import SingletonMixin
@@ -116,6 +120,26 @@ def default_data_folder_path() -> Path:
 
 class GeneralSettings(SettingsBaseModel):
     """General settings."""
+
+    config_save_mode: ConfigSaveMode = Field(
+        default=ConfigSaveMode.AUTOMATIC,
+        json_schema_extra={
+            "description": (
+                "Configuration file save mode for configuration changes "
+                "['MANUAL', 'AUTOMATIC']. Defaults to 'AUTOMATIC'."
+            ),
+        },
+        examples=["AUTOMATIC", "MANUAL"],
+    )
+
+    config_save_interval_sec: int = Field(
+        default=60,
+        ge=5,
+        json_schema_extra={
+            "description": ("Automatic configuration file saving interval [seconds]."),
+            "examples": [60],
+        },
+    )
 
     home_assistant_addon: bool = Field(
         default_factory=is_home_assistant_addon,
@@ -359,6 +383,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         "with_file_secret_settings": True,
     }
     _config_file_path: ClassVar[Optional[Path]] = None
+    _config_autosave: ClassVar[str] = ""
     _force_documentation_mode = False
 
     def __hash__(self) -> int:
@@ -1003,6 +1028,20 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             raise ValueError("Configuration file path unknown.")
         with self.general.config_file_path.open("w", encoding="utf-8", newline="\n") as f_out:
             f_out.write(self.to_config_json())
+        logger.info(f"Saved configuration to '{self.general.config_file_path}'.")
+
+    def autosave(self) -> None:
+        """Saves the current configuration if AUTOMATIC save mode is configured.
+
+        Tries to avoid save operation if there are no changes between last and actual save.
+        """
+        if self.general.config_save_mode != ConfigSaveMode.AUTOMATIC:
+            return
+
+        config_str = self.to_config_json()
+        if config_str != ConfigEOS._config_autosave:
+            self.to_config_file()
+            ConfigEOS._config_autosave = config_str
 
     def update(self) -> None:
         """Updates all configuration fields.

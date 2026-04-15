@@ -31,15 +31,15 @@ dependencies = [
     "bokeh==3.9.0",
     "uvicorn==0.44.0",
     "scipy==1.17.1",
-    "tzfpy==1.1.3",
+    "tzfpy==1.2.0",
     "deap==1.4.3",
     "requests==2.33.1",
     "pandas==3.0.2",
     "pendulum==3.2.0",
-    "platformdirs==4.9.4",
+    "platformdirs==4.9.6",
     "psutil==7.2.2",
     "pvlib==0.15.0",
-    "pydantic==2.12.5",
+    "pydantic==2.13.0",
     "pydantic_extra_types==2.11.2",
     "statsmodels==0.14.6",
     "pydantic-settings==2.13.1",
@@ -61,11 +61,11 @@ dev = [
     # !!! Sync .pre-commit-config.yaml with these dependencies !!!
     "pre-commit==4.5.1",
     "mypy==1.20.0",
-    "types-requests==2.33.0.20260402", # for mypy
+    "types-requests==2.33.0.20260408", # for mypy
     "pandas-stubs==3.0.0.260204", # for mypy
     "tokenize-rt==6.2.0", # for mypy
     "types-docutils==0.22.3.20260322", # for mypy
-    "types-PyYaml==6.0.12.20250915", # for mypy
+    "types-PyYaml==6.0.12.20260408", # for mypy
     "commitizen==4.13.9",
     "deprecated==1.3.1", # for commitizen
 
@@ -78,7 +78,7 @@ dev = [
     "docutils==0.21.2",
 
     # Pytest
-    "pytest==9.0.2",
+    "pytest==9.0.3",
     "pytest-asyncio==1.3.0",
     "pytest-cov==7.1.0",
     "pytest-xprocess==1.0.2",

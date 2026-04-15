@@ -35,11 +35,11 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies:
-          - types-requests==2.32.4.20260107
+          - types-requests==2.33.0.20260408
           - pandas-stubs==3.0.0.260204
           - tokenize-rt==6.2.0
           - types-docutils==0.22.3.20260322
-          - types-PyYaml==6.0.12.20250915
+          - types-PyYaml==6.0.12.20260408
         pass_filenames: false
 
   # --- Markdown linter ---

@@ -125,6 +125,8 @@
            }
        },
        "general": {
+           "config_save_mode": "AUTOMATIC",
+           "config_save_interval_sec": 60,
            "version": "0.0.0",
            "data_folder_path": "/home/user/.local/share/net.akkudoktoreos.net",
            "data_output_subpath": "output",

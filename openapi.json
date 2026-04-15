@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2603180781250771"
+    "version": "v0.3.0.dev2604141105859917"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -720,13 +720,13 @@
                 "schema": {
                   "oneOf": [
                     {
-                      "$ref": "#/components/schemas/PowerMeasurement-Output"
+                      "$ref": "#/components/schemas/PowerMeasurement"
                     },
                     {
-                      "$ref": "#/components/schemas/EnergyMeasurement-Output"
+                      "$ref": "#/components/schemas/EnergyMeasurement"
                     },
                     {
-                      "$ref": "#/components/schemas/PPBCPowerProfileStatus-Output"
+                      "$ref": "#/components/schemas/PPBCPowerProfileStatus"
                     },
                     {
                       "$ref": "#/components/schemas/OMBCStatus"
@@ -735,7 +735,7 @@
                       "$ref": "#/components/schemas/FRBCActuatorStatus"
                     },
                     {
-                      "$ref": "#/components/schemas/FRBCEnergyStatus-Output"
+                      "$ref": "#/components/schemas/FRBCEnergyStatus"
                     },
                     {
                       "$ref": "#/components/schemas/FRBCStorageStatus"
@@ -750,12 +750,12 @@
                   "discriminator": {
                     "propertyName": "type",
                     "mapping": {
-                      "PowerMeasurement": "#/components/schemas/PowerMeasurement-Output",
-                      "EnergyMeasurement": "#/components/schemas/EnergyMeasurement-Output",
-                      "PPBCPowerProfileStatus": "#/components/schemas/PPBCPowerProfileStatus-Output",
+                      "PowerMeasurement": "#/components/schemas/PowerMeasurement",
+                      "EnergyMeasurement": "#/components/schemas/EnergyMeasurement",
+                      "PPBCPowerProfileStatus": "#/components/schemas/PPBCPowerProfileStatus",
                       "OMBCStatus": "#/components/schemas/OMBCStatus",
                       "FRBCActuatorStatus": "#/components/schemas/FRBCActuatorStatus",
-                      "FRBCEnergyStatus": "#/components/schemas/FRBCEnergyStatus-Output",
+                      "FRBCEnergyStatus": "#/components/schemas/FRBCEnergyStatus",
                       "FRBCStorageStatus": "#/components/schemas/FRBCStorageStatus",
                       "FRBCTimerStatus": "#/components/schemas/FRBCTimerStatus",
                       "DDBCActuatorStatus": "#/components/schemas/DDBCActuatorStatus"
@@ -823,13 +823,13 @@
               "schema": {
                 "anyOf": [
                   {
-                    "$ref": "#/components/schemas/PowerMeasurement-Input"
+                    "$ref": "#/components/schemas/PowerMeasurement"
                   },
                   {
-                    "$ref": "#/components/schemas/EnergyMeasurement-Input"
+                    "$ref": "#/components/schemas/EnergyMeasurement"
                   },
                   {
-                    "$ref": "#/components/schemas/PPBCPowerProfileStatus-Input"
+                    "$ref": "#/components/schemas/PPBCPowerProfileStatus"
                   },
                   {
                     "$ref": "#/components/schemas/OMBCStatus"
@@ -838,7 +838,7 @@
                     "$ref": "#/components/schemas/FRBCActuatorStatus"
                   },
                   {
-                    "$ref": "#/components/schemas/FRBCEnergyStatus-Input"
+                    "$ref": "#/components/schemas/FRBCEnergyStatus"
                   },
                   {
                     "$ref": "#/components/schemas/FRBCStorageStatus"
@@ -864,13 +864,13 @@
                 "schema": {
                   "oneOf": [
                     {
-                      "$ref": "#/components/schemas/PowerMeasurement-Output"
+                      "$ref": "#/components/schemas/PowerMeasurement"
                     },
                     {
-                      "$ref": "#/components/schemas/EnergyMeasurement-Output"
+                      "$ref": "#/components/schemas/EnergyMeasurement"
                     },
                     {
-                      "$ref": "#/components/schemas/PPBCPowerProfileStatus-Output"
+                      "$ref": "#/components/schemas/PPBCPowerProfileStatus"
                     },
                     {
                       "$ref": "#/components/schemas/OMBCStatus"
@@ -879,7 +879,7 @@
                       "$ref": "#/components/schemas/FRBCActuatorStatus"
                     },
                     {
-                      "$ref": "#/components/schemas/FRBCEnergyStatus-Output"
+                      "$ref": "#/components/schemas/FRBCEnergyStatus"
                     },
                     {
                       "$ref": "#/components/schemas/FRBCStorageStatus"
@@ -894,12 +894,12 @@
                   "discriminator": {
                     "propertyName": "type",
                     "mapping": {
-                      "PowerMeasurement": "#/components/schemas/PowerMeasurement-Output",
-                      "EnergyMeasurement": "#/components/schemas/EnergyMeasurement-Output",
-                      "PPBCPowerProfileStatus": "#/components/schemas/PPBCPowerProfileStatus-Output",
+                      "PowerMeasurement": "#/components/schemas/PowerMeasurement",
+                      "EnergyMeasurement": "#/components/schemas/EnergyMeasurement",
+                      "PPBCPowerProfileStatus": "#/components/schemas/PPBCPowerProfileStatus",
                       "OMBCStatus": "#/components/schemas/OMBCStatus",
                       "FRBCActuatorStatus": "#/components/schemas/FRBCActuatorStatus",
-                      "FRBCEnergyStatus": "#/components/schemas/FRBCEnergyStatus-Output",
+                      "FRBCEnergyStatus": "#/components/schemas/FRBCEnergyStatus",
                       "FRBCStorageStatus": "#/components/schemas/FRBCStorageStatus",
                       "FRBCTimerStatus": "#/components/schemas/FRBCTimerStatus",
                       "DDBCActuatorStatus": "#/components/schemas/DDBCActuatorStatus"
@@ -2632,6 +2632,15 @@
         "title": "ConfigEOS",
         "description": "Singleton configuration handler for the EOS application.\n\nConfigEOS extends `SettingsEOS` with support for  default configuration paths and automatic\ninitialization.\n\n`ConfigEOS` ensures that only one instance of the class is created throughout the application,\nallowing consistent access to EOS configuration settings. This singleton instance loads\nconfiguration data from a predefined set of directories or creates a default configuration if\nnone is found.\n\nInitialization Process:\n  - Upon instantiation, the singleton instance attempts to load a configuration file in this order:\n    1. The directory specified by the `EOS_CONFIG_DIR` environment variable\n    2. The directory specified by the `EOS_DIR` environment variable.\n    3. A platform specific default directory for EOS.\n    4. The current working directory.\n  - The first available configuration file found in these directories is loaded.\n  - If no configuration file is found, a default configuration file is created in the platform\n    specific default directory, and default settings are loaded into it.\n\nAttributes from the loaded configuration are accessible directly as instance attributes of\n`ConfigEOS`, providing a centralized, shared configuration object for EOS.\n\nSingleton Behavior:\n  - This class uses the `SingletonMixin` to ensure that all requests for `ConfigEOS` return\n    the same instance, which contains the most up-to-date configuration. Modifying the configuration\n    in one part of the application reflects across all references to this class.\n\nRaises:\n    FileNotFoundError: If no configuration file is found, and creating a default configuration fails.\n\nExample:\n    To initialize and access configuration attributes (only one instance is created):\n    .. code-block:: python\n\n        config_eos = ConfigEOS()  # Always returns the same instance\n            print(config_eos.prediction.hours)  # Access a setting from the loaded configuration"
       },
+      "ConfigSaveMode": {
+        "type": "string",
+        "enum": [
+          "AUTOMATIC",
+          "MANUAL"
+        ],
+        "title": "ConfigSaveMode",
+        "description": "Configuration file save mode."
+      },
       "DDBCActuatorStatus": {
         "properties": {
           "type": {
@@ -3958,51 +3967,7 @@
         "title": "EnergyManagementPlan",
         "description": "A coordinated energy management plan composed of device control instructions.\n\nAttributes:\n    plan_id (ID): Unique identifier for this energy management plan.\n    generated_at (DateTime): Timestamp when the plan was generated.\n    valid_from (Optional[DateTime]): Earliest start time of any instruction.\n    valid_until (Optional[DateTime]): Latest end time across all instructions\n        with finite duration; None if all instructions have infinite duration.\n    instructions (list[BaseInstruction]): List of control instructions for the plan.\n    comment (Optional[str]): Optional comment or annotation for the plan."
       },
-      "EnergyMeasurement-Input": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "EnergyMeasurement",
-            "title": "Type",
-            "default": "EnergyMeasurement"
-          },
-          "measurement_timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Measurement Timestamp",
-            "description": "Timestamp when energy values were measured."
-          },
-          "last_reset": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Reset",
-            "description": "Timestamp when the energy meter's cumulative counter was last reset."
-          },
-          "values": {
-            "items": {
-              "$ref": "#/components/schemas/PowerValue"
-            },
-            "type": "array",
-            "title": "Values",
-            "description": "Array of measured energy values. Shall contain at least one item and at most one item per 'commodity_quantity' (defined inside the PowerValue)."
-          }
-        },
-        "type": "object",
-        "required": [
-          "measurement_timestamp",
-          "values"
-        ],
-        "title": "EnergyMeasurement",
-        "description": "Captures a set of energy meter readouts taken at a specific point in time.\n\nEnergy is defined as the cummulative power per hour as provided by an energy meter.\n\nThis model records multiple energy values (for different commodity quantities)\nalong with the timestamp when the meter readouts were taken, enabling time-series\nanalysis and monitoring of energy consumption or production.\n\nNote: This is an extension to the S2 standard."
-      },
-      "EnergyMeasurement-Output": {
+      "EnergyMeasurement": {
         "properties": {
           "type": {
             "type": "string",
@@ -4100,7 +4065,7 @@
         "title": "FRBCActuatorStatus",
         "description": "Current status of an FRBC Actuator.\n\nProvides information about the currently active operation mode and transition history.\nUsed to track the current state of the actuator."
       },
-      "FRBCEnergyStatus-Input": {
+      "FRBCEnergyStatus": {
         "properties": {
           "type": {
             "type": "string",
@@ -4111,7 +4076,7 @@
           "import_total": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/EnergyMeasurement-Input"
+                "$ref": "#/components/schemas/EnergyMeasurement"
               },
               {
                 "type": "null"
@@ -4122,42 +4087,7 @@
           "export_total": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/EnergyMeasurement-Input"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Total cumulative exported energy from the energy meter start."
-          }
-        },
-        "type": "object",
-        "title": "FRBCEnergyStatus",
-        "description": "Energy status of an FRBC storage.\n\nNote: This is an extension to the S2 standard."
-      },
-      "FRBCEnergyStatus-Output": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "FRBCEnergyStatus",
-            "title": "Type",
-            "default": "FRBCEnergyStatus"
-          },
-          "import_total": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/EnergyMeasurement-Output"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Total cumulative imported energy from the energy meter start."
-          },
-          "export_total": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/EnergyMeasurement-Output"
+                "$ref": "#/components/schemas/EnergyMeasurement"
               },
               {
                 "type": "null"
@@ -4497,6 +4427,25 @@
       },
       "GeneralSettings-Input": {
         "properties": {
+          "config_save_mode": {
+            "$ref": "#/components/schemas/ConfigSaveMode",
+            "description": "Configuration file save mode for configuration changes ['MANUAL', 'AUTOMATIC']. Defaults to 'AUTOMATIC'.",
+            "default": "AUTOMATIC",
+            "examples": [
+              "AUTOMATIC",
+              "MANUAL"
+            ]
+          },
+          "config_save_interval_sec": {
+            "type": "integer",
+            "minimum": 5.0,
+            "title": "Config Save Interval Sec",
+            "description": "Automatic configuration file saving interval [seconds].",
+            "default": 60,
+            "examples": [
+              60
+            ]
+          },
           "home_assistant_addon": {
             "type": "boolean",
             "title": "Home Assistant Addon",
@@ -4574,6 +4523,25 @@
       },
       "GeneralSettings-Output": {
         "properties": {
+          "config_save_mode": {
+            "$ref": "#/components/schemas/ConfigSaveMode",
+            "description": "Configuration file save mode for configuration changes ['MANUAL', 'AUTOMATIC']. Defaults to 'AUTOMATIC'.",
+            "default": "AUTOMATIC",
+            "examples": [
+              "AUTOMATIC",
+              "MANUAL"
+            ]
+          },
+          "config_save_interval_sec": {
+            "type": "integer",
+            "minimum": 5.0,
+            "title": "Config Save Interval Sec",
+            "description": "Automatic configuration file saving interval [seconds].",
+            "default": 60,
+            "examples": [
+              60
+            ]
+          },
           "version": {
             "anyOf": [
               {
@@ -4718,7 +4686,7 @@
               }
             ],
             "title": "Individuals",
-            "description": "Number of individuals (solutions) to generate for the (initial) generation [>= 10]. Defaults to 300.",
+            "description": "Number of individuals (solutions) in the population [>= 10]. Defaults to 300.",
             "default": 300,
             "examples": [
               300
@@ -4735,7 +4703,7 @@
               }
             ],
             "title": "Generations",
-            "description": "Number of generations to evaluate the optimal solution [>= 10]. Defaults to 400.",
+            "description": "Number of generations to evolve [>= 10]. Defaults to 400.",
             "default": 400,
             "examples": [
               400
@@ -4752,9 +4720,10 @@
               }
             ],
             "title": "Seed",
-            "description": "Fixed seed for genetic algorithm. Defaults to 'None' which means random seed.",
+            "description": "Random seed for reproducibility. None = random.",
             "examples": [
-              null
+              null,
+              42
             ]
           },
           "penalties": {
@@ -4773,7 +4742,7 @@
             },
             "type": "object",
             "title": "Penalties",
-            "description": "A dictionary of penalty function parameters consisting of a penalty function parameter name and the associated value.",
+            "description": "Penalty parameters used in fitness evaluation.",
             "examples": [
               {
                 "ev_soc_miss": 10
@@ -6251,7 +6220,7 @@
             "title": "Import Json",
             "description": "JSON string, dictionary of load forecast value lists.",
             "examples": [
-              "{\"load0_mean\": [676.71, 876.19, 527.13]}"
+              "{\"loadforecast_power_w\": [676.71, 876.19, 527.13]}"
             ]
           }
         },
@@ -6773,15 +6742,8 @@
       "OptimizationCommonSettings-Input": {
         "properties": {
           "horizon_hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
+            "minimum": 0.0,
             "title": "Horizon Hours",
             "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
             "default": 24,
@@ -6790,18 +6752,11 @@
             ]
           },
           "interval": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 3600.0,
-                "minimum": 900.0
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
+            "maximum": 3600.0,
+            "minimum": 900.0,
             "title": "Interval",
-            "description": "The optimization interval [sec].",
+            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
             "default": 3600,
             "examples": [
               3600,
@@ -6809,30 +6764,16 @@
             ]
           },
           "algorithm": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Algorithm",
-            "description": "The optimization algorithm.",
+            "description": "The optimization algorithm. Defaults to GENETIC",
             "default": "GENETIC",
             "examples": [
               "GENETIC"
             ]
           },
           "genetic": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/GeneticCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "$ref": "#/components/schemas/GeneticCommonSettings",
             "description": "Genetic optimization algorithm configuration.",
             "examples": [
               {
@@ -6851,15 +6792,8 @@
       "OptimizationCommonSettings-Output": {
         "properties": {
           "horizon_hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
+            "minimum": 0.0,
             "title": "Horizon Hours",
             "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
             "default": 24,
@@ -6868,18 +6802,11 @@
             ]
           },
           "interval": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "maximum": 3600.0,
-                "minimum": 900.0
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
+            "maximum": 3600.0,
+            "minimum": 900.0,
             "title": "Interval",
-            "description": "The optimization interval [sec].",
+            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
             "default": 3600,
             "examples": [
               3600,
@@ -6887,30 +6814,16 @@
             ]
           },
           "algorithm": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Algorithm",
-            "description": "The optimization algorithm.",
+            "description": "The optimization algorithm. Defaults to GENETIC",
             "default": "GENETIC",
             "examples": [
               "GENETIC"
             ]
           },
           "genetic": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/GeneticCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "$ref": "#/components/schemas/GeneticCommonSettings",
             "description": "Genetic optimization algorithm configuration.",
             "examples": [
               {
@@ -6929,11 +6842,18 @@
             "title": "Keys",
             "description": "The keys of the solution.",
             "readOnly": true
+          },
+          "horizon": {
+            "type": "integer",
+            "title": "Horizon",
+            "description": "Number of optimization steps.",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
-          "keys"
+          "keys",
+          "horizon"
         ],
         "title": "OptimizationCommonSettings",
         "description": "General Optimization Configuration."
@@ -7222,31 +7142,7 @@
         "title": "PPBCEndInterruptionInstruction",
         "description": "Represents an instruction to resume execution of a previously interrupted power sequence.\n\nThis model defines a control instruction that ends an interruption and resumes\nexecution of a previously interrupted power sequence. It complements the start\ninterruption instruction, enabling the complete interruption-resumption cycle\nfor flexible sequence execution control."
       },
-      "PPBCPowerProfileStatus-Input": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "PPBCPowerProfileStatus",
-            "title": "Type",
-            "default": "PPBCPowerProfileStatus"
-          },
-          "sequence_container_status": {
-            "items": {
-              "$ref": "#/components/schemas/PPBCPowerSequenceContainerStatus"
-            },
-            "type": "array",
-            "title": "Sequence Container Status",
-            "description": "Status list for all sequence containers in the PowerProfileDefinition."
-          }
-        },
-        "type": "object",
-        "required": [
-          "sequence_container_status"
-        ],
-        "title": "PPBCPowerProfileStatus",
-        "description": "Reports the current status of a power profile execution.\n\nThis model provides comprehensive status information for all sequence containers\nin a power profile definition, enabling monitoring of profile execution progress.\nIt tracks which sequences have been selected and their current execution status."
-      },
-      "PPBCPowerProfileStatus-Output": {
+      "PPBCPowerProfileStatus": {
         "properties": {
           "type": {
             "type": "string",
@@ -8100,38 +7996,7 @@
         "title": "PVForecastVrmCommonSettings",
         "description": "Common settings for PV forecast VRM API."
       },
-      "PowerMeasurement-Input": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "const": "PowerMeasurement",
-            "title": "Type",
-            "default": "PowerMeasurement"
-          },
-          "measurement_timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Measurement Timestamp",
-            "description": "Timestamp when PowerValues were measured."
-          },
-          "values": {
-            "items": {
-              "$ref": "#/components/schemas/PowerValue"
-            },
-            "type": "array",
-            "title": "Values",
-            "description": "Array of measured PowerValues. Shall contain at least one item and at most one item per 'commodity_quantity' (defined inside the PowerValue)."
-          }
-        },
-        "type": "object",
-        "required": [
-          "measurement_timestamp",
-          "values"
-        ],
-        "title": "PowerMeasurement",
-        "description": "Captures a set of power measurements taken at a specific point in time.\n\nThis model records multiple power values (for different commodity quantities)\nalong with the timestamp when the measurements were taken, enabling time-series\nanalysis and monitoring of power consumption or production."
-      },
-      "PowerMeasurement-Output": {
+      "PowerMeasurement": {
         "properties": {
           "type": {
             "type": "string",
