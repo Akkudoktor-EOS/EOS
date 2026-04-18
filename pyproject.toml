@@ -16,7 +16,7 @@ classifiers = [
 dependencies = [
     "babel==2.18.0",
     "beautifulsoup4==4.14.3",
-    "cachebox==5.2.2",
+    "cachebox==5.2.3",
     "numpy==2.4.4",
     "numpydantic==1.8.1",
     "matplotlib==3.10.8",
