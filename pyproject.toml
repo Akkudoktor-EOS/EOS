@@ -32,7 +32,7 @@ dependencies = [
     "uvicorn==0.44.0",
     "scipy==1.17.1",
     "tzfpy==1.2.0",
-    "deap==1.4.3",
+    "deap==1.4.4",
     "requests==2.33.1",
     "pandas==3.0.2",
     "pendulum==3.2.0",
