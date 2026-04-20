@@ -39,7 +39,7 @@ dependencies = [
     "platformdirs==4.9.6",
     "psutil==7.2.2",
     "pvlib==0.15.0",
-    "pydantic==2.13.2",
+    "pydantic==2.13.3",
     "pydantic_extra_types==2.11.2",
     "statsmodels==0.14.6",
     "pydantic-settings==2.13.1",
