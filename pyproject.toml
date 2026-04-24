@@ -16,33 +16,33 @@ classifiers = [
 dependencies = [
     "babel==2.18.0",
     "beautifulsoup4==4.14.3",
-    "cachebox==5.2.2",
+    "cachebox==5.2.3",
     "numpy==2.4.4",
-    "numpydantic==1.8.0",
-    "matplotlib==3.10.8",
+    "numpydantic==1.8.1",
+    "matplotlib==3.10.9",
     "contourpy==1.3.3",
-    "fastapi[standard-no-fastapi-cloud-cli]==0.135.3",
+    "fastapi[standard-no-fastapi-cloud-cli]==0.136.1",
     "fastapi_cli==0.0.24",
     "rich-toolkit==0.19.7",
-    "python-fasthtml==0.13.2",
+    "python-fasthtml==0.13.4",
     "MonsterUI==1.0.45",
     "markdown-it-py==4.0.0",
     "mdit-py-plugins==0.5.0",
     "bokeh==3.9.0",
-    "uvicorn==0.44.0",
+    "uvicorn==0.46.0",
     "scipy==1.17.1",
     "tzfpy==1.2.0",
-    "deap==1.4.3",
+    "deap==1.4.4",
     "requests==2.33.1",
     "pandas==3.0.2",
     "pendulum==3.2.0",
     "platformdirs==4.9.6",
     "psutil==7.2.2",
-    "pvlib==0.15.0",
-    "pydantic==2.13.0",
+    "pvlib==0.15.1",
+    "pydantic==2.13.3",
     "pydantic_extra_types==2.11.2",
     "statsmodels==0.14.6",
-    "pydantic-settings==2.13.1",
+    "pydantic-settings==2.14.0",
     "linkify-it-py==2.1.0",
     "loguru==0.7.3",
     "lmdb==2.2.0",
@@ -59,21 +59,21 @@ dev = [
     # - commitizen - sync with requirements-dev.txt (if on pypi)
     #
     # !!! Sync .pre-commit-config.yaml with these dependencies !!!
-    "pre-commit==4.5.1",
-    "mypy==1.20.0",
+    "pre-commit==4.6.0",
+    "mypy==1.20.2",
     "types-requests==2.33.0.20260408", # for mypy
     "pandas-stubs==3.0.0.260204", # for mypy
     "tokenize-rt==6.2.0", # for mypy
-    "types-docutils==0.22.3.20260322", # for mypy
+    "types-docutils==0.22.3.20260408", # for mypy
     "types-PyYaml==6.0.12.20260408", # for mypy
-    "commitizen==4.13.9",
+    "commitizen==4.13.10",
     "deprecated==1.3.1", # for commitizen
 
     # Sphinx
     "sphinx==9.0.4",
     "sphinx_rtd_theme==3.1.0",
     "sphinx-tabs==3.5.0",
-    "GitPython==3.1.46",
+    "GitPython==3.1.47",
     "myst-parser==5.0.0",
     "docutils==0.21.2",
 
