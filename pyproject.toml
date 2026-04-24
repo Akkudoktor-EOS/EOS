@@ -59,7 +59,7 @@ dev = [
     # - commitizen - sync with requirements-dev.txt (if on pypi)
     #
     # !!! Sync .pre-commit-config.yaml with these dependencies !!!
-    "pre-commit==4.5.1",
+    "pre-commit==4.6.0",
     "mypy==1.20.1",
     "types-requests==2.33.0.20260408", # for mypy
     "pandas-stubs==3.0.0.260204", # for mypy
