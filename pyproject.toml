@@ -73,7 +73,7 @@ dev = [
     "sphinx==9.0.4",
     "sphinx_rtd_theme==3.1.0",
     "sphinx-tabs==3.5.0",
-    "GitPython==3.1.47",
+    "GitPython==3.1.49",
     "myst-parser==5.0.0",
     "docutils==0.21.2",
 
