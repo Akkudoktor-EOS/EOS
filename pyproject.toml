@@ -61,7 +61,7 @@ dev = [
     # !!! Sync .pre-commit-config.yaml with these dependencies !!!
     "pre-commit==4.6.0",
     "mypy==1.20.2",
-    "types-requests==2.33.0.20260408", # for mypy
+    "types-requests==2.33.0.20260503", # for mypy
     "pandas-stubs==3.0.0.260204", # for mypy
     "tokenize-rt==6.2.0", # for mypy
     "types-docutils==0.22.3.20260408", # for mypy
