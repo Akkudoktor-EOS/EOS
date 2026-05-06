@@ -26,7 +26,7 @@ dependencies = [
     "rich-toolkit==0.19.7",
     "python-fasthtml==0.13.4",
     "MonsterUI==1.0.45",
-    "markdown-it-py==4.0.0",
+    "markdown-it-py==4.1.0",
     "mdit-py-plugins==0.5.0",
     "bokeh==3.9.0",
     "uvicorn==0.46.0",
