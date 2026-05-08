@@ -416,7 +416,7 @@ def _parse_time_string(time_str: str, default_date: pendulum.Date = None) -> pen
             # Try to parse as a standard timezone name
             try:
                 timezone_info = pendulum.timezone(timezone_str)
-            except:
+            except Exception:
                 raise ValueError(f"Unknown timezone: {timezone_str}")
         elif re.match(r"[+-]\d{2}:?\d{2}", timezone_str):
             # Handle offset format like +05:30, -08:00, +0530, -0800

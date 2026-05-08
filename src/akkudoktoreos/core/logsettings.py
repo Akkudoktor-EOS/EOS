@@ -37,7 +37,7 @@ class LoggingCommonSettings(SettingsBaseModel):
         """Computed log file path based on data output path."""
         try:
             path = SettingsBaseModel.config.general.data_output_path / "eos.log"
-        except:
+        except Exception:
             # Config may not be fully set up
             path = None
         return path

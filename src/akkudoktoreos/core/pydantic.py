@@ -133,7 +133,7 @@ class PydanticModelNestedValueMixin:
         try:
             self._validate_path_structure(path)
             pass
-        except:
+        except Exception:
             raise ValueError(f"Path '{path}' is invalid")
         path = path.strip("/")
         # Use private data workaround

@@ -976,7 +976,7 @@ class GeneticOptimization(OptimizationBase):
         if self.optimize_ev and parameters.eauto and self.simulation.ev:
             try:
                 penalty = self.config.optimization.genetic.penalties["ev_soc_miss"]
-            except:
+            except Exception:
                 # Use default
                 penalty = 10
                 logger.error(
@@ -1007,7 +1007,7 @@ class GeneticOptimization(OptimizationBase):
             individuals = self.config.optimization.genetic.individuals
             if individuals is None:
                 raise
-        except:
+        except Exception:
             individuals = 300
             logger.error("Individuals not configured. Using {}.", individuals)
 
@@ -1078,7 +1078,7 @@ class GeneticOptimization(OptimizationBase):
         if generations is None:
             try:
                 generations = self.config.optimization.genetic.generations
-            except:
+            except Exception:
                 generations = 400
                 logger.error("Generations not configured. Using {}.", generations)
 

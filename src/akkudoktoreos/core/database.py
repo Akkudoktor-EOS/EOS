@@ -1028,7 +1028,7 @@ class Database(DatabaseABC, SingletonMixin):
         """Return the unique identifier for the database provider."""
         try:
             return self._database().provider_id()
-        except:
+        except Exception:
             return "None"
 
     @property
@@ -1036,7 +1036,7 @@ class Database(DatabaseABC, SingletonMixin):
         """Return whether the database connection is open."""
         try:
             return self._database().is_open
-        except:
+        except Exception:
             return False
 
     @property
