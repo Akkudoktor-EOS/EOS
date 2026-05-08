@@ -259,7 +259,7 @@ class EnergyManagement(
                 parameters=genetic_parameters,
                 ngen=genetic_individuals,
             )
-        except:
+        except Exception:
             logger.exception("Energy management optimization failed.")
             cls._stage = EnergyManagementStage.IDLE
             return

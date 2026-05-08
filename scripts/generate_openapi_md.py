@@ -33,7 +33,7 @@ def akkudoktoreos_base_branch():
     # Get the current branch
     try:
         current_branch = repo.active_branch.name
-    except:
+    except Exception:
         # Maybe detached branch that has no name
         return None
 
