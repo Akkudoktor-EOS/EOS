@@ -24,7 +24,7 @@ dependencies = [
     "fastapi[standard-no-fastapi-cloud-cli]==0.136.1",
     "fastapi_cli==0.0.24",
     "rich-toolkit==0.19.7",
-    "python-fasthtml==0.13.4",
+    "python-fasthtml==0.14.1",
     "MonsterUI==1.0.45",
     "markdown-it-py==4.2.0",
     "mdit-py-plugins==0.6.0",
