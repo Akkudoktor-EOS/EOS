@@ -24,10 +24,10 @@ dependencies = [
     "fastapi[standard-no-fastapi-cloud-cli]==0.136.1",
     "fastapi_cli==0.0.24",
     "rich-toolkit==0.19.7",
-    "python-fasthtml==0.13.4",
+    "python-fasthtml==0.14.1",
     "MonsterUI==1.0.45",
-    "markdown-it-py==4.1.0",
-    "mdit-py-plugins==0.5.0",
+    "markdown-it-py==4.2.0",
+    "mdit-py-plugins==0.6.0",
     "bokeh==3.9.0",
     "uvicorn==0.46.0",
     "scipy==1.17.1",
@@ -42,7 +42,7 @@ dependencies = [
     "pydantic==2.13.4",
     "pydantic_extra_types==2.11.2",
     "statsmodels==0.14.6",
-    "pydantic-settings==2.14.0",
+    "pydantic-settings==2.14.1",
     "linkify-it-py==2.1.0",
     "loguru==0.7.3",
     "lmdb==2.2.0",
@@ -61,11 +61,11 @@ dev = [
     # !!! Sync .pre-commit-config.yaml with these dependencies !!!
     "pre-commit==4.6.0",
     "mypy==2.0.0",
-    "types-requests==2.33.0.20260503", # for mypy
+    "types-requests==2.33.0.20260508", # for mypy
     "pandas-stubs==3.0.0.260204", # for mypy
     "tokenize-rt==6.2.0", # for mypy
-    "types-docutils==0.22.3.20260408", # for mypy
-    "types-PyYaml==6.0.12.20260408", # for mypy
+    "types-docutils==0.22.3.20260508", # for mypy
+    "types-PyYaml==6.0.12.20260510", # for mypy
     "commitizen==4.15.1",
     "deprecated==1.3.1", # for commitizen
 
@@ -82,7 +82,7 @@ dev = [
     "pytest-asyncio==1.3.0",
     "pytest-cov==7.1.0",
     "pytest-xprocess==1.0.2",
-    "coverage==7.13.5",
+    "coverage==7.14.0",
 ]
 
 [project.urls]
