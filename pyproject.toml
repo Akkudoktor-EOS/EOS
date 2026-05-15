@@ -27,7 +27,7 @@ dependencies = [
     "python-fasthtml==0.14.1",
     "MonsterUI==1.0.45",
     "markdown-it-py==4.2.0",
-    "mdit-py-plugins==0.6.0",
+    "mdit-py-plugins==0.6.1",
     "bokeh==3.9.0",
     "uvicorn==0.46.0",
     "scipy==1.17.1",
