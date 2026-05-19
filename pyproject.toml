@@ -17,24 +17,24 @@ dependencies = [
     "babel==2.18.0",
     "beautifulsoup4==4.14.3",
     "cachebox==5.2.3",
-    "numpy==2.4.4",
+    "numpy==2.4.6",
     "numpydantic==1.8.1",
     "matplotlib==3.10.9",
     "contourpy==1.3.3",
     "fastapi[standard-no-fastapi-cloud-cli]==0.136.1",
     "fastapi_cli==0.0.24",
-    "rich-toolkit==0.19.7",
+    "rich-toolkit==0.19.9",
     "python-fasthtml==0.14.1",
     "MonsterUI==1.0.45",
     "markdown-it-py==4.2.0",
-    "mdit-py-plugins==0.6.0",
+    "mdit-py-plugins==0.6.1",
     "bokeh==3.9.0",
-    "uvicorn==0.46.0",
+    "uvicorn==0.47.0",
     "scipy==1.17.1",
     "tzfpy==1.3.1",
     "deap==1.4.4",
-    "requests==2.33.1",
-    "pandas==3.0.2",
+    "requests==2.34.2",
+    "pandas==3.0.3",
     "pendulum==3.2.0",
     "platformdirs==4.9.6",
     "psutil==7.2.2",
@@ -60,13 +60,13 @@ dev = [
     #
     # !!! Sync .pre-commit-config.yaml with these dependencies !!!
     "pre-commit==4.6.0",
-    "mypy==2.0.0",
-    "types-requests==2.33.0.20260508", # for mypy
+    "mypy==2.1.0",
+    "types-requests==2.33.0.20260518", # for mypy
     "pandas-stubs==3.0.0.260204", # for mypy
     "tokenize-rt==6.2.0", # for mypy
-    "types-docutils==0.22.3.20260508", # for mypy
-    "types-PyYaml==6.0.12.20260510", # for mypy
-    "commitizen==4.15.1",
+    "types-docutils==0.22.3.20260518", # for mypy
+    "types-PyYaml==6.0.12.20260518", # for mypy
+    "commitizen==4.16.2",
     "deprecated==1.3.1", # for commitizen
 
     # Sphinx
@@ -74,7 +74,7 @@ dev = [
     "sphinx_rtd_theme==3.1.0",
     "sphinx-tabs==3.5.0",
     "GitPython==3.1.50",
-    "myst-parser==5.0.0",
+    "myst-parser==5.1.0",
     "docutils==0.21.2",
 
     # Pytest
