@@ -23,7 +23,7 @@ dependencies = [
     "contourpy==1.3.3",
     "fastapi[standard-no-fastapi-cloud-cli]==0.136.1",
     "fastapi_cli==0.0.24",
-    "rich-toolkit==0.19.9",
+    "rich-toolkit==0.19.10",
     "python-fasthtml==0.14.1",
     "MonsterUI==1.0.45",
     "markdown-it-py==4.2.0",
