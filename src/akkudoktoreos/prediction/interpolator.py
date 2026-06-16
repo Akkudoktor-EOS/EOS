@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import pickle
 from pathlib import Path
 
 import numpy as np
@@ -13,8 +12,12 @@ class SelfConsumptionProbabilityInterpolator:
     def __init__(self, filepath: str | Path):
         self.filepath = filepath
         # Load the RegularGridInterpolator
-        with open(self.filepath, "rb") as file:
-            self.interpolator: RegularGridInterpolator = pickle.load(file)  # noqa: S301
+        data = np.load(self.filepath, allow_pickle=False)
+        grid = data["grid"]
+        values = data["values"]
+        self.interpolator = RegularGridInterpolator(
+            grid, values, method="linear", bounds_error=False, fill_value=None
+        )
 
     def _generate_points(
         self, load_1h_power: float, pv_power: float
