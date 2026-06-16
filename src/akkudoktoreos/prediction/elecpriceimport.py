@@ -43,8 +43,7 @@ class ElecPriceImportCommonSettings(SettingsBaseModel):
             return None
         if isinstance(value, str):
             value = Path(value)
-        """Ensure file is available."""
-        value.resolve()
+        value = value.resolve()
         if not value.is_file():
             raise ValueError(f"Import file path '{value}' is not a file.")
         return value
