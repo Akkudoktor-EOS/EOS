@@ -22,7 +22,7 @@ get involved:
 and report bugs.
 
 - [Akkudoktor Forum](https://www.akkudoktor.net/c/der-akkudoktor/eos): get direct suppport from the
-cummunity.
+  community.
 
 ## What do people build with AkkudoktorEOS
 
