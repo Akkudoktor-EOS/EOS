@@ -38,7 +38,7 @@ dependencies = [
     "pendulum==3.2.0",
     "platformdirs==4.10.0",
     "psutil==7.2.2",
-    "pvlib==0.15.1",
+    "pvlib==0.15.2",
     "pydantic==2.13.4",
     "pydantic_extra_types==2.11.2",
     "statsmodels==0.14.6",
