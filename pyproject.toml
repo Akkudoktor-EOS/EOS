@@ -21,7 +21,7 @@ dependencies = [
     "numpydantic==1.9.1",
     "matplotlib==3.11.0",
     "contourpy==1.3.3",
-    "fastapi[standard-no-fastapi-cloud-cli]==0.137.1",
+    "fastapi[standard-no-fastapi-cloud-cli]==0.138.0",
     "fastapi_cli==0.0.24",
     "rich-toolkit==0.20.1",
     "python-fasthtml==0.14.3",
