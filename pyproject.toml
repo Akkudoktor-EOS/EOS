@@ -18,7 +18,7 @@ dependencies = [
     "beautifulsoup4==4.15.0",
     "cachebox==6.1.2",
     "numpy==2.4.6",
-    "numpydantic==1.9.1",
+    "numpydantic==1.10.0",
     "matplotlib==3.11.0",
     "contourpy==1.3.3",
     "fastapi[standard-no-fastapi-cloud-cli]==0.138.0",
