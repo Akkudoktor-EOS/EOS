@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2604141105859917`
+**Version**: `v0.3.0.dev2604151333602183`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -328,6 +328,31 @@ Save the current cache management data.
 
 Returns:
     data (dict): The management data that was saved.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## POST /v1/admin/database/save
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_admin_database_save_post_v1_admin_database_save_post), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_admin_database_save_post_v1_admin_database_save_post)
+<!-- pyml enable line-length -->
+
+Fastapi Admin Database Save Post
+
+<!-- pyml disable line-length -->
+```python
+"""
+Save in memory data to database.
+
+Returns:
+    data (dict): The database stats after saving the records.
 """
 ```
 <!-- pyml enable line-length -->
@@ -879,6 +904,38 @@ Fastapi Measurement Keys Get
 **Responses**:
 
 - **200**: Successful Response
+
+---
+
+## DELETE /v1/measurement/range
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_measurement_range_delete_v1_measurement_range_delete), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_measurement_range_delete_v1_measurement_range_delete)
+<!-- pyml enable line-length -->
+
+Fastapi Measurement Range Delete
+
+<!-- pyml disable line-length -->
+```python
+"""
+Delete measurement values for a key within a datetime range.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `key` (query, required): Measurement key.
+
+- `start_datetime` (query, optional): Start datetime.
+
+- `end_datetime` (query, optional): End datetime.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
 
 ---
 
