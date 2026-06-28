@@ -8,6 +8,7 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
+from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNodeCommonSettings
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrmCommonSettings
 
 
@@ -18,7 +19,7 @@ def pvforecast_provider_ids() -> list[str]:
     except:
         # Prediction may not be initialized
         # Return at least provider used in example
-        return ["PVForecastAkkudoktor", "PVForecastImport", "PVForecastVrm"]
+        return ["PVForecastAkkudoktor", "PVForecastImport", "PVForecastVrm", "PVForecastPVNode"]
 
     return [
         provider.provider_id()
@@ -178,6 +179,10 @@ class PVForecastCommonProviderSettings(SettingsBaseModel):
     PVForecastVrm: Optional[PVForecastVrmCommonSettings] = Field(
         default=None,
         json_schema_extra={"description": "PVForecastVrm settings", "examples": [None]},
+    )
+    PVForecastPVNode: Optional[PVForecastPVNodeCommonSettings] = Field(
+        default=None,
+        json_schema_extra={"description": "PVForecastPVNode settings", "examples": [None]},
     )
 
 
