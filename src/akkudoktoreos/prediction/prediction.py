@@ -48,6 +48,7 @@ from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNode
+from akkudoktoreos.prediction.pvforecastsolcast import PVForecastSolcast
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
 from akkudoktoreos.prediction.weatherbrightsky import WeatherBrightSky
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
@@ -88,6 +89,7 @@ pvforecast_akkudoktor = PVForecastAkkudoktor()
 pvforecast_vrm = PVForecastVrm()
 pvforecast_pvnode = PVForecastPVNode()
 pvforecast_forecastsolar = PVForecastForecastSolar()
+pvforecast_solcast = PVForecastSolcast()
 pvforecast_import = PVForecastImport()
 weather_brightsky = WeatherBrightSky()
 weather_clearoutside = WeatherClearOutside()
@@ -111,6 +113,7 @@ def prediction_providers() -> list[
         PVForecastVrm,
         PVForecastPVNode,
         PVForecastForecastSolar,
+        PVForecastSolcast,
         PVForecastImport,
         WeatherBrightSky,
         WeatherClearOutside,
@@ -137,6 +140,7 @@ def prediction_providers() -> list[
         pvforecast_vrm, \
         pvforecast_pvnode, \
         pvforecast_forecastsolar, \
+        pvforecast_solcast, \
         pvforecast_import, \
         weather_brightsky, \
         weather_clearoutside, \
@@ -159,6 +163,7 @@ def prediction_providers() -> list[
         pvforecast_vrm,
         pvforecast_pvnode,
         pvforecast_forecastsolar,
+        pvforecast_solcast,
         pvforecast_import,
         weather_brightsky,
         weather_clearoutside,
@@ -186,6 +191,7 @@ class Prediction(PredictionContainer):
             PVForecastVrm,
             PVForecastPVNode,
             PVForecastForecastSolar,
+            PVForecastSolcast,
             PVForecastImport,
             WeatherBrightSky,
             WeatherClearOutside,
