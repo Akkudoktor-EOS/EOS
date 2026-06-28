@@ -45,6 +45,7 @@ from akkudoktoreos.prediction.loadimport import LoadImport
 from akkudoktoreos.prediction.loadvrm import LoadVrm
 from akkudoktoreos.prediction.predictionabc import PredictionContainer
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
+from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNode
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
@@ -86,6 +87,7 @@ loadforecast_import = LoadImport()
 pvforecast_akkudoktor = PVForecastAkkudoktor()
 pvforecast_vrm = PVForecastVrm()
 pvforecast_pvnode = PVForecastPVNode()
+pvforecast_forecastsolar = PVForecastForecastSolar()
 pvforecast_import = PVForecastImport()
 weather_brightsky = WeatherBrightSky()
 weather_clearoutside = WeatherClearOutside()
@@ -108,6 +110,7 @@ def prediction_providers() -> list[
         PVForecastAkkudoktor,
         PVForecastVrm,
         PVForecastPVNode,
+        PVForecastForecastSolar,
         PVForecastImport,
         WeatherBrightSky,
         WeatherClearOutside,
@@ -133,6 +136,7 @@ def prediction_providers() -> list[
         pvforecast_akkudoktor, \
         pvforecast_vrm, \
         pvforecast_pvnode, \
+        pvforecast_forecastsolar, \
         pvforecast_import, \
         weather_brightsky, \
         weather_clearoutside, \
@@ -154,6 +158,7 @@ def prediction_providers() -> list[
         pvforecast_akkudoktor,
         pvforecast_vrm,
         pvforecast_pvnode,
+        pvforecast_forecastsolar,
         pvforecast_import,
         weather_brightsky,
         weather_clearoutside,
@@ -180,6 +185,7 @@ class Prediction(PredictionContainer):
             PVForecastAkkudoktor,
             PVForecastVrm,
             PVForecastPVNode,
+            PVForecastForecastSolar,
             PVForecastImport,
             WeatherBrightSky,
             WeatherClearOutside,

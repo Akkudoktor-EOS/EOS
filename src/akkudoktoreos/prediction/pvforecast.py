@@ -7,6 +7,9 @@ from pydantic import Field, computed_field, field_validator, model_validator
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
+from akkudoktoreos.prediction.pvforecastforecastsolar import (
+    PVForecastForecastSolarCommonSettings,
+)
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNodeCommonSettings
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrmCommonSettings
@@ -19,7 +22,13 @@ def pvforecast_provider_ids() -> list[str]:
     except:
         # Prediction may not be initialized
         # Return at least provider used in example
-        return ["PVForecastAkkudoktor", "PVForecastImport", "PVForecastVrm", "PVForecastPVNode"]
+        return [
+            "PVForecastAkkudoktor",
+            "PVForecastImport",
+            "PVForecastVrm",
+            "PVForecastPVNode",
+            "PVForecastForecastSolar",
+        ]
 
     return [
         provider.provider_id()
@@ -183,6 +192,10 @@ class PVForecastCommonProviderSettings(SettingsBaseModel):
     PVForecastPVNode: Optional[PVForecastPVNodeCommonSettings] = Field(
         default=None,
         json_schema_extra={"description": "PVForecastPVNode settings", "examples": [None]},
+    )
+    PVForecastForecastSolar: Optional[PVForecastForecastSolarCommonSettings] = Field(
+        default=None,
+        json_schema_extra={"description": "PVForecastForecastSolar settings", "examples": [None]},
     )
 
 
