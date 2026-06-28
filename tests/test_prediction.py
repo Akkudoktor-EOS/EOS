@@ -19,7 +19,10 @@ from akkudoktoreos.prediction.prediction import (
     PredictionCommonSettings,
 )
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
+from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
+from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNode
+from akkudoktoreos.prediction.pvforecastsolcast import PVForecastSolcast
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
 from akkudoktoreos.prediction.weatherbrightsky import WeatherBrightSky
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
@@ -49,6 +52,9 @@ def forecast_providers():
         LoadImport(),
         PVForecastAkkudoktor(),
         PVForecastVrm(),
+        PVForecastPVNode(),
+        PVForecastForecastSolar(),
+        PVForecastSolcast(),
         PVForecastImport(),
         WeatherBrightSky(),
         WeatherClearOutside(),
@@ -98,11 +104,14 @@ def test_provider_sequence(prediction):
     assert isinstance(prediction.providers[9], LoadImport)
     assert isinstance(prediction.providers[10], PVForecastAkkudoktor)
     assert isinstance(prediction.providers[11], PVForecastVrm)
-    assert isinstance(prediction.providers[12], PVForecastImport)
-    assert isinstance(prediction.providers[13], WeatherBrightSky)
-    assert isinstance(prediction.providers[14], WeatherClearOutside)
-    assert isinstance(prediction.providers[15], WeatherOpenMeteo)
-    assert isinstance(prediction.providers[16], WeatherImport)
+    assert isinstance(prediction.providers[12], PVForecastPVNode)
+    assert isinstance(prediction.providers[13], PVForecastForecastSolar)
+    assert isinstance(prediction.providers[14], PVForecastSolcast)
+    assert isinstance(prediction.providers[15], PVForecastImport)
+    assert isinstance(prediction.providers[16], WeatherBrightSky)
+    assert isinstance(prediction.providers[17], WeatherClearOutside)
+    assert isinstance(prediction.providers[18], WeatherOpenMeteo)
+    assert isinstance(prediction.providers[19], WeatherImport)
 
 
 def test_provider_by_id(prediction, forecast_providers):

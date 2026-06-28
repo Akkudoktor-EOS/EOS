@@ -187,7 +187,10 @@
            "provider": "PVForecastAkkudoktor",
            "provider_settings": {
                "PVForecastImport": null,
-               "PVForecastVrm": null
+               "PVForecastVrm": null,
+               "PVForecastPVNode": null,
+               "PVForecastForecastSolar": null,
+               "PVForecastSolcast": null
            },
            "planes": [
                {
