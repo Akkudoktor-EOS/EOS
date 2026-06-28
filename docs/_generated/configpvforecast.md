@@ -31,7 +31,10 @@
            "provider": "PVForecastAkkudoktor",
            "provider_settings": {
                "PVForecastImport": null,
-               "PVForecastVrm": null
+               "PVForecastVrm": null,
+               "PVForecastPVNode": null,
+               "PVForecastForecastSolar": null,
+               "PVForecastSolcast": null
            },
            "planes": [
                {
@@ -96,7 +99,10 @@
            "provider": "PVForecastAkkudoktor",
            "provider_settings": {
                "PVForecastImport": null,
-               "PVForecastVrm": null
+               "PVForecastVrm": null,
+               "PVForecastPVNode": null,
+               "PVForecastForecastSolar": null,
+               "PVForecastSolcast": null
            },
            "planes": [
                {
@@ -148,6 +154,9 @@
            "providers": [
                "PVForecastAkkudoktor",
                "PVForecastVrm",
+               "PVForecastPVNode",
+               "PVForecastForecastSolar",
+               "PVForecastSolcast",
                "PVForecastImport"
            ],
            "planes_peakpower": [
@@ -178,6 +187,105 @@
                6000.0,
                4000.0
            ]
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the Solcast PV forecast provider
+
+<!-- pyml disable line-length -->
+:::{table} pvforecast::provider_settings::PVForecastSolcast
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| api_key | `str` | `rw` | `` | Solcast API key (Bearer auth). Required. |
+| site_id | `str` | `rw` | `` | Solcast rooftop site (resource) id. Required. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "pvforecast": {
+           "provider_settings": {
+               "PVForecastSolcast": {
+                   "api_key": "your-solcast-key",
+                   "site_id": "abcd-1234-efgh-5678"
+               }
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the Forecast.Solar PV forecast provider
+
+<!-- pyml disable line-length -->
+:::{table} pvforecast::provider_settings::PVForecastForecastSolar
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| api_key | `Optional[str]` | `rw` | `None` | Forecast.Solar API key. Optional — the public endpoint works without a key (lower rate limit). |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "pvforecast": {
+           "provider_settings": {
+               "PVForecastForecastSolar": {
+                   "api_key": null
+               }
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the pvnode.com PV forecast provider
+
+<!-- pyml disable line-length -->
+:::{table} pvforecast::provider_settings::PVForecastPVNode
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| api_key | `str` | `rw` | `` | pvnode.com API key (Bearer auth). Required. |
+| forecast_days | `int` | `rw` | `2` | Forecast horizon in days (1-7, capped by the pvnode plan). |
+| site_id | `Optional[str]` | `rw` | `None` | pvnode.com site id of the saved plant ('Anlagen-ID'). When set, the saved (possibly calibrated) site is used. Leave empty to send the configured pvforecast.planes inline instead. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "pvforecast": {
+           "provider_settings": {
+               "PVForecastPVNode": {
+                   "api_key": "pvn_live_xxxxxxxxxxxxxxxx",
+                   "site_id": "abcd-1234",
+                   "forecast_days": 2
+               }
+           }
        }
    }
 ```
@@ -258,7 +366,10 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
+| PVForecastForecastSolar | `Optional[akkudoktoreos.prediction.pvforecastforecastsolar.PVForecastForecastSolarCommonSettings]` | `rw` | `None` | PVForecastForecastSolar settings |
 | PVForecastImport | `Optional[akkudoktoreos.prediction.pvforecastimport.PVForecastImportCommonSettings]` | `rw` | `None` | PVForecastImport settings |
+| PVForecastPVNode | `Optional[akkudoktoreos.prediction.pvforecastpvnode.PVForecastPVNodeCommonSettings]` | `rw` | `None` | PVForecastPVNode settings |
+| PVForecastSolcast | `Optional[akkudoktoreos.prediction.pvforecastsolcast.PVForecastSolcastCommonSettings]` | `rw` | `None` | PVForecastSolcast settings |
 | PVForecastVrm | `Optional[akkudoktoreos.prediction.pvforecastvrm.PVForecastVrmCommonSettings]` | `rw` | `None` | PVForecastVrm settings |
 :::
 <!-- pyml enable line-length -->
@@ -273,7 +384,10 @@
        "pvforecast": {
            "provider_settings": {
                "PVForecastImport": null,
-               "PVForecastVrm": null
+               "PVForecastVrm": null,
+               "PVForecastPVNode": null,
+               "PVForecastForecastSolar": null,
+               "PVForecastSolcast": null
            }
        }
    }
