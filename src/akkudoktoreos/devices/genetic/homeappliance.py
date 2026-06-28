@@ -11,9 +11,15 @@ class HomeAppliance:
         parameters: HomeApplianceParameters,
         optimization_hours: int,
         prediction_hours: int,
+        slot_duration_h: float = 1.0,
     ):
+        # slot_duration_h is a forward-compatibility hook. Full sub-hourly home
+        # appliance scheduling additionally requires converting the start hour to
+        # a slot index and the duration to a slot count; the default of 1.0 keeps
+        # the hourly behaviour for the default optimization interval of 3600 s.
         self.parameters: HomeApplianceParameters = parameters
         self.prediction_hours = prediction_hours
+        self.slot_duration_h = slot_duration_h
         self._setup()
 
     def _setup(self) -> None:

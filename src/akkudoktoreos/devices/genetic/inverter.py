@@ -12,9 +12,14 @@ class Inverter:
         self,
         parameters: InverterParameters,
         battery: Optional[Battery] = None,
+        slot_duration_h: float = 1.0,
     ):
+        # slot_duration_h scales the per-slot energy cap (max_power_wh). It
+        # defaults to 1.0, which keeps the hourly behaviour for the default
+        # optimization interval of 3600 s.
         self.parameters: InverterParameters = parameters
         self.battery: Optional[Battery] = battery
+        self.slot_duration_h: float = slot_duration_h
         self._setup()
 
     def _setup(self) -> None:
@@ -23,11 +28,16 @@ class Inverter:
             logger.error(error_msg)
             raise ValueError(error_msg)
         self.self_consumption_predictor = get_eos_load_interpolator()
+        # max_power_wh is supplied as a power [W] that the legacy hourly code
+        # treats as Wh-per-hour. Scale it to the actual slot length so a 15-min
+        # slot can move at most a quarter of that energy.
         self.max_power_wh = (
-            self.parameters.max_power_wh
-        )  # Maximum power that the inverter can handle
+            self.parameters.max_power_wh * self.slot_duration_h
+        )  # Maximum energy the inverter can move in one optimization slot
         self.dc_to_ac_efficiency = self.parameters.dc_to_ac_efficiency
         self.ac_to_dc_efficiency = self.parameters.ac_to_dc_efficiency
+        # max_ac_charge_power_w stays in Watts. It feeds a dimensionless,
+        # slot-agnostic power-ratio cap in genetic.py simulate().
         self.max_ac_charge_power_w = self.parameters.max_ac_charge_power_w
 
     def process_energy(
