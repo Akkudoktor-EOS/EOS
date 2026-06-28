@@ -13,6 +13,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
   - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
   - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
+- 15-minute optimization interval for the genetic optimizer. `optimization.interval`
+  now accepts 900 (15 min) in addition to the default 3600 (1 hour), letting the
+  optimizer schedule on a quarter-hour grid for 15-minute dynamic electricity
+  tariffs. Device power caps and the solution/plan serializers are slot-aware; the
+  default 3600 s interval keeps the previous hourly behaviour. The new sub-hourly PV
+  providers (pvnode, Forecast.Solar, Solcast) feed their native resolution straight
+  into the quarter-hour grid.
 
 ## 0.3.0 (2026-03-17)
 

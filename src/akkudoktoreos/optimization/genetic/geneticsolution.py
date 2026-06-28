@@ -391,20 +391,28 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         - GRID_SUPPORT_IMPORT: ac_charge  > 0 and discharge_allowed == 0 or 1
         """
         start_datetime = get_ems().start_datetime
-        start_day_hour = start_datetime.in_timezone(self.config.general.timezone).hour
-        interval_hours = 1
-        power_to_energy_per_interval_factor = 1.0
+        # The genetic core emits total_slots = prediction.hours * slots_per_hour
+        # entries indexed by slot (slot 0 == 00:00 local). Index this serializer
+        # by slot too. At the default interval of 3600 s slots_per_hour == 1 and
+        # this is the established hourly behaviour.
+        interval_s = int(self.config.optimization.interval or 3600)
+        slots_per_hour = max(1, 3600 // interval_s)
+        slot_minutes = max(1, interval_s // 60)
+        start_local = start_datetime.in_timezone(self.config.general.timezone)
+        start_day_slot = start_local.hour * slots_per_hour + start_local.minute // slot_minutes
+        # power [W] -> energy per slot [Wh]: multiply by the slot duration in hours.
+        power_to_energy_per_interval_factor = interval_s / 3600.0
 
         # --- Create index based on list length and interval ---
         # Ensure we only use the minimum of results and commands if differing
-        periods = min(len(self.result.Kosten_Euro_pro_Stunde), len(self.ac_charge) - start_day_hour)
+        periods = min(len(self.result.Kosten_Euro_pro_Stunde), len(self.ac_charge) - start_day_slot)
         time_index = pd.date_range(
             start=start_datetime,
             periods=periods,
-            freq=f"{interval_hours}h",
+            freq=f"{interval_s}s",
         )
         n_points = len(time_index)
-        end_datetime = start_datetime.add(hours=n_points)
+        end_datetime = start_datetime.add(seconds=interval_s * n_points)
 
         # Fill solution into dataframe with correct column names
         # - load_energy_wh: Load of all energy consumers in wh"
@@ -420,7 +428,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         solution = pd.DataFrame(
             {
                 "date_time": time_index,
-                # result starts at start_day_hour
+                # result starts at start_day_slot
                 "load_energy_wh": self.result.Last_Wh_pro_Stunde[:n_points],
                 "grid_feedin_energy_wh": self.result.Netzeinspeisung_Wh_pro_Stunde[:n_points],
                 "grid_consumption_energy_wh": self.result.Netzbezug_Wh_pro_Stunde[:n_points],
@@ -435,7 +443,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         battery_device_id = self._battery_device_id()
         solution[f"{battery_device_id}_soc_factor"] = [
             v / 100
-            for v in self.result.akku_soc_pro_stunde[:n_points]  # result starts at start_day_hour
+            for v in self.result.akku_soc_pro_stunde[:n_points]  # result starts at start_day_slot
         ]
         operation: dict[str, list[float]] = {
             "genetic_ac_charge_factor": [],
@@ -445,9 +453,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         }
         # ac_charge, dc_charge, discharge_allowed start at hour 0 of start day
         for hour_idx, rate in enumerate(self.ac_charge):
-            if hour_idx < start_day_hour:
+            if hour_idx < start_day_slot:
                 continue
-            if hour_idx >= start_day_hour + n_points:
+            if hour_idx >= start_day_slot + n_points:
                 break
             ac_charge_hour = self.ac_charge[hour_idx]
             dc_charge_hour = self.dc_charge[hour_idx]
@@ -468,7 +476,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
             # SOC-clamped effective values — what can physically be executed at
             # this hour given the expected battery state of charge.
-            result_idx = hour_idx - start_day_hour
+            result_idx = hour_idx - start_day_slot
             soc_h_pct = (
                 self.result.akku_soc_pro_stunde[result_idx]
                 if result_idx < len(self.result.akku_soc_pro_stunde)
@@ -533,9 +541,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     "genetic_ev_charge_factor": [],
                 }
                 for hour_idx, rate in enumerate(self.eautocharge_hours_float):
-                    if hour_idx < start_day_hour:
+                    if hour_idx < start_day_slot:
                         continue
-                    if hour_idx >= start_day_hour + n_points:
+                    if hour_idx >= start_day_slot + n_points:
                         break
                     operation["genetic_ev_charge_factor"].append(rate)
                     operation_mode, operation_mode_factor = self._battery_operation_from_solution(
@@ -565,7 +573,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             # Use config and not self.washingstart as washingstart may be None (no start)
             # even if configured to be started.
             homeappliance_device_id = self._homeappliance_device_id()
-            # result starts at start_day_hour
+            # result starts at start_day_slot
             solution[f"{homeappliance_device_id}_energy_wh"] = (
                 self.result.Home_appliance_wh_per_hour[:n_points]
             )
@@ -663,7 +671,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     key=pred_key,
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
-                    interval=to_duration(f"{interval_hours} hours"),
+                    interval=to_duration(f"{interval_s} seconds"),
                     fill_method=pred_fill_method,
                 )
                 # 'key_to_array()' creates None values array if no data records are available.
@@ -691,7 +699,13 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
     def energy_management_plan(self) -> EnergyManagementPlan:
         """Provide the genetic solution as an energy management plan."""
         start_datetime = get_ems().start_datetime
-        start_day_hour = start_datetime.in_timezone(self.config.general.timezone).hour
+        # Index by slot, not hour (mirrors optimization_solution). At the default
+        # interval of 3600 s this reduces to the start hour-of-day.
+        interval_s = int(self.config.optimization.interval or 3600)
+        slots_per_hour = max(1, 3600 // interval_s)
+        slot_minutes = max(1, interval_s // 60)
+        start_local = start_datetime.in_timezone(self.config.general.timezone)
+        start_day_slot = start_local.hour * slots_per_hour + start_local.minute // slot_minutes
         plan = EnergyManagementPlan(
             id=f"plan-genetic@{to_datetime(as_string=True)}",
             generated_at=to_datetime(),
@@ -704,15 +718,15 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         last_operation_mode_factor: Optional[float] = None
         resource_id = self._battery_device_id()
         # ac_charge, dc_charge, discharge_allowed start at hour 0 of start day
-        logger.debug("BAT: {} - {}", resource_id, self.ac_charge[start_day_hour:])
+        logger.debug("BAT: {} - {}", resource_id, self.ac_charge[start_day_slot:])
         for hour_idx, rate in enumerate(self.ac_charge):
-            if hour_idx < start_day_hour:
+            if hour_idx < start_day_slot:
                 continue
             # Derive SOC-clamped effective factors so that FRBCInstruction
             # operation_mode_factor reflects what can physically be executed,
             # while the raw genetic gene values are preserved in the solution
             # dataframe (genetic_*_factor columns).
-            result_idx = hour_idx - start_day_hour
+            result_idx = hour_idx - start_day_slot
             soc_h_pct = (
                 self.result.akku_soc_pro_stunde[result_idx]
                 if result_idx < len(self.result.akku_soc_pro_stunde)
@@ -741,7 +755,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 continue
             last_operation_mode = operation_mode
             last_operation_mode_factor = operation_mode_factor
-            execution_time = start_datetime.add(hours=hour_idx - start_day_hour)
+            execution_time = start_datetime.add(seconds=interval_s * (hour_idx - start_day_slot))
             plan.add_instruction(
                 FRBCInstruction(
                     resource_id=resource_id,
@@ -772,10 +786,10 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 last_operation_mode = None
                 last_operation_mode_factor = None
                 logger.debug(
-                    "EV: {} - {}", resource_id, self.eautocharge_hours_float[start_day_hour:]
+                    "EV: {} - {}", resource_id, self.eautocharge_hours_float[start_day_slot:]
                 )
                 for hour_idx, rate in enumerate(self.eautocharge_hours_float):
-                    if hour_idx < start_day_hour:
+                    if hour_idx < start_day_slot:
                         continue
                     operation_mode, operation_mode_factor = self._battery_operation_from_solution(
                         rate, 0.0, False
@@ -788,7 +802,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                         continue
                     last_operation_mode = operation_mode
                     last_operation_mode_factor = operation_mode_factor
-                    execution_time = start_datetime.add(hours=hour_idx - start_day_hour)
+                    execution_time = start_datetime.add(
+                        seconds=interval_s * (hour_idx - start_day_slot)
+                    )
                     plan.add_instruction(
                         FRBCInstruction(
                             resource_id=resource_id,
@@ -817,7 +833,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     else:
                         operation_mode = ApplianceOperationMode.OFF  # type: ignore[assignment]
                     operation_mode_factor = 1.0
-                    execution_time = start_datetime.add(hours=hours)
+                    execution_time = start_datetime.add(seconds=interval_s * hours)
                     plan.add_instruction(
                         DDBCInstruction(
                             resource_id=resource_id,

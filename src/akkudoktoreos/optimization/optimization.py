@@ -72,7 +72,11 @@ class OptimizationCommonSettings(SettingsBaseModel):
         ge=15 * 60,
         le=60 * 60,
         json_schema_extra={
-            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
+            "description": (
+                "The optimization interval (slot length) [sec]. The genetic "
+                "optimizer supports 3600 (1 hour) and 900 (15 min); other values "
+                "fall back to 3600. Defaults to 3600 seconds (1 hour)."
+            ),
             "examples": [60 * 60, 15 * 60],
         },
     )
