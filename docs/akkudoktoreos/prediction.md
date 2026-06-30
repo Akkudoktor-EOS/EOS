@@ -373,6 +373,9 @@ Configuration options:
 
     - `PVForecastAkkudoktor`: Retrieves from Akkudoktor.net.
     - `PVForecastVrm`: Retrieves data from the VRM API by Victron Energy.
+    - `PVForecastPVNode`: Retrieves native 15-minute forecasts from the pvnode.com API.
+    - `PVForecastForecastSolar`: Retrieves forecasts from the free Forecast.Solar API.
+    - `PVForecastSolcast`: Retrieves forecasts from the Solcast rooftop-site API.
     - `PVForecastImport`: Imports from a file or JSON string or by endpoint data provision.
 
   - `planes[].surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
@@ -401,6 +404,12 @@ Configuration options:
   - `planes[].strings_per_inverter`: Number of the strings of the inverter of this plane.
   - `provider_settings.import_file_path`: Path to the file to import PV forecast data from.
   - `provider_settings.import_json`: JSON string, dictionary of PV forecast value lists.
+  - `provider_settings.PVForecastPVNode.api_key`: pvnode.com API key.
+  - `provider_settings.PVForecastPVNode.site_id`: pvnode.com saved-site id. Leave empty for inline mode.
+  - `provider_settings.PVForecastPVNode.forecast_days`: Forecast horizon in days (1-7).
+  - `provider_settings.PVForecastForecastSolar.api_key`: Forecast.Solar API key (optional).
+  - `provider_settings.PVForecastSolcast.api_key`: Solcast API key.
+  - `provider_settings.PVForecastSolcast.site_id`: Solcast rooftop resource (site) id.
 
 ---
 
@@ -603,6 +612,84 @@ The PV forecast data must be provided in one of the formats described in
 
 The data may additionally or solely be provided by the
 **PUT** `/v1/prediction/import/PVForecastImport` endpoint.
+
+### PVForecastPVNode Provider
+
+The `PVForecastPVNode` provider retrieves native 15-minute PV power forecasts from the
+[pvnode.com](https://pvnode.com) V2 API. Register a site in the pvnode web app and store the API
+key together with the site id in the EOS configuration (saved-site mode). Alternatively, leave the
+site id empty to send the configured `planes` geometry inline.
+
+```python
+    {
+        "pvforecast": {
+            "provider": "PVForecastPVNode",
+            "provider_settings": {
+                "PVForecastPVNode": {
+                    "api_key": "your-pvnode-key",
+                    "site_id": "your-site-id",
+                    "forecast_days": 2
+                }
+            }
+        }
+    }
+```
+
+The prediction keys for the PV forecast data are:
+
+- `pvforecast_ac_power`: Total AC power (W).
+- `pvforecast_dc_power`: Total DC power (W).
+
+### PVForecastForecastSolar Provider
+
+The `PVForecastForecastSolar` provider retrieves PV power forecasts from the free
+[Forecast.Solar](https://forecast.solar) API. No API key is required for the public endpoint; an
+optional key raises the rate limit. The location is taken from `general.latitude`/`longitude` and
+the system geometry from the configured `planes` (one request per plane, summed per timestamp).
+
+```python
+    {
+        "pvforecast": {
+            "provider": "PVForecastForecastSolar",
+            "provider_settings": {
+                "PVForecastForecastSolar": {
+                    "api_key": null
+                }
+            }
+        }
+    }
+```
+
+The prediction keys for the PV forecast data are:
+
+- `pvforecast_ac_power`: Total AC power (W).
+- `pvforecast_dc_power`: Total DC power (W).
+
+### PVForecastSolcast Provider
+
+The `PVForecastSolcast` provider retrieves PV power forecasts from the
+[Solcast](https://solcast.com) rooftop-site API. Register a rooftop site in the Solcast web app and
+store the API key together with the resource (site) id in the EOS configuration. Note that the free
+tier limits the number of API calls per day.
+
+```python
+    {
+        "pvforecast": {
+            "provider": "PVForecastSolcast",
+            "provider_settings": {
+                "PVForecastSolcast": {
+                    "api_key": "your-solcast-key",
+                    "site_id": "your-resource-id"
+                }
+            }
+        }
+    }
+```
+
+The prediction keys for the PV forecast data are:
+
+- `pvforecast_ac_power`: Total AC power (W).
+- `pvforecast_dc_power`: Total DC power (W).
 
 ## Weather Prediction
 
