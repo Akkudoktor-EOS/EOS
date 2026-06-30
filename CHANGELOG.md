@@ -4,6 +4,16 @@ All notable changes to the akkudoktoreos project will be documented in this file
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## Unreleased
+
+### Added
+
+- 15-minute optimization interval for the genetic optimizer. `optimization.interval`
+  now accepts 900 (15 min) in addition to the default 3600 (1 hour), letting the
+  optimizer schedule on a quarter-hour grid for 15-minute dynamic electricity
+  tariffs. Device power caps and the solution/plan serializers are slot-aware; the
+  default 3600 s interval keeps the previous hourly behaviour.
+
 ## 0.3.0 (2026-03-17)
 
 Akkudoktor-EOS can now be run as Home Assistant add-on and standalone.

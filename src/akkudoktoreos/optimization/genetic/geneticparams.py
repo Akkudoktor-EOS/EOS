@@ -194,9 +194,17 @@ class GeneticOptimizationParameters(
         if cls.config.optimization.interval is None:
             logger.info("Optimization interval unknown - defaulting to 3600 seconds.")
             cls.config.optimization.interval = 3600
-        if cls.config.optimization.interval != 3600:
-            logger.info(
-                "Optimization interval '{}' seconds not supported - forced to 3600 seconds."
+        # The genetic optimizer runs on a fixed slot grid whose length is
+        # prediction.hours * (3600 / interval). 900 s (15 min) enables a
+        # quarter-hour grid for 15-minute electricity tariffs; the default
+        # 3600 s keeps the established hourly resolution. Other values fall back
+        # to 3600 s.
+        allowed_intervals = (3600, 900)
+        if cls.config.optimization.interval not in allowed_intervals:
+            logger.warning(
+                "Optimization interval {} seconds not in {} - forcing 3600 seconds.",
+                cls.config.optimization.interval,
+                allowed_intervals,
             )
             cls.config.optimization.interval = 3600
         # Check genetic algorithm definitions
@@ -306,12 +314,18 @@ class GeneticOptimizationParameters(
                 # Retry
                 continue
             try:
-                loadforecast_power_w = cls.prediction.key_to_array(
-                    key="loadforecast_power_w",
-                    start_datetime=parameter_start_datetime,
-                    end_datetime=parameter_end_datetime,
-                    interval=interval,
-                    fill_method="ffill",
+                # Load is a power series [W] that the genetic optimizer consumes
+                # as Wh-per-slot. Scale by interval/3600 (mirrors the PV forecast
+                # above) so a 15-min slot sees a quarter of the hourly energy.
+                loadforecast_power_w = (
+                    cls.prediction.key_to_array(
+                        key="loadforecast_power_w",
+                        start_datetime=parameter_start_datetime,
+                        end_datetime=parameter_end_datetime,
+                        interval=interval,
+                        fill_method="ffill",
+                    )
+                    * power_to_energy_per_interval_factor
                 ).tolist()
             except:
                 logger.info(

@@ -139,17 +139,16 @@ The energy management can be run in three modes:
     Each device simulation run must ensure that all tasks or appliance cycles (e.g., running a
     dishwasher) are completed within the configured time windows.
 
-- **interval**: Defines the time step in seconds between control actions
-    (e.g. `3600` for one hour, `900` for 15 minutes).
+- **interval**: Defines the time step (slot length) in seconds between control actions.
+    The genetic algorithm supports `3600` (one hour, the default) and `900` (15 minutes);
+    any other value falls back to `3600`. The number of optimization slots is
+    `prediction.hours * (3600 / interval)`, and device power caps as well as the solution
+    and energy-management-plan serializers are slot-aware.
 
-:::{warning}
-**Current Limitation**
-
-At present, the `interval` setting is **not used** by the genetic algorithm. Instead:
-
-- The control interval is fixed to **1 hour**.
-
-Support for configurable intervals (e.g. 15-minute steps) may be added in a future release.
+:::{note}
+Use `900` together with a 15-minute electricity price source (for example a dynamic or
+exchange-priced tariff) to let the optimizer schedule on a quarter-hour grid. Keeping the
+default `3600` preserves the previous hourly behaviour.
 :::
 
 #### Genetic Algorithm Parameters
