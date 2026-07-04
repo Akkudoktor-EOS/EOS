@@ -129,7 +129,9 @@ def test_request_forecast_inline_post_when_no_site(config_eos):
     pv = PVForecastPVNode(config=config_eos.load, start_datetime=pendulum.datetime(2025, 1, 1, tz="UTC"))
     fake = type("R", (), {"raise_for_status": lambda self: None, "json": lambda self: {"values": []}})()
     with patch("requests.post", return_value=fake) as mock_post:
-        pv._request_forecast(force_update=True)
+        # force_update is consumed by the cache_in_file decorator at runtime
+        # (same call convention as pvforecastakkudoktor.py).
+        pv._request_forecast(force_update=True)  # type: ignore
         url = mock_post.call_args[0][0]
         assert url.endswith("/v2/forecast/inline")
         body = mock_post.call_args.kwargs["json"]

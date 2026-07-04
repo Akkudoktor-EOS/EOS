@@ -18,6 +18,7 @@ Notes:
 
 import re
 from typing import Any, Optional
+from urllib.parse import quote
 
 import requests
 from loguru import logger
@@ -84,7 +85,7 @@ class PVForecastSolcast(PVForecastProvider):
         if not settings.api_key or not settings.site_id:
             raise ValueError("PVForecastSolcast requires api_key and site_id")
 
-        url = f"{SOLCAST_BASE}/{requests.utils.quote(settings.site_id, safe='')}/forecasts"
+        url = f"{SOLCAST_BASE}/{quote(settings.site_id, safe='')}/forecasts"
         params = {"format": "json", "hours": "72"}
         headers = {"Authorization": f"Bearer {settings.api_key}", "Accept": "application/json"}
         logger.debug(f"Requesting Solcast forecast: {url}")

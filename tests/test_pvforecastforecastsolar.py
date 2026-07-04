@@ -84,7 +84,9 @@ def test_plane_url_converts_azimuth(config_eos):
         config=config_eos.load, start_datetime=pendulum.datetime(2025, 1, 1, tz="UTC")
     )
     with patch("requests.get", return_value=_http({})) as mock_get:
-        pv._request_forecast(force_update=True)
+        # force_update is consumed by the cache_in_file decorator at runtime
+        # (same call convention as pvforecastakkudoktor.py).
+        pv._request_forecast(force_update=True)  # type: ignore
         url = mock_get.call_args[0][0]
         assert url == "https://api.forecast.solar/secret/estimate/52.5/13.4/25.0/90.0/7.5"
 
@@ -106,7 +108,7 @@ def test_request_forecast_sums_planes(config_eos):
         _http({"2025-01-01 12:00:00": 800.0}),
     ]
     with patch("requests.get", side_effect=responses) as mock_get:
-        body = pv._request_forecast(force_update=True)
+        body = pv._request_forecast(force_update=True)  # type: ignore
         assert mock_get.call_count == 2
         assert body["watts"]["2025-01-01 12:00:00"] == 1800.0
 
