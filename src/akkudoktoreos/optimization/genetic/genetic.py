@@ -983,10 +983,7 @@ class GeneticOptimization(OptimizationBase):
                     "Penalty function parameter `ev_soc_miss` not configured, using {}.", penalty
                 )
             ev_soc_percentage = self.simulation.ev.current_soc_percentage()
-            if (
-                ev_soc_percentage < parameters.eauto.min_soc_percentage
-                or ev_soc_percentage > parameters.eauto.max_soc_percentage
-            ):
+            if ev_soc_percentage < parameters.eauto.min_soc_percentage:
                 gesamtbilanz += (
                     abs(parameters.eauto.min_soc_percentage - ev_soc_percentage) * penalty
                 )
@@ -1020,10 +1017,25 @@ class GeneticOptimization(OptimizationBase):
 
         logger.debug("Start optimize: {}", start_solution)
 
-        # Insert the start solution into the population if provided
+        # Insert the start solution into the population if provided and compatible with the
+        # currently active genome layout. EV optimization adds one gene per prediction hour,
+        # so a cached solution from a previous run without EV optimization must not be reused.
         if start_solution is not None:
-            for _ in range(10):
-                population.insert(0, creator.Individual(start_solution))
+            expected_length = self.config.prediction.hours
+            if self.optimize_ev:
+                expected_length += self.config.prediction.hours
+            if self.opti_param.get("home_appliance", 0) > 0:
+                expected_length += 1
+
+            if len(start_solution) == expected_length:
+                for _ in range(10):
+                    population.insert(0, creator.Individual(start_solution))
+            else:
+                logger.warning(
+                    "Ignoring start_solution with incompatible length {} (expected {}).",
+                    len(start_solution),
+                    expected_length,
+                )
 
         # Run the evolutionary algorithm
         pop, log = algorithms.eaMuPlusLambda(
@@ -1105,7 +1117,7 @@ class GeneticOptimization(OptimizationBase):
             )
             eauto.set_charge_per_hour(np.full(self.config.prediction.hours, 1))
             self.optimize_ev = (
-                parameters.eauto.min_soc_percentage - parameters.eauto.initial_soc_percentage >= 0
+                parameters.eauto.min_soc_percentage > parameters.eauto.initial_soc_percentage
             )
             # electrical vehicle charge rates
             if parameters.eauto.charge_rates is not None:
@@ -1208,11 +1220,9 @@ class GeneticOptimization(OptimizationBase):
         if self.simulation.home_appliance:
             washingstart_int = self.simulation.home_appliance_start_hour
 
-        eautocharge_hours_float = (
-            [self.ev_possible_charge_values[i] for i in eautocharge_hours_index]
-            if eautocharge_hours_index is not None
-            else None
-        )
+        eautocharge_hours_float = None
+        if eautocharge_hours_index is not None and self.simulation.ev is not None:
+            eautocharge_hours_float = self.simulation.ev.charge_array.tolist()
 
         # Simulation may have changed something, use simulation values
         ac_charge_hours = self.simulation.ac_charge_hours

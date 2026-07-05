@@ -591,6 +591,73 @@ def _run_evaluate_with_mocked_sim(
     return fitness[0]
 
 
+def _run_evaluate_with_mocked_ev_soc(config_eos, ev_soc_percentage: float) -> float:
+    """Return fitness for a mocked EV SoC while EV optimization is active."""
+    from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"hours": 48},
+        }
+    )
+    config_eos.optimization.genetic.penalties = {
+        "ev_soc_miss": 10,
+        "ac_charge_break_even": 1.0,
+    }
+
+    optim = GeneticOptimization.__new__(GeneticOptimization)
+    optim.config = config_eos
+    optim.optimize_ev = True
+    optim.verbose = False
+    optim.opti_param = {"home_appliance": 0}
+
+    mock_ev = Mock()
+    mock_ev.current_soc_percentage.return_value = ev_soc_percentage
+
+    sim = Mock()
+    sim.battery = None
+    sim.inverter = None
+    sim.ev = mock_ev
+    sim.ac_charge_hours = None
+    sim.elect_price_hourly = None
+    sim.load_energy_array = None
+    optim.simulation = sim
+
+    dummy_result = {
+        "Gesamtbilanz_Euro": 1.0,
+        "Gesamt_Verluste": 0.0,
+        "EAuto_SoC_pro_Stunde": np.zeros(48),
+    }
+
+    class _Ind(list):  # noqa: N801
+        pass
+
+    fake_individual = _Ind([0] * 96)
+
+    with patch.object(optim, "evaluate_inner", return_value=dummy_result):
+        fitness = optim.evaluate(
+            fake_individual,
+            parameters=Mock(
+                ems=Mock(preis_euro_pro_wh_akku=0.0),
+                eauto=Mock(min_soc_percentage=70, max_soc_percentage=100),
+            ),
+            start_hour=0,
+            worst_case=False,
+        )
+    return fitness[0]
+
+
+class TestEvSocPenalty:
+    """EV SoC target is a minimum-only penalty."""
+
+    def test_ev_soc_below_min_adds_penalty(self, config_eos):
+        assert _run_evaluate_with_mocked_ev_soc(config_eos, 65) == pytest.approx(51.0)
+
+    def test_ev_soc_above_max_does_not_add_min_soc_penalty(self, config_eos):
+        assert _run_evaluate_with_mocked_ev_soc(config_eos, 105) == pytest.approx(1.0)
+
+
 class TestAcChargeBreakEvenPenalty:
     """Break-even penalty in GeneticOptimization.evaluate().
 
