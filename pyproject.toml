@@ -22,7 +22,7 @@ dependencies = [
     "matplotlib==3.11.0",
     "contourpy==1.3.3",
     "fastapi[standard-no-fastapi-cloud-cli]==0.138.2",
-    "fastapi_cli==0.0.27",
+    "fastapi_cli==0.0.28",
     "rich-toolkit==0.20.1",
     "python-fasthtml==0.14.4",
     "MonsterUI==1.0.46",
