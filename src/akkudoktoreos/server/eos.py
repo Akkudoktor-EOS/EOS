@@ -1136,6 +1136,7 @@ async def fastapi_strompreis() -> list[float]:
                 key="elecprice_marketprice_wh",
                 start_datetime=start_datetime,
                 end_datetime=end_datetime,
+                fill_method="ffill"
             )
             .tolist()
         )
