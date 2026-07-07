@@ -21,8 +21,8 @@ Notes:
 """
 
 import re
+import urllib.parse
 from typing import Any, Optional
-from urllib.parse import quote
 
 import pendulum
 import requests
@@ -166,7 +166,7 @@ class PVForecastPVNode(PVForecastProvider):
 
         try:
             if site_id:
-                url = f"{PVNODE_BASE}/forecast/{quote(site_id, safe='')}"
+                url = f"{PVNODE_BASE}/forecast/{urllib.parse.quote(site_id, safe='')}"
                 response = requests.get(url, headers=headers, params=params, timeout=30)
             else:
                 body = self._inline_body()
