@@ -1,9 +1,7 @@
 """Server Module."""
 
-import grp
 import ipaddress
 import os
-import pwd
 import re
 import socket
 import time
@@ -15,6 +13,13 @@ from pydantic import Field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_config
+
+try:
+    import grp
+    import pwd
+except ModuleNotFoundError:
+    grp = None
+    pwd = None
 
 
 def get_default_host() -> str:
@@ -180,6 +185,12 @@ def drop_root_privileges(run_as_user: Optional[str] = None) -> bool:
         - The target user must exist inside the container (valid entry in
           ``/etc/passwd`` and ``/etc/group``).
     """
+    if pwd is None or grp is None or not hasattr(os, "geteuid"):
+        if run_as_user is not None:
+            logger.error("Privilege switching is not supported on this platform.")
+            return False
+        return True
+
     # Determine current user
     current_user = pwd.getpwuid(os.geteuid()).pw_name
 
@@ -260,6 +271,10 @@ def fix_data_directories_permissions(run_as_user: Optional[str] = None) -> None:
             Defaults to current one.
     """
     config_eos = get_config()
+
+    if pwd is None or not hasattr(os, "geteuid") or not hasattr(os, "chown"):
+        logger.debug("Skipping data directory ownership fix on this platform.")
+        return
 
     base_dirs = [
         config_eos.general.data_folder_path,
@@ -415,6 +430,8 @@ class ServerCommonSettings(SettingsBaseModel):
     @field_validator("run_as_user")
     def validate_user(cls, value: Optional[str]) -> Optional[str]:
         if value is not None:
+            if pwd is None:
+                raise ValueError("User privilege switching is not supported on this platform.")
             # Resolve target user info
             try:
                 pw_record = pwd.getpwnam(value)

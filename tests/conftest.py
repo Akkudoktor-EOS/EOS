@@ -606,7 +606,7 @@ def server_base(
     # ensure process is running and return its logfile
     pid, logfile = xprocess.ensure("eos", Starter)
     logger.info(f"Started EOS ({pid}). This may take very long (up to {server_timeout} seconds).")
-    logger.info(f"EOS_DIR: {Starter.env["EOS_DIR"]}, EOS_CONFIG_DIR: {Starter.env["EOS_CONFIG_DIR"]}")
+    logger.info(f"EOS_DIR: {Starter.env['EOS_DIR']}, EOS_CONFIG_DIR: {Starter.env['EOS_CONFIG_DIR']}")
     logger.info(f"View xprocess logfile at: {logfile}")
 
     yield {

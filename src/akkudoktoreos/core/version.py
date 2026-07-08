@@ -276,7 +276,7 @@ def _version_date_hash() -> tuple[datetime, str]:
     Returns:
         lattest commit date and SHA256 hash of the project files
     """
-    if not str(DIR_PACKAGE_ROOT).endswith("src/akkudoktoreos"):
+    if DIR_PACKAGE_ROOT.parts[-2:] != ("src", "akkudoktoreos"):
         error_msg = f"DIR_PACKAGE_ROOT does not end with src/akkudoktoreos: {DIR_PACKAGE_ROOT}"
         raise ValueError(error_msg)
 

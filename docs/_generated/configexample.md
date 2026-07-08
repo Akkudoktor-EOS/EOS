@@ -110,6 +110,10 @@
            },
            "energycharts": {
                "bidding_zone": "DE-LU"
+           },
+           "tibber": {
+               "access_token": null,
+               "home_id": null
            }
        },
        "ems": {
@@ -187,7 +191,10 @@
            "provider": "PVForecastAkkudoktor",
            "provider_settings": {
                "PVForecastImport": null,
-               "PVForecastVrm": null
+               "PVForecastVrm": null,
+               "PVForecastPVNode": null,
+               "PVForecastForecastSolar": null,
+               "PVForecastSolcast": null
            },
            "planes": [
                {

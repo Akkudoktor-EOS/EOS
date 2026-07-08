@@ -10,6 +10,7 @@ from akkudoktoreos.prediction.elecpriceenergycharts import (
 )
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixedCommonSettings
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImportCommonSettings
+from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibberCommonSettings
 
 
 def elecprice_provider_ids() -> list[str]:
@@ -70,6 +71,11 @@ class ElecPriceCommonSettings(SettingsBaseModel):
     energycharts: ElecPriceEnergyChartsCommonSettings = Field(
         default_factory=ElecPriceEnergyChartsCommonSettings,
         json_schema_extra={"description": "Energy Charts provider settings."},
+    )
+
+    tibber: ElecPriceTibberCommonSettings = Field(
+        default_factory=ElecPriceTibberCommonSettings,
+        json_schema_extra={"description": "Tibber electricity price provider settings."},
     )
 
     @computed_field  # type: ignore[prop-decorator]

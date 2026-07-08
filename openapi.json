@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2604141105859917"
+    "version": "v0.3.0.dev2607071966322885"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -3390,6 +3390,10 @@
           "energycharts": {
             "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
             "description": "Energy Charts provider settings."
+          },
+          "tibber": {
+            "$ref": "#/components/schemas/ElecPriceTibberCommonSettings",
+            "description": "Tibber electricity price provider settings."
           }
         },
         "type": "object",
@@ -3457,6 +3461,10 @@
           "energycharts": {
             "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
             "description": "Energy Charts provider settings."
+          },
+          "tibber": {
+            "$ref": "#/components/schemas/ElecPriceTibberCommonSettings",
+            "description": "Tibber electricity price provider settings."
           },
           "providers": {
             "items": {
@@ -3585,6 +3593,43 @@
         "type": "object",
         "title": "ElecPriceImportCommonSettings",
         "description": "Common settings for elecprice data import from file or JSON String."
+      },
+      "ElecPriceTibberCommonSettings": {
+        "properties": {
+          "access_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Token",
+            "description": "Tibber API access token.",
+            "examples": [
+              "tibber_pat_..."
+            ]
+          },
+          "home_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Id",
+            "description": "Tibber home id to read prices from.",
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecPriceTibberCommonSettings",
+        "description": "Common settings for the Tibber electricity price provider."
       },
       "ElectricVehicleParameters": {
         "properties": {
@@ -7389,6 +7434,48 @@
             "examples": [
               null
             ]
+          },
+          "PVForecastPVNode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PVForecastPVNodeCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PVForecastPVNode settings",
+            "examples": [
+              null
+            ]
+          },
+          "PVForecastForecastSolar": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PVForecastForecastSolarCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PVForecastForecastSolar settings",
+            "examples": [
+              null
+            ]
+          },
+          "PVForecastSolcast": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PVForecastSolcastCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PVForecastSolcast settings",
+            "examples": [
+              null
+            ]
           }
         },
         "type": "object",
@@ -7657,6 +7744,29 @@
         "title": "PVForecastCommonSettings",
         "description": "PV Forecast Configuration."
       },
+      "PVForecastForecastSolarCommonSettings": {
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key",
+            "description": "Forecast.Solar API key. Optional \u2014 the public endpoint works without a key (lower rate limit).",
+            "examples": [
+              null,
+              "your-forecast-solar-key"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PVForecastForecastSolarCommonSettings",
+        "description": "Common settings for the Forecast.Solar PV forecast provider."
+      },
       "PVForecastImportCommonSettings": {
         "properties": {
           "import_file_path": {
@@ -7698,6 +7808,48 @@
         "type": "object",
         "title": "PVForecastImportCommonSettings",
         "description": "Common settings for pvforecast data import from file or JSON string."
+      },
+      "PVForecastPVNodeCommonSettings": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "title": "Api Key",
+            "description": "pvnode.com API key (Bearer auth). Required.",
+            "default": "",
+            "examples": [
+              "pvn_live_xxxxxxxxxxxxxxxx"
+            ]
+          },
+          "site_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Id",
+            "description": "pvnode.com site id of the saved plant ('Anlagen-ID'). When set, the saved (possibly calibrated) site is used. Leave empty to send the configured pvforecast.planes inline instead.",
+            "examples": [
+              "abcd-1234"
+            ]
+          },
+          "forecast_days": {
+            "type": "integer",
+            "maximum": 7.0,
+            "minimum": 1.0,
+            "title": "Forecast Days",
+            "description": "Forecast horizon in days (1-7, capped by the pvnode plan).",
+            "default": 2,
+            "examples": [
+              2
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PVForecastPVNodeCommonSettings",
+        "description": "Common settings for the pvnode.com PV forecast provider."
       },
       "PVForecastPlaneSetting": {
         "properties": {
@@ -7970,6 +8122,31 @@
         "type": "object",
         "title": "PVForecastPlaneSetting",
         "description": "PV Forecast Plane Configuration."
+      },
+      "PVForecastSolcastCommonSettings": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "title": "Api Key",
+            "description": "Solcast API key (Bearer auth). Required.",
+            "default": "",
+            "examples": [
+              "your-solcast-key"
+            ]
+          },
+          "site_id": {
+            "type": "string",
+            "title": "Site Id",
+            "description": "Solcast rooftop site (resource) id. Required.",
+            "default": "",
+            "examples": [
+              "abcd-1234-efgh-5678"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PVForecastSolcastCommonSettings",
+        "description": "Common settings for the Solcast PV forecast provider."
       },
       "PVForecastVrmCommonSettings": {
         "properties": {
