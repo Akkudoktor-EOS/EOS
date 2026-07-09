@@ -10,6 +10,7 @@ import traceback
 from contextlib import asynccontextmanager
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
 
+import pandas as pd
 import psutil
 import uvicorn
 from fastapi import Body, FastAPI
@@ -1130,16 +1131,24 @@ async def fastapi_strompreis() -> list[float]:
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
-        elecprice = (
-            get_prediction()
-            .key_to_array(
-                key="elecprice_marketprice_wh",
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
-                fill_method="ffill"
-            )
-            .tolist()
+        elecprice_series = get_prediction().key_to_series(
+            key="elecprice_marketprice_wh",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
         )
+        elecprice_series.index = pd.to_datetime(elecprice_series.index)
+        elecprice_series = pd.to_numeric(elecprice_series.sort_index(), errors="coerce")
+        start_timestamp = pd.Timestamp(start_datetime.isoformat())
+        end_timestamp = pd.Timestamp(end_datetime.subtract(seconds=1).isoformat())
+        hourly = elecprice_series.resample("1h", origin=start_timestamp).mean()
+        hourly = hourly.truncate(before=start_timestamp, after=end_timestamp)
+        hourly_index = pd.date_range(
+            start=start_timestamp,
+            end=pd.Timestamp(end_datetime.subtract(hours=1).isoformat()),
+            freq="1h",
+        )
+        hourly = hourly.reindex(hourly_index)
+        elecprice = hourly.ffill().bfill().tolist()
     except Exception as e:
         raise HTTPException(
             status_code=404,

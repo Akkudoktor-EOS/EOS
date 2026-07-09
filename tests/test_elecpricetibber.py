@@ -3,6 +3,8 @@
 import json
 from unittest.mock import Mock, patch
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from akkudoktoreos.core.cache import CacheFileStore
@@ -15,6 +17,43 @@ from akkudoktoreos.prediction.elecpricetibber import (
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
+class _FakeEms:
+    start_datetime = to_datetime("2026-07-09T00:00:00+00:00")
+
+
+def _price(starts_at: str, total: float) -> dict[str, object]:
+    return {"startsAt": starts_at, "total": total}
+
+
+def _tibber_payload(
+    prices: list[dict[str, object]],
+    *,
+    home_id: str = "home-1",
+    include_other_home: bool = False,
+) -> dict[str, object]:
+    homes: list[dict[str, object]] = []
+    if include_other_home:
+        homes.append(
+            {
+                "id": "other-home",
+                "currentSubscription": {
+                    "priceInfo": {"today": [_price("2026-07-09T00:00:00+00:00", 0.999)]}
+                },
+            }
+        )
+
+    homes.append(
+        {
+            "id": home_id,
+            "currentSubscription": {
+                "priceInfo": {"today": prices[:2], "tomorrow": prices[2:]},
+                "priceInfoRange": {"nodes": prices},
+            },
+        }
+    )
+    return {"data": {"viewer": {"homes": homes}}}
+
+
 @pytest.fixture
 def provider(config_eos):
     """Create a fresh Tibber electricity price provider."""
@@ -23,7 +62,17 @@ def provider(config_eos):
         provider="ElecPriceTibber",
         tibber=ElecPriceTibberCommonSettings(access_token="token-123", home_id="home-1"),
     )
-    return ElecPriceTibber()
+    config_eos.prediction.hours = 6
+    provider = ElecPriceTibber()
+    provider.records.clear()
+    return provider
+
+
+@pytest.fixture
+def tibber_provider(provider, monkeypatch):
+    """Create a Tibber provider with a deterministic EMS start time."""
+    monkeypatch.setattr("akkudoktoreos.core.coreabc.get_ems", lambda: _FakeEms())
+    return provider
 
 
 @pytest.fixture
@@ -35,59 +84,14 @@ def cache_store():
 @pytest.fixture
 def tibber_response_dict():
     """Sample Tibber GraphQL response."""
-    return {
-        "data": {
-            "viewer": {
-                "homes": [
-                    {
-                        "id": "other-home",
-                        "currentSubscription": {
-                            "priceInfo": {
-                                "today": [
-                                    {
-                                        "startsAt": "2026-07-07T00:00:00.000+02:00",
-                                        "total": 0.999,
-                                        "energy": 0.111,
-                                        "tax": 0.888,
-                                    }
-                                ],
-                                "tomorrow": [],
-                            }
-                        },
-                    },
-                    {
-                        "id": "home-1",
-                        "currentSubscription": {
-                            "priceInfo": {
-                                "today": [
-                                    {
-                                        "startsAt": "2026-07-07T01:00:00.000+02:00",
-                                        "total": 0.2970716,
-                                        "energy": 0.10922,
-                                        "tax": 0.1878516,
-                                    },
-                                    {
-                                        "startsAt": "2026-07-07T00:00:00.000+02:00",
-                                        "total": 0.3109662,
-                                        "energy": 0.12098,
-                                        "tax": 0.1899862,
-                                    },
-                                ],
-                                "tomorrow": [
-                                    {
-                                        "startsAt": "2026-07-08T00:00:00.000+02:00",
-                                        "total": 0.30468,
-                                        "energy": 0.1162,
-                                        "tax": 0.18848,
-                                    }
-                                ],
-                            }
-                        },
-                    },
-                ]
-            }
-        }
-    }
+    return _tibber_payload(
+        [
+            _price("2026-07-07T01:00:00.000+02:00", 0.2970716),
+            _price("2026-07-07T00:00:00.000+02:00", 0.3109662),
+            _price("2026-07-08T00:00:00.000+02:00", 0.30468),
+        ],
+        include_other_home=True,
+    )
 
 
 @pytest.fixture
@@ -135,22 +139,21 @@ def test_missing_access_token_raises(provider, config_eos):
         provider._request_forecast(force_update=True)
 
 
-def test_missing_home_id_raises(provider, config_eos, tibber_response):
-    """A Tibber home id is required for selecting prices."""
+def test_select_home_uses_first_subscription_when_home_id_is_omitted(
+    provider, config_eos, tibber_response
+):
+    """If no home id is configured, the first subscribed Tibber home is used."""
     config_eos.elecprice.tibber.home_id = None
 
-    with pytest.raises(ValueError, match="Tibber home_id is required"):
-        provider._select_home(tibber_response)
+    home = provider._select_home(tibber_response)
+
+    assert home.id == "other-home"
 
 
 def test_graphql_errors_raise(provider):
     """GraphQL errors are surfaced as ValueError."""
-    response = TibberGraphQLResponse.model_validate(
-        {"errors": [{"message": "Authentication failed"}]}
-    )
-
     with pytest.raises(ValueError, match="Tibber GraphQL error"):
-        provider._select_home(response)
+        provider._validate_data(json.dumps({"errors": [{"message": "Authentication failed"}]}))
 
 
 def test_unknown_home_id_raises(provider, config_eos, tibber_response):
@@ -162,7 +165,7 @@ def test_unknown_home_id_raises(provider, config_eos, tibber_response):
 
 
 def test_parse_data_combines_sorts_and_converts_total(provider, tibber_response):
-    """Today and tomorrow prices are sorted and converted from EUR/kWh to EUR/Wh."""
+    """Today, tomorrow, and history prices are sorted and converted to EUR/Wh."""
     series = provider._parse_data(tibber_response)
 
     assert list(series.index) == [
@@ -175,86 +178,26 @@ def test_parse_data_combines_sorts_and_converts_total(provider, tibber_response)
     assert series.iloc[2] == pytest.approx(0.00030468)
 
 
-def test_update_data_stores_elecprice_marketprice_wh(provider, tibber_response):
-    """Parsed Tibber totals are stored in EOS records."""
-    with patch.object(provider, "_request_forecast", return_value=tibber_response):
-        provider.update_data(force_enable=True, force_update=True)
+def test_tibber_hourly_series_averages_quarter_hour_prices(provider):
+    """Quarter-hour Tibber prices are averaged to hourly EOS prices."""
+    index = pd.date_range("2026-07-09T00:00:00+00:00", periods=8, freq="15min")
+    series = pd.Series([0.10, 0.30, 0.50, 0.70, 1.0, 1.4, 1.8, 2.2], index=index)
 
-    series = provider.key_to_series("elecprice_marketprice_wh")
+    hourly = provider._hourly_series(series)
 
-    assert len(series) == 3
-    assert series.iloc[0] == pytest.approx(0.0003109662)
-    assert series.iloc[1] == pytest.approx(0.0002970716)
-    assert series.iloc[2] == pytest.approx(0.00030468)
-
-
-def test_total_conversion_exact_example(provider):
-    """Tibber total 0.311 EUR/kWh is stored as 0.000311 EUR/Wh."""
-    response = TibberGraphQLResponse.model_validate(
-        {
-            "data": {
-                "viewer": {
-                    "homes": [
-                        {
-                            "id": "home-1",
-                            "currentSubscription": {
-                                "priceInfo": {
-                                    "today": [
-                                        {
-                                            "startsAt": "2026-07-07T00:00:00.000+02:00",
-                                            "total": 0.311,
-                                        }
-                                    ],
-                                    "tomorrow": [],
-                                }
-                            },
-                        }
-                    ]
-                }
-            }
-        }
-    )
-
-    series = provider._parse_data(response)
-
-    assert series.iloc[0] == pytest.approx(0.000311)
+    assert hourly.tolist() == pytest.approx([0.40, 1.60])
 
 
 def test_empty_tomorrow_stores_only_today_and_warns(provider):
-    """An empty tomorrow list does not create fake values."""
+    """An empty tomorrow list does not create fake values before forecasting."""
     response = TibberGraphQLResponse.model_validate(
-        {
-            "data": {
-                "viewer": {
-                    "homes": [
-                        {
-                            "id": "home-1",
-                            "currentSubscription": {
-                                "priceInfo": {
-                                    "today": [
-                                        {
-                                            "startsAt": "2026-07-07T00:00:00.000+02:00",
-                                            "total": 0.3109662,
-                                        },
-                                        {
-                                            "startsAt": "2026-07-07T01:00:00.000+02:00",
-                                            "total": 0.2970716,
-                                        },
-                                    ],
-                                    "tomorrow": [],
-                                }
-                            },
-                        }
-                    ]
-                }
-            }
-        }
+        _tibber_payload([_price("2026-07-07T00:00:00.000+02:00", 0.3109662)])
     )
 
     with patch("akkudoktoreos.prediction.elecpricetibber.logger.warning") as mock_warning:
         series = provider._parse_data(response)
 
-    assert len(series) == 2
+    assert len(series) == 1
     mock_warning.assert_called_once_with("Tibber tomorrow prices not available yet")
 
 
@@ -282,5 +225,44 @@ def test_request_forecast_uses_tibber_graphql_api(
     assert kwargs["headers"]["Content-Type"] == "application/json"
     assert "query" in kwargs["json"]
     assert "TibberPriceInfo" in kwargs["json"]["query"]
+    assert "priceInfoRange" in kwargs["json"]["query"]
     assert "total" in kwargs["json"]["query"]
     assert kwargs["timeout"] == 30
+
+
+def test_tibber_update_extrapolates_missing_hours_with_seasonal_history(
+    tibber_provider, monkeypatch
+):
+    """Missing Tibber future hours are forecast from seasonal price history."""
+    data = TibberGraphQLResponse.model_validate(
+        _tibber_payload(
+            [
+                _price("2026-07-09T00:00:00+00:00", 0.30),
+                _price("2026-07-09T01:00:00+00:00", 0.42),
+                _price("2026-07-09T02:00:00+00:00", 0.36),
+            ]
+        )
+    )
+    monkeypatch.setattr(tibber_provider, "_request_forecast", lambda **_: data)
+    monkeypatch.setattr(
+        tibber_provider,
+        "_predict_ets",
+        lambda history, seasonal_periods, hours: np.full(hours, 0.0005),
+    )
+
+    history = pd.Series(
+        data=np.linspace(0.0002, 0.0004, 169),
+        index=pd.date_range("2026-07-01T23:00:00+00:00", periods=169, freq="1h"),
+    )
+    tibber_provider.key_from_series("elecprice_marketprice_wh", history)
+
+    tibber_provider._update_data(force_update=True)
+
+    prices = tibber_provider.key_to_array(
+        key="elecprice_marketprice_wh",
+        start_datetime=to_datetime("2026-07-09T00:00:00+00:00"),
+        end_datetime=to_datetime("2026-07-09T06:00:00+00:00"),
+        fill_method="ffill",
+    )
+
+    assert prices.tolist() == pytest.approx([0.0003, 0.00042, 0.00036, 0.0005, 0.0005, 0.0005])

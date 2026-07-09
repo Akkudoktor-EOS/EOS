@@ -18,9 +18,14 @@ def elecprice_provider_ids() -> list[str]:
     try:
         prediction_eos = get_prediction()
     except:
-        # Prediction may not be initialized
-        # Return at least provider used in example
-        return ["ElecPriceAkkudoktor"]
+        # Prediction may not be initialized. Return static built-in provider ids.
+        return [
+            "ElecPriceAkkudoktor",
+            "ElecPriceEnergyCharts",
+            "ElecPriceFixed",
+            "ElecPriceImport",
+            "ElecPriceTibber",
+        ]
 
     return [
         provider.provider_id()
