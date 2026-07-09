@@ -34,7 +34,7 @@ query TibberPriceInfo {
             total
           }
         }
-        priceInfoRange(resolution: HOURLY, last: 840) {
+        priceInfoRange(resolution: QUARTER_HOURLY, last: 960) {
           nodes {
             startsAt
             total
@@ -245,13 +245,36 @@ class ElecPriceTibber(ElecPriceProvider):
 
         return series_data.sort_index()
 
-    def _hourly_series(self, series: pd.Series) -> pd.Series:
-        """Normalize Tibber prices to hourly values for EOS optimization."""
+    def _normalize_series(self, series: pd.Series) -> pd.Series:
+        """Normalize Tibber prices while preserving their native resolution.
+
+        The Tibber API delivers either hourly or quarter-hourly prices. EOS resamples
+        the stored records onto the optimization grid on demand (``key_to_array``), so
+        the provider must keep the native step size (e.g. 15 minutes) instead of
+        pre-aggregating to hourly values. Duplicate timestamps are collapsed (mean) and
+        the series is sorted, but the resolution is left untouched.
+        """
         if series.empty:
             return series
         series = series.sort_index()
         series.index = pd.to_datetime([to_datetime(index).isoformat() for index in series.index])
-        return series.resample("1h").mean().dropna()
+        series = series.groupby(level=0).mean().sort_index()
+        return series.dropna()
+
+    def _resolution_seconds(self, series: pd.Series) -> int:
+        """Infer the native slot size in seconds from the series timestamps.
+
+        Uses the median of the timestamp differences so that a single outlier gap does
+        not distort the result. Falls back to hourly (3600 s) when fewer than two
+        timestamps are available.
+        """
+        if len(series) < 2:
+            return 3600
+        deltas = pd.DatetimeIndex(series.index).to_series().diff().dropna()
+        if deltas.empty:
+            return 3600
+        resolution = int(round(deltas.dt.total_seconds().median()))
+        return resolution if resolution > 0 else 3600
 
     def _cap_outliers(self, data: np.ndarray, sigma: int = 2) -> np.ndarray:
         mean = data.mean()
@@ -272,33 +295,48 @@ class ElecPriceTibber(ElecPriceProvider):
         clean_history = self._cap_outliers(history)
         return np.full(hours, np.median(clean_history))
 
-    def _predict_missing_prices(self, history: np.ndarray, hours: int) -> np.ndarray:
-        """Forecast missing future prices from the available hourly history."""
+    def _predict_missing_prices(
+        self, history: np.ndarray, slots: int, slots_per_hour: int
+    ) -> np.ndarray:
+        """Forecast missing future prices from the available history.
+
+        Works on the native resolution of the series: ``slots_per_hour`` scales the
+        hour-based seasonal windows into slot counts, so the seasonal periods and
+        history thresholds stay correct at both hourly (``slots_per_hour == 1``) and
+        quarter-hourly (``slots_per_hour == 4``) resolution.
+        """
         numeric_history = np.asarray(history, dtype=float)
         numeric_history = numeric_history[np.isfinite(numeric_history)]
-        history_hours = len(numeric_history)
+        history_slots = len(numeric_history)
 
-        if history_hours > TIBBER_WEEKLY_SEASONAL_HOURS:
+        weekly_seasonal_slots = TIBBER_WEEKLY_SEASONAL_HOURS * slots_per_hour
+        daily_seasonal_slots = TIBBER_DAILY_SEASONAL_HOURS * slots_per_hour
+
+        if history_slots > weekly_seasonal_slots:
             logger.info(
                 "Using weekly seasonal ETS forecast for Tibber electricity prices "
-                "with {} historical hourly values.",
-                history_hours,
+                "with {} historical values.",
+                history_slots,
             )
-            return self._predict_ets(numeric_history, seasonal_periods=168, hours=hours)
-        if history_hours > TIBBER_DAILY_SEASONAL_HOURS:
+            return self._predict_ets(
+                numeric_history, seasonal_periods=168 * slots_per_hour, hours=slots
+            )
+        if history_slots > daily_seasonal_slots:
             logger.info(
                 "Using daily seasonal ETS forecast for Tibber electricity prices "
-                "with {} historical hourly values.",
-                history_hours,
+                "with {} historical values.",
+                history_slots,
             )
-            return self._predict_ets(numeric_history, seasonal_periods=24, hours=hours)
-        if history_hours > 0:
+            return self._predict_ets(
+                numeric_history, seasonal_periods=24 * slots_per_hour, hours=slots
+            )
+        if history_slots > 0:
             logger.warning(
                 "Using median fallback for Tibber electricity prices because only {} "
-                "historical hourly values are available.",
-                history_hours,
+                "historical values are available.",
+                history_slots,
             )
-            return self._predict_median(numeric_history, hours=hours)
+            return self._predict_median(numeric_history, hours=slots)
 
         logger.error("No data available for prediction")
         raise ValueError("No data available")
@@ -310,9 +348,12 @@ class ElecPriceTibber(ElecPriceProvider):
             raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
 
         api_history_count, api_today_count, api_tomorrow_count = self._api_price_counts(tibber_data)
-        series_data = self._hourly_series(self._parse_data(tibber_data))
+        series_data = self._normalize_series(self._parse_data(tibber_data))
         if series_data.empty:
-            raise ValueError("Tibber response contains no usable hourly price points")
+            raise ValueError("Tibber response contains no usable price points")
+
+        resolution_seconds = self._resolution_seconds(series_data)
+        slots_per_hour = round(3600 / resolution_seconds)
 
         highest_orig_datetime = to_datetime(series_data.index.max())
         self.key_from_series("elecprice_marketprice_wh", series_data)
@@ -320,6 +361,7 @@ class ElecPriceTibber(ElecPriceProvider):
         history = self.key_to_array(
             key="elecprice_marketprice_wh",
             end_datetime=highest_orig_datetime,
+            interval=to_duration(f"{resolution_seconds} seconds"),
             fill_method="linear",
         )
 
@@ -328,36 +370,41 @@ class ElecPriceTibber(ElecPriceProvider):
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        needed_hours = int(
-            self.config.prediction.hours
-            - ((highest_orig_datetime - self.ems_start_datetime).total_seconds() // 3600)
-        )
+        covered_slots = (
+            highest_orig_datetime - self.ems_start_datetime
+        ).total_seconds() // resolution_seconds
+        needed_slots = int(self.config.prediction.hours * slots_per_hour - covered_slots)
 
-        if needed_hours <= 0:
+        if needed_slots <= 0:
             logger.warning(
                 "No prediction needed. "
-                f"needed_hours={needed_hours}, "
+                f"needed_slots={needed_slots}, "
                 f"hours={self.config.prediction.hours}, "
+                f"slots_per_hour={slots_per_hour}, "
                 f"highest_orig_datetime={highest_orig_datetime}, "
                 f"start_datetime={self.ems_start_datetime}"
             )
             return
 
         logger.info(
-            "Tibber electricity price input: api_history_hours={}, api_today_hours={}, "
-            "api_tomorrow_hours={}, combined_history_hours={}, needed_forecast_hours={}.",
+            "Tibber electricity price input: api_history={}, api_today={}, "
+            "api_tomorrow={}, resolution_seconds={}, combined_history_slots={}, "
+            "needed_forecast_slots={}.",
             api_history_count,
             api_today_count,
             api_tomorrow_count,
+            resolution_seconds,
             len(history),
-            needed_hours,
+            needed_slots,
         )
-        prediction = self._predict_missing_prices(history, hours=needed_hours)
+        prediction = self._predict_missing_prices(
+            history, slots=needed_slots, slots_per_hour=slots_per_hour
+        )
 
         prediction_series = pd.Series(
             data=prediction,
             index=[
-                highest_orig_datetime + to_duration(f"{i + 1} hours")
+                highest_orig_datetime + to_duration(f"{(i + 1) * resolution_seconds} seconds")
                 for i in range(len(prediction))
             ],
         )

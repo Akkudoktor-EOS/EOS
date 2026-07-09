@@ -175,14 +175,41 @@ def test_parse_data_combines_sorts_and_converts_total(provider, tibber_response)
     assert series.iloc[2] == pytest.approx(0.00030468)
 
 
-def test_tibber_hourly_series_averages_quarter_hour_prices(provider):
-    """Quarter-hour Tibber prices are averaged to hourly EOS prices."""
+def test_tibber_normalize_series_preserves_quarter_hour_resolution(provider):
+    """Quarter-hour Tibber prices keep their native 15-min resolution (no averaging).
+
+    EOS resamples onto the optimization grid on demand, so the provider must store the
+    native step size instead of pre-aggregating quarter-hour prices to hourly values.
+    """
     index = pd.date_range("2026-07-09T00:00:00+00:00", periods=8, freq="15min")
-    series = pd.Series([0.10, 0.30, 0.50, 0.70, 1.0, 1.4, 1.8, 2.2], index=index)
+    values = [0.10, 0.30, 0.50, 0.70, 1.0, 1.4, 1.8, 2.2]
+    series = pd.Series(values, index=index)
 
-    hourly = provider._hourly_series(series)
+    normalized = provider._normalize_series(series)
 
-    assert hourly.tolist() == pytest.approx([0.40, 1.60])
+    # Every 15-min point survives, values untouched, still on a 15-min grid.
+    assert normalized.tolist() == pytest.approx(values)
+    deltas = normalized.index.to_series().diff().dropna().dt.total_seconds().unique().tolist()
+    assert deltas == [900.0]
+    assert provider._resolution_seconds(normalized) == 900
+
+
+def test_tibber_normalize_series_deduplicates_timestamps(provider):
+    """Duplicate timestamps are collapsed (mean) without changing the resolution."""
+    index = pd.DatetimeIndex(
+        [
+            "2026-07-09T00:00:00+00:00",
+            "2026-07-09T00:00:00+00:00",
+            "2026-07-09T01:00:00+00:00",
+        ]
+    )
+    series = pd.Series([0.10, 0.30, 0.50], index=index)
+
+    normalized = provider._normalize_series(series)
+
+    assert len(normalized) == 2
+    assert normalized.iloc[0] == pytest.approx(0.20)
+    assert normalized.iloc[1] == pytest.approx(0.50)
 
 
 def test_empty_tomorrow_stores_only_today_and_warns(provider):
@@ -223,6 +250,7 @@ def test_request_forecast_uses_tibber_graphql_api(
     assert "query" in kwargs["json"]
     assert "TibberPriceInfo" in kwargs["json"]["query"]
     assert "priceInfoRange" in kwargs["json"]["query"]
+    assert "QUARTER_HOURLY" in kwargs["json"]["query"]
     assert "total" in kwargs["json"]["query"]
     assert kwargs["timeout"] == 30
 
@@ -299,3 +327,62 @@ def test_tibber_update_uses_eos_storage_history_when_api_history_is_missing(
 
     assert forecast_call["seasonal_periods"] == 168
     assert forecast_call["history_hours"] > 840
+
+
+def test_tibber_update_preserves_quarter_hour_resolution_and_slots(
+    tibber_provider, monkeypatch
+):
+    """15-minute Tibber prices are stored natively and extrapolated on the slot grid.
+
+    Proves the resolution-agnostic path: (a) the native 15-min resolution survives
+    storage, (b) the ETS extrapolation scales the seasonal window into slots
+    (daily-only history -> 24*4 = 96 seasonal periods), and (c) the forecast index is
+    spaced at 15-minute steps.
+    """
+    data = TibberGraphQLResponse.model_validate(
+        _tibber_payload(
+            [
+                _price("2026-07-09T00:00:00+00:00", 0.30),
+                _price("2026-07-09T00:15:00+00:00", 0.42),
+                _price("2026-07-09T00:30:00+00:00", 0.36),
+            ],
+            include_history_range=False,
+        )
+    )
+    monkeypatch.setattr(tibber_provider, "_request_forecast", lambda **_: data)
+    forecast_call = {}
+
+    def fake_predict_ets(history, seasonal_periods, hours):
+        forecast_call["seasonal_periods"] = seasonal_periods
+        forecast_call["history_slots"] = len(history)
+        forecast_call["forecast_slots"] = hours
+        return np.full(hours, 0.0009)
+
+    monkeypatch.setattr(tibber_provider, "_predict_ets", fake_predict_ets)
+
+    # A bit more than one week of quarter-hour history: enough for the daily seasonal
+    # window (> 24*7*4 = 672 slots) but below the weekly one (<= 24*35*4 = 3360 slots).
+    stored_history = pd.Series(
+        data=np.linspace(0.0002, 0.0004, 800),
+        index=pd.date_range("2026-07-01T00:00:00+00:00", periods=800, freq="15min"),
+    )
+    tibber_provider.key_from_series("elecprice_marketprice_wh", stored_history)
+
+    tibber_provider._update_data(force_update=True)
+
+    # (b) Daily seasonal window scaled into 15-min slots.
+    assert forecast_call["seasonal_periods"] == 96
+    assert 672 < forecast_call["history_slots"] <= 3360
+    # prediction.hours (6) * slots_per_hour (4) - covered slots (2 -> 00:00..00:30) = 22
+    assert forecast_call["forecast_slots"] == 22
+
+    # (a)+(c) Stored records keep the native 15-min grid across today and the forecast.
+    stored = tibber_provider.key_to_series(
+        "elecprice_marketprice_wh",
+        start_datetime=to_datetime("2026-07-09T00:00:00+00:00"),
+        end_datetime=to_datetime("2026-07-09T06:15:00+00:00"),
+    )
+    steps = stored.index.to_series().diff().dropna().dt.total_seconds().unique().tolist()
+    assert steps == [900.0]
+    # 00:00..06:00 inclusive at 15-min steps = 25 points (3 API + 22 forecast).
+    assert len(stored) == 25
