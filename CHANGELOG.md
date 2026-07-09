@@ -13,6 +13,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
   - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
   - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
+- The Tibber electricity price provider now requests native 15-minute exchange prices
+  (`priceInfoRange(resolution: QUARTER_HOURLY)`) and stores them at their native
+  resolution instead of pre-averaging to hourly values, so EOS can resample them onto
+  either the hourly or the quarter-hour optimization grid. The seasonal price
+  extrapolation is resolution-agnostic and stays identical at the default hourly
+  resolution.
 
 ## 0.3.0 (2026-03-17)
 
