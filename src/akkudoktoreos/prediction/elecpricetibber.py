@@ -16,6 +16,8 @@ from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 TIBBER_GRAPHQL_URL = "https://api.tibber.com/v1-beta/gql"
+TIBBER_DAILY_SEASONAL_HOURS = 24 * 7
+TIBBER_WEEKLY_SEASONAL_HOURS = 24 * 35
 TIBBER_PRICE_QUERY = """
 query TibberPriceInfo {
   viewer {
@@ -159,6 +161,23 @@ class ElecPriceTibber(ElecPriceProvider):
             raise ValueError(error_msg)
         return tibber_data
 
+    def _api_price_counts(self, response: TibberGraphQLResponse) -> tuple[int, int, int]:
+        """Return Tibber API price counts for history, today, and tomorrow."""
+        home = self._select_home(response)
+        subscription = home.currentSubscription
+        if subscription is None:
+            raise ValueError("Tibber home has no current subscription")
+
+        history_count = 0
+        today_count = 0
+        tomorrow_count = 0
+        if subscription.priceInfoRange is not None:
+            history_count = len(subscription.priceInfoRange.nodes)
+        if subscription.priceInfo is not None:
+            today_count = len(subscription.priceInfo.today)
+            tomorrow_count = len(subscription.priceInfo.tomorrow)
+        return history_count, today_count, tomorrow_count
+
     @cache_in_file(with_ttl="1 hour")
     def _request_forecast(self) -> TibberGraphQLResponse:
         """Fetch electricity price data from the Tibber GraphQL API."""
@@ -253,12 +272,44 @@ class ElecPriceTibber(ElecPriceProvider):
         clean_history = self._cap_outliers(history)
         return np.full(hours, np.median(clean_history))
 
+    def _predict_missing_prices(self, history: np.ndarray, hours: int) -> np.ndarray:
+        """Forecast missing future prices from the available hourly history."""
+        numeric_history = np.asarray(history, dtype=float)
+        numeric_history = numeric_history[np.isfinite(numeric_history)]
+        history_hours = len(numeric_history)
+
+        if history_hours > TIBBER_WEEKLY_SEASONAL_HOURS:
+            logger.info(
+                "Using weekly seasonal ETS forecast for Tibber electricity prices "
+                "with {} historical hourly values.",
+                history_hours,
+            )
+            return self._predict_ets(numeric_history, seasonal_periods=168, hours=hours)
+        if history_hours > TIBBER_DAILY_SEASONAL_HOURS:
+            logger.info(
+                "Using daily seasonal ETS forecast for Tibber electricity prices "
+                "with {} historical hourly values.",
+                history_hours,
+            )
+            return self._predict_ets(numeric_history, seasonal_periods=24, hours=hours)
+        if history_hours > 0:
+            logger.warning(
+                "Using median fallback for Tibber electricity prices because only {} "
+                "historical hourly values are available.",
+                history_hours,
+            )
+            return self._predict_median(numeric_history, hours=hours)
+
+        logger.error("No data available for prediction")
+        raise ValueError("No data available")
+
     def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update Tibber price data and extrapolate missing future prices."""
         tibber_data = self._request_forecast(force_update=force_update)  # type: ignore
         if not self.ems_start_datetime:
             raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
 
+        api_history_count, api_today_count, api_tomorrow_count = self._api_price_counts(tibber_data)
         series_data = self._hourly_series(self._parse_data(tibber_data))
         if series_data.empty:
             raise ValueError("Tibber response contains no usable hourly price points")
@@ -272,7 +323,6 @@ class ElecPriceTibber(ElecPriceProvider):
             fill_method="linear",
         )
 
-        amount_datasets = len(self.records)
         if not highest_orig_datetime:
             error_msg = f"Highest original datetime not available: {highest_orig_datetime}"
             logger.error(error_msg)
@@ -293,15 +343,16 @@ class ElecPriceTibber(ElecPriceProvider):
             )
             return
 
-        if amount_datasets > 800:
-            prediction = self._predict_ets(history, seasonal_periods=168, hours=needed_hours)
-        elif amount_datasets > 168:
-            prediction = self._predict_ets(history, seasonal_periods=24, hours=needed_hours)
-        elif amount_datasets > 0:
-            prediction = self._predict_median(history, hours=needed_hours)
-        else:
-            logger.error("No data available for prediction")
-            raise ValueError("No data available")
+        logger.info(
+            "Tibber electricity price input: api_history_hours={}, api_today_hours={}, "
+            "api_tomorrow_hours={}, combined_history_hours={}, needed_forecast_hours={}.",
+            api_history_count,
+            api_today_count,
+            api_tomorrow_count,
+            len(history),
+            needed_hours,
+        )
+        prediction = self._predict_missing_prices(history, hours=needed_hours)
 
         prediction_series = pd.Series(
             data=prediction,

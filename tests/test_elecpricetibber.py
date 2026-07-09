@@ -30,6 +30,7 @@ def _tibber_payload(
     *,
     home_id: str = "home-1",
     include_other_home: bool = False,
+    include_history_range: bool = True,
 ) -> dict[str, object]:
     homes: list[dict[str, object]] = []
     if include_other_home:
@@ -42,15 +43,11 @@ def _tibber_payload(
             }
         )
 
-    homes.append(
-        {
-            "id": home_id,
-            "currentSubscription": {
-                "priceInfo": {"today": prices[:2], "tomorrow": prices[2:]},
-                "priceInfoRange": {"nodes": prices},
-            },
-        }
-    )
+    subscription: dict[str, object] = {"priceInfo": {"today": prices[:2], "tomorrow": prices[2:]}}
+    if include_history_range:
+        subscription["priceInfoRange"] = {"nodes": prices}
+
+    homes.append({"id": home_id, "currentSubscription": subscription})
     return {"data": {"viewer": {"homes": homes}}}
 
 
@@ -266,3 +263,39 @@ def test_tibber_update_extrapolates_missing_hours_with_seasonal_history(
     )
 
     assert prices.tolist() == pytest.approx([0.0003, 0.00042, 0.00036, 0.0005, 0.0005, 0.0005])
+
+
+def test_tibber_update_uses_eos_storage_history_when_api_history_is_missing(
+    tibber_provider, monkeypatch
+):
+    """Stored EOS price history can provide enough data for weekly seasonal ETS."""
+    data = TibberGraphQLResponse.model_validate(
+        _tibber_payload(
+            [
+                _price("2026-07-09T00:00:00+00:00", 0.30),
+                _price("2026-07-09T01:00:00+00:00", 0.42),
+                _price("2026-07-09T02:00:00+00:00", 0.36),
+            ],
+            include_history_range=False,
+        )
+    )
+    monkeypatch.setattr(tibber_provider, "_request_forecast", lambda **_: data)
+    forecast_call = {}
+
+    def fake_predict_ets(history, seasonal_periods, hours):
+        forecast_call["seasonal_periods"] = seasonal_periods
+        forecast_call["history_hours"] = len(history)
+        return np.full(hours, 0.0007)
+
+    monkeypatch.setattr(tibber_provider, "_predict_ets", fake_predict_ets)
+
+    stored_history = pd.Series(
+        data=np.linspace(0.0002, 0.0004, 900),
+        index=pd.date_range("2026-06-01T00:00:00+00:00", periods=900, freq="1h"),
+    )
+    tibber_provider.key_from_series("elecprice_marketprice_wh", stored_history)
+
+    tibber_provider._update_data(force_update=True)
+
+    assert forecast_call["seasonal_periods"] == 168
+    assert forecast_call["history_hours"] > 840
