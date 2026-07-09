@@ -20,6 +20,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   default 3600 s interval keeps the previous hourly behaviour. The new sub-hourly PV
   providers (pvnode, Forecast.Solar, Solcast) feed their native resolution straight
   into the quarter-hour grid.
+  - The Tibber electricity price provider now requests native 15-minute exchange prices
+    (`priceInfoRange(resolution: QUARTER_HOURLY)`) and stores them at their native
+    resolution, so both the hourly and the 15-minute optimizer are fed the correct
+    grid. The seasonal price extrapolation is resolution-agnostic and stays identical
+    at the default hourly resolution.
 
 ## 0.3.0 (2026-03-17)
 
