@@ -76,7 +76,12 @@ class GeneticSimulation(PydanticBaseModel):
             "description": "An array of floats representing the feed-in compensation in euros per watt-hour."
         },
     )
-
+    direct_marketing_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "description": "Use direct marketing behavior for feed-in/export decisions."
+        },
+    )
     battery: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
     ev: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
     home_appliance: Optional[HomeAppliance] = Field(
@@ -92,6 +97,12 @@ class GeneticSimulation(PydanticBaseModel):
     )
     bat_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, json_schema_extra={"description": "TBD"}
+    )
+    bat_grid_export_hours: Optional[NDArray[Shape["*"], float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Hourly permission for battery discharge into the grid."
+        },
     )
     ev_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, json_schema_extra={"description": "TBD"}
@@ -112,6 +123,7 @@ class GeneticSimulation(PydanticBaseModel):
         ev: Optional[Battery] = None,
         home_appliance: Optional[HomeAppliance] = None,
         inverter: Optional[Inverter] = None,
+        direct_marketing_enabled: bool = False,
     ) -> None:
         """Prepare simulation runs.
 
@@ -119,13 +131,14 @@ class GeneticSimulation(PydanticBaseModel):
         """
         self.optimization_hours = optimization_hours
         self.prediction_hours = prediction_hours
+        self.direct_marketing_enabled = direct_marketing_enabled
 
         # Load arrays from provided EMS parameters
         self.load_energy_array = np.array(parameters.gesamtlast, float)
         self.pv_prediction_wh = np.array(parameters.pv_prognose_wh, float)
         self.elect_price_hourly = np.array(parameters.strompreis_euro_pro_wh, float)
         self.elect_revenue_per_hour_arr = (
-            parameters.einspeiseverguetung_euro_pro_wh
+            np.array(parameters.einspeiseverguetung_euro_pro_wh, float)
             if isinstance(parameters.einspeiseverguetung_euro_pro_wh, list)
             else np.full(
                 len(self.load_energy_array), parameters.einspeiseverguetung_euro_pro_wh, float
@@ -145,6 +158,7 @@ class GeneticSimulation(PydanticBaseModel):
         self.ac_charge_hours = np.full(self.prediction_hours, 0.0)
         self.dc_charge_hours = np.full(self.prediction_hours, 0.0)
         self.bat_discharge_hours = np.full(self.prediction_hours, 0.0)
+        self.bat_grid_export_hours = np.full(self.prediction_hours, 0.0)
         self.ev_charge_hours = np.full(self.prediction_hours, 0.0)
         self.ev_discharge_hours = np.full(self.prediction_hours, 0.0)
         self.home_appliance_start_hour = None
@@ -172,6 +186,7 @@ class GeneticSimulation(PydanticBaseModel):
         ac_charge_hours_fast = self.ac_charge_hours
         dc_charge_hours_fast = self.dc_charge_hours
         bat_discharge_hours_fast = self.bat_discharge_hours
+        bat_grid_export_hours_fast = self.bat_grid_export_hours
         elect_price_hourly_fast = self.elect_price_hourly
         elect_revenue_per_hour_arr_fast = self.elect_revenue_per_hour_arr
         pv_prediction_wh_fast = self.pv_prediction_wh
@@ -179,6 +194,7 @@ class GeneticSimulation(PydanticBaseModel):
         ev_fast = self.ev
         home_appliance_fast = self.home_appliance
         inverter_fast = self.inverter
+        direct_marketing_enabled_fast = self.direct_marketing_enabled
 
         # Check for simulation integrity (in a way that mypy understands)
         if (
@@ -190,6 +206,7 @@ class GeneticSimulation(PydanticBaseModel):
             or dc_charge_hours_fast is None
             or elect_revenue_per_hour_arr_fast is None
             or bat_discharge_hours_fast is None
+            or bat_grid_export_hours_fast is None
             or ev_discharge_hours_fast is None
         ):
             missing = []
@@ -209,6 +226,8 @@ class GeneticSimulation(PydanticBaseModel):
                 missing.append("Electricity Revenue Per Hour")
             if bat_discharge_hours_fast is None:
                 missing.append("Battery Discharge Hours")
+            if bat_grid_export_hours_fast is None:
+                missing.append("Battery Grid Export Hours")
             if ev_discharge_hours_fast is None:
                 missing.append("EV Discharge Hours")
             msg = ", ".join(missing)
@@ -235,6 +254,7 @@ class GeneticSimulation(PydanticBaseModel):
         revenue_per_hour = np.full((total_hours), np.nan)
         losses_wh_per_hour = np.full((total_hours), np.nan)
         electricity_price_per_hour = np.full((total_hours), np.nan)
+        feed_in_tariff_per_hour = np.full((total_hours), np.nan)
 
         # Set initial state
         if battery_fast:
@@ -272,7 +292,18 @@ class GeneticSimulation(PydanticBaseModel):
             # Fill the discharge array of the battery
             bat_discharge_hours_fast[0:start_hour] = 0
             bat_discharge_hours_fast[end_hour:] = 0
-            battery_fast.discharge_array = bat_discharge_hours_fast
+            bat_grid_export_hours_fast[0:start_hour] = 0
+            bat_grid_export_hours_fast[end_hour:] = 0
+            battery_fast.discharge_array = np.where(
+                (bat_discharge_hours_fast > 0)
+                | (
+                    direct_marketing_enabled_fast
+                    & (bat_grid_export_hours_fast > 0)
+                    & (elect_revenue_per_hour_arr_fast > 0.0)
+                ),
+                1,
+                0,
+            )
         else:
             # Default return if no battery is available
             soc_per_hour = np.full((total_hours), 0)
@@ -348,12 +379,25 @@ class GeneticSimulation(PydanticBaseModel):
 
             if inverter_fast:
                 energy_produced = pv_prediction_wh_fast[hour]
+                hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
+                battery_grid_export_allowed = (
+                    direct_marketing_enabled_fast
+                    and hourly_feed_in_tariff > 0.0
+                    and bat_grid_export_hours_fast[hour] > 0
+                )
                 (
                     energy_feedin_grid_actual,
                     energy_consumption_grid_actual,
                     losses,
                     eigenverbrauch,
-                ) = inverter_fast.process_energy(energy_produced, consumption, hour)
+                ) = inverter_fast.process_energy(
+                    energy_produced,
+                    consumption,
+                    hour,
+                    allow_battery_grid_export=battery_grid_export_allowed,
+                )
+            else:
+                hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
 
             # AC PV Battery Charge
             if battery_fast:
@@ -391,17 +435,26 @@ class GeneticSimulation(PydanticBaseModel):
                         )
 
             # Update hourly arrays
+            if (
+                direct_marketing_enabled_fast
+                and hourly_feed_in_tariff < 0.0
+                and energy_feedin_grid_actual > 0.0
+            ):
+                losses_wh_per_hour[hour_idx] += energy_feedin_grid_actual
+                energy_feedin_grid_actual = 0.0
+
             feedin_energy_per_hour[hour_idx] = energy_feedin_grid_actual
             consumption_energy_per_hour[hour_idx] = energy_consumption_grid_actual
             losses_wh_per_hour[hour_idx] += losses
             loads_energy_per_hour[hour_idx] = consumption
             hourly_electricity_price = elect_price_hourly_fast[hour]
             electricity_price_per_hour[hour_idx] = hourly_electricity_price
+            feed_in_tariff_per_hour[hour_idx] = hourly_feed_in_tariff
 
             # Financial calculations
             costs_per_hour[hour_idx] = energy_consumption_grid_actual * hourly_electricity_price
             revenue_per_hour[hour_idx] = (
-                energy_feedin_grid_actual * elect_revenue_per_hour_arr_fast[hour]
+                energy_feedin_grid_actual * hourly_feed_in_tariff
             )
 
         total_cost = np.nansum(costs_per_hour)
@@ -424,6 +477,7 @@ class GeneticSimulation(PydanticBaseModel):
             "Gesamt_Verluste": total_losses,
             "Home_appliance_wh_per_hour": home_appliance_wh_per_hour,
             "Electricity_price": electricity_price_per_hour,
+            "Feed_in_tariff": feed_in_tariff_per_hour,
         }
 
 
@@ -448,6 +502,7 @@ class GeneticOptimization(OptimizationBase):
         self.fix_seed = fixed_seed
         self.optimize_ev = True
         self.optimize_dc_charge = False
+        self.optimize_battery_grid_export = False
         self.fitness_history: dict[str, Any] = {}
 
         # Set a fixed seed for random operations if provided or in debug mode
@@ -460,10 +515,42 @@ class GeneticOptimization(OptimizationBase):
         # Create Simulation
         self.simulation = GeneticSimulation()
 
+    def _direct_marketing_enabled(self) -> bool:
+        """Return whether direct marketing mode is enabled in configuration."""
+        try:
+            return bool(self.config.feedintariff.direct_marketing_enabled)
+        except Exception:
+            return False
+
+    def _parameters_for_config(
+        self, parameters: GeneticOptimizationParameters
+    ) -> GeneticOptimizationParameters:
+        """Apply configuration-derived parameter overrides before optimization."""
+        if not self._direct_marketing_enabled():
+            return parameters
+
+        feed_in_tariff = parameters.ems.einspeiseverguetung_euro_pro_wh
+        if (
+            isinstance(feed_in_tariff, list)
+            and len(feed_in_tariff) == len(parameters.ems.strompreis_euro_pro_wh)
+            and len(set(feed_in_tariff)) > 1
+        ):
+            return parameters
+
+        ems_parameters = parameters.ems.model_copy(
+            update={
+                "einspeiseverguetung_euro_pro_wh": list(
+                    parameters.ems.strompreis_euro_pro_wh
+                )
+            },
+            deep=True,
+        )
+        return parameters.model_copy(update={"ems": ems_parameters}, deep=True)
+
     def decode_charge_discharge(
         self, discharge_hours_bin: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Decode the input array into ac_charge, dc_charge, and discharge arrays."""
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Decode the input array into charge, self-consumption discharge and export arrays."""
         discharge_hours_bin_np = np.array(discharge_hours_bin)
         # Battery AC charge uses its own charge-level list (bat_possible_charge_values).
         len_bat = len(self.bat_possible_charge_values)
@@ -473,6 +560,7 @@ class GeneticOptimization(OptimizationBase):
         # Discharge:  len_bat .. 2*len_bat - 1
         # AC Charge:  2*len_bat .. 3*len_bat - 1  (maps to bat_possible_charge_values)
         # DC optional: 3*len_bat (not allowed), 3*len_bat + 1 (allowed)
+        # Grid export: next state, if direct marketing/export optimization is enabled
 
         # Idle states
         idle_mask = (discharge_hours_bin_np >= 0) & (discharge_hours_bin_np < len_bat)
@@ -501,9 +589,14 @@ class GeneticOptimization(OptimizationBase):
         ac_charge = np.zeros_like(discharge_hours_bin_np, dtype=float)
         ac_charge[ac_mask] = [self.bat_possible_charge_values[i] for i in ac_indices]
 
+        battery_grid_export = np.zeros_like(discharge_hours_bin_np, dtype=int)
+        if self.optimize_battery_grid_export:
+            grid_export_state = 3 * len_bat + (2 if self.optimize_dc_charge else 0)
+            battery_grid_export = np.where(discharge_hours_bin_np == grid_export_state, 1, 0)
+
         # Idle is just 0, already default.
 
-        return ac_charge, dc_charge, discharge
+        return ac_charge, dc_charge, discharge, battery_grid_export
 
     def mutate(self, individual: list[int]) -> tuple[list[int]]:
         """Custom mutation function for the individual."""
@@ -513,6 +606,8 @@ class GeneticOptimization(OptimizationBase):
             total_states = 3 * len_bat + 2
         else:
             total_states = 3 * len_bat
+        if self.optimize_battery_grid_export:
+            total_states += 1
 
         # 1. Mutating the charge_discharge part
         charge_discharge_part = individual[: self.config.prediction.hours]
@@ -652,10 +747,13 @@ class GeneticOptimization(OptimizationBase):
         # Discharge: len_bat states
         # AC-Charge: len_bat states  (maps to bat_possible_charge_values)
         # With DC: + 2 additional states
+        # With battery grid export: + 1 additional state
         if self.optimize_dc_charge:
             total_states = 3 * len_bat + 2
         else:
             total_states = 3 * len_bat
+        if self.optimize_battery_grid_export:
+            total_states += 1
 
         # State space: 0 .. (total_states - 1)
         self.toolbox.register("attr_discharge_state", random.randint, 0, total_states - 1)
@@ -711,11 +809,12 @@ class GeneticOptimization(OptimizationBase):
             # Set start hour for appliance
             self.simulation.home_appliance_start_hour = washingstart_int
 
-        ac_charge_hours, dc_charge_hours, discharge = self.decode_charge_discharge(
-            discharge_hours_bin
+        ac_charge_hours, dc_charge_hours, discharge, battery_grid_export = (
+            self.decode_charge_discharge(discharge_hours_bin)
         )
 
         self.simulation.bat_discharge_hours = discharge
+        self.simulation.bat_grid_export_hours = battery_grid_export
         # Set DC charge hours only if DC optimization is enabled
         if self.optimize_dc_charge:
             self.simulation.dc_charge_hours = dc_charge_hours
@@ -1077,6 +1176,11 @@ class GeneticOptimization(OptimizationBase):
         ngen: Optional[int] = None,
     ) -> GeneticSolution:
         """Perform EMS (Energy Management System) optimization and visualize results."""
+        direct_marketing_enabled = self._direct_marketing_enabled()
+        parameters = self._parameters_for_config(parameters)
+        self.optimize_dc_charge = direct_marketing_enabled
+        self.optimize_battery_grid_export = direct_marketing_enabled
+
         if start_hour is None:
             start_hour = self.ems.start_datetime.hour
         # Start hour has to be in sync with energy management
@@ -1093,10 +1197,6 @@ class GeneticOptimization(OptimizationBase):
             except:
                 generations = 400
                 logger.error("Generations not configured. Using {}.", generations)
-
-        einspeiseverguetung_euro_pro_wh = np.full(
-            self.config.prediction.hours, parameters.ems.einspeiseverguetung_euro_pro_wh
-        )
 
         self.simulation.reset()
 
@@ -1195,6 +1295,7 @@ class GeneticOptimization(OptimizationBase):
             inverter=inverter,  # battery is part of inverter
             ev=eauto,
             home_appliance=dishwasher,
+            direct_marketing_enabled=direct_marketing_enabled,
         )
 
         # Setup the DEAP environment and optimization process
@@ -1240,6 +1341,11 @@ class GeneticOptimization(OptimizationBase):
             discharge = []
         else:
             discharge = discharge.tolist()
+        battery_grid_export = self.simulation.bat_grid_export_hours
+        if not direct_marketing_enabled or battery_grid_export is None:
+            battery_grid_export = []
+        else:
+            battery_grid_export = battery_grid_export.tolist()
 
         # Visualize the results in PDF
         try:
@@ -1249,6 +1355,7 @@ class GeneticOptimization(OptimizationBase):
                 "ac_charge": ac_charge_hours,
                 "dc_charge": dc_charge_hours,
                 "discharge_allowed": discharge,
+                "battery_grid_export_allowed": battery_grid_export,
                 "eautocharge_hours_float": eautocharge_hours_float,
                 "result": simulation_result,
                 "eauto_obj": self.simulation.ev.to_dict() if self.simulation.ev else None,
@@ -1270,6 +1377,7 @@ class GeneticOptimization(OptimizationBase):
                 "ac_charge": ac_charge_hours,
                 "dc_charge": dc_charge_hours,
                 "discharge_allowed": discharge,
+                "battery_grid_export_allowed": battery_grid_export,
                 "eautocharge_hours_float": eautocharge_hours_float,
                 "result": GeneticSimulationResult(**simulation_result),
                 "eauto_obj": self.simulation.ev,

@@ -7,6 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| direct_marketing_enabled | `EOS_FEEDINTARIFF__DIRECT_MARKETING_ENABLED` | `bool` | `rw` | `False` | Use the electricity market price as feed-in tariff and enable export-aware direct marketing optimization. |
 | provider | `EOS_FEEDINTARIFF__PROVIDER` | `Optional[str]` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
 | provider_settings | `EOS_FEEDINTARIFF__PROVIDER_SETTINGS` | `FeedInTariffCommonProviderSettings` | `rw` | `required` | Provider settings |
 | providers | | `list[str]` | `ro` | `N/A` | Available feed in tariff provider ids. |
@@ -21,9 +22,11 @@
 ```json
    {
        "feedintariff": {
+           "direct_marketing_enabled": false,
            "provider": "FeedInTariffFixed",
            "provider_settings": {
                "FeedInTariffFixed": null,
+               "FeedInTariffEnergyCharts": null,
                "FeedInTariffImport": null
            }
        }
@@ -39,12 +42,15 @@
 ```json
    {
        "feedintariff": {
+           "direct_marketing_enabled": false,
            "provider": "FeedInTariffFixed",
            "provider_settings": {
                "FeedInTariffFixed": null,
+               "FeedInTariffEnergyCharts": null,
                "FeedInTariffImport": null
            },
            "providers": [
+               "FeedInTariffEnergyCharts",
                "FeedInTariffFixed",
                "FeedInTariffImport"
            ]
@@ -79,6 +85,37 @@
                "FeedInTariffImport": {
                    "import_file_path": null,
                    "import_json": "{\"fead_in_tariff_wh\": [0.000078, 0.000078, 0.000023]}"
+               }
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for Energy-Charts feed-in tariff provider
+
+<!-- pyml disable line-length -->
+:::{table} feedintariff::provider_settings::FeedInTariffEnergyCharts
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| bidding_zone | `<enum 'EnergyChartsBiddingZones'>` | `rw` | `DE-LU` | Bidding Zone: 'AT', 'BE', 'CH', 'CZ', 'DE-LU', 'DE-AT-LU', 'DK1', 'DK2', 'FR', 'HU', 'IT-NORTH', 'NL', 'NO2', 'PL', 'SE4' or 'SI' |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "feedintariff": {
+           "provider_settings": {
+               "FeedInTariffEnergyCharts": {
+                   "bidding_zone": "DE-LU"
                }
            }
        }
@@ -126,6 +163,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
+| FeedInTariffEnergyCharts | `Optional[akkudoktoreos.prediction.feedintariffenergycharts.FeedInTariffEnergyChartsCommonSettings]` | `rw` | `None` | FeedInTariffEnergyCharts settings |
 | FeedInTariffFixed | `Optional[akkudoktoreos.prediction.feedintarifffixed.FeedInTariffFixedCommonSettings]` | `rw` | `None` | FeedInTariffFixed settings |
 | FeedInTariffImport | `Optional[akkudoktoreos.prediction.feedintariffimport.FeedInTariffImportCommonSettings]` | `rw` | `None` | FeedInTariffImport settings |
 :::
@@ -141,6 +179,7 @@
        "feedintariff": {
            "provider_settings": {
                "FeedInTariffFixed": null,
+               "FeedInTariffEnergyCharts": null,
                "FeedInTariffImport": null
            }
        }

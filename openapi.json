@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607071966322885"
+    "version": "v0.3.0.dev2607101210858200"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -3621,7 +3621,7 @@
               }
             ],
             "title": "Home Id",
-            "description": "Tibber home id to read prices from.",
+            "description": "Optional Tibber home id. If omitted, the first home with a subscription is used.",
             "examples": [
               "00000000-0000-0000-0000-000000000000"
             ]
@@ -4283,6 +4283,20 @@
               null
             ]
           },
+          "FeedInTariffEnergyCharts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedInTariffEnergyChartsCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "FeedInTariffEnergyCharts settings",
+            "examples": [
+              null
+            ]
+          },
           "FeedInTariffImport": {
             "anyOf": [
               {
@@ -4304,6 +4318,16 @@
       },
       "FeedInTariffCommonSettings-Input": {
         "properties": {
+          "direct_marketing_enabled": {
+            "type": "boolean",
+            "title": "Direct Marketing Enabled",
+            "description": "Use the electricity market price as feed-in tariff and enable export-aware direct marketing optimization.",
+            "default": false,
+            "examples": [
+              false,
+              true
+            ]
+          },
           "provider": {
             "anyOf": [
               {
@@ -4317,7 +4341,8 @@
             "description": "Feed in tariff provider id of provider to be used.",
             "examples": [
               "FeedInTariffFixed",
-              "FeedInTarifImport"
+              "FeedInTariffEnergyCharts",
+              "FeedInTariffImport"
             ]
           },
           "provider_settings": {
@@ -4334,6 +4359,16 @@
       },
       "FeedInTariffCommonSettings-Output": {
         "properties": {
+          "direct_marketing_enabled": {
+            "type": "boolean",
+            "title": "Direct Marketing Enabled",
+            "description": "Use the electricity market price as feed-in tariff and enable export-aware direct marketing optimization.",
+            "default": false,
+            "examples": [
+              false,
+              true
+            ]
+          },
           "provider": {
             "anyOf": [
               {
@@ -4347,7 +4382,8 @@
             "description": "Feed in tariff provider id of provider to be used.",
             "examples": [
               "FeedInTariffFixed",
-              "FeedInTarifImport"
+              "FeedInTariffEnergyCharts",
+              "FeedInTariffImport"
             ]
           },
           "provider_settings": {
@@ -4373,6 +4409,21 @@
         ],
         "title": "FeedInTariffCommonSettings",
         "description": "Feed In Tariff Prediction Configuration."
+      },
+      "FeedInTariffEnergyChartsCommonSettings": {
+        "properties": {
+          "bidding_zone": {
+            "$ref": "#/components/schemas/EnergyChartsBiddingZones",
+            "description": "Bidding Zone: 'AT', 'BE', 'CH', 'CZ', 'DE-LU', 'DE-AT-LU', 'DK1', 'DK2', 'FR', 'HU', 'IT-NORTH', 'NL', 'NO2', 'PL', 'SE4' or 'SI'",
+            "default": "DE-LU",
+            "examples": [
+              "DE-LU"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffEnergyChartsCommonSettings",
+        "description": "Common settings for Energy-Charts feed-in tariff provider."
       },
       "FeedInTariffFixedCommonSettings": {
         "properties": {
@@ -5107,7 +5158,15 @@
             },
             "type": "array",
             "title": "Discharge Allowed",
-            "description": "Array with discharge values (1 for discharge, 0 otherwise)."
+            "description": "Array with self-consumption discharge values (1 for discharge, 0 otherwise)."
+          },
+          "battery_grid_export_allowed": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Battery Grid Export Allowed",
+            "description": "Array with battery-to-grid export values (1 for export discharge, 0 otherwise)."
           },
           "eautocharge_hours_float": {
             "anyOf": [

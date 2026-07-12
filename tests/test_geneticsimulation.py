@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 import numpy as np
 import pytest
 
@@ -249,6 +251,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
     assert simulation.ac_charge_hours is not None
     assert simulation.dc_charge_hours is not None
     assert simulation.bat_discharge_hours is not None
+    assert simulation.bat_grid_export_hours is not None
     assert simulation.ev_charge_hours is not None
     simulation.ac_charge_hours[start_hour] = 1.0
     simulation.dc_charge_hours[start_hour] = 1.0
@@ -374,3 +377,101 @@ def test_simulation(genetic_simulation):
     ), "The sum of 'Home_appliance_wh_per_hour' should be 2000."
 
     print("All tests passed successfully.")
+
+
+def test_direct_marketing_curtails_negative_feed_in(config_eos):
+    config_eos.merge_settings_from_dict(
+        {"prediction": {"hours": 2}, "optimization": {"horizon_hours": 2}}
+    )
+
+    inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=1000.0))
+    inverter.self_consumption_predictor.calculate_self_consumption = Mock(return_value=1.0)
+
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters(
+            pv_prognose_wh=[500.0, 500.0],
+            strompreis_euro_pro_wh=[-0.0001, -0.0001],
+            einspeiseverguetung_euro_pro_wh=[-0.0001, -0.0001],
+            preis_euro_pro_wh_akku=0.0,
+            gesamtlast=[0.0, 0.0],
+        ),
+        optimization_hours=config_eos.optimization.horizon_hours,
+        prediction_hours=config_eos.prediction.hours,
+        inverter=inverter,
+        direct_marketing_enabled=True,
+    )
+
+    result = simulation.simulate(start_hour=0)
+
+    assert result["Netzeinspeisung_Wh_pro_Stunde"][0] == 0.0
+    assert result["Einnahmen_Euro_pro_Stunde"][0] == 0.0
+    assert result["Verluste_Pro_Stunde"][0] == pytest.approx(500.0)
+
+
+def _direct_marketing_battery_export_simulation(config_eos) -> GeneticSimulation:
+    config_eos.merge_settings_from_dict(
+        {"prediction": {"hours": 2}, "optimization": {"horizon_hours": 2}}
+    )
+
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery1",
+            capacity_wh=1000,
+            initial_soc_percentage=100,
+            min_soc_percentage=0,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            max_charge_power_w=500,
+        ),
+        prediction_hours=config_eos.prediction.hours,
+    )
+    inverter = Inverter(
+        InverterParameters(
+            device_id="inverter1",
+            max_power_wh=500.0,
+            battery_id=battery.parameters.device_id,
+        ),
+        battery=battery,
+    )
+
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters(
+            pv_prognose_wh=[0.0, 0.0],
+            strompreis_euro_pro_wh=[0.0, 0.0],
+            einspeiseverguetung_euro_pro_wh=[0.0002, 0.0002],
+            preis_euro_pro_wh_akku=0.0,
+            gesamtlast=[0.0, 0.0],
+        ),
+        optimization_hours=config_eos.optimization.horizon_hours,
+        prediction_hours=config_eos.prediction.hours,
+        inverter=inverter,
+        direct_marketing_enabled=True,
+    )
+    return simulation
+
+
+def test_direct_marketing_discharge_allowed_does_not_export_battery(config_eos):
+    simulation = _direct_marketing_battery_export_simulation(config_eos)
+    assert simulation.bat_discharge_hours is not None
+    simulation.bat_discharge_hours[0] = 1
+
+    result = simulation.simulate(start_hour=0)
+
+    assert result["Netzeinspeisung_Wh_pro_Stunde"][0] == 0.0
+    assert simulation.battery is not None
+    assert simulation.battery.current_soc_percentage() == 100.0
+
+
+def test_direct_marketing_battery_grid_export_uses_separate_signal(config_eos):
+    simulation = _direct_marketing_battery_export_simulation(config_eos)
+    assert simulation.bat_grid_export_hours is not None
+    simulation.bat_grid_export_hours[0] = 1
+
+    result = simulation.simulate(start_hour=0)
+
+    assert result["Netzeinspeisung_Wh_pro_Stunde"][0] == pytest.approx(500.0)
+    assert result["Einnahmen_Euro_pro_Stunde"][0] == pytest.approx(0.1)
+    assert simulation.battery is not None
+    assert simulation.battery.current_soc_percentage() == 50.0

@@ -262,6 +262,7 @@ smaller values (e.g. `0.0`) disable the penalty entirely.
     "ac_charge": [0.625, 0, ..., 0.75, 0],
     "dc_charge": [1, 1, ..., 1, 1],
     "discharge_allowed": [0, 0, 1, ..., 0, 0],
+    "battery_grid_export_allowed": [0, 0, 0, ..., 1, 0],
     "eautocharge_hours_float": [0.625, 0, ..., 0.75, 0],
     "result": {
         "Last_Wh_pro_Stunde": [...],
@@ -282,7 +283,8 @@ smaller values (e.g. `0.0`) disable the penalty entirely.
 
 - `ac_charge`: Grid charging schedule (0.0-1.0)
 - `dc_charge`: DC charging schedule (0-1)
-- `discharge_allowed`: Discharge permission (0 or 1)
+- `discharge_allowed`: Battery discharge permission for local self-consumption/load coverage (0 or 1)
+- `battery_grid_export_allowed`: Battery discharge permission for grid export/direct marketing (0 or 1)
 
 0 (no charge)
 1 (charge with full load)

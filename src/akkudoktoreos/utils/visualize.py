@@ -549,17 +549,29 @@ def prepare_visualize(
     )
     labels = labels[start_hour:] + labels
 
+    charge_discharge_series = [
+        results["ac_charge"][start_hour:],
+        results["dc_charge"][start_hour:],
+        results["discharge_allowed"][start_hour:],
+    ]
+    charge_discharge_labels = [
+        "AC Charging (relative)",
+        "DC Charging (relative)",
+        "Discharge Allowed",
+    ]
+    charge_discharge_colors = ["blue", "green", "red"]
+    if results.get("battery_grid_export_allowed"):
+        charge_discharge_series.append(results["battery_grid_export_allowed"][start_hour:])
+        charge_discharge_labels.append("Battery Grid Export Allowed")
+        charge_discharge_colors.append("purple")
+
     report.create_bar_chart(
         labels,
-        [
-            results["ac_charge"][start_hour:],
-            results["dc_charge"][start_hour:],
-            results["discharge_allowed"][start_hour:],
-        ],
+        charge_discharge_series,
         title="AC/DC Charging and Discharge Overview",
         ylabel="Relative Power (0-1) / Discharge (0 or 1)",
-        label_names=["AC Charging (relative)", "DC Charging (relative)", "Discharge Allowed"],
-        colors=["blue", "green", "red"],
+        label_names=charge_discharge_labels,
+        colors=charge_discharge_colors,
         bottom=3,
         xlabels=labels,
     )

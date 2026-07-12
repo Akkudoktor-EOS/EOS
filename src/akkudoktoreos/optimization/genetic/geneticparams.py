@@ -330,33 +330,48 @@ class GeneticOptimizationParameters(
                 )
                 # Retry
                 continue
-            try:
-                feed_in_tariff_wh = cls.prediction.key_to_array(
-                    key="feed_in_tariff_wh",
-                    start_datetime=parameter_start_datetime,
-                    end_datetime=parameter_end_datetime,
-                    interval=interval,
-                    fill_method="ffill",
-                ).tolist()
-            except:
-                logger.info(
-                    "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
-                    attempt,
-                )
-                cls.config.merge_settings_from_dict(
-                    {
-                        "feedintariff": {
-                            "provider": "FeedInTariffFixed",
-                            "provider_settings": {
-                                "FeedInTariffFixed": {
-                                    "feed_in_tariff_kwh": 0.078,
+            if cls.config.feedintariff.direct_marketing_enabled:
+                if cls.config.feedintariff.provider == "FeedInTariffEnergyCharts":
+                    try:
+                        feed_in_tariff_wh = cls.prediction.key_to_array(
+                            key="feed_in_tariff_wh",
+                            start_datetime=parameter_start_datetime,
+                            end_datetime=parameter_end_datetime,
+                            interval=interval,
+                            fill_method="ffill",
+                        ).tolist()
+                    except:
+                        feed_in_tariff_wh = list(elecprice_marketprice_wh)
+                else:
+                    feed_in_tariff_wh = list(elecprice_marketprice_wh)
+            else:
+                try:
+                    feed_in_tariff_wh = cls.prediction.key_to_array(
+                        key="feed_in_tariff_wh",
+                        start_datetime=parameter_start_datetime,
+                        end_datetime=parameter_end_datetime,
+                        interval=interval,
+                        fill_method="ffill",
+                    ).tolist()
+                except:
+                    logger.info(
+                        "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
+                        attempt,
+                    )
+                    cls.config.merge_settings_from_dict(
+                        {
+                            "feedintariff": {
+                                "provider": "FeedInTariffFixed",
+                                "provider_settings": {
+                                    "FeedInTariffFixed": {
+                                        "feed_in_tariff_kwh": 0.078,
+                                    },
                                 },
                             },
-                        },
-                    }
-                )
-                # Retry
-                continue
+                        }
+                    )
+                    # Retry
+                    continue
             try:
                 weather_temp_air = cls.prediction.key_to_array(
                     key="weather_temp_air",

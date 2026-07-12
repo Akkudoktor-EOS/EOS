@@ -36,6 +36,7 @@ from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibber
+from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
 from akkudoktoreos.prediction.loadakkudoktor import (
@@ -81,6 +82,8 @@ elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_tibber = ElecPriceTibber()
 elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
+elecprice_tibber = ElecPriceTibber()
+feedintariff_energy_charts = FeedInTariffEnergyCharts()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
 loadforecast_akkudoktor = LoadAkkudoktor()
@@ -106,6 +109,8 @@ def prediction_providers() -> list[
         ElecPriceTibber,
         ElecPriceFixed,
         ElecPriceImport,
+        ElecPriceTibber,
+        FeedInTariffEnergyCharts,
         FeedInTariffFixed,
         FeedInTariffImport,
         LoadAkkudoktor,
@@ -134,6 +139,8 @@ def prediction_providers() -> list[
         elecprice_tibber, \
         elecprice_fixed, \
         elecprice_import, \
+        elecprice_tibber, \
+        feedintariff_energy_charts, \
         feedintariff_fixed, \
         feedintariff_import, \
         loadforecast_akkudoktor, \
@@ -158,6 +165,8 @@ def prediction_providers() -> list[
         elecprice_tibber,
         elecprice_fixed,
         elecprice_import,
+        elecprice_tibber,
+        feedintariff_energy_charts,
         feedintariff_fixed,
         feedintariff_import,
         loadforecast_akkudoktor,
@@ -187,6 +196,8 @@ class Prediction(PredictionContainer):
             ElecPriceTibber,
             ElecPriceFixed,
             ElecPriceImport,
+            ElecPriceTibber,
+            FeedInTariffEnergyCharts,
             FeedInTariffFixed,
             FeedInTariffImport,
             LoadAkkudoktor,

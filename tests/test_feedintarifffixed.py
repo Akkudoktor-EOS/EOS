@@ -57,6 +57,16 @@ def test_invalid_provider(provider, config_eos):
         config_eos.merge_settings_from_dict(settings)
 
 
+def test_direct_marketing_switch(config_eos):
+    assert config_eos.feedintariff.direct_marketing_enabled is False
+
+    config_eos.merge_settings_from_dict(
+        {"feedintariff": {"direct_marketing_enabled": True}}
+    )
+
+    assert config_eos.feedintariff.direct_marketing_enabled is True
+
+
 # ------------------------------------------------
 # Fixed feed in tariv values
 # ------------------------------------------------

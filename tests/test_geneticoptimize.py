@@ -37,6 +37,51 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
             assert actual[key] == pytest.approx(value)
 
 
+def test_direct_marketing_uses_market_price_as_feed_in_tariff(config_eos: ConfigEOS):
+    config_eos.merge_settings_from_dict(
+        {"feedintariff": {"direct_marketing_enabled": True}}
+    )
+    parameters = GeneticOptimizationParameters(
+        ems={
+            "pv_prognose_wh": [0.0, 0.0],
+            "strompreis_euro_pro_wh": [0.0002, -0.0001],
+            "einspeiseverguetung_euro_pro_wh": [0.00007, 0.00007],
+            "preis_euro_pro_wh_akku": 0.0,
+            "gesamtlast": [0.0, 0.0],
+        },
+        pv_akku=None,
+        inverter=None,
+        eauto=None,
+    )
+
+    adjusted = GeneticOptimization()._parameters_for_config(parameters)
+
+    assert adjusted.ems.einspeiseverguetung_euro_pro_wh == [0.0002, -0.0001]
+    assert parameters.ems.einspeiseverguetung_euro_pro_wh == [0.00007, 0.00007]
+
+
+def test_direct_marketing_keeps_variable_feed_in_tariff(config_eos: ConfigEOS):
+    config_eos.merge_settings_from_dict(
+        {"feedintariff": {"direct_marketing_enabled": True}}
+    )
+    parameters = GeneticOptimizationParameters(
+        ems={
+            "pv_prognose_wh": [0.0, 0.0],
+            "strompreis_euro_pro_wh": [0.0002, 0.0003],
+            "einspeiseverguetung_euro_pro_wh": [0.0001, -0.00005],
+            "preis_euro_pro_wh_akku": 0.0,
+            "gesamtlast": [0.0, 0.0],
+        },
+        pv_akku=None,
+        inverter=None,
+        eauto=None,
+    )
+
+    adjusted = GeneticOptimization()._parameters_for_config(parameters)
+
+    assert adjusted.ems.einspeiseverguetung_euro_pro_wh == [0.0001, -0.00005]
+
+
 @pytest.mark.parametrize(
     "fn_in, fn_out, ngen, break_even",
     [

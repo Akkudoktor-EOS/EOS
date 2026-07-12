@@ -30,8 +30,23 @@ class Inverter:
         self.ac_to_dc_efficiency = self.parameters.ac_to_dc_efficiency
         self.max_ac_charge_power_w = self.parameters.max_ac_charge_power_w
 
+    def _discharge_battery_to_ac(self, requested_ac_wh: float, hour: int) -> tuple[float, float]:
+        """Discharge battery energy and convert it to AC energy."""
+        if not self.battery or requested_ac_wh <= 0.0:
+            return 0.0, 0.0
+
+        dc_request = requested_ac_wh / self.dc_to_ac_efficiency
+        battery_discharge_dc, discharge_losses = self.battery.discharge_energy(dc_request, hour)
+        battery_discharge_ac = battery_discharge_dc * self.dc_to_ac_efficiency
+        inverter_discharge_losses = battery_discharge_dc - battery_discharge_ac
+        return battery_discharge_ac, discharge_losses + inverter_discharge_losses
+
     def process_energy(
-        self, generation: float, consumption: float, hour: int
+        self,
+        generation: float,
+        consumption: float,
+        hour: int,
+        allow_battery_grid_export: bool = False,
     ) -> tuple[float, float, float, float]:
         losses = 0.0
         grid_export = 0.0
@@ -59,6 +74,7 @@ class Inverter:
                 # Remaining load Self Consumption not perfect
                 remaining_load_evq = (generation - consumption) * (1.0 - scr)
 
+                from_battery_dc = 0.0
                 if remaining_load_evq > 0:
                     # Akku muss den Restverbrauch decken
                     if self.battery:
@@ -105,6 +121,20 @@ class Inverter:
                     consumption + from_battery_ac
                 )  # Self-consumption is equal to the load
 
+                if allow_battery_grid_export and self.battery:
+                    export_capacity = max(self.max_power_wh - consumption - grid_export, 0.0)
+                    max_discharge_dc = getattr(self.battery, "max_charge_power_w", None)
+                    if max_discharge_dc is not None:
+                        remaining_battery_ac = max(
+                            (max_discharge_dc - from_battery_dc) * dc_to_ac_eff, 0.0
+                        )
+                        export_capacity = min(export_capacity, remaining_battery_ac)
+                    battery_export_ac, battery_export_losses = self._discharge_battery_to_ac(
+                        export_capacity, hour
+                    )
+                    grid_export += battery_export_ac
+                    losses += battery_export_losses
+
         else:
             # Case 2: Insufficient generation, cover shortfall
             shortfall = consumption - generation
@@ -128,5 +158,19 @@ class Inverter:
             # Draw remaining required power from the grid (discharge_losses are already subtracted in the battery)
             grid_import = shortfall - battery_discharge_ac
             self_consumption = generation + battery_discharge_ac
+
+            if allow_battery_grid_export and self.battery and grid_import <= 0.0:
+                export_capacity = max(self.max_power_wh - consumption, 0.0)
+                max_discharge_dc = getattr(self.battery, "max_charge_power_w", None)
+                if max_discharge_dc is not None:
+                    remaining_battery_ac = max(
+                        (max_discharge_dc - battery_discharge_dc) * dc_to_ac_eff, 0.0
+                    )
+                    export_capacity = min(export_capacity, remaining_battery_ac)
+                battery_export_ac, battery_export_losses = self._discharge_battery_to_ac(
+                    export_capacity, hour
+                )
+                grid_export += battery_export_ac
+                losses += battery_export_losses
 
         return grid_export, grid_import, losses, self_consumption

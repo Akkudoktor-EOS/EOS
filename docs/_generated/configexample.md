@@ -122,9 +122,11 @@
            "mode": "OPTIMIZATION"
        },
        "feedintariff": {
+           "direct_marketing_enabled": false,
            "provider": "FeedInTariffFixed",
            "provider_settings": {
                "FeedInTariffFixed": null,
+               "FeedInTariffEnergyCharts": null,
                "FeedInTariffImport": null
            }
        },

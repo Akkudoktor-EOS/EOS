@@ -5,6 +5,9 @@ from pydantic import Field, computed_field, field_validator
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
+from akkudoktoreos.prediction.feedintariffenergycharts import (
+    FeedInTariffEnergyChartsCommonSettings,
+)
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixedCommonSettings
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImportCommonSettings
 
@@ -16,7 +19,7 @@ def elecprice_provider_ids() -> list[str]:
     except:
         # Prediction may not be initialized
         # Return at least provider used in example
-        return ["FeedInTariffFixed", "FeedInTarifImport"]
+        return ["FeedInTariffFixed", "FeedInTariffEnergyCharts", "FeedInTariffImport"]
 
     return [
         provider.provider_id()
@@ -32,6 +35,10 @@ class FeedInTariffCommonProviderSettings(SettingsBaseModel):
         default=None,
         json_schema_extra={"description": "FeedInTariffFixed settings", "examples": [None]},
     )
+    FeedInTariffEnergyCharts: Optional[FeedInTariffEnergyChartsCommonSettings] = Field(
+        default=None,
+        json_schema_extra={"description": "FeedInTariffEnergyCharts settings", "examples": [None]},
+    )
     FeedInTariffImport: Optional[FeedInTariffImportCommonSettings] = Field(
         default=None,
         json_schema_extra={"description": "FeedInTariffImport settings", "examples": [None]},
@@ -41,11 +48,23 @@ class FeedInTariffCommonProviderSettings(SettingsBaseModel):
 class FeedInTariffCommonSettings(SettingsBaseModel):
     """Feed In Tariff Prediction Configuration."""
 
+    direct_marketing_enabled: bool = Field(
+        default=False,
+        json_schema_extra={
+            "description": "Use the electricity market price as feed-in tariff and enable export-aware direct marketing optimization.",
+            "examples": [False, True],
+        },
+    )
+
     provider: Optional[str] = Field(
         default=None,
         json_schema_extra={
             "description": "Feed in tariff provider id of provider to be used.",
-            "examples": ["FeedInTariffFixed", "FeedInTarifImport"],
+            "examples": [
+                "FeedInTariffFixed",
+                "FeedInTariffEnergyCharts",
+                "FeedInTariffImport",
+            ],
         },
     )
 
@@ -57,6 +76,7 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
                 # Example 1: Empty/default settings (all providers None)
                 {
                     "FeedInTariffFixed": None,
+                    "FeedInTariffEnergyCharts": None,
                     "FeedInTariffImport": None,
                 },
             ],

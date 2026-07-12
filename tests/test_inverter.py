@@ -1,4 +1,4 @@
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -120,6 +120,25 @@ def test_process_energy_battery_discharges(inverter, mock_battery):
     assert self_consumption == 200.0  # Generation + battery discharge
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(150.0, hour)
+    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
+
+
+def test_process_energy_allows_battery_grid_export(inverter, mock_battery):
+    mock_battery.max_charge_power_w = 300.0
+    mock_battery.discharge_energy.side_effect = [(100.0, 0.0), (200.0, 0.0)]
+
+    grid_export, grid_import, losses, self_consumption = inverter.process_energy(
+        generation=0.0,
+        consumption=100.0,
+        hour=12,
+        allow_battery_grid_export=True,
+    )
+
+    assert grid_export == pytest.approx(200.0, rel=1e-2)
+    assert grid_import == 0.0
+    assert losses == 0.0
+    assert self_consumption == 100.0
+    mock_battery.discharge_energy.assert_has_calls([call(100.0, 12), call(200.0, 12)])
     inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
 
 
