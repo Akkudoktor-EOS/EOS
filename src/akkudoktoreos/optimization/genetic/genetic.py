@@ -561,6 +561,9 @@ class GeneticOptimization(OptimizationBase):
             self.fix_seed = random.randint(1, 100000000000)  # noqa: S311
             random.seed(self.fix_seed)
 
+        # Per-run cache for the AC-charge break-even penalty (see evaluate()).
+        self._ac_break_even_best_prices: Optional[list[float]] = None
+
         # Create Simulation
         self.simulation = GeneticSimulation()
 
@@ -570,6 +573,47 @@ class GeneticOptimization(OptimizationBase):
             return bool(self.config.feedintariff.direct_marketing_enabled)
         except Exception:
             return False
+
+    def _ac_break_even_prices(
+        self,
+        prices_arr: Any,
+        load_arr: Any,
+        free_ac_wh: float,
+    ) -> list[float]:
+        """Best still-uncovered future price per potential AC-charge slot.
+
+        The AC-charge break-even penalty needs, for every potential charge slot,
+        the highest future price whose load is not already covered by the energy
+        that is in the battery at simulation start. Prices, loads and the free
+        battery energy are constant within one optimization run, so this table
+        is computed once per run and looked up in every fitness evaluation.
+        (Previously the future list was rebuilt and sorted per slot per
+        individual, which dominated the fitness runtime.) The loops replicate
+        the former inline computation exactly, keeping results bit-identical.
+        """
+        n = len(prices_arr)
+        best_prices = [0.0] * n
+        for hour in range(n):
+            # Build list of (price, load_wh) for all future hours in the horizon
+            future = [(float(prices_arr[h]), float(load_arr[h])) for h in range(hour + 1, n)]
+            # Sort descending by price so we "use" the most expensive hours first
+            future.sort(key=lambda x: -x[0])
+
+            # Consume free PV energy against the highest-price future hours.
+            # The first uncovered (partially or fully) hour defines the best
+            # price still available for the new AC charge.
+            remaining_free = free_ac_wh
+            best_uncovered_price = 0.0
+            for fp, fl in future:
+                if remaining_free >= fl:
+                    # Entire expensive hour is already covered by free PV energy
+                    remaining_free -= fl
+                else:
+                    # First hour not (fully) covered: this is where new charge goes
+                    best_uncovered_price = fp
+                    break
+            best_prices[hour] = best_uncovered_price
+        return best_prices
 
     def _parameters_for_config(
         self, parameters: GeneticOptimizationParameters
@@ -1157,7 +1201,17 @@ class GeneticOptimization(OptimizationBase):
                 * inv.dc_to_ac_efficiency
             )
 
-            if round_trip_eff > 0:
+            # Configurable penalty multiplier (default 1 = economic loss in €)
+            try:
+                ac_penalty_factor = float(
+                    self.config.optimization.genetic.penalties["ac_charge_break_even"]
+                )
+            except Exception:
+                ac_penalty_factor = 1.0
+
+            # A factor of 0 multiplies every penalty term to zero - skip the
+            # whole computation in that case.
+            if round_trip_eff > 0 and ac_penalty_factor != 0.0:
                 ac_charge_arr = self.simulation.ac_charge_hours
                 prices_arr = self.simulation.elect_price_hourly
                 load_arr = self.simulation.load_energy_array
@@ -1173,13 +1227,13 @@ class GeneticOptimization(OptimizationBase):
                     * inv.dc_to_ac_efficiency
                 )
 
-                # Configurable penalty multiplier (default 1 = economic loss in €)
-                try:
-                    ac_penalty_factor = float(
-                        self.config.optimization.genetic.penalties["ac_charge_break_even"]
-                    )
-                except Exception:
-                    ac_penalty_factor = 1.0
+                # Prices/loads/free energy are constant within one optimization
+                # run - compute the break-even lookup once, reuse it for every
+                # individual (cache is reset per run in optimierung_ems()).
+                best_prices = getattr(self, "_ac_break_even_best_prices", None)
+                if best_prices is None:
+                    best_prices = self._ac_break_even_prices(prices_arr, load_arr, free_ac_wh)
+                    self._ac_break_even_best_prices = best_prices
 
                 for hour in range(start_hour, min(len(ac_charge_arr), n)):
                     ac_factor = ac_charge_arr[hour]
@@ -1193,26 +1247,7 @@ class GeneticOptimization(OptimizationBase):
                     # Price that a future discharge hour must reach to break even
                     break_even_price = charge_price / round_trip_eff
 
-                    # Build list of (price, load_wh) for all future hours in the horizon
-                    future = [
-                        (float(prices_arr[h]), float(load_arr[h])) for h in range(hour + 1, n)
-                    ]
-                    # Sort descending by price so we "use" the most expensive hours first
-                    future.sort(key=lambda x: -x[0])
-
-                    # Consume free PV energy against the highest-price future hours.
-                    # The first uncovered (partially or fully) hour defines the best
-                    # price still available for the new AC charge.
-                    remaining_free = free_ac_wh
-                    best_uncovered_price = 0.0
-                    for fp, fl in future:
-                        if remaining_free >= fl:
-                            # Entire expensive hour is already covered by free PV energy
-                            remaining_free -= fl
-                        else:
-                            # First hour not (fully) covered: this is where new charge goes
-                            best_uncovered_price = fp
-                            break
+                    best_uncovered_price = best_prices[hour]
 
                     if best_uncovered_price < break_even_price:
                         # AC charging at this hour is economically unjustified.
@@ -1369,6 +1404,9 @@ class GeneticOptimization(OptimizationBase):
                 logger.error("Generations not configured. Using {}.", generations)
 
         self.simulation.reset()
+        # Prices/loads/initial SoC may differ from the previous run - the
+        # break-even lookup must be rebuilt lazily on first evaluation.
+        self._ac_break_even_best_prices = None
 
         # Initialize PV and EV batteries. slot_duration_h lets the Battery scale
         # its power caps (max_charge_power_w) to a per-slot energy cap.

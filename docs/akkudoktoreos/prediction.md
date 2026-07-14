@@ -208,21 +208,59 @@ data and rely on file/JSON imports only for initial setup.
 
 Prediction keys:
 
-- `feed_in_tarif_wh`: Feed in tarif per Wh (€/Wh).
-- `feed_in_tarif_kwh`: Feed in tarif per kWh (€/kWh)
+- `feed_in_tariff_wh`: Feed-in tariff per Wh (€/Wh).
+- `feed_in_tariff_kwh`: Feed-in tariff per kWh (€/kWh).
 
 Configuration options:
 
-- `feedintarif`: Feed in tariff configuration.
+- `feedintariff`: Feed-in tariff configuration.
 
   - `provider`: Feed in tariff provider id of provider to be used.
 
     - `FeedInTariffFixed`: Provides fixed feed in tariff values.
+    - `FeedInTariffEnergyCharts`: Retrieves Energy-Charts day-ahead market prices and extends
+      them to the configured prediction horizon when necessary.
     - `FeedInTariffImport`: Imports from a file or JSON string or by endpoint data provision.
 
-  - `provider_settings.feed_in_tariff_kwh`: Fixed feed in tariff (€/kWh).
-  - `provider_settings.import_file_path`: Path to the file to import feed in tariff forecast data from.
-  - `provider_settings.import_json`: JSON string, dictionary of feed in tariff value lists.
+  - `provider_settings.FeedInTariffFixed.feed_in_tariff_kwh`: Fixed feed-in tariff (€/kWh).
+  - `provider_settings.FeedInTariffEnergyCharts.bidding_zone`: Energy-Charts bidding zone.
+  - `provider_settings.FeedInTariffImport.import_file_path`: Path to the file containing imported
+    feed-in tariff prediction data.
+  - `provider_settings.FeedInTariffImport.import_json`: JSON string containing feed-in tariff
+    prediction data.
+
+### FeedInTariffEnergyCharts Provider
+
+The `FeedInTariffEnergyCharts` provider uses the raw Energy-Charts day-ahead market price as the
+feed-in tariff. It stores prices in `feed_in_tariff_wh` without adding electricity import charges
+or VAT. The native Energy-Charts resolution, including quarter-hour data, is retained.
+
+Energy-Charts usually supplies prices only for the published day-ahead period. If that data does
+not cover the complete configured prediction horizon, the provider extends it as follows:
+
+- With more than 800 hours of history, an ETS (Holt-Winters exponential smoothing) forecast with
+  weekly seasonality is used.
+- With more than 168 hours of history, an ETS forecast with daily seasonality is used.
+- With less history, the median of the available values is used as a constant fallback.
+
+The seasonal periods are adjusted to the source resolution. For example, quarter-hour data uses
+four values per hour. Values already supplied by Energy-Charts are kept unchanged; only missing
+future slots after the last published price are forecast.
+
+Example configuration:
+
+```json
+{
+  "feedintariff": {
+    "provider": "FeedInTariffEnergyCharts",
+    "provider_settings": {
+      "FeedInTariffEnergyCharts": {
+        "bidding_zone": "DE-LU"
+      }
+    }
+  }
+}
+```
 
 ### FeedInTariffImport Provider
 
