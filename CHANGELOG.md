@@ -7,12 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
-
+- EV Bug (wrong output in genetic.py / no senseful results)
+- Direktvermarktung active / Battery discharge into grid (new state / action battery_grid_export_allowed) + (new simulation output Feed_in_tariff)
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
   addition to Akkudoktor, VRM and Import:
   - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
   - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
-  - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
+  - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API. (THX to @chloepriceless)
 - 15-minute optimization interval for the genetic optimizer. `optimization.interval`
   now accepts 900 (15 min) in addition to the default 3600 (1 hour), letting the
   optimizer schedule on a quarter-hour grid for 15-minute dynamic electricity
