@@ -74,9 +74,12 @@ class Inverter:
                 grid_import = -remaining_power  # Negative indicates feeding into the grid
                 self_consumption = self.max_power_wh
             else:
-                # Calculate scr using cached results per energy management/optimization run
+                # Calculate scr using cached results per energy management/optimization run.
+                # The interpolator expects power levels [W]; consumption/generation are
+                # energy per slot [Wh], so convert via the slot duration (identical at
+                # the hourly default, ×4 on the 15-minute grid).
                 scr = self.self_consumption_predictor.calculate_self_consumption(
-                    consumption, generation
+                    consumption / self.slot_duration_h, generation / self.slot_duration_h
                 )
 
                 # Remaining power after consumption
@@ -133,12 +136,10 @@ class Inverter:
 
                 if allow_battery_grid_export and self.battery:
                     export_capacity = max(self.max_power_wh - consumption - grid_export, 0.0)
-                    max_discharge_dc = getattr(self.battery, "max_charge_power_w", None)
-                    if max_discharge_dc is not None:
-                        remaining_battery_ac = max(
-                            (max_discharge_dc - from_battery_dc) * dc_to_ac_eff, 0.0
-                        )
-                        export_capacity = min(export_capacity, remaining_battery_ac)
+                    remaining_battery_ac = (
+                        self.battery.remaining_discharge_energy_wh(hour) * dc_to_ac_eff
+                    )
+                    export_capacity = min(export_capacity, remaining_battery_ac)
                     battery_export_ac, battery_export_losses = self._discharge_battery_to_ac(
                         export_capacity, hour
                     )
@@ -171,12 +172,10 @@ class Inverter:
 
             if allow_battery_grid_export and self.battery and grid_import <= 0.0:
                 export_capacity = max(self.max_power_wh - consumption, 0.0)
-                max_discharge_dc = getattr(self.battery, "max_charge_power_w", None)
-                if max_discharge_dc is not None:
-                    remaining_battery_ac = max(
-                        (max_discharge_dc - battery_discharge_dc) * dc_to_ac_eff, 0.0
-                    )
-                    export_capacity = min(export_capacity, remaining_battery_ac)
+                remaining_battery_ac = (
+                    self.battery.remaining_discharge_energy_wh(hour) * dc_to_ac_eff
+                )
+                export_capacity = min(export_capacity, remaining_battery_ac)
                 battery_export_ac, battery_export_losses = self._discharge_battery_to_ac(
                     export_capacity, hour
                 )

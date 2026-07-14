@@ -176,6 +176,19 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
 
         return series_data
 
+    @staticmethod
+    def _resolution_seconds(series: pd.Series) -> int:
+        """Infer the current native market interval from recent timestamps."""
+        if len(series) < 2:
+            return 3600
+        index = pd.DatetimeIndex(series.sort_index().index).drop_duplicates()
+        deltas = index.to_series().diff().dropna().dt.total_seconds()
+        deltas = deltas[deltas > 0].tail(96)
+        if deltas.empty:
+            return 3600
+        resolution = int(round(float(deltas.median())))
+        return resolution if resolution > 0 and 3600 % resolution == 0 else 3600
+
     def _cap_outliers(self, data: np.ndarray, sigma: int = 2) -> np.ndarray:
         mean = data.mean()
         std = data.std()
@@ -250,37 +263,64 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
                 f"No Update ElecPriceEnergyCharts is needed, last in history: {self.highest_orig_datetime}"
             )
 
-        # Generate history array for prediction
-        history = self.key_to_array(
-            key="elecprice_marketprice_wh",
-            end_datetime=self.highest_orig_datetime,
-            fill_method="linear",
-        )
-
-        amount_datasets = len(self.records)
         if not self.highest_orig_datetime:  # mypy fix
             error_msg = f"Highest original datetime not available: {self.highest_orig_datetime}"
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
-        needed_hours = int(
-            self.config.prediction.hours
-            - ((self.highest_orig_datetime - self.ems_start_datetime).total_seconds() // 3600)
+        raw_series = self.key_to_series(
+            key="elecprice_marketprice_wh",
+            end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
+        )
+        resolution_seconds = self._resolution_seconds(raw_series)
+        slots_per_hour = 3600 // resolution_seconds
+        history = self.key_to_array(
+            key="elecprice_marketprice_wh",
+            end_datetime=self.highest_orig_datetime,
+            interval=to_duration(f"{resolution_seconds} seconds"),
+            fill_method="linear",
         )
 
-        if needed_hours <= 0:
+        # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
+        covered_slots = 0
+        if self.highest_orig_datetime >= self.ems_start_datetime:
+            covered_slots = (
+                int(
+                    (self.highest_orig_datetime - self.ems_start_datetime).total_seconds()
+                    // resolution_seconds
+                )
+                + 1
+            )
+        needed_slots = self.config.prediction.hours * slots_per_hour - covered_slots
+
+        if needed_slots <= 0:
             logger.warning(
-                f"No prediction needed. needed_hours={needed_hours}, hours={self.config.prediction.hours},highest_orig_datetime {self.highest_orig_datetime}, start_datetime {self.ems_start_datetime}"
+                "No prediction needed. needed_slots={}, hours={}, resolution_seconds={}, "
+                "highest_orig_datetime={}, start_datetime={}",
+                needed_slots,
+                self.config.prediction.hours,
+                resolution_seconds,
+                self.highest_orig_datetime,
+                self.ems_start_datetime,
             )  # this might keep data longer than self.ems_start_datetime + self.config.prediction.hours in the records
             return
 
-        if amount_datasets > 800:  # we do the full ets with seasons of 1 week
-            prediction = self._predict_ets(history, seasonal_periods=168, hours=needed_hours)
-        elif amount_datasets > 168:  # not enough data to do seasons of 1 week, but enough for 1 day
-            prediction = self._predict_ets(history, seasonal_periods=24, hours=needed_hours)
-        elif amount_datasets > 0:  # not enough data for ets, do median
-            prediction = self._predict_median(history, hours=needed_hours)
+        weekly_history_slots = 800 * slots_per_hour
+        daily_history_slots = 168 * slots_per_hour
+        if len(history) > weekly_history_slots:
+            prediction = self._predict_ets(
+                history,
+                seasonal_periods=168 * slots_per_hour,
+                hours=needed_slots,
+            )
+        elif len(history) > daily_history_slots:
+            prediction = self._predict_ets(
+                history,
+                seasonal_periods=24 * slots_per_hour,
+                hours=needed_slots,
+            )
+        elif len(history) > 0:
+            prediction = self._predict_median(history, hours=needed_slots)
         else:
             logger.error("No data available for prediction")
             raise ValueError("No data available")
@@ -289,7 +329,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         prediction_series = pd.Series(
             data=prediction,
             index=[
-                self.highest_orig_datetime + to_duration(f"{i + 1} hours")
+                self.highest_orig_datetime + to_duration(f"{(i + 1) * resolution_seconds} seconds")
                 for i in range(len(prediction))
             ],
         )

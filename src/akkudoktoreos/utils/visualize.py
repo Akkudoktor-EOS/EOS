@@ -149,9 +149,8 @@ class VisualizationReport(ConfigMixin):
         """Create a line chart and add it to the current group."""
 
         def chart() -> None:
-            timestamps = [
-                start_date.add(hours=i) for i in range(len(y_list[0]))
-            ]  # 840 timestamps at 1-hour intervals
+            interval_s = int(self.config.optimization.interval or 3600)
+            timestamps = [start_date.add(seconds=i * interval_s) for i in range(len(y_list[0]))]
 
             for idx, y_data in enumerate(y_list):
                 label = labels[idx] if labels else None  # Chart label
@@ -208,9 +207,10 @@ class VisualizationReport(ConfigMixin):
             # ax2.set_xticks(timestamps[::48])  # Set ticks every 12 hours
             # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[::48]])
             # ax2.set_xticks(timestamps[:: len(timestamps) // 24])  # Select 10 evenly spaced ticks
-            ax2.set_xticks(timestamps[:: len(timestamps) // 12])  # Select 10 evenly spaced ticks
+            tick_step = max(1, len(timestamps) // 12)
+            ax2.set_xticks(timestamps[::tick_step])
             # ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 24]])
-            ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[:: len(timestamps) // 12]])
+            ax2.set_xticklabels([f"{int(h)}" for h in hours_since_start[::tick_step]])
             if x2label:
                 ax2.set_xlabel(x2label)
 
@@ -443,12 +443,14 @@ def prepare_visualize(
     global debug_visualize
 
     report = VisualizationReport(filename)
-    next_full_hour_date = get_ems().start_datetime
+    start_datetime = get_ems().start_datetime
+    start_slot = start_hour  # Backwards-compatible argument name; value is a slot index.
+    interval_s = int(report.config.optimization.interval or 3600)
     # Group 1:
     report.create_line_chart_date(
-        next_full_hour_date,
+        start_datetime,
         [
-            parameters.ems.gesamtlast[start_hour:],
+            parameters.ems.gesamtlast[start_slot:],
         ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
@@ -456,9 +458,9 @@ def prepare_visualize(
         labels=["Total Load (Wh)"],
     )
     report.create_line_chart_date(
-        next_full_hour_date,
+        start_datetime,
         [
-            parameters.ems.pv_prognose_wh[start_hour:],
+            parameters.ems.pv_prognose_wh[start_slot:],
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
@@ -466,11 +468,11 @@ def prepare_visualize(
     )
 
     report.create_line_chart_date(
-        next_full_hour_date,
+        start_datetime,
         [
             np.full(
-                len(parameters.ems.gesamtlast) - start_hour,
-                parameters.ems.einspeiseverguetung_euro_pro_wh[start_hour:]
+                len(parameters.ems.gesamtlast) - start_slot,
+                parameters.ems.einspeiseverguetung_euro_pro_wh[start_slot:]
                 if isinstance(parameters.ems.einspeiseverguetung_euro_pro_wh, list)
                 else parameters.ems.einspeiseverguetung_euro_pro_wh,
             )
@@ -482,9 +484,9 @@ def prepare_visualize(
     )
     if parameters.temperature_forecast:
         report.create_line_chart_date(
-            next_full_hour_date,
+            start_datetime,
             [
-                parameters.temperature_forecast[start_hour:],
+                parameters.temperature_forecast[start_slot:],
             ],
             title="Temperature Forecast",
             # xlabel="Hours", # not enough space
@@ -495,7 +497,7 @@ def prepare_visualize(
 
     # Group 2:
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
+        start_datetime,
         [
             results["result"]["Last_Wh_pro_Stunde"],
             results["result"]["Home_appliance_wh_per_hour"],
@@ -503,7 +505,7 @@ def prepare_visualize(
             results["result"]["Netzbezug_Wh_pro_Stunde"],
             results["result"]["Verluste_Pro_Stunde"],
         ],
-        title="Energy Flow per Hour",
+        title="Energy Flow per Interval",
         # xlabel="Date", # not enough space
         ylabel="Energy (Wh)",
         labels=[
@@ -520,7 +522,7 @@ def prepare_visualize(
 
     # Group 3:
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
+        start_datetime,
         [results["result"]["akku_soc_pro_stunde"], results["result"]["EAuto_SoC_pro_Stunde"]],
         title="Battery SOC",
         # xlabel="Date", # not enough space
@@ -532,27 +534,22 @@ def prepare_visualize(
         markers=["o", "x"],
     )
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
-        [parameters.ems.strompreis_euro_pro_wh[start_hour:]],
+        start_datetime,
+        [parameters.ems.strompreis_euro_pro_wh[start_slot:]],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (€/Wh)",
         x2label=None,  # not enough space
     )
 
-    labels = list(
-        item
-        for sublist in zip(
-            list(str(i) for i in range(0, 23, 2)), list(str(" ") for i in range(0, 23, 2))
-        )
-        for item in sublist
-    )
-    labels = labels[start_hour:] + labels
-
     charge_discharge_series = [
-        results["ac_charge"][start_hour:],
-        results["dc_charge"][start_hour:],
-        results["discharge_allowed"][start_hour:],
+        results["ac_charge"][start_slot:],
+        results["dc_charge"][start_slot:],
+        results["discharge_allowed"][start_slot:],
+    ]
+    labels = [
+        start_datetime.add(seconds=i * interval_s).format("HH:mm")
+        for i in range(len(charge_discharge_series[0]))
     ]
     charge_discharge_labels = [
         "AC Charging (relative)",
@@ -561,7 +558,7 @@ def prepare_visualize(
     ]
     charge_discharge_colors = ["blue", "green", "red"]
     if results.get("battery_grid_export_allowed"):
-        charge_discharge_series.append(results["battery_grid_export_allowed"][start_hour:])
+        charge_discharge_series.append(results["battery_grid_export_allowed"][start_slot:])
         charge_discharge_labels.append("Battery Grid Export Allowed")
         charge_discharge_colors.append("purple")
 
@@ -580,12 +577,12 @@ def prepare_visualize(
     # Group 4:
 
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
+        start_datetime,
         [
             results["result"]["Kosten_Euro_pro_Stunde"],
             results["result"]["Einnahmen_Euro_pro_Stunde"],
         ],
-        title="Financial Balance per Hour",
+        title="Financial Balance per Interval",
         # xlabel="Date", # not enough space
         ylabel="Euro",
         labels=["Costs", "Revenue"],

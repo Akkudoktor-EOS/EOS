@@ -96,8 +96,8 @@ class EnergyManagement(
 
         If no datetime is provided, the current datetime is used.
 
-        The start datetime is always rounded down to the nearest hour
-        (i.e., setting minutes, seconds, and microseconds to zero).
+        The start datetime is rounded down to the configured optimization
+        interval. For a 15-minute grid this yields :00, :15, :30 or :45.
 
         Args:
             start_datetime (Optional[DateTime]): The datetime to set as the start.
@@ -108,7 +108,12 @@ class EnergyManagement(
         """
         if start_datetime is None:
             start_datetime = to_datetime()
-        cls._start_datetime = start_datetime.set(minute=0, second=0, microsecond=0)
+        interval_s = int(cls.config.optimization.interval or 3600)
+        wall_clock_s = (
+            start_datetime.hour * 3600 + start_datetime.minute * 60 + start_datetime.second
+        )
+        remainder_s = wall_clock_s % interval_s
+        cls._start_datetime = start_datetime.subtract(seconds=remainder_s).set(microsecond=0)
         return cls._start_datetime
 
     @classmethod

@@ -227,7 +227,7 @@ class GeneticOptimizationParameters(
         # Add forecast and device data
         interval = to_duration(cls.config.optimization.interval)
         power_to_energy_per_interval_factor = cls.config.optimization.interval / 3600
-        parameter_start_datetime = ems.start_datetime.set(hour=0, second=0, microsecond=0)
+        parameter_start_datetime = ems.start_datetime.set(hour=0, minute=0, second=0, microsecond=0)
         parameter_end_datetime = parameter_start_datetime.add(hours=cls.config.prediction.hours)
         max_retries = 10
 
@@ -248,7 +248,11 @@ class GeneticOptimizationParameters(
                         start_datetime=parameter_start_datetime,
                         end_datetime=parameter_end_datetime,
                         interval=interval,
-                        fill_method="linear",
+                        # Forecast power values represent the mean of their source
+                        # period. Hold them over smaller optimization slots so
+                        # resampling preserves energy (especially hourly and
+                        # Solcast 30-minute forecasts).
+                        fill_method="ffill",
                     )
                     * power_to_energy_per_interval_factor
                 ).tolist()
@@ -585,8 +589,12 @@ class GeneticOptimizationParameters(
             # Home Appliances
             # ---------------
             if cls.config.devices.max_home_appliances is None:
-                logger.info("Number of home appliance devices not configured - defaulting to 1.")
-                cls.config.devices.max_home_appliances = 1
+                default_home_appliances = 0 if cls.config.optimization.interval < 3600 else 1
+                logger.info(
+                    "Number of home appliance devices not configured - defaulting to {}.",
+                    default_home_appliances,
+                )
+                cls.config.devices.max_home_appliances = default_home_appliances
             if cls.config.devices.max_home_appliances == 0:
                 home_appliance_params = None
             else:

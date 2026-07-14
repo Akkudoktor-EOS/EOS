@@ -1,8 +1,11 @@
 from unittest.mock import Mock, call, patch
 
+import numpy as np
 import pytest
 
+from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
+from akkudoktoreos.optimization.genetic.geneticdevices import SolarPanelBatteryParameters
 
 
 @pytest.fixture
@@ -26,9 +29,49 @@ def inverter(mock_battery) -> Inverter:
             InverterParameters(
                 device_id="iv1", max_power_wh=500.0, battery_id=mock_battery.parameters.device_id
             ),
-            battery = mock_battery
+            battery=mock_battery,
         )
         return iv
+
+
+def test_quarter_hour_load_and_grid_export_share_discharge_power_limit():
+    """Local supply plus direct export may not exceed one slot's battery budget."""
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery",
+            capacity_wh=10000,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            max_charge_power_w=7000,
+            initial_soc_percentage=100,
+        ),
+        prediction_hours=1,
+        slot_duration_h=0.25,
+    )
+    battery.set_discharge_per_hour(np.array([1]))
+    quarter_hour_inverter = Inverter(
+        InverterParameters(
+            device_id="inverter",
+            max_power_wh=10000,
+            battery_id="battery",
+            dc_to_ac_efficiency=1.0,
+            ac_to_dc_efficiency=1.0,
+        ),
+        battery=battery,
+        slot_duration_h=0.25,
+    )
+    initial_soc_wh = battery.soc_wh
+
+    grid_export, grid_import, _, _ = quarter_hour_inverter.process_energy(
+        generation=0.0,
+        consumption=1000.0,
+        hour=0,
+        allow_battery_grid_export=True,
+    )
+
+    assert grid_import == 0.0
+    assert grid_export == pytest.approx(750.0)
+    assert initial_soc_wh - battery.soc_wh == pytest.approx(1750.0)
 
 
 def test_process_energy_excess_generation(inverter, mock_battery):
@@ -125,6 +168,7 @@ def test_process_energy_battery_discharges(inverter, mock_battery):
 
 def test_process_energy_allows_battery_grid_export(inverter, mock_battery):
     mock_battery.max_charge_power_w = 300.0
+    mock_battery.remaining_discharge_energy_wh.return_value = 200.0
     mock_battery.discharge_energy.side_effect = [(100.0, 0.0), (200.0, 0.0)]
 
     grid_export, grid_import, losses, self_consumption = inverter.process_energy(

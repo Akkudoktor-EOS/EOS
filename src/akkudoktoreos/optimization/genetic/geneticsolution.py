@@ -177,7 +177,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         default_factory=list,
         json_schema_extra={
             "description": "Array with battery-to-grid export values (1 for export discharge, 0 otherwise)."
-        }
+        },
     )
     eautocharge_hours_float: Optional[list[float]] = Field(json_schema_extra={"description": "TBD"})
     result: GeneticSimulationResult
@@ -331,7 +331,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         Clamping rules:
           - AC charge factor: scaled down proportionally when the battery
             headroom (max_soc − current_soc) is smaller than what the
-            commanded factor would store in one hour.  Set to 0 when full.
+            commanded factor would store in one optimization slot.  Set to 0 when full.
           - DC charge factor (PV): zeroed when battery is at or above max SOC
             (the inverter curtails automatically, but this makes intent clear).
           - Discharge: blocked when SOC is at or below min SOC.
@@ -361,9 +361,14 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                     if inv_list and inv_list[0].max_ac_charge_power_w is not None
                     else float(bat.max_charge_power_w)
                 )
-                max_dc_per_h_wh = effective_ac * max_ac_cp_w * ac_to_dc_eff * ch_eff
-                if max_dc_per_h_wh > headroom_wh:
-                    effective_ac = effective_ac * (headroom_wh / max_dc_per_h_wh)
+                # Energy storable in one optimization slot, not per hour: scale the
+                # power [W] by the slot duration (1.0 hourly, 0.25 at 15 min).
+                slot_duration_h = float(self.config.optimization.interval or 3600) / 3600.0
+                max_dc_per_slot_wh = (
+                    effective_ac * max_ac_cp_w * slot_duration_h * ac_to_dc_eff * ch_eff
+                )
+                if max_dc_per_slot_wh > headroom_wh:
+                    effective_ac = effective_ac * (headroom_wh / max_dc_per_slot_wh)
 
         # --- DC charge (PV): zero when battery is full ---
         effective_dc = dc_charge
@@ -619,13 +624,13 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         for pred_key, pred_fill_method, pred_solution_key, pred_solution_factor in [
             (
                 "pvforecast_ac_power",
-                "linear",
+                "ffill",
                 "pvforecast_ac_energy_wh",
                 power_to_energy_per_interval_factor,
             ),
             (
                 "pvforecast_dc_power",
-                "linear",
+                "ffill",
                 "pvforecast_dc_energy_wh",
                 power_to_energy_per_interval_factor,
             ),
@@ -637,7 +642,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             ),
             (
                 "feed_in_tariff_wh",
-                "linear",
+                "ffill",
                 "feed_in_tariff_amt_kwh",
                 1000.0,
             ),
@@ -649,19 +654,19 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             ),
             (
                 "loadforecast_power_w",
-                "linear",
+                "ffill",
                 "loadforecast_energy_wh",
                 power_to_energy_per_interval_factor,
             ),
             (
                 "loadakkudoktor_std_power_w",
-                "linear",
+                "ffill",
                 "loadakkudoktor_std_energy_wh",
                 power_to_energy_per_interval_factor,
             ),
             (
                 "loadakkudoktor_mean_power_w",
-                "linear",
+                "ffill",
                 "loadakkudoktor_mean_energy_wh",
                 power_to_energy_per_interval_factor,
             ),

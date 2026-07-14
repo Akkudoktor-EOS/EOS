@@ -118,9 +118,9 @@ def test_update_data(mock_get, provider, sample_energycharts_json, cache_store):
 
     # Assert: Verify the result is as expected
     mock_get.assert_called_once()
-    assert (
-        len(provider) == 73
-    )  # we have 48 datasets in the api response, we want to know 48h into the future. The data we get has already 23h into the future so we need only 25h more. 48+25=73
+    assert len(provider) == 72
+    # The final raw timestamp already represents its complete interval. Thus the
+    # 48 API values need 24, rather than 25, additional hourly forecasts.
 
     # Assert we get hours prioce values by resampling
     np_price_array = provider.key_to_array(
@@ -131,10 +131,43 @@ def test_update_data(mock_get, provider, sample_energycharts_json, cache_store):
     assert len(np_price_array) == provider.total_hours
 
 
+def test_update_data_keeps_quarter_hour_resolution(provider):
+    # Use a range that does not overlap the hourly fixture data used by the
+    # neighbouring tests; the provider is a singleton by design.
+    start = to_datetime("2025-01-15 00:00:00", in_timezone="Europe/Berlin")
+    get_ems().set_start_datetime(start)
+    provider.highest_orig_datetime = None
+    raw_slots = provider.config.prediction.hours * 2
+    energy_charts_data = EnergyChartsElecPrice(
+        license_info="",
+        unix_seconds=[int(start.add(minutes=15 * i).timestamp()) for i in range(raw_slots)],
+        price=[100.0] * raw_slots,
+        unit="EUR/MWh",
+        deprecated=False,
+    )
+
+    with patch.object(provider, "_request_forecast", return_value=energy_charts_data):
+        provider._update_data(force_update=True)
+
+    result = provider.key_to_series(
+        key="elecprice_marketprice_wh",
+        start_datetime=start,
+        end_datetime=start.add(hours=provider.config.prediction.hours),
+    )
+    assert len(result) == provider.config.prediction.hours * 4
+    assert result.index.to_series().diff().dropna().dt.total_seconds().unique().tolist() == [900.0]
+
+
 @patch("requests.get")
 def test_update_data_with_incomplete_forecast(mock_get, provider):
     """Test `_update_data` with incomplete or missing forecast data."""
-    incomplete_data: dict = {"license_info": "", "unix_seconds": [], "price": [], "unit": "", "deprecated": False}
+    incomplete_data: dict = {
+        "license_info": "",
+        "unix_seconds": [],
+        "price": [],
+        "unit": "",
+        "deprecated": False,
+    }
     mock_response = Mock()
     mock_response.status_code = 200
     mock_response.content = json.dumps(incomplete_data)
@@ -218,6 +251,7 @@ def test_request_forecast_url_bidding_zone_is_value(mock_get, provider, sample_e
 
     # Extract the bzn= query parameter value from the URL
     from urllib.parse import parse_qs, urlparse
+
     parsed = urlparse(actual_url)
     query_params = parse_qs(parsed.query)
 

@@ -75,3 +75,27 @@ def test_request_forecast_uses_feedintariff_bidding_zone(
 
     actual_url = mock_get.call_args[0][0]
     assert "bzn=AT" in actual_url
+
+
+def test_update_data_keeps_quarter_hour_resolution(provider):
+    start = to_datetime("2025-01-15 00:00:00", in_timezone="Europe/Berlin")
+    get_ems().set_start_datetime(start)
+    raw_slots = provider.config.prediction.hours * 2
+    energy_charts_data = EnergyChartsElecPrice(
+        license_info="",
+        unix_seconds=[int(start.add(minutes=15 * i).timestamp()) for i in range(raw_slots)],
+        price=[100.0] * raw_slots,
+        unit="EUR/MWh",
+        deprecated=False,
+    )
+
+    with patch.object(provider, "_request_forecast", return_value=energy_charts_data):
+        provider._update_data(force_update=True)
+
+    result = provider.key_to_series(
+        key="feed_in_tariff_wh",
+        start_datetime=start,
+        end_datetime=start.add(hours=provider.config.prediction.hours),
+    )
+    assert len(result) == provider.config.prediction.hours * 4
+    assert result.index.to_series().diff().dropna().dt.total_seconds().unique().tolist() == [900.0]

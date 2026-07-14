@@ -100,9 +100,7 @@ class GeneticSimulation(PydanticBaseModel):
     )
     bat_grid_export_hours: Optional[NDArray[Shape["*"], float]] = Field(
         default=None,
-        json_schema_extra={
-            "description": "Hourly permission for battery discharge into the grid."
-        },
+        json_schema_extra={"description": "Hourly permission for battery discharge into the grid."},
     )
     ev_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, json_schema_extra={"description": "TBD"}
@@ -453,9 +451,7 @@ class GeneticSimulation(PydanticBaseModel):
 
             # Financial calculations
             costs_per_hour[hour_idx] = energy_consumption_grid_actual * hourly_electricity_price
-            revenue_per_hour[hour_idx] = (
-                energy_feedin_grid_actual * hourly_feed_in_tariff
-            )
+            revenue_per_hour[hour_idx] = energy_feedin_grid_actual * hourly_feed_in_tariff
 
         total_cost = np.nansum(costs_per_hour)
         total_losses = np.nansum(losses_wh_per_hour)
@@ -529,12 +525,23 @@ class GeneticOptimization(OptimizationBase):
         fixed_seed: Optional[int] = None,
     ):
         """Initialize the optimization problem with the required parameters."""
+        if self.config.optimization.interval not in (900, 3600):
+            logger.warning(
+                "Genetic optimization interval {} seconds is unsupported; using 3600 seconds.",
+                self.config.optimization.interval,
+            )
+            self.config.optimization.interval = 3600
         self.opti_param: dict[str, Any] = {}
         # Number of slots at the tail of the optimization window where EV
         # charging is fixed to 0. Slot-counted so 15-min runs reserve the right
         # tail length (at interval=3600 s this equals prediction.hours - horizon).
-        self.fixed_eauto_hours = self.total_slots - (
-            self.config.optimization.horizon_hours * self.slots_per_hour
+        self.fixed_eauto_hours = max(
+            self.total_slots
+            - (
+                self._start_day_slot()
+                + self.config.optimization.horizon_hours * self.slots_per_hour
+            ),
+            0,
         )
         self.ev_possible_charge_values: list[float] = [1.0]
         # Separate charge-level list for battery AC charging (independent of EV rates).
@@ -580,14 +587,110 @@ class GeneticOptimization(OptimizationBase):
             return parameters
 
         ems_parameters = parameters.ems.model_copy(
-            update={
-                "einspeiseverguetung_euro_pro_wh": list(
-                    parameters.ems.strompreis_euro_pro_wh
-                )
-            },
+            update={"einspeiseverguetung_euro_pro_wh": list(parameters.ems.strompreis_euro_pro_wh)},
             deep=True,
         )
         return parameters.model_copy(update={"ems": ems_parameters}, deep=True)
+
+    def _parameters_for_slot_grid(
+        self, parameters: GeneticOptimizationParameters
+    ) -> GeneticOptimizationParameters:
+        """Normalize hourly or native-slot EMS input onto the optimization grid.
+
+        API clients historically provide one value per prediction hour. At a
+        sub-hourly interval, energy quantities are distributed across the slots
+        while price quantities are held constant. Inputs already matching the
+        native slot grid are preserved exactly. Any other length is ambiguous and
+        rejected instead of silently shortening the simulation horizon.
+        """
+
+        def normalize(values: list[float], name: str, *, energy: bool) -> list[float]:
+            value_count = len(values)
+            if value_count == self.total_slots:
+                return list(values)
+            if value_count != self.config.prediction.hours:
+                raise ValueError(
+                    f"{name} has {value_count} values; expected either "
+                    f"{self.config.prediction.hours} hourly values or "
+                    f"{self.total_slots} optimization-slot values."
+                )
+
+            normalized = np.repeat(np.asarray(values, dtype=float), self.slots_per_hour)
+            if energy:
+                normalized /= self.slots_per_hour
+            return normalized.tolist()
+
+        ems = parameters.ems
+        feed_in_tariff = ems.einspeiseverguetung_euro_pro_wh
+        if isinstance(feed_in_tariff, list):
+            normalized_feed_in_tariff: list[float] | float = normalize(
+                feed_in_tariff,
+                "einspeiseverguetung_euro_pro_wh",
+                energy=False,
+            )
+        else:
+            normalized_feed_in_tariff = [float(feed_in_tariff)] * self.total_slots
+
+        normalized_ems = ems.model_copy(
+            update={
+                "pv_prognose_wh": normalize(ems.pv_prognose_wh, "pv_prognose_wh", energy=True),
+                "gesamtlast": normalize(ems.gesamtlast, "gesamtlast", energy=True),
+                "strompreis_euro_pro_wh": normalize(
+                    ems.strompreis_euro_pro_wh,
+                    "strompreis_euro_pro_wh",
+                    energy=False,
+                ),
+                "einspeiseverguetung_euro_pro_wh": normalized_feed_in_tariff,
+            },
+            deep=True,
+        )
+        temperature_forecast = parameters.temperature_forecast
+        if temperature_forecast is not None:
+            if len(temperature_forecast) == self.config.prediction.hours:
+                temperature_forecast = [
+                    value for value in temperature_forecast for _ in range(self.slots_per_hour)
+                ]
+            elif len(temperature_forecast) != self.total_slots:
+                raise ValueError(
+                    f"temperature_forecast has {len(temperature_forecast)} values; expected "
+                    f"either {self.config.prediction.hours} hourly values or "
+                    f"{self.total_slots} optimization-slot values."
+                )
+        return parameters.model_copy(
+            update={"ems": normalized_ems, "temperature_forecast": temperature_forecast},
+            deep=True,
+        )
+
+    def _start_solution_for_slot_grid(
+        self, start_solution: list[float], *, has_appliance: bool
+    ) -> list[float]:
+        """Expand a legacy hourly genome to the configured slot grid when possible."""
+        expected_length = self.total_slots * (2 if self.optimize_ev else 1)
+        hourly_length = self.config.prediction.hours * (2 if self.optimize_ev else 1)
+        if has_appliance:
+            expected_length += 1
+            hourly_length += 1
+
+        if len(start_solution) == expected_length or self.slots_per_hour == 1:
+            return list(start_solution)
+        if len(start_solution) != hourly_length:
+            return list(start_solution)
+
+        battery_end = self.config.prediction.hours
+        migrated = np.repeat(start_solution[:battery_end], self.slots_per_hour).tolist()
+        if self.optimize_ev:
+            ev_end = battery_end + self.config.prediction.hours
+            migrated.extend(
+                np.repeat(start_solution[battery_end:ev_end], self.slots_per_hour).tolist()
+            )
+        if has_appliance:
+            migrated.append(start_solution[-1])
+        logger.info(
+            "Expanded hourly start_solution from {} to {} slot values.",
+            hourly_length,
+            expected_length,
+        )
+        return migrated
 
     def decode_charge_discharge(
         self, discharge_hours_bin: np.ndarray
@@ -813,8 +916,15 @@ class GeneticOptimization(OptimizationBase):
         self.toolbox.register("mate", tools.cxTwoPoint)
 
         # Mutation operator for battery charge/discharge states
+        # Keep the expected number of mutated genes per hour stable when the
+        # interval becomes finer (0.2 hourly -> 0.05 on a quarter-hour grid).
+        mutation_probability = 0.2 / self.slots_per_hour
         self.toolbox.register(
-            "mutate_charge_discharge", tools.mutUniformInt, low=0, up=total_states - 1, indpb=0.2
+            "mutate_charge_discharge",
+            tools.mutUniformInt,
+            low=0,
+            up=total_states - 1,
+            indpb=mutation_probability,
         )
 
         # Mutation operator for EV states (separate index space)
@@ -823,7 +933,7 @@ class GeneticOptimization(OptimizationBase):
             tools.mutUniformInt,
             low=0,
             up=len_ev - 1,
-            indpb=0.2,
+            indpb=mutation_probability,
         )
 
         # Mutation for household appliance
@@ -1106,8 +1216,10 @@ class GeneticOptimization(OptimizationBase):
 
                     if best_uncovered_price < break_even_price:
                         # AC charging at this hour is economically unjustified.
-                        # Penalty = excess cost per Wh × DC energy requested this hour.
-                        dc_wh = bat.max_charge_power_w * ac_factor
+                        # Penalty = excess cost per Wh × DC energy requested this slot.
+                        # max_charge_power_w is a power [W]; the energy movable in
+                        # one slot is power × slot_duration_h (¼ at 15 min).
+                        dc_wh = bat.max_charge_power_w * self.slot_duration_h * ac_factor
                         ac_wh = dc_wh / max(inv.ac_to_dc_efficiency, 1e-9)
                         excess_cost_per_wh = break_even_price - best_uncovered_price
                         gesamtbilanz += ac_wh * excess_cost_per_wh * ac_penalty_factor
@@ -1138,6 +1250,12 @@ class GeneticOptimization(OptimizationBase):
 
         @TODO: optimize() ngen default (200) is different from optimierung_ems() ngen default (400).
         """
+        # Re-seed at the actual optimization boundary. Setup and validation may
+        # consume random values elsewhere in a long-running process; a fixed seed
+        # must nevertheless produce the same population and result.
+        if self.fix_seed is not None:
+            random.seed(self.fix_seed)
+
         # Set the number of inviduals in a generation
         try:
             individuals = self.config.optimization.genetic.individuals
@@ -1157,14 +1275,16 @@ class GeneticOptimization(OptimizationBase):
         logger.debug("Start optimize: {}", start_solution)
 
         # Insert the start solution into the population if provided and compatible with the
-        # currently active genome layout. EV optimization adds one gene per prediction hour,
+        # currently active genome layout. EV optimization adds one gene per prediction slot,
         # so a cached solution from a previous run without EV optimization must not be reused.
         if start_solution is not None:
-            expected_length = self.config.prediction.hours
-            if self.optimize_ev:
-                expected_length += self.config.prediction.hours
-            if self.opti_param.get("home_appliance", 0) > 0:
+            has_appliance = self.opti_param.get("home_appliance", 0) > 0
+            expected_length = self.total_slots * (2 if self.optimize_ev else 1)
+            if has_appliance:
                 expected_length += 1
+            start_solution = self._start_solution_for_slot_grid(
+                start_solution, has_appliance=has_appliance
+            )
 
             if len(start_solution) == expected_length:
                 for _ in range(10):
@@ -1218,6 +1338,12 @@ class GeneticOptimization(OptimizationBase):
         """Perform EMS (Energy Management System) optimization and visualize results."""
         direct_marketing_enabled = self._direct_marketing_enabled()
         parameters = self._parameters_for_config(parameters)
+        parameters = self._parameters_for_slot_grid(parameters)
+        if self.slots_per_hour > 1 and parameters.dishwasher is not None:
+            raise ValueError(
+                "Home-appliance scheduling is not yet supported for sub-hourly "
+                "optimization intervals."
+            )
         self.optimize_dc_charge = direct_marketing_enabled
         self.optimize_battery_grid_export = direct_marketing_enabled
 
@@ -1399,30 +1525,33 @@ class GeneticOptimization(OptimizationBase):
         else:
             battery_grid_export = battery_grid_export.tolist()
 
-        # Visualize the results in PDF
-        try:
-            from akkudoktoreos.utils.visualize import prepare_visualize
+        # Visualize the results in PDF. Skippable via config — matplotlib PDF
+        # generation costs several seconds per run, which headless setups
+        # (API/Node-RED polling) never look at.
+        if getattr(self.config.optimization, "visualize_pdf", True):
+            try:
+                from akkudoktoreos.utils.visualize import prepare_visualize
 
-            visualize = {
-                "ac_charge": ac_charge_hours,
-                "dc_charge": dc_charge_hours,
-                "discharge_allowed": discharge,
-                "battery_grid_export_allowed": battery_grid_export,
-                "eautocharge_hours_float": eautocharge_hours_float,
-                "result": simulation_result,
-                "eauto_obj": self.simulation.ev.to_dict() if self.simulation.ev else None,
-                "start_solution": start_solution,
-                "spuelstart": washingstart_int,
-                "extra_data": extra_data,
-                "fitness_history": self.fitness_history,
-                "fixed_seed": self.fix_seed,
-            }
+                visualize = {
+                    "ac_charge": ac_charge_hours,
+                    "dc_charge": dc_charge_hours,
+                    "discharge_allowed": discharge,
+                    "battery_grid_export_allowed": battery_grid_export,
+                    "eautocharge_hours_float": eautocharge_hours_float,
+                    "result": simulation_result,
+                    "eauto_obj": self.simulation.ev.to_dict() if self.simulation.ev else None,
+                    "start_solution": start_solution,
+                    "spuelstart": washingstart_int,
+                    "extra_data": extra_data,
+                    "fitness_history": self.fitness_history,
+                    "fixed_seed": self.fix_seed,
+                }
 
-            prepare_visualize(parameters, visualize, start_hour=start_hour)
+                prepare_visualize(parameters, visualize, start_hour=start_slot)
 
-        except Exception as ex:
-            error_msg = f"Visualization failed: {ex}"
-            logger.error(error_msg)
+            except Exception as ex:
+                error_msg = f"Visualization failed: {ex}"
+                logger.error(error_msg)
 
         return GeneticSolution(
             **{

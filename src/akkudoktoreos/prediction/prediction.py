@@ -82,7 +82,6 @@ elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_tibber = ElecPriceTibber()
 elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
-elecprice_tibber = ElecPriceTibber()
 feedintariff_energy_charts = FeedInTariffEnergyCharts()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
@@ -102,33 +101,34 @@ weather_openmeteo = WeatherOpenMeteo()
 weather_import = WeatherImport()
 
 
-def prediction_providers() -> list[
-    Union[
-        ElecPriceAkkudoktor,
-        ElecPriceEnergyCharts,
-        ElecPriceTibber,
-        ElecPriceFixed,
-        ElecPriceImport,
-        ElecPriceTibber,
-        FeedInTariffEnergyCharts,
-        FeedInTariffFixed,
-        FeedInTariffImport,
-        LoadAkkudoktor,
-        LoadAkkudoktorAdjusted,
-        LoadVrm,
-        LoadImport,
-        PVForecastAkkudoktor,
-        PVForecastVrm,
-        PVForecastPVNode,
-        PVForecastForecastSolar,
-        PVForecastSolcast,
-        PVForecastImport,
-        WeatherBrightSky,
-        WeatherClearOutside,
-        WeatherOpenMeteo,
-        WeatherImport,
+def prediction_providers() -> (
+    list[
+        Union[
+            ElecPriceAkkudoktor,
+            ElecPriceEnergyCharts,
+            ElecPriceTibber,
+            ElecPriceFixed,
+            ElecPriceImport,
+            FeedInTariffEnergyCharts,
+            FeedInTariffFixed,
+            FeedInTariffImport,
+            LoadAkkudoktor,
+            LoadAkkudoktorAdjusted,
+            LoadVrm,
+            LoadImport,
+            PVForecastAkkudoktor,
+            PVForecastVrm,
+            PVForecastPVNode,
+            PVForecastForecastSolar,
+            PVForecastSolcast,
+            PVForecastImport,
+            WeatherBrightSky,
+            WeatherClearOutside,
+            WeatherOpenMeteo,
+            WeatherImport,
+        ]
     ]
-]:
+):
     """Return list of prediction providers.
 
     Factory for prediction container.
@@ -139,7 +139,6 @@ def prediction_providers() -> list[
         elecprice_tibber, \
         elecprice_fixed, \
         elecprice_import, \
-        elecprice_tibber, \
         feedintariff_energy_charts, \
         feedintariff_fixed, \
         feedintariff_import, \
@@ -165,7 +164,6 @@ def prediction_providers() -> list[
         elecprice_tibber,
         elecprice_fixed,
         elecprice_import,
-        elecprice_tibber,
         feedintariff_energy_charts,
         feedintariff_fixed,
         feedintariff_import,
@@ -196,7 +194,6 @@ class Prediction(PredictionContainer):
             ElecPriceTibber,
             ElecPriceFixed,
             ElecPriceImport,
-            ElecPriceTibber,
             FeedInTariffEnergyCharts,
             FeedInTariffFixed,
             FeedInTariffImport,

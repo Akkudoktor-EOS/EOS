@@ -89,6 +89,18 @@ class OptimizationCommonSettings(SettingsBaseModel):
         },
     )
 
+    visualize_pdf: bool = Field(
+        default=True,
+        json_schema_extra={
+            "description": (
+                "Generate the PDF visualization after each optimization run. "
+                "Disable for headless setups (e.g. Node-RED integration) to save "
+                "several seconds per run. Defaults to True."
+            ),
+            "examples": [True, False],
+        },
+    )
+
     genetic: GeneticCommonSettings = Field(
         default_factory=GeneticCommonSettings,
         json_schema_extra={

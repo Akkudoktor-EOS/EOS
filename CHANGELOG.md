@@ -20,6 +20,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   default 3600 s interval keeps the previous hourly behaviour. The new sub-hourly PV
   providers (pvnode, Forecast.Solar, Solcast) feed their native resolution straight
   into the quarter-hour grid.
+  - Legacy hourly API inputs are normalized onto the quarter-hour grid: PV/load energy
+    is distributed across four slots, prices are held constant, and hourly warm-start
+    solutions are expanded to slot controls. Native slot arrays are preserved and
+    ambiguous lengths are rejected.
+  - Home-appliance scheduling remains hourly and is therefore rejected for sub-hourly
+    optimization instead of being simulated with incorrect slot indices.
   - The Tibber electricity price provider now requests native 15-minute exchange prices
     (`priceInfoRange(resolution: QUARTER_HOURLY)`) and stores them at their native
     resolution, so both the hourly and the 15-minute optimizer are fed the correct

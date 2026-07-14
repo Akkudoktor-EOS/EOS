@@ -12,6 +12,7 @@ from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.elecpricetibber import (
     ElecPriceTibber,
     ElecPriceTibberCommonSettings,
+    TIBBER_PRICE_QUERY_QUARTER_HOURLY,
     TibberGraphQLResponse,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime
@@ -253,6 +254,16 @@ def test_request_forecast_uses_tibber_graphql_api(
     assert "QUARTER_HOURLY" in kwargs["json"]["query"]
     assert "total" in kwargs["json"]["query"]
     assert kwargs["timeout"] == 30
+
+
+def test_quarter_hour_query_sets_resolution_on_price_info():
+    """Tibber defines resolution on priceInfo, not on today or tomorrow."""
+    compact_query = " ".join(TIBBER_PRICE_QUERY_QUARTER_HOURLY.split())
+
+    assert "priceInfo(resolution: QUARTER_HOURLY)" in compact_query
+    assert "today(resolution:" not in compact_query
+    assert "tomorrow(resolution:" not in compact_query
+    assert "priceInfoRange(resolution: QUARTER_HOURLY, last: 672)" in compact_query
 
 
 def test_tibber_update_extrapolates_missing_hours_with_seasonal_history(

@@ -34,7 +34,40 @@ query TibberPriceInfo {
             total
           }
         }
-        priceInfoRange(resolution: QUARTER_HOURLY, last: 960) {
+        priceInfoRange(resolution: QUARTER_HOURLY, last: 672) {
+          nodes {
+            startsAt
+            total
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
+# Same query, but requesting priceInfo (and therefore its today/tomorrow
+# fields) at quarter-hourly resolution. Tibber defines ``resolution`` on
+# Subscription.priceInfo, not on the nested PriceInfo.today/tomorrow fields.
+# Tried first; on a GraphQL schema error from an older API the provider falls
+# back to TIBBER_PRICE_QUERY.
+TIBBER_PRICE_QUERY_QUARTER_HOURLY = """
+query TibberPriceInfo {
+  viewer {
+    homes {
+      id
+      currentSubscription {
+        priceInfo(resolution: QUARTER_HOURLY) {
+          today {
+            startsAt
+            total
+          }
+          tomorrow {
+            startsAt
+            total
+          }
+        }
+        priceInfoRange(resolution: QUARTER_HOURLY, last: 672) {
           nodes {
             startsAt
             total
@@ -185,17 +218,38 @@ class ElecPriceTibber(ElecPriceProvider):
         if not access_token:
             raise ValueError("Tibber access_token is required")
 
-        response = requests.post(
-            TIBBER_GRAPHQL_URL,
-            json={"query": TIBBER_PRICE_QUERY},
-            headers={
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json",
-            },
-            timeout=30,
-        )
-        logger.debug(f"Response from Tibber GraphQL API: {response}")
-        response.raise_for_status()
+        # Prefer quarter-hourly today/tomorrow prices; fall back to the hourly
+        # query when the Tibber API rejects the resolution argument. Tibber
+        # signals schema errors either as HTTP 400 or as HTTP 200 with an
+        # "errors" array, so both must route to the fallback (raise_for_status
+        # must NOT run before the fallback check).
+        response = None
+        queries = (TIBBER_PRICE_QUERY_QUARTER_HOURLY, TIBBER_PRICE_QUERY)
+        for attempt, query in enumerate(queries, start=1):
+            response = requests.post(
+                TIBBER_GRAPHQL_URL,
+                json={"query": query},
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+                timeout=30,
+            )
+            logger.debug(f"Response from Tibber GraphQL API: {response}")
+            if response.ok and b'"errors"' not in response.content:
+                break
+            if attempt < len(queries):
+                logger.info(
+                    "Tibber rejected the quarter-hourly priceInfo query "
+                    "(HTTP {}): {} - falling back to hourly today/tomorrow prices.",
+                    response.status_code,
+                    response.text[:300],
+                )
+            else:
+                # Final (hourly) attempt failed for real - surface the error.
+                response.raise_for_status()
+        if response is None:  # pragma: no cover - the query tuple is never empty
+            raise RuntimeError("No Tibber GraphQL query was attempted")
         tibber_data = self._validate_data(response.content)
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return tibber_data

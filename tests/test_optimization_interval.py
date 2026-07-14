@@ -16,6 +16,7 @@ from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+from akkudoktoreos.optimization.genetic.geneticdevices import HomeApplianceParameters
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
@@ -25,6 +26,12 @@ from akkudoktoreos.utils.visualize import prepare_visualize
 ems_eos = get_ems(init=True)  # init once
 
 DIR_TESTDATA = Path(__file__).parent / "testdata"
+
+
+def load_hourly_parameters() -> GeneticOptimizationParameters:
+    """Load the legacy 48-value API example used by hourly clients."""
+    with (DIR_TESTDATA / "optimize_input_1.json").open("r") as f_in:
+        return GeneticOptimizationParameters(**json.load(f_in))
 
 
 @pytest.mark.parametrize(
@@ -76,6 +83,189 @@ def test_start_day_slot_includes_minute_offset(config_eos: ConfigEOS):
     assert opt._start_day_slot() == sd.hour * 4 + sd.minute // 15
 
 
+def test_ems_start_is_floored_to_quarter_hour(config_eos: ConfigEOS):
+    """Rolling optimization starts at the current slot, not the previous full hour."""
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"horizon_hours": 48, "interval": 900},
+        }
+    )
+
+    aligned = ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=38, second=42))
+
+    assert aligned.hour == 10
+    assert aligned.minute == 30
+    assert aligned.second == 0
+
+
+def test_unsupported_interval_falls_back_to_hourly(config_eos: ConfigEOS):
+    """The genetic optimizer falls back without restricting interval-aware providers."""
+    config_eos.merge_settings_from_dict({"optimization": {"interval": 1800}})
+
+    assert config_eos.optimization.interval == 1800
+    GeneticOptimization(fixed_seed=42)
+    assert config_eos.optimization.interval == 3600
+
+
+def test_hourly_api_input_is_normalized_to_quarter_hour_slots(config_eos: ConfigEOS):
+    """Legacy API energy is split while prices are held over four slots."""
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"horizon_hours": 48, "interval": 900},
+        }
+    )
+    parameters = load_hourly_parameters()
+    opt = GeneticOptimization(fixed_seed=42)
+
+    normalized = opt._parameters_for_slot_grid(parameters)
+
+    assert len(normalized.ems.pv_prognose_wh) == 192
+    assert len(normalized.ems.gesamtlast) == 192
+    assert len(normalized.ems.strompreis_euro_pro_wh) == 192
+    assert len(normalized.ems.einspeiseverguetung_euro_pro_wh) == 192
+    assert sum(normalized.ems.pv_prognose_wh[:4]) == pytest.approx(parameters.ems.pv_prognose_wh[0])
+    assert sum(normalized.ems.gesamtlast[:4]) == pytest.approx(parameters.ems.gesamtlast[0])
+    assert (
+        normalized.ems.strompreis_euro_pro_wh[:4] == [parameters.ems.strompreis_euro_pro_wh[0]] * 4
+    )
+    assert (
+        normalized.ems.einspeiseverguetung_euro_pro_wh[:4]
+        == [parameters.ems.einspeiseverguetung_euro_pro_wh[0]] * 4
+    )
+
+
+def test_native_quarter_hour_input_is_not_resampled(config_eos: ConfigEOS):
+    """Native 192-value input survives normalization without repetition or scaling."""
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"horizon_hours": 48, "interval": 900},
+        }
+    )
+    parameters = load_hourly_parameters()
+    native_values = [float(i) for i in range(192)]
+    native_ems = parameters.ems.model_copy(
+        update={
+            "pv_prognose_wh": native_values,
+            "gesamtlast": native_values,
+            "strompreis_euro_pro_wh": native_values,
+            "einspeiseverguetung_euro_pro_wh": native_values,
+        },
+        deep=True,
+    )
+    native_parameters = parameters.model_copy(update={"ems": native_ems}, deep=True)
+
+    normalized = GeneticOptimization(fixed_seed=42)._parameters_for_slot_grid(native_parameters)
+
+    assert normalized.ems.pv_prognose_wh == native_values
+    assert normalized.ems.gesamtlast == native_values
+    assert normalized.ems.strompreis_euro_pro_wh == native_values
+    assert normalized.ems.einspeiseverguetung_euro_pro_wh == native_values
+
+
+def test_scalar_feed_in_tariff_fills_quarter_hour_grid(config_eos: ConfigEOS):
+    """A fixed feed-in tariff becomes one value per optimization slot."""
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"horizon_hours": 48, "interval": 900},
+        }
+    )
+    parameters = load_hourly_parameters()
+    fixed_tariff = 0.00008
+    scalar_ems = parameters.ems.model_copy(
+        update={"einspeiseverguetung_euro_pro_wh": fixed_tariff}, deep=True
+    )
+    scalar_parameters = parameters.model_copy(update={"ems": scalar_ems}, deep=True)
+
+    normalized = GeneticOptimization(fixed_seed=42)._parameters_for_slot_grid(scalar_parameters)
+
+    assert normalized.ems.einspeiseverguetung_euro_pro_wh == [fixed_tariff] * 192
+
+
+def test_ambiguous_input_length_is_rejected(config_eos: ConfigEOS):
+    """Unexpected input lengths fail instead of silently shortening the simulation."""
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"horizon_hours": 48, "interval": 900},
+        }
+    )
+    parameters = load_hourly_parameters()
+    invalid_ems = parameters.ems.model_copy(
+        update={
+            "pv_prognose_wh": [0.0] * 96,
+            "gesamtlast": [0.0] * 96,
+            "strompreis_euro_pro_wh": [0.0] * 96,
+            "einspeiseverguetung_euro_pro_wh": [0.0] * 96,
+        },
+        deep=True,
+    )
+    invalid_parameters = parameters.model_copy(update={"ems": invalid_ems}, deep=True)
+
+    with pytest.raises(ValueError, match="expected either 48 hourly values or 192"):
+        GeneticOptimization(fixed_seed=42)._parameters_for_slot_grid(invalid_parameters)
+
+
+def test_hourly_start_solution_is_expanded_to_slots(config_eos: ConfigEOS):
+    """A cached hourly genome becomes a valid quarter-hour warm start."""
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"horizon_hours": 48, "interval": 900},
+        }
+    )
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    hourly = list(range(48))
+
+    migrated = opt._start_solution_for_slot_grid(hourly, has_appliance=False)
+
+    assert len(migrated) == 192
+    assert migrated[:8] == [0, 0, 0, 0, 1, 1, 1, 1]
+
+
+def test_quarter_hour_mutation_probability_preserves_hourly_rate(config_eos: ConfigEOS):
+    """A finer genome does not mutate four times as many controls per hour."""
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"horizon_hours": 48, "interval": 900},
+        }
+    )
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
+
+    assert opt.toolbox.mutate_charge_discharge.keywords["indpb"] == pytest.approx(0.05)
+
+
+def test_sub_hourly_home_appliance_is_rejected(config_eos: ConfigEOS):
+    """An hourly appliance model must not silently run on slot indices."""
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"horizon_hours": 48, "interval": 900},
+        }
+    )
+    parameters = load_hourly_parameters().model_copy(
+        update={
+            "dishwasher": HomeApplianceParameters(
+                device_id="dishwasher", consumption_wh=1200, duration_h=2
+            )
+        },
+        deep=True,
+    )
+    ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0))
+
+    with pytest.raises(ValueError, match="Home-appliance scheduling"):
+        GeneticOptimization(fixed_seed=42).optimierung_ems(
+            parameters=parameters, start_hour=10, ngen=1
+        )
+
+
 def test_optimize_15min_slot_grid(config_eos: ConfigEOS):
     """An end-to-end optimization at interval=900 runs on a 192-slot day grid.
 
@@ -110,8 +300,7 @@ def test_optimize_15min_slot_grid(config_eos: ConfigEOS):
         }
     )
 
-    with (DIR_TESTDATA / "optimize_input_1.json").open("r") as f_in:
-        input_data = GeneticOptimizationParameters(**json.load(f_in))
+    input_data = load_hourly_parameters()
 
     ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0))
     CacheEnergyManagementStore().clear()
@@ -127,14 +316,15 @@ def test_optimize_15min_slot_grid(config_eos: ConfigEOS):
             parameters, results, filename=visualize_filename, **kwargs
         ),
     ):
-        genetic_solution = opt.optimierung_ems(
-            parameters=input_data, start_hour=10, ngen=3
-        )
+        genetic_solution = opt.optimierung_ems(parameters=input_data, start_hour=10, ngen=3)
 
     # The genetic core emitted a full-day grid at 15-min resolution.
     assert len(genetic_solution.ac_charge) == 192
     assert len(genetic_solution.dc_charge) == 192
     assert len(genetic_solution.discharge_allowed) == 192
+    expected_result_slots = 192 - opt._start_day_slot()
+    assert len(genetic_solution.result.Last_Wh_pro_Stunde) == expected_result_slots
+    assert len(genetic_solution.result.Electricity_price) == expected_result_slots
 
     # The serializers consume the 15-min grid without error and emit a 900 s
     # spaced solution index.

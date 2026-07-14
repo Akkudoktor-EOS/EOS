@@ -58,6 +58,8 @@ class Battery:
             self.max_charge_power_w = self.capacity_wh  # TODO this should not be equal capacity_wh
         self.discharge_array = np.full(self.prediction_hours, 0)
         self.charge_array = np.full(self.prediction_hours, 0)
+        self._discharged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
+        self._charged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
         self.soc_wh = (self.initial_soc_percentage / 100) * self.capacity_wh
         self.min_soc_wh = (self.min_soc_percentage / 100) * self.capacity_wh
         self.max_soc_wh = (self.max_soc_percentage / 100) * self.capacity_wh
@@ -101,6 +103,17 @@ class Battery:
         self.soc_wh = min(self.soc_wh, self.max_soc_wh)  # Only clamp to max
         self.discharge_array = np.full(self.prediction_hours, 0)
         self.charge_array = np.full(self.prediction_hours, 0)
+        self._discharged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
+        self._charged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
+
+    def remaining_discharge_energy_wh(self, hour: int) -> float:
+        """Return DC energy still deliverable within one optimization slot."""
+        raw_power_budget_wh = self.max_charge_power_w * self.slot_duration_h
+        raw_power_remaining_wh = max(
+            raw_power_budget_wh - self._discharged_raw_wh_per_slot[hour], 0.0
+        )
+        raw_soc_available_wh = max(self.soc_wh - self.min_soc_wh, 0.0)
+        return min(raw_power_remaining_wh, raw_soc_available_wh) * self.discharging_efficiency
 
     def set_discharge_per_hour(self, discharge_array: np.ndarray) -> None:
         """Sets the discharge values for each hour."""
@@ -151,8 +164,9 @@ class Battery:
         # Maximum raw discharge due to power limit, scaled to the slot duration.
         # max_charge_power_w is a power [W]; energy movable in one slot is
         # power x slot_duration_h.
-        max_raw_wh = (
-            self.max_charge_power_w * self.slot_duration_h
+        max_raw_wh = max(
+            self.max_charge_power_w * self.slot_duration_h - self._discharged_raw_wh_per_slot[hour],
+            0.0,
         )  # TODO rename to max_discharge_power_w
 
         # Actual raw withdrawal (internal)
@@ -170,6 +184,7 @@ class Battery:
         # Update SoC
         self.soc_wh -= raw_used_wh
         self.soc_wh = max(self.soc_wh, self.min_soc_wh)
+        self._discharged_raw_wh_per_slot[hour] += raw_used_wh
 
         # Losses
         losses_wh = raw_used_wh - delivered_wh
@@ -246,7 +261,10 @@ class Battery:
         soc_wh_fast = self.soc_wh
         # Scale the power cap [W] to a per-slot energy cap [Wh] (W x slot hours).
         # At slot_duration_h=1.0 (hourly) this equals the legacy power value.
-        max_charge_per_slot_wh_fast = self.max_charge_power_w * self.slot_duration_h
+        max_charge_per_slot_wh_fast = max(
+            self.max_charge_power_w * self.slot_duration_h - self._charged_raw_wh_per_slot[hour],
+            0.0,
+        )
         charging_efficiency_fast = self.charging_efficiency
 
         # Decide mode & determine raw_request_wh and raw_charge_wh
@@ -290,6 +308,7 @@ class Battery:
             )
 
         self.soc_wh = new_soc
+        self._charged_raw_wh_per_slot[hour] += raw_input_wh
         losses_wh = raw_input_wh - stored_wh
 
         return stored_wh, losses_wh

@@ -294,3 +294,47 @@ def test_car_and_pv_battery_discharge_and_max_charge_power(setup_pv_battery, set
     assert car_battery.parameters.max_charge_power_w == 7000, (
         "Car battery max charge power should remain as defined"
     )
+
+
+def test_quarter_hour_charge_calls_share_one_power_budget():
+    params = SolarPanelBatteryParameters(
+        device_id="battery1",
+        capacity_wh=10_000,
+        initial_soc_percentage=0,
+        min_soc_percentage=0,
+        max_soc_percentage=100,
+        max_charge_power_w=1_000,
+        charging_efficiency=1.0,
+        discharging_efficiency=1.0,
+    )
+    battery = Battery(params, prediction_hours=4, slot_duration_h=0.25)
+    battery.set_charge_per_hour(np.ones(4))
+
+    first_stored, _ = battery.charge_energy(200.0, 0)
+    second_stored, _ = battery.charge_energy(200.0, 0)
+
+    assert first_stored == pytest.approx(200.0)
+    assert second_stored == pytest.approx(50.0)
+    assert battery.soc_wh == pytest.approx(250.0)
+
+
+def test_quarter_hour_discharge_calls_share_one_power_budget():
+    params = SolarPanelBatteryParameters(
+        device_id="battery1",
+        capacity_wh=10_000,
+        initial_soc_percentage=100,
+        min_soc_percentage=0,
+        max_soc_percentage=100,
+        max_charge_power_w=1_000,
+        charging_efficiency=1.0,
+        discharging_efficiency=1.0,
+    )
+    battery = Battery(params, prediction_hours=4, slot_duration_h=0.25)
+    battery.set_discharge_per_hour(np.ones(4))
+
+    first_delivered, _ = battery.discharge_energy(200.0, 0)
+    second_delivered, _ = battery.discharge_energy(200.0, 0)
+
+    assert first_delivered == pytest.approx(200.0)
+    assert second_delivered == pytest.approx(50.0)
+    assert battery.soc_wh == pytest.approx(9_750.0)

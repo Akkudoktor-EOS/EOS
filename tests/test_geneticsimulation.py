@@ -43,13 +43,15 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
             initial_soc_percentage=80,
             min_soc_percentage=10,
         ),
-        prediction_hours = config_eos.prediction.hours,
+        prediction_hours=config_eos.prediction.hours,
     )
     akku.reset()
 
     inverter = Inverter(
-        InverterParameters(device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id),
-        battery = akku,
+        InverterParameters(
+            device_id="inverter1", max_power_wh=10000, battery_id=akku.parameters.device_id
+        ),
+        battery=akku,
     )
 
     # Household device (currently not used, set to None)
@@ -60,8 +62,8 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
             duration_h=2,
             time_windows=None,
         ),
-        optimization_hours = config_eos.optimization.horizon_hours,
-        prediction_hours = config_eos.prediction.hours,
+        optimization_hours=config_eos.optimization.horizon_hours,
+        prediction_hours=config_eos.prediction.hours,
     )
 
     # Example initialization of electric car battery
@@ -69,7 +71,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
         ElectricVehicleParameters(
             device_id="ev1", capacity_wh=26400, initial_soc_percentage=10, min_soc_percentage=10
         ),
-        prediction_hours = config_eos.prediction.hours,
+        prediction_hours=config_eos.prediction.hours,
     )
     eauto.set_charge_per_hour(np.full(config_eos.prediction.hours, 1))
 
@@ -240,8 +242,8 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
             preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
             gesamtlast=gesamtlast,
         ),
-        optimization_hours = config_eos.optimization.horizon_hours,
-        prediction_hours = config_eos.prediction.hours,
+        optimization_hours=config_eos.optimization.horizon_hours,
+        prediction_hours=config_eos.prediction.hours,
         inverter=inverter,
         ev=eauto,
         home_appliance=home_appliance,
@@ -301,69 +303,67 @@ def test_simulation(genetic_simulation):
     assert GeneticSimulationResult(**result) is not None
 
     # Check the length of the main arrays
-    assert len(result["Last_Wh_pro_Stunde"]) == 47, (
-        "The length of 'Last_Wh_pro_Stunde' should be 48."
-    )
-    assert len(result["Netzeinspeisung_Wh_pro_Stunde"]) == 47, (
-        "The length of 'Netzeinspeisung_Wh_pro_Stunde' should be 48."
-    )
-    assert len(result["Netzbezug_Wh_pro_Stunde"]) == 47, (
-        "The length of 'Netzbezug_Wh_pro_Stunde' should be 48."
-    )
-    assert len(result["Kosten_Euro_pro_Stunde"]) == 47, (
-        "The length of 'Kosten_Euro_pro_Stunde' should be 48."
-    )
-    assert len(result["akku_soc_pro_stunde"]) == 47, (
-        "The length of 'akku_soc_pro_stunde' should be 48."
-    )
+    assert (
+        len(result["Last_Wh_pro_Stunde"]) == 47
+    ), "The length of 'Last_Wh_pro_Stunde' should be 48."
+    assert (
+        len(result["Netzeinspeisung_Wh_pro_Stunde"]) == 47
+    ), "The length of 'Netzeinspeisung_Wh_pro_Stunde' should be 48."
+    assert (
+        len(result["Netzbezug_Wh_pro_Stunde"]) == 47
+    ), "The length of 'Netzbezug_Wh_pro_Stunde' should be 48."
+    assert (
+        len(result["Kosten_Euro_pro_Stunde"]) == 47
+    ), "The length of 'Kosten_Euro_pro_Stunde' should be 48."
+    assert (
+        len(result["akku_soc_pro_stunde"]) == 47
+    ), "The length of 'akku_soc_pro_stunde' should be 48."
 
     # Verify specific values in the 'Last_Wh_pro_Stunde' array
-    assert result["Last_Wh_pro_Stunde"][1] == 1527.13, (
-        "The value at index 1 of 'Last_Wh_pro_Stunde' should be 1527.13."
-    )
-    assert result["Last_Wh_pro_Stunde"][2] == 1468.88, (
-        "The value at index 2 of 'Last_Wh_pro_Stunde' should be 1468.88."
-    )
-    assert result["Last_Wh_pro_Stunde"][12] == 1132.03, (
-        "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
-    )
+    assert (
+        result["Last_Wh_pro_Stunde"][1] == 1527.13
+    ), "The value at index 1 of 'Last_Wh_pro_Stunde' should be 1527.13."
+    assert (
+        result["Last_Wh_pro_Stunde"][2] == 1468.88
+    ), "The value at index 2 of 'Last_Wh_pro_Stunde' should be 1468.88."
+    assert (
+        result["Last_Wh_pro_Stunde"][12] == 1132.03
+    ), "The value at index 12 of 'Last_Wh_pro_Stunde' should be 1132.03."
 
     # Verify that the value at index 0 is 'None'
     # Check that 'Netzeinspeisung_Wh_pro_Stunde' and 'Netzbezug_Wh_pro_Stunde' are consistent
-    assert result["Netzbezug_Wh_pro_Stunde"][1] == 1527.13, (
-        "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 1527.13."
-    )
+    assert (
+        result["Netzbezug_Wh_pro_Stunde"][1] == 1527.13
+    ), "The value at index 1 of 'Netzbezug_Wh_pro_Stunde' should be 1527.13."
 
     # Verify the total balance
-    assert abs(result["Gesamtbilanz_Euro"] - 6.612835813556755) < 1e-5, (
-        "Total balance should be 6.612835813556755."
-    )
+    assert (
+        abs(result["Gesamtbilanz_Euro"] - 6.62818441758576) < 1e-5
+    ), "Total balance should reflect the shared per-slot battery power limit."
 
     # Check total revenue and total costs
-    assert abs(result["Gesamteinnahmen_Euro"] - 1.964301131937134) < 1e-5, (
-        "Total revenue should be 1.964301131937134."
-    )
-    assert abs(result["Gesamtkosten_Euro"] - 8.577136945493889) < 1e-5, (
-        "Total costs should be 8.577136945493889 ."
-    )
+    assert (
+        abs(result["Gesamteinnahmen_Euro"] - 1.9606946615517515) < 1e-5
+    ), "Total revenue should respect the shared per-slot battery power limit."
+    assert (
+        abs(result["Gesamtkosten_Euro"] - 8.588879079137512) < 1e-5
+    ), "Total costs should respect the shared per-slot battery power limit."
 
     # Check the losses
-    assert abs(result["Gesamt_Verluste"] - 1620.0) < 1e-5, (
-        "Total losses should be 1620.0 ."
-    )
+    assert abs(result["Gesamt_Verluste"] - 1620.0) < 1e-5, "Total losses should be 1620.0 ."
 
     # Check the values in 'akku_soc_pro_stunde'
-    assert result["akku_soc_pro_stunde"][-1] == 98.0, (
-        "The value at index -1 of 'akku_soc_pro_stunde' should be 98.0."
-    )
-    assert result["akku_soc_pro_stunde"][1] == 98.0, (
-        "The value at index 1 of 'akku_soc_pro_stunde' should be 98.0."
-    )
+    assert (
+        result["akku_soc_pro_stunde"][-1] == 98.0
+    ), "The value at index -1 of 'akku_soc_pro_stunde' should be 98.0."
+    assert (
+        result["akku_soc_pro_stunde"][1] == 98.0
+    ), "The value at index 1 of 'akku_soc_pro_stunde' should be 98.0."
 
     # Check home appliances
-    assert sum(simulation.home_appliance.get_load_curve()) == 2000, (
-        "The sum of 'simulation.home_appliance.get_load_curve()' should be 2000."
-    )
+    assert (
+        sum(simulation.home_appliance.get_load_curve()) == 2000
+    ), "The sum of 'simulation.home_appliance.get_load_curve()' should be 2000."
 
     assert (
         np.nansum(
@@ -379,13 +379,17 @@ def test_simulation(genetic_simulation):
     print("All tests passed successfully.")
 
 
-def test_direct_marketing_curtails_negative_feed_in(config_eos):
+def test_direct_marketing_curtails_negative_feed_in(config_eos, monkeypatch):
     config_eos.merge_settings_from_dict(
         {"prediction": {"hours": 2}, "optimization": {"horizon_hours": 2}}
     )
 
     inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=1000.0))
-    inverter.self_consumption_predictor.calculate_self_consumption = Mock(return_value=1.0)
+    monkeypatch.setattr(
+        inverter.self_consumption_predictor,
+        "calculate_self_consumption",
+        Mock(return_value=1.0),
+    )
 
     simulation = GeneticSimulation()
     simulation.prepare(

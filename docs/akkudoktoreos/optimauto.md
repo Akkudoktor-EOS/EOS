@@ -149,6 +149,13 @@ The energy management can be run in three modes:
 Use `900` together with a 15-minute electricity price source (for example a dynamic or
 exchange-priced tariff) to let the optimizer schedule on a quarter-hour grid. Keeping the
 default `3600` preserves the previous hourly behaviour.
+
+Legacy hourly API input is accepted at `900`: energy values are distributed over four slots,
+while electricity prices and feed-in tariffs are held constant. Native quarter-hour arrays are
+used unchanged. Other input lengths are rejected to prevent a shortened simulation horizon.
+
+Home-appliance scheduling currently remains hourly and is not supported with a sub-hourly
+optimization interval.
 :::
 
 #### Genetic Algorithm Parameters

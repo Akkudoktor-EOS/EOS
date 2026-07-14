@@ -15,31 +15,44 @@ class SelfConsumptionProbabilityInterpolator:
         # Load the RegularGridInterpolator
         with open(self.filepath, "rb") as file:
             self.interpolator: RegularGridInterpolator = pickle.load(file)  # noqa: S301
+        self.load_power_min_w = float(self.interpolator.grid[0][0])
+        self.load_power_max_w = float(self.interpolator.grid[0][-1])
+        self.minute_load_max_w = float(self.interpolator.grid[1][-1])
 
     def _generate_points(
-        self, load_1h_power: float, pv_power: float
+        self, mean_load_power_w: float, pv_power_w: float
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Generate the grid points for interpolation."""
-        partial_loads = np.arange(0, pv_power + 50, 50)
-        points = np.array([np.full_like(partial_loads, load_1h_power), partial_loads]).T
+        """Generate in-bounds grid points for interpolation.
+
+        The bundled probability table was calibrated from a one-hour mean load
+        and one-minute samples. Sub-hourly optimization still passes *power* in
+        watts here; a native 15-minute mean is therefore a documented
+        approximation until a separately calibrated table is available.
+        """
+        bounded_mean_load_w = float(
+            np.clip(mean_load_power_w, self.load_power_min_w, self.load_power_max_w)
+        )
+        bounded_pv_power_w = float(np.clip(pv_power_w, 0.0, self.minute_load_max_w))
+        partial_loads = np.arange(0.0, bounded_pv_power_w + 1.0, 50.0)
+        points = np.column_stack((np.full(partial_loads.shape, bounded_mean_load_w), partial_loads))
         return points, partial_loads
 
     @cache_energy_management
-    def calculate_self_consumption(self, load_1h_power: float, pv_power: float) -> float:
+    def calculate_self_consumption(self, mean_load_power_w: float, pv_power_w: float) -> float:
         """Calculate the PV self-consumption rate using RegularGridInterpolator.
 
         The results are cached until the start of the next energy management run/ optimization.
 
         Args:
-         - last_1h_power: 1h power levels (W).
-         - pv_power: Current PV power output (W).
+         - mean_load_power_w: Mean load power for the current forecast interval (W).
+         - pv_power_w: Current PV power output (W).
 
         Returns:
          - Self-consumption rate as a float.
         """
-        points, partial_loads = self._generate_points(load_1h_power, pv_power)
+        points, _ = self._generate_points(mean_load_power_w, pv_power_w)
         probabilities = self.interpolator(points)
-        return probabilities.sum()
+        return float(np.clip(probabilities.sum(), 0.0, 1.0))
 
     # def calculate_self_consumption(self, load_1h_power: float, pv_power: float) -> float:
     #     """Calculate the PV self-consumption rate using RegularGridInterpolator.

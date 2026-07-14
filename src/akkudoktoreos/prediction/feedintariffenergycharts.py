@@ -85,15 +85,18 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             series_data.at[orig_datetime] = price_eur_per_mwh / 1_000_000
         return series_data
 
-    def _predict_prices(self, history, hours: int):
+    def _predict_prices(self, history, slots: int, slots_per_hour: int):
         energycharts = ElecPriceEnergyCharts()
-        amount_datasets = len(self.records)
-        if amount_datasets > 800:
-            return energycharts._predict_ets(history, seasonal_periods=168, hours=hours)
-        if amount_datasets > 168:
-            return energycharts._predict_ets(history, seasonal_periods=24, hours=hours)
-        if amount_datasets > 0:
-            return energycharts._predict_median(history, hours=hours)
+        if len(history) > 800 * slots_per_hour:
+            return energycharts._predict_ets(
+                history, seasonal_periods=168 * slots_per_hour, hours=slots
+            )
+        if len(history) > 168 * slots_per_hour:
+            return energycharts._predict_ets(
+                history, seasonal_periods=24 * slots_per_hour, hours=slots
+            )
+        if len(history) > 0:
+            return energycharts._predict_median(history, hours=slots)
         logger.error("No feed-in tariff data available for Energy-Charts prediction")
         raise ValueError("No data available")
 
@@ -141,38 +144,52 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
                 self.highest_orig_datetime,
             )
 
-        history = self.key_to_array(
-            key="feed_in_tariff_wh",
-            end_datetime=self.highest_orig_datetime,
-            fill_method="linear",
-        )
-
         if not self.highest_orig_datetime:
             error_msg = f"Highest original datetime not available: {self.highest_orig_datetime}"
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        needed_hours = int(
-            self.config.prediction.hours
-            - ((self.highest_orig_datetime - self.ems_start_datetime).total_seconds() // 3600)
+        raw_series = self.key_to_series(
+            key="feed_in_tariff_wh",
+            end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
+        )
+        resolution_seconds = ElecPriceEnergyCharts._resolution_seconds(raw_series)
+        slots_per_hour = 3600 // resolution_seconds
+        history = self.key_to_array(
+            key="feed_in_tariff_wh",
+            end_datetime=self.highest_orig_datetime,
+            interval=to_duration(f"{resolution_seconds} seconds"),
+            fill_method="linear",
         )
 
-        if needed_hours <= 0:
+        covered_slots = 0
+        if self.highest_orig_datetime >= self.ems_start_datetime:
+            covered_slots = (
+                int(
+                    (self.highest_orig_datetime - self.ems_start_datetime).total_seconds()
+                    // resolution_seconds
+                )
+                + 1
+            )
+        needed_slots = self.config.prediction.hours * slots_per_hour - covered_slots
+
+        if needed_slots <= 0:
             logger.warning(
-                "No feed-in tariff prediction needed. needed_hours={}, hours={}, "
-                "highest_orig_datetime={}, start_datetime={}",
-                needed_hours,
+                "No feed-in tariff prediction needed. needed_slots={}, hours={}, "
+                "resolution_seconds={}, highest_orig_datetime={}, start_datetime={}",
+                needed_slots,
                 self.config.prediction.hours,
+                resolution_seconds,
                 self.highest_orig_datetime,
                 self.ems_start_datetime,
             )
             return
 
-        prediction = self._predict_prices(history, needed_hours)
+        prediction = self._predict_prices(history, needed_slots, slots_per_hour)
         prediction_series = pd.Series(
             data=prediction,
             index=[
-                self.highest_orig_datetime + to_duration(f"{i + 1} hours")
+                self.highest_orig_datetime + to_duration(f"{(i + 1) * resolution_seconds} seconds")
                 for i in range(len(prediction))
             ],
         )
