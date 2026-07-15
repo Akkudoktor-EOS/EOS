@@ -32,6 +32,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     resolution, so both the hourly and the 15-minute optimizer are fed the correct
     grid. The seasonal price extrapolation is resolution-agnostic and stays identical
     at the default hourly resolution.
+- Separate battery economics into two independent settings: battery
+  `levelized_cost_of_storage_kwh` is now charged once on delivered DC energy, while
+  `optimization.terminal_value_euro_per_kwh` values usable battery energy left at the end of the
+  optimization horizon. LCOS applies to both local battery supply and battery-to-grid export and is
+  included in hourly and total costs.
+- Model direct PV-to-load consumption probabilistically from the bundled conditional minute-load
+  table. The expected direct flow is used consistently for PV bypass, residual load, battery
+  charging, and grid export on hourly and 15-minute optimization grids.
 
 ## 0.3.0 (2026-03-17)
 

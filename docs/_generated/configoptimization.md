@@ -13,6 +13,8 @@
 | horizon_hours | `EOS_OPTIMIZATION__HORIZON_HOURS` | `int` | `rw` | `24` | The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours. |
 | interval | `EOS_OPTIMIZATION__INTERVAL` | `int` | `rw` | `3600` | The optimization interval (slot length) [sec]. The genetic optimizer supports 3600 (1 hour) and 900 (15 min); other values fall back to 3600. Defaults to 3600 seconds (1 hour). |
 | keys | | `list[str]` | `ro` | `N/A` | The keys of the solution. |
+| terminal_value_euro_per_kwh | `EOS_OPTIMIZATION__TERMINAL_VALUE_EURO_PER_KWH` | `float` | `rw` | `0.0` | Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Defaults to 0 EUR/kWh. |
+| visualize_pdf | `EOS_OPTIMIZATION__VISUALIZE_PDF` | `bool` | `rw` | `True` | Generate the PDF visualization after each optimization run. Disable for headless setups (e.g. Node-RED integration) to save several seconds per run. Defaults to True. |
 :::
 <!-- pyml enable line-length -->
 
@@ -27,6 +29,8 @@
            "horizon_hours": 24,
            "interval": 3600,
            "algorithm": "GENETIC",
+           "visualize_pdf": true,
+           "terminal_value_euro_per_kwh": 0.0,
            "genetic": {
                "individuals": 400,
                "generations": 400,
@@ -51,6 +55,8 @@
            "horizon_hours": 24,
            "interval": 3600,
            "algorithm": "GENETIC",
+           "visualize_pdf": true,
+           "terminal_value_euro_per_kwh": 0.0,
            "genetic": {
                "individuals": 400,
                "generations": 400,

@@ -456,7 +456,7 @@ as a cohesive unit for scheduling and availability checking.
 | charging_efficiency | `float` | `rw` | `0.88` | Charging efficiency [0.01 ... 1.00]. |
 | device_id | `str` | `rw` | `<unknown>` | ID of device |
 | discharging_efficiency | `float` | `rw` | `0.88` | Discharge efficiency [0.01 ... 1.00]. |
-| levelized_cost_of_storage_kwh | `float` | `rw` | `0.0` | Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [€/kWh]. |
+| levelized_cost_of_storage_kwh | `float` | `rw` | `0.0` | Levelized cost of storage (LCOS), applied once to each kWh delivered by the battery [€/kWh]. |
 | max_charge_power_w | `Optional[float]` | `rw` | `5000` | Maximum charging power [W]. |
 | max_soc_percentage | `int` | `rw` | `100` | Maximum state of charge (SOC) as percentage of capacity [%]. |
 | measurement_key_power_3_phase_sym_w | `str` | `ro` | `N/A` | Measurement key for the symmetric 3 phase power the battery is charged or discharged with [W]. |

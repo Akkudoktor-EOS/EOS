@@ -98,6 +98,17 @@ class BaseBatteryParameters(DeviceParameters):
 class SolarPanelBatteryParameters(BaseBatteryParameters):
     """PV battery device simulation configuration."""
 
+    levelized_cost_of_storage_kwh: float = Field(
+        default=0.0,
+        ge=0.0,
+        json_schema_extra={
+            "description": (
+                "Levelized cost of storage applied once to each kWh delivered "
+                "by the battery [EUR/kWh]."
+            ),
+            "examples": [0.12],
+        },
+    )
     max_charge_power_w: Optional[float] = max_charging_power_field()
 
 

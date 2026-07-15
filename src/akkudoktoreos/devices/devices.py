@@ -50,8 +50,12 @@ class BatteriesCommonSettings(DevicesBaseSettings):
 
     levelized_cost_of_storage_kwh: float = Field(
         default=0.0,
+        ge=0.0,
         json_schema_extra={
-            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [€/kWh].",
+            "description": (
+                "Levelized cost of storage (LCOS), applied once to each kWh delivered "
+                "by the battery [€/kWh]."
+            ),
             "examples": [0.12],
         },
     )

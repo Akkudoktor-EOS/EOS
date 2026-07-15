@@ -145,6 +145,11 @@ The energy management can be run in three modes:
     `prediction.hours * (3600 / interval)`, and device power caps as well as the solution
     and energy-management-plan serializers are slot-aware.
 
+- **terminal_value_euro_per_kwh** (`float`, default: `0.0`): Monetary value assigned to usable
+    battery energy remaining at the end of the optimization horizon. This terminal value influences
+    whether the optimizer preserves or depletes the battery near the horizon. It is independent of
+    the battery's `levelized_cost_of_storage_kwh`, which prices actual discharge throughput.
+
 :::{note}
 Use `900` together with a 15-minute electricity price source (for example a dynamic or
 exchange-priced tariff) to let the optimizer schedule on a quarter-hour grid. Keeping the
@@ -224,8 +229,9 @@ The behavior of the genetic algorithm can be customized using the following conf
 ```json
 {
     "optimization": {
-        "hours": 24,
+        "horizon_hours": 24,
         "interval": 3600,
+        "terminal_value_euro_per_kwh": 0.20,
         "genetic" : {
             "individuals": 300,
             "generations": 400,
@@ -341,6 +347,19 @@ The inverter supports separate AC↔DC conversion efficiencies:
     }
 }
 ```
+
+`levelized_cost_of_storage_kwh` is an optional variable cost in EUR/kWh (default `0.0`). EOS applies
+it exactly once to the DC energy actually delivered by the battery, whether that energy supplies
+the local load or is exported to the grid:
+
+```{math}
+C_{LCOS} = \frac{E_{bat,out,Wh}}{1000}\,c_{LCOS,EUR/kWh}
+```
+
+Charging energy, battery-internal discharge losses, and the subsequent DC-to-AC inverter loss do
+not receive another LCOS charge. LCOS is included in the hourly and total simulation costs and is
+separate from `optimization.terminal_value_euro_per_kwh`, which values only the usable energy left
+at the end of the optimization horizon.
 
 #### Home appliance simulation configuration
 

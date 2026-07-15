@@ -101,6 +101,18 @@ class OptimizationCommonSettings(SettingsBaseModel):
         },
     )
 
+    terminal_value_euro_per_kwh: float = Field(
+        default=0.0,
+        json_schema_extra={
+            "description": (
+                "Value assigned to usable battery energy remaining at the end of the "
+                "optimization horizon [EUR/kWh]. This terminal value is independent "
+                "of the battery LCOS. Defaults to 0 EUR/kWh."
+            ),
+            "examples": [0.0, 0.20],
+        },
+    )
+
     genetic: GeneticCommonSettings = Field(
         default_factory=GeneticCommonSettings,
         json_schema_extra={

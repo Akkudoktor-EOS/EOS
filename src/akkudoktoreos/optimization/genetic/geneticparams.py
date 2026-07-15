@@ -54,7 +54,10 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
     )
     preis_euro_pro_wh_akku: float = Field(
         json_schema_extra={
-            "description": "A float representing the cost of battery energy per watt-hour."
+            "description": (
+                "Terminal value of usable battery energy remaining at the end of the "
+                "optimization horizon [EUR/Wh]. This is not the battery LCOS."
+            )
         }
     )
     gesamtlast: list[float] = Field(
@@ -416,7 +419,6 @@ class GeneticOptimizationParameters(
                 cls.config.devices.max_batteries = 1
             if cls.config.devices.max_batteries == 0:
                 battery_params = None
-                battery_lcos_kwh = 0
             else:
                 if cls.config.devices.batteries is None:
                     logger.info("No battery device data available - defaulting to demo data.")
@@ -428,6 +430,9 @@ class GeneticOptimizationParameters(
                         capacity_wh=battery_config.capacity_wh,
                         charging_efficiency=battery_config.charging_efficiency,
                         discharging_efficiency=battery_config.discharging_efficiency,
+                        levelized_cost_of_storage_kwh=(
+                            battery_config.levelized_cost_of_storage_kwh
+                        ),
                         max_charge_power_w=battery_config.max_charge_power_w,
                         min_soc_percentage=battery_config.min_soc_percentage,
                         max_soc_percentage=battery_config.max_soc_percentage,
@@ -441,14 +446,6 @@ class GeneticOptimizationParameters(
                     cls.config.devices.batteries = [{"device_id": "battery1", "capacity_wh": 8000}]
                     # Retry
                     continue
-                # Levelized cost of ownership
-                if battery_config.levelized_cost_of_storage_kwh is None:
-                    logger.info(
-                        "No battery device LCOS data available - defaulting to 0 €/kWh. Parameter preparation attempt {}.",
-                        attempt,
-                    )
-                    battery_config.levelized_cost_of_storage_kwh = 0
-                battery_lcos_kwh = battery_config.levelized_cost_of_storage_kwh
                 # Initial SOC
                 try:
                     initial_soc_factor = cls.measurement.key_to_value(
@@ -654,7 +651,9 @@ class GeneticOptimizationParameters(
                         strompreis_euro_pro_wh=elecprice_marketprice_wh,
                         einspeiseverguetung_euro_pro_wh=feed_in_tariff_wh,
                         gesamtlast=loadforecast_power_w,
-                        preis_euro_pro_wh_akku=battery_lcos_kwh / 1000,
+                        preis_euro_pro_wh_akku=(
+                            cls.config.optimization.terminal_value_euro_per_kwh / 1000
+                        ),
                     ),
                     temperature_forecast=weather_temp_air,
                     pv_akku=battery_params,

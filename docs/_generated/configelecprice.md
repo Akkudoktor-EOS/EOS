@@ -99,7 +99,7 @@
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
 | access_token | `Optional[str]` | `rw` | `None` | Tibber API access token. |
-| home_id | `Optional[str]` | `rw` | `None` | Tibber home id to read prices from. |
+| home_id | `Optional[str]` | `rw` | `None` | Optional Tibber home id. If omitted, the first home with a subscription is used. |
 :::
 <!-- pyml enable line-length -->
 

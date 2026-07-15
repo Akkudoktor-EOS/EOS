@@ -34,6 +34,11 @@ class Battery:
         self.initial_soc_percentage = self.parameters.initial_soc_percentage
         self.charging_efficiency = self.parameters.charging_efficiency
         self.discharging_efficiency = self.parameters.discharging_efficiency
+        self.levelized_cost_of_storage_kwh = (
+            self.parameters.levelized_cost_of_storage_kwh
+            if isinstance(self.parameters, SolarPanelBatteryParameters)
+            else 0.0
+        )
 
         # Charge rates, in case of None use default
         self.charge_rates = np.array(BATTERY_DEFAULT_CHARGE_RATES, dtype=float)
@@ -114,6 +119,10 @@ class Battery:
         )
         raw_soc_available_wh = max(self.soc_wh - self.min_soc_wh, 0.0)
         return min(raw_power_remaining_wh, raw_soc_available_wh) * self.discharging_efficiency
+
+    def discharged_energy_wh(self, hour: int) -> float:
+        """Return DC energy delivered by the battery in one optimization slot."""
+        return self._discharged_raw_wh_per_slot[hour] * self.discharging_efficiency
 
     def set_discharge_per_hour(self, discharge_array: np.ndarray) -> None:
         """Sets the discharge values for each hour."""

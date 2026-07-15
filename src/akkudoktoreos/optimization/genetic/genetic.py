@@ -450,7 +450,18 @@ class GeneticSimulation(PydanticBaseModel):
             feed_in_tariff_per_hour[hour_idx] = hourly_feed_in_tariff
 
             # Financial calculations
-            costs_per_hour[hour_idx] = energy_consumption_grid_actual * hourly_electricity_price
+            grid_cost = energy_consumption_grid_actual * hourly_electricity_price
+            # LCOS is charged exactly once on battery-delivered DC energy. It is
+            # not charged on input energy, internal discharge losses, or the
+            # downstream DC-to-AC inverter loss.
+            battery_lcos_cost = 0.0
+            if battery_fast:
+                battery_lcos_cost = (
+                    battery_fast.discharged_energy_wh(hour)
+                    * battery_fast.levelized_cost_of_storage_kwh
+                    / 1000.0
+                )
+            costs_per_hour[hour_idx] = grid_cost + battery_lcos_cost
             revenue_per_hour[hour_idx] = energy_feedin_grid_actual * hourly_feed_in_tariff
 
         total_cost = np.nansum(costs_per_hour)
@@ -1244,8 +1255,14 @@ class GeneticOptimization(OptimizationBase):
                     if charge_price <= 0:
                         continue
 
-                    # Price that a future discharge hour must reach to break even
-                    break_even_price = charge_price / round_trip_eff
+                    # Price that a future AC discharge hour must reach to break
+                    # even. LCOS is defined per DC Wh delivered by the battery;
+                    # dividing it by DC-to-AC efficiency converts it to the
+                    # corresponding cost per useful/exported AC Wh.
+                    lcos_per_wh_dc = getattr(bat, "levelized_cost_of_storage_kwh", 0.0) / 1000.0
+                    break_even_price = (
+                        charge_price / round_trip_eff + lcos_per_wh_dc / inv.dc_to_ac_efficiency
+                    )
 
                     best_uncovered_price = best_prices[hour]
 

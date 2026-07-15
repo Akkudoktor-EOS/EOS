@@ -70,6 +70,7 @@ to `DISABLED` in the configuration.
     "pv_akku": {
         "device_id": "battery1",
         "capacity_wh": 26400,
+        "levelized_cost_of_storage_kwh": 0.12,
         "max_charge_power_w": 5000,
         "initial_soc_percentage": 80,
         "min_soc_percentage": 15
@@ -112,12 +113,15 @@ to `DISABLED` in the configuration.
 
 ### Energy Management System (EMS)
 
-#### Battery Cost (`preis_euro_pro_wh_akku`)
+#### Battery Terminal Value (`preis_euro_pro_wh_akku`)
 
 - Unit: €/Wh
 - Purpose: Represents the residual value of energy stored in the battery
 - Impact: Lower values encourage battery depletion, higher values preserve charge at the end of the
   simulation.
+- Separation from LCOS: This value is only applied to usable battery energy remaining at the end of
+  the optimization horizon. Battery discharge throughput is priced separately with
+  `pv_akku.levelized_cost_of_storage_kwh`.
 
 #### Feed-in Tariff (`einspeiseverguetung_euro_pro_wh`)
 
@@ -145,6 +149,51 @@ to `DISABLED` in the configuration.
 - Format: Array of hourly values
 - Data Source: `GET /v1/prediction/series?key=pvforecast_ac_power`
 
+#### Probabilistic Direct PV Consumption and Bypass
+
+Hourly or 15-minute mean values alone would optimistically assume that the smaller of mean PV
+generation and mean load is consumed directly. Real household load varies within the interval. EOS
+therefore uses a conditional probability table derived from one-minute load samples. For a forecast
+mean load \(\mu_L\), the table contains load-bin powers \(L_i\) and their conditional probabilities
+\(p_i = P(L=L_i\mid\mu_L)\), with \(\sum_i p_i=1\).
+
+Because the finite 50 W table grid can deviate slightly from the requested forecast mean, the load
+bins are first normalized without changing the shape of the distribution:
+
+```{math}
+\widetilde{L}_i = L_i \frac{\mu_L}{\sum_j p_j L_j}
+```
+
+For mean PV power \(P_{PV}\), the expected power flowing directly from PV to the load is:
+
+```{math}
+P_{direct} = \sum_i p_i \min\left(\widetilde{L}_i, P_{PV}\right)
+```
+
+For a slot of duration \(\Delta t\), EOS converts this power into energy and derives both residual
+flows from the same direct-consumption value:
+
+```{math}
+\begin{aligned}
+E_{direct} &= \Delta t\,P_{direct} \\
+E_{load,residual} &= E_{load}-E_{direct} \\
+E_{PV,surplus} &= E_{PV}-E_{direct}
+\end{aligned}
+```
+
+The residual load is supplied by the battery and then the grid. The PV surplus charges the battery;
+any remainder bypasses the battery and is exported. Both residual load and PV surplus may be
+positive in the same coarse slot because they occur during different sub-intervals. This is expected
+and preserves the energy balances
+\(E_{direct}+E_{load,residual}=E_{load}\) and
+\(E_{direct}+E_{PV,surplus}=E_{PV}\).
+
+The bundled table is conditioned on a one-hour mean load and models load variation only; mean PV is
+treated as constant inside the slot. For a 15-minute grid produced by splitting hourly energy, the
+power lookup retains the original hourly mean. A native 15-minute load forecast uses the same table
+as an approximation until a separately calibrated 15-minute distribution is available. Fast PV
+variability, for example from clouds, is not represented by this table.
+
 #### Electricity Price Forecast (`strompreis_euro_pro_wh`)
 
 - Unit: €/Wh
@@ -162,7 +211,26 @@ Verify prices against your local tariffs.
 - `capacity_wh`: Total battery capacity in Wh
 - `charging_efficiency`: Charging efficiency (0-1)
 - `discharging_efficiency`: Discharging efficiency (0-1)
+- `levelized_cost_of_storage_kwh`: LCOS in EUR/kWh, charged once for every kWh of DC energy
+  delivered by the battery. Default: `0.0`.
 - `max_charge_power_w`: Maximum charging power in W
+
+#### Battery LCOS (`levelized_cost_of_storage_kwh`)
+
+LCOS and terminal value have different purposes. LCOS is a variable battery-use cost and is added
+once when the battery delivers energy, both for local load coverage and battery-to-grid export. It
+is not charged when the battery is charged and is not charged again on battery-internal or
+DC-to-AC inverter losses.
+
+For battery-delivered DC energy `E_bat,out` in one slot:
+
+```{math}
+C_{LCOS} = \frac{E_{bat,out}}{1000}\,c_{LCOS}
+```
+
+where `E_bat,out` is in Wh and `c_LCOS` is in EUR/kWh. This cost is included in
+`Kosten_Euro_pro_Stunde`, `Gesamtkosten_Euro`, and therefore `Gesamtbilanz_Euro`. The terminal value
+`preis_euro_pro_wh_akku`, by contrast, applies only to usable energy remaining after the last slot.
 
 #### State of Charge (SoC)
 
@@ -198,7 +266,7 @@ Round-trip efficiency for AC charging and discharging:
 `η_round_trip = ac_to_dc_efficiency × charging_efficiency × discharging_efficiency × dc_to_ac_efficiency`
 
 For profitability, the discharge electricity price must exceed:
-`buy_price / η_round_trip`
+`buy_price / η_round_trip + LCOS / dc_to_ac_efficiency`
 
 **Backward compatibility**: With default values (`ac_to_dc_efficiency=1.0`,
 `dc_to_ac_efficiency=1.0`, `max_ac_charge_power_w=null`), existing configurations work identically.
@@ -223,7 +291,7 @@ penalty = ac_wh_charged × (break_even_price − best_uncovered_price) × factor
 ```
 
 where:
-- `break_even_price = charge_price / η_round_trip`
+- `break_even_price = charge_price / η_round_trip + LCOS / dc_to_ac_efficiency`
 - `best_uncovered_price` = highest future price not already covered by free PV battery energy
 - `factor` = `optimization.genetic.penalties.ac_charge_break_even` (default `1.0`)
 

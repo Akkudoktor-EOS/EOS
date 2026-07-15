@@ -338,15 +338,15 @@ def test_simulation(genetic_simulation):
 
     # Verify the total balance
     assert (
-        abs(result["Gesamtbilanz_Euro"] - 6.62818441758576) < 1e-5
+        abs(result["Gesamtbilanz_Euro"] - 7.025236588371921) < 1e-5
     ), "Total balance should reflect the shared per-slot battery power limit."
 
     # Check total revenue and total costs
     assert (
-        abs(result["Gesamteinnahmen_Euro"] - 1.9606946615517515) < 1e-5
+        abs(result["Gesamteinnahmen_Euro"] - 2.3247787887715) < 1e-5
     ), "Total revenue should respect the shared per-slot battery power limit."
     assert (
-        abs(result["Gesamtkosten_Euro"] - 8.588879079137512) < 1e-5
+        abs(result["Gesamtkosten_Euro"] - 9.350015377143421) < 1e-5
     ), "Total costs should respect the shared per-slot battery power limit."
 
     # Check the losses
@@ -387,8 +387,8 @@ def test_direct_marketing_curtails_negative_feed_in(config_eos, monkeypatch):
     inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=1000.0))
     monkeypatch.setattr(
         inverter.self_consumption_predictor,
-        "calculate_self_consumption",
-        Mock(return_value=1.0),
+        "calculate_expected_direct_consumption",
+        Mock(side_effect=min),
     )
 
     simulation = GeneticSimulation()
@@ -413,7 +413,11 @@ def test_direct_marketing_curtails_negative_feed_in(config_eos, monkeypatch):
     assert result["Verluste_Pro_Stunde"][0] == pytest.approx(500.0)
 
 
-def _direct_marketing_battery_export_simulation(config_eos) -> GeneticSimulation:
+def _direct_marketing_battery_export_simulation(
+    config_eos,
+    levelized_cost_of_storage_kwh: float = 0.0,
+    dc_to_ac_efficiency: float = 1.0,
+) -> GeneticSimulation:
     config_eos.merge_settings_from_dict(
         {"prediction": {"hours": 2}, "optimization": {"horizon_hours": 2}}
     )
@@ -426,6 +430,7 @@ def _direct_marketing_battery_export_simulation(config_eos) -> GeneticSimulation
             min_soc_percentage=0,
             charging_efficiency=1.0,
             discharging_efficiency=1.0,
+            levelized_cost_of_storage_kwh=levelized_cost_of_storage_kwh,
             max_charge_power_w=500,
         ),
         prediction_hours=config_eos.prediction.hours,
@@ -435,6 +440,7 @@ def _direct_marketing_battery_export_simulation(config_eos) -> GeneticSimulation
             device_id="inverter1",
             max_power_wh=500.0,
             battery_id=battery.parameters.device_id,
+            dc_to_ac_efficiency=dc_to_ac_efficiency,
         ),
         battery=battery,
     )
@@ -479,3 +485,23 @@ def test_direct_marketing_battery_grid_export_uses_separate_signal(config_eos):
     assert result["Einnahmen_Euro_pro_Stunde"][0] == pytest.approx(0.1)
     assert simulation.battery is not None
     assert simulation.battery.current_soc_percentage() == 50.0
+
+
+def test_battery_lcos_is_charged_once_on_delivered_energy(config_eos):
+    simulation = _direct_marketing_battery_export_simulation(
+        config_eos,
+        levelized_cost_of_storage_kwh=0.12,
+        dc_to_ac_efficiency=0.8,
+    )
+    assert simulation.bat_grid_export_hours is not None
+    simulation.bat_grid_export_hours[0] = 1
+
+    result = simulation.simulate(start_hour=0)
+
+    # The battery delivers 500 Wh DC, so LCOS is 0.5 kWh * 0.12 EUR/kWh
+    # = 0.06 EUR exactly once. After the 80% inverter, 400 Wh AC reaches
+    # the grid and earns 400 Wh * 0.0002 EUR/Wh = 0.08 EUR.
+    assert result["Kosten_Euro_pro_Stunde"][0] == pytest.approx(0.06)
+    assert result["Gesamtkosten_Euro"] == pytest.approx(0.06)
+    assert result["Einnahmen_Euro_pro_Stunde"][0] == pytest.approx(0.08)
+    assert result["Gesamtbilanz_Euro"] == pytest.approx(-0.02)

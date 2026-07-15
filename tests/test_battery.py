@@ -337,4 +337,9 @@ def test_quarter_hour_discharge_calls_share_one_power_budget():
 
     assert first_delivered == pytest.approx(200.0)
     assert second_delivered == pytest.approx(50.0)
+    assert battery.discharged_energy_wh(0) == pytest.approx(250.0)
     assert battery.soc_wh == pytest.approx(9_750.0)
+
+    battery.reset()
+
+    assert battery.discharged_energy_wh(0) == 0.0

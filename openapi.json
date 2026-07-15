@@ -2213,8 +2213,9 @@
           },
           "levelized_cost_of_storage_kwh": {
             "type": "number",
+            "minimum": 0.0,
             "title": "Levelized Cost Of Storage Kwh",
-            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
+            "description": "Levelized cost of storage (LCOS), applied once to each kWh delivered by the battery [\u20ac/kWh].",
             "default": 0.0,
             "examples": [
               0.12
@@ -2367,8 +2368,9 @@
           },
           "levelized_cost_of_storage_kwh": {
             "type": "number",
+            "minimum": 0.0,
             "title": "Levelized Cost Of Storage Kwh",
-            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
+            "description": "Levelized cost of storage (LCOS), applied once to each kWh delivered by the battery [\u20ac/kWh].",
             "default": 0.0,
             "examples": [
               0.12
@@ -4886,7 +4888,7 @@
           "preis_euro_pro_wh_akku": {
             "type": "number",
             "title": "Preis Euro Pro Wh Akku",
-            "description": "A float representing the cost of battery energy per watt-hour."
+            "description": "Terminal value of usable battery energy remaining at the end of the optimization horizon [EUR/Wh]. This is not the battery LCOS."
           },
           "gesamtlast": {
             "items": {
@@ -5111,6 +5113,14 @@
             "type": "array",
             "title": "Electricity Price",
             "description": "Used Electricity Price, including predictions"
+          },
+          "Feed_in_tariff": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Feed In Tariff",
+            "description": "Used feed-in tariff in \u20ac/Wh per hour, including predictions"
           }
         },
         "additionalProperties": false,
@@ -6860,7 +6870,7 @@
             "maximum": 3600.0,
             "minimum": 900.0,
             "title": "Interval",
-            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
+            "description": "The optimization interval (slot length) [sec]. The genetic optimizer supports 3600 (1 hour) and 900 (15 min); other values fall back to 3600. Defaults to 3600 seconds (1 hour).",
             "default": 3600,
             "examples": [
               3600,
@@ -6874,6 +6884,26 @@
             "default": "GENETIC",
             "examples": [
               "GENETIC"
+            ]
+          },
+          "visualize_pdf": {
+            "type": "boolean",
+            "title": "Visualize Pdf",
+            "description": "Generate the PDF visualization after each optimization run. Disable for headless setups (e.g. Node-RED integration) to save several seconds per run. Defaults to True.",
+            "default": true,
+            "examples": [
+              true,
+              false
+            ]
+          },
+          "terminal_value_euro_per_kwh": {
+            "type": "number",
+            "title": "Terminal Value Euro Per Kwh",
+            "description": "Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Defaults to 0 EUR/kWh.",
+            "default": 0.0,
+            "examples": [
+              0.0,
+              0.2
             ]
           },
           "genetic": {
@@ -6910,7 +6940,7 @@
             "maximum": 3600.0,
             "minimum": 900.0,
             "title": "Interval",
-            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
+            "description": "The optimization interval (slot length) [sec]. The genetic optimizer supports 3600 (1 hour) and 900 (15 min); other values fall back to 3600. Defaults to 3600 seconds (1 hour).",
             "default": 3600,
             "examples": [
               3600,
@@ -6924,6 +6954,26 @@
             "default": "GENETIC",
             "examples": [
               "GENETIC"
+            ]
+          },
+          "visualize_pdf": {
+            "type": "boolean",
+            "title": "Visualize Pdf",
+            "description": "Generate the PDF visualization after each optimization run. Disable for headless setups (e.g. Node-RED integration) to save several seconds per run. Defaults to True.",
+            "default": true,
+            "examples": [
+              true,
+              false
+            ]
+          },
+          "terminal_value_euro_per_kwh": {
+            "type": "number",
+            "title": "Terminal Value Euro Per Kwh",
+            "description": "Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Defaults to 0 EUR/kWh.",
+            "default": 0.0,
+            "examples": [
+              0.0,
+              0.2
             ]
           },
           "genetic": {
@@ -8876,6 +8926,16 @@
                 1.0
               ],
               null
+            ]
+          },
+          "levelized_cost_of_storage_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Levelized Cost Of Storage Kwh",
+            "description": "Levelized cost of storage applied once to each kWh delivered by the battery [EUR/kWh].",
+            "default": 0.0,
+            "examples": [
+              0.12
             ]
           }
         },

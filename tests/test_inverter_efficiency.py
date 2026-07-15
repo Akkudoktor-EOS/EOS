@@ -38,7 +38,7 @@ def _make_inverter(
 ) -> Inverter:
     """Create an Inverter with custom efficiency parameters and a mock battery."""
     mock_self_consumption_predictor = Mock()
-    mock_self_consumption_predictor.calculate_self_consumption.return_value = 1.0
+    mock_self_consumption_predictor.calculate_expected_direct_consumption.side_effect = min
 
     params = InverterParameters(
         device_id="inv1",
@@ -165,12 +165,14 @@ class TestDcToAcEfficiency:
         assert losses == pytest.approx(10.0, rel=1e-5)  # Only battery losses
 
     def test_discharge_surplus_path_with_efficiency(self, mock_battery):
-        """When generation > consumption but SCR < 1, discharge goes through inverter."""
-        mock_battery.discharge_energy.return_value = (50.0, 5.0)
+        """A probabilistic load gap discharges through the inverter."""
+        mock_battery.discharge_energy.return_value = (30.0 / 0.90, 5.0)
         mock_battery.charge_energy.return_value = (100.0, 10.0)
 
         inv = _make_inverter(dc_to_ac_efficiency=0.90, mock_battery=mock_battery)
-        cast(Mock, inv.self_consumption_predictor).calculate_self_consumption.return_value = 0.90
+        predictor = cast(Mock, inv.self_consumption_predictor)
+        predictor.calculate_expected_direct_consumption.side_effect = None
+        predictor.calculate_expected_direct_consumption.return_value = 170.0
 
         generation = 500.0
         consumption = 200.0
@@ -180,18 +182,23 @@ class TestDcToAcEfficiency:
             generation, consumption, hour
         )
 
-        # surplus = 300, remaining_power = 300*0.9 = 270, remaining_load_evq = 300*0.1 = 30
-        # DC request for discharge = 30 / 0.90 = 33.333
+        # Expected direct PV is 170 Wh, leaving 30 Wh of load gap and
+        # 330 Wh of PV surplus within different sub-periods of the slot.
+        # DC request for discharge = 30 / 0.90 = 33.333 Wh.
         expected_dc_request = 30.0 / 0.90
         mock_battery.discharge_energy.assert_called_once_with(
             pytest.approx(expected_dc_request, rel=1e-3), hour
         )
 
-        # Battery delivers 50 Wh DC → 45 Wh AC
-        from_battery_ac = 50.0 * 0.90  # 45 Wh
-        inverter_discharge_loss = 50.0 - from_battery_ac  # 5 Wh
+        # Battery delivers 33.333 Wh DC -> 30 Wh AC.
+        from_battery_dc = 30.0 / 0.90
+        from_battery_ac = from_battery_dc * 0.90
+        inverter_discharge_loss = from_battery_dc - from_battery_ac
 
-        assert self_consumption == pytest.approx(consumption + from_battery_ac, rel=1e-5)
+        assert self_consumption == pytest.approx(170.0 + from_battery_ac, rel=1e-5)
+        assert grid_import == pytest.approx(0.0)
+        assert grid_export == pytest.approx(220.0)
+        assert losses == pytest.approx(5.0 + inverter_discharge_loss + 10.0)
 
 
 # ===================================================================
@@ -492,6 +499,7 @@ def _make_mock_simulation(
     initial_soc_percentage: float = 0.0,   # fraction of capacity already stored (0 = empty)
     min_soc_wh: float = 0.0,
     max_charge_power_w: float = 5_000.0,
+    levelized_cost_of_storage_kwh: float = 0.0,
     # Arrays (must be same length)
     ac_charge_hours: list | None = None,
     elect_price_hourly: list | None = None,
@@ -517,6 +525,7 @@ def _make_mock_simulation(
         initial_soc_percentage=initial_soc_percentage,
         min_soc_wh=min_soc_wh,
         max_charge_power_w=max_charge_power_w,
+        levelized_cost_of_storage_kwh=levelized_cost_of_storage_kwh,
         current_energy_content=Mock(return_value=0.0),
     )
 
@@ -743,6 +752,28 @@ class TestAcChargeBreakEvenPenalty:
         fitness = _run_evaluate_with_mocked_sim(config_eos, sim, base_gesamtbilanz=base)
         # Fitness must be worse (higher) than base
         assert fitness > base + 1e-6
+
+    def test_lcos_is_included_in_ac_charge_break_even_price(self, config_eos):
+        """LCOS can make an otherwise profitable price spread unprofitable."""
+        n = 24
+        prices = [0.0001] + [0.00015] * (n - 1)
+        sim = _make_mock_simulation(
+            ac_to_dc_efficiency=1.0,
+            dc_to_ac_efficiency=1.0,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            levelized_cost_of_storage_kwh=0.10,
+            ac_charge_hours=[1.0] + [0.0] * (n - 1),
+            elect_price_hourly=prices,
+            load_energy_array=[1000.0] * n,
+            initial_soc_percentage=0.0,
+        )
+
+        fitness = _run_evaluate_with_mocked_sim(config_eos, sim)
+
+        # Break-even is 0.0001 + 0.0001 = 0.0002 EUR/Wh.
+        # The 0.00005 EUR/Wh gap on a 5000 Wh charge adds 0.25 EUR.
+        assert fitness == pytest.approx(0.25)
 
     # -----------------------------------------------------------------
     # 5d. Free PV energy covers expensive hours → penalty reduced/eliminated

@@ -5,7 +5,9 @@ import pytest
 
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.devices.genetic.inverter import Inverter, InverterParameters
-from akkudoktoreos.optimization.genetic.geneticdevices import SolarPanelBatteryParameters
+from akkudoktoreos.optimization.genetic.geneticdevices import (
+    SolarPanelBatteryParameters,
+)
 
 
 @pytest.fixture
@@ -20,7 +22,7 @@ def mock_battery() -> Mock:
 @pytest.fixture
 def inverter(mock_battery) -> Inverter:
     mock_self_consumption_predictor = Mock()
-    mock_self_consumption_predictor.calculate_self_consumption.return_value = 1.0
+    mock_self_consumption_predictor.calculate_expected_direct_consumption.side_effect = min
     with patch(
         "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
         return_value=mock_self_consumption_predictor,
@@ -91,7 +93,7 @@ def test_process_energy_excess_generation(inverter, mock_battery):
     assert self_consumption == 200.0  # All consumption is met
     mock_battery.charge_energy.assert_called_once_with(400.0, hour)
     mock_battery.discharge_energy.assert_not_called()
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_called_once_with(
         consumption, generation
     )
 
@@ -100,7 +102,8 @@ def test_process_energy_excess_generation_interpolator(inverter, mock_battery):
     # Battery charges 100 Wh with 10 Wh loss
     mock_battery.charge_energy.return_value = (100.0, 10.0)
     mock_battery.discharge_energy.return_value = (20.0, 2.0)
-    inverter.self_consumption_predictor.calculate_self_consumption.return_value = 0.95
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.side_effect = None
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.return_value = 180.0
 
     generation = 600.0
     consumption = 200.0
@@ -110,16 +113,68 @@ def test_process_energy_excess_generation_interpolator(inverter, mock_battery):
         generation, consumption, hour
     )
 
-    assert grid_export == pytest.approx(
-        270.0, rel=1e-2
-    )  # 290 Wh feed-in - 5% of generation-consumption self consumption after battery charges
+    assert grid_export == pytest.approx(300.0, rel=1e-2)
     assert grid_import == pytest.approx(0.0, rel=1e-2)  # No grid draw
-    assert losses == 12.0  # Battery charging losses
-    assert self_consumption == 220.0  # All consumption is met
-    mock_battery.charge_energy.assert_called_once_with(pytest.approx(380.0, rel=1e-2), hour)
+    assert losses == 22.0  # Battery/inverter losses plus curtailed PV
+    assert self_consumption == 200.0  # 180 Wh direct PV + 20 Wh battery
+    mock_battery.charge_energy.assert_called_once_with(pytest.approx(420.0, rel=1e-2), hour)
     mock_battery.discharge_energy.assert_called_once_with(pytest.approx(20.0, rel=1e-2), hour)
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_called_once_with(
         consumption, generation
+    )
+
+
+def test_probabilistic_bypass_conserves_energy_without_battery():
+    predictor = Mock()
+    predictor.calculate_expected_direct_consumption.return_value = 150.0
+    with patch(
+        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        return_value=predictor,
+    ):
+        inverter_without_battery = Inverter(
+            InverterParameters(device_id="inverter", max_power_wh=1000.0)
+        )
+
+    generation = 600.0
+    consumption = 200.0
+    grid_export, grid_import, losses, self_consumption = (
+        inverter_without_battery.process_energy(generation, consumption, hour=0)
+    )
+
+    assert self_consumption == pytest.approx(150.0)
+    assert grid_import == pytest.approx(50.0)
+    assert grid_export == pytest.approx(450.0)
+    assert losses == 0.0
+    assert generation + grid_import == pytest.approx(
+        consumption + grid_export + losses
+    )
+
+
+def test_probabilistic_bypass_conserves_energy_on_quarter_hour_grid():
+    predictor = Mock()
+    predictor.calculate_expected_direct_consumption.return_value = 600.0
+    with patch(
+        "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
+        return_value=predictor,
+    ):
+        inverter_without_battery = Inverter(
+            InverterParameters(device_id="inverter", max_power_wh=2000.0),
+            slot_duration_h=0.25,
+        )
+
+    generation = 300.0  # 1200 W over 15 minutes
+    consumption = 200.0  # 800 W over 15 minutes
+    grid_export, grid_import, losses, self_consumption = (
+        inverter_without_battery.process_energy(generation, consumption, hour=0)
+    )
+
+    predictor.calculate_expected_direct_consumption.assert_called_once_with(800.0, 1200.0)
+    assert self_consumption == pytest.approx(150.0)
+    assert grid_import == pytest.approx(50.0)
+    assert grid_export == pytest.approx(150.0)
+    assert losses == 0.0
+    assert generation + grid_import == pytest.approx(
+        consumption + grid_export + losses
     )
 
 
@@ -139,7 +194,7 @@ def test_process_energy_generation_equals_consumption(inverter, mock_battery):
 
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_not_called()
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_called_once_with(
         consumption, generation
     )
 
@@ -163,7 +218,9 @@ def test_process_energy_battery_discharges(inverter, mock_battery):
     assert self_consumption == 200.0  # Generation + battery discharge
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(150.0, hour)
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_called_once_with(
+        consumption, generation
+    )
 
 
 def test_process_energy_allows_battery_grid_export(inverter, mock_battery):
@@ -183,7 +240,7 @@ def test_process_energy_allows_battery_grid_export(inverter, mock_battery):
     assert losses == 0.0
     assert self_consumption == 100.0
     mock_battery.discharge_energy.assert_has_calls([call(100.0, 12), call(200.0, 12)])
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_not_called()
 
 
 def test_process_energy_battery_empty(inverter, mock_battery):
@@ -203,7 +260,9 @@ def test_process_energy_battery_empty(inverter, mock_battery):
     assert self_consumption == 100.0  # Only generation is consumed
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(200.0, hour)
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_called_once_with(
+        consumption, generation
+    )
 
 
 def test_process_energy_battery_full_at_start(inverter, mock_battery):
@@ -225,7 +284,7 @@ def test_process_energy_battery_full_at_start(inverter, mock_battery):
     assert self_consumption == 200.0  # Only consumption is met
     mock_battery.charge_energy.assert_called_once_with(300.0, hour)
     mock_battery.discharge_energy.assert_not_called()
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_called_once_with(
         consumption, generation
     )
 
@@ -247,7 +306,9 @@ def test_process_energy_insufficient_generation_no_battery(inverter, mock_batter
     assert self_consumption == 100.0  # Only generation is consumed
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(400.0, hour)
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_called_once_with(
+        consumption, generation
+    )
 
 
 def test_process_energy_insufficient_generation_battery_assists(inverter, mock_battery):
@@ -272,7 +333,9 @@ def test_process_energy_insufficient_generation_battery_assists(inverter, mock_b
     assert self_consumption == 250.0  # Generation + battery discharge
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(200.0, hour)
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_called_once_with(
+        consumption, generation
+    )
 
 
 def test_process_energy_zero_generation(inverter, mock_battery):
@@ -295,7 +358,7 @@ def test_process_energy_zero_generation(inverter, mock_battery):
     assert self_consumption == 100.0  # Only battery discharge is consumed
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(300.0, hour)
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_not_called()
 
 
 def test_process_energy_zero_consumption(inverter, mock_battery):
@@ -315,9 +378,7 @@ def test_process_energy_zero_consumption(inverter, mock_battery):
     assert self_consumption == 0.0  # Zero consumption
     mock_battery.charge_energy.assert_called_once_with(500.0, hour)
     mock_battery.discharge_energy.assert_not_called()
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
-        consumption, generation
-    )
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_not_called()
 
 
 def test_process_energy_zero_generation_zero_consumption(inverter, mock_battery):
@@ -335,9 +396,7 @@ def test_process_energy_zero_generation_zero_consumption(inverter, mock_battery)
     assert self_consumption == 0.0  # No consumption
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_not_called()
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_called_once_with(
-        consumption, generation
-    )
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_not_called()
 
 
 def test_process_energy_partial_battery_discharge(inverter, mock_battery):
@@ -358,7 +417,9 @@ def test_process_energy_partial_battery_discharge(inverter, mock_battery):
     assert self_consumption == 250.0  # Generation + battery discharge
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(200.0, 12)
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_called_once_with(
+        consumption, generation
+    )
 
 
 def test_process_energy_consumption_exceeds_max_no_battery(inverter, mock_battery):
@@ -378,7 +439,9 @@ def test_process_energy_consumption_exceeds_max_no_battery(inverter, mock_batter
     assert self_consumption == 100.0  # Only the generation is consumed, maxing out the inverter
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(400.0, hour)
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_called_once_with(
+        consumption, generation
+    )
 
 
 def test_process_energy_zero_generation_full_battery_high_consumption(inverter, mock_battery):
@@ -400,4 +463,4 @@ def test_process_energy_zero_generation_full_battery_high_consumption(inverter, 
     assert self_consumption == 500.0  # Battery fully discharges to meet consumption
     mock_battery.charge_energy.assert_not_called()
     mock_battery.discharge_energy.assert_called_once_with(500.0, hour)
-    inverter.self_consumption_predictor.calculate_self_consumption.assert_not_called()
+    inverter.self_consumption_predictor.calculate_expected_direct_consumption.assert_not_called()

@@ -176,6 +176,8 @@
            "horizon_hours": 24,
            "interval": 3600,
            "algorithm": "GENETIC",
+           "visualize_pdf": true,
+           "terminal_value_euro_per_kwh": 0.0,
            "genetic": {
                "individuals": 400,
                "generations": 400,
