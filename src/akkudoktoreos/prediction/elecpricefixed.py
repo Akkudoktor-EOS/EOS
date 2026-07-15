@@ -59,7 +59,7 @@ class ElecPriceFixed(ElecPriceProvider):
         """Return the unique identifier for the ElecPriceFixed provider."""
         return "ElecPriceFixed"
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update electricity price data from fixed schedule.
 
         Generates electricity prices based on the configured time windows
@@ -106,6 +106,6 @@ class ElecPriceFixed(ElecPriceProvider):
         # Convert kWh → Wh and store one entry per interval step.
         for idx, price_kwh in enumerate(prices_kwh):
             current_dt = start_datetime.add(seconds=idx * interval_seconds)
-            self.update_value(current_dt, "elecprice_marketprice_wh", price_kwh / 1000.0)
+            await self.update_value(current_dt, "elecprice_marketprice_wh", price_kwh / 1000.0)
 
         logger.debug(f"Successfully generated {len(prices_kwh)} fixed electricity price entries")

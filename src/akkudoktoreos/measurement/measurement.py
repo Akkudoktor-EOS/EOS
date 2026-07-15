@@ -149,7 +149,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
         # Return ceiling of division to include partial intervals
         return int(np.ceil(diff_seconds / interval_seconds))
 
-    def _energy_from_meter_readings(
+    async def _energy_from_meter_readings(
         self,
         key: str,
         start_datetime: DateTime,
@@ -170,7 +170,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
         """
         size = self._interval_count(start_datetime, end_datetime, interval)
 
-        energy_mr_array = self.key_to_array(
+        energy_mr_array = await self.key_to_array(
             key=key,
             start_datetime=start_datetime,
             end_datetime=end_datetime + interval,
@@ -203,7 +203,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             logger.debug(debug_msg)
         return energy_array
 
-    def load_total_kwh(
+    async def load_total_kwh(
         self,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
@@ -232,9 +232,11 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             return np.zeros(size)
 
         if start_datetime is None:
-            start_datetime = self.min_datetime
+            start_datetime = await self.min_datetime()
         if end_datetime is None:
-            end_datetime = self.max_datetime.add(seconds=1)
+            end_datetime = await self.max_datetime()
+            if end_datetime:
+                end_datetime = end_datetime.add(seconds=1)
         size = self._interval_count(start_datetime, end_datetime, interval)
         load_total_kwh_array = np.zeros(size)
 
@@ -242,7 +244,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
         if isinstance(self.config.measurement.load_emr_keys, list):
             for key in self.config.measurement.load_emr_keys:
                 # Calculate load per interval
-                load_array = self._energy_from_meter_readings(
+                load_array = await self._energy_from_meter_readings(
                     key=key,
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
@@ -270,14 +272,14 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
         """
         return to_datetime().subtract(hours=self.config.measurement.historic_hours)
 
-    def save(self) -> bool:
+    async def save(self) -> bool:
         """Save the measurements to persistent storage.
 
         Returns:
             True in case the measurements were saved, False otherwise.
         """
         # Use db storage if available
-        saved_to_db = DataSequence.save(self)
+        saved_to_db = await DataSequence.save(self)
         if not saved_to_db:
             measurement_file_path = self._measurement_file_path()
             if measurement_file_path is None:
@@ -292,14 +294,14 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
                 logger.exception("Cannot save measurements")
         return True
 
-    def load(self) -> bool:
+    async def load(self) -> bool:
         """Load measurements from persistent storage.
 
         Returns:
             True in case the measurements were loaded, False otherwise.
         """
         # Use db storage if available
-        loaded_from_db = DataSequence.load(self)
+        loaded_from_db = await DataSequence.load(self)
         if not loaded_from_db:
             measurement_file_path = self._measurement_file_path()
             if measurement_file_path is None:
@@ -314,7 +316,7 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
 
                 # Explicitly add data records to the existing singleton
                 for record in loaded.records:
-                    self.insert_by_datetime(record)
+                    await self.insert_by_datetime(record)
             except Exception as e:
                 logger.exception("Cannot load measurements")
         return True

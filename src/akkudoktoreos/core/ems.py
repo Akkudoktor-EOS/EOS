@@ -2,8 +2,7 @@ import traceback
 from asyncio import Lock, get_running_loop
 from concurrent.futures import ThreadPoolExecutor
 from enum import StrEnum
-from functools import partial
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, cast
 
 from loguru import logger
 from pydantic import computed_field
@@ -147,11 +146,11 @@ class EnergyManagement(
         """
         return cls._genetic_solution
 
-    @classmethod
-    def _run(
-        cls,
-        start_datetime: DateTime,
-        mode: EnergyManagementMode,
+    async def run(
+        self,
+        start_datetime: Optional[DateTime] = None,
+        mode: Optional[EnergyManagementMode] = None,
+        algorithm: Optional[str] = None,
         genetic_parameters: Optional[GeneticOptimizationParameters] = None,
         genetic_individuals: Optional[int] = None,
         genetic_seed: Optional[int] = None,
@@ -161,7 +160,6 @@ class EnergyManagement(
         """Run the energy management.
 
         This method initializes the energy management run by setting its
-
         start datetime, updating predictions, and optionally starting
         optimization depending on the selected mode or configuration.
 
@@ -171,161 +169,20 @@ class EnergyManagement(
                 - "OPTIMIZATION": Runs the optimization process.
                 - "PREDICTION": Updates the forecast without optimization.
                 - "DISABLED": Does not run.
-            genetic_parameters (GeneticOptimizationParameters, optional): The
-                parameter set for the genetic algorithm. If not provided, it will
-                be constructed based on the current configuration and predictions.
-            genetic_individuals (int, optional): The number of individuals for the
-                genetic algorithm. Defaults to the algorithm's internal default (400)
-                if not specified.
-            genetic_seed (int, optional): The seed for the genetic algorithm. Defaults
-                to the algorithm's internal random seed if not specified.
-            force_enable (bool, optional): If True, bypasses any disabled state
-                to force the update process. This is mostly applicable to
-                prediction providers.
-            force_update (bool, optional): If True, forces data to be refreshed
-                even if a cached version is still valid.
-
-        Returns:
-            None
-        """
-        # Ensure there is only one optimization/ energy management run at a time
-        if not mode in EnergyManagementMode._value2member_map_:
-            raise ValueError(f"Unknown energy management mode {mode}.")
-        if mode == EnergyManagementMode.DISABLED:
-            return
-
-        logger.info("Starting energy management run.")
-
-        cls._stage = EnergyManagementStage.DATA_ACQUISITION
-
-        # Remember/ set the start datetime of this energy management run.
-        # None leads
-        cls.set_start_datetime(start_datetime)
-
-        # Throw away any memory cached results of the last energy management run.
-        CacheEnergyManagementStore().clear()
-
-        # Do data aquisition by adapters
-        try:
-            cls.adapter.update_data(force_enable)
-        except Exception as e:
-            trace = "".join(traceback.TracebackException.from_exception(e).format())
-            error_msg = f"Adapter update failed - phase {cls._stage}:\n{e}\n{trace}"
-            logger.error(error_msg)
-
-        cls._stage = EnergyManagementStage.FORECAST_RETRIEVAL
-
-        if mode == EnergyManagementMode.PREDICTION:
-            # Update the predictions
-            cls.prediction.update_data(force_enable=force_enable, force_update=force_update)
-            logger.info("Energy management run done (predictions updated)")
-            cls._stage = EnergyManagementStage.IDLE
-            return
-
-        # Prepare optimization parameters
-        # This also creates default configurations for missing values and updates the predictions
-        logger.info(
-            "Starting energy management prediction update and optimzation parameter preparation."
-        )
-        if genetic_parameters is None:
-            genetic_parameters = GeneticOptimizationParameters.prepare()
-
-        if not genetic_parameters:
-            logger.error(
-                "Energy management run canceled. Could not prepare optimisation parameters."
-            )
-            cls._stage = EnergyManagementStage.IDLE
-            return
-
-        cls._stage = EnergyManagementStage.OPTIMIZATION
-        logger.info("Starting energy management optimization.")
-
-        # Take values from config if not given
-        if genetic_individuals is None:
-            genetic_individuals = cls.config.optimization.genetic.individuals
-        if genetic_seed is None:
-            genetic_seed = cls.config.optimization.genetic.seed
-
-        if cls._start_datetime is None:  # Make mypy happy - already set by us
-            raise RuntimeError("Start datetime not set.")
-
-        try:
-            optimization = GeneticOptimization(
-                verbose=bool(cls.config.server.verbose),
-                fixed_seed=genetic_seed,
-            )
-            solution = optimization.optimierung_ems(
-                start_hour=cls._start_datetime.hour,
-                parameters=genetic_parameters,
-                ngen=genetic_individuals,
-            )
-        except:
-            logger.exception("Energy management optimization failed.")
-            cls._stage = EnergyManagementStage.IDLE
-            return
-
-        cls._stage = EnergyManagementStage.CONTROL_DISPATCH
-
-        # Make genetic solution public
-        cls._genetic_solution = solution
-
-        # Make optimization solution public
-        cls._optimization_solution = solution.optimization_solution()
-
-        # Make plan public
-        cls._plan = solution.energy_management_plan()
-
-        logger.debug("Energy management genetic solution:\n{}", cls._genetic_solution)
-        logger.debug("Energy management optimization solution:\n{}", cls._optimization_solution)
-        logger.debug("Energy management plan:\n{}", cls._plan)
-        logger.info("Energy management run done (optimization updated)")
-
-        # Do control dispatch by adapters
-        try:
-            cls.adapter.update_data(force_enable)
-        except Exception as e:
-            trace = "".join(traceback.TracebackException.from_exception(e).format())
-            error_msg = f"Adapter update failed - phase {cls._stage}:\n{e}\n{trace}"
-            logger.error(error_msg)
-
-        # Remember energy run datetime.
-        EnergyManagement._last_run_datetime = to_datetime()
-
-        # energy management run finished
-        cls._stage = EnergyManagementStage.IDLE
-
-    async def run(
-        self,
-        start_datetime: Optional[DateTime] = None,
-        mode: Optional[EnergyManagementMode] = None,
-        genetic_parameters: Optional[GeneticOptimizationParameters] = None,
-        genetic_individuals: Optional[int] = None,
-        genetic_seed: Optional[int] = None,
-        force_enable: Optional[bool] = False,
-        force_update: Optional[bool] = False,
-    ) -> None:
-        """Run the energy management.
-
-        This method initializes the energy management run by setting its
-        start datetime, updating predictions, and optionally starting
-        optimization depending on the selected mode or configuration.
-
-        Args:
-            start_datetime (DateTime, optional): The starting timestamp
-                of the energy management run. Defaults to the current datetime
-                if not provided.
-            mode (EnergyManagementMode, optional): The management mode to use. Must be one of:
-                - "OPTIMIZATION": Runs the optimization process.
-                - "PREDICTION": Updates the forecast without optimization.
 
                 Defaults to the mode defined in the current configuration.
+            algorithm (str, optional):
+                The algorithm to use. Must be one of:
+                - "GENETIC": Optimization uses the `GENETIC` optimization algorithm.
+
+                Defaults to the algorithm defined in the current configuration.
             genetic_parameters (GeneticOptimizationParameters, optional): The
-                parameter set for the genetic algorithm. If not provided, it will
+                parameter set for the `GENETIC` algorithm. If not provided, it will
                 be constructed based on the current configuration and predictions.
             genetic_individuals (int, optional): The number of individuals for the
-                genetic algorithm. Defaults to the algorithm's internal default (400)
+                `GENETIC` algorithm. Defaults to the algorithm's internal default (400)
                 if not specified.
-            genetic_seed (int, optional): The seed for the genetic algorithm. Defaults
+            genetic_seed (int, optional): The seed for the `GENETIC` algorithm. Defaults
                 to the algorithm's internal random seed if not specified.
             force_enable (bool, optional): If True, bypasses any disabled state
                 to force the update process. This is mostly applicable to
@@ -336,22 +193,205 @@ class EnergyManagement(
         Returns:
             None
         """
-        async with self._run_lock:
-            loop = get_running_loop()
-            # Create a partial function with parameters "baked in"
-            if start_datetime is None:
-                start_datetime = to_datetime()
+        async with EnergyManagement._run_lock:
             if mode is None:
                 mode = self.config.ems.mode
-            func = partial(
-                EnergyManagement._run,
-                start_datetime=start_datetime,
-                mode=mode,
-                genetic_parameters=genetic_parameters,
-                genetic_individuals=genetic_individuals,
-                genetic_seed=genetic_seed,
-                force_enable=force_enable,
-                force_update=force_update,
+
+            if mode not in EnergyManagementMode._value2member_map_:
+                raise ValueError(f"Unknown energy management mode {mode}.")
+            if mode == EnergyManagementMode.DISABLED:
+                logger.info("Energy management run disabled.")
+                return
+
+            logger.info("Starting energy management run.")
+
+            # --- Data Aquisition ---
+            EnergyManagement._stage = EnergyManagementStage.DATA_ACQUISITION
+
+            # Remember/ set the start datetime of this energy management run.
+            # None leads to current time as start datetime
+            self.set_start_datetime(start_datetime)
+
+            # Throw away any memory cached results of the last energy management run.
+            CacheEnergyManagementStore().clear()
+
+            # --- Adapter update     ---
+            try:
+                await self.adapter.update_data(force_enable)
+            except Exception as e:
+                trace = "".join(traceback.TracebackException.from_exception(e).format())
+                error_msg = (
+                    f"Adapter update failed - phase {EnergyManagement._stage}:\n{e}\n{trace}"
+                )
+                logger.error(error_msg)
+
+            # --- Prediction ---
+            EnergyManagement._stage = EnergyManagementStage.FORECAST_RETRIEVAL
+
+            # Update the predictions
+            logger.info("Starting energy management prediction update.")
+            await self.prediction.update_data(force_enable=force_enable, force_update=force_update)
+
+            if mode == EnergyManagementMode.PREDICTION:
+                logger.info("Energy management run done (predictions updated)")
+                EnergyManagement._stage = EnergyManagementStage.IDLE
+                return
+
+            # --- Optimization ---
+            EnergyManagement._stage = EnergyManagementStage.OPTIMIZATION
+            optimization_start = to_datetime()
+            logger.info("Starting energy management optimization.")
+
+            if algorithm is None:
+                algorithm = self.config.optimization.algorithm
+
+            if algorithm == "GENETIC":
+                # Prepare optimization parameters
+                # This also creates default configurations for missing values and updates the predictions
+                logger.info("Starting optimzation parameter preparation.")
+                if genetic_parameters is None:
+                    genetic_parameters = await GeneticOptimizationParameters.prepare()
+                    if genetic_parameters is None:
+                        logger.error(
+                            "Energy management run canceled. Could not prepare optimisation parameters."
+                        )
+                        EnergyManagement._stage = EnergyManagementStage.IDLE
+                        return
+
+                # Take values from config if not given
+                if genetic_individuals is None:
+                    genetic_individuals = self.config.optimization.genetic.individuals
+                if genetic_seed is None:
+                    genetic_seed = self.config.optimization.genetic.seed
+
+                if EnergyManagement._start_datetime is None:  # Make mypy happy - already set by us
+                    raise RuntimeError("Start datetime not set.")
+
+                # --- Optimization (CPU-bound → MUST offload) ---
+                try:
+                    optimization = GeneticOptimization(
+                        verbose=bool(self.config.server.verbose),
+                        fixed_seed=genetic_seed,
+                    )
+
+                    loop = get_running_loop()
+                    start_hour = EnergyManagement._start_datetime.hour
+                    solution = await loop.run_in_executor(
+                        None,
+                        lambda: optimization.optimierung_ems(
+                            start_hour=start_hour,
+                            parameters=cast(
+                                GeneticOptimizationParameters, genetic_parameters
+                            ),  # cast for mypy
+                            ngen=genetic_individuals,
+                        ),
+                    )
+
+                except Exception:
+                    logger.exception("Energy management optimization failed.")
+                    EnergyManagement._stage = EnergyManagementStage.IDLE
+                    return
+
+            else:
+                logger.error(f"Unknown optimization algorithm: '{algorithm}'. Skipping.")
+                EnergyManagement._stage = EnergyManagementStage.IDLE
+                return
+
+            optimization_duration = to_datetime() - optimization_start
+            logger.info(
+                "Energy management optimization ({}) completed in {:.1f} seconds.",
+                algorithm,
+                optimization_duration.total_seconds(),
             )
-            # Run optimization in background thread to avoid blocking event loop
-            await loop.run_in_executor(executor, func)
+
+            logger.debug(
+                "Energy management optimization solution:\n{}",
+                EnergyManagement._optimization_solution,
+            )
+            logger.debug("Energy management plan:\n{}", EnergyManagement._plan)
+
+            # --- Control dispatch by adapters ---
+            EnergyManagement._stage = EnergyManagementStage.CONTROL_DISPATCH
+
+            # Make genetic solution public
+            EnergyManagement._genetic_solution = solution
+
+            # Make optimization solution public
+            EnergyManagement._optimization_solution = await solution.optimization_solution()
+
+            # Make plan public
+            EnergyManagement._plan = solution.energy_management_plan()
+
+            logger.debug(
+                "Energy management genetic solution:\n{}", EnergyManagement._genetic_solution
+            )
+
+            if genetic_parameters is None:
+                genetic_parameters = await GeneticOptimizationParameters.prepare()
+
+            if not genetic_parameters:
+                logger.error("Energy management run canceled. Could not prepare parameters.")
+                EnergyManagement._stage = EnergyManagementStage.IDLE
+                return
+
+            EnergyManagement._stage = EnergyManagementStage.OPTIMIZATION
+
+            if genetic_individuals is None:
+                genetic_individuals = self.config.optimization.genetic.individuals
+            if genetic_seed is None:
+                genetic_seed = self.config.optimization.genetic.seed
+
+            if EnergyManagement._start_datetime is None:
+                raise RuntimeError("Start datetime not set.")
+
+            # --- Optimization (CPU-bound → MUST offload) ---
+            try:
+                optimization = GeneticOptimization(
+                    verbose=bool(self.config.server.verbose),
+                    fixed_seed=genetic_seed,
+                )
+
+                loop = get_running_loop()
+                start_hour = EnergyManagement._start_datetime.hour
+                solution = await loop.run_in_executor(
+                    None,
+                    lambda: optimization.optimierung_ems(
+                        start_hour=start_hour,
+                        parameters=genetic_parameters,
+                        ngen=genetic_individuals,
+                    ),
+                )
+
+            except Exception:
+                logger.exception("Energy management optimization failed.")
+                EnergyManagement._stage = EnergyManagementStage.IDLE
+                return
+
+            EnergyManagement._genetic_solution = solution
+            EnergyManagement._optimization_solution = await solution.optimization_solution()
+            EnergyManagement._plan = solution.energy_management_plan()
+
+            logger.debug("Genetic solution:\n{}", EnergyManagement._genetic_solution)
+            logger.debug("Optimization solution:\n{}", EnergyManagement._optimization_solution)
+            logger.debug("Plan:\n{}", EnergyManagement._plan)
+            logger.info("Energy management run done (optimization updated)")
+
+            # --- Dispatch control by adapters ---
+            EnergyManagement._stage = EnergyManagementStage.CONTROL_DISPATCH
+
+            # Dispatch (sync → optionally offload)
+            try:
+                await self.adapter.update_data(force_enable)
+            except Exception as e:
+                trace = "".join(traceback.TracebackException.from_exception(e).format())
+                error_msg = (
+                    f"Adapter update failed - phase {EnergyManagement._stage}:\n{e}\n{trace}"
+                )
+                logger.error(error_msg)
+
+            # --- Idle ---
+            # Remember energy run datetime.
+            EnergyManagement._last_run_datetime = to_datetime()
+
+            # energy management run finished
+            EnergyManagement._stage = EnergyManagementStage.IDLE

@@ -225,7 +225,7 @@ class PredictionProvider(PredictionStartEndKeepMixin, DataProvider):
         hours = max(self.config.prediction.hours, self.config.prediction_historic_hours, 24)
         return to_duration(hours * 3600)
 
-    def update_data(
+    async def update_data(
         self,
         force_enable: Optional[bool] = False,
         force_update: Optional[bool] = False,
@@ -243,10 +243,10 @@ class PredictionProvider(PredictionStartEndKeepMixin, DataProvider):
             return
 
         # Delete outdated records before updating
-        self.delete_by_datetime(end_datetime=self.keep_datetime)
+        await self.delete_by_datetime(end_datetime=self.keep_datetime)
 
         # Call the custom update logic
-        self._update_data(force_update=force_update)
+        await self._update_data(force_update=force_update)
 
 
 class PredictionImportProvider(PredictionProvider, DataImportProvider):

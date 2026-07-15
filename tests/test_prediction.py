@@ -133,13 +133,14 @@ def test_prediction_repr(prediction):
     assert "WeatherImport" in result
 
 
-def test_empty_providers(prediction, forecast_providers):
+@pytest.mark.asyncio
+async def test_empty_providers(prediction, forecast_providers):
     """Test behavior when Prediction does not have providers."""
     # Clear all prediction providers from prediction
     providers_bkup = prediction.providers.copy()
     prediction.providers.clear()
     assert prediction.providers == []
-    prediction.update_data()  # Should not raise an error even with no providers
+    await prediction.update_data()  # Should not raise an error even with no providers
 
     # Cleanup after Test
     prediction.providers = providers_bkup

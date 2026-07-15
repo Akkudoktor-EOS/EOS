@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import asyncio
 import cProfile
 import pstats
 import sys
@@ -159,7 +160,7 @@ def run_prediction(provider_id: str, verbose: bool = False) -> str:
 
     provider = prediction_eos.provider_by_id(provider_id)
 
-    prediction_eos.update_data()
+    asyncio.run(prediction_eos.update_data())
 
     # Return result of prediction
     if verbose:
@@ -176,7 +177,7 @@ def run_prediction(provider_id: str, verbose: bool = False) -> str:
         print(f"enabled: {provider.enabled()}")
         for key in provider.record_keys:
             print(f"\n{key}\n----------")
-            print(f"Array: {provider.key_to_array(key)}")
+            print(f"Array: {asyncio.run(provider.key_to_array(key))}")
     return provider.model_dump_json(indent=4)
 
 
@@ -225,4 +226,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

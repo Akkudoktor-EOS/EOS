@@ -223,6 +223,7 @@ penalty = ac_wh_charged × (break_even_price − best_uncovered_price) × factor
 ```
 
 where:
+
 - `break_even_price = charge_price / η_round_trip`
 - `best_uncovered_price` = highest future price not already covered by free PV battery energy
 - `factor` = `optimization.genetic.penalties.ac_charge_break_even` (default `1.0`)

@@ -60,7 +60,7 @@ install: version-txt
 # Target to rebuild the virtual environment.
 update-env:
 	@echo "Rebuilding virtual environment to match pyproject.toml..."
-	uv rebuild
+	$(UV) sync --upgrade --extra dev
 	@echo "Environment rebuilt."
 
 # Target to create a distribution.

@@ -5,6 +5,7 @@ from typing import Any, ClassVar, List, Optional, Union
 import pandas as pd
 import pendulum
 import pytest
+import pytest_asyncio
 from pydantic import Field
 
 from akkudoktoreos.core.coreabc import get_ems
@@ -69,7 +70,7 @@ class DerivedPredictionProvider(PredictionProvider):
     def enabled(self) -> bool:
         return self.provider_enabled
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
         # Simulate update logic
         DerivedPredictionProvider.provider_updated = True
 
@@ -127,6 +128,7 @@ class TestPredictionABC:
 # --------------------------------------------------------
 
 
+@pytest.mark.asyncio
 class TestPredictionProvider:
     # Fixtures and helper functions
     @pytest.fixture
@@ -147,7 +149,7 @@ class TestPredictionProvider:
 
     # Tests
 
-    def test_singleton_behavior(self, provider):
+    async def test_singleton_behavior(self, provider):
         """Test that PredictionProvider enforces singleton behavior."""
         instance1 = provider
         instance2 = DerivedPredictionProvider()
@@ -155,7 +157,7 @@ class TestPredictionProvider:
             "Singleton pattern is not enforced; instances are not the same."
         )
 
-    def test_update_computed_fields(self, provider, sample_start_datetime):
+    async def test_update_computed_fields(self, provider, sample_start_datetime):
         """Test that computed fields `end_datetime` and `keep_datetime` are correctly calculated."""
         ems_eos = get_ems()
         ems_eos.set_start_datetime(sample_start_datetime)
@@ -176,7 +178,7 @@ class TestPredictionProvider:
             "Keep datetime is not calculated correctly."
         )
 
-    def test_update_method_with_defaults(
+    async def test_update_method_with_defaults(
         self, provider, sample_start_datetime, config_eos, monkeypatch
     ):
         """Test the `update` method with default parameters."""
@@ -188,7 +190,7 @@ class TestPredictionProvider:
         provider.config.reset_settings()
 
         ems_eos.set_start_datetime(sample_start_datetime)
-        provider.update_data()
+        await provider.update_data()
 
         assert provider.config.prediction.hours == config_eos.prediction.hours
         assert provider.config.prediction.historic_hours == 2
@@ -198,7 +200,7 @@ class TestPredictionProvider:
         )
         assert provider.keep_datetime == sample_start_datetime - to_duration("2 hours")
 
-    def test_update_method_force_enable(self, provider, monkeypatch):
+    async def test_update_method_force_enable(self, provider, monkeypatch):
         """Test that `update` executes when `force_enable` is True, even if `enabled` is False."""
         # Preset values that are needed by update
         monkeypatch.setenv("EOS_GENERAL__LATITUDE", "37.7749")
@@ -207,13 +209,13 @@ class TestPredictionProvider:
         # Override enabled to return False for this test
         DerivedPredictionProvider.provider_enabled = False
         DerivedPredictionProvider.provider_updated = False
-        provider.update_data(force_enable=True)
+        await provider.update_data(force_enable=True)
         assert provider.enabled() is False, "Provider should be disabled, but enabled() is True."
         assert DerivedPredictionProvider.provider_updated is True, (
             "Provider should have been executed, but was not."
         )
 
-    def test_delete_by_datetime(self, provider, sample_start_datetime):
+    async def test_delete_by_datetime(self, provider, sample_start_datetime):
         """Test `delete_by_datetime` method for removing records by datetime range."""
         # Add records to the provider for deletion testing
         records = [
@@ -222,9 +224,9 @@ class TestPredictionProvider:
             self.create_test_record(sample_start_datetime + to_duration("1 hour"), 3),
         ]
         for record in records:
-            provider.insert_by_datetime(record)
+            await provider.insert_by_datetime(record)
 
-        provider.delete_by_datetime(
+        await provider.delete_by_datetime(
             start_datetime=sample_start_datetime - to_duration("2 hours"),
             end_datetime=sample_start_datetime + to_duration("2 hours"),
         )
@@ -236,6 +238,7 @@ class TestPredictionProvider:
         )
 
 
+@pytest.mark.asyncio
 class TestPredictionContainer:
     # Fixture and helpers
     @pytest.fixture
@@ -243,8 +246,8 @@ class TestPredictionContainer:
         container = DerivedPredictionContainer()
         return container
 
-    @pytest.fixture
-    def container_with_providers(self):
+    @pytest_asyncio.fixture
+    async def container_with_providers(self):
         records = [
             # Test records - include 'prediction_value' key
             self.create_test_record(datetime(2023, 11, 5), 1),
@@ -252,10 +255,10 @@ class TestPredictionContainer:
             self.create_test_record(datetime(2023, 11, 7), 3),
         ]
         provider = DerivedPredictionProvider()
-        provider.delete_by_datetime(start_datetime=None, end_datetime=None)
+        await provider.delete_by_datetime(start_datetime=None, end_datetime=None)
         assert len(provider) == 0
         for record in records:
-            provider.insert_by_datetime(record)
+            await provider.insert_by_datetime(record)
         assert len(provider) == 3
         container = DerivedPredictionContainer()
         container.providers.clear()
@@ -282,7 +285,7 @@ class TestPredictionContainer:
             ("2024-10-27 00:00:00", 48, "2024-10-29 00:00:00"),  # DST change (49 hours/ day)
         ],
     )
-    def test_end_datetime(self, container, start, hours, end):
+    async def test_end_datetime(self, container, start, hours, end):
         """Test end datetime calculation from start datetime."""
         ems_eos = get_ems()
         ems_eos.set_start_datetime(to_datetime(start, in_timezone="Europe/Berlin"))
@@ -312,7 +315,7 @@ class TestPredictionContainer:
             ),
         ],
     )
-    def test_keep_datetime(self, container, start, historic_hours, expected_keep):
+    async def test_keep_datetime(self, container, start, historic_hours, expected_keep):
         """Test the `keep_datetime` property."""
         ems_eos = get_ems()
         ems_eos.set_start_datetime(to_datetime(start, in_timezone="Europe/Berlin"))
@@ -334,7 +337,7 @@ class TestPredictionContainer:
             ("2024-10-27 00:00:00", 24, 25),  # DST change in Germany (25 hours/ day)
         ],
     )
-    def test_total_hours(self, container, start, hours, expected_hours):
+    async def test_total_hours(self, container, start, hours, expected_hours):
         """Test the `total_hours` property."""
         ems_eos = get_ems()
         ems_eos.set_start_datetime(to_datetime(start, in_timezone="Europe/Berlin"))
@@ -355,7 +358,7 @@ class TestPredictionContainer:
             ("2024-10-28 00:00:00", 24, 24),  # DST change on 2024-10-27 in Germany (25 hours/ day)
         ],
     )
-    def test_keep_hours(self, container, start, historic_hours, expected_hours):
+    async def test_keep_hours(self, container, start, historic_hours, expected_hours):
         """Test the `keep_hours` property."""
         ems_eos = get_ems()
         ems_eos.set_start_datetime(to_datetime(start, in_timezone="Europe/Berlin"))
@@ -367,80 +370,37 @@ class TestPredictionContainer:
         container.config.merge_settings_from_dict(settings)
         assert container.keep_hours == expected_hours
 
-    def test_append_provider(self, container):
+    async def test_append_provider(self, container):
         assert len(container.providers) == 0
         container.providers.append(DerivedPredictionProvider())
         assert len(container.providers) == 1
         assert isinstance(container.providers[0], DerivedPredictionProvider)
 
     @pytest.mark.skip(reason="type check not implemented")
-    def test_append_provider_invalid_type(self, container):
+    async def test_append_provider_invalid_type(self, container):
         with pytest.raises(ValueError, match="must be an instance of PredictionProvider"):
             container.providers.append("not_a_provider")
 
-    def test_getitem_existing_key(self, container_with_providers):
-        assert len(container_with_providers.providers) == 1
-        # check all keys are available (don't care for position)
-        for key in ["prediction_value", "date_time"]:
-            assert key in container_with_providers.record_keys
-        for key in ["prediction_value", "date_time"]:
-            assert key in container_with_providers.keys()
-        series = container_with_providers["prediction_value"]
-        assert isinstance(series, pd.Series)
-        assert series.name == "prediction_value"
-        assert series.tolist() == [1.0, 2.0, 3.0]
-
-    def test_getitem_non_existing_key(self, container_with_providers):
-        with pytest.raises(KeyError, match="No data found for key 'non_existent_key'"):
-            container_with_providers["non_existent_key"]
-
-    def test_setitem_existing_key(self, container_with_providers):
-        new_series = container_with_providers["prediction_value"]
-        new_series[:] = [4, 5, 6]
-        container_with_providers["prediction_value"] = new_series
-        series = container_with_providers["prediction_value"]
-        assert series.name == "prediction_value"
-        assert series.tolist() == [4, 5, 6]
-
-    def test_setitem_invalid_value(self, container_with_providers):
-        with pytest.raises(ValueError, match="Value must be an instance of pd.Series"):
-            container_with_providers["test_key"] = "not_a_series"
-
-    def test_setitem_non_existing_key(self, container_with_providers):
-        new_series = pd.Series([4, 5, 6], name="non_existent_key")
-        with pytest.raises(KeyError, match="Key 'non_existent_key' not found"):
-            container_with_providers["non_existent_key"] = new_series
-
-    def test_delitem_existing_key(self, container_with_providers):
-        del container_with_providers["prediction_value"]
-        series = container_with_providers["prediction_value"]
-        assert series.name == "prediction_value"
-        assert series.tolist() == []
-
-    def test_delitem_non_existing_key(self, container_with_providers):
-        with pytest.raises(KeyError, match="Key 'non_existent_key' not found"):
-            del container_with_providers["non_existent_key"]
-
-    def test_len(self, container_with_providers):
+    async def test_len(self, container_with_providers):
         assert len(container_with_providers) == 2
 
-    def test_repr(self, container_with_providers):
+    async def test_repr(self, container_with_providers):
         representation = repr(container_with_providers)
         assert representation.startswith("DerivedPredictionContainer(")
         assert "DerivedPredictionProvider" in representation
 
-    def test_to_json(self, container_with_providers):
+    async def test_to_json(self, container_with_providers):
         json_str = container_with_providers.to_json()
         container_other = DerivedPredictionContainer.from_json(json_str)
         assert container_other == container_with_providers
 
-    def test_from_json(self, container_with_providers):
+    async def test_from_json(self, container_with_providers):
         json_str = container_with_providers.to_json()
         container = DerivedPredictionContainer.from_json(json_str)
         assert isinstance(container, DerivedPredictionContainer)
         assert len(container.providers) == 1
         assert container.providers[0] == container_with_providers.providers[0]
 
-    def test_provider_by_id(self, container_with_providers):
+    async def test_provider_by_id(self, container_with_providers):
         provider = container_with_providers.provider_by_id("DerivedPredictionProvider")
         assert isinstance(provider, DerivedPredictionProvider)

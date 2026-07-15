@@ -419,7 +419,7 @@ class HomeAssistantAdapter(AdapterProvider):
             # Preserve original state for enums and free-text states
             return raw_state
 
-    def _update_data(self) -> None:
+    async def _update_data(self) -> None:
         stage = self.ems.stage()
         if stage == EnergyManagementStage.DATA_ACQUISITION:
             # Sync configuration
@@ -451,7 +451,7 @@ class HomeAssistantAdapter(AdapterProvider):
                             logger.debug(f"Entity {entity_id}: {state}")
                             if state:
                                 measurement_value = float(state)
-                                self.measurement.update_value(
+                                await self.measurement.update_value(
                                     self.ems_start_datetime, measurement_key, measurement_value
                                 )
                         except Exception as e:
@@ -473,7 +473,7 @@ class HomeAssistantAdapter(AdapterProvider):
                         logger.debug(f"Entity {entity_id}: {state}")
                         if state:
                             measurement_value = float(state)
-                            self.measurement.update_value(
+                            await self.measurement.update_value(
                                 self.ems_start_datetime, measurement_key, measurement_value
                             )
                     except Exception as e:
@@ -495,7 +495,7 @@ class HomeAssistantAdapter(AdapterProvider):
                         logger.debug(f"Entity {entity_id}: {state}")
                         if state:
                             measurement_value = float(state)
-                            self.measurement.update_value(
+                            await self.measurement.update_value(
                                 self.ems_start_datetime, measurement_key, measurement_value
                             )
                     except Exception as e:
@@ -517,7 +517,7 @@ class HomeAssistantAdapter(AdapterProvider):
                         logger.debug(f"Entity {entity_id}: {state}")
                         if state:
                             measurement_value = float(state)
-                            self.measurement.update_value(
+                            await self.measurement.update_value(
                                 self.ems_start_datetime, measurement_key, measurement_value
                             )
                     except Exception as e:
@@ -539,7 +539,7 @@ class HomeAssistantAdapter(AdapterProvider):
                         logger.debug(f"Entity {entity_id}: {state}")
                         if state:
                             measurement_value = float(state)
-                            self.measurement.update_value(
+                            await self.measurement.update_value(
                                 self.ems_start_datetime, measurement_key, measurement_value
                             )
                     except Exception as e:

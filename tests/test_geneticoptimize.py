@@ -37,6 +37,7 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
             assert actual[key] == pytest.approx(value)
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "fn_in, fn_out, ngen, break_even",
     [

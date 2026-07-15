@@ -1,3 +1,4 @@
+import asyncio
 import json
 from unittest.mock import call, patch
 
@@ -48,69 +49,67 @@ def mock_forecast_response():
         totals={}
     )
 
+@pytest.mark.asyncio
+class TestLoadVRM:
 
-def test_update_data_calls_update_value(load_vrm_instance):
-    with patch.object(load_vrm_instance, "_request_forecast", return_value=mock_forecast_response()), \
-         patch.object(LoadVrm, "update_value") as mock_update:
+    async def test_update_data_calls_update_value(self, load_vrm_instance):
+        with patch.object(load_vrm_instance, "_request_forecast", return_value=mock_forecast_response()), \
+            patch.object(LoadVrm, "update_value") as mock_update:
 
-        load_vrm_instance._update_data()
+            await load_vrm_instance._update_data()
 
-        assert mock_update.call_count == 2
+            assert mock_update.call_count == 2
 
-        expected_calls = [
-            call(
-                pendulum.datetime(2025, 1, 1, 0, 0, 0, tz='Europe/Berlin'),
-                {"loadforecast_power_w": 100.5,}
-            ),
-            call(
-                pendulum.datetime(2025, 1, 1, 1, 0, 0, tz='Europe/Berlin'),
-                {"loadforecast_power_w": 101.2,}
-            ),
-        ]
+            expected_calls = [
+                call(
+                    pendulum.datetime(2025, 1, 1, 0, 0, 0, tz='Europe/Berlin'),
+                    {"loadforecast_power_w": 100.5,}
+                ),
+                call(
+                    pendulum.datetime(2025, 1, 1, 1, 0, 0, tz='Europe/Berlin'),
+                    {"loadforecast_power_w": 101.2,}
+                ),
+            ]
 
-        mock_update.assert_has_calls(expected_calls, any_order=False)
+            mock_update.assert_has_calls(expected_calls, any_order=False)
 
+    def test_validate_data_accepts_valid_json(self):
+        """Test that _validate_data doesn't raise with valid input."""
+        response = mock_forecast_response()
+        json_data = response.model_dump_json()
 
-def test_validate_data_accepts_valid_json():
-    """Test that _validate_data doesn't raise with valid input."""
-    response = mock_forecast_response()
-    json_data = response.model_dump_json()
+        validated = LoadVrm._validate_data(json_data)
+        assert validated.success
+        assert len(validated.records.vrm_consumption_fc) == 2
 
-    validated = LoadVrm._validate_data(json_data)
-    assert validated.success
-    assert len(validated.records.vrm_consumption_fc) == 2
+    def test_validate_data_raises_on_invalid_json(self):
+        """_validate_data should raise ValueError on schema mismatch."""
+        invalid_json = json.dumps({"success": True})  # missing 'records'
 
+        with pytest.raises(ValueError) as exc_info:
+            LoadVrm._validate_data(invalid_json)
 
-def test_validate_data_raises_on_invalid_json():
-    """_validate_data should raise ValueError on schema mismatch."""
-    invalid_json = json.dumps({"success": True})  # missing 'records'
+        assert "Field:" in str(exc_info.value)
+        assert "records" in str(exc_info.value)
 
-    with pytest.raises(ValueError) as exc_info:
-        LoadVrm._validate_data(invalid_json)
+    def test_request_forecast_raises_on_http_error(self, load_vrm_instance):
+        with patch("requests.get", side_effect=requests.Timeout("Request timed out")) as mock_get:
+            with pytest.raises(RuntimeError) as exc_info:
+                load_vrm_instance._request_forecast(0, 1)
 
-    assert "Field:" in str(exc_info.value)
-    assert "records" in str(exc_info.value)
+            assert "Failed to fetch load forecast" in str(exc_info.value)
+            mock_get.assert_called_once()
 
+    async def test_update_data_does_nothing_on_empty_forecast(self, load_vrm_instance):
+        empty_response = VrmForecastResponse(
+            success=True,
+            records=VrmForecastRecords(vrm_consumption_fc=[], solar_yield_forecast=[]),
+            totals={}
+        )
 
-def test_request_forecast_raises_on_http_error(load_vrm_instance):
-    with patch("requests.get", side_effect=requests.Timeout("Request timed out")) as mock_get:
-        with pytest.raises(RuntimeError) as exc_info:
-            load_vrm_instance._request_forecast(0, 1)
+        with patch.object(load_vrm_instance, "_request_forecast", return_value=empty_response), \
+            patch.object(LoadVrm, "update_value") as mock_update:
 
-        assert "Failed to fetch load forecast" in str(exc_info.value)
-        mock_get.assert_called_once()
+            await load_vrm_instance._update_data()
 
-
-def test_update_data_does_nothing_on_empty_forecast(load_vrm_instance):
-    empty_response = VrmForecastResponse(
-        success=True,
-        records=VrmForecastRecords(vrm_consumption_fc=[], solar_yield_forecast=[]),
-        totals={}
-    )
-
-    with patch.object(load_vrm_instance, "_request_forecast", return_value=empty_response), \
-         patch.object(LoadVrm, "update_value") as mock_update:
-
-        load_vrm_instance._update_data()
-
-        mock_update.assert_not_called()
+            mock_update.assert_not_called()

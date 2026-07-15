@@ -34,7 +34,7 @@ class FeedInTariffFixed(FeedInTariffProvider):
         """Return the unique identifier for the FeedInTariffFixed provider."""
         return "FeedInTariffFixed"
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
         error_msg = "Feed in tariff not provided"
         try:
             feed_in_tariff = (
@@ -47,4 +47,4 @@ class FeedInTariffFixed(FeedInTariffProvider):
             logger.error(error_msg)
             raise ValueError(error_msg)
         feed_in_tariff_wh = feed_in_tariff / 1000
-        self.update_value(to_datetime(), "feed_in_tariff_wh", feed_in_tariff_wh)
+        await self.update_value(to_datetime(), "feed_in_tariff_wh", feed_in_tariff_wh)

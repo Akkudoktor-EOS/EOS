@@ -1,3 +1,4 @@
+import asyncio
 import json
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -51,204 +52,205 @@ def cache_store():
     return CacheFileStore()
 
 
-# ------------------------------------------------
-# General forecast
-# ------------------------------------------------
+@pytest.mark.asyncio
+class TestElecPriceEnergyCharts:
+    # ------------------------------------------------
+    # General forecast
+    # ------------------------------------------------
+
+    def test_singleton_instance(self, provider):
+        """Test that ElecPriceForecast behaves as a singleton."""
+        another_instance = ElecPriceEnergyCharts()
+        assert provider is another_instance
 
 
-def test_singleton_instance(provider):
-    """Test that ElecPriceForecast behaves as a singleton."""
-    another_instance = ElecPriceEnergyCharts()
-    assert provider is another_instance
+    def test_invalid_provider(self, provider, monkeypatch):
+        """Test requesting an unsupported provider."""
+        monkeypatch.setenv("EOS_ELECPRICE__ELECPRICE_PROVIDER", "<invalid>")
+        provider.config.reset_settings()
+        assert not provider.enabled()
 
 
-def test_invalid_provider(provider, monkeypatch):
-    """Test requesting an unsupported provider."""
-    monkeypatch.setenv("EOS_ELECPRICE__ELECPRICE_PROVIDER", "<invalid>")
-    provider.config.reset_settings()
-    assert not provider.enabled()
+    # ------------------------------------------------
+    # Akkudoktor
+    # ------------------------------------------------
 
 
-# ------------------------------------------------
-# Akkudoktor
-# ------------------------------------------------
+    @patch("akkudoktoreos.prediction.elecpriceenergycharts.logger.error")
+    def test_validate_data_invalid_format(self, mock_logger, provider):
+        """Test validation for invalid Energy-Charts data."""
+        invalid_data = '{"invalid": "data"}'
+        with pytest.raises(ValueError):
+            provider._validate_data(invalid_data)
+        mock_logger.assert_called_once_with(mock_logger.call_args[0][0])
 
 
-@patch("akkudoktoreos.prediction.elecpriceenergycharts.logger.error")
-def test_validate_data_invalid_format(mock_logger, provider):
-    """Test validation for invalid Energy-Charts data."""
-    invalid_data = '{"invalid": "data"}'
-    with pytest.raises(ValueError):
-        provider._validate_data(invalid_data)
-    mock_logger.assert_called_once_with(mock_logger.call_args[0][0])
+    @patch("requests.get")
+    def test_request_forecast(self, mock_get, provider, sample_energycharts_json):
+        """Test requesting forecast from Energy-Charts."""
+        # Mock response object
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = json.dumps(sample_energycharts_json)
+        mock_get.return_value = mock_response
+
+        # Test function
+        energy_charts_data = provider._request_forecast()
+
+        assert isinstance(energy_charts_data, EnergyChartsElecPrice)
+        assert energy_charts_data.unix_seconds[0] == 1733785200
+        assert energy_charts_data.price[0] == 92.85
 
 
-@patch("requests.get")
-def test_request_forecast(mock_get, provider, sample_energycharts_json):
-    """Test requesting forecast from Energy-Charts."""
-    # Mock response object
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.content = json.dumps(sample_energycharts_json)
-    mock_get.return_value = mock_response
+    @patch("requests.get")
+    async def test_update_data(self, mock_get, provider, sample_energycharts_json, cache_store):
+        """Test fetching forecast from Energy-Charts."""
+        # Mock response object
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = json.dumps(sample_energycharts_json)
+        mock_get.return_value = mock_response
 
-    # Test function
-    energy_charts_data = provider._request_forecast()
+        cache_store.clear(clear_all=True)
 
-    assert isinstance(energy_charts_data, EnergyChartsElecPrice)
-    assert energy_charts_data.unix_seconds[0] == 1733785200
-    assert energy_charts_data.price[0] == 92.85
+        # Call the method
+        ems_eos = get_ems()
+        ems_eos.set_start_datetime(to_datetime("2024-12-11 00:00:00", in_timezone="Europe/Berlin"))
+        await provider.update_data(force_enable=True, force_update=True)
+
+        # Assert: Verify the result is as expected
+        mock_get.assert_called_once()
+        assert (
+            len(provider) == 73
+        )  # we have 48 datasets in the api response, we want to know 48h into the future. The data we get has already 23h into the future so we need only 25h more. 48+25=73
+
+        # Assert we get hours prioce values by resampling
+        np_price_array = await provider.key_to_array(
+            key="elecprice_marketprice_wh",
+            start_datetime=provider.ems_start_datetime,
+            end_datetime=provider.end_datetime,
+        )
+        assert len(np_price_array) == provider.total_hours
 
 
-@patch("requests.get")
-def test_update_data(mock_get, provider, sample_energycharts_json, cache_store):
-    """Test fetching forecast from Energy-Charts."""
-    # Mock response object
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.content = json.dumps(sample_energycharts_json)
-    mock_get.return_value = mock_response
+    @patch("requests.get")
+    async def test_update_data_with_incomplete_forecast(self, mock_get, provider):
+        """Test `_update_data` with incomplete or missing forecast data."""
+        incomplete_data: dict = {"license_info": "", "unix_seconds": [], "price": [], "unit": "", "deprecated": False}
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = json.dumps(incomplete_data)
+        mock_get.return_value = mock_response
+        logger.info("The following errors are intentional and part of the test.")
+        with pytest.raises(ValueError):
+            await provider._update_data(force_update=True)
 
-    cache_store.clear(clear_all=True)
 
-    # Call the method
-    ems_eos = get_ems()
-    ems_eos.set_start_datetime(to_datetime("2024-12-11 00:00:00", in_timezone="Europe/Berlin"))
-    provider.update_data(force_enable=True, force_update=True)
-
-    # Assert: Verify the result is as expected
-    mock_get.assert_called_once()
-    assert (
-        len(provider) == 73
-    )  # we have 48 datasets in the api response, we want to know 48h into the future. The data we get has already 23h into the future so we need only 25h more. 48+25=73
-
-    # Assert we get hours prioce values by resampling
-    np_price_array = provider.key_to_array(
-        key="elecprice_marketprice_wh",
-        start_datetime=provider.ems_start_datetime,
-        end_datetime=provider.end_datetime,
+    @pytest.mark.parametrize(
+        "status_code, exception",
+        [(400, requests.exceptions.HTTPError), (500, requests.exceptions.HTTPError), (200, None)],
     )
-    assert len(np_price_array) == provider.total_hours
-
-
-@patch("requests.get")
-def test_update_data_with_incomplete_forecast(mock_get, provider):
-    """Test `_update_data` with incomplete or missing forecast data."""
-    incomplete_data: dict = {"license_info": "", "unix_seconds": [], "price": [], "unit": "", "deprecated": False}
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.content = json.dumps(incomplete_data)
-    mock_get.return_value = mock_response
-    logger.info("The following errors are intentional and part of the test.")
-    with pytest.raises(ValueError):
-        provider._update_data(force_update=True)
-
-
-@pytest.mark.parametrize(
-    "status_code, exception",
-    [(400, requests.exceptions.HTTPError), (500, requests.exceptions.HTTPError), (200, None)],
-)
-@patch("requests.get")
-def test_request_forecast_status_codes(
-    mock_get, provider, sample_energycharts_json, status_code, exception
-):
-    """Test handling of various API status codes."""
-    mock_response = Mock()
-    mock_response.status_code = status_code
-    mock_response.content = json.dumps(sample_energycharts_json)
-    mock_response.raise_for_status.side_effect = (
-        requests.exceptions.HTTPError if exception else None
-    )
-    mock_get.return_value = mock_response
-    if exception:
-        with pytest.raises(exception):
+    @patch("requests.get")
+    def test_request_forecast_status_codes(
+        self, mock_get, provider, sample_energycharts_json, status_code, exception
+    ):
+        """Test handling of various API status codes."""
+        mock_response = Mock()
+        mock_response.status_code = status_code
+        mock_response.content = json.dumps(sample_energycharts_json)
+        mock_response.raise_for_status.side_effect = (
+            requests.exceptions.HTTPError if exception else None
+        )
+        mock_get.return_value = mock_response
+        if exception:
+            with pytest.raises(exception):
+                provider._request_forecast()
+        else:
             provider._request_forecast()
-    else:
-        provider._request_forecast()
 
 
-@patch("requests.get")
-@patch("akkudoktoreos.core.cache.CacheFileStore")
-def test_cache_integration(mock_cache, mock_get, provider, sample_energycharts_json):
-    """Test caching of 8-day electricity price data."""
-    # Mock response object
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.content = json.dumps(sample_energycharts_json)
-    mock_get.return_value = mock_response
+    @patch("requests.get")
+    @patch("akkudoktoreos.core.cache.CacheFileStore")
+    async def test_cache_integration(self, mock_cache, mock_get, provider, sample_energycharts_json):
+        """Test caching of 8-day electricity price data."""
+        # Mock response object
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = json.dumps(sample_energycharts_json)
+        mock_get.return_value = mock_response
 
-    # Mock cache object
-    mock_cache_instance = mock_cache.return_value
-    mock_cache_instance.get.return_value = None  # Simulate no cache
+        # Mock cache object
+        mock_cache_instance = mock_cache.return_value
+        mock_cache_instance.get.return_value = None  # Simulate no cache
 
-    provider._update_data(force_update=True)
-    mock_cache_instance.create.assert_called_once()
-    mock_cache_instance.get.assert_called_once()
-
-
-def test_key_to_array_resampling(provider):
-    """Test resampling of forecast data to NumPy array."""
-    provider.update_data(force_update=True)
-    array = provider.key_to_array(
-        key="elecprice_marketprice_wh",
-        start_datetime=provider.ems_start_datetime,
-        end_datetime=provider.end_datetime,
-    )
-    assert isinstance(array, np.ndarray)
-    assert len(array) == provider.total_hours
+        await provider._update_data(force_update=True)
+        mock_cache_instance.create.assert_called_once()
+        mock_cache_instance.get.assert_called_once()
 
 
-@patch("requests.get")
-def test_request_forecast_url_bidding_zone_is_value(mock_get, provider, sample_energycharts_json):
-    """Test that the bidding zone in the API URL uses the enum *value* (e.g. 'DE-LU'),
-    not the enum repr (e.g. 'EnergyChartsBiddingZones.DE_LU').
-
-    Regression test for: bzn=EnergyChartsBiddingZones.DE_LU appearing in the URL
-    instead of bzn=DE-LU, which caused a 400 Bad Request from the Energy-Charts API.
-    """
-    mock_response = Mock()
-    mock_response.status_code = 200
-    mock_response.content = json.dumps(sample_energycharts_json)
-    mock_get.return_value = mock_response
-
-    provider._request_forecast(force_update=True)
-
-    assert mock_get.called, "requests.get was never called"
-    actual_url: str = mock_get.call_args[0][0]
-
-    # Extract the bzn= query parameter value from the URL
-    from urllib.parse import parse_qs, urlparse
-    parsed = urlparse(actual_url)
-    query_params = parse_qs(parsed.query)
-
-    assert "bzn" in query_params, f"'bzn' parameter missing from URL: {actual_url}"
-    bzn_value = query_params["bzn"][0]
-
-    # Must be the raw enum value, never contain a class name or dot notation
-    assert "." not in bzn_value, (
-        f"Bidding zone in URL looks like an enum repr: '{bzn_value}'. "
-        f"Use .value when building the URL, not str(enum)."
-    )
-    assert bzn_value == provider.config.elecprice.energycharts.bidding_zone.value, (
-        f"Expected bzn='{provider.config.elecprice.energycharts.bidding_zone.value}' "
-        f"but got bzn='{bzn_value}' in URL: {actual_url}"
-    )
+    async def test_key_to_array_resampling(self, provider):
+        """Test resampling of forecast data to NumPy array."""
+        await provider.update_data(force_update=True)
+        array = await provider.key_to_array(
+            key="elecprice_marketprice_wh",
+            start_datetime=provider.ems_start_datetime,
+            end_datetime=provider.end_datetime,
+        )
+        assert isinstance(array, np.ndarray)
+        assert len(array) == provider.total_hours
 
 
-# ------------------------------------------------
-# Development Energy Charts
-# ------------------------------------------------
+    @patch("requests.get")
+    def test_request_forecast_url_bidding_zone_is_value(self, mock_get, provider, sample_energycharts_json):
+        """Test that the bidding zone in the API URL uses the enum *value* (e.g. 'DE-LU'),
+        not the enum repr (e.g. 'EnergyChartsBiddingZones.DE_LU').
+
+        Regression test for: bzn=EnergyChartsBiddingZones.DE_LU appearing in the URL
+        instead of bzn=DE-LU, which caused a 400 Bad Request from the Energy-Charts API.
+        """
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = json.dumps(sample_energycharts_json)
+        mock_get.return_value = mock_response
+
+        provider._request_forecast(force_update=True)
+
+        assert mock_get.called, "requests.get was never called"
+        actual_url: str = mock_get.call_args[0][0]
+
+        # Extract the bzn= query parameter value from the URL
+        from urllib.parse import parse_qs, urlparse
+        parsed = urlparse(actual_url)
+        query_params = parse_qs(parsed.query)
+
+        assert "bzn" in query_params, f"'bzn' parameter missing from URL: {actual_url}"
+        bzn_value = query_params["bzn"][0]
+
+        # Must be the raw enum value, never contain a class name or dot notation
+        assert "." not in bzn_value, (
+            f"Bidding zone in URL looks like an enum repr: '{bzn_value}'. "
+            f"Use .value when building the URL, not str(enum)."
+        )
+        assert bzn_value == provider.config.elecprice.energycharts.bidding_zone.value, (
+            f"Expected bzn='{provider.config.elecprice.energycharts.bidding_zone.value}' "
+            f"but got bzn='{bzn_value}' in URL: {actual_url}"
+        )
 
 
-@pytest.mark.skip(reason="For development only")
-def test_energycharts_development_forecast_data(provider):
-    """Fetch data from real Energy-Charts server."""
-    # Preset, as this is usually done by update_data()
-    provider.ems_start_datetime = to_datetime("2024-10-26 00:00:00")
+    # ------------------------------------------------
+    # Development Energy Charts
+    # ------------------------------------------------
 
-    energy_charts_data = provider._request_forecast()
 
-    with FILE_TESTDATA_ELECPRICE_ENERGYCHARTS_JSON.open(
-        "w", encoding="utf-8", newline="\n"
-    ) as f_out:
-        json.dump(energy_charts_data, f_out, indent=4)
+    @pytest.mark.skip(reason="For development only")
+    def test_energycharts_development_forecast_data(self, provider):
+        """Fetch data from real Energy-Charts server."""
+        # Preset, as this is usually done by update_data()
+        provider.ems_start_datetime = to_datetime("2024-10-26 00:00:00")
+
+        energy_charts_data = provider._request_forecast()
+
+        with FILE_TESTDATA_ELECPRICE_ENERGYCHARTS_JSON.open(
+            "w", encoding="utf-8", newline="\n"
+        ) as f_out:
+            json.dump(energy_charts_data, f_out, indent=4)

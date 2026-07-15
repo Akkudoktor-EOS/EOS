@@ -144,8 +144,9 @@ def test_request_forecast(mock_get, provider, sample_brightsky_1_json):
     }
 
 
+@pytest.mark.asyncio
 @patch("requests.get")
-def test_update_data(mock_get, provider, sample_brightsky_1_json, cache_store):
+async def test_update_data(mock_get, provider, sample_brightsky_1_json, cache_store):
     """Test fetching forecast from BrightSky."""
     # Mock response object
     mock_response = Mock()
@@ -158,7 +159,7 @@ def test_update_data(mock_get, provider, sample_brightsky_1_json, cache_store):
     # Call the method
     ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime("2024-10-26 00:00:00", in_timezone="Europe/Berlin"))
-    provider.update_data(force_enable=True, force_update=True)
+    await provider.update_data(force_enable=True, force_update=True)
 
     # Assert: Verify the result is as expected
     mock_get.assert_called_once()
@@ -170,7 +171,8 @@ def test_update_data(mock_get, provider, sample_brightsky_1_json, cache_store):
 # ------------------------------------------------
 
 
-def test_brightsky_development_forecast_data(provider, config_eos, is_system_test):
+@pytest.mark.asyncio
+async def test_brightsky_development_forecast_data(provider, config_eos, is_system_test):
     """Fetch data from real BrightSky server."""
     if not is_system_test:
         return
@@ -186,7 +188,7 @@ def test_brightsky_development_forecast_data(provider, config_eos, is_system_tes
     with FILE_TESTDATA_WEATHERBRIGHTSKY_1_JSON.open("w", encoding="utf-8", newline="\n") as f_out:
         json.dump(brightsky_data, f_out, indent=4)
 
-    provider.update_data(force_enable=True, force_update=True)
+    await provider.update_data(force_enable=True, force_update=True)
 
     with FILE_TESTDATA_WEATHERBRIGHTSKY_2_JSON.open("w", encoding="utf-8", newline="\n") as f_out:
         f_out.write(provider.model_dump_json(indent=4))

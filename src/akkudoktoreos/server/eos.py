@@ -73,20 +73,18 @@ from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 # ----------------------
 
 
-def save_eos_state() -> None:
+async def save_eos_state() -> None:
     """Save EOS state."""
-    get_resource_registry().save()
-    get_prediction().save()
-    get_measurement().save()
+    await get_prediction().save()
+    await get_measurement().save()
     cache_save()  # keep last
 
 
-def load_eos_state() -> None:
+async def load_eos_state() -> None:
     """Load EOS state."""
     cache_load()  # keep first
-    get_measurement().load()
-    get_prediction().load()
-    get_resource_registry().load()
+    await get_measurement().load()
+    await get_prediction().load()
 
 
 def terminate_eos() -> None:
@@ -100,18 +98,18 @@ def terminate_eos() -> None:
     logger.info(f"🚀 EOS terminated, PID {pid}")
 
 
-def save_eos_database() -> None:
+async def save_eos_database() -> None:
     """Save EOS database."""
-    get_prediction().save()
-    get_measurement().save()
+    await get_prediction().save()
+    await get_measurement().save()
 
 
-def compact_eos_database() -> None:
+async def compact_eos_database() -> None:
     """Compact EOS database."""
-    get_prediction().db_compact()
-    get_measurement().db_compact()
-    get_prediction().db_vacuum()
-    get_measurement().db_vacuum()
+    await get_prediction().db_compact()
+    await get_measurement().db_compact()
+    await get_prediction().db_vacuum()
+    await get_measurement().db_vacuum()
 
 
 def autosave_config() -> None:
@@ -134,7 +132,7 @@ async def server_shutdown_task() -> None:
 
     Finally, logs a message indicating that the EOS server has been terminated.
     """
-    save_eos_state()
+    await save_eos_state()
 
     # Give EOS time to finish some work
     await asyncio.sleep(5)
@@ -162,7 +160,7 @@ def config_eos_ready() -> bool:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan manager for the app."""
     # On startup
-    load_eos_state()
+    await load_eos_state()
 
     # Prepare the Manager and all task that are handled by the manager
     manager = RetentionManager(
@@ -200,7 +198,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await asyncio.gather(retention_manager_task, return_exceptions=True)
 
     # On shutdown
-    save_eos_state()
+    await save_eos_state()
 
 
 app = FastAPI(
@@ -297,7 +295,7 @@ def fastapi_admin_cache_get() -> dict:
 
 
 @app.get("/v1/admin/database/stats", tags=["admin"])
-def fastapi_admin_database_stats_get() -> dict:
+async def fastapi_admin_database_stats_get() -> dict:
     """Get statistics from database.
 
     Returns:
@@ -306,8 +304,8 @@ def fastapi_admin_database_stats_get() -> dict:
     data = {}
     try:
         # Get the stats
-        data[get_measurement().db_namespace()] = get_measurement().db_get_stats()
-        data[get_prediction().__class__.__name__] = get_prediction().db_get_stats()
+        data[get_measurement().db_namespace()] = await get_measurement().db_get_stats()
+        data[get_prediction().__class__.__name__] = await get_prediction().db_get_stats()
     except Exception as e:
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         raise HTTPException(
@@ -316,8 +314,28 @@ def fastapi_admin_database_stats_get() -> dict:
     return data
 
 
+@app.post("/v1/admin/database/save", tags=["admin"])
+async def fastapi_admin_database_save_post() -> dict:
+    """Save in memory data to database.
+
+    Returns:
+        data (dict): The database stats after saving the records.
+    """
+    data = {}
+    try:
+        await get_measurement().save()
+        await get_prediction().save()
+        # Get the stats
+        data[get_measurement().db_namespace()] = await get_measurement().db_get_stats()
+        data[get_prediction().__class__.__name__] = await get_prediction().db_get_stats()
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        raise HTTPException(status_code=400, detail=f"Error on database save: {e}\n{trace}")
+    return data
+
+
 @app.post("/v1/admin/database/vacuum", tags=["admin"])
-def fastapi_admin_database_vacuum_post() -> dict:
+async def fastapi_admin_database_vacuum_post() -> dict:
     """Remove old records from database.
 
     Returns:
@@ -325,11 +343,13 @@ def fastapi_admin_database_vacuum_post() -> dict:
     """
     data = {}
     try:
-        get_measurement().db_vacuum()
-        get_prediction().db_vacuum()
+        await get_measurement().db_vacuum()
+        await get_prediction().db_vacuum()
         # Get the stats
-        data[get_measurement().db_namespace()] = get_measurement().db_get_stats()
-        data[get_prediction().__class__.__name__] = get_prediction().db_get_stats()
+        measuremet_stats = await get_measurement().db_get_stats()
+        data[get_measurement().db_namespace()] = measuremet_stats
+        prediction_stats = await get_prediction().db_get_stats()
+        data[get_prediction().__class__.__name__] = prediction_stats
     except Exception as e:
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         raise HTTPException(status_code=400, detail=f"Error on database vacuum: {e}\n{trace}")
@@ -342,7 +362,7 @@ async def fastapi_admin_server_restart_post() -> dict:
 
     Restart EOS properly by starting a new instance before exiting the old one.
     """
-    save_eos_state()
+    await save_eos_state()
 
     # Start a new EOS (Uvicorn) process
     logger.info("🔄 Restarting EOS...")
@@ -525,7 +545,11 @@ def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
         get_config().merge_settings(settings)
         return get_config()
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on update of configuration: {e}")
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error on update of configuration '{settings}':\n{e}\n{trace}",
+        )
 
 
 @app.put("/v1/config/{path:path}", tags=["config"])
@@ -687,14 +711,14 @@ def fastapi_measurement_keys_get() -> list[str]:
 
 
 @app.get("/v1/measurement/series", tags=["measurement"])
-def fastapi_measurement_series_get(
+async def fastapi_measurement_series_get(
     key: Annotated[str, Query(description="Measurement key.")],
 ) -> PydanticDateTimeSeries:
     """Get the measurements of given key as series."""
     try:
         if key not in get_measurement().record_keys:
             raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-        pdseries = get_measurement().key_to_series(key=key)
+        pdseries = await get_measurement().key_to_series(key=key)
         return PydanticDateTimeSeries.from_series(pdseries)
     except HTTPException:
         # Re-raise HTTP exceptions
@@ -710,7 +734,7 @@ def fastapi_measurement_series_get(
 
 
 @app.put("/v1/measurement/value", tags=["measurement"])
-def fastapi_measurement_value_put(
+async def fastapi_measurement_value_put(
     datetime: Annotated[str, Query(description="Datetime.")],
     key: Annotated[str, Query(description="Measurement key.")],
     value: Union[float | str],
@@ -740,8 +764,8 @@ def fastapi_measurement_value_put(
                 detail=f"Invalid datetime '{datetime}': {e}",
             )
 
-        get_measurement().update_value(dt, key, value)
-        pdseries = get_measurement().key_to_series(key=key)
+        await get_measurement().update_value(dt, key, value)
+        pdseries = await get_measurement().key_to_series(key=key)
         return PydanticDateTimeSeries.from_series(pdseries)
     except HTTPException:
         raise
@@ -755,7 +779,7 @@ def fastapi_measurement_value_put(
 
 
 @app.put("/v1/measurement/series", tags=["measurement"])
-def fastapi_measurement_series_put(
+async def fastapi_measurement_series_put(
     key: Annotated[str, Query(description="Measurement key.")], series: PydanticDateTimeSeries
 ) -> PydanticDateTimeSeries:
     """Merge measurement given as series into given key."""
@@ -763,8 +787,8 @@ def fastapi_measurement_series_put(
         if key not in get_measurement().record_keys:
             raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
         pdseries = series.to_series()  # make pandas series from PydanticDateTimeSeries
-        get_measurement().key_from_series(key=key, series=pdseries)
-        pdseries = get_measurement().key_to_series(key=key)
+        await get_measurement().key_from_series(key=key, series=pdseries)
+        pdseries = await get_measurement().key_to_series(key=key)
         return PydanticDateTimeSeries.from_series(pdseries)
     except HTTPException:
         # Re-raise HTTP exceptions
@@ -780,11 +804,11 @@ def fastapi_measurement_series_put(
 
 
 @app.put("/v1/measurement/dataframe", tags=["measurement"])
-def fastapi_measurement_dataframe_put(data: PydanticDateTimeDataFrame) -> None:
+async def fastapi_measurement_dataframe_put(data: PydanticDateTimeDataFrame) -> None:
     """Merge the measurement data given as dataframe into EOS measurements."""
     try:
         dataframe = data.to_dataframe()
-        get_measurement().import_from_dataframe(dataframe)
+        await get_measurement().import_from_dataframe(dataframe)
     except Exception as e:
         # Log unexpected errors
         trace = "".join(traceback.TracebackException.from_exception(e).format())
@@ -796,15 +820,58 @@ def fastapi_measurement_dataframe_put(data: PydanticDateTimeDataFrame) -> None:
 
 
 @app.put("/v1/measurement/data", tags=["measurement"])
-def fastapi_measurement_data_put(data: PydanticDateTimeData) -> None:
+async def fastapi_measurement_data_put(data: PydanticDateTimeData) -> None:
     """Merge the measurement data given as datetime data into EOS measurements."""
     try:
         datetimedata = data.to_dict()
-        get_measurement().import_from_dict(datetimedata)
+        await get_measurement().import_from_dict(datetimedata)
     except Exception as e:
         # Log unexpected errors
         trace = "".join(traceback.TracebackException.from_exception(e).format())
         logger.exception(f"Unexpected error updating measurement: {data}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error:\n{e}\n{trace}",
+        )
+
+
+@app.delete("/v1/measurement/range", tags=["measurement"])
+async def fastapi_measurement_range_delete(
+    key: Annotated[str, Query(description="Measurement key.")],
+    start_datetime: Annotated[Optional[str], Query(description="Start datetime.")] = None,
+    end_datetime: Annotated[Optional[str], Query(description="End datetime.")] = None,
+) -> PydanticDateTimeSeries:
+    """Delete measurement values for a key within a datetime range."""
+    try:
+        if key not in get_measurement().record_keys:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Key '{key}' not found in measurements",
+            )
+
+        try:
+            start_dt = to_datetime(start_datetime) if start_datetime else None
+            end_dt = to_datetime(end_datetime) if end_datetime else None
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid datetime: {e}",
+            )
+
+        await get_measurement().key_delete_by_datetime(
+            key=key,
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+        )
+
+        pdseries = await get_measurement().key_to_series(key=key)
+        return PydanticDateTimeSeries.from_series(pdseries)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        logger.exception(f"Unexpected error deleting measurement range: {key}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error:\n{e}\n{trace}",
@@ -838,7 +905,7 @@ def fastapi_prediction_keys_get() -> list[str]:
 
 
 @app.get("/v1/prediction/series", tags=["prediction"])
-def fastapi_prediction_series_get(
+async def fastapi_prediction_series_get(
     key: Annotated[str, Query(description="Prediction key.")],
     start_datetime: Annotated[
         Optional[str],
@@ -868,14 +935,14 @@ def fastapi_prediction_series_get(
         end_datetime = get_prediction().end_datetime
     else:
         end_datetime = to_datetime(end_datetime)
-    pdseries = get_prediction().key_to_series(
+    pdseries = await get_prediction().key_to_series(
         key=key, start_datetime=start_datetime, end_datetime=end_datetime
     )
     return PydanticDateTimeSeries.from_series(pdseries)
 
 
 @app.get("/v1/prediction/dataframe", tags=["prediction"])
-def fastapi_prediction_dataframe_get(
+async def fastapi_prediction_dataframe_get(
     keys: Annotated[list[str], Query(description="Prediction keys.")],
     start_datetime: Annotated[
         Optional[str],
@@ -911,14 +978,14 @@ def fastapi_prediction_dataframe_get(
         end_datetime = get_prediction().end_datetime
     else:
         end_datetime = to_datetime(end_datetime)
-    df = get_prediction().keys_to_dataframe(
+    df = await get_prediction().keys_to_dataframe(
         keys=keys, start_datetime=start_datetime, end_datetime=end_datetime, interval=interval
     )
     return PydanticDateTimeDataFrame.from_dataframe(df, tz=get_config().general.timezone)
 
 
 @app.get("/v1/prediction/list", tags=["prediction"])
-def fastapi_prediction_list_get(
+async def fastapi_prediction_list_get(
     key: Annotated[str, Query(description="Prediction key.")],
     start_datetime: Annotated[
         Optional[str],
@@ -958,16 +1025,13 @@ def fastapi_prediction_list_get(
         interval = to_duration("1 hour")
     else:
         interval = to_duration(interval)
-    prediction_list = (
-        get_prediction()
-        .key_to_array(
-            key=key,
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-            interval=interval,
-        )
-        .tolist()
+    prediction_array = await get_prediction().key_to_array(
+        key=key,
+        start_datetime=start_datetime,
+        end_datetime=end_datetime,
+        interval=interval,
     )
+    prediction_list = prediction_array.tolist()
     return prediction_list
 
 
@@ -1130,22 +1194,19 @@ async def fastapi_strompreis() -> list[float]:
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
-        elecprice = (
-            get_prediction()
-            .key_to_array(
-                key="elecprice_marketprice_wh",
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
-            )
-            .tolist()
+        elecprice_array = await get_prediction().key_to_array(
+            key="elecprice_marketprice_wh",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
         )
+        elecprice_list = elecprice_array.tolist()
     except Exception as e:
         raise HTTPException(
             status_code=404,
             detail=f"Can not get the electricity price forecast: {e}.\nDid you configure the electricity price forecast provider?",
         )
 
-    return elecprice
+    return elecprice_list
 
 
 class GesamtlastRequest(PydanticBaseModel):
@@ -1191,7 +1252,7 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     # Insert measured data into EOS measurement
     # Convert from energy per interval to dummy energy meter readings
     measurement_key = "gesamtlast_emr"
-    get_measurement().key_delete_by_datetime(
+    await get_measurement().key_delete_by_datetime(
         key=measurement_key
     )  # delete all gesamtlast_emr measurements
     energy = {}
@@ -1218,7 +1279,7 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
             energy_mr_values.append(0.0)
         energy_mr_dates.append(dt)
         energy_mr_values.append(energy_mr)
-    get_measurement().key_from_lists(measurement_key, energy_mr_dates, energy_mr_values)
+    await get_measurement().key_from_lists(measurement_key, energy_mr_dates, energy_mr_values)
 
     # Ensure there is only one optimization/ energy management run at a time
     try:
@@ -1236,15 +1297,12 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
-        prediction_list = (
-            get_prediction()
-            .key_to_array(
-                key="loadforecast_power_w",
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
-            )
-            .tolist()
+        prediction_array = await get_prediction().key_to_array(
+            key="loadforecast_power_w",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
         )
+        prediction_list = prediction_array.tolist()
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -1299,15 +1357,12 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
-        prediction_list = (
-            get_prediction()
-            .key_to_array(
-                key="loadforecast_power_w",
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
-            )
-            .tolist()
+        prediction_array = await get_prediction().key_to_array(
+            key="loadforecast_power_w",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
         )
+        prediction_list = prediction_array.tolist()
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -1358,24 +1413,18 @@ async def fastapi_pvforecast() -> ForecastResponse:
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
-        ac_power = (
-            get_prediction()
-            .key_to_array(
-                key="pvforecast_ac_power",
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
-            )
-            .tolist()
+        ac_power_array = await get_prediction().key_to_array(
+            key="pvforecast_ac_power",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
         )
-        temp_air = (
-            get_prediction()
-            .key_to_array(
-                key="pvforecastakkudoktor_temp_air",
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
-            )
-            .tolist()
+        ac_power_list = ac_power_array.tolist()
+        temp_air_array = await get_prediction().key_to_array(
+            key="pvforecastakkudoktor_temp_air",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
         )
+        temp_air_list = temp_air_array.tolist()
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -1383,7 +1432,7 @@ async def fastapi_pvforecast() -> ForecastResponse:
         )
 
     # Return both forecasts as a JSON response
-    return ForecastResponse(temperature=temp_air, pvpower=ac_power)
+    return ForecastResponse(temperature=temp_air_list, pvpower=ac_power_list)
 
 
 @app.post("/optimize", tags=["optimize"])

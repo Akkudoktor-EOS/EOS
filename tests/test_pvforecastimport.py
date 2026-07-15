@@ -72,7 +72,7 @@ def test_invalid_provider(provider, config_eos):
 # Import
 # ------------------------------------------------
 
-
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "start_datetime, from_file",
     [
@@ -86,7 +86,7 @@ def test_invalid_provider(provider, config_eos):
         ("2024-10-27 00:00:00", False),  # DST change in Germany (25 hours/ day)
     ],
 )
-def test_import(provider, sample_import_1_json, start_datetime, from_file, config_eos):
+async def test_import(provider, sample_import_1_json, start_datetime, from_file, config_eos):
     """Test fetching forecast from import."""
     key = "pvforecast_ac_power"
     ems_eos = get_ems()
@@ -97,10 +97,10 @@ def test_import(provider, sample_import_1_json, start_datetime, from_file, confi
     else:
         config_eos.pvforecast.provider_settings.PVForecastImport.import_file_path = None
         assert config_eos.pvforecast.provider_settings.PVForecastImport.import_file_path is None
-    provider.delete_by_datetime(start_datetime=None, end_datetime=None)
+    await provider.delete_by_datetime(start_datetime=None, end_datetime=None)
 
     # Call the method
-    provider.update_data()
+    await provider.update_data()
 
     # Assert: Verify the result is as expected
     assert provider.ems_start_datetime is not None
@@ -108,7 +108,7 @@ def test_import(provider, sample_import_1_json, start_datetime, from_file, confi
     assert compare_datetimes(provider.ems_start_datetime, ems_eos.start_datetime).equal
 
     expected_values = sample_import_1_json[key]
-    result_values = provider.key_to_array(
+    result_values = await provider.key_to_array(
         key=key,
         start_datetime=provider.ems_start_datetime,
         end_datetime=provider.ems_start_datetime + to_duration(f"{len(expected_values)} hours"),

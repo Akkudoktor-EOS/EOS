@@ -14,7 +14,7 @@ Example:
     # Create singleton prediction instance with prediction providers
     from akkudoktoreos.prediction.prediction import prediction
 
-    prediction.update_data()
+    await prediction.update_data()
     print("Prediction:", prediction)
 
 Classes:

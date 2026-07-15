@@ -147,7 +147,7 @@ class GeneticOptimizationParameters(
         return start_solution
 
     @classmethod
-    def prepare(cls) -> "Optional[GeneticOptimizationParameters]":
+    async def prepare(cls) -> "Optional[GeneticOptimizationParameters]":
         """Prepare optimization parameters from config, forecast and measurement data.
 
         Fills in values needed for optimization from available configuration, predictions and
@@ -231,11 +231,11 @@ class GeneticOptimizationParameters(
                 raise ValueError(error_msg)
 
             # Assure predictions are uptodate
-            cls.prediction.update_data()
+            await cls.prediction.update_data()
 
             try:
                 pvforecast_ac_power = (
-                    cls.prediction.key_to_array(
+                    await cls.prediction.key_to_array(
                         key="pvforecast_ac_power",
                         start_datetime=parameter_start_datetime,
                         end_datetime=parameter_end_datetime,
@@ -290,7 +290,7 @@ class GeneticOptimizationParameters(
                 # Retry
                 continue
             try:
-                elecprice_marketprice_wh = cls.prediction.key_to_array(
+                elecprice_marketprice_wh = await cls.prediction.key_to_array(
                     key="elecprice_marketprice_wh",
                     start_datetime=parameter_start_datetime,
                     end_datetime=parameter_end_datetime,
@@ -306,7 +306,7 @@ class GeneticOptimizationParameters(
                 # Retry
                 continue
             try:
-                loadforecast_power_w = cls.prediction.key_to_array(
+                loadforecast_power_w = await cls.prediction.key_to_array(
                     key="loadforecast_power_w",
                     start_datetime=parameter_start_datetime,
                     end_datetime=parameter_end_datetime,
@@ -331,7 +331,7 @@ class GeneticOptimizationParameters(
                 # Retry
                 continue
             try:
-                feed_in_tariff_wh = cls.prediction.key_to_array(
+                feed_in_tariff_wh = await cls.prediction.key_to_array(
                     key="feed_in_tariff_wh",
                     start_datetime=parameter_start_datetime,
                     end_datetime=parameter_end_datetime,
@@ -358,7 +358,7 @@ class GeneticOptimizationParameters(
                 # Retry
                 continue
             try:
-                weather_temp_air = cls.prediction.key_to_array(
+                weather_temp_air = await cls.prediction.key_to_array(
                     key="weather_temp_air",
                     start_datetime=parameter_start_datetime,
                     end_datetime=parameter_end_datetime,
@@ -418,7 +418,7 @@ class GeneticOptimizationParameters(
                 battery_lcos_kwh = battery_config.levelized_cost_of_storage_kwh
                 # Initial SOC
                 try:
-                    initial_soc_factor = cls.measurement.key_to_value(
+                    initial_soc_factor = await cls.measurement.key_to_value(
                         key=battery_config.measurement_key_soc_factor,
                         target_datetime=ems.start_datetime,
                         time_window=to_duration(to_duration("48 hours")),
@@ -490,7 +490,7 @@ class GeneticOptimizationParameters(
                     continue
                 # Initial SOC
                 try:
-                    initial_soc_factor = cls.measurement.key_to_value(
+                    initial_soc_factor = await cls.measurement.key_to_value(
                         key=electric_vehicle_config.measurement_key_soc_factor,
                         target_datetime=ems.start_datetime,
                         time_window=to_duration(to_duration("48 hours")),

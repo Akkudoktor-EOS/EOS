@@ -1,3 +1,4 @@
+import asyncio
 import json
 from pathlib import Path
 
@@ -39,76 +40,78 @@ def sample_import_1_json():
     return input_data
 
 
-# ------------------------------------------------
-# General forecast
-# ------------------------------------------------
+@pytest.mark.asyncio
+class TestElecPriceImport:
+    # ------------------------------------------------
+    # General forecast
+    # ------------------------------------------------
 
 
-def test_singleton_instance(provider):
-    """Test that ElecPriceForecast behaves as a singleton."""
-    another_instance = ElecPriceImport()
-    assert provider is another_instance
+    def test_singleton_instance(self, provider):
+        """Test that ElecPriceForecast behaves as a singleton."""
+        another_instance = ElecPriceImport()
+        assert provider is another_instance
 
 
-def test_invalid_provider(provider, config_eos):
-    """Test requesting an unsupported provider."""
-    settings = {
-        "elecprice": {
-            "provider": "<invalid>",
-            "elecpriceimport": {
-                "import_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
-            },
+    def test_invalid_provider(self, provider, config_eos):
+        """Test requesting an unsupported provider."""
+        settings = {
+            "elecprice": {
+                "provider": "<invalid>",
+                "elecpriceimport": {
+                    "import_file_path": str(FILE_TESTDATA_ELECPRICEIMPORT_1_JSON),
+                },
+            }
         }
-    }
-    with pytest.raises(ValueError, match="not a valid electricity price provider"):
-        config_eos.merge_settings_from_dict(settings)
+        with pytest.raises(ValueError, match="not a valid electricity price provider"):
+            config_eos.merge_settings_from_dict(settings)
 
 
-# ------------------------------------------------
-# Import
-# ------------------------------------------------
+    # ------------------------------------------------
+    # Import
+    # ------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "start_datetime, from_file",
-    [
-        ("2024-11-10 00:00:00", True),  # No DST in Germany
-        ("2024-08-10 00:00:00", True),  # DST in Germany
-        ("2024-03-31 00:00:00", True),  # DST change in Germany (23 hours/ day)
-        ("2024-10-27 00:00:00", True),  # DST change in Germany (25 hours/ day)
-        ("2024-11-10 00:00:00", False),  # No DST in Germany
-        ("2024-08-10 00:00:00", False),  # DST in Germany
-        ("2024-03-31 00:00:00", False),  # DST change in Germany (23 hours/ day)
-        ("2024-10-27 00:00:00", False),  # DST change in Germany (25 hours/ day)
-    ],
-)
-def test_import(provider, sample_import_1_json, start_datetime, from_file, config_eos):
-    """Test fetching forecast from Import."""
-    key = "elecprice_marketprice_wh"
-    ems_eos = get_ems()
-    ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
-    if from_file:
-        config_eos.elecprice.elecpriceimport.import_json = None
-        assert config_eos.elecprice.elecpriceimport.import_json is None
-    else:
-        config_eos.elecprice.elecpriceimport.import_file_path = None
-        assert config_eos.elecprice.elecpriceimport.import_file_path is None
-    provider.delete_by_datetime(start_datetime=None, end_datetime=None)
-
-    # Call the method
-    provider.update_data()
-
-    # Assert: Verify the result is as expected
-    assert provider.ems_start_datetime is not None
-    assert provider.total_hours is not None
-    assert compare_datetimes(provider.ems_start_datetime, ems_eos.start_datetime).equal
-
-    expected_values = sample_import_1_json[key]
-    result_values = provider.key_to_array(
-        key=key,
-        start_datetime=provider.ems_start_datetime,
-        end_datetime=provider.ems_start_datetime + to_duration(f"{len(expected_values)} hours"),
-        interval=to_duration("1 hour"),
+    @pytest.mark.parametrize(
+        "start_datetime, from_file",
+        [
+            ("2024-11-10 00:00:00", True),  # No DST in Germany
+            ("2024-08-10 00:00:00", True),  # DST in Germany
+            ("2024-03-31 00:00:00", True),  # DST change in Germany (23 hours/ day)
+            ("2024-10-27 00:00:00", True),  # DST change in Germany (25 hours/ day)
+            ("2024-11-10 00:00:00", False),  # No DST in Germany
+            ("2024-08-10 00:00:00", False),  # DST in Germany
+            ("2024-03-31 00:00:00", False),  # DST change in Germany (23 hours/ day)
+            ("2024-10-27 00:00:00", False),  # DST change in Germany (25 hours/ day)
+        ],
     )
-    # Allow for some difference due to value calculation on DST change
-    npt.assert_allclose(result_values, expected_values, rtol=0.001)
+    async def test_import(self, provider, sample_import_1_json, start_datetime, from_file, config_eos):
+        """Test fetching forecast from Import."""
+        key = "elecprice_marketprice_wh"
+        ems_eos = get_ems()
+        ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
+        if from_file:
+            config_eos.elecprice.elecpriceimport.import_json = None
+            assert config_eos.elecprice.elecpriceimport.import_json is None
+        else:
+            config_eos.elecprice.elecpriceimport.import_file_path = None
+            assert config_eos.elecprice.elecpriceimport.import_file_path is None
+        await provider.delete_by_datetime(start_datetime=None, end_datetime=None)
+
+        # Call the method
+        await provider.update_data()
+
+        # Assert: Verify the result is as expected
+        assert provider.ems_start_datetime is not None
+        assert provider.total_hours is not None
+        assert compare_datetimes(provider.ems_start_datetime, ems_eos.start_datetime).equal
+
+        expected_values = sample_import_1_json[key]
+        result_values = await provider.key_to_array(
+            key=key,
+            start_datetime=provider.ems_start_datetime,
+            end_datetime=provider.ems_start_datetime + to_duration(f"{len(expected_values)} hours"),
+            interval=to_duration("1 hour"),
+        )
+        # Allow for some difference due to value calculation on DST change
+        npt.assert_allclose(result_values, expected_values, rtol=0.001)

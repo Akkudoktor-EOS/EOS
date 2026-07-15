@@ -66,7 +66,7 @@ class NodeREDAdapter(AdapterProvider):
         """Return the unique identifier for the adapter provider."""
         return "NodeRED"
 
-    def _update_data(self) -> None:
+    async def _update_data(self) -> None:
         """Custom adapter data update logic.
 
         Data update may be requested at different stages of energy management. The stage can be

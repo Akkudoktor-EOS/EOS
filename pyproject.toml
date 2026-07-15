@@ -76,6 +76,7 @@ dev = [
     "GitPython==3.1.51",
     "myst-parser==5.1.0",
     "docutils==0.21.2",
+    "sphinxcontrib-mermaid==2.0.3   ",
 
     # Pytest
     "pytest==9.1.1",

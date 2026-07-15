@@ -284,6 +284,7 @@ DatabaseTimestamp.from_datetime(dt: DateTime) -> "20241027T123456[Z]"
 ```
 
 **Properties:**
+
 - Always stored in UTC (timezone-aware required)
 - Lexicographically sortable
 - Bijective conversion to/from `pendulum.DateTime`
@@ -330,6 +331,7 @@ The system uses a progressive loading model to minimize memory footprint:
 ### Boundary Extension
 
 When loading a range `[start, end)`, the system automatically extends boundaries to include:
+
 - **First record before** `start` (for interpolation/context)
 - **First record at or after** `end` (for closing boundary)
 
@@ -348,6 +350,7 @@ SELECT * FROM records WHERE namespace='measurement'
 ```
 
 **Default Namespace:**
+
 - Can be set during `open(namespace="default")`
 - Operations with `namespace=None` use the default
 - Each record class typically defines its own namespace via `db_namespace()`
@@ -537,6 +540,7 @@ db_vacuum(keep_timestamp=cutoff) # Keep from cutoff onward
 ```
 
 **Strategy:**
+
 - Computes cutoff relative to `max_timestamp - keep_hours`
 - Deletes all records before cutoff
 - Immediately persists changes via `db_save_records()`

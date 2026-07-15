@@ -51,11 +51,12 @@ def mock_forecast_response():
     )
 
 
-def test_update_data_updates_dc_and_ac_power(pvforecast_instance):
+@pytest.mark.asyncio
+async def test_update_data_updates_dc_and_ac_power(pvforecast_instance):
     with patch.object(pvforecast_instance, "_request_forecast", return_value=mock_forecast_response()), \
          patch.object(PVForecastVrm, "update_value") as mock_update:
 
-        pvforecast_instance._update_data()
+        await pvforecast_instance._update_data()
 
         # Check that update_value was called correctly
         assert mock_update.call_count == 2
@@ -103,7 +104,8 @@ def test_request_forecast_raises_on_http_error(pvforecast_instance):
         mock_get.assert_called_once()
 
 
-def test_update_data_skips_on_empty_forecast(pvforecast_instance):
+@pytest.mark.asyncio
+async def test_update_data_skips_on_empty_forecast(pvforecast_instance):
     """Ensure no update_value calls are made if no forecast data is present."""
     empty_response = VrmForecastResponse(
         success=True,
@@ -114,5 +116,5 @@ def test_update_data_skips_on_empty_forecast(pvforecast_instance):
     with patch.object(pvforecast_instance, "_request_forecast", return_value=empty_response), \
          patch.object(PVForecastVrm, "update_value") as mock_update:
 
-        pvforecast_instance._update_data()
+        await pvforecast_instance._update_data()
         mock_update.assert_not_called()

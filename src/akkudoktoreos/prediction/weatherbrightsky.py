@@ -111,7 +111,7 @@ class WeatherBrightSky(WeatherProvider):
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return brightsky_data
 
-    def _description_to_series(self, description: str) -> pd.Series:
+    async def _description_to_series(self, description: str) -> pd.Series:
         """Retrieve a pandas Series corresponding to a weather data description.
 
         This method fetches the key associated with the provided description
@@ -132,10 +132,10 @@ class WeatherBrightSky(WeatherProvider):
             error_msg = f"No WeatherDataRecord key for '{description}'"
             logger.error(error_msg)
             raise ValueError(error_msg)
-        series = self.key_to_series(key)
+        series = await self.key_to_series(key)
         return series
 
-    def _description_from_series(self, description: str, data: pd.Series) -> None:
+    async def _description_from_series(self, description: str, data: pd.Series) -> None:
         """Update a weather data with a pandas Series based on its description.
 
         This method fetches the key associated with the provided description
@@ -154,9 +154,9 @@ class WeatherBrightSky(WeatherProvider):
             error_msg = f"No WeatherDataRecord key for '{description}'"
             logger.error(error_msg)
             raise ValueError(error_msg)
-        self.key_from_series(key, data)
+        await self.key_from_series(key, data)
 
-    def _update_data(self, force_update: Optional[bool] = False) -> None:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update forecast data in the WeatherDataRecord format.
 
         Retrieves data from BrightSky, maps each BrightSky field to the corresponding
@@ -197,31 +197,31 @@ class WeatherBrightSky(WeatherProvider):
                     else:
                         value = value * corr_factor
                 setattr(weather_record, key, value)
-            self.insert_by_datetime(weather_record)
+            await self.insert_by_datetime(weather_record)
 
         # Converting the cloud cover into Irradiance (GHI, DNI, DHI)
         description = "Total Clouds (% Sky Obscured)"
-        cloud_cover = self._description_to_series(description)
+        cloud_cover = await self._description_to_series(description)
         ghi, dni, dhi = self.estimate_irradiance_from_cloud_cover(
             self.config.general.latitude, self.config.general.longitude, cloud_cover
         )
 
         description = "Global Horizontal Irradiance (W/m2)"
         ghi = pd.Series(data=ghi, index=cloud_cover.index)
-        self._description_from_series(description, ghi)
+        await self._description_from_series(description, ghi)
 
         description = "Direct Normal Irradiance (W/m2)"
         dni = pd.Series(data=dni, index=cloud_cover.index)
-        self._description_from_series(description, dni)
+        await self._description_from_series(description, dni)
 
         description = "Diffuse Horizontal Irradiance (W/m2)"
         dhi = pd.Series(data=dhi, index=cloud_cover.index)
-        self._description_from_series(description, dhi)
+        await self._description_from_series(description, dhi)
 
         # Add Preciptable Water (PWAT) with a PVLib method.
         key = WeatherDataRecord.key_from_description("Temperature (°C)")
         assert key  # noqa: S101
-        temperature = self.key_to_array(
+        temperature = await self.key_to_array(
             key=key,
             start_datetime=self.ems_start_datetime,
             end_datetime=self.end_datetime,
@@ -234,7 +234,7 @@ class WeatherBrightSky(WeatherProvider):
             return
         key = WeatherDataRecord.key_from_description("Relative Humidity (%)")
         assert key  # noqa: S101
-        humidity = self.key_to_array(
+        humidity = await self.key_to_array(
             key=key,
             start_datetime=self.ems_start_datetime,
             end_datetime=self.end_datetime,
@@ -258,4 +258,4 @@ class WeatherBrightSky(WeatherProvider):
             ),
         )
         description = "Preciptable Water (cm)"
-        self._description_from_series(description, pwat)
+        await self._description_from_series(description, pwat)
