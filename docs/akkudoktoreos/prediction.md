@@ -233,7 +233,8 @@ Configuration options:
 
 The `FeedInTariffEnergyCharts` provider uses the raw Energy-Charts day-ahead market price as the
 feed-in tariff. It stores prices in `feed_in_tariff_wh` without adding electricity import charges
-or VAT. The native Energy-Charts resolution, including quarter-hour data, is retained.
+or VAT. The data is loaded from the Energy-Charts `/price` endpoint for the configured bidding
+zone. The native Energy-Charts resolution, including quarter-hour data, is retained.
 
 Energy-Charts usually supplies prices only for the published day-ahead period. If that data does
 not cover the complete configured prediction horizon, the provider extends it as follows:
@@ -245,13 +246,20 @@ not cover the complete configured prediction horizon, the provider extends it as
 
 The seasonal periods are adjusted to the source resolution. For example, quarter-hour data uses
 four values per hour. Values already supplied by Energy-Charts are kept unchanged; only missing
-future slots after the last published price are forecast.
+future slots after the last published price are forecast. Consequently, a 15-minute optimization
+uses four forecast values per hour without converting them to hourly averages.
+
+When direct marketing is enabled, this feed-in-tariff series is passed to the optimizer separately
+from the electricity purchase-price series. The successful Energy-Charts path therefore does not
+derive the feed-in tariff by subtracting taxes, grid fees, or other charges from an end-customer
+electricity price.
 
 Example configuration:
 
 ```json
 {
   "feedintariff": {
+    "direct_marketing_enabled": true,
     "provider": "FeedInTariffEnergyCharts",
     "provider_settings": {
       "FeedInTariffEnergyCharts": {

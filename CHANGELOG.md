@@ -40,6 +40,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Model direct PV-to-load consumption probabilistically from the bundled conditional minute-load
   table. The expected direct flow is used consistently for PV bypass, residual load, battery
   charging, and grid export on hourly and 15-minute optimization grids.
+- Add a dynamic `FeedInTariffEnergyCharts` forecast for direct marketing. Published Energy-Charts
+  day-ahead market prices are retained at their native hourly or quarter-hourly resolution and
+  missing slots at the end of the optimization horizon are extended with weekly or daily seasonal
+  ETS forecasts. A median fallback is used when the available history is too short for ETS.
 
 ## 0.3.0 (2026-03-17)
 
