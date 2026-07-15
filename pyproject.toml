@@ -31,7 +31,7 @@ dependencies = [
     "bokeh==3.9.1",
     "uvicorn==0.51.0",
     "scipy==1.17.1",
-    "tzfpy==1.3.1",
+    "tzfpy==1.3.2",
     "deap==1.4.4",
     "requests==2.34.2",
     "pandas==3.0.3",
