@@ -36,9 +36,11 @@ from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibber
+from akkudoktoreos.prediction.feedintariffakkudoktor import FeedInTariffAkkudoktor
 from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
+from akkudoktoreos.prediction.feedintarifftibber import FeedInTariffTibber
 from akkudoktoreos.prediction.loadakkudoktor import (
     LoadAkkudoktor,
     LoadAkkudoktorAdjusted,
@@ -83,8 +85,10 @@ elecprice_tibber = ElecPriceTibber()
 elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
 feedintariff_energy_charts = FeedInTariffEnergyCharts()
+feedintariff_akkudoktor = FeedInTariffAkkudoktor()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
+feedintariff_tibber = FeedInTariffTibber()
 loadforecast_akkudoktor = LoadAkkudoktor()
 loadforecast_akkudoktor_adjusted = LoadAkkudoktorAdjusted()
 loadforecast_vrm = LoadVrm()
@@ -110,8 +114,10 @@ def prediction_providers() -> (
             ElecPriceFixed,
             ElecPriceImport,
             FeedInTariffEnergyCharts,
+            FeedInTariffAkkudoktor,
             FeedInTariffFixed,
             FeedInTariffImport,
+            FeedInTariffTibber,
             LoadAkkudoktor,
             LoadAkkudoktorAdjusted,
             LoadVrm,
@@ -140,8 +146,10 @@ def prediction_providers() -> (
         elecprice_fixed, \
         elecprice_import, \
         feedintariff_energy_charts, \
+        feedintariff_akkudoktor, \
         feedintariff_fixed, \
         feedintariff_import, \
+        feedintariff_tibber, \
         loadforecast_akkudoktor, \
         loadforecast_akkudoktor_adjusted, \
         loadforecast_vrm, \
@@ -165,8 +173,10 @@ def prediction_providers() -> (
         elecprice_fixed,
         elecprice_import,
         feedintariff_energy_charts,
+        feedintariff_akkudoktor,
         feedintariff_fixed,
         feedintariff_import,
+        feedintariff_tibber,
         loadforecast_akkudoktor,
         loadforecast_akkudoktor_adjusted,
         loadforecast_vrm,
@@ -195,8 +205,10 @@ class Prediction(PredictionContainer):
             ElecPriceFixed,
             ElecPriceImport,
             FeedInTariffEnergyCharts,
+            FeedInTariffAkkudoktor,
             FeedInTariffFixed,
             FeedInTariffImport,
+            FeedInTariffTibber,
             LoadAkkudoktor,
             LoadAkkudoktorAdjusted,
             LoadVrm,

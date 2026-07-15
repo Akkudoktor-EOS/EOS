@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- Add `FeedInTariffAkkudoktor`, using raw hourly Akkudoktor/aWATTar day-ahead market prices as
+  feed-in tariff data without import charges or VAT. Quarter-hour optimization holds each hourly
+  value constant for four slots.
+- Add `FeedInTariffTibber`, using Tibber's native `QUARTER_HOURLY` spot-price component as a
+  strict 15-minute feed-in tariff. Hourly API responses are rejected instead of expanded.
 - Flexible consumers (home appliances): schedule any number of consumers via
   `devices.home_appliances`, each with a unique `device_id`. Every consumer defines its
   load **either** as an explicit power profile (`load_profile_power_w` at
@@ -66,6 +71,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   setting both at once is rejected. In the solution, `washingstart` (start slot of a single
   hourly appliance) and `result.Home_appliance_wh_per_hour` (aggregate over all appliances)
   are deprecated in favour of `appliance_starts` and `result.home_appliance_energy_wh`.
+
+### Fixed
+- FeedInTariffEnergyCharts no longer aborts the whole prediction/optimization when the
+  Energy-Charts API is briefly unreachable: transient timeouts/connection errors are
+  retried (with a (connect, read) timeout of (5, 60) s), and if a fetch still fails while
+  historical data exists, the existing history is kept and the remaining slots are
+  extrapolated via ETS instead of failing. A genuine cold start (no data at all) still
+  fails.
+- The deprecated `/gesamtlast` endpoint no longer forces a full provider refresh on every
+  call. Forcing bypassed the provider caches and hammered external APIs, so a single flaky
+  provider could 404 the whole load prediction. It now defaults to a cache-aware update and
+  accepts an optional `force_update` flag in the request body for callers that still want
+  to force.
 
 ## 0.3.0 (2026-03-17)
 

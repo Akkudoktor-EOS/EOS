@@ -218,9 +218,12 @@ Configuration options:
   - `provider`: Feed in tariff provider id of provider to be used.
 
     - `FeedInTariffFixed`: Provides fixed feed in tariff values.
+    - `FeedInTariffAkkudoktor`: Retrieves raw day-ahead market prices from the public
+      Akkudoktor API without import charges or VAT.
     - `FeedInTariffEnergyCharts`: Retrieves Energy-Charts day-ahead market prices and extends
       them to the configured prediction horizon when necessary.
     - `FeedInTariffImport`: Imports from a file or JSON string or by endpoint data provision.
+    - `FeedInTariffTibber`: Retrieves Tibber's native quarter-hour energy-price component.
 
   - `provider_settings.FeedInTariffFixed.feed_in_tariff_kwh`: Fixed feed-in tariff (€/kWh).
   - `provider_settings.FeedInTariffEnergyCharts.bidding_zone`: Energy-Charts bidding zone.
@@ -228,6 +231,46 @@ Configuration options:
     feed-in tariff prediction data.
   - `provider_settings.FeedInTariffImport.import_json`: JSON string containing feed-in tariff
     prediction data.
+
+### FeedInTariffAkkudoktor Provider
+
+The `FeedInTariffAkkudoktor` provider uses raw day-ahead market prices from
+`https://api.akkudoktor.net/prices` as `feed_in_tariff_wh`. It does not add electricity import
+charges or VAT. Published prices are extended to the configured prediction horizon with the same
+seasonal ETS or median fallback used by the Akkudoktor electricity-price provider.
+
+The Akkudoktor endpoint currently forwards hourly market prices from aWATTar. With a 15-minute
+optimization interval, EOS holds each hourly price constant for its four quarter-hour slots. This
+keeps the slot grid consistent but does not create genuine quarter-hour market prices.
+
+```json
+{
+  "feedintariff": {
+    "direct_marketing_enabled": true,
+    "provider": "FeedInTariffAkkudoktor"
+  }
+}
+```
+
+### FeedInTariffTibber Provider
+
+The `FeedInTariffTibber` provider requests `priceInfo` and `priceInfoRange` with
+`resolution: QUARTER_HOURLY` and preserves the native 15-minute timestamps. It uses Tibber's
+`energy` spot-price component without the `tax` part or EOS electricity-price charges. The
+end-customer `total` component is deliberately ignored.
+
+The provider deliberately rejects hourly API responses instead of silently repeating them. It
+reuses `elecprice.tibber.access_token` and `elecprice.tibber.home_id`, so no duplicate credentials
+are needed.
+
+```json
+{
+  "feedintariff": {
+    "direct_marketing_enabled": true,
+    "provider": "FeedInTariffTibber"
+  }
+}
+```
 
 ### FeedInTariffEnergyCharts Provider
 

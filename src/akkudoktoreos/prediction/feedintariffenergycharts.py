@@ -1,5 +1,6 @@
 """Provides feed-in tariff data from Energy-Charts market prices."""
 
+import time
 from datetime import datetime
 from typing import Optional
 
@@ -44,6 +45,10 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
 
     highest_orig_datetime: Optional[datetime] = None
 
+    def historic_hours_min(self) -> int:
+        """Keep enough history for weekly seasonal price extrapolation."""
+        return 24 * 35
+
     @classmethod
     def provider_id(cls) -> str:
         """Return the unique identifier for the Energy-Charts feed-in tariff provider."""
@@ -69,12 +74,34 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
 
         last_date = to_datetime(self.end_datetime, as_string="YYYY-MM-DD")
         url = f"{source}/price?bzn={self._bidding_zone()}&start={start_date}&end={last_date}"
-        response = requests.get(url, timeout=30)
-        logger.debug(f"Response from {url}: {response}")
-        response.raise_for_status()
-        energy_charts_data = ElecPriceEnergyCharts._validate_data(response.content)
-        self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
-        return energy_charts_data
+
+        # Retry transient network problems (timeouts / connection resets) a few
+        # times with a short backoff. Uses a (connect, read) timeout tuple so a
+        # slow-to-respond API does not block forever but also is not aborted
+        # after a too-short single read window.
+        max_attempts = 3
+        last_exc: Optional[Exception] = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = requests.get(url, timeout=(5, 60))
+                logger.debug(f"Response from {url}: {response}")
+                response.raise_for_status()
+                energy_charts_data = ElecPriceEnergyCharts._validate_data(response.content)
+                self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
+                return energy_charts_data
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+                last_exc = exc
+                logger.warning(
+                    "Energy-Charts request attempt {}/{} failed: {}",
+                    attempt,
+                    max_attempts,
+                    exc,
+                )
+                if attempt < max_attempts:
+                    time.sleep(2 * attempt)
+        # All attempts exhausted - re-raise the last transient error so the
+        # caller (_update_data) can decide whether to fall back to history.
+        raise last_exc  # type: ignore[misc]
 
     def _parse_data(self, energy_charts_data: EnergyChartsElecPrice) -> pd.Series:
         series_data = pd.Series(dtype=float)
@@ -88,14 +115,29 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
     def _predict_prices(self, history, slots: int, slots_per_hour: int):
         energycharts = ElecPriceEnergyCharts()
         if len(history) > 800 * slots_per_hour:
+            logger.info(
+                "Using weekly seasonal ETS forecast for Energy-Charts feed-in tariff "
+                "with {} historical values.",
+                len(history),
+            )
             return energycharts._predict_ets(
                 history, seasonal_periods=168 * slots_per_hour, hours=slots
             )
         if len(history) > 168 * slots_per_hour:
+            logger.info(
+                "Using daily seasonal ETS forecast for Energy-Charts feed-in tariff "
+                "with {} historical values.",
+                len(history),
+            )
             return energycharts._predict_ets(
                 history, seasonal_periods=24 * slots_per_hour, hours=slots
             )
         if len(history) > 0:
+            logger.warning(
+                "Using constant median fallback for Energy-Charts feed-in tariff "
+                "with only {} historical values.",
+                len(history),
+            )
             return energycharts._predict_median(history, hours=slots)
         logger.error("No feed-in tariff data available for Energy-Charts prediction")
         raise ValueError("No data available")
@@ -111,33 +153,70 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
 
         past_days = 35
+        needs_history_refresh = False
         if self.highest_orig_datetime:
-            history_series = self.key_to_series(
-                key="feed_in_tariff_wh", start_datetime=self.ems_start_datetime
+            raw_history = self.key_to_series(
+                key="feed_in_tariff_wh",
+                end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
             )
-            if not history_series.empty and history_series.index.min() <= self.ems_start_datetime:
+
+            # A later update must not mistake the current forecast window for
+            # sufficient ETS history. Require the same amount of data that the
+            # weekly prediction branch below needs; otherwise fetch 35 days
+            # again and repair an already-truncated in-memory history.
+            if not raw_history.empty:
+                resolution_seconds = ElecPriceEnergyCharts._resolution_seconds(raw_history)
+                slots_per_hour = 3600 // resolution_seconds
+                needs_history_refresh = len(raw_history) <= 800 * slots_per_hour
+            else:
+                needs_history_refresh = True
+
+            if not needs_history_refresh and not force_update:
                 past_days = 0
-            needs_update = end > self.highest_orig_datetime
+            needs_update = (
+                bool(force_update) or end > self.highest_orig_datetime or needs_history_refresh
+            )
         else:
             needs_update = True
 
         if needs_update:
             logger.info(
-                "Update FeedInTariffEnergyCharts is needed, last in history: {}",
+                "Update FeedInTariffEnergyCharts is needed, last in history: {}, "
+                "force_update={}, history_refresh={}",
                 self.highest_orig_datetime,
+                bool(force_update),
+                needs_history_refresh,
             )
             start_date = to_datetime(
                 self.ems_start_datetime - to_duration(f"{past_days} days"),
                 as_string="YYYY-MM-DD",
             )
-            energy_charts_data = self._request_forecast(
-                start_date=start_date, force_update=force_update
-            )
-            series_data = self._parse_data(energy_charts_data)
-            if series_data.empty:
-                raise ValueError("No Energy-Charts feed-in tariff data available")
-            self.highest_orig_datetime = series_data.index.max()
-            self.key_from_series("feed_in_tariff_wh", series_data)
+            try:
+                energy_charts_data = self._request_forecast(
+                    start_date=start_date, force_update=force_update
+                )
+                series_data = self._parse_data(energy_charts_data)
+                if series_data.empty:
+                    raise ValueError("No Energy-Charts feed-in tariff data available")
+                self.highest_orig_datetime = series_data.index.max()
+                self.key_from_series("feed_in_tariff_wh", series_data)
+            except Exception as exc:
+                if self.highest_orig_datetime is None:
+                    # Cold start: no cached/historical data to fall back to, so a
+                    # failed fetch is fatal.
+                    raise
+                # Transient API outage with existing history available: do not
+                # abort the whole prediction update. Keep the existing history
+                # and let the ETS/median branch below extrapolate the remaining
+                # slots, so downstream (e.g. /gesamtlast, optimization) still
+                # gets a usable feed-in tariff series.
+                logger.warning(
+                    "Energy-Charts feed-in tariff update failed ({}); keeping "
+                    "existing history until {} and extrapolating the remaining "
+                    "slots via ETS.",
+                    exc,
+                    self.highest_orig_datetime,
+                )
         else:
             logger.info(
                 "No update FeedInTariffEnergyCharts is needed, last in history: {}",

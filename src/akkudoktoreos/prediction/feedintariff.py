@@ -5,11 +5,15 @@ from pydantic import Field, computed_field, field_validator
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
+from akkudoktoreos.prediction.feedintariffakkudoktor import (
+    FeedInTariffAkkudoktorCommonSettings,
+)
 from akkudoktoreos.prediction.feedintariffenergycharts import (
     FeedInTariffEnergyChartsCommonSettings,
 )
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixedCommonSettings
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImportCommonSettings
+from akkudoktoreos.prediction.feedintarifftibber import FeedInTariffTibberCommonSettings
 
 
 def elecprice_provider_ids() -> list[str]:
@@ -19,7 +23,13 @@ def elecprice_provider_ids() -> list[str]:
     except:
         # Prediction may not be initialized
         # Return at least provider used in example
-        return ["FeedInTariffFixed", "FeedInTariffEnergyCharts", "FeedInTariffImport"]
+        return [
+            "FeedInTariffAkkudoktor",
+            "FeedInTariffFixed",
+            "FeedInTariffEnergyCharts",
+            "FeedInTariffImport",
+            "FeedInTariffTibber",
+        ]
 
     return [
         provider.provider_id()
@@ -31,6 +41,10 @@ def elecprice_provider_ids() -> list[str]:
 class FeedInTariffCommonProviderSettings(SettingsBaseModel):
     """Feed In Tariff Prediction Provider Configuration."""
 
+    FeedInTariffAkkudoktor: Optional[FeedInTariffAkkudoktorCommonSettings] = Field(
+        default=None,
+        json_schema_extra={"description": "FeedInTariffAkkudoktor settings", "examples": [None]},
+    )
     FeedInTariffFixed: Optional[FeedInTariffFixedCommonSettings] = Field(
         default=None,
         json_schema_extra={"description": "FeedInTariffFixed settings", "examples": [None]},
@@ -42,6 +56,10 @@ class FeedInTariffCommonProviderSettings(SettingsBaseModel):
     FeedInTariffImport: Optional[FeedInTariffImportCommonSettings] = Field(
         default=None,
         json_schema_extra={"description": "FeedInTariffImport settings", "examples": [None]},
+    )
+    FeedInTariffTibber: Optional[FeedInTariffTibberCommonSettings] = Field(
+        default=None,
+        json_schema_extra={"description": "FeedInTariffTibber settings", "examples": [None]},
     )
 
 
@@ -61,9 +79,11 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
         json_schema_extra={
             "description": "Feed in tariff provider id of provider to be used.",
             "examples": [
+                "FeedInTariffAkkudoktor",
                 "FeedInTariffFixed",
                 "FeedInTariffEnergyCharts",
                 "FeedInTariffImport",
+                "FeedInTariffTibber",
             ],
         },
     )
@@ -75,9 +95,11 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
             "examples": [
                 # Example 1: Empty/default settings (all providers None)
                 {
+                    "FeedInTariffAkkudoktor": None,
                     "FeedInTariffFixed": None,
                     "FeedInTariffEnergyCharts": None,
                     "FeedInTariffImport": None,
+                    "FeedInTariffTibber": None,
                 },
             ],
         },

@@ -29,6 +29,10 @@ from akkudoktoreos.optimization.genetic.geneticdevices import (
 )
 from akkudoktoreos.utils.datetimeutil import to_duration
 
+MARKET_PRICE_FEED_IN_TARIFF_PROVIDERS = frozenset(
+    {"FeedInTariffAkkudoktor", "FeedInTariffEnergyCharts", "FeedInTariffTibber"}
+)
+
 # Do not import directly from akkudoktoreos.core.coreabc
 # EnergyManagementSystemMixin - Creates circular dependency with ems.py
 # StartMixin                  - Creates circular dependency with ems.py
@@ -161,8 +165,7 @@ class GeneticOptimizationParameters(
         dishwasher = self.__dict__.get("dishwasher")
         if dishwasher is not None and self.home_appliances is not None:
             raise ValueError(
-                "Provide either 'home_appliances' or the deprecated 'dishwasher', "
-                "not both."
+                "Provide either 'home_appliances' or the deprecated 'dishwasher', " "not both."
             )
         appliances = self.home_appliances or []
         device_ids = [appliance.device_id for appliance in appliances]
@@ -405,7 +408,7 @@ class GeneticOptimizationParameters(
                 # Retry
                 continue
             if cls.config.feedintariff.direct_marketing_enabled:
-                if cls.config.feedintariff.provider == "FeedInTariffEnergyCharts":
+                if cls.config.feedintariff.provider in MARKET_PRICE_FEED_IN_TARIFF_PROVIDERS:
                     try:
                         feed_in_tariff_wh = cls.prediction.key_to_array(
                             key="feed_in_tariff_wh",

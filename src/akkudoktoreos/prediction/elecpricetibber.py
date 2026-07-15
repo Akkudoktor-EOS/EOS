@@ -28,16 +28,19 @@ query TibberPriceInfo {
           today {
             startsAt
             total
+            energy
           }
           tomorrow {
             startsAt
             total
+            energy
           }
         }
         priceInfoRange(resolution: QUARTER_HOURLY, last: 672) {
           nodes {
             startsAt
             total
+            energy
           }
         }
       }
@@ -61,16 +64,19 @@ query TibberPriceInfo {
           today {
             startsAt
             total
+            energy
           }
           tomorrow {
             startsAt
             total
+            energy
           }
         }
         priceInfoRange(resolution: QUARTER_HOURLY, last: 672) {
           nodes {
             startsAt
             total
+            energy
           }
         }
       }
@@ -107,6 +113,7 @@ class TibberPricePoint(PydanticBaseModel):
 
     startsAt: str
     total: float
+    energy: Optional[float] = None
 
 
 class TibberPriceConnection(PydanticBaseModel):

@@ -253,6 +253,7 @@ def test_request_forecast_uses_tibber_graphql_api(
     assert "priceInfoRange" in kwargs["json"]["query"]
     assert "QUARTER_HOURLY" in kwargs["json"]["query"]
     assert "total" in kwargs["json"]["query"]
+    assert "energy" in kwargs["json"]["query"]
     assert kwargs["timeout"] == 30
 
 
@@ -340,9 +341,7 @@ def test_tibber_update_uses_eos_storage_history_when_api_history_is_missing(
     assert forecast_call["history_hours"] > 840
 
 
-def test_tibber_update_preserves_quarter_hour_resolution_and_slots(
-    tibber_provider, monkeypatch
-):
+def test_tibber_update_preserves_quarter_hour_resolution_and_slots(tibber_provider, monkeypatch):
     """15-minute Tibber prices are stored natively and extrapolated on the slot grid.
 
     Proves the resolution-agnostic path: (a) the native 15-min resolution survives

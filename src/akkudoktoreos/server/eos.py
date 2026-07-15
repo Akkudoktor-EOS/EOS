@@ -1162,6 +1162,7 @@ class GesamtlastRequest(PydanticBaseModel):
     year_energy: float
     measured_data: List[Dict[str, Any]]
     hours: int
+    force_update: bool = False
 
 
 @app.post("/gesamtlast", tags=["prediction"])
@@ -1230,11 +1231,15 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
         energy_mr_values.append(energy_mr)
     get_measurement().key_from_lists(measurement_key, energy_mr_dates, energy_mr_values)
 
-    # Ensure there is only one optimization/ energy management run at a time
+    # Ensure there is only one optimization/ energy management run at a time.
+    # Do not force a full provider refresh by default (see request.force_update):
+    # forcing bypasses the provider caches and hammers external APIs on every
+    # call, which made a single flaky provider (e.g. Energy-Charts) abort the
+    # whole load prediction.
     try:
         await get_ems().run(
             mode=EnergyManagementMode.PREDICTION,
-            force_update=True,
+            force_update=request.force_update,
         )
     except Exception as e:
         raise HTTPException(
