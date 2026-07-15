@@ -277,7 +277,7 @@ class TestAcChargingInSimulation:
                 prediction_hours=prediction_hours,
                 inverter=inverter,
                 ev=None,
-                home_appliance=None,
+                home_appliances=None,
             )
             return sim, akku, inverter
 
@@ -553,7 +553,10 @@ def _run_evaluate_with_mocked_sim(
     - self.simulation is replaced by mock_sim
     Then call evaluate() and return the fitness tuple.
     """
-    from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+    from akkudoktoreos.optimization.genetic.genetic import (
+        ApplianceGeneLayout,
+        GeneticOptimization,
+    )
 
     config_eos.merge_settings_from_dict(
         {
@@ -572,6 +575,7 @@ def _run_evaluate_with_mocked_sim(
     optim.optimize_ev = False
     optim.verbose = False
     optim.opti_param = {"home_appliance": 0}
+    optim.appliance_layout = ApplianceGeneLayout([])
     optim.simulation = mock_sim
 
     # evaluate_inner() just returns the base balance; we test the *additional* penalty
@@ -602,7 +606,10 @@ def _run_evaluate_with_mocked_sim(
 
 def _run_evaluate_with_mocked_ev_soc(config_eos, ev_soc_percentage: float) -> float:
     """Return fitness for a mocked EV SoC while EV optimization is active."""
-    from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
+    from akkudoktoreos.optimization.genetic.genetic import (
+        ApplianceGeneLayout,
+        GeneticOptimization,
+    )
 
     config_eos.merge_settings_from_dict(
         {
@@ -620,6 +627,7 @@ def _run_evaluate_with_mocked_ev_soc(config_eos, ev_soc_percentage: float) -> fl
     optim.optimize_ev = True
     optim.verbose = False
     optim.opti_param = {"home_appliance": 0}
+    optim.appliance_layout = ApplianceGeneLayout([])
 
     mock_ev = Mock()
     mock_ev.current_soc_percentage.return_value = ev_soc_percentage

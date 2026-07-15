@@ -193,28 +193,52 @@ indicates no power transfer. Intermediate values scale the power proportionally.
 
 ## Home Appliance
 
-The optimization algorithm supports one start of the home appliance within the optimization
-horizon.
+The optimization algorithm schedules any number of flexible consumers (home appliances). Each
+consumer has a unique `device_id` and is scheduled independently. The `schedule_mode` selects how
+often a consumer runs:
+
+- `ONCE` — a single run somewhere within the optimization horizon ("fire and forget").
+- `DAILY` — one run per local calendar day that still has a feasible complete run.
 
 ### Home Appliance Simulation
 
+Each consumer's load is described by the energy of a single complete run, resampled onto the
+optimization slot grid (hourly or 15-minute). Multiple consumers and multiple daily runs may
+overlap; their energy adds up.
+
 ### Home Appliance Configuration
 
-Home appliance to run within the optimization horizon.
+A consumer's load is defined **either** by an explicit power profile or by the flat
+`consumption_wh` + `duration_h` fallback (exactly one of the two).
+
+Two consumers, one defined by the flat fallback (runs once), one by an explicit 15-minute power
+profile that runs once per day:
 
 ```json
 [
   {
     "device_id": "dishwasher1",
     "consumption_wh": 2000,
-    "duration_h": 3
+    "duration_h": 3,
+    "schedule_mode": "ONCE"
+  },
+  {
+    "device_id": "washingmachine1",
+    "load_profile_power_w": [200, 2000, 1800, 100],
+    "load_profile_interval_seconds": 900,
+    "schedule_mode": "DAILY"
   }
 ]
 ```
 
-Home appliance to run within a time window of 5 hours starting at 8:00 every day and another time
-window of 3 hours starting at 15:00 every day. See
-[Time Window Sequence Configuration](configtimewindow-page) for more information.
+- `load_profile_power_w`: non-negative power values in watts describing one complete run. Each value
+  covers `load_profile_interval_seconds` (default: the configured optimization interval). The profile
+  is resampled energy-preservingly onto the optimization slot grid.
+- `consumption_wh` / `duration_h`: flat fallback used when no `load_profile_power_w` is given.
+
+A consumer may be restricted to run within a time window of 5 hours starting at 8:00 every day and
+another time window of 3 hours starting at 15:00 every day. The complete run must fit inside a
+single window. See [Time Window Sequence Configuration](configtimewindow-page) for more information.
 
 ```json
 [
@@ -240,8 +264,8 @@ window of 3 hours starting at 15:00 every day. See
 
 :::{admonition} Note
 :class: note
-The optimization algorithm always restricts to one start within the optimization horizon per
-energy management run.
+A `ONCE` consumer without any valid start (given its time windows and the horizon) is rejected. For
+`DAILY`, a calendar day without a feasible run simply gets no run for that day.
 :::
 
 ### Home Appliance Instructions

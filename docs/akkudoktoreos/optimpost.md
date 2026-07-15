@@ -93,12 +93,15 @@ to `DISABLED` in the configuration.
         "initial_soc_percentage": 54,
         "min_soc_percentage": 0
     },
-    "dishwasher": {
-        "device_id": "dishwasher1",
-        "consumption_wh": 2000,
-        "duration_h": 3,
-        "time_windows": null
-    },
+    "home_appliances": [
+        {
+            "device_id": "dishwasher1",
+            "consumption_wh": 2000,
+            "duration_h": 3,
+            "schedule_mode": "ONCE",
+            "time_windows": null
+        }
+    ],
     "temperature_forecast": [
       18.3, 17.8, 16.9, 16.2, 15.6, 15.1, 14.6, 14.2, 14.3, 14.8, 15.7, 16.7, 17.4,
       18.0, 18.6, 19.2, 19.1, 18.7, 18.5, 17.7, 16.2, 14.6, 13.6, 13.0, 12.6, 12.2,

@@ -2,6 +2,8 @@
 
 import random
 import time
+from collections import OrderedDict, defaultdict
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import numpy as np
@@ -11,6 +13,7 @@ from numpydantic import NDArray, Shape
 from pydantic import ConfigDict, Field
 
 from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.devices.devicesabc import ConsumerScheduleMode
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.devices.genetic.homeappliance import HomeAppliance
 from akkudoktoreos.devices.genetic.inverter import Inverter
@@ -23,6 +26,54 @@ from akkudoktoreos.optimization.genetic.geneticsolution import (
     GeneticSolution,
 )
 from akkudoktoreos.optimization.optimizationabc import OptimizationBase
+
+
+@dataclass
+class ApplianceGeneSlot:
+    """One appliance start gene in the genome.
+
+    The gene value is an **index into ``allowed_start_slots``**, not an absolute
+    slot. This guarantees every gene value maps to a genuinely valid start and
+    keeps all allowed starts equally reachable by mutation/crossover.
+    """
+
+    gene_index: int
+    appliance_index: int
+    device_id: str
+    run_index: int
+    # Local calendar date of the run for DAILY appliances; None for ONCE.
+    run_date: Optional[Any]
+    allowed_start_slots: list[int]
+
+
+@dataclass
+class ApplianceGeneLayout:
+    """Ordered descriptor of the appliance part of the genome.
+
+    Every genome-building step (create/split/merge/mutate/decode) consumes only
+    this descriptor, so the appliance gene block can vary in length with the
+    number of devices and DAILY run days without any hard-coded gene positions.
+    """
+
+    genes: list[ApplianceGeneSlot] = field(default_factory=list)
+
+    @property
+    def n_genes(self) -> int:
+        """Number of appliance start genes."""
+        return len(self.genes)
+
+    def signature(self) -> tuple:
+        """Stable identity of the layout for start-solution compatibility.
+
+        Two layouts with the same length can still describe different schedules;
+        the signature captures device, run date and the allowed-start list so a
+        cached start solution built for a different layout is not silently
+        reused.
+        """
+        return tuple(
+            (gene.device_id, str(gene.run_date), tuple(gene.allowed_start_slots))
+            for gene in self.genes
+        )
 
 
 class GeneticSimulation(PydanticBaseModel):
@@ -84,8 +135,9 @@ class GeneticSimulation(PydanticBaseModel):
     )
     battery: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
     ev: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
-    home_appliance: Optional[HomeAppliance] = Field(
-        default=None, json_schema_extra={"description": "TBD."}
+    home_appliances: list[HomeAppliance] = Field(
+        default_factory=list,
+        json_schema_extra={"description": "Flexible consumers scheduled by the optimizer."},
     )
     inverter: Optional[Inverter] = Field(default=None, json_schema_extra={"description": "TBD."})
 
@@ -108,18 +160,13 @@ class GeneticSimulation(PydanticBaseModel):
     ev_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, json_schema_extra={"description": "TBD"}
     )
-    home_appliance_start_hour: Optional[int] = Field(
-        default=None,
-        json_schema_extra={"description": "Home appliance start hour - None denotes no start."},
-    )
-
     def prepare(
         self,
         parameters: GeneticEnergyManagementParameters,
         optimization_hours: int,
         prediction_hours: int,
         ev: Optional[Battery] = None,
-        home_appliance: Optional[HomeAppliance] = None,
+        home_appliances: Optional[list[HomeAppliance]] = None,
         inverter: Optional[Inverter] = None,
         direct_marketing_enabled: bool = False,
     ) -> None:
@@ -149,7 +196,7 @@ class GeneticSimulation(PydanticBaseModel):
         else:
             self.battery = None
         self.ev = ev
-        self.home_appliance = home_appliance
+        self.home_appliances = home_appliances or []
         self.inverter = inverter
 
         # Initialize per-hour action arrays for the prediction horizon
@@ -159,14 +206,12 @@ class GeneticSimulation(PydanticBaseModel):
         self.bat_grid_export_hours = np.full(self.prediction_hours, 0.0)
         self.ev_charge_hours = np.full(self.prediction_hours, 0.0)
         self.ev_discharge_hours = np.full(self.prediction_hours, 0.0)
-        self.home_appliance_start_hour = None
 
     def reset(self) -> None:
         if self.ev:
             self.ev.reset()
         if self.battery:
             self.battery.reset()
-        self.home_appliance_start_hour = None
 
     def simulate(self, start_hour: int) -> dict[str, Any]:
         """Simulate energy usage and costs for the given start hour.
@@ -190,7 +235,7 @@ class GeneticSimulation(PydanticBaseModel):
         pv_prediction_wh_fast = self.pv_prediction_wh
         battery_fast = self.battery
         ev_fast = self.ev
-        home_appliance_fast = self.home_appliance
+        home_appliances_fast = self.home_appliances
         inverter_fast = self.inverter
         direct_marketing_enabled_fast = self.direct_marketing_enabled
 
@@ -327,14 +372,12 @@ class GeneticSimulation(PydanticBaseModel):
             # Default return if no electric vehicle is available
             soc_ev_per_hour = np.full((total_hours), 0)
 
-        if home_appliance_fast and self.home_appliance_start_hour is not None:
+        if home_appliances_fast:
             home_appliance_enabled = True
-            # Pre-allocate arrays for the results, optimized for speed
+            # Pre-allocate the aggregate appliance load array (sum over all
+            # devices). Each appliance already carries its own resampled load
+            # curve, built from the decoded start(s) before this call.
             home_appliance_wh_per_hour = np.full((total_hours), np.nan)
-
-            self.home_appliance_start_hour = home_appliance_fast.set_starting_time(
-                self.home_appliance_start_hour, start_hour
-            )
         else:
             home_appliance_enabled = False
             # Default return if no home appliance is available
@@ -347,9 +390,11 @@ class GeneticSimulation(PydanticBaseModel):
             consumption = load_energy_array_fast[hour]
             losses_wh_per_hour[hour_idx] = 0.0
 
-            # Home appliances
+            # Home appliances (sum the per-slot load of all flexible consumers)
             if home_appliance_enabled:
-                ha_load = home_appliance_fast.get_load_for_hour(hour)  # type: ignore[union-attr]
+                ha_load = 0.0
+                for appliance in home_appliances_fast:
+                    ha_load += appliance.get_load_for_hour(hour)
                 consumption += ha_load
                 home_appliance_wh_per_hour[hour_idx] = ha_load
 
@@ -575,6 +620,14 @@ class GeneticOptimization(OptimizationBase):
         # Per-run cache for the AC-charge break-even penalty (see evaluate()).
         self._ac_break_even_best_prices: Optional[list[float]] = None
 
+        # Appliance genome layout, built once per optimization run in
+        # optimierung_ems(). Empty by default so setup_deap_environment() can be
+        # exercised standalone (e.g. in tests) without appliances.
+        self.appliance_layout: ApplianceGeneLayout = ApplianceGeneLayout([])
+        # Local datetime of slot index 0 (midnight of the start day), needed to
+        # turn decoded start slots into absolute local timestamps.
+        self._slot0_datetime: Optional[Any] = None
+
         # Create Simulation
         self.simulation = GeneticSimulation()
 
@@ -584,6 +637,129 @@ class GeneticOptimization(OptimizationBase):
             return bool(self.config.feedintariff.direct_marketing_enabled)
         except Exception:
             return False
+
+    def _appliance_horizon_end_slot(self) -> int:
+        """Exclusive upper slot bound for appliance runs (end of horizon).
+
+        A run must complete within the optimization horizon. The horizon starts
+        at the current slot and lasts ``horizon_hours``; the bound is capped to
+        the total slot grid.
+        """
+        start_slot = self._start_day_slot()
+        horizon_slots = self.config.optimization.horizon_hours * self.slots_per_hour
+        return min(self.total_slots, start_slot + horizon_slots)
+
+    def _build_appliance_layout(
+        self, appliances: list[HomeAppliance], slot0_datetime: Any
+    ) -> ApplianceGeneLayout:
+        """Compute the appliance genome layout from the configured consumers.
+
+        For each appliance the allowed start slots are computed once. ONCE
+        appliances get a single gene; DAILY appliances get one gene per local
+        calendar day that still has at least one complete allowed run.
+
+        Raises:
+            ValueError: If a ONCE appliance has no valid start within the horizon.
+        """
+        start_slot = self._start_day_slot()
+        horizon_end_slot = self._appliance_horizon_end_slot()
+        genes: list[ApplianceGeneSlot] = []
+        gene_index = 0
+        for appliance_index, appliance in enumerate(appliances):
+            allowed = appliance.allowed_start_slots(
+                slot0_datetime=slot0_datetime,
+                earliest_slot=start_slot,
+                horizon_end_slot=horizon_end_slot,
+            )
+            if appliance.schedule_mode == ConsumerScheduleMode.ONCE:
+                if not allowed:
+                    raise ValueError(
+                        f"Home appliance '{appliance.device_id}' (ONCE) has no valid "
+                        f"start slot within the optimization horizon and its time windows."
+                    )
+                genes.append(
+                    ApplianceGeneSlot(
+                        gene_index=gene_index,
+                        appliance_index=appliance_index,
+                        device_id=appliance.device_id,
+                        run_index=0,
+                        run_date=None,
+                        allowed_start_slots=allowed,
+                    )
+                )
+                gene_index += 1
+            else:  # DAILY
+                by_date: "OrderedDict[Any, list[int]]" = OrderedDict()
+                for slot in allowed:
+                    run_date = slot0_datetime.add(
+                        seconds=slot * appliance.slot_interval_seconds
+                    ).date()
+                    by_date.setdefault(run_date, []).append(slot)
+                if not by_date:
+                    logger.warning(
+                        "Home appliance '{}' (DAILY) has no valid start slot within the "
+                        "horizon; no runs are scheduled.",
+                        appliance.device_id,
+                    )
+                for run_index, (run_date, slots) in enumerate(by_date.items()):
+                    genes.append(
+                        ApplianceGeneSlot(
+                            gene_index=gene_index,
+                            appliance_index=appliance_index,
+                            device_id=appliance.device_id,
+                            run_index=run_index,
+                            run_date=run_date,
+                            allowed_start_slots=slots,
+                        )
+                    )
+                    gene_index += 1
+        return ApplianceGeneLayout(genes)
+
+    def _decode_appliance_starts(
+        self, appliance_gene_values: list[int]
+    ) -> dict[int, list[int]]:
+        """Map appliance gene values to absolute start slots per appliance.
+
+        Each gene value is an index into its gene's ``allowed_start_slots``; it is
+        clamped defensively so crossover artefacts can never index out of range.
+        """
+        starts_per_appliance: dict[int, list[int]] = defaultdict(list)
+        for position, gene in enumerate(self.appliance_layout.genes):
+            allowed = gene.allowed_start_slots
+            if not allowed:
+                continue
+            value = int(appliance_gene_values[position])
+            value = min(max(value, 0), len(allowed) - 1)
+            starts_per_appliance[gene.appliance_index].append(allowed[value])
+        return starts_per_appliance
+
+    def _apply_appliance_starts(self, appliance_gene_values: list[int]) -> None:
+        """Build every appliance's load curve from the decoded starts."""
+        if not self.simulation.home_appliances:
+            return
+        starts_per_appliance = self._decode_appliance_starts(appliance_gene_values)
+        for appliance_index, appliance in enumerate(self.simulation.home_appliances):
+            appliance.build_load_curve(starts_per_appliance.get(appliance_index, []))
+
+    def _start_solution_matches_layout(self, start_solution: list[float]) -> bool:
+        """Check that a start solution's appliance tail fits the current layout.
+
+        A length match alone is insufficient (two different layouts can share a
+        length), so every appliance gene value must be a valid index into its
+        gene's ``allowed_start_slots``.
+        """
+        n_genes = self.appliance_layout.n_genes
+        if n_genes == 0:
+            return True
+        if len(start_solution) < n_genes:
+            return False
+        tail = start_solution[-n_genes:]
+        for value, gene in zip(tail, self.appliance_layout.genes):
+            if not gene.allowed_start_slots:
+                return False
+            if not (0 <= int(value) < len(gene.allowed_start_slots)):
+                return False
+        return True
 
     def _ac_break_even_prices(
         self,
@@ -716,15 +892,19 @@ class GeneticOptimization(OptimizationBase):
             deep=True,
         )
 
-    def _start_solution_for_slot_grid(
-        self, start_solution: list[float], *, has_appliance: bool
-    ) -> list[float]:
-        """Expand a legacy hourly genome to the configured slot grid when possible."""
-        expected_length = self.total_slots * (2 if self.optimize_ev else 1)
-        hourly_length = self.config.prediction.hours * (2 if self.optimize_ev else 1)
-        if has_appliance:
-            expected_length += 1
-            hourly_length += 1
+    def _start_solution_for_slot_grid(self, start_solution: list[float]) -> list[float]:
+        """Expand a legacy hourly genome to the configured slot grid when possible.
+
+        Only the battery and EV parts are grid-expanded. The appliance start
+        genes are indices into interval-dependent allowed-start lists, so they
+        are copied verbatim and validated later against the current layout
+        (incompatible tails cause the whole start solution to be discarded).
+        """
+        n_appliance_genes = self.appliance_layout.n_genes
+        expected_length = self.total_slots * (2 if self.optimize_ev else 1) + n_appliance_genes
+        hourly_length = (
+            self.config.prediction.hours * (2 if self.optimize_ev else 1) + n_appliance_genes
+        )
 
         if len(start_solution) == expected_length or self.slots_per_hour == 1:
             return list(start_solution)
@@ -738,8 +918,8 @@ class GeneticOptimization(OptimizationBase):
             migrated.extend(
                 np.repeat(start_solution[battery_end:ev_end], self.slots_per_hour).tolist()
             )
-        if has_appliance:
-            migrated.append(start_solution[-1])
+        if n_appliance_genes > 0:
+            migrated.extend(list(start_solution[-n_appliance_genes:]))
         logger.info(
             "Expanded hourly start_solution from {} to {} slot values.",
             hourly_length,
@@ -826,11 +1006,16 @@ class GeneticOptimization(OptimizationBase):
             ] * self.fixed_eauto_hours
             individual[self.total_slots : self.total_slots * 2] = ev_charge_part_mutated
 
-        # 3. Mutating the appliance start time, if applicable
-        if self.opti_param["home_appliance"] > 0:
-            appliance_part = [individual[-1]]
-            (appliance_part_mutated,) = self.toolbox.mutate_hour(appliance_part)
-            individual[-1] = appliance_part_mutated[0]
+        # 3. Mutating the appliance start genes. Each gene is an index into its
+        #    own allowed_start_slots list, so the redraw stays within valid range.
+        n_appliance_genes = self.appliance_layout.n_genes
+        if n_appliance_genes > 0:
+            base = len(individual) - n_appliance_genes
+            appliance_mutation_probability = 0.2
+            for position, gene in enumerate(self.appliance_layout.genes):
+                if random.random() < appliance_mutation_probability:  # noqa: S311
+                    upper = len(gene.allowed_start_slots) - 1
+                    individual[base + position] = random.randint(0, upper)  # noqa: S311
 
         return (individual,)
 
@@ -847,9 +1032,11 @@ class GeneticOptimization(OptimizationBase):
                 self.toolbox.attr_ev_charge_index() for _ in range(self.total_slots)
             ]
 
-        # Add the start time of the household appliance if it's being optimized
-        if self.opti_param["home_appliance"] > 0:
-            individual_components += [self.toolbox.attr_int()]
+        # Add one appliance start gene per scheduled run (index into that run's
+        # allowed_start_slots). No draws happen when there are no appliances, so
+        # the battery/EV-only genome is unchanged.
+        for gene in self.appliance_layout.genes:
+            individual_components.append(random.randint(0, len(gene.allowed_start_slots) - 1))  # noqa: S311
 
         return creator.Individual(individual_components)
 
@@ -857,14 +1044,15 @@ class GeneticOptimization(OptimizationBase):
         self,
         discharge_hours_bin: np.ndarray,
         eautocharge_hours_index: Optional[np.ndarray],
-        washingstart_int: Optional[int],
+        appliance_gene_values: Optional[list[int]],
     ) -> list[int]:
         """Merge the individual components back into a single solution list.
 
         Parameters:
             discharge_hours_bin (np.ndarray): Binary discharge hours.
             eautocharge_hours_index (Optional[np.ndarray]): EV charge hours as integers, or None.
-            washingstart_int (Optional[int]): Dishwasher start time as integer, or None.
+            appliance_gene_values (Optional[list[int]]): One index per appliance
+                start gene (into the gene's allowed_start_slots), or None.
 
         Returns:
             list[int]: The merged individual solution as a list of integers.
@@ -876,27 +1064,28 @@ class GeneticOptimization(OptimizationBase):
         if self.optimize_ev and eautocharge_hours_index is not None:
             individual.extend(eautocharge_hours_index.tolist())
         elif self.optimize_ev:
-            # Falls optimize_ev aktiv ist, aber keine EV-Daten vorhanden sind, fügen wir Nullen hinzu
+            # optimize_ev active but no EV data present: pad with zeros
             individual.extend([0] * self.total_slots)
 
-        # Add dishwasher start time if applicable
-        if self.opti_param.get("home_appliance", 0) > 0 and washingstart_int is not None:
-            individual.append(washingstart_int)
-        elif self.opti_param.get("home_appliance", 0) > 0:
-            # Falls ein Haushaltsgerät optimiert wird, aber kein Startzeitpunkt vorhanden ist
-            individual.append(0)
+        # Add appliance start genes (one index per scheduled run).
+        n_appliance_genes = self.appliance_layout.n_genes
+        if n_appliance_genes > 0:
+            if appliance_gene_values is not None:
+                individual.extend(int(value) for value in appliance_gene_values)
+            else:
+                individual.extend([0] * n_appliance_genes)
 
         return individual
 
     def split_individual(
         self, individual: list[int]
-    ) -> tuple[np.ndarray, Optional[np.ndarray], Optional[int]]:
+    ) -> tuple[np.ndarray, Optional[np.ndarray], list[int]]:
         """Split the individual solution into its components.
 
         Components:
         1. Discharge hours (binary as int NumPy array),
         2. Electric vehicle charge hours (float as int NumPy array, if applicable),
-        3. Dishwasher start time (integer if applicable).
+        3. Appliance start genes (list of indices, one per scheduled run).
         """
         # Discharge hours as a NumPy array of ints
         discharge_hours_bin = np.array(individual[: self.total_slots], dtype=int)
@@ -912,14 +1101,14 @@ class GeneticOptimization(OptimizationBase):
             else None
         )
 
-        # Washing machine start time as an integer (if applicable)
-        washingstart_int = (
-            int(individual[-1])
-            if self.opti_param and self.opti_param.get("home_appliance", 0) > 0
-            else None
-        )
+        # Appliance start genes are the trailing entries of the genome.
+        n_appliance_genes = self.appliance_layout.n_genes
+        if n_appliance_genes > 0:
+            appliance_gene_values = [int(value) for value in individual[-n_appliance_genes:]]
+        else:
+            appliance_gene_values = []
 
-        return discharge_hours_bin, eautocharge_hours_index, washingstart_int
+        return discharge_hours_bin, eautocharge_hours_index, appliance_gene_values
 
     def setup_deap_environment(self, opti_param: dict[str, Any], start_hour: int) -> None:
         """Set up the DEAP environment with fitness and individual creation rules."""
@@ -963,9 +1152,6 @@ class GeneticOptimization(OptimizationBase):
                 len_ev - 1,
             )
 
-        # Household appliance start time
-        self.toolbox.register("attr_int", random.randint, start_hour, 23)
-
         self.toolbox.register("individual", self.create_individual)
         self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
         self.toolbox.register("mate", tools.cxTwoPoint)
@@ -991,9 +1177,6 @@ class GeneticOptimization(OptimizationBase):
             indpb=mutation_probability,
         )
 
-        # Mutation for household appliance
-        self.toolbox.register("mutate_hour", tools.mutUniformInt, low=start_hour, up=23, indpb=0.2)
-
         # Custom mutate function remains unchanged
         self.toolbox.register("mutate", self.mutate)
         self.toolbox.register("select", tools.selTournament, tournsize=3)
@@ -1004,13 +1187,13 @@ class GeneticOptimization(OptimizationBase):
         This is an internal function.
         """
         self.simulation.reset()
-        discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
+        discharge_hours_bin, eautocharge_hours_index, appliance_gene_values = self.split_individual(
             individual
         )
 
-        if self.opti_param.get("home_appliance", 0) > 0 and washingstart_int:
-            # Set start hour for appliance
-            self.simulation.home_appliance_start_hour = washingstart_int
+        # Decode the appliance start genes and (re)build each appliance's load
+        # curve for this candidate solution.
+        self._apply_appliance_starts(appliance_gene_values)
 
         ac_charge_hours, dc_charge_hours, discharge, battery_grid_export = (
             self.decode_charge_discharge(discharge_hours_bin)
@@ -1092,8 +1275,8 @@ class GeneticOptimization(OptimizationBase):
 
         # EV 100% & charge not allowed
         if self.optimize_ev:
-            discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
-                individual
+            discharge_hours_bin, eautocharge_hours_index, appliance_gene_values = (
+                self.split_individual(individual)
             )
 
             eauto_soc_per_hour = np.array(
@@ -1119,7 +1302,7 @@ class GeneticOptimization(OptimizationBase):
                 eautocharge_hours_index[-min_length:] = eautocharge_hours_index_tail.tolist()
 
                 adjusted_individual = self.merge_individual(
-                    discharge_hours_bin, eautocharge_hours_index, washingstart_int
+                    discharge_hours_bin, eautocharge_hours_index, appliance_gene_values
                 )
 
                 individual[:] = adjusted_individual
@@ -1330,23 +1513,26 @@ class GeneticOptimization(OptimizationBase):
         # currently active genome layout. EV optimization adds one gene per prediction slot,
         # so a cached solution from a previous run without EV optimization must not be reused.
         if start_solution is not None:
-            has_appliance = self.opti_param.get("home_appliance", 0) > 0
-            expected_length = self.total_slots * (2 if self.optimize_ev else 1)
-            if has_appliance:
-                expected_length += 1
-            start_solution = self._start_solution_for_slot_grid(
-                start_solution, has_appliance=has_appliance
+            n_appliance_genes = self.appliance_layout.n_genes
+            expected_length = (
+                self.total_slots * (2 if self.optimize_ev else 1) + n_appliance_genes
             )
+            start_solution = self._start_solution_for_slot_grid(start_solution)
 
-            if len(start_solution) == expected_length:
-                for _ in range(10):
-                    population.insert(0, creator.Individual(start_solution))
-            else:
+            if len(start_solution) != expected_length:
                 logger.warning(
                     "Ignoring start_solution with incompatible length {} (expected {}).",
                     len(start_solution),
                     expected_length,
                 )
+            elif not self._start_solution_matches_layout(start_solution):
+                logger.warning(
+                    "Ignoring start_solution: appliance genes do not match the current "
+                    "appliance layout."
+                )
+            else:
+                for _ in range(10):
+                    population.insert(0, creator.Individual(start_solution))
 
         # Run the evolutionary algorithm
         pop, log = algorithms.eaMuPlusLambda(
@@ -1391,11 +1577,9 @@ class GeneticOptimization(OptimizationBase):
         direct_marketing_enabled = self._direct_marketing_enabled()
         parameters = self._parameters_for_config(parameters)
         parameters = self._parameters_for_slot_grid(parameters)
-        if self.slots_per_hour > 1 and parameters.dishwasher is not None:
-            raise ValueError(
-                "Home-appliance scheduling is not yet supported for sub-hourly "
-                "optimization intervals."
-            )
+        # Home-appliance scheduling now supports sub-hourly intervals via the
+        # energy-preserving per-slot run profile.
+        home_appliance_params = parameters.resolved_home_appliances()
         self.optimize_dc_charge = direct_marketing_enabled
         self.optimize_battery_grid_export = direct_marketing_enabled
 
@@ -1496,16 +1680,23 @@ class GeneticOptimization(OptimizationBase):
             self.bat_possible_charge_values = [1.0]
         logger.debug("Battery AC charge levels: {}", self.bat_possible_charge_values)
 
-        # Initialize household appliance if applicable
-        dishwasher = (
+        # Initialize the flexible consumers (home appliances) and their genome
+        # layout. slot0_datetime (midnight of the start day) turns decoded start
+        # slots into absolute local timestamps and drives DAILY day grouping.
+        self._slot0_datetime = self.ems.start_datetime.set(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        home_appliances = [
             HomeAppliance(
-                parameters=parameters.dishwasher,
+                parameters=appliance_params,
                 optimization_hours=self.config.optimization.horizon_hours,
                 prediction_hours=self.total_slots,
                 slot_duration_h=self.slot_duration_h,
             )
-            if parameters.dishwasher is not None
-            else None
+            for appliance_params in home_appliance_params
+        ]
+        self.appliance_layout = self._build_appliance_layout(
+            home_appliances, self._slot0_datetime
         )
 
         # Initialize the inverter and energy management system. slot_duration_h
@@ -1525,14 +1716,16 @@ class GeneticOptimization(OptimizationBase):
             prediction_hours=self.total_slots,
             inverter=inverter,  # battery is part of inverter
             ev=eauto,
-            home_appliance=dishwasher,
+            home_appliances=home_appliances,
             direct_marketing_enabled=direct_marketing_enabled,
         )
 
-        # Setup the DEAP environment and optimization process. setup_deap gets
-        # the hour-of-day (appliance gene bounds); evaluate gets the slot index
-        # (its break-even loop walks the slot arrays from "now").
-        self.setup_deap_environment({"home_appliance": 1 if dishwasher else 0}, start_hour)
+        # Setup the DEAP environment and optimization process. The appliance
+        # genome layout (built above) drives the appliance gene block; evaluate
+        # gets the slot index (its break-even loop walks the slot arrays from "now").
+        self.setup_deap_environment(
+            {"home_appliance": self.appliance_layout.n_genes}, start_hour
+        )
         self.toolbox.register(
             "evaluate",
             lambda ind: self.evaluate(ind, parameters, start_slot, worst_case),
@@ -1547,12 +1740,38 @@ class GeneticOptimization(OptimizationBase):
         simulation_result = self.evaluate_inner(start_solution)
 
         # Prepare results
-        discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
-            start_solution
+        discharge_hours_bin, eautocharge_hours_index, appliance_gene_values = (
+            self.split_individual(start_solution)
         )
-        # home appliance may have choosen a different appliance start hour
-        if self.simulation.home_appliance:
-            washingstart_int = self.simulation.home_appliance_start_hour
+
+        # Materialize the per-device appliance results only for the final best
+        # solution. Each appliance's load curve (already built by the final
+        # evaluate_inner above) starts at slot 0; slice it to the simulation
+        # window so it aligns with the other per-slot result arrays.
+        starts_per_appliance = self._decode_appliance_starts(appliance_gene_values)
+        home_appliance_energy_wh: dict[str, list[float]] = {}
+        appliance_starts: dict[str, list[Any]] = {}
+        timezone = self.config.general.timezone
+        for appliance_index, appliance in enumerate(self.simulation.home_appliances):
+            device_id = appliance.device_id
+            home_appliance_energy_wh[device_id] = appliance.get_load_curve()[start_slot:].tolist()
+            starts = sorted(starts_per_appliance.get(appliance_index, []))
+            appliance_starts[device_id] = [
+                self._slot0_datetime.add(
+                    seconds=start * appliance.slot_interval_seconds
+                ).in_timezone(timezone)
+                for start in starts
+            ]
+        simulation_result["home_appliance_energy_wh"] = home_appliance_energy_wh
+
+        # Deprecated single-device hourly start (kept for backward compatibility).
+        # Only meaningful for the legacy case: exactly one appliance on the hourly
+        # grid. Otherwise None; use appliance_starts instead.
+        washingstart_int: Optional[int] = None
+        if self.slots_per_hour == 1 and len(self.simulation.home_appliances) == 1:
+            single_starts = starts_per_appliance.get(0, [])
+            if single_starts:
+                washingstart_int = int(min(single_starts))
 
         eautocharge_hours_float = None
         if eautocharge_hours_index is not None and self.simulation.ev is not None:
@@ -1619,5 +1838,6 @@ class GeneticOptimization(OptimizationBase):
                 "eauto_obj": self.simulation.ev,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,
+                "appliance_starts": appliance_starts,
             }
         )

@@ -50,7 +50,7 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
         battery = akku,
     )
 
-    # Household device (currently not used, set to None)
+    # Flexible consumer (fixed start at slot 2 for this deterministic test)
     home_appliance = HomeAppliance(
         HomeApplianceParameters(
             device_id="dishwasher1",
@@ -61,6 +61,7 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
         optimization_hours = config_eos.optimization.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
     )
+    home_appliance.build_load_curve([2])
 
     # Example initialization of electric car battery
     eauto = Battery(
@@ -148,7 +149,7 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
         prediction_hours = config_eos.prediction.hours,
         inverter=inverter,
         ev=eauto,
-        home_appliance=home_appliance,
+        home_appliances=[home_appliance],
     )
 
     ac = np.full(config_eos.prediction.hours, 0.0)
@@ -157,7 +158,6 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
     dc = np.full(config_eos.prediction.hours, 0.0)
     dc[11] = 1
     simulation.dc_charge_hours = dc
-    simulation.home_appliance_start_hour = 2
 
     return simulation
 

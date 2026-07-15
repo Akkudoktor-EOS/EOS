@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- Flexible consumers (home appliances): schedule any number of consumers via
+  `devices.home_appliances`, each with a unique `device_id`. Every consumer defines its
+  load **either** as an explicit power profile (`load_profile_power_w` at
+  `load_profile_interval_seconds`, energy-preservingly resampled onto the optimization
+  slot grid, including the 15-minute interval and non-integer ratios such as 10→15 min)
+  **or** as the flat `consumption_wh` + `duration_h` fallback. A `schedule_mode` selects
+  `ONCE` (a single run in the horizon) or `DAILY` (one run per local calendar day that
+  still has a feasible full run). Allowed start times honour `time_windows` (including
+  weekday/date restrictions) and the horizon; ONCE without any valid start is rejected.
+  Results are reported per device (`result.home_appliance_energy_wh`, `appliance_starts`,
+  per-device solution columns and `DDBCInstruction`s emitted only on RUN/OFF transitions).
 - EV Bug (wrong output in genetic.py / no senseful results)
 - Direktvermarktung active / Battery discharge into grid (new state / action battery_grid_export_allowed) + (new simulation output Feed_in_tariff)
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
@@ -25,8 +36,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     is distributed across four slots, prices are held constant, and hourly warm-start
     solutions are expanded to slot controls. Native slot arrays are preserved and
     ambiguous lengths are rejected.
-  - Home-appliance scheduling remains hourly and is therefore rejected for sub-hourly
-    optimization instead of being simulated with incorrect slot indices.
+  - Home-appliance (flexible consumer) scheduling now runs on the same slot grid and
+    supports the 15-minute interval (see the flexible consumers entry below).
   - The Tibber electricity price provider now requests native 15-minute exchange prices
     (`priceInfoRange(resolution: QUARTER_HOURLY)`) and stores them at their native
     resolution, so both the hourly and the 15-minute optimizer are fed the correct
@@ -44,6 +55,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   day-ahead market prices are retained at their native hourly or quarter-hourly resolution and
   missing slots at the end of the optimization horizon are extended with weekly or daily seasonal
   ETS forecasts. A median fallback is used when the available history is too short for ETS.
+
+### Changed
+- `max_home_appliances` is now purely an upper bound. No demo appliance is created when
+  no `home_appliances` are configured, and the number is no longer used as an on/off switch.
+
+### Deprecated
+- The single-appliance genetic optimization input `dishwasher` is deprecated in favour of
+  the `home_appliances` list; a lone `dishwasher` is mapped to a one-element list, and
+  setting both at once is rejected. In the solution, `washingstart` (start slot of a single
+  hourly appliance) and `result.Home_appliance_wh_per_hour` (aggregate over all appliances)
+  are deprecated in favour of `appliance_starts` and `result.home_appliance_energy_wh`.
 
 ## 0.3.0 (2026-03-17)
 

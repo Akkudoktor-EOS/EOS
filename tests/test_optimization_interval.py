@@ -221,7 +221,7 @@ def test_hourly_start_solution_is_expanded_to_slots(config_eos: ConfigEOS):
     opt.optimize_ev = False
     hourly = list(range(48))
 
-    migrated = opt._start_solution_for_slot_grid(hourly, has_appliance=False)
+    migrated = opt._start_solution_for_slot_grid(hourly)
 
     assert len(migrated) == 192
     assert migrated[:8] == [0, 0, 0, 0, 1, 1, 1, 1]
@@ -242,8 +242,8 @@ def test_quarter_hour_mutation_probability_preserves_hourly_rate(config_eos: Con
     assert opt.toolbox.mutate_charge_discharge.keywords["indpb"] == pytest.approx(0.05)
 
 
-def test_sub_hourly_home_appliance_is_rejected(config_eos: ConfigEOS):
-    """An hourly appliance model must not silently run on slot indices."""
+def test_sub_hourly_home_appliance_is_scheduled(config_eos: ConfigEOS):
+    """A home appliance is scheduled on the 15-min slot grid and delivers its energy."""
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
@@ -252,18 +252,28 @@ def test_sub_hourly_home_appliance_is_rejected(config_eos: ConfigEOS):
     )
     parameters = load_hourly_parameters().model_copy(
         update={
-            "dishwasher": HomeApplianceParameters(
-                device_id="dishwasher", consumption_wh=1200, duration_h=2
-            )
+            "home_appliances": [
+                HomeApplianceParameters(
+                    device_id="dishwasher1", consumption_wh=1200, duration_h=2
+                )
+            ]
         },
         deep=True,
     )
     ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0))
+    CacheEnergyManagementStore().clear()
 
-    with pytest.raises(ValueError, match="Home-appliance scheduling"):
-        GeneticOptimization(fixed_seed=42).optimierung_ems(
-            parameters=parameters, start_hour=10, ngen=1
-        )
+    genetic_solution = GeneticOptimization(fixed_seed=42).optimierung_ems(
+        parameters=parameters, start_hour=10, ngen=3
+    )
+
+    # The appliance runs exactly once and delivers its full energy on the 15-min grid.
+    energy = genetic_solution.result.home_appliance_energy_wh["dishwasher1"]
+    assert sum(energy) == pytest.approx(1200.0)
+    # The run occupies 2 h = 8 quarter-hour slots at 1200/2 = 600 W -> 150 Wh/slot.
+    assert max(energy) == pytest.approx(150.0)
+    # A single start time is reported as an absolute datetime.
+    assert len(genetic_solution.appliance_starts["dishwasher1"]) == 1
 
 
 def test_optimize_15min_slot_grid(config_eos: ConfigEOS):

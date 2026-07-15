@@ -25,7 +25,7 @@ from akkudoktoreos.devices.devicesabc import (
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.optimization.genetic.geneticdevices import GeneticParametersBaseModel
 from akkudoktoreos.optimization.optimization import OptimizationSolution
-from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
 from akkudoktoreos.utils.utils import NumpyEncoder
 
 
@@ -107,8 +107,21 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
     Gesamtkosten_Euro: float = Field(json_schema_extra={"description": "The total costs in euros."})
     Home_appliance_wh_per_hour: list[Optional[float]] = Field(
         json_schema_extra={
-            "description": "The energy consumption of a household appliance in watt-hours per hour."
+            "description": (
+                "Deprecated: aggregated energy consumption of all household "
+                "appliances in watt-hours per slot. Use 'home_appliance_energy_wh' "
+                "for per-device values."
+            )
         }
+    )
+    home_appliance_energy_wh: dict[str, list[float]] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "description": (
+                "Per-device appliance energy in watt-hours per optimization slot, "
+                "keyed by device_id."
+            )
+        },
     )
     Kosten_Euro_pro_Stunde: list[float] = Field(
         json_schema_extra={"description": "The costs in euros per hour."}
@@ -154,6 +167,15 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
     def convert_numpy(cls, field: Any) -> Any:
         return NumpyEncoder.convert_numpy(field)[0]
 
+    @field_validator("home_appliance_energy_wh", mode="before")
+    def convert_numpy_appliance_energy(cls, field: Any) -> Any:
+        if isinstance(field, dict):
+            return {
+                device_id: NumpyEncoder.convert_numpy(values)[0]
+                for device_id, values in field.items()
+            }
+        return field
+
 
 class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
     """**Note**: The first value of "Last_Wh_per_hour", "Netzeinspeisung_Wh_per_hour", and "Netzbezug_Wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
@@ -191,7 +213,20 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
     washingstart: Optional[int] = Field(
         default=None,
         json_schema_extra={
-            "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
+            "description": (
+                "Deprecated: start slot of a single home appliance on the hourly "
+                "grid (legacy single-device case). Use 'appliance_starts' for the "
+                "general, ID-based start times."
+            )
+        },
+    )
+    appliance_starts: dict[str, list[DateTime]] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "description": (
+                "Scheduled run start times per appliance device_id as absolute "
+                "local datetimes."
+            )
         },
     )
 
@@ -573,32 +608,27 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                         raise ValueError(error_msg)
                     solution[key] = operation[key]
 
-        # Add home appliance data
-        if self.config.devices.max_home_appliances and self.config.devices.max_home_appliances > 0:
-            # Use config and not self.washingstart as washingstart may be None (no start)
-            # even if configured to be started.
-            homeappliance_device_id = self._homeappliance_device_id()
-            # result starts at start_day_slot
-            solution[f"{homeappliance_device_id}_energy_wh"] = (
-                self.result.Home_appliance_wh_per_hour[:n_points]
-            )
+        # Add home appliance data, one block of columns per device. Per-device
+        # energy arrays start at start_day_slot, like the other result arrays.
+        for device_id, energy_wh in self.result.home_appliance_energy_wh.items():
+            solution[f"{device_id}_energy_wh"] = energy_wh[:n_points]
             operation = {
-                f"{homeappliance_device_id}_run_op_mode": [],
-                f"{homeappliance_device_id}_run_op_factor": [],
-                f"{homeappliance_device_id}_off_op_mode": [],
-                f"{homeappliance_device_id}_off_op_factor": [],
+                f"{device_id}_run_op_mode": [],
+                f"{device_id}_run_op_factor": [],
+                f"{device_id}_off_op_mode": [],
+                f"{device_id}_off_op_factor": [],
             }
-            for hour_idx, energy in enumerate(solution[f"{homeappliance_device_id}_energy_wh"]):
-                if energy > 0.0:
-                    operation[f"{homeappliance_device_id}_run_op_mode"].append(1.0)
-                    operation[f"{homeappliance_device_id}_run_op_factor"].append(1.0)
-                    operation[f"{homeappliance_device_id}_off_op_mode"].append(0.0)
-                    operation[f"{homeappliance_device_id}_off_op_factor"].append(0.0)
+            for hour_idx, energy in enumerate(solution[f"{device_id}_energy_wh"]):
+                if energy and energy > 0.0:
+                    operation[f"{device_id}_run_op_mode"].append(1.0)
+                    operation[f"{device_id}_run_op_factor"].append(1.0)
+                    operation[f"{device_id}_off_op_mode"].append(0.0)
+                    operation[f"{device_id}_off_op_factor"].append(0.0)
                 else:
-                    operation[f"{homeappliance_device_id}_run_op_mode"].append(0.0)
-                    operation[f"{homeappliance_device_id}_run_op_factor"].append(0.0)
-                    operation[f"{homeappliance_device_id}_off_op_mode"].append(1.0)
-                    operation[f"{homeappliance_device_id}_off_op_factor"].append(1.0)
+                    operation[f"{device_id}_run_op_mode"].append(0.0)
+                    operation[f"{device_id}_run_op_factor"].append(0.0)
+                    operation[f"{device_id}_off_op_mode"].append(1.0)
+                    operation[f"{device_id}_off_op_factor"].append(1.0)
             for key in operation.keys():
                 if len(operation[key]) != n_points:
                     error_msg = f"instruction {key} has invalid length {len(operation[key])} - expected {n_points}"
@@ -820,24 +850,23 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                         )
                     )
 
-        # Add home appliance instructions (demand driven based control)
-        if self.config.devices.max_home_appliances and self.config.devices.max_home_appliances > 0:
-            # Use config and not self.washingstart as washingstart may be None (no start)
-            # even if configured to be started.
-            resource_id = self._homeappliance_device_id()
-            last_energy: Optional[float] = None
-            for hours, energy in enumerate(self.result.Home_appliance_wh_per_hour):
+        # Add home appliance instructions (demand driven based control), one
+        # stream of instructions per device. A new instruction is only emitted on
+        # a transition between OFF (energy == 0) and RUN (energy > 0); a mere
+        # power change within a running profile does not add an instruction.
+        for resource_id, energy_wh in self.result.home_appliance_energy_wh.items():
+            last_state: Optional[bool] = None
+            for hours, energy in enumerate(energy_wh):
                 # hours starts at start_datetime with 0
                 if energy is None:
                     raise ValueError(
-                        f"Unexpected value {energy} in {self.result.Home_appliance_wh_per_hour}"
+                        f"Unexpected value {energy} in home_appliance_energy_wh[{resource_id}]"
                     )
-                if last_energy is None or energy != last_energy:
-                    if energy > 0.0:
-                        operation_mode = ApplianceOperationMode.RUN  # type: ignore[assignment]
-                    else:
-                        operation_mode = ApplianceOperationMode.OFF  # type: ignore[assignment]
-                    operation_mode_factor = 1.0
+                running = energy > 0.0
+                if last_state is None or running != last_state:
+                    operation_mode = (
+                        ApplianceOperationMode.RUN if running else ApplianceOperationMode.OFF
+                    )
                     execution_time = start_datetime.add(seconds=interval_s * hours)
                     plan.add_instruction(
                         DDBCInstruction(
@@ -845,9 +874,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                             execution_time=execution_time,
                             actuator_id=resource_id,
                             operation_mode_id=operation_mode,
-                            operation_mode_factor=operation_mode_factor,
+                            operation_mode_factor=1.0,
                         )
                     )
-                    last_energy = energy
+                    last_state = running
 
         return plan

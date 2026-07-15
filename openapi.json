@@ -2643,6 +2643,15 @@
         "title": "ConfigSaveMode",
         "description": "Configuration file save mode."
       },
+      "ConsumerScheduleMode": {
+        "type": "string",
+        "enum": [
+          "ONCE",
+          "DAILY"
+        ],
+        "title": "ConsumerScheduleMode",
+        "description": "Schedule mode of a flexible consumer (home appliance).\n\nDetermines how often a consumer's load profile is scheduled within the\noptimization horizon.\n\nModes\n-----\n- ONCE:\n    The consumer runs exactly once somewhere within the optimization\n    horizon (\"fire and forget\"). The optimizer picks the start.\n\n- DAILY:\n    The consumer runs once per local calendar day, but only on days for\n    which at least one complete, allowed run still fits into the remaining\n    horizon. The optimizer picks one start per eligible day."
+      },
       "DDBCActuatorStatus": {
         "properties": {
           "type": {
@@ -4946,6 +4955,21 @@
               }
             ]
           },
+          "home_appliances": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/HomeApplianceParameters"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Appliances",
+            "description": "List of flexible consumers (home appliances) to schedule."
+          },
           "dishwasher": {
             "anyOf": [
               {
@@ -4954,7 +4978,9 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Deprecated single home appliance. Use 'home_appliances' instead. Mutually exclusive with 'home_appliances'.",
+            "deprecated": true
           },
           "temperature_forecast": {
             "anyOf": [
@@ -5064,7 +5090,18 @@
             },
             "type": "array",
             "title": "Home Appliance Wh Per Hour",
-            "description": "The energy consumption of a household appliance in watt-hours per hour."
+            "description": "Deprecated: aggregated energy consumption of all household appliances in watt-hours per slot. Use 'home_appliance_energy_wh' for per-device values."
+          },
+          "home_appliance_energy_wh": {
+            "additionalProperties": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Home Appliance Energy Wh",
+            "description": "Per-device appliance energy in watt-hours per optimization slot, keyed by device_id."
           },
           "Kosten_Euro_pro_Stunde": {
             "items": {
@@ -5231,7 +5268,19 @@
               }
             ],
             "title": "Washingstart",
-            "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
+            "description": "Deprecated: start slot of a single home appliance on the hourly grid (legacy single-device case). Use 'appliance_starts' for the general, ID-based start times."
+          },
+          "appliance_starts": {
+            "additionalProperties": {
+              "items": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Appliance Starts",
+            "description": "Scheduled run start times per appliance device_id as absolute local datetimes."
           }
         },
         "additionalProperties": false,
@@ -5301,21 +5350,78 @@
               "dishwasher"
             ]
           },
+          "load_profile_power_w": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Power W",
+            "description": "Explicit load profile describing a single complete run as a sequence of non-negative power values in watts (e.g. [200.0, 2000.0, 1800.0, 100.0]). Each value covers 'load_profile_interval_seconds'. Mutually exclusive with consumption_wh/duration_h.",
+            "examples": [
+              null
+            ]
+          },
+          "load_profile_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Interval Seconds",
+            "description": "Duration of one 'load_profile_power_w' step in seconds. Defaults to the configured optimization interval when a profile is given.",
+            "examples": [
+              null
+            ]
+          },
+          "schedule_mode": {
+            "$ref": "#/components/schemas/ConsumerScheduleMode",
+            "description": "Scheduling mode: ONCE (a single run within the horizon) or DAILY (one run per local calendar day with a feasible full run).",
+            "default": "ONCE",
+            "examples": [
+              "ONCE",
+              "DAILY"
+            ]
+          },
           "consumption_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Consumption Wh",
-            "description": "Energy consumption [Wh].",
+            "description": "Flat fallback: total energy consumption of one run [Wh]. Used only when no load_profile_power_w is given.",
             "examples": [
               2000
             ]
           },
           "duration_h": {
-            "type": "integer",
-            "maximum": 24.0,
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 24.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Duration H",
-            "description": "Usage duration in hours [0 ... 24].",
+            "description": "Flat fallback: run duration in hours [0 ... 24]. Used only when no load_profile_power_w is given.",
             "examples": [
               1
             ]
@@ -5343,12 +5449,8 @@
           }
         },
         "type": "object",
-        "required": [
-          "consumption_wh",
-          "duration_h"
-        ],
         "title": "HomeApplianceCommonSettings",
-        "description": "Home Appliance devices base settings."
+        "description": "Flexible consumer (home appliance) devices base settings.\n\nA consumer's load is defined **either** by an explicit power profile\n(``load_profile_power_w`` with an optional ``load_profile_interval_seconds``)\n**or** by the flat fallback ``consumption_wh`` + ``duration_h``. Exactly one\nof the two must be provided."
       },
       "HomeApplianceCommonSettings-Output": {
         "properties": {
@@ -5364,21 +5466,78 @@
               "dishwasher"
             ]
           },
+          "load_profile_power_w": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Power W",
+            "description": "Explicit load profile describing a single complete run as a sequence of non-negative power values in watts (e.g. [200.0, 2000.0, 1800.0, 100.0]). Each value covers 'load_profile_interval_seconds'. Mutually exclusive with consumption_wh/duration_h.",
+            "examples": [
+              null
+            ]
+          },
+          "load_profile_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Interval Seconds",
+            "description": "Duration of one 'load_profile_power_w' step in seconds. Defaults to the configured optimization interval when a profile is given.",
+            "examples": [
+              null
+            ]
+          },
+          "schedule_mode": {
+            "$ref": "#/components/schemas/ConsumerScheduleMode",
+            "description": "Scheduling mode: ONCE (a single run within the horizon) or DAILY (one run per local calendar day with a feasible full run).",
+            "default": "ONCE",
+            "examples": [
+              "ONCE",
+              "DAILY"
+            ]
+          },
           "consumption_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Consumption Wh",
-            "description": "Energy consumption [Wh].",
+            "description": "Flat fallback: total energy consumption of one run [Wh]. Used only when no load_profile_power_w is given.",
             "examples": [
               2000
             ]
           },
           "duration_h": {
-            "type": "integer",
-            "maximum": 24.0,
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 24.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Duration H",
-            "description": "Usage duration in hours [0 ... 24].",
+            "description": "Flat fallback: run duration in hours [0 ... 24]. Used only when no load_profile_power_w is given.",
             "examples": [
               1
             ]
@@ -5423,12 +5582,10 @@
         },
         "type": "object",
         "required": [
-          "consumption_wh",
-          "duration_h",
           "measurement_keys"
         ],
         "title": "HomeApplianceCommonSettings",
-        "description": "Home Appliance devices base settings."
+        "description": "Flexible consumer (home appliance) devices base settings.\n\nA consumer's load is defined **either** by an explicit power profile\n(``load_profile_power_w`` with an optional ``load_profile_interval_seconds``)\n**or** by the flat fallback ``consumption_wh`` + ``duration_h``. Exactly one\nof the two must be provided."
       },
       "HomeApplianceParameters": {
         "properties": {
@@ -5437,7 +5594,7 @@
             "title": "Device Id",
             "description": "ID of home appliance",
             "examples": [
-              "dishwasher"
+              "dishwasher1"
             ]
           },
           "hours": {
@@ -5456,20 +5613,83 @@
               null
             ]
           },
+          "load_profile_power_w": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Power W",
+            "description": "Explicit load profile describing a single complete run as a sequence of non-negative power values in watts. Each value covers 'load_profile_interval_seconds'. Mutually exclusive with consumption_wh/duration_h.",
+            "examples": [
+              [
+                200.0,
+                2000.0,
+                1800.0,
+                100.0
+              ]
+            ]
+          },
+          "load_profile_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Profile Interval Seconds",
+            "description": "Duration of one 'load_profile_power_w' step in seconds. Defaults to the configured optimization interval when a profile is given.",
+            "examples": [
+              900,
+              3600
+            ]
+          },
+          "schedule_mode": {
+            "$ref": "#/components/schemas/ConsumerScheduleMode",
+            "description": "Scheduling mode: ONCE (a single run within the horizon) or DAILY (one run per local calendar day with a feasible full run).",
+            "default": "ONCE",
+            "examples": [
+              "ONCE",
+              "DAILY"
+            ]
+          },
           "consumption_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Consumption Wh",
-            "description": "An integer representing the energy consumption of a household device in watt-hours.",
+            "description": "Flat fallback: total energy consumption of one run in watt-hours. Used only when no load_profile_power_w is given.",
             "examples": [
               2000
             ]
           },
           "duration_h": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Duration H",
-            "description": "An integer representing the usage duration of a household device in hours.",
+            "description": "Flat fallback: run duration in hours. Used only when no load_profile_power_w is given.",
             "examples": [
               3
             ]
@@ -5497,12 +5717,10 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "device_id",
-          "consumption_wh",
-          "duration_h"
+          "device_id"
         ],
         "title": "HomeApplianceParameters",
-        "description": "Home Appliance Device Simulation Configuration."
+        "description": "Flexible consumer (home appliance) device simulation configuration.\n\nA consumer's load is defined **either** by an explicit power profile\n(``load_profile_power_w`` with an optional ``load_profile_interval_seconds``)\n**or** by the flat fallback ``consumption_wh`` + ``duration_h``. Exactly one\nof the two must be provided."
       },
       "HomeAssistantAdapterCommonSettings-Input": {
         "properties": {

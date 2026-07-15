@@ -362,7 +362,12 @@ as a cohesive unit for scheduling and availability checking.
 ```
 <!-- pyml enable line-length -->
 
-### Home Appliance devices base settings
+### Flexible consumer (home appliance) devices base settings
+
+A consumer's load is defined **either** by an explicit power profile
+(``load_profile_power_w`` with an optional ``load_profile_interval_seconds``)
+**or** by the flat fallback ``consumption_wh`` + ``duration_h``. Exactly one
+of the two must be provided.
 
 <!-- pyml disable line-length -->
 :::{table} devices::home_appliances::list
@@ -371,10 +376,13 @@ as a cohesive unit for scheduling and availability checking.
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| consumption_wh | `int` | `rw` | `required` | Energy consumption [Wh]. |
+| consumption_wh | `Optional[int]` | `rw` | `None` | Flat fallback: total energy consumption of one run [Wh]. Used only when no load_profile_power_w is given. |
 | device_id | `str` | `rw` | `<unknown>` | ID of device |
-| duration_h | `int` | `rw` | `required` | Usage duration in hours [0 ... 24]. |
+| duration_h | `Optional[int]` | `rw` | `None` | Flat fallback: run duration in hours [0 ... 24]. Used only when no load_profile_power_w is given. |
+| load_profile_interval_seconds | `Optional[int]` | `rw` | `None` | Duration of one 'load_profile_power_w' step in seconds. Defaults to the configured optimization interval when a profile is given. |
+| load_profile_power_w | `Optional[list[float]]` | `rw` | `None` | Explicit load profile describing a single complete run as a sequence of non-negative power values in watts (e.g. [200.0, 2000.0, 1800.0, 100.0]). Each value covers 'load_profile_interval_seconds'. Mutually exclusive with consumption_wh/duration_h. |
 | measurement_keys | `Optional[list[str]]` | `ro` | `N/A` | Measurement keys for the home appliance stati that are measurements. |
+| schedule_mode | `<enum 'ConsumerScheduleMode'>` | `rw` | `ONCE` | Scheduling mode: ONCE (a single run within the horizon) or DAILY (one run per local calendar day with a feasible full run). |
 | time_windows | `Optional[akkudoktoreos.config.configabc.TimeWindowSequence]` | `rw` | `None` | Sequence of allowed time windows. Defaults to optimization general time window. |
 :::
 <!-- pyml enable line-length -->
@@ -390,6 +398,9 @@ as a cohesive unit for scheduling and availability checking.
            "home_appliances": [
                {
                    "device_id": "battery1",
+                   "load_profile_power_w": null,
+                   "load_profile_interval_seconds": null,
+                   "schedule_mode": "ONCE",
                    "consumption_wh": 2000,
                    "duration_h": 1,
                    "time_windows": {
@@ -421,6 +432,9 @@ as a cohesive unit for scheduling and availability checking.
            "home_appliances": [
                {
                    "device_id": "battery1",
+                   "load_profile_power_w": null,
+                   "load_profile_interval_seconds": null,
+                   "schedule_mode": "ONCE",
                    "consumption_wh": 2000,
                    "duration_h": 1,
                    "time_windows": {

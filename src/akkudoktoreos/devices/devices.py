@@ -14,7 +14,11 @@ from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin
 from akkudoktoreos.core.emplan import ResourceStatus
 from akkudoktoreos.core.pydantic import ConfigDict, PydanticBaseModel
-from akkudoktoreos.devices.devicesabc import DevicesBaseSettings
+from akkudoktoreos.devices.devicesabc import (
+    ConsumerScheduleMode,
+    DevicesBaseSettings,
+    validate_home_appliance_load_definition,
+)
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 # Default charge rates for battery
@@ -244,16 +248,77 @@ class InverterCommonSettings(DevicesBaseSettings):
 
 
 class HomeApplianceCommonSettings(DevicesBaseSettings):
-    """Home Appliance devices base settings."""
+    """Flexible consumer (home appliance) devices base settings.
 
-    consumption_wh: int = Field(
-        gt=0, json_schema_extra={"description": "Energy consumption [Wh].", "examples": [2000]}
+    A consumer's load is defined **either** by an explicit power profile
+    (``load_profile_power_w`` with an optional ``load_profile_interval_seconds``)
+    **or** by the flat fallback ``consumption_wh`` + ``duration_h``. Exactly one
+    of the two must be provided.
+    """
+
+    load_profile_power_w: Optional[list[float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Explicit load profile describing a single complete run as a "
+                "sequence of non-negative power values in watts (e.g. "
+                "[200.0, 2000.0, 1800.0, 100.0]). Each value covers "
+                "'load_profile_interval_seconds'. Mutually exclusive with "
+                "consumption_wh/duration_h."
+            ),
+            # None-first so the auto-generated config example uses the flat
+            # consumption_wh/duration_h fallback (the two definitions are
+            # mutually exclusive and cannot be shown together).
+            "examples": [None],
+        },
     )
 
-    duration_h: int = Field(
+    load_profile_interval_seconds: Optional[int] = Field(
+        default=None,
+        gt=0,
+        json_schema_extra={
+            "description": (
+                "Duration of one 'load_profile_power_w' step in seconds. Defaults "
+                "to the configured optimization interval when a profile is given."
+            ),
+            "examples": [None],
+        },
+    )
+
+    schedule_mode: ConsumerScheduleMode = Field(
+        default=ConsumerScheduleMode.ONCE,
+        json_schema_extra={
+            "description": (
+                "Scheduling mode: ONCE (a single run within the horizon) or DAILY "
+                "(one run per local calendar day with a feasible full run)."
+            ),
+            "examples": ["ONCE", "DAILY"],
+        },
+    )
+
+    consumption_wh: Optional[int] = Field(
+        default=None,
+        gt=0,
+        json_schema_extra={
+            "description": (
+                "Flat fallback: total energy consumption of one run [Wh]. Used "
+                "only when no load_profile_power_w is given."
+            ),
+            "examples": [2000],
+        },
+    )
+
+    duration_h: Optional[int] = Field(
+        default=None,
         gt=0,
         le=24,
-        json_schema_extra={"description": "Usage duration in hours [0 ... 24].", "examples": [1]},
+        json_schema_extra={
+            "description": (
+                "Flat fallback: run duration in hours [0 ... 24]. Used only when "
+                "no load_profile_power_w is given."
+            ),
+            "examples": [1],
+        },
     )
 
     time_windows: Optional[TimeWindowSequence] = Field(
@@ -269,6 +334,17 @@ class HomeApplianceCommonSettings(DevicesBaseSettings):
             ],
         },
     )
+
+    @model_validator(mode="after")
+    def validate_load_definition(self) -> "HomeApplianceCommonSettings":
+        """Ensure exactly one complete, valid load definition is provided."""
+        validate_home_appliance_load_definition(
+            load_profile_power_w=self.load_profile_power_w,
+            load_profile_interval_seconds=self.load_profile_interval_seconds,
+            consumption_wh=self.consumption_wh,
+            duration_h=self.duration_h,
+        )
+        return self
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -340,6 +416,24 @@ class DevicesCommonSettings(SettingsBaseModel):
             "examples": [1, 2],
         },
     )
+
+    @model_validator(mode="after")
+    def validate_max_home_appliances(self) -> "DevicesCommonSettings":
+        """Enforce max_home_appliances purely as an upper bound.
+
+        No demo appliance is created and no on/off behaviour is implied; the
+        limit is only rejected when more appliances are configured than allowed.
+        """
+        if (
+            self.max_home_appliances is not None
+            and self.home_appliances is not None
+            and len(self.home_appliances) > self.max_home_appliances
+        ):
+            raise ValueError(
+                f"Configured {len(self.home_appliances)} home appliances exceeds "
+                f"max_home_appliances = {self.max_home_appliances}."
+            )
+        return self
 
     @computed_field  # type: ignore[prop-decorator]
     @property

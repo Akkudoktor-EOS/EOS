@@ -104,7 +104,25 @@ class GeneticOptimizationParameters(
     pv_akku: Optional[SolarPanelBatteryParameters]
     inverter: Optional[InverterParameters]
     eauto: Optional[ElectricVehicleParameters]
-    dishwasher: Optional[HomeApplianceParameters] = None
+    home_appliances: Optional[list[HomeApplianceParameters]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "List of flexible consumers (home appliances) to schedule."
+        },
+    )
+    dishwasher: Optional[HomeApplianceParameters] = Field(
+        default=None,
+        deprecated=(
+            "Deprecated: use 'home_appliances' (a list). A single 'dishwasher' is "
+            "mapped to a one-element 'home_appliances' list."
+        ),
+        json_schema_extra={
+            "description": (
+                "Deprecated single home appliance. Use 'home_appliances' instead. "
+                "Mutually exclusive with 'home_appliances'."
+            )
+        },
+    )
     temperature_forecast: Optional[list[Optional[float]]] = Field(
         default=None,
         json_schema_extra={
@@ -129,6 +147,41 @@ class GeneticOptimizationParameters(
         if self.temperature_forecast is not None and arr_length != len(self.temperature_forecast):
             raise ValueError("Input lists have different lengths")
         return self
+
+    @model_validator(mode="after")
+    def validate_home_appliances(self) -> Self:
+        """Reject conflicting home appliance definitions.
+
+        The deprecated ``dishwasher`` field and the new ``home_appliances`` list
+        must not be set at the same time; nothing is silently overwritten.
+        Device ids within ``home_appliances`` must be unique.
+        """
+        # Read the deprecated field via __dict__ to avoid emitting a deprecation
+        # warning on every internal validation.
+        dishwasher = self.__dict__.get("dishwasher")
+        if dishwasher is not None and self.home_appliances is not None:
+            raise ValueError(
+                "Provide either 'home_appliances' or the deprecated 'dishwasher', "
+                "not both."
+            )
+        appliances = self.home_appliances or []
+        device_ids = [appliance.device_id for appliance in appliances]
+        if len(device_ids) != len(set(device_ids)):
+            raise ValueError("home_appliances device_id values must be unique.")
+        return self
+
+    def resolved_home_appliances(self) -> list[HomeApplianceParameters]:
+        """Return the effective home appliance list.
+
+        Maps the deprecated single ``dishwasher`` onto a one-element list so the
+        optimizer only ever deals with the list form.
+        """
+        if self.home_appliances is not None:
+            return list(self.home_appliances)
+        dishwasher = self.__dict__.get("dishwasher")
+        if dishwasher is not None:
+            return [dishwasher]
+        return []
 
     @field_validator("start_solution")
     def validate_start_solution(
@@ -583,65 +636,36 @@ class GeneticOptimizationParameters(
                     # Retry
                     continue
 
-            # Home Appliances
-            # ---------------
-            if cls.config.devices.max_home_appliances is None:
-                default_home_appliances = 0 if cls.config.optimization.interval < 3600 else 1
-                logger.info(
-                    "Number of home appliance devices not configured - defaulting to {}.",
-                    default_home_appliances,
+            # Home Appliances (flexible consumers)
+            # ------------------------------------
+            # max_home_appliances is purely an upper bound. No demo consumer is
+            # created when the list is missing; an empty/absent list simply means
+            # there is nothing to schedule.
+            appliances_config = cls.config.devices.home_appliances or []
+            max_home_appliances = cls.config.devices.max_home_appliances
+            if max_home_appliances is not None and len(appliances_config) > max_home_appliances:
+                raise ValueError(
+                    f"Configured {len(appliances_config)} home appliances exceeds "
+                    f"max_home_appliances = {max_home_appliances}."
                 )
-                cls.config.devices.max_home_appliances = default_home_appliances
-            if cls.config.devices.max_home_appliances == 0:
-                home_appliance_params = None
-            else:
-                home_appliance_params = None
-                if cls.config.devices.home_appliances is None:
-                    logger.info(
-                        "No home appliance device data available - defaulting to demo data."
+            home_appliance_params: Optional[list[HomeApplianceParameters]] = None
+            if appliances_config:
+                # Construction errors here are configuration errors (conflicting
+                # or incomplete load definitions) and must surface, not retry.
+                home_appliance_params = [
+                    HomeApplianceParameters(
+                        device_id=appliance_config.device_id,
+                        load_profile_power_w=appliance_config.load_profile_power_w,
+                        load_profile_interval_seconds=(
+                            appliance_config.load_profile_interval_seconds
+                        ),
+                        schedule_mode=appliance_config.schedule_mode,
+                        consumption_wh=appliance_config.consumption_wh,
+                        duration_h=appliance_config.duration_h,
+                        time_windows=appliance_config.time_windows,
                     )
-                    cls.config.devices.home_appliances = [
-                        {
-                            "device_id": "dishwasher1",
-                            "consumption_wh": 2000,
-                            "duration_h": 3.0,
-                            "time_windows": {
-                                "windows": [
-                                    {
-                                        "start_time": "08:00",
-                                        "duration": "5 hours",
-                                    },
-                                    {
-                                        "start_time": "15:00",
-                                        "duration": "3 hours",
-                                    },
-                                ],
-                            },
-                        }
-                    ]
-                try:
-                    home_appliance_config = cls.config.devices.home_appliances[0]
-                    home_appliance_params = HomeApplianceParameters(
-                        device_id=home_appliance_config.device_id,
-                        consumption_wh=home_appliance_config.consumption_wh,
-                        duration_h=home_appliance_config.duration_h,
-                        time_windows=home_appliance_config.time_windows,
-                    )
-                except:
-                    logger.info(
-                        "No home appliance device data available - defaulting to demo data. Parameter preparation attempt {}.",
-                        attempt,
-                    )
-                    cls.config.devices.home_appliances = [
-                        {
-                            "device_id": "dishwasher1",
-                            "consumption_wh": 2000,
-                            "duration_h": 3.0,
-                            "time_windows": None,
-                        }
-                    ]
-                    # Retry
-                    continue
+                    for appliance_config in appliances_config
+                ]
 
             # We got all parameter data
             try:
@@ -659,7 +683,7 @@ class GeneticOptimizationParameters(
                     pv_akku=battery_params,
                     eauto=electric_vehicle_params,
                     inverter=inverter_params,
-                    dishwasher=home_appliance_params,
+                    home_appliances=home_appliance_params,
                     start_solution=start_solution,
                 )
             except:

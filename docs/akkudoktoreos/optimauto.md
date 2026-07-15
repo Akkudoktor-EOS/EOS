@@ -257,13 +257,14 @@ The GENETIC algorithm supports 4 devices:
 - **electric_vehicle**: An electric vehicle, basically the battery of an electric vehicle. The
   The electrical vehicle is optional.
 - **battery**: A battery that can be charged by the inverter. The battery is mandatory.
-- **home_appliance**: A home appliance, like a washing machine or a dish washer. The home
-  appliance is optional.
+- **home_appliance**: A flexible consumer, like a washing machine or a dish washer. Any number of
+  home appliances can be configured; each is scheduled independently. Home appliances are optional.
 
 :::{admonition} Warning
 :class: warning
-The GENETIC algorithm can only use the first inverter, electrical vehicle, battery, home appliance
-that is configured, even if more devices are configured.
+The GENETIC algorithm can only use the first inverter, electrical vehicle and battery that is
+configured, even if more devices are configured. Home appliances are the exception: all configured
+home appliances are scheduled.
 :::
 
 #### Inverter simulation configuration

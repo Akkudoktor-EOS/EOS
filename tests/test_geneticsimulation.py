@@ -54,7 +54,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
         battery=akku,
     )
 
-    # Household device (currently not used, set to None)
+    # Flexible consumer (fixed start at slot 2 for this deterministic test)
     home_appliance = HomeAppliance(
         HomeApplianceParameters(
             device_id="dishwasher1",
@@ -65,6 +65,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
         optimization_hours=config_eos.optimization.horizon_hours,
         prediction_hours=config_eos.prediction.hours,
     )
+    home_appliance.build_load_curve([2])
 
     # Example initialization of electric car battery
     eauto = Battery(
@@ -246,7 +247,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
         prediction_hours=config_eos.prediction.hours,
         inverter=inverter,
         ev=eauto,
-        home_appliance=home_appliance,
+        home_appliances=[home_appliance],
     )
 
     # Init for test
@@ -259,7 +260,6 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
     simulation.dc_charge_hours[start_hour] = 1.0
     simulation.bat_discharge_hours[start_hour] = 1.0
     simulation.ev_charge_hours[start_hour] = 1.0
-    simulation.home_appliance_start_hour = 2
 
     return simulation
 
@@ -362,8 +362,8 @@ def test_simulation(genetic_simulation):
 
     # Check home appliances
     assert (
-        sum(simulation.home_appliance.get_load_curve()) == 2000
-    ), "The sum of 'simulation.home_appliance.get_load_curve()' should be 2000."
+        sum(simulation.home_appliances[0].get_load_curve()) == 2000
+    ), "The sum of 'simulation.home_appliances[0].get_load_curve()' should be 2000."
 
     assert (
         np.nansum(
