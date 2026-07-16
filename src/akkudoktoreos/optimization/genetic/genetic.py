@@ -76,6 +76,15 @@ class ApplianceGeneLayout:
         )
 
 
+@dataclass(frozen=True)
+class FitnessCacheEntry:
+    """One canonical, successful fitness evaluation within an optimization run."""
+
+    genome: tuple[int, ...]
+    fitness: tuple[float]
+    extra_data: tuple[float, float, float]
+
+
 class GeneticSimulation(PydanticBaseModel):
     """Device simulation for GENETIC optimization algorithm."""
 
@@ -537,7 +546,11 @@ class GeneticOptimization(OptimizationBase):
     """GENETIC algorithm to solve energy optimization."""
 
     WARM_START_COPIES = 10
-    WARM_START_MUTATIONS = 20
+    WARM_START_MUTATIONS = 50
+    EDUCATED_GUESS_TARGET = 100
+    MIN_RANDOM_POPULATION_FRACTION = 0.25
+    SURVIVOR_COUNT = 150
+    OFFSPRING_COUNT = 150
     EDUCATED_GUESS_EXPORT_QUANTILES = (0.60, 0.75, 0.90)
 
     # Slot-math helpers — single source of truth for the optimization grid.
@@ -623,6 +636,14 @@ class GeneticOptimization(OptimizationBase):
 
         # Per-run cache for the AC-charge break-even penalty (see evaluate()).
         self._ac_break_even_best_prices: Optional[list[float]] = None
+
+        # Fitness memoization is activated only around optimize(). The cache is
+        # never shared across runs because forecasts, prices and device state may
+        # have changed even when the genome is identical.
+        self._fitness_cache_enabled = False
+        self._fitness_cache: dict[tuple[int, ...], FitnessCacheEntry] = {}
+        self._fitness_cache_hits = 0
+        self._fitness_cache_misses = 0
 
         # Appliance genome layout, built once per optimization run in
         # optimierung_ems(). Empty by default so setup_deap_environment() can be
@@ -1247,8 +1268,14 @@ class GeneticOptimization(OptimizationBase):
             genes.append(min(range(len(gene.allowed_start_slots)), key=opportunity_cost))
         return genes
 
-    def _educated_guess_individuals(self) -> list[list[int]]:
-        """Create diverse domain-informed candidates for the initial population."""
+    def _educated_guess_individuals(
+        self,
+        target_count: int = EDUCATED_GUESS_TARGET,
+    ) -> list[list[int]]:
+        """Create a randomized family of domain-informed initial candidates."""
+        if target_count <= 0:
+            return []
+
         slots = self.total_slots
         start_slot = self._start_day_slot()
         len_bat = len(self.bat_possible_charge_values)
@@ -1267,6 +1294,7 @@ class GeneticOptimization(OptimizationBase):
         future_feed_in = feed_in[future]
         high_import_price = float(np.quantile(future_prices, 0.70))
         low_import_price = float(np.quantile(future_prices, 0.25))
+        feed_spread = float(np.ptp(future_feed_in)) if future_feed_in.size else 0.0
 
         ev_price = self._heuristic_ev_schedule(prefer_pv=False)
         ev_pv = self._heuristic_ev_schedule(prefer_pv=True)
@@ -1279,56 +1307,127 @@ class GeneticOptimization(OptimizationBase):
             individual.extend(appliance_genes)
             return individual
 
-        guesses: list[list[int]] = []
+        unique: dict[tuple[int, ...], list[int]] = {}
+
+        def add_guess(battery_genes: list[int], ev_genes: list[int]) -> None:
+            guess = compose(battery_genes, ev_genes)
+            unique.setdefault(tuple(guess), guess)
+
+        def policy_guess(
+            *,
+            import_quantile: float,
+            export_quantile: Optional[float],
+            pv_surplus_ratio: float,
+            allow_ac_arbitrage: bool,
+        ) -> list[int]:
+            import_threshold = float(np.quantile(future_prices, import_quantile))
+            export_threshold = (
+                float(np.quantile(future_feed_in, export_quantile))
+                if export_quantile is not None and future_feed_in.size
+                else float("inf")
+            )
+            low_price_threshold = float(
+                np.quantile(future_prices, max(0.05, 1.0 - import_quantile))
+            )
+            battery_genes = [idle_state] * slots
+            for slot in range(start_slot, slots):
+                high_feed_in = (
+                    export_quantile is not None
+                    and self.optimize_battery_grid_export
+                    and feed_spread > 1e-12
+                    and feed_in[slot] > 0.0
+                    and feed_in[slot] >= export_threshold
+                )
+                pv_surplus = pv[slot] > load[slot] * pv_surplus_ratio
+                if high_feed_in:
+                    battery_genes[slot] = export_state
+                elif self.optimize_dc_charge and pv_surplus:
+                    battery_genes[slot] = dc_allowed_state
+                elif allow_ac_arbitrage and prices[slot] <= low_price_threshold:
+                    battery_genes[slot] = ac_charge_state
+                elif prices[slot] >= import_threshold and load[slot] > pv[slot]:
+                    battery_genes[slot] = discharge_state
+            return battery_genes
 
         # Baseline and self-consumption candidates are useful even without
         # direct marketing and anchor the population with feasible schedules.
-        guesses.append(compose([idle_state] * slots, ev_price))
-        self_consumption = [idle_state] * slots
-        for slot in range(start_slot, slots):
-            if self.optimize_dc_charge and pv[slot] > load[slot]:
-                self_consumption[slot] = dc_allowed_state
-            elif prices[slot] >= high_import_price and load[slot] > pv[slot]:
-                self_consumption[slot] = discharge_state
-        guesses.append(compose(self_consumption, ev_pv))
+        add_guess([idle_state] * slots, ev_price)
+        add_guess(
+            policy_guess(
+                import_quantile=0.70,
+                export_quantile=None,
+                pv_surplus_ratio=1.0,
+                allow_ac_arbitrage=False,
+            ),
+            ev_pv,
+        )
 
         # Direct marketing candidates export only in the relatively expensive
         # feed-in slots. At low tariffs PV is preferentially stored instead.
         if self.optimize_battery_grid_export and future_feed_in.size:
-            feed_spread = float(np.ptp(future_feed_in))
             for quantile in self.EDUCATED_GUESS_EXPORT_QUANTILES:
-                export_threshold = float(np.quantile(future_feed_in, quantile))
-                direct_marketing = [idle_state] * slots
-                for slot in range(start_slot, slots):
-                    high_feed_in = (
-                        feed_spread > 1e-12
-                        and feed_in[slot] > 0.0
-                        and feed_in[slot] >= export_threshold
-                    )
-                    if high_feed_in:
-                        direct_marketing[slot] = export_state
-                    elif self.optimize_dc_charge and pv[slot] > load[slot]:
-                        direct_marketing[slot] = dc_allowed_state
-                    elif prices[slot] >= high_import_price and load[slot] > pv[slot]:
-                        direct_marketing[slot] = discharge_state
-                guesses.append(compose(direct_marketing, ev_pv))
+                add_guess(
+                    policy_guess(
+                        import_quantile=0.70,
+                        export_quantile=quantile,
+                        pv_surplus_ratio=1.0,
+                        allow_ac_arbitrage=False,
+                    ),
+                    ev_pv,
+                )
 
         inverter = self.simulation.inverter
-        if inverter is not None and (
+        ac_arbitrage_possible = inverter is not None and (
             inverter.max_ac_charge_power_w is None or inverter.max_ac_charge_power_w > 0
-        ):
+        )
+        if ac_arbitrage_possible:
             price_arbitrage = [idle_state] * slots
             for slot in range(start_slot, slots):
                 if prices[slot] <= low_import_price:
                     price_arbitrage[slot] = ac_charge_state
                 elif prices[slot] >= high_import_price:
                     price_arbitrage[slot] = discharge_state
-            guesses.append(compose(price_arbitrage, ev_price))
+            add_guess(price_arbitrage, ev_price)
 
-        unique: dict[tuple[int, ...], list[int]] = {}
-        for guess in guesses:
-            unique.setdefault(tuple(guess), guess)
-        return list(unique.values())
+        # Randomize policy thresholds rather than merely cloning a handful of
+        # templates. Every candidate remains policy-safe: a flat/low-information
+        # feed-in series never acquires export actions through blind mutation.
+        attempts = max(target_count * 20, 100)
+        for _ in range(attempts):
+            export_quantile = (
+                random.uniform(0.50, 0.98)  # noqa: S311
+                if self.optimize_battery_grid_export and feed_spread > 1e-12
+                else None
+            )
+            randomized = policy_guess(
+                import_quantile=random.uniform(0.55, 0.95),  # noqa: S311
+                export_quantile=export_quantile,
+                pv_surplus_ratio=random.uniform(0.80, 1.20),  # noqa: S311
+                allow_ac_arbitrage=ac_arbitrage_possible and random.random() < 0.35,  # noqa: S311
+            )
+
+            # Add small policy-safe local variations. These provide diversity
+            # even when price quantiles collapse to only a few distinct slot
+            # masks. Export is only ever removed here, never introduced into a
+            # slot that the tariff policy did not mark as attractive.
+            future_slots = list(range(start_slot, slots))
+            perturbations = random.randint(1, max(2, len(future_slots) // 12))  # noqa: S311
+            for slot in random.sample(future_slots, min(perturbations, len(future_slots))):  # noqa: S311
+                if randomized[slot] != idle_state:
+                    randomized[slot] = idle_state
+                elif self.optimize_dc_charge and pv[slot] > load[slot]:
+                    randomized[slot] = dc_allowed_state
+                elif load[slot] > pv[slot] and prices[slot] >= high_import_price:
+                    randomized[slot] = discharge_state
+
+            add_guess(
+                randomized,
+                ev_pv if random.random() < 0.5 else ev_price,  # noqa: S311
+            )
+            if len(unique) >= target_count:
+                break
+
+        return list(unique.values())[:target_count]
 
     def _mutated_warm_start_neighbors(
         self,
@@ -1479,6 +1578,49 @@ class GeneticOptimization(OptimizationBase):
         start_hour: int,
         worst_case: bool,
     ) -> tuple[float]:
+        """Evaluate an individual, using run-local canonical memoization when active."""
+        if not self._fitness_cache_enabled:
+            return self._evaluate_uncached(individual, parameters, start_hour, worst_case)
+
+        original_key = tuple(int(value) for value in individual)
+        cached = self._fitness_cache.get(original_key)
+        if cached is not None:
+            individual[:] = cached.genome
+            individual.extra_data = cached.extra_data  # type: ignore[attr-defined]
+            self._fitness_cache_hits += 1
+            return cached.fitness
+
+        self._fitness_cache_misses += 1
+        fitness = self._evaluate_uncached(individual, parameters, start_hour, worst_case)
+        extra_data = getattr(individual, "extra_data", None)
+        if extra_data is None:
+            # Failed evaluations use the sentinel fitness and are intentionally
+            # not cached: an unexpected transient failure must never become a
+            # persistent result for the remainder of the run.
+            return fitness
+
+        canonical_key = tuple(int(value) for value in individual)
+        extra_value1, extra_value2, extra_value3 = extra_data
+        entry = FitnessCacheEntry(
+            genome=canonical_key,
+            fitness=fitness,
+            extra_data=(
+                float(extra_value1),
+                float(extra_value2),
+                float(extra_value3),
+            ),
+        )
+        self._fitness_cache[original_key] = entry
+        self._fitness_cache[canonical_key] = entry
+        return fitness
+
+    def _evaluate_uncached(
+        self,
+        individual: list[int],
+        parameters: GeneticOptimizationParameters,
+        start_hour: int,
+        worst_case: bool,
+    ) -> tuple[float]:
         """Evaluate the fitness score of a single individual in the DEAP genetic algorithm.
 
         This method runs a simulation based on the provided individual genome and
@@ -1519,6 +1661,8 @@ class GeneticOptimization(OptimizationBase):
                 simulation_result = self.evaluate_inner(individual)
         except Exception:
             # Return bad fitness score ("FitnessMin") in case of an exception
+            if hasattr(individual, "extra_data"):
+                del individual.extra_data  # type: ignore[attr-defined]
             return (100000.0,)
 
         gesamtbilanz = simulation_result["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
@@ -1716,7 +1860,6 @@ class GeneticOptimization(OptimizationBase):
             individuals = 300
             logger.error("Individuals not configured. Using {}.", individuals)
 
-        population = self.toolbox.population(n=individuals)
         hof = tools.HallOfFame(1)
         stats = tools.Statistics(lambda ind: ind.fitness.values)
         stats.register("min", np.min)
@@ -1725,9 +1868,8 @@ class GeneticOptimization(OptimizationBase):
 
         logger.debug("Start optimize: {}", start_solution)
 
-        # Insert the start solution into the population if provided and compatible with the
-        # currently active genome layout. EV optimization adds one gene per prediction slot,
-        # so a cached solution from a previous run without EV optimization must not be reused.
+        # Validate the warm start before assigning the fixed population budget.
+        valid_start_solution: Optional[list[float]] = None
         if start_solution is not None:
             n_appliance_genes = self.appliance_layout.n_genes
             expected_length = (
@@ -1747,38 +1889,87 @@ class GeneticOptimization(OptimizationBase):
                     "appliance layout."
                 )
             else:
-                for _ in range(self.WARM_START_COPIES):
-                    population.insert(0, creator.Individual(start_solution))
-                warm_neighbors = self._mutated_warm_start_neighbors(
-                    start_solution,
-                    self.WARM_START_MUTATIONS,
-                )
-                population.extend(creator.Individual(neighbor) for neighbor in warm_neighbors)
-                logger.info(
-                    "Seeded population with {} exact and {} mutated warm-start solutions.",
-                    self.WARM_START_COPIES,
-                    len(warm_neighbors),
-                )
+                valid_start_solution = start_solution
 
-        educated_guesses = self._educated_guess_individuals()
-        population.extend(creator.Individual(guess) for guess in educated_guesses)
+        # Keep the configured initial population size fixed. With the default
+        # 300 individuals this yields 10 exact warm starts, 50 local variants,
+        # 100 educated guesses and 140 fully random candidates.
+        minimum_random = max(
+            int(individuals * self.MIN_RANDOM_POPULATION_FRACTION + 0.999999),
+            individuals
+            - (
+                self.WARM_START_COPIES
+                + self.WARM_START_MUTATIONS
+                + self.EDUCATED_GUESS_TARGET
+            ),
+        )
+        seed_budget = max(individuals - minimum_random, 0)
+        seeded: list[list[float]] = []
+
+        exact_warm_count = 0
+        warm_neighbors: list[list[int]] = []
+        if valid_start_solution is not None and seed_budget > 0:
+            exact_warm_count = min(self.WARM_START_COPIES, seed_budget)
+            seeded.extend([valid_start_solution] * exact_warm_count)
+            remaining_seed_budget = seed_budget - len(seeded)
+            warm_neighbors = self._mutated_warm_start_neighbors(
+                valid_start_solution,
+                min(self.WARM_START_MUTATIONS, remaining_seed_budget),
+            )
+            seeded.extend(warm_neighbors)
+
+        remaining_seed_budget = seed_budget - len(seeded)
+        educated_guesses = self._educated_guess_individuals(
+            min(self.EDUCATED_GUESS_TARGET, remaining_seed_budget)
+        )
+        seeded.extend(educated_guesses)
+
+        random_count = max(individuals - len(seeded), 0)
+        population = [creator.Individual(seed) for seed in seeded]
+        population.extend(self.toolbox.population(n=random_count))
         logger.info(
-            "Seeded population with {} educated-guess solutions.",
+            "Initial population {}: {} exact warm starts, {} warm mutations, "
+            "{} educated guesses, {} random candidates.",
+            len(population),
+            exact_warm_count,
+            len(warm_neighbors),
             len(educated_guesses),
+            random_count,
         )
 
-        # Run the evolutionary algorithm
-        pop, log = algorithms.eaMuPlusLambda(
-            population,
-            self.toolbox,
-            mu=100,
-            lambda_=150,
-            cxpb=0.6,
-            mutpb=0.4,
-            ngen=ngen,
-            stats=stats,
-            halloffame=hof,
-            verbose=self.verbose,
+        # The memoization scope is exactly one optimizer invocation. Always turn
+        # it off again, including when DEAP raises, so no later caller can reuse
+        # results under changed forecasts or device state.
+        self._fitness_cache.clear()
+        self._fitness_cache_hits = 0
+        self._fitness_cache_misses = 0
+        self._fitness_cache_enabled = True
+        try:
+            pop, log = algorithms.eaMuPlusLambda(
+                population,
+                self.toolbox,
+                mu=self.SURVIVOR_COUNT,
+                lambda_=self.OFFSPRING_COUNT,
+                cxpb=0.6,
+                mutpb=0.4,
+                ngen=ngen,
+                stats=stats,
+                halloffame=hof,
+                verbose=self.verbose,
+            )
+        finally:
+            self._fitness_cache_enabled = False
+
+        cache_lookups = self._fitness_cache_hits + self._fitness_cache_misses
+        cache_hit_rate = (
+            self._fitness_cache_hits / cache_lookups if cache_lookups > 0 else 0.0
+        )
+        logger.info(
+            "Fitness cache: {} hits, {} misses, {:.1%} hit rate, {} keys.",
+            self._fitness_cache_hits,
+            self._fitness_cache_misses,
+            cache_hit_rate,
+            len(self._fitness_cache),
         )
 
         # Store fitness history
@@ -1787,6 +1978,12 @@ class GeneticOptimization(OptimizationBase):
             "avg": log.select("avg"),  # Average fitness for each generation (Y-axis)
             "max": log.select("max"),  # Maximum fitness for each generation (Y-axis)
             "min": log.select("min"),  # Minimum fitness for each generation (Y-axis)
+            "fitness_cache": {
+                "hits": self._fitness_cache_hits,
+                "misses": self._fitness_cache_misses,
+                "hit_rate": cache_hit_rate,
+                "keys": len(self._fitness_cache),
+            },
         }
 
         member: dict[str, list[float]] = {"bilanz": [], "verluste": [], "nebenbedingung": []}

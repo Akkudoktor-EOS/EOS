@@ -62,9 +62,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   ETS forecasts. A median fallback is used when the available history is too short for ETS.
 
 ### Changed
-- Seed genetic optimization runs with ten exact warm-start copies, twenty locally mutated
-  warm-start neighbours, and diverse domain-informed battery, direct-marketing, EV, and flexible
-  appliance schedules to improve early convergence without discarding the previous solution.
+- Use a fixed, diverse genetic start population with ten exact warm-start copies, up to fifty
+  locally mutated warm-start neighbours, up to one hundred randomized domain-informed battery,
+  direct-marketing, EV, and flexible-appliance schedules, and a guaranteed random remainder.
+  Retain 150 parents while generating 150 offspring per generation.
+- Memoize successful canonical fitness evaluations within one optimization run, including repaired
+  EV genomes and auxiliary metrics. Log cache hits, misses, key count, and hit rate after each run;
+  failed evaluations and results from previous runs are never reused.
 - `max_home_appliances` is now purely an upper bound. No demo appliance is created when
   no `home_appliances` are configured, and the number is no longer used as an on/off switch.
 

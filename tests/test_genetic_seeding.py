@@ -52,6 +52,63 @@ def test_ev_repair_is_resimulated_before_fitness_assignment(config_eos: ConfigEO
     assert individual[opt.total_slots :] == [0] * opt.total_slots
 
 
+def test_fitness_cache_restores_canonical_ev_genome(config_eos: ConfigEOS):
+    _configure_hourly_grid(config_eos)
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = True
+    opt.ev_possible_charge_values = [0.0, 1.0]
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
+    parameters = SimpleNamespace(
+        ems=SimpleNamespace(preis_euro_pro_wh_akku=0.0),
+        eauto=None,
+    )
+    result = {
+        "Gesamtbilanz_Euro": 1.0,
+        "Gesamt_Verluste": 0.0,
+        "EAuto_SoC_pro_Stunde": np.full(opt.total_slots, 100.0),
+    }
+    first = creator.Individual([0] * opt.total_slots + [1] * opt.total_slots)
+    duplicate = creator.Individual(first)
+    opt._fitness_cache_enabled = True
+
+    with patch.object(opt, "evaluate_inner", return_value=result) as evaluate:
+        first_fitness = opt.evaluate(first, parameters, 0, False)  # type: ignore[arg-type]
+        duplicate_fitness = opt.evaluate(duplicate, parameters, 0, False)  # type: ignore[arg-type]
+
+    # The miss evaluates and then re-evaluates the repaired EV plan. The duplicate
+    # is served directly from the original-key alias and receives the canonical genome.
+    assert evaluate.call_count == 2
+    assert first_fitness == duplicate_fitness
+    assert duplicate == first
+    assert duplicate[opt.total_slots :] == [0] * opt.total_slots
+    assert duplicate.extra_data == first.extra_data
+    assert opt._fitness_cache_hits == 1
+    assert opt._fitness_cache_misses == 1
+
+
+def test_fitness_cache_never_stores_failed_evaluations(config_eos: ConfigEOS):
+    _configure_hourly_grid(config_eos)
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
+    parameters = SimpleNamespace(
+        ems=SimpleNamespace(preis_euro_pro_wh_akku=0.0),
+        eauto=None,
+    )
+    first = creator.Individual([0] * opt.total_slots)
+    duplicate = creator.Individual(first)
+    opt._fitness_cache_enabled = True
+
+    with patch.object(opt, "evaluate_inner", side_effect=RuntimeError("transient")) as evaluate:
+        assert opt.evaluate(first, parameters, 0, False) == (100000.0,)  # type: ignore[arg-type]
+        assert opt.evaluate(duplicate, parameters, 0, False) == (100000.0,)  # type: ignore[arg-type]
+
+    assert evaluate.call_count == 2
+    assert opt._fitness_cache_hits == 0
+    assert opt._fitness_cache_misses == 2
+    assert opt._fitness_cache == {}
+
+
 def test_mutated_warm_start_neighbors_keep_elapsed_slots(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos, start_hour=10)
     opt = GeneticOptimization(fixed_seed=42)
@@ -65,6 +122,50 @@ def test_mutated_warm_start_neighbors_keep_elapsed_slots(config_eos: ConfigEOS):
     assert len({tuple(neighbor) for neighbor in neighbors}) == 5
     assert all(neighbor[:10] == start_solution[:10] for neighbor in neighbors)
     assert all(neighbor != start_solution for neighbor in neighbors)
+
+
+def test_initial_population_uses_fixed_seed_budget_and_150_survivors(config_eos: ConfigEOS):
+    _configure_hourly_grid(config_eos)
+    config_eos.optimization.genetic.individuals = 300
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
+    start_solution = [5] * opt.total_slots
+    warm_neighbors = [[6] * opt.total_slots for _ in range(50)]
+    educated = [[7] * opt.total_slots for _ in range(100)]
+    captured: dict[str, object] = {}
+
+    def fake_ea(population, toolbox, **kwargs):
+        captured["population"] = list(population)
+        captured["mu"] = kwargs["mu"]
+        captured["lambda"] = kwargs["lambda_"]
+        for individual in population:
+            individual.fitness.values = (float(sum(individual)),)
+            individual.extra_data = (0.0, 0.0, 0.0)
+        kwargs["halloffame"].update(population)
+        return population, SimpleNamespace(select=lambda _name: [])
+
+    with (
+        patch.object(opt, "_mutated_warm_start_neighbors", return_value=warm_neighbors),
+        patch.object(opt, "_educated_guess_individuals", return_value=educated),
+        patch.object(
+            opt.toolbox,
+            "population",
+            side_effect=lambda n: [creator.Individual([9] * opt.total_slots) for _ in range(n)],
+        ),
+        patch("akkudoktoreos.optimization.genetic.genetic.algorithms.eaMuPlusLambda", fake_ea),
+    ):
+        opt.optimize(start_solution=start_solution, ngen=1)
+
+    population = captured["population"]
+    first_genes = [individual[0] for individual in population]  # type: ignore[union-attr]
+    assert len(population) == 300  # type: ignore[arg-type]
+    assert first_genes.count(5) == 10
+    assert first_genes.count(6) == 50
+    assert first_genes.count(7) == 100
+    assert first_genes.count(9) == 140
+    assert captured["mu"] == 150
+    assert captured["lambda"] == 150
 
 
 def test_educated_guesses_encode_high_price_direct_marketing(config_eos: ConfigEOS):
@@ -86,7 +187,7 @@ def test_educated_guesses_encode_high_price_direct_marketing(config_eos: ConfigE
 
     dc_allowed_state = 4
     export_state = 5
-    assert len(guesses) >= 4
+    assert len(guesses) == opt.EDUCATED_GUESS_TARGET
     assert all(len(guess) == slots for guess in guesses)
     assert any(guess[0] == dc_allowed_state for guess in guesses)
     assert any(guess[-1] == export_state for guess in guesses)
