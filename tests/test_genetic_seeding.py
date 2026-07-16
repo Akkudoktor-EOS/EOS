@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -7,6 +7,7 @@ from deap import creator
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import get_ems
+from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
@@ -19,6 +20,36 @@ def _configure_hourly_grid(config_eos: ConfigEOS, *, start_hour: int = 0) -> Non
         }
     )
     get_ems(init=True).set_start_datetime(to_datetime().set(hour=start_hour, minute=0))
+
+
+def test_energy_management_forwards_individuals_and_generations_separately(
+    config_eos: ConfigEOS,
+):
+    _configure_hourly_grid(config_eos)
+    config_eos.optimization.genetic.individuals = 100
+    config_eos.optimization.genetic.generations = 80
+    ems = get_ems(init=True)
+    parameters = MagicMock()
+    solution = MagicMock()
+    optimizer = MagicMock()
+    optimizer.optimierung_ems.return_value = solution
+
+    with (
+        patch("akkudoktoreos.adapter.adapterabc.AdapterContainer.update_data"),
+        patch("akkudoktoreos.core.ems.GeneticOptimization", return_value=optimizer),
+    ):
+        ems._run(
+            start_datetime=to_datetime().set(hour=0, minute=0),
+            mode=EnergyManagementMode.OPTIMIZATION,
+            genetic_parameters=parameters,
+        )
+
+    optimizer.optimierung_ems.assert_called_once_with(
+        start_hour=0,
+        parameters=parameters,
+        ngen=80,
+        individuals=100,
+    )
 
 
 def test_ev_repair_is_resimulated_before_fitness_assignment(config_eos: ConfigEOS):
@@ -44,7 +75,9 @@ def test_ev_repair_is_resimulated_before_fitness_assignment(config_eos: ConfigEO
         eauto=None,
     )
 
-    with patch.object(opt, "evaluate_inner", side_effect=[first_result, repaired_result]) as evaluate:
+    with patch.object(
+        opt, "evaluate_inner", side_effect=[first_result, repaired_result]
+    ) as evaluate:
         fitness = opt.evaluate(individual, parameters, start_hour=0, worst_case=False)  # type: ignore[arg-type]
 
     assert evaluate.call_count == 2
@@ -124,7 +157,9 @@ def test_mutated_warm_start_neighbors_keep_elapsed_slots(config_eos: ConfigEOS):
     assert all(neighbor != start_solution for neighbor in neighbors)
 
 
-def test_initial_population_uses_fixed_seed_budget_and_150_survivors(config_eos: ConfigEOS):
+def test_initial_population_uses_fixed_seed_budget_and_configured_population(
+    config_eos: ConfigEOS,
+):
     _configure_hourly_grid(config_eos)
     config_eos.optimization.genetic.individuals = 300
     opt = GeneticOptimization(fixed_seed=42)
@@ -164,8 +199,108 @@ def test_initial_population_uses_fixed_seed_budget_and_150_survivors(config_eos:
     assert first_genes.count(6) == 50
     assert first_genes.count(7) == 100
     assert first_genes.count(9) == 140
-    assert captured["mu"] == 150
-    assert captured["lambda"] == 150
+    assert captured["mu"] == 300
+    assert captured["lambda"] == 300
+
+
+def test_small_population_scales_warm_and_educated_seed_families(config_eos: ConfigEOS):
+    _configure_hourly_grid(config_eos)
+    config_eos.optimization.genetic.individuals = 100
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
+    start_solution = [5] * opt.total_slots
+    captured: dict[str, object] = {}
+
+    def warm_neighbors(_solution, count):
+        captured["warm_count"] = count
+        return [[6] * opt.total_slots for _ in range(count)]
+
+    def educated(count):
+        captured["educated_count"] = count
+        return [[7] * opt.total_slots for _ in range(count)]
+
+    def fake_ea(population, toolbox, **kwargs):
+        captured["population"] = list(population)
+        captured["mu"] = kwargs["mu"]
+        captured["lambda"] = kwargs["lambda_"]
+        for individual in population:
+            individual.fitness.values = (float(sum(individual)),)
+            individual.extra_data = (0.0, 0.0, 0.0)
+        kwargs["halloffame"].update(population)
+        return population, SimpleNamespace(select=lambda _name: [])
+
+    with (
+        patch.object(opt, "_mutated_warm_start_neighbors", side_effect=warm_neighbors),
+        patch.object(opt, "_educated_guess_individuals", side_effect=educated),
+        patch.object(
+            opt.toolbox,
+            "population",
+            side_effect=lambda n: [creator.Individual([9] * opt.total_slots) for _ in range(n)],
+        ),
+        patch("akkudoktoreos.optimization.genetic.genetic.algorithms.eaMuPlusLambda", fake_ea),
+    ):
+        opt.optimize(start_solution=start_solution, ngen=1)
+
+    population = captured["population"]
+    first_genes = [individual[0] for individual in population]  # type: ignore[union-attr]
+    assert len(population) == 100  # type: ignore[arg-type]
+    assert first_genes.count(5) == 10
+    assert first_genes.count(6) == 20
+    assert first_genes.count(7) == 40
+    assert first_genes.count(9) == 30
+    assert captured["warm_count"] == 20
+    assert captured["educated_count"] == 40
+    assert captured["mu"] == 100
+    assert captured["lambda"] == 100
+
+
+def test_local_search_moves_weak_export_to_later_expensive_import(config_eos: ConfigEOS):
+    _configure_hourly_grid(config_eos)
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    opt.optimize_dc_charge = True
+    opt.optimize_battery_grid_export = True
+    opt.bat_possible_charge_values = [1.0]
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
+
+    slots = opt.total_slots
+    export_state = 5
+    self_consumption_state = 6
+    discharge_state = 1
+    source = 10
+    targets = list(range(20, 32))
+    base = [self_consumption_state] * slots
+    base[source] = export_state
+    for slot in targets:
+        base[slot] = 0
+
+    opt.simulation.elect_price_hourly = np.full(slots, 0.10)
+    opt.simulation.elect_price_hourly[targets] = 0.30
+    opt.simulation.elect_revenue_per_hour_arr = np.full(slots, 0.05)
+    opt.simulation.elect_revenue_per_hour_arr[source] = 0.20
+    opt.simulation.pv_prediction_wh = np.zeros(slots)
+    opt.simulation.load_energy_array = np.full(slots, 100.0)
+
+    def evaluate(individual):
+        export_value = -0.20 if individual[source] == export_state else 0.0
+        avoided_import = -0.05 * sum(individual[slot] == discharge_state for slot in targets)
+        return (export_value + avoided_import,)
+
+    opt.toolbox.register("evaluate", evaluate)
+    incumbent = creator.Individual(base)
+    incumbent.fitness.values = evaluate(incumbent)
+
+    best, evaluations, improvements, initial, final = opt._locally_improve_grid_export(
+        incumbent,
+        max_evaluations=96,
+    )
+
+    assert evaluations > 0
+    assert improvements == 1
+    assert final < initial
+    assert best[source] == self_consumption_state
+    assert sum(best[slot] == discharge_state for slot in targets) >= 6
 
 
 def test_educated_guesses_encode_high_price_direct_marketing(config_eos: ConfigEOS):

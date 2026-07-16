@@ -62,10 +62,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   ETS forecasts. A median fallback is used when the available history is too short for ETS.
 
 ### Changed
-- Use a fixed, diverse genetic start population with ten exact warm-start copies, up to fifty
-  locally mutated warm-start neighbours, up to one hundred randomized domain-informed battery,
-  direct-marketing, EV, and flexible-appliance schedules, and a guaranteed random remainder.
-  Retain 150 parents while generating 150 offspring per generation.
+- Scale the diverse genetic start population with the configured population size while preserving
+  the established 300-member mix: exact warm starts, locally mutated neighbours, randomized
+  domain-informed battery/direct-marketing/EV/appliance schedules, and a guaranteed random
+  remainder. Survivor and offspring counts now follow `optimization.genetic.individuals` instead
+  of remaining fixed at 150.
+- Add coherent battery block mutations and energy-shift mutations that move weak battery exports
+  into several later expensive self-consumption slots in one step. A bounded, fitness-checked
+  local search applies the same neighbourhood to the final incumbent, avoiding local minima that
+  cannot be crossed by an individually disadvantageous single-slot mutation.
 - Memoize successful canonical fitness evaluations within one optimization run, including repaired
   EV genomes and auxiliary metrics. Log cache hits, misses, key count, and hit rate after each run;
   failed evaluations and results from previous runs are never reused.
@@ -80,6 +85,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   are deprecated in favour of `appliance_starts` and `result.home_appliance_energy_wh`.
 
 ### Fixed
+- Respect `optimization.genetic.individuals` and `optimization.genetic.generations` independently
+  in automatic and `/optimize` runs. Previously the individual count was accidentally passed as
+  the generation count, the configured generation count was ignored, and every generation still
+  generated 150 offspring. The deprecated `?ngen=` query remains a generation-count override;
+  `?individuals=` can override the population for one API run.
 - Allow the direct-marketing optimizer to select a true battery self-consumption state with DC
   charging and local-load discharge enabled in the same slot. Existing warm-start state numbers
   remain compatible, and educated guesses now use the combined state for PV/load overlap instead

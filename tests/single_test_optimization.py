@@ -430,7 +430,7 @@ def run_optimization(
             start_datetime=start_datetime,
             mode=EnergyManagementMode.OPTIMIZATION,
             genetic_parameters=parameters,
-            genetic_individuals=ngen,
+            genetic_generations=ngen,
             genetic_seed=seed,
         )
     )

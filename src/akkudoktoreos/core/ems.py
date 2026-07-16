@@ -159,6 +159,7 @@ class EnergyManagement(
         mode: EnergyManagementMode,
         genetic_parameters: Optional[GeneticOptimizationParameters] = None,
         genetic_individuals: Optional[int] = None,
+        genetic_generations: Optional[int] = None,
         genetic_seed: Optional[int] = None,
         force_enable: Optional[bool] = False,
         force_update: Optional[bool] = False,
@@ -180,8 +181,9 @@ class EnergyManagement(
                 parameter set for the genetic algorithm. If not provided, it will
                 be constructed based on the current configuration and predictions.
             genetic_individuals (int, optional): The number of individuals for the
-                genetic algorithm. Defaults to the algorithm's internal default (400)
-                if not specified.
+                initial genetic population. Defaults to the configured value.
+            genetic_generations (int, optional): The number of generations to
+                evolve. Defaults to the configured value.
             genetic_seed (int, optional): The seed for the genetic algorithm. Defaults
                 to the algorithm's internal random seed if not specified.
             force_enable (bool, optional): If True, bypasses any disabled state
@@ -248,6 +250,8 @@ class EnergyManagement(
         # Take values from config if not given
         if genetic_individuals is None:
             genetic_individuals = cls.config.optimization.genetic.individuals
+        if genetic_generations is None:
+            genetic_generations = cls.config.optimization.genetic.generations
         if genetic_seed is None:
             genetic_seed = cls.config.optimization.genetic.seed
 
@@ -262,7 +266,8 @@ class EnergyManagement(
             solution = optimization.optimierung_ems(
                 start_hour=cls._start_datetime.hour,
                 parameters=genetic_parameters,
-                ngen=genetic_individuals,
+                ngen=genetic_generations,
+                individuals=genetic_individuals,
             )
         except:
             logger.exception("Energy management optimization failed.")
@@ -305,6 +310,7 @@ class EnergyManagement(
         mode: Optional[EnergyManagementMode] = None,
         genetic_parameters: Optional[GeneticOptimizationParameters] = None,
         genetic_individuals: Optional[int] = None,
+        genetic_generations: Optional[int] = None,
         genetic_seed: Optional[int] = None,
         force_enable: Optional[bool] = False,
         force_update: Optional[bool] = False,
@@ -328,8 +334,9 @@ class EnergyManagement(
                 parameter set for the genetic algorithm. If not provided, it will
                 be constructed based on the current configuration and predictions.
             genetic_individuals (int, optional): The number of individuals for the
-                genetic algorithm. Defaults to the algorithm's internal default (400)
-                if not specified.
+                initial genetic population. Defaults to the configured value.
+            genetic_generations (int, optional): The number of generations to
+                evolve. Defaults to the configured value.
             genetic_seed (int, optional): The seed for the genetic algorithm. Defaults
                 to the algorithm's internal random seed if not specified.
             force_enable (bool, optional): If True, bypasses any disabled state
@@ -354,6 +361,7 @@ class EnergyManagement(
                 mode=mode,
                 genetic_parameters=genetic_parameters,
                 genetic_individuals=genetic_individuals,
+                genetic_generations=genetic_generations,
                 genetic_seed=genetic_seed,
                 force_enable=force_enable,
                 force_update=force_update,

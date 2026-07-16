@@ -1408,7 +1408,21 @@ async def fastapi_optimize(
         Optional[int], Query(description="Defaults to current hour of the day.")
     ] = None,
     ngen: Annotated[
-        Optional[int], Query(description="Number of indivuals to generate for genetic algorithm.")
+        Optional[int],
+        Query(
+            description=(
+                "Deprecated alias for the number of genetic generations. "
+                "Defaults to optimization.genetic.generations."
+            ),
+            ge=1,
+        ),
+    ] = None,
+    individuals: Annotated[
+        Optional[int],
+        Query(
+            description="Override optimization.genetic.individuals for this run.",
+            ge=10,
+        ),
     ] = None,
 ) -> GeneticSolution:
     """Deprecated: Optimize.
@@ -1429,7 +1443,8 @@ async def fastapi_optimize(
             start_datetime=start_datetime,
             mode=EnergyManagementMode.OPTIMIZATION,
             genetic_parameters=parameters,
-            genetic_individuals=ngen,
+            genetic_individuals=individuals,
+            genetic_generations=ngen,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Optimize error: {e}.")
