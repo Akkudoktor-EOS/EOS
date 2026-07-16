@@ -187,9 +187,11 @@ def test_educated_guesses_encode_high_price_direct_marketing(config_eos: ConfigE
 
     dc_allowed_state = 4
     export_state = 5
+    self_consumption_state = 6
     assert len(guesses) == opt.EDUCATED_GUESS_TARGET
     assert all(len(guess) == slots for guess in guesses)
-    assert any(guess[0] == dc_allowed_state for guess in guesses)
+    assert any(dc_allowed_state in guess or self_consumption_state in guess for guess in guesses)
+    assert any(self_consumption_state in guess for guess in guesses)
     assert any(guess[-1] == export_state for guess in guesses)
 
 

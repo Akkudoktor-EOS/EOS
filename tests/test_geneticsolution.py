@@ -54,3 +54,23 @@ def test_decode_charge_discharge_has_separate_battery_grid_export_state():
     assert dc_charge.tolist() == [0]
     assert discharge.tolist() == [0]
     assert battery_grid_export.tolist() == [1]
+
+
+def test_decode_charge_discharge_has_self_consumption_state_after_legacy_export():
+    optimization = GeneticOptimization()
+    optimization.bat_possible_charge_values = [1.0]
+    optimization.optimize_dc_charge = True
+    optimization.optimize_battery_grid_export = True
+
+    layout = optimization._battery_state_layout()
+    ac_charge, dc_charge, discharge, battery_grid_export = (
+        optimization.decode_charge_discharge(np.array([6]))
+    )
+
+    assert layout.total_states == 7
+    assert layout.grid_export_state == 5
+    assert layout.self_consumption_state == 6
+    assert ac_charge.tolist() == [0.0]
+    assert dc_charge.tolist() == [1]
+    assert discharge.tolist() == [1]
+    assert battery_grid_export.tolist() == [0]

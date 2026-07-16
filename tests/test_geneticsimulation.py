@@ -338,7 +338,7 @@ def test_simulation(genetic_simulation):
 
     # Verify the total balance
     assert (
-        abs(result["Gesamtbilanz_Euro"] - 7.025236588371921) < 1e-5
+        abs(result["Gesamtbilanz_Euro"] - 7.224316588371922) < 1e-5
     ), "Total balance should reflect the shared per-slot battery power limit."
 
     # Check total revenue and total costs
@@ -346,7 +346,7 @@ def test_simulation(genetic_simulation):
         abs(result["Gesamteinnahmen_Euro"] - 2.3247787887715) < 1e-5
     ), "Total revenue should respect the shared per-slot battery power limit."
     assert (
-        abs(result["Gesamtkosten_Euro"] - 9.350015377143421) < 1e-5
+        abs(result["Gesamtkosten_Euro"] - 9.549095377143422) < 1e-5
     ), "Total costs should respect the shared per-slot battery power limit."
 
     # Check the losses
@@ -377,6 +377,47 @@ def test_simulation(genetic_simulation):
     ), "The sum of 'Home_appliance_wh_per_hour' should be 2000."
 
     print("All tests passed successfully.")
+
+
+def test_ev_charging_uses_raw_input_energy_for_load_and_grid(config_eos):
+    config_eos.merge_settings_from_dict(
+        {"prediction": {"hours": 1}, "optimization": {"horizon_hours": 1}}
+    )
+    ev = Battery(
+        ElectricVehicleParameters(
+            device_id="ev1",
+            capacity_wh=1000,
+            charging_efficiency=0.8,
+            max_charge_power_w=100,
+            initial_soc_percentage=0,
+            min_soc_percentage=0,
+        ),
+        prediction_hours=1,
+    )
+    inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=1000.0))
+    simulation = GeneticSimulation()
+    simulation.prepare(
+        GeneticEnergyManagementParameters(
+            pv_prognose_wh=[0.0],
+            strompreis_euro_pro_wh=[0.001],
+            einspeiseverguetung_euro_pro_wh=[0.0],
+            preis_euro_pro_wh_akku=0.0,
+            gesamtlast=[0.0],
+        ),
+        optimization_hours=1,
+        prediction_hours=1,
+        inverter=inverter,
+        ev=ev,
+    )
+    simulation.ev_charge_hours = np.array([1.0])
+
+    result = simulation.simulate(start_hour=0)
+
+    assert result["Last_Wh_pro_Stunde"][0] == pytest.approx(100.0)
+    assert result["Netzbezug_Wh_pro_Stunde"][0] == pytest.approx(100.0)
+    assert result["Kosten_Euro_pro_Stunde"][0] == pytest.approx(0.1)
+    assert result["Verluste_Pro_Stunde"][0] == pytest.approx(20.0)
+    assert ev.current_soc_percentage() == pytest.approx(8.0)
 
 
 def test_direct_marketing_curtails_negative_feed_in(config_eos, monkeypatch):

@@ -80,6 +80,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   are deprecated in favour of `appliance_starts` and `result.home_appliance_energy_wh`.
 
 ### Fixed
+- Allow the direct-marketing optimizer to select a true battery self-consumption state with DC
+  charging and local-load discharge enabled in the same slot. Existing warm-start state numbers
+  remain compatible, and educated guesses now use the combined state for PV/load overlap instead
+  of unnecessarily bypassing PV while serving loads such as EV charging.
+- Account for EV charging losses in the AC load seen by the inverter and grid, so fitness and
+  energy costs use the charger's raw input rather than only the energy stored in the EV battery.
+- Treat fitness memoization as disabled for lightweight optimizer instances constructed without
+  the normal initializer, preserving isolated penalty evaluation and test callers.
 - Re-simulate genetic candidates after removing EV charging genes from slots that begin at full
   SoC, keeping the repaired genome and its assigned fitness consistent.
 - FeedInTariffEnergyCharts no longer aborts the whole prediction/optimization when the

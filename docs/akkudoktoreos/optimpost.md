@@ -357,6 +357,11 @@ smaller values (e.g. `0.0`) disable the penalty entirely.
 - `discharge_allowed`: Battery discharge permission for local self-consumption/load coverage (0 or 1)
 - `battery_grid_export_allowed`: Battery discharge permission for grid export/direct marketing (0 or 1)
 
+With direct marketing enabled, `dc_charge = 1` and `discharge_allowed = 1` may occur together. This
+is the normal self-consumption mode: within a coarse optimization slot, the battery may cover
+probabilistic load gaps and store PV surplus from different sub-intervals. A discharge-only state
+remains available when deliberately bypassing PV charging is economically preferable.
+
 0 (no charge)
 1 (charge with full load)
 

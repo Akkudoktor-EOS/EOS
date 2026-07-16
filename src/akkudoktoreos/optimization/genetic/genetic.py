@@ -85,6 +85,17 @@ class FitnessCacheEntry:
     extra_data: tuple[float, float, float]
 
 
+@dataclass(frozen=True)
+class BatteryStateLayout:
+    """Indices of optional battery states appended to the legacy state ranges."""
+
+    total_states: int
+    dc_not_allowed_state: Optional[int] = None
+    dc_allowed_state: Optional[int] = None
+    grid_export_state: Optional[int] = None
+    self_consumption_state: Optional[int] = None
+
+
 class GeneticSimulation(PydanticBaseModel):
     """Device simulation for GENETIC optimization algorithm."""
 
@@ -411,10 +422,12 @@ class GeneticSimulation(PydanticBaseModel):
             if ev_fast:
                 soc_ev_per_hour[hour_idx] = ev_fast.current_soc_percentage()  # save begin state
                 if ev_charge_hours_fast[hour] > 0:
-                    loaded_energy_ev, verluste_eauto = ev_fast.charge_energy(
+                    stored_energy_ev, verluste_eauto = ev_fast.charge_energy(
                         wh=None, hour=hour, charge_factor=ev_charge_hours_fast[hour]
                     )
-                    consumption += loaded_energy_ev
+                    # The inverter/grid must supply the EV charger's raw input,
+                    # not only the energy stored after charging losses.
+                    consumption += stored_energy_ev + verluste_eauto
                     losses_wh_per_hour[hour_idx] += verluste_eauto
 
             # Save battery SOC before inverter processing = true begin-of-interval state.
@@ -662,6 +675,40 @@ class GeneticOptimization(OptimizationBase):
             return bool(self.config.feedintariff.direct_marketing_enabled)
         except Exception:
             return False
+
+    def _battery_state_layout(self) -> BatteryStateLayout:
+        """Build optional state indices without renumbering legacy warm starts.
+
+        The pre-existing order is retained exactly: base charge/discharge ranges,
+        two optional DC states, then optional grid export.  SELF_CONSUMPTION is
+        appended last so an old export gene never changes its meaning.
+        """
+        next_state = 3 * len(self.bat_possible_charge_values)
+        dc_not_allowed_state: Optional[int] = None
+        dc_allowed_state: Optional[int] = None
+        grid_export_state: Optional[int] = None
+        self_consumption_state: Optional[int] = None
+
+        if self.optimize_dc_charge:
+            dc_not_allowed_state = next_state
+            dc_allowed_state = next_state + 1
+            next_state += 2
+
+        if self.optimize_battery_grid_export:
+            grid_export_state = next_state
+            next_state += 1
+
+        if self.optimize_dc_charge:
+            self_consumption_state = next_state
+            next_state += 1
+
+        return BatteryStateLayout(
+            total_states=next_state,
+            dc_not_allowed_state=dc_not_allowed_state,
+            dc_allowed_state=dc_allowed_state,
+            grid_export_state=grid_export_state,
+            self_consumption_state=self_consumption_state,
+        )
 
     def _appliance_horizon_end_slot(self) -> int:
         """Exclusive upper slot bound for appliance runs (end of horizon).
@@ -966,9 +1013,8 @@ class GeneticOptimization(OptimizationBase):
         # AC Charge:  2*len_bat .. 3*len_bat - 1  (maps to bat_possible_charge_values)
         # DC optional: 3*len_bat (not allowed), 3*len_bat + 1 (allowed)
         # Grid export: next state, if direct marketing/export optimization is enabled
-
-        # Idle states
-        idle_mask = (discharge_hours_bin_np >= 0) & (discharge_hours_bin_np < len_bat)
+        # Self-consumption: final state, with DC charging and local discharge enabled
+        state_layout = self._battery_state_layout()
 
         # Discharge states
         discharge_mask = (discharge_hours_bin_np >= len_bat) & (
@@ -980,24 +1026,28 @@ class GeneticOptimization(OptimizationBase):
         ac_indices = (discharge_hours_bin_np[ac_mask] - 2 * len_bat).astype(int)
 
         # DC states (if enabled)
-        if self.optimize_dc_charge:
-            dc_not_allowed_state = 3 * len_bat
-            dc_allowed_state = 3 * len_bat + 1
-            dc_charge = np.where(discharge_hours_bin_np == dc_allowed_state, 1, 0)
+        if state_layout.dc_allowed_state is not None:
+            dc_mask = discharge_hours_bin_np == state_layout.dc_allowed_state
+            if state_layout.self_consumption_state is not None:
+                dc_mask |= discharge_hours_bin_np == state_layout.self_consumption_state
+            dc_charge = np.where(dc_mask, 1, 0)
         else:
             dc_charge = np.ones_like(discharge_hours_bin_np, dtype=float)
 
         # Generate the result arrays
         discharge = np.zeros_like(discharge_hours_bin_np, dtype=int)
         discharge[discharge_mask] = 1  # Set Discharge states to 1
+        if state_layout.self_consumption_state is not None:
+            discharge[discharge_hours_bin_np == state_layout.self_consumption_state] = 1
 
         ac_charge = np.zeros_like(discharge_hours_bin_np, dtype=float)
         ac_charge[ac_mask] = [self.bat_possible_charge_values[i] for i in ac_indices]
 
         battery_grid_export = np.zeros_like(discharge_hours_bin_np, dtype=int)
-        if self.optimize_battery_grid_export:
-            grid_export_state = 3 * len_bat + (2 if self.optimize_dc_charge else 0)
-            battery_grid_export = np.where(discharge_hours_bin_np == grid_export_state, 1, 0)
+        if state_layout.grid_export_state is not None:
+            battery_grid_export = np.where(
+                discharge_hours_bin_np == state_layout.grid_export_state, 1, 0
+            )
 
         # Idle is just 0, already default.
 
@@ -1005,14 +1055,7 @@ class GeneticOptimization(OptimizationBase):
 
     def mutate(self, individual: list[int]) -> tuple[list[int]]:
         """Custom mutation function for the individual."""
-        # Calculate the number of states using battery charge levels
-        len_bat = len(self.bat_possible_charge_values)
-        if self.optimize_dc_charge:
-            total_states = 3 * len_bat + 2
-        else:
-            total_states = 3 * len_bat
-        if self.optimize_battery_grid_export:
-            total_states += 1
+        total_states = self._battery_state_layout().total_states
 
         # 1. Mutating the charge_discharge part
         charge_discharge_part = individual[: self.total_slots]
@@ -1146,14 +1189,15 @@ class GeneticOptimization(OptimizationBase):
         must re-simulate after a change so the individual's genome, simulation
         state and assigned fitness always describe the same schedule.
         """
-        if not self.optimize_ev or not self.ev_possible_charge_values:
+        ev_possible_charge_values = getattr(self, "ev_possible_charge_values", None)
+        if not self.optimize_ev or not ev_possible_charge_values:
             return False
 
         zero_charge_index = min(
-            range(len(self.ev_possible_charge_values)),
-            key=lambda index: abs(self.ev_possible_charge_values[index]),
+            range(len(ev_possible_charge_values)),
+            key=lambda index: abs(ev_possible_charge_values[index]),
         )
-        if abs(self.ev_possible_charge_values[zero_charge_index]) > 1e-12:
+        if abs(ev_possible_charge_values[zero_charge_index]) > 1e-12:
             return False
 
         _, ev_charge_indices, _ = self.split_individual(individual)
@@ -1172,7 +1216,7 @@ class GeneticOptimization(OptimizationBase):
             charge_index = int(ev_charge_indices[slot])
             if (
                 ev_soc[offset] >= 100.0 - 1e-9
-                and self.ev_possible_charge_values[charge_index] > 0.0
+                and ev_possible_charge_values[charge_index] > 0.0
             ):
                 ev_charge_indices[slot] = zero_charge_index
                 changed = True
@@ -1279,11 +1323,13 @@ class GeneticOptimization(OptimizationBase):
         slots = self.total_slots
         start_slot = self._start_day_slot()
         len_bat = len(self.bat_possible_charge_values)
+        state_layout = self._battery_state_layout()
         idle_state = 0
         discharge_state = len_bat
         ac_charge_state = 3 * len_bat - 1
-        dc_allowed_state = 3 * len_bat + 1
-        export_state = 3 * len_bat + (2 if self.optimize_dc_charge else 0)
+        dc_allowed_state = state_layout.dc_allowed_state
+        export_state = state_layout.grid_export_state
+        self_consumption_state = state_layout.self_consumption_state
 
         prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
         feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
@@ -1333,15 +1379,20 @@ class GeneticOptimization(OptimizationBase):
             for slot in range(start_slot, slots):
                 high_feed_in = (
                     export_quantile is not None
-                    and self.optimize_battery_grid_export
+                    and export_state is not None
                     and feed_spread > 1e-12
                     and feed_in[slot] > 0.0
                     and feed_in[slot] >= export_threshold
                 )
                 pv_surplus = pv[slot] > load[slot] * pv_surplus_ratio
-                if high_feed_in:
+                if high_feed_in and export_state is not None:
                     battery_genes[slot] = export_state
-                elif self.optimize_dc_charge and pv_surplus:
+                elif self_consumption_state is not None and pv[slot] > 0.0 and load[slot] > 0.0:
+                    # The probabilistic inverter model can see a residual load
+                    # and a PV surplus within the same coarse slot. Normal
+                    # self-consumption must therefore allow both directions.
+                    battery_genes[slot] = self_consumption_state
+                elif dc_allowed_state is not None and pv_surplus:
                     battery_genes[slot] = dc_allowed_state
                 elif allow_ac_arbitrage and prices[slot] <= low_price_threshold:
                     battery_genes[slot] = ac_charge_state
@@ -1415,7 +1466,9 @@ class GeneticOptimization(OptimizationBase):
             for slot in random.sample(future_slots, min(perturbations, len(future_slots))):  # noqa: S311
                 if randomized[slot] != idle_state:
                     randomized[slot] = idle_state
-                elif self.optimize_dc_charge and pv[slot] > load[slot]:
+                elif self_consumption_state is not None and pv[slot] > 0.0 and load[slot] > 0.0:
+                    randomized[slot] = self_consumption_state
+                elif dc_allowed_state is not None and pv[slot] > load[slot]:
                     randomized[slot] = dc_allowed_state
                 elif load[slot] > pv[slot] and prices[slot] >= high_import_price:
                     randomized[slot] = discharge_state
@@ -1480,12 +1533,8 @@ class GeneticOptimization(OptimizationBase):
         # AC-Charge: len_bat states  (maps to bat_possible_charge_values)
         # With DC: + 2 additional states
         # With battery grid export: + 1 additional state
-        if self.optimize_dc_charge:
-            total_states = 3 * len_bat + 2
-        else:
-            total_states = 3 * len_bat
-        if self.optimize_battery_grid_export:
-            total_states += 1
+        # With DC: + 1 final SELF_CONSUMPTION state
+        total_states = self._battery_state_layout().total_states
 
         # State space: 0 .. (total_states - 1)
         self.toolbox.register("attr_discharge_state", random.randint, 0, total_states - 1)
@@ -1579,7 +1628,10 @@ class GeneticOptimization(OptimizationBase):
         worst_case: bool,
     ) -> tuple[float]:
         """Evaluate an individual, using run-local canonical memoization when active."""
-        if not self._fitness_cache_enabled:
+        # Some lightweight callers construct the optimizer without __init__
+        # (for example isolated penalty evaluations). Memoization is opt-in, so
+        # a missing flag must behave exactly like a disabled cache.
+        if not getattr(self, "_fitness_cache_enabled", False):
             return self._evaluate_uncached(individual, parameters, start_hour, worst_case)
 
         original_key = tuple(int(value) for value in individual)
