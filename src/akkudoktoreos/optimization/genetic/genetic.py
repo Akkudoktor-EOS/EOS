@@ -536,6 +536,10 @@ class GeneticSimulation(PydanticBaseModel):
 class GeneticOptimization(OptimizationBase):
     """GENETIC algorithm to solve energy optimization."""
 
+    WARM_START_COPIES = 10
+    WARM_START_MUTATIONS = 20
+    EDUCATED_GUESS_EXPORT_QUANTILES = (0.60, 0.75, 0.90)
+
     # Slot-math helpers — single source of truth for the optimization grid.
     # At the default optimization interval of 3600 s, slot_duration_h is 1.0 and
     # total_slots equals prediction.hours, so the established hourly behaviour is
@@ -1110,6 +1114,250 @@ class GeneticOptimization(OptimizationBase):
 
         return discharge_hours_bin, eautocharge_hours_index, appliance_gene_values
 
+    def _repair_ev_charge_at_full_soc(
+        self,
+        individual: list[int],
+        simulation_result: dict[str, Any],
+    ) -> bool:
+        """Remove EV charging genes in slots that begin at full SoC.
+
+        The repair is deliberately separated from fitness calculation. Callers
+        must re-simulate after a change so the individual's genome, simulation
+        state and assigned fitness always describe the same schedule.
+        """
+        if not self.optimize_ev or not self.ev_possible_charge_values:
+            return False
+
+        zero_charge_index = min(
+            range(len(self.ev_possible_charge_values)),
+            key=lambda index: abs(self.ev_possible_charge_values[index]),
+        )
+        if abs(self.ev_possible_charge_values[zero_charge_index]) > 1e-12:
+            return False
+
+        _, ev_charge_indices, _ = self.split_individual(individual)
+        if ev_charge_indices is None:
+            return False
+
+        ev_soc = np.asarray(simulation_result.get("EAuto_SoC_pro_Stunde", []), dtype=float)
+        start_slot = self._start_day_slot()
+        result_slots = min(ev_soc.size, self.total_slots - start_slot)
+        if result_slots <= 0:
+            return False
+
+        changed = False
+        for offset in range(result_slots):
+            slot = start_slot + offset
+            charge_index = int(ev_charge_indices[slot])
+            if (
+                ev_soc[offset] >= 100.0 - 1e-9
+                and self.ev_possible_charge_values[charge_index] > 0.0
+            ):
+                ev_charge_indices[slot] = zero_charge_index
+                changed = True
+
+        if changed:
+            battery_genes, _, appliance_genes = self.split_individual(individual)
+            individual[:] = self.merge_individual(
+                battery_genes,
+                ev_charge_indices,
+                appliance_genes,
+            )
+        return changed
+
+    def _heuristic_ev_schedule(self, *, prefer_pv: bool) -> list[int]:
+        """Build a low-cost EV schedule that reaches the configured minimum SoC."""
+        if not self.optimize_ev or not self.ev_possible_charge_values:
+            return []
+
+        zero_index = min(
+            range(len(self.ev_possible_charge_values)),
+            key=lambda index: abs(self.ev_possible_charge_values[index]),
+        )
+        schedule = [zero_index] * self.total_slots
+        ev = self.simulation.ev
+        if ev is None:
+            return schedule
+
+        required_stored_wh = max(
+            ev.min_soc_wh
+            - ev.capacity_wh * ev.initial_soc_percentage / 100.0,
+            0.0,
+        )
+        if required_stored_wh <= 0.0:
+            return schedule
+
+        start_slot = self._start_day_slot()
+        end_slot = max(start_slot, self.total_slots - self.fixed_eauto_hours)
+        prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
+        feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
+        pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
+        load = np.asarray(self.simulation.load_energy_array, dtype=float)
+
+        def marginal_cost(slot: int) -> tuple[float, float]:
+            surplus = pv[slot] - load[slot]
+            if prefer_pv and surplus > 0.0:
+                return (float(feed_in[slot]), -float(surplus))
+            return (float(prices[slot]), -float(surplus))
+
+        candidates = sorted(range(start_slot, end_slot), key=marginal_cost)
+        positive_rates = sorted(
+            (
+                (rate, index)
+                for index, rate in enumerate(self.ev_possible_charge_values)
+                if rate > 0.0
+            ),
+            key=lambda item: item[0],
+        )
+        if not positive_rates:
+            return schedule
+
+        max_stored_wh = (
+            ev.max_charge_power_w
+            * self.slot_duration_h
+            * ev.charging_efficiency
+        )
+        remaining_wh = required_stored_wh
+        for slot in candidates:
+            required_rate = remaining_wh / max(max_stored_wh, 1e-9)
+            rate, rate_index = next(
+                (item for item in positive_rates if item[0] >= required_rate),
+                positive_rates[-1],
+            )
+            schedule[slot] = rate_index
+            remaining_wh -= max_stored_wh * rate
+            if remaining_wh <= 1e-9:
+                break
+        return schedule
+
+    def _heuristic_appliance_genes(self) -> list[int]:
+        """Choose low-opportunity-cost starts for flexible appliances."""
+        if self.appliance_layout.n_genes == 0:
+            return []
+        prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
+        feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
+        pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
+        load = np.asarray(self.simulation.load_energy_array, dtype=float)
+        genes: list[int] = []
+        for gene in self.appliance_layout.genes:
+            def opportunity_cost(position: int) -> float:
+                slot = gene.allowed_start_slots[position]
+                return float(feed_in[slot] if pv[slot] > load[slot] else prices[slot])
+
+            genes.append(min(range(len(gene.allowed_start_slots)), key=opportunity_cost))
+        return genes
+
+    def _educated_guess_individuals(self) -> list[list[int]]:
+        """Create diverse domain-informed candidates for the initial population."""
+        slots = self.total_slots
+        start_slot = self._start_day_slot()
+        len_bat = len(self.bat_possible_charge_values)
+        idle_state = 0
+        discharge_state = len_bat
+        ac_charge_state = 3 * len_bat - 1
+        dc_allowed_state = 3 * len_bat + 1
+        export_state = 3 * len_bat + (2 if self.optimize_dc_charge else 0)
+
+        prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
+        feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
+        pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
+        load = np.asarray(self.simulation.load_energy_array, dtype=float)
+        future = slice(start_slot, slots)
+        future_prices = prices[future]
+        future_feed_in = feed_in[future]
+        high_import_price = float(np.quantile(future_prices, 0.70))
+        low_import_price = float(np.quantile(future_prices, 0.25))
+
+        ev_price = self._heuristic_ev_schedule(prefer_pv=False)
+        ev_pv = self._heuristic_ev_schedule(prefer_pv=True)
+        appliance_genes = self._heuristic_appliance_genes()
+
+        def compose(battery_genes: list[int], ev_genes: list[int]) -> list[int]:
+            individual = list(battery_genes)
+            if self.optimize_ev:
+                individual.extend(ev_genes)
+            individual.extend(appliance_genes)
+            return individual
+
+        guesses: list[list[int]] = []
+
+        # Baseline and self-consumption candidates are useful even without
+        # direct marketing and anchor the population with feasible schedules.
+        guesses.append(compose([idle_state] * slots, ev_price))
+        self_consumption = [idle_state] * slots
+        for slot in range(start_slot, slots):
+            if self.optimize_dc_charge and pv[slot] > load[slot]:
+                self_consumption[slot] = dc_allowed_state
+            elif prices[slot] >= high_import_price and load[slot] > pv[slot]:
+                self_consumption[slot] = discharge_state
+        guesses.append(compose(self_consumption, ev_pv))
+
+        # Direct marketing candidates export only in the relatively expensive
+        # feed-in slots. At low tariffs PV is preferentially stored instead.
+        if self.optimize_battery_grid_export and future_feed_in.size:
+            feed_spread = float(np.ptp(future_feed_in))
+            for quantile in self.EDUCATED_GUESS_EXPORT_QUANTILES:
+                export_threshold = float(np.quantile(future_feed_in, quantile))
+                direct_marketing = [idle_state] * slots
+                for slot in range(start_slot, slots):
+                    high_feed_in = (
+                        feed_spread > 1e-12
+                        and feed_in[slot] > 0.0
+                        and feed_in[slot] >= export_threshold
+                    )
+                    if high_feed_in:
+                        direct_marketing[slot] = export_state
+                    elif self.optimize_dc_charge and pv[slot] > load[slot]:
+                        direct_marketing[slot] = dc_allowed_state
+                    elif prices[slot] >= high_import_price and load[slot] > pv[slot]:
+                        direct_marketing[slot] = discharge_state
+                guesses.append(compose(direct_marketing, ev_pv))
+
+        inverter = self.simulation.inverter
+        if inverter is not None and (
+            inverter.max_ac_charge_power_w is None or inverter.max_ac_charge_power_w > 0
+        ):
+            price_arbitrage = [idle_state] * slots
+            for slot in range(start_slot, slots):
+                if prices[slot] <= low_import_price:
+                    price_arbitrage[slot] = ac_charge_state
+                elif prices[slot] >= high_import_price:
+                    price_arbitrage[slot] = discharge_state
+            guesses.append(compose(price_arbitrage, ev_price))
+
+        unique: dict[tuple[int, ...], list[int]] = {}
+        for guess in guesses:
+            unique.setdefault(tuple(guess), guess)
+        return list(unique.values())
+
+    def _mutated_warm_start_neighbors(
+        self,
+        start_solution: list[float],
+        count: int,
+    ) -> list[list[int]]:
+        """Create unique local variants while preserving already elapsed slots."""
+        original = [int(value) for value in start_solution]
+        start_slot = self._start_day_slot()
+        seen = {tuple(original)}
+        neighbors: list[list[int]] = []
+        for _ in range(max(count * 10, 1)):
+            neighbor = creator.Individual(original)
+            self.mutate(neighbor)
+            neighbor[:start_slot] = original[:start_slot]
+            if self.optimize_ev:
+                ev_start = self.total_slots
+                neighbor[ev_start : ev_start + start_slot] = original[
+                    ev_start : ev_start + start_slot
+                ]
+            key = tuple(int(value) for value in neighbor)
+            if key in seen:
+                continue
+            seen.add(key)
+            neighbors.append(list(key))
+            if len(neighbors) >= count:
+                break
+        return neighbors
+
     def setup_deap_environment(self, opti_param: dict[str, Any], start_hour: int) -> None:
         """Set up the DEAP environment with fitness and individual creation rules."""
         self.opti_param = opti_param
@@ -1267,45 +1515,13 @@ class GeneticOptimization(OptimizationBase):
         """
         try:
             simulation_result = self.evaluate_inner(individual)
-        except Exception as e:
+            if self._repair_ev_charge_at_full_soc(individual, simulation_result):
+                simulation_result = self.evaluate_inner(individual)
+        except Exception:
             # Return bad fitness score ("FitnessMin") in case of an exception
             return (100000.0,)
 
         gesamtbilanz = simulation_result["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
-
-        # EV 100% & charge not allowed
-        if self.optimize_ev:
-            discharge_hours_bin, eautocharge_hours_index, appliance_gene_values = (
-                self.split_individual(individual)
-            )
-
-            eauto_soc_per_hour = np.array(
-                simulation_result.get("EAuto_SoC_pro_Stunde", [])
-            )  # Beispielkey
-
-            if eauto_soc_per_hour is None or eautocharge_hours_index is None:
-                raise ValueError("eauto_soc_per_hour or eautocharge_hours_index is None")
-            min_length = min(eauto_soc_per_hour.size, eautocharge_hours_index.size)
-            eauto_soc_per_hour_tail = eauto_soc_per_hour[-min_length:]
-            eautocharge_hours_index_tail = eautocharge_hours_index[-min_length:]
-
-            # Mask
-            invalid_charge_mask = (eauto_soc_per_hour_tail == 100) & (
-                eautocharge_hours_index_tail > 0
-            )
-
-            if np.any(invalid_charge_mask):
-                invalid_indices = np.where(invalid_charge_mask)[0]
-                if len(invalid_indices) > 1:
-                    eautocharge_hours_index_tail[invalid_indices] = 0
-
-                eautocharge_hours_index[-min_length:] = eautocharge_hours_index_tail.tolist()
-
-                adjusted_individual = self.merge_individual(
-                    discharge_hours_bin, eautocharge_hours_index, appliance_gene_values
-                )
-
-                individual[:] = adjusted_individual
 
         # New check: Activate discharge when battery SoC is 0
         # battery_soc_per_hour = np.array(
@@ -1531,8 +1747,25 @@ class GeneticOptimization(OptimizationBase):
                     "appliance layout."
                 )
             else:
-                for _ in range(10):
+                for _ in range(self.WARM_START_COPIES):
                     population.insert(0, creator.Individual(start_solution))
+                warm_neighbors = self._mutated_warm_start_neighbors(
+                    start_solution,
+                    self.WARM_START_MUTATIONS,
+                )
+                population.extend(creator.Individual(neighbor) for neighbor in warm_neighbors)
+                logger.info(
+                    "Seeded population with {} exact and {} mutated warm-start solutions.",
+                    self.WARM_START_COPIES,
+                    len(warm_neighbors),
+                )
+
+        educated_guesses = self._educated_guess_individuals()
+        population.extend(creator.Individual(guess) for guess in educated_guesses)
+        logger.info(
+            "Seeded population with {} educated-guess solutions.",
+            len(educated_guesses),
+        )
 
         # Run the evolutionary algorithm
         pop, log = algorithms.eaMuPlusLambda(

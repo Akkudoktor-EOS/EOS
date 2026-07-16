@@ -62,6 +62,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   ETS forecasts. A median fallback is used when the available history is too short for ETS.
 
 ### Changed
+- Seed genetic optimization runs with ten exact warm-start copies, twenty locally mutated
+  warm-start neighbours, and diverse domain-informed battery, direct-marketing, EV, and flexible
+  appliance schedules to improve early convergence without discarding the previous solution.
 - `max_home_appliances` is now purely an upper bound. No demo appliance is created when
   no `home_appliances` are configured, and the number is no longer used as an on/off switch.
 
@@ -73,6 +76,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   are deprecated in favour of `appliance_starts` and `result.home_appliance_energy_wh`.
 
 ### Fixed
+- Re-simulate genetic candidates after removing EV charging genes from slots that begin at full
+  SoC, keeping the repaired genome and its assigned fitness consistent.
 - FeedInTariffEnergyCharts no longer aborts the whole prediction/optimization when the
   Energy-Charts API is briefly unreachable: transient timeouts/connection errors are
   retried (with a (connect, read) timeout of (5, 60) s), and if a fetch still fails while

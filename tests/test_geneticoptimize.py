@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -32,7 +33,10 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
             compare_dict(actual[key], value)
         elif isinstance(value, list):
             assert isinstance(actual[key], list)
-            assert actual[key] == pytest.approx(value)
+            if value and isinstance(value[0], datetime):
+                assert actual[key] == value
+            else:
+                assert actual[key] == pytest.approx(value)
         else:
             assert actual[key] == pytest.approx(value)
 
@@ -149,7 +153,7 @@ def test_optimize(
         pass
 
     # Fake energy management run start datetime
-    ems_eos.set_start_datetime(to_datetime().set(hour=fixed_start_hour))
+    ems_eos.set_start_datetime(to_datetime("2025-01-15T10:00:00+01:00"))
 
     # Throw away any cached results of the last energy management run.
     CacheEnergyManagementStore().clear()
