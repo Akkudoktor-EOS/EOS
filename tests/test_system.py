@@ -170,6 +170,57 @@ class TestSystem:
         else:
             pass
 
+    def test_prediction_import(self, server_setup_for_class, is_system_test):
+        """Test eprediction import."""
+        server = server_setup_for_class["server"]
+        eos_dir = server_setup_for_class["eos_dir"]
+
+        # Reset config
+        with FILE_TESTDATA_EOSSERVER_CONFIG_1.open("r", encoding="utf-8", newline=None) as fd:
+            config = json.load(fd)
+        config["elecprice"]["provider"] = "ElecPriceImport"
+        result = requests.put(f"{server}/v1/config", json=config)
+        assert result.status_code == HTTPStatus.OK
+
+        # Assure prediction is enabled
+        result = requests.get(f"{server}/v1/prediction/providers?enabled=true")
+        assert result.status_code == HTTPStatus.OK
+        providers = result.json()
+        assert "ElecPriceImport" in providers
+
+        # Elex price payload
+        payload = {
+            "start_datetime": "2026-05-27 00:00:00",
+            "interval": "1 hour",
+            "elecprice_marketprice_wh": [0.000234, 0.000228, 0.000231],
+        }
+
+        result = requests.put(
+            f"{server}/v1/prediction/import/ElecPriceImport",
+            params={"force_enable": True},
+            json=payload,
+        )
+        assert result.status_code == HTTPStatus.OK
+
+        # Import should work with any provider
+        config["feedintariff"]["provider"] = "FeedInTariffImport"
+        result = requests.put(f"{server}/v1/config", json=config)
+        assert result.status_code == HTTPStatus.OK
+
+        # Feed In Tariff payload
+        payload = {
+            "start_datetime": "2026-05-27 00:00:00",
+            "interval": "1 hour",
+            "feed_in_tariff_wh": [0.000071, 0.000072, 0.000073],
+        }
+
+        result = requests.put(
+            f"{server}/v1/prediction/import/FeedInTariffImport",
+            params={"force_enable": True},
+            json=payload,
+        )
+        assert result.status_code == HTTPStatus.OK
+
     def test_measurement(self, server_setup_for_class, is_system_test):
         """Test measurement endpoints comprehensively."""
         server = server_setup_for_class["server"]

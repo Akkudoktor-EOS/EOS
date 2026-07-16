@@ -3,6 +3,9 @@
     "charges_kwh": 0.21,
     "provider": "ElecPriceImport"
   },
+  "feedintariff": {
+    "provider": "FeedInTariffFixed"
+  },
   "general": {
     "latitude": 52.5,
     "longitude": 13.4

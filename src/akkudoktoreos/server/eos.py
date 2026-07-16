@@ -40,6 +40,7 @@ from akkudoktoreos.core.ems import ems_manage_energy
 from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.core.logging import logging_track_config, read_file_log
 from akkudoktoreos.core.pydantic import (
+    BaseModel,
     PydanticBaseModel,
     PydanticDateTimeData,
     PydanticDateTimeDataFrame,
@@ -1036,7 +1037,7 @@ async def fastapi_prediction_list_get(
 
 
 @app.put("/v1/prediction/import/{provider_id}", tags=["prediction"])
-def fastapi_prediction_import_provider(
+async def fastapi_prediction_import_provider(
     provider_id: str = FastapiPath(..., description="Provider ID."),
     data: Optional[Union[PydanticDateTimeDataFrame, PydanticDateTimeData, dict]] = None,
     force_enable: Optional[bool] = None,
@@ -1056,7 +1057,11 @@ def fastapi_prediction_import_provider(
     if not provider.enabled() and not force_enable:
         raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not enabled.")
     try:
-        provider.import_from_json(json_str=json.dumps(data))
+        if isinstance(data, BaseModel):
+            json_str = data.model_dump_json()
+        else:
+            json_str = json.dumps(data)
+        await provider.import_from_json(json_str=json_str)
         provider.update_datetime = to_datetime(in_timezone=get_config().general.timezone)
     except Exception as e:
         raise HTTPException(

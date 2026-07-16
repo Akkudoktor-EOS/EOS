@@ -116,7 +116,7 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.4.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==7.1.0" },
     { name = "pytest-xprocess", marker = "extra == 'dev'", specifier = "==1.0.2" },
-    { name = "python-fasthtml", specifier = "==0.14.5" },
+    { name = "python-fasthtml", specifier = "==0.14.6" },
     { name = "requests", specifier = "==2.34.2" },
     { name = "rich-toolkit", specifier = "==0.20.3" },
     { name = "scipy", specifier = "==1.17.1" },
@@ -2697,7 +2697,7 @@ wheels = [
 
 [[package]]
 name = "python-fasthtml"
-version = "0.14.5"
+version = "0.14.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -2711,9 +2711,9 @@ dependencies = [
     { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/be/9b/e442133c5d950d9ccc0a879357a3c108e1dcfd80a19bd601459a615c1a7e/python_fasthtml-0.14.5.tar.gz", hash = "sha256:d0181c36415f9bbe242e1d05de1fb5279a14aa9c605c244e76ae95a32650eda4", size = 76817, upload-time = "2026-07-09T05:46:10.028Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5a/db/1efed9c205c9f65a1e9715f91aff1510fdc42e41f8c032718274969b35a7/python_fasthtml-0.14.6.tar.gz", hash = "sha256:11b535e752b4f79e8da7eb6d55928d2ced0ed7a085619ac89a6e943a76915773", size = 77102, upload-time = "2026-07-11T04:03:42.889Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f7/63/5685ed7eff6b581bcfd0db4e239c8d07d0e1e59c016b409a1c01c10aab64/python_fasthtml-0.14.5-py3-none-any.whl", hash = "sha256:e5ce3cc43af056ac5d48b1cdcb9346111fdb8a21fa0fcf788d2490c8ea12dc9f", size = 80441, upload-time = "2026-07-09T05:46:08.427Z" },
+    { url = "https://files.pythonhosted.org/packages/69/d6/70783f684b6c367466c4288005e0f95cdf9ffdd1d8f397fad921f9567d10/python_fasthtml-0.14.6-py3-none-any.whl", hash = "sha256:38a93cfb87911ae34aaa088e3b53784a5ed72c575bc9656df7599d82428ab41c", size = 80779, upload-time = "2026-07-11T04:03:41.222Z" },
 ]
 
 [[package]]
