@@ -9,7 +9,7 @@ from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixedCommonSe
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImportCommonSettings
 
 
-def elecprice_provider_ids() -> list[str]:
+def feedintariff_provider_ids() -> list[str]:
     """Valid feedintariff provider ids."""
     try:
         prediction_eos = get_prediction()
@@ -67,14 +67,14 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
     @property
     def providers(self) -> list[str]:
         """Available feed in tariff provider ids."""
-        return elecprice_provider_ids()
+        return feedintariff_provider_ids()
 
     # Validators
     @field_validator("provider", mode="after")
     @classmethod
     def validate_provider(cls, value: Optional[str]) -> Optional[str]:
-        if value is None or value in elecprice_provider_ids():
+        if value is None or value in feedintariff_provider_ids():
             return value
         raise ValueError(
-            f"Provider '{value}' is not a valid feed in tariff provider: {elecprice_provider_ids()}."
+            f"Provider '{value}' is not a valid feed in tariff provider: {feedintariff_provider_ids()}."
         )
