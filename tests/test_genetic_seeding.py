@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-from deap import creator
+from deap import creator, tools
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.coreabc import get_ems
@@ -142,6 +142,34 @@ def test_fitness_cache_never_stores_failed_evaluations(config_eos: ConfigEOS):
     assert opt._fitness_cache == {}
 
 
+def test_fitness_cache_ignores_elapsed_control_slots(config_eos: ConfigEOS):
+    _configure_hourly_grid(config_eos, start_hour=10)
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=10)
+    parameters = SimpleNamespace(
+        ems=SimpleNamespace(preis_euro_pro_wh_akku=0.0),
+        eauto=None,
+    )
+    result = {
+        "Gesamtbilanz_Euro": 1.0,
+        "Gesamt_Verluste": 0.0,
+        "EAuto_SoC_pro_Stunde": np.zeros(opt.total_slots),
+    }
+    first = creator.Individual([0] * opt.total_slots)
+    elapsed_variant = creator.Individual(first)
+    elapsed_variant[0] = 1
+    opt._fitness_cache_enabled = True
+
+    with patch.object(opt, "evaluate_inner", return_value=result) as evaluate:
+        first_fitness = opt.evaluate(first, parameters, 10, False)  # type: ignore[arg-type]
+        variant_fitness = opt.evaluate(elapsed_variant, parameters, 10, False)  # type: ignore[arg-type]
+
+    assert evaluate.call_count == 1
+    assert first_fitness == variant_fitness
+    assert opt._fitness_cache_hits == 1
+
+
 def test_mutated_warm_start_neighbors_keep_elapsed_slots(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos, start_hour=10)
     opt = GeneticOptimization(fixed_seed=42)
@@ -170,7 +198,7 @@ def test_initial_population_uses_fixed_seed_budget_and_configured_population(
     educated = [[7] * opt.total_slots for _ in range(100)]
     captured: dict[str, object] = {}
 
-    def fake_ea(population, toolbox, **kwargs):
+    def fake_evolution(population, **kwargs):
         captured["population"] = list(population)
         captured["mu"] = kwargs["mu"]
         captured["lambda"] = kwargs["lambda_"]
@@ -188,7 +216,7 @@ def test_initial_population_uses_fixed_seed_budget_and_configured_population(
             "population",
             side_effect=lambda n: [creator.Individual([9] * opt.total_slots) for _ in range(n)],
         ),
-        patch("akkudoktoreos.optimization.genetic.genetic.algorithms.eaMuPlusLambda", fake_ea),
+        patch.object(opt, "_evolve_population_adaptive", side_effect=fake_evolution),
     ):
         opt.optimize(start_solution=start_solution, ngen=1)
 
@@ -220,7 +248,7 @@ def test_small_population_scales_warm_and_educated_seed_families(config_eos: Con
         captured["educated_count"] = count
         return [[7] * opt.total_slots for _ in range(count)]
 
-    def fake_ea(population, toolbox, **kwargs):
+    def fake_evolution(population, **kwargs):
         captured["population"] = list(population)
         captured["mu"] = kwargs["mu"]
         captured["lambda"] = kwargs["lambda_"]
@@ -238,7 +266,7 @@ def test_small_population_scales_warm_and_educated_seed_families(config_eos: Con
             "population",
             side_effect=lambda n: [creator.Individual([9] * opt.total_slots) for _ in range(n)],
         ),
-        patch("akkudoktoreos.optimization.genetic.genetic.algorithms.eaMuPlusLambda", fake_ea),
+        patch.object(opt, "_evolve_population_adaptive", side_effect=fake_evolution),
     ):
         opt.optimize(start_solution=start_solution, ngen=1)
 
@@ -253,6 +281,38 @@ def test_small_population_scales_warm_and_educated_seed_families(config_eos: Con
     assert captured["educated_count"] == 40
     assert captured["mu"] == 100
     assert captured["lambda"] == 100
+
+
+def test_adaptive_evolution_soft_restarts_collapsed_population(config_eos: ConfigEOS):
+    _configure_hourly_grid(config_eos)
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
+    opt.toolbox.register("evaluate", lambda individual: (float(sum(individual)),))
+    population = [creator.Individual([0] * opt.total_slots) for _ in range(20)]
+    stats = tools.Statistics(lambda individual: individual.fitness.values)
+    stats.register("min", np.min)
+    stats.register("avg", np.mean)
+    stats.register("max", np.max)
+    halloffame = tools.HallOfFame(1)
+
+    fresh = [creator.Individual([value] + [0] * (opt.total_slots - 1)) for value in range(1, 20)]
+    with patch.object(opt, "_fresh_population", return_value=fresh) as create_fresh:
+        evolved, log = opt._evolve_population_adaptive(
+            population,
+            mu=20,
+            lambda_=20,
+            ngen=1,
+            stats=stats,
+            halloffame=halloffame,
+        )
+
+    create_fresh.assert_called_once_with(19, educated_fraction=0.40)
+    assert log.select("restart") == [0, 1]
+    assert log.select("immigrants") == [0, 19]
+    assert opt._adaptive_evolution_metrics["soft_restarts"] == 1
+    assert opt._population_diversity(evolved) == pytest.approx(1.0)
+    assert halloffame[0].fitness.values == (0.0,)
 
 
 def test_local_search_moves_weak_export_to_later_expensive_import(config_eos: ConfigEOS):

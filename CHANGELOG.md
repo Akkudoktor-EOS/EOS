@@ -62,6 +62,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   ETS forecasts. A median fallback is used when the available history is too short for ETS.
 
 ### Changed
+- Replace the fixed DEAP variation loop with adaptive genetic evolution. Crossover offspring may
+  now also mutate; population diversity and stagnation are tracked per generation; diversity
+  boosts inject fresh educated/random candidates; and incumbent-preserving soft restarts recover
+  from collapsed populations without stopping the run early.
+- Apply small point mutations only to future, fitness-relevant controls and choose point, coherent
+  block, energy-shift, or flexible-device mutations as alternatives instead of stacking random
+  changes on top of every specialized move. Tournament selection retains useful duplicates while
+  enforcing a 30% minimum diversity floor.
 - Scale the diverse genetic start population with the configured population size while preserving
   the established 300-member mix: exact warm starts, locally mutated neighbours, randomized
   domain-informed battery/direct-marketing/EV/appliance schedules, and a guaranteed random
@@ -85,6 +93,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   are deprecated in favour of `appliance_starts` and `result.home_appliance_energy_wh`.
 
 ### Fixed
+- Exclude elapsed control slots from fitness-cache keys and clear cached genome tuples after run
+  metrics are captured, avoiding false misses and delayed memory retention in long-lived API
+  processes. Random EV individuals now also keep the fixed horizon tail switched off.
 - Respect `optimization.genetic.individuals` and `optimization.genetic.generations` independently
   in automatic and `/optimize` runs. Previously the individual count was accidentally passed as
   the generation count, the configured generation count was ignored, and every generation still

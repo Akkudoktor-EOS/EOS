@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import numpy as np
-from deap import algorithms, base, creator, tools
+from deap import base, creator, tools
 from loguru import logger
 from numpydantic import NDArray, Shape
 from pydantic import ConfigDict, Field
@@ -566,11 +566,20 @@ class GeneticOptimization(OptimizationBase):
     WARM_START_COPY_FRACTION = 0.10
     WARM_START_MUTATION_FRACTION = 0.20
     EDUCATED_GUESS_FRACTION = 0.40
-    BLOCK_MUTATION_PROBABILITY = 0.20
-    ENERGY_SHIFT_MUTATION_PROBABILITY = 0.35
     LOCAL_SEARCH_MAX_EVALUATIONS = 96
     LOCAL_SEARCH_MAX_PASSES = 4
     EDUCATED_GUESS_EXPORT_QUANTILES = (0.60, 0.75, 0.90)
+    CROSSOVER_PROBABILITY = 0.50
+    MUTATION_PROBABILITY = 0.55
+    STAGNATION_MUTATION_PROBABILITY = 0.80
+    STAGNATION_GENERATIONS = 8
+    SOFT_RESTART_GENERATIONS = 20
+    DIVERSITY_BOOST_THRESHOLD = 0.35
+    SELECTION_DIVERSITY_FLOOR = 0.30
+    SOFT_RESTART_DIVERSITY_THRESHOLD = 0.10
+    IMMIGRANT_FRACTION = 0.12
+    SOFT_RESTART_SURVIVOR_FRACTION = 0.20
+    POINT_MUTATION_EXPECTED_GENES = 3.0
 
     # Slot-math helpers — single source of truth for the optimization grid.
     # At the default optimization interval of 3600 s, slot_duration_h is 1.0 and
@@ -1146,46 +1155,104 @@ class GeneticOptimization(OptimizationBase):
             individual[target_slot] = self_state if pv[target_slot] > 0.0 else len_bat
         return True
 
-    def mutate(self, individual: list[int]) -> tuple[list[int]]:
-        """Custom mutation function for the individual."""
+    @staticmethod
+    def _force_segment_change(values: list[int], low: int, up: int) -> bool:
+        """Change one value when probabilistic mutation produced no effective change."""
+        if not values or up <= low:
+            return False
+        position = random.randrange(len(values))  # noqa: S311
+        old_value = int(values[position])
+        replacement = random.randint(low, up - 1)  # noqa: S311
+        if replacement >= old_value:
+            replacement += 1
+        values[position] = replacement
+        return True
+
+    def _mutate_point_controls(self, individual: list[int]) -> bool:
+        """Apply a small point mutation only to controls that can still affect fitness."""
+        changed = False
+        start_slot = self._start_day_slot()
         total_states = self._battery_state_layout().total_states
+        battery_part = list(individual[start_slot : self.total_slots])
+        battery_before = list(battery_part)
+        (battery_part,) = self.toolbox.mutate_charge_discharge(battery_part)
+        if battery_part == battery_before:
+            self._force_segment_change(battery_part, 0, total_states - 1)
+        if battery_part != battery_before:
+            individual[start_slot : self.total_slots] = battery_part
+            changed = True
 
-        # 1. Mutating the charge_discharge part
-        charge_discharge_part = individual[: self.total_slots]
-        (charge_discharge_mutated,) = self.toolbox.mutate_charge_discharge(charge_discharge_part)
+        if self.optimize_ev and random.random() < 0.40:  # noqa: S311
+            ev_start = self.total_slots + start_slot
+            ev_end = self.total_slots * 2 - self.fixed_eauto_hours
+            ev_part = list(individual[ev_start:ev_end])
+            ev_before = list(ev_part)
+            (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
+            if ev_part == ev_before:
+                self._force_segment_change(ev_part, 0, len(self.ev_possible_charge_values) - 1)
+            if ev_part != ev_before:
+                individual[ev_start:ev_end] = ev_part
+                changed = True
 
-        # Instead of a fixed clamping to 0..8 or 0..6 dynamically:
-        charge_discharge_mutated = np.clip(charge_discharge_mutated, 0, total_states - 1)
-        individual[: self.total_slots] = charge_discharge_mutated
+        return changed
 
-        # Point mutation alone struggles with energy-coupled valleys: removing
-        # an export is temporarily worse until several later bypass slots also
-        # consume the retained energy. Add coherent neighbourhood moves that
-        # can cross that valley in one offspring.
-        if random.random() < self.BLOCK_MUTATION_PROBABILITY:  # noqa: S311
-            self._mutate_battery_block(individual)
-        if random.random() < self.ENERGY_SHIFT_MUTATION_PROBABILITY:  # noqa: S311
-            self._mutate_energy_shift(individual)
-
-        # 2. Mutating the EV charge part, if active
+    def _mutate_flexible_controls(self, individual: list[int]) -> bool:
+        """Mutate EV or appliance controls without disturbing a good battery schedule."""
+        changed = False
         if self.optimize_ev:
-            ev_charge_part = individual[self.total_slots : self.total_slots * 2]
-            (ev_charge_part_mutated,) = self.toolbox.mutate_ev_charge_index(ev_charge_part)
-            ev_charge_part_mutated[self.total_slots - self.fixed_eauto_hours :] = [
-                0
-            ] * self.fixed_eauto_hours
-            individual[self.total_slots : self.total_slots * 2] = ev_charge_part_mutated
+            ev_start = self.total_slots + self._start_day_slot()
+            ev_end = self.total_slots * 2 - self.fixed_eauto_hours
+            ev_part = list(individual[ev_start:ev_end])
+            ev_before = list(ev_part)
+            (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
+            if ev_part == ev_before:
+                self._force_segment_change(ev_part, 0, len(self.ev_possible_charge_values) - 1)
+            if ev_part != ev_before:
+                individual[ev_start:ev_end] = ev_part
+                changed = True
 
-        # 3. Mutating the appliance start genes. Each gene is an index into its
-        #    own allowed_start_slots list, so the redraw stays within valid range.
         n_appliance_genes = self.appliance_layout.n_genes
         if n_appliance_genes > 0:
             base = len(individual) - n_appliance_genes
-            appliance_mutation_probability = 0.2
-            for position, gene in enumerate(self.appliance_layout.genes):
-                if random.random() < appliance_mutation_probability:  # noqa: S311
-                    upper = len(gene.allowed_start_slots) - 1
-                    individual[base + position] = random.randint(0, upper)  # noqa: S311
+            mutable_positions = [
+                (base + position, len(gene.allowed_start_slots) - 1)
+                for position, gene in enumerate(self.appliance_layout.genes)
+                if len(gene.allowed_start_slots) > 1
+            ]
+            if mutable_positions:
+                position, upper = random.choice(mutable_positions)  # noqa: S311
+                old_value = int(individual[position])
+                replacement = random.randint(0, upper - 1)  # noqa: S311
+                if replacement >= old_value:
+                    replacement += 1
+                individual[position] = replacement
+                changed = True
+        return changed
+
+    def mutate(self, individual: list[int]) -> tuple[list[int]]:
+        """Apply one coherent mutation family instead of stacking destructive changes."""
+        operation = random.random()  # noqa: S311
+        changed = False
+        if operation < 0.50:
+            changed = self._mutate_point_controls(individual)
+        elif operation < 0.70:
+            before = list(individual)
+            self._mutate_battery_block(individual)
+            changed = individual != before
+        elif operation < 0.90:
+            changed = self._mutate_energy_shift(individual)
+        else:
+            changed = self._mutate_flexible_controls(individual)
+
+        # Some specialized moves are unavailable without EV, appliances or a
+        # viable grid-export opportunity. Always return a genuinely changed
+        # future control so an offspring budget is not silently wasted.
+        if not changed:
+            self._mutate_point_controls(individual)
+
+        if self.optimize_ev and self.fixed_eauto_hours > 0:
+            ev_end = self.total_slots * 2
+            individual[ev_end - self.fixed_eauto_hours : ev_end] = [0] * self.fixed_eauto_hours
 
         return (individual,)
 
@@ -1198,9 +1265,10 @@ class GeneticOptimization(OptimizationBase):
 
         # Add EV charge index values if optimize_ev is True
         if self.optimize_ev:
-            individual_components += [
-                self.toolbox.attr_ev_charge_index() for _ in range(self.total_slots)
-            ]
+            ev_controls = [self.toolbox.attr_ev_charge_index() for _ in range(self.total_slots)]
+            if self.fixed_eauto_hours > 0:
+                ev_controls[-self.fixed_eauto_hours :] = [0] * self.fixed_eauto_hours
+            individual_components += ev_controls
 
         # Add one appliance start gene per scheduled run (index into that run's
         # allowed_start_slots). No draws happen when there are no appliances, so
@@ -1714,6 +1782,269 @@ class GeneticOptimization(OptimizationBase):
         final_value = float(best.fitness.values[0])
         return best, evaluations, improvements, initial_value, final_value
 
+    def _population_diversity(self, population: list[Any]) -> float:
+        """Return the fraction of fitness-relevant unique genomes."""
+        if not population:
+            return 0.0
+        return len({self._fitness_key(individual) for individual in population}) / len(population)
+
+    def _invalidate_individual(self, individual: Any) -> None:
+        """Invalidate inherited fitness and auxiliary simulation values."""
+        if individual.fitness.valid:
+            del individual.fitness.values
+        if hasattr(individual, "extra_data"):
+            del individual.extra_data
+
+    def _evaluate_invalid(self, population: list[Any]) -> int:
+        """Evaluate invalid individuals and return the number of cache lookups."""
+        invalid = [individual for individual in population if not individual.fitness.valid]
+        fitnesses = self.toolbox.map(self.toolbox.evaluate, invalid)
+        for individual, fitness in zip(invalid, fitnesses):
+            individual.fitness.values = fitness
+        return len(invalid)
+
+    def _fresh_population(self, count: int, *, educated_fraction: float) -> list[Any]:
+        """Create a mixed set of current educated guesses and random immigrants."""
+        if count <= 0:
+            return []
+        educated_target = min(count, int(count * educated_fraction + 0.5))
+        educated = self._educated_guess_individuals(educated_target)
+        fresh = [creator.Individual(genome) for genome in educated[:count]]
+        fresh.extend(self.toolbox.population(n=count - len(fresh)))
+        return fresh
+
+    def _best_unique(self, population: list[Any], count: int) -> list[Any]:
+        """Return the best fitness-relevant unique candidates."""
+        selected: list[Any] = []
+        seen: set[tuple[int, ...]] = set()
+        for candidate in tools.selBest(population, len(population)):
+            key = self._fitness_key(candidate)
+            if key in seen:
+                continue
+            seen.add(key)
+            selected.append(candidate)
+            if len(selected) >= count:
+                break
+        return selected
+
+    def _select_diverse(self, candidates: list[Any], count: int) -> list[Any]:
+        """Tournament-select while repairing only severe duplicate takeover."""
+        if not candidates or count <= 0:
+            return []
+
+        selected = tools.selTournament(candidates, count, tournsize=3)
+        best = tools.selBest(candidates, 1)[0]
+        best_key = self._fitness_key(best)
+        selected_keys = [self._fitness_key(candidate) for candidate in selected]
+        if best_key not in selected_keys:
+            worst_index = max(
+                range(len(selected)),
+                key=lambda index: selected[index].fitness.values[0],
+            )
+            selected[worst_index] = best
+            selected_keys[worst_index] = best_key
+
+        # Duplicates are useful for exploitation and cache hits. Replace only
+        # enough duplicate selections to keep a minimum search breadth.
+        target_unique = min(
+            count,
+            max(1, int(count * self.SELECTION_DIVERSITY_FLOOR + 0.999999)),
+        )
+        key_counts: dict[tuple[int, ...], int] = defaultdict(int)
+        for key in selected_keys:
+            key_counts[key] += 1
+        if len(key_counts) >= target_unique:
+            return selected
+
+        for candidate in tools.selBest(candidates, len(candidates)):
+            candidate_key = self._fitness_key(candidate)
+            if candidate_key in key_counts:
+                continue
+            replaceable = [index for index, key in enumerate(selected_keys) if key_counts[key] > 1]
+            if not replaceable:
+                break
+            replace_index = max(
+                replaceable,
+                key=lambda index: selected[index].fitness.values[0],
+            )
+            replaced_key = selected_keys[replace_index]
+            key_counts[replaced_key] -= 1
+            selected[replace_index] = candidate
+            selected_keys[replace_index] = candidate_key
+            key_counts[candidate_key] = 1
+            if len(key_counts) >= target_unique:
+                break
+        return selected
+
+    def _make_offspring(
+        self,
+        population: list[Any],
+        count: int,
+        *,
+        mutation_probability: float,
+    ) -> list[Any]:
+        """Create offspring where crossover and mutation can both be applied."""
+        offspring: list[Any] = []
+        for _ in range(count):
+            child = self.toolbox.clone(random.choice(population))  # noqa: S311
+            crossed = False
+            if len(population) > 1 and random.random() < self.CROSSOVER_PROBABILITY:  # noqa: S311
+                partner = self.toolbox.clone(random.choice(population))  # noqa: S311
+                child, _ = self.toolbox.mate(child, partner)
+                crossed = True
+
+            # Non-crossover offspring are always mutated. Crossover children are
+            # independently mutated, preventing identical parents from turning
+            # most of the generation into unchanged copies.
+            if not crossed or random.random() < mutation_probability:  # noqa: S311
+                (child,) = self.toolbox.mutate(child)
+            self._invalidate_individual(child)
+            offspring.append(child)
+        return offspring
+
+    def _evolve_population_adaptive(
+        self,
+        population: list[Any],
+        *,
+        mu: int,
+        lambda_: int,
+        ngen: int,
+        stats: Any,
+        halloffame: Any,
+    ) -> tuple[list[Any], Any]:
+        """Evolve with diversity boosts and incumbent-preserving soft restarts."""
+        logbook = tools.Logbook()
+        logbook.header = [
+            "gen",
+            "nevals",
+            *stats.fields,
+            "diversity",
+            "stagnation",
+            "immigrants",
+            "restart",
+        ]
+
+        nevals = self._evaluate_invalid(population)
+        halloffame.update(population)
+        best_fitness = float(halloffame[0].fitness.values[0])
+        stagnation = 0
+        diversity = self._population_diversity(population)
+        record = stats.compile(population)
+        logbook.record(
+            gen=0,
+            nevals=nevals,
+            diversity=diversity,
+            stagnation=stagnation,
+            immigrants=0,
+            restart=0,
+            **record,
+        )
+        if self.verbose:
+            print(logbook.stream)
+
+        diversity_boost_active = False
+        soft_restarts = 0
+        total_immigrants = 0
+        minimum_diversity = diversity
+        for generation in range(1, ngen + 1):
+            diversity = self._population_diversity(population)
+            soft_restart = (
+                stagnation >= self.SOFT_RESTART_GENERATIONS
+                or diversity < self.SOFT_RESTART_DIVERSITY_THRESHOLD
+            )
+            immigrants = 0
+
+            if soft_restart:
+                survivor_count = max(1, int(mu * self.SOFT_RESTART_SURVIVOR_FRACTION))
+                survivors = self._best_unique(population, survivor_count)
+                immigrants = mu - len(survivors)
+                population = survivors + self._fresh_population(
+                    immigrants,
+                    educated_fraction=0.40,
+                )
+                nevals = self._evaluate_invalid(population)
+                halloffame.update(population)
+                soft_restarts += 1
+                total_immigrants += immigrants
+                stagnation = 0
+                diversity_boost_active = False
+                logger.info(
+                    "Genetic soft restart at generation {}: kept {} unique survivors, "
+                    "injected {} immigrants (diversity {:.1%}).",
+                    generation,
+                    len(survivors),
+                    immigrants,
+                    diversity,
+                )
+            else:
+                diversity_boost = (
+                    stagnation >= self.STAGNATION_GENERATIONS
+                    or diversity < self.DIVERSITY_BOOST_THRESHOLD
+                )
+                if diversity_boost and not diversity_boost_active:
+                    logger.info(
+                        "Genetic diversity boost at generation {}: stagnation {}, "
+                        "diversity {:.1%}.",
+                        generation,
+                        stagnation,
+                        diversity,
+                    )
+                diversity_boost_active = diversity_boost
+                mutation_probability = (
+                    self.STAGNATION_MUTATION_PROBABILITY
+                    if diversity_boost
+                    else self.MUTATION_PROBABILITY
+                )
+                if diversity_boost:
+                    immigrants = max(1, int(lambda_ * self.IMMIGRANT_FRACTION + 0.5))
+                offspring = self._make_offspring(
+                    population,
+                    lambda_ - immigrants,
+                    mutation_probability=mutation_probability,
+                )
+                offspring.extend(
+                    self._fresh_population(
+                        immigrants,
+                        educated_fraction=0.50,
+                    )
+                )
+                nevals = self._evaluate_invalid(offspring)
+                halloffame.update(offspring)
+                population = self._select_diverse(population + offspring, mu)
+                total_immigrants += immigrants
+
+            current_best = float(halloffame[0].fitness.values[0])
+            if current_best < best_fitness - 1e-9:
+                best_fitness = current_best
+                stagnation = 0
+                diversity_boost_active = False
+            elif not soft_restart:
+                stagnation += 1
+
+            diversity = self._population_diversity(population)
+            minimum_diversity = min(minimum_diversity, diversity)
+            record = stats.compile(population)
+            logbook.record(
+                gen=generation,
+                nevals=nevals,
+                diversity=diversity,
+                stagnation=stagnation,
+                immigrants=immigrants,
+                restart=int(soft_restart),
+                **record,
+            )
+            if self.verbose:
+                print(logbook.stream)
+
+        self._adaptive_evolution_metrics = {
+            "soft_restarts": soft_restarts,
+            "immigrants": total_immigrants,
+            "minimum_diversity": minimum_diversity,
+            "final_diversity": self._population_diversity(population),
+            "final_stagnation": stagnation,
+        }
+        return population, logbook
+
     def setup_deap_environment(self, opti_param: dict[str, Any], start_hour: int) -> None:
         """Set up the DEAP environment with fitness and individual creation rules."""
         self.opti_param = opti_param
@@ -1756,10 +2087,15 @@ class GeneticOptimization(OptimizationBase):
         self.toolbox.register("population", tools.initRepeat, list, self.toolbox.individual)
         self.toolbox.register("mate", tools.cxTwoPoint)
 
-        # Mutation operator for battery charge/discharge states
-        # Keep the expected number of mutated genes per hour stable when the
-        # interval becomes finer (0.2 hourly -> 0.05 on a quarter-hour grid).
-        mutation_probability = 0.2 / self.slots_per_hour
+        # Keep point mutations local enough to refine a mature schedule. The
+        # expected number of changed controls remains close to three regardless
+        # of interval and elapsed slots; coherent block/energy moves are handled
+        # by separate mutation families.
+        active_slots = max(self.total_slots - self._start_day_slot(), 1)
+        mutation_probability = min(
+            0.10,
+            self.POINT_MUTATION_EXPECTED_GENES / active_slots,
+        )
         self.toolbox.register(
             "mutate_charge_discharge",
             tools.mutUniformInt,
@@ -1838,7 +2174,7 @@ class GeneticOptimization(OptimizationBase):
         if not getattr(self, "_fitness_cache_enabled", False):
             return self._evaluate_uncached(individual, parameters, start_hour, worst_case)
 
-        original_key = tuple(int(value) for value in individual)
+        original_key = self._fitness_key(individual)
         cached = self._fitness_cache.get(original_key)
         if cached is not None:
             individual[:] = cached.genome
@@ -1855,10 +2191,10 @@ class GeneticOptimization(OptimizationBase):
             # persistent result for the remainder of the run.
             return fitness
 
-        canonical_key = tuple(int(value) for value in individual)
+        canonical_key = self._fitness_key(individual)
         extra_value1, extra_value2, extra_value3 = extra_data
         entry = FitnessCacheEntry(
-            genome=canonical_key,
+            genome=tuple(int(value) for value in individual),
             fitness=fitness,
             extra_data=(
                 float(extra_value1),
@@ -1869,6 +2205,18 @@ class GeneticOptimization(OptimizationBase):
         self._fitness_cache[original_key] = entry
         self._fitness_cache[canonical_key] = entry
         return fitness
+
+    def _fitness_key(self, individual: list[int]) -> tuple[int, ...]:
+        """Return the fitness-relevant genome, excluding elapsed control slots."""
+        start_slot = self._start_day_slot()
+        relevant = list(individual[start_slot : self.total_slots])
+        if self.optimize_ev:
+            ev_start = self.total_slots + start_slot
+            relevant.extend(individual[ev_start : self.total_slots * 2])
+        n_appliance_genes = self.appliance_layout.n_genes
+        if n_appliance_genes > 0:
+            relevant.extend(individual[-n_appliance_genes:])
+        return tuple(int(value) for value in relevant)
 
     def _evaluate_uncached(
         self,
@@ -1918,7 +2266,7 @@ class GeneticOptimization(OptimizationBase):
         except Exception:
             # Return bad fitness score ("FitnessMin") in case of an exception
             if hasattr(individual, "extra_data"):
-                del individual.extra_data  # type: ignore[attr-defined]
+                del individual.extra_data
             return (100000.0,)
 
         gesamtbilanz = simulation_result["Gesamtbilanz_Euro"] * (-1.0 if worst_case else 1.0)
@@ -2192,11 +2540,13 @@ class GeneticOptimization(OptimizationBase):
         population.extend(self.toolbox.population(n=random_count))
         logger.info(
             "Genetic settings: {} individuals, {} generations, {} survivors, "
-            "{} offspring per generation.",
+            "{} offspring per generation, adaptive mutation {:.0%}/{:.0%}.",
             individuals,
             ngen,
             individuals,
             individuals,
+            self.MUTATION_PROBABILITY,
+            self.STAGNATION_MUTATION_PROBABILITY,
         )
         logger.info(
             "Initial population {}: {} exact warm starts, {} warm mutations, "
@@ -2219,19 +2569,17 @@ class GeneticOptimization(OptimizationBase):
         local_improvements = 0
         local_initial_fitness = float("nan")
         local_final_fitness = float("nan")
+        self._adaptive_evolution_metrics = {}
         try:
-            pop, log = algorithms.eaMuPlusLambda(
+            pop, log = self._evolve_population_adaptive(
                 population,
-                self.toolbox,
                 mu=individuals,
                 lambda_=individuals,
-                cxpb=0.6,
-                mutpb=0.4,
                 ngen=ngen,
                 stats=stats,
                 halloffame=hof,
-                verbose=self.verbose,
             )
+            population = pop
             (
                 best_solution,
                 local_evaluations,
@@ -2245,6 +2593,9 @@ class GeneticOptimization(OptimizationBase):
                     max(individuals, 1),
                 ),
             )
+        except Exception:
+            self._fitness_cache.clear()
+            raise
         finally:
             self._fitness_cache_enabled = False
 
@@ -2260,12 +2611,13 @@ class GeneticOptimization(OptimizationBase):
 
         cache_lookups = self._fitness_cache_hits + self._fitness_cache_misses
         cache_hit_rate = self._fitness_cache_hits / cache_lookups if cache_lookups > 0 else 0.0
+        cache_keys = len(self._fitness_cache)
         logger.info(
             "Fitness cache: {} hits, {} misses, {:.1%} hit rate, {} keys.",
             self._fitness_cache_hits,
             self._fitness_cache_misses,
             cache_hit_rate,
-            len(self._fitness_cache),
+            cache_keys,
         )
 
         # Store fitness history
@@ -2274,12 +2626,17 @@ class GeneticOptimization(OptimizationBase):
             "avg": log.select("avg"),  # Average fitness for each generation (Y-axis)
             "max": log.select("max"),  # Maximum fitness for each generation (Y-axis)
             "min": log.select("min"),  # Minimum fitness for each generation (Y-axis)
+            "diversity": log.select("diversity"),
+            "stagnation": log.select("stagnation"),
+            "immigrants": log.select("immigrants"),
+            "restart": log.select("restart"),
             "fitness_cache": {
                 "hits": self._fitness_cache_hits,
                 "misses": self._fitness_cache_misses,
                 "hit_rate": cache_hit_rate,
-                "keys": len(self._fitness_cache),
+                "keys": cache_keys,
             },
+            "adaptive_evolution": self._adaptive_evolution_metrics,
             "local_search": {
                 "evaluations": local_evaluations,
                 "improvements": local_improvements,
@@ -2296,6 +2653,9 @@ class GeneticOptimization(OptimizationBase):
                 member["verluste"].append(extra_value2)
                 member["nebenbedingung"].append(extra_value3)
 
+        # Avoid retaining large genome tuples in a long-lived API process until
+        # cyclic garbage collection happens. Cache statistics above are scalar.
+        self._fitness_cache.clear()
         return best_solution, member
 
     def optimierung_ems(

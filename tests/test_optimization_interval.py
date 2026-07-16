@@ -227,8 +227,8 @@ def test_hourly_start_solution_is_expanded_to_slots(config_eos: ConfigEOS):
     assert migrated[:8] == [0, 0, 0, 0, 1, 1, 1, 1]
 
 
-def test_quarter_hour_mutation_probability_preserves_hourly_rate(config_eos: ConfigEOS):
-    """A finer genome does not mutate four times as many controls per hour."""
+def test_quarter_hour_mutation_targets_three_future_controls(config_eos: ConfigEOS):
+    """Point mutation scales to roughly three effective future controls."""
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
@@ -239,7 +239,28 @@ def test_quarter_hour_mutation_probability_preserves_hourly_rate(config_eos: Con
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
 
-    assert opt.toolbox.mutate_charge_discharge.keywords["indpb"] == pytest.approx(0.05)
+    active_slots = opt.total_slots - opt._start_day_slot()
+    expected = min(0.10, opt.POINT_MUTATION_EXPECTED_GENES / active_slots)
+    assert opt.toolbox.mutate_charge_discharge.keywords["indpb"] == pytest.approx(expected)
+
+
+def test_point_mutation_keeps_elapsed_slots_unchanged(config_eos: ConfigEOS):
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {"horizon_hours": 48, "interval": 900},
+        }
+    )
+    get_ems(init=True).set_start_datetime(to_datetime().set(hour=10, minute=0))
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=10)
+    individual = [0] * opt.total_slots
+
+    changed = opt._mutate_point_controls(individual)
+
+    assert changed
+    assert individual[: opt._start_day_slot()] == [0] * opt._start_day_slot()
 
 
 def test_sub_hourly_home_appliance_is_scheduled(config_eos: ConfigEOS):
@@ -253,9 +274,7 @@ def test_sub_hourly_home_appliance_is_scheduled(config_eos: ConfigEOS):
     parameters = load_hourly_parameters().model_copy(
         update={
             "home_appliances": [
-                HomeApplianceParameters(
-                    device_id="dishwasher1", consumption_wh=1200, duration_h=2
-                )
+                HomeApplianceParameters(device_id="dishwasher1", consumption_wh=1200, duration_h=2)
             ]
         },
         deep=True,
