@@ -112,6 +112,7 @@ class TestElecPriceImport:
             start_datetime=provider.ems_start_datetime,
             end_datetime=provider.ems_start_datetime + to_duration(f"{len(expected_values)} hours"),
             interval=to_duration("1 hour"),
+            fill_method="ffill",
         )
         # Allow for some difference due to value calculation on DST change
         npt.assert_allclose(result_values, expected_values, rtol=0.001)

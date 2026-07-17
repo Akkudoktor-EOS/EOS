@@ -129,6 +129,7 @@ class TestElecPriceEnergyCharts:
             key="elecprice_marketprice_wh",
             start_datetime=provider.ems_start_datetime,
             end_datetime=provider.end_datetime,
+            fill_method="ffill",
         )
         assert len(np_price_array) == provider.total_hours
 
@@ -195,6 +196,7 @@ class TestElecPriceEnergyCharts:
             key="elecprice_marketprice_wh",
             start_datetime=provider.ems_start_datetime,
             end_datetime=provider.end_datetime,
+            fill_method="ffill",
         )
         assert isinstance(array, np.ndarray)
         assert len(array) == provider.total_hours

@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607161979035365"
+    "version": "v0.3.0.dev2607171078037437"
   },
   "paths": {
     "/v1/admin/cache/clear": {
