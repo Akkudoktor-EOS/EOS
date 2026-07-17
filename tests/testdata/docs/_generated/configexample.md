@@ -32,7 +32,7 @@
            "initial_load_window_h": 48,
            "keep_duration_h": 48,
            "autosave_interval_sec": 5,
-           "compaction_interval_sec": 604800,
+           "compaction_interval_sec": 3600,
            "batch_size": 100
        },
        "devices": {

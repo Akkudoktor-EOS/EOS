@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607181096091018"
+    "version": "v0.3.0.dev2607200446185246"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -2959,9 +2959,9 @@
             ],
             "title": "Compaction Interval Sec",
             "description": "Interval in between automatic tiered compaction runs [seconds].\nCompaction downsamples old records to reduce storage while retaining coverage. Set to None to disable automatic compaction.",
-            "default": 604800,
+            "default": 3600,
             "examples": [
-              604800
+              3600
             ]
           },
           "batch_size": {
@@ -3070,9 +3070,9 @@
             ],
             "title": "Compaction Interval Sec",
             "description": "Interval in between automatic tiered compaction runs [seconds].\nCompaction downsamples old records to reduce storage while retaining coverage. Set to None to disable automatic compaction.",
-            "default": 604800,
+            "default": 3600,
             "examples": [
-              604800
+              3600
             ]
           },
           "batch_size": {
