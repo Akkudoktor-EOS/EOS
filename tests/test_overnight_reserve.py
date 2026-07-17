@@ -59,7 +59,9 @@ def test_price_aware_release_is_per_slot(monkeypatch):
     np.testing.assert_allclose(reserve, [6000.0, 8800.0, 0.0, 0.0])
 
 
-def _make_inverter(battery: Battery, max_power_wh: float = 10000.0) -> Inverter:
+def _make_inverter(
+    battery: Battery, max_power_wh: float = 10000.0, slot_duration_h: float = 1.0
+) -> Inverter:
     with patch(
         "akkudoktoreos.devices.genetic.inverter.get_eos_load_interpolator",
     ) as interpolator:
@@ -73,6 +75,7 @@ def _make_inverter(battery: Battery, max_power_wh: float = 10000.0) -> Inverter:
                 ac_to_dc_efficiency=1.0,
             ),
             battery=battery,
+            slot_duration_h=slot_duration_h,
         )
 
 
@@ -117,6 +120,41 @@ def test_zero_reserve_keeps_full_export():
         export_reserve_ac_wh=0.0,
     )
     assert grid_export == pytest.approx(10000.0)
+
+
+def test_reserve_caps_soc_pool_not_slot_power_budget():
+    """A reserve larger than one slot's power budget must not zero out export.
+
+    43 kWh pack at 100%, 4.5 kWh discharge budget per 15-min slot, 9 kWh
+    reserve: the pool above min_soc + reserve is ~29 kWh, so the slot still
+    exports its full power budget. Regression: subtracting the reserve from
+    the power-capped per-slot energy gave max(4500 − 9000, 0) = 0 for EVERY
+    slot — export was impossible whenever the night reserve exceeded a single
+    slot's budget, which silently disabled direct marketing altogether.
+    """
+    battery = Battery(
+        SolarPanelBatteryParameters(
+            device_id="battery",
+            capacity_wh=43000,
+            charging_efficiency=1.0,
+            discharging_efficiency=1.0,
+            max_charge_power_w=18000,
+            initial_soc_percentage=100,
+            min_soc_percentage=5,
+        ),
+        prediction_hours=1,
+        slot_duration_h=0.25,
+    )
+    battery.set_discharge_per_hour(np.array([1]))
+    inverter = _make_inverter(battery, max_power_wh=24000.0, slot_duration_h=0.25)
+    grid_export, _grid_import, _losses, _self_consumption = inverter.process_energy(
+        generation=0.0,
+        consumption=0.0,
+        hour=0,
+        allow_battery_grid_export=True,
+        export_reserve_ac_wh=9000.0,
+    )
+    assert grid_export == pytest.approx(4500.0)
 
 
 def test_reserve_does_not_limit_self_consumption():
