@@ -44,7 +44,7 @@ def caplog(caplog: LogCaptureFixture):
     yield caplog
     try:
         logger.remove(handler_id)
-    except:
+    except Exception:
         # May already be deleted
         pass
 
@@ -57,7 +57,7 @@ def reportlog(pytestconfig):
     yield
     try:
         logger.remove(handler_id)
-    except:
+    except Exception:
         # May already be deleted
         pass
 

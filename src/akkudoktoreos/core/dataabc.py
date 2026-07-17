@@ -250,7 +250,7 @@ class DataRecord(DataABC, MutableMapping):
         try:
             # Let getattr do the work
             return self.__getattr__(key)
-        except:
+        except AttributeError:
             raise KeyError(f"'{key}' not found in the record fields.")
 
     def __setitem__(self, key: str, value: Any) -> None:
@@ -266,7 +266,7 @@ class DataRecord(DataABC, MutableMapping):
         try:
             # Let setattr do the work
             self.__setattr__(key, value)
-        except:
+        except AttributeError:
             raise KeyError(f"'{key}' is not a recognized field.")
 
     def __delitem__(self, key: str) -> None:
@@ -280,7 +280,7 @@ class DataRecord(DataABC, MutableMapping):
         """
         try:
             self.__delattr__(key)
-        except:
+        except AttributeError:
             raise KeyError(f"'{key}' is not a recognized field.")
 
     def __iter__(self) -> Iterator[str]:
