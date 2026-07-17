@@ -582,7 +582,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             ),
             (
                 "feed_in_tariff_wh",
-                "linear",
+                "ffill",
                 "feed_in_tariff_amt_kwh",
                 1000.0,
             ),

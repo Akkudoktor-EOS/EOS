@@ -241,7 +241,8 @@ class TestElecPriceFixed:
         hourly_array = await provider.key_to_array(
             key="elecprice_marketprice_wh",
             start_datetime=start_dt,
-            end_datetime=start_dt.add(hours=24)
+            end_datetime=start_dt.add(hours=24),
+            fill_method="ffill",
         )
 
         assert len(hourly_array) == 24
@@ -253,7 +254,8 @@ class TestElecPriceFixed:
             key="elecprice_marketprice_wh",
             start_datetime=start_dt,
             end_datetime=start_dt.add(hours=24),
-            interval="15 minutes"
+            interval="15 minutes",
+            fill_method="ffill",
         )
 
         assert len(quarter_hour_array) == 96  # 24 * 4
@@ -266,7 +268,8 @@ class TestElecPriceFixed:
             key="elecprice_marketprice_wh",
             start_datetime=start_dt,
             end_datetime=start_dt.add(hours=24),
-            interval="30 minutes"
+            interval="30 minutes",
+            fill_method="ffill",
         )
 
         assert len(half_hour_array) == 48  # 24 * 2

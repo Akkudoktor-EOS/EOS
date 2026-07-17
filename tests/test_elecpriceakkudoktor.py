@@ -127,11 +127,12 @@ class TestElecPriceAkkudokor:
             len(provider) == 73
         )  # we have 48 datasets in the api response, we want to know 48h into the future. The data we get has already 23h into the future so we need only 25h more. 48+25=73
 
-        # Assert we get hours prioce values by resampling
+        # Assert we get hours price values by resampling
         np_price_array = await provider.key_to_array(
             key="elecprice_marketprice_wh",
             start_datetime=provider.ems_start_datetime,
             end_datetime=provider.end_datetime,
+            fill_method="ffill",
         )
         assert len(np_price_array) == provider.total_hours
 
@@ -204,6 +205,7 @@ class TestElecPriceAkkudokor:
             key="elecprice_marketprice_wh",
             start_datetime=provider.ems_start_datetime,
             end_datetime=provider.end_datetime,
+            fill_method="ffill",
         )
         assert isinstance(array, np.ndarray)
         assert len(array) == provider.total_hours

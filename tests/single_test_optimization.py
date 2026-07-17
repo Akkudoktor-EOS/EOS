@@ -153,6 +153,7 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
         key="elecprice_marketprice_wh",
         start_datetime=prediction_eos.ems_start_datetime,
         end_datetime=prediction_eos.end_datetime,
+        fill_method="ffill",
     )
     print(f"strompreis_euro_pro_wh: {strompreis_euro_pro_wh}")
 
