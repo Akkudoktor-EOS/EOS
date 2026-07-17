@@ -51,6 +51,7 @@ class Inverter:
         consumption: float,
         hour: int,
         allow_battery_grid_export: bool = False,
+        export_reserve_ac_wh: float = 0.0,
     ) -> tuple[float, float, float, float]:
         """Process one slot using probabilistic direct PV-to-load overlap.
 
@@ -59,6 +60,13 @@ class Inverter:
         PV-to-load power. The remaining load and PV surplus are then handled
         independently, because both can occur during different sub-intervals of
         the same hourly or 15-minute slot.
+
+        ``export_reserve_ac_wh`` is delivered-AC energy the battery must keep
+        for overnight household self-consumption. It only caps the
+        battery-to-grid export path (direct marketing): covering the slot's own
+        load may still use the reserve, so the pack rides the night on
+        self-consumption instead of selling out in the evening and re-importing
+        the whole night from the grid.
         """
         losses = 0.0
         grid_export = 0.0
@@ -126,6 +134,10 @@ class Inverter:
             remaining_battery_ac = (
                 self.battery.remaining_discharge_energy_wh(hour) * self.dc_to_ac_efficiency
             )
+            # Overnight reserve: energy earmarked for tonight's household load
+            # is not exportable. Self-consumption above already had full access.
+            if export_reserve_ac_wh > 0.0:
+                remaining_battery_ac = max(remaining_battery_ac - export_reserve_ac_wh, 0.0)
             export_capacity = min(remaining_inverter_ac_capacity, remaining_battery_ac)
             battery_export_ac, battery_export_losses = self._discharge_battery_to_ac(
                 export_capacity, hour

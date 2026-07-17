@@ -1,5 +1,6 @@
 """Genetic algorithm."""
 
+import os
 import random
 import time
 from collections import OrderedDict, defaultdict
@@ -26,6 +27,146 @@ from akkudoktoreos.optimization.genetic.geneticsolution import (
     GeneticSolution,
 )
 from akkudoktoreos.optimization.optimizationabc import OptimizationBase
+
+# ---------------------------------------------------------------------------
+# Overnight reserve (direct marketing safeguard)
+#
+# Without a reserve, direct marketing (battery_grid_export) happily sells the
+# battery into the evening price peak and buys the whole night's load back from
+# the grid at the (usually higher) import price. With it, grid-export discharge
+# must leave enough charge to cover the forecast net load (load − PV) until PV
+# next covers load the following morning. Self-consumption is NOT limited — the
+# reserve is consumed through the night and ends near the floor as morning PV
+# takes over. EOS_OVERNIGHT_RESERVE=0 disables it → sell to the floor.
+# EOS_OVERNIGHT_RESERVE_MARGIN pads the forecast against under-prediction.
+_OVERNIGHT_RESERVE_ENABLED = os.environ.get("EOS_OVERNIGHT_RESERVE", "1") not in (
+    "0",
+    "false",
+    "False",
+    "no",
+)
+try:
+    _OVERNIGHT_RESERVE_MARGIN = float(os.environ.get("EOS_OVERNIGHT_RESERVE_MARGIN", "1.1"))
+except (TypeError, ValueError):
+    _OVERNIGHT_RESERVE_MARGIN = 1.1
+
+# PRICE-AWARE overnight reserve: the energy-balance reserve above is
+# price-blind — it holds the full forecast night net-load as an export cap, so
+# the optimizer cannot sell that energy into a high evening peak even when
+# selling now + re-buying cheaper overnight is clearly better. When enabled,
+# each slot's reserve is RELEASED (down to a small hard safety floor) whenever
+# THAT SLOT'S OWN export revenue beats the highest avoided night-import price
+# by more than a RELATIVE margin: revenue[h] > avoided_import × (1 + margin)
+# (+ optional absolute spread). avoided_import is read per-slot from the
+# resolved end-customer import price array, so this stays tariff-agnostic
+# (fixed AND dynamic tariffs). Default OFF → byte-identical to the price-blind
+# reserve.
+_RESERVE_PRICE_AWARE_ENABLED = os.environ.get("EOS_RESERVE_PRICE_AWARE", "0") not in (
+    "0",
+    "false",
+    "False",
+    "no",
+)
+try:
+    _RESERVE_RELEASE_MARGIN = float(os.environ.get("EOS_RESERVE_RELEASE_MARGIN", "0.20"))
+except (TypeError, ValueError):
+    _RESERVE_RELEASE_MARGIN = 0.20
+try:
+    _RESERVE_RELEASE_SPREAD = float(
+        os.environ.get("EOS_RESERVE_RELEASE_SPREAD_EUR_PER_WH", "0.0")
+    )
+except (TypeError, ValueError):
+    _RESERVE_RELEASE_SPREAD = 0.0
+# Load-adaptive self-consumption safety floor (delivered-AC Wh) that is NEVER
+# released: safety = clamp(full_night_reserve × fraction, floor, cap). The
+# floor is the operator's blackout buffer ON TOP of the battery min_soc.
+try:
+    _RESERVE_SAFETY_FRACTION = float(os.environ.get("EOS_RESERVE_SAFETY_FRACTION", "0.5"))
+except (TypeError, ValueError):
+    _RESERVE_SAFETY_FRACTION = 0.5
+try:
+    _RESERVE_MIN_SAFETY_FLOOR_WH = float(
+        os.environ.get("EOS_RESERVE_MIN_SAFETY_FLOOR_WH", "2000")
+    )
+except (TypeError, ValueError):
+    _RESERVE_MIN_SAFETY_FLOOR_WH = 2000.0
+try:
+    _RESERVE_MIN_SAFETY_CAP_WH = float(os.environ.get("EOS_RESERVE_MIN_SAFETY_CAP_WH", "6000"))
+except (TypeError, ValueError):
+    _RESERVE_MIN_SAFETY_CAP_WH = 6000.0
+
+
+def _compute_overnight_reserve(
+    load_array: np.ndarray,
+    pv_array: np.ndarray,
+    start_hour: int,
+    end_hour: int,
+    margin: float,
+    price_array: Optional[np.ndarray] = None,
+    revenue_array: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """Per-slot delivered-AC energy the battery must keep for self-consumption.
+
+    reserve[h] = margin × Σ max(load[j] − pv[j], 0) for j running from h+1 up to
+    (but not including) the next slot where PV covers load. Walked backwards so
+    each evening reserves exactly the energy needed to ride to the next morning.
+
+    Price-aware release (per-slot): when enabled AND both price_array (per-slot
+    import price, EUR/Wh) and revenue_array (per-slot feed-in revenue, EUR/Wh)
+    are supplied, each slot's reserve is RELEASED down to a hard safety floor
+    whenever THAT SLOT'S OWN export revenue beats the highest avoided
+    night-import price of its night window by more than the relative margin.
+    The night reserve may therefore only be SOLD in slots that individually
+    clear the buy-back-plus-loss threshold; the surplus ABOVE the reserve is
+    sold price-best-first in any slot by the GA regardless. reserve[h] is a
+    per-slot EXPORT cap in inverter.py, NOT a hard SoC-trajectory floor, so a
+    per-slot release stays temporally consistent. Pure function of the forecast
+    arrays — no RNG, no per-individual state — so the GA stays deterministic
+    and the result is fitness-cache-safe.
+    """
+    reserve = np.zeros_like(load_array, dtype=float)
+    if not _OVERNIGHT_RESERVE_ENABLED:
+        return reserve
+    price_aware = (
+        _RESERVE_PRICE_AWARE_ENABLED and price_array is not None and revenue_array is not None
+    )
+    running = 0.0
+    # Exclusive upper bound of the night window the current reserve belongs to.
+    # The release decision is scoped to THAT window only — comparing against
+    # prices beyond it (a later, possibly pricier night the energy never
+    # reaches) would wrongly suppress or trigger the release on a multi-day
+    # horizon.
+    night_window_end = end_hour
+    for h in range(end_hour - 1, start_hour - 1, -1):
+        nxt = h + 1
+        if nxt >= end_hour or pv_array[nxt] >= load_array[nxt]:
+            running = 0.0  # morning reached (or horizon end) — no reserve beyond
+            night_window_end = nxt  # a fresh night window starts above this boundary
+        else:
+            running += max(float(load_array[nxt]) - float(pv_array[nxt]), 0.0)
+        full_reserve = running * margin
+        if not price_aware or full_reserve <= 0.0:
+            reserve[h] = full_reserve
+            continue
+        # Highest avoided night-import price within this night window.
+        # Conservative: the most expensive slot, so the reserve only releases
+        # when the reachable export revenue clearly beats it.
+        avoided_import = (
+            float(np.max(price_array[nxt:night_window_end])) if nxt < night_window_end else 0.0
+        )
+        this_export = float(revenue_array[h])
+        if this_export > avoided_import * (1.0 + _RESERVE_RELEASE_MARGIN) + _RESERVE_RELEASE_SPREAD:
+            # Selling into the peak beats holding → release to the
+            # load-adaptive safety floor. Never reserve MORE than the energy
+            # balance would have asked for.
+            safety = min(
+                max(full_reserve * _RESERVE_SAFETY_FRACTION, _RESERVE_MIN_SAFETY_FLOOR_WH),
+                _RESERVE_MIN_SAFETY_CAP_WH,
+            )
+            reserve[h] = min(full_reserve, safety)
+        else:
+            reserve[h] = full_reserve
+    return reserve
 
 
 @dataclass
@@ -180,6 +321,12 @@ class GeneticSimulation(PydanticBaseModel):
     ev_discharge_hours: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, json_schema_extra={"description": "TBD"}
     )
+    export_reserve_wh_arr: Optional[NDArray[Shape["*"], float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Per-slot delivered-AC overnight reserve capping battery grid export."
+        },
+    )
 
     def prepare(
         self,
@@ -228,6 +375,21 @@ class GeneticSimulation(PydanticBaseModel):
         self.ev_charge_hours = np.full(self.prediction_hours, 0.0)
         self.ev_discharge_hours = np.full(self.prediction_hours, 0.0)
 
+        # Overnight reserve for direct marketing: computed ONCE per prepare()
+        # from the forecast arrays (pure + deterministic → fitness-cache-safe),
+        # then applied per-slot as an export cap in Inverter.process_energy.
+        self.export_reserve_wh_arr = _compute_overnight_reserve(
+            self.load_energy_array,
+            self.pv_prediction_wh,
+            0,
+            len(self.load_energy_array),
+            _OVERNIGHT_RESERVE_MARGIN,
+            price_array=self.elect_price_hourly if _RESERVE_PRICE_AWARE_ENABLED else None,
+            revenue_array=(
+                self.elect_revenue_per_hour_arr if _RESERVE_PRICE_AWARE_ENABLED else None
+            ),
+        )
+
     def reset(self) -> None:
         if self.ev:
             self.ev.reset()
@@ -259,6 +421,7 @@ class GeneticSimulation(PydanticBaseModel):
         home_appliances_fast = self.home_appliances
         inverter_fast = self.inverter
         direct_marketing_enabled_fast = self.direct_marketing_enabled
+        export_reserve_wh_arr_fast = self.export_reserve_wh_arr
 
         # Check for simulation integrity (in a way that mypy understands)
         if (
@@ -461,6 +624,12 @@ class GeneticSimulation(PydanticBaseModel):
                     consumption,
                     hour,
                     allow_battery_grid_export=battery_grid_export_allowed,
+                    export_reserve_ac_wh=(
+                        float(export_reserve_wh_arr_fast[hour])
+                        if export_reserve_wh_arr_fast is not None
+                        and hour < len(export_reserve_wh_arr_fast)
+                        else 0.0
+                    ),
                 )
             else:
                 hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
