@@ -3,12 +3,12 @@
   "info": {
     "title": "Akkudoktor-EOS",
     "summary": "Comprehensive solution for simulating and optimizing an energy system based on renewable energy sources",
-    "description": "This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.",
+    "description": "This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.\n\n## Currency Information\n\nAll monetary values in this API are expressed in the locally configured currency of the EOS installation. The system is designed to work with any currency (e.g., EUR, SEK, CHF, USD, GBP, etc.). Each installation uses a single, consistent currency throughout all endpoints and responses.\n\nValues are given in whole currency units, not in hundredth subunits: a value of `0.0003` in an installation configured for Euro means 0.0003 EUR/Wh (i.e. 0.30 EUR/kWh), never cents. The same applies to all totals (e.g. `total_costs` of `1.5` = 1.50 EUR).\n\nField names containing cost, price, revenue, tariff, or similar monetary terms (e.g., `total_costs`, `electricity_price_per_wh`, `revenue_per_hour`) represent amounts in the configured currency, without explicit currency designation in the field name to maintain currency-neutrality.\n\n## Deprecated Field Names\n\nThe genetic optimization API fields were renamed from German to English. For backward compatibility the old German field names (e.g. `gesamtlast`, `pv_prognose_wh`, `Gesamtbilanz_Euro`) are still accepted on input and are emitted in responses alongside the English names, marked as deprecated in the schema. They will be removed in a future release \u2014 new clients should use the English field names only.\n",
     "license": {
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607171544999797"
+    "version": "v0.3.0.dev2607171715033828"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -1941,7 +1941,7 @@
           "prediction"
         ],
         "summary": "Fastapi Strompreis",
-        "description": "Deprecated: Electricity Market Price Prediction per Wh (\u20ac/Wh).\n\nElectricity prices start at 00.00.00 today and are provided for 48 hours.\nIf no prices are available the missing ones at the start of the series are\nfilled with the first available price.\n\nNote:\n    Electricity price charges are added.\n\nNote:\n    Set ElecPriceAkkudoktor as provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=elecprice_marketprice_wh' or\n    '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.",
+        "description": "Deprecated: Electricity Market Price Prediction per Wh [amount/Wh].\n\nElectricity prices start at 00.00.00 today and are provided for 48 hours.\nIf no prices are available the missing ones at the start of the series are\nfilled with the first available price.\n\nNote:\n    Electricity price charges are added.\n\nNote:\n    Set ElecPriceAkkudoktor as provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=elecprice_marketprice_wh' or\n    '/v1/prediction/list?key=elecprice_marketprice_kwh' instead.",
         "operationId": "fastapi_strompreis_strompreis_get",
         "responses": {
           "200": {
@@ -2319,7 +2319,7 @@
           "levelized_cost_of_storage_kwh": {
             "type": "number",
             "title": "Levelized Cost Of Storage Kwh",
-            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
+            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [amount/kWh].",
             "default": 0.0,
             "examples": [
               0.12
@@ -2473,7 +2473,7 @@
           "levelized_cost_of_storage_kwh": {
             "type": "number",
             "title": "Levelized Cost Of Storage Kwh",
-            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [\u20ac/kWh].",
+            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [amount/kWh].",
             "default": 0.0,
             "examples": [
               0.12
@@ -3462,7 +3462,7 @@
               }
             ],
             "title": "Charges Kwh",
-            "description": "Electricity price charges [\u20ac/kWh]. Will be added to variable market price.",
+            "description": "Electricity price charges [amount/kWh]. Will be added to variable market price.",
             "examples": [
               0.21
             ]
@@ -3529,7 +3529,7 @@
               }
             ],
             "title": "Charges Kwh",
-            "description": "Electricity price charges [\u20ac/kWh]. Will be added to variable market price.",
+            "description": "Electricity price charges [amount/kWh]. Will be added to variable market price.",
             "examples": [
               0.21
             ]
@@ -4447,7 +4447,7 @@
               }
             ],
             "title": "Feed In Tariff Kwh",
-            "description": "Electricity price feed in tariff [\u20ac/kWH].",
+            "description": "Electricity price feed in tariff [amount/kWh].",
             "examples": [
               0.078
             ]
@@ -4861,23 +4861,23 @@
       },
       "GeneticEnergyManagementParameters": {
         "properties": {
-          "pv_prognose_wh": {
+          "pv_forecast_wh": {
             "items": {
               "type": "number"
             },
             "type": "array",
-            "title": "Pv Prognose Wh",
+            "title": "Pv Forecast Wh",
             "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
           },
-          "strompreis_euro_pro_wh": {
+          "electricity_price_per_wh": {
             "items": {
               "type": "number"
             },
             "type": "array",
-            "title": "Strompreis Euro Pro Wh",
-            "description": "An array of floats representing the electricity price in euros per watt-hour for different time intervals."
+            "title": "Electricity Price Per Wh",
+            "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
           },
-          "einspeiseverguetung_euro_pro_wh": {
+          "feed_in_tariff_per_wh": {
             "anyOf": [
               {
                 "items": {
@@ -4889,31 +4889,30 @@
                 "type": "number"
               }
             ],
-            "title": "Einspeiseverguetung Euro Pro Wh",
-            "description": "A float or array of floats representing the feed-in compensation in euros per watt-hour."
+            "title": "Feed In Tariff Per Wh",
+            "description": "A float or array of floats representing the feed-in compensation per watt-hour."
           },
-          "preis_euro_pro_wh_akku": {
+          "price_per_wh_battery": {
             "type": "number",
-            "title": "Preis Euro Pro Wh Akku",
+            "title": "Price Per Wh Battery",
             "description": "A float representing the cost of battery energy per watt-hour."
           },
-          "gesamtlast": {
+          "total_load": {
             "items": {
               "type": "number"
             },
             "type": "array",
-            "title": "Gesamtlast",
+            "title": "Total Load",
             "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
-          "pv_prognose_wh",
-          "strompreis_euro_pro_wh",
-          "einspeiseverguetung_euro_pro_wh",
-          "preis_euro_pro_wh_akku",
-          "gesamtlast"
+          "pv_forecast_wh",
+          "electricity_price_per_wh",
+          "feed_in_tariff_per_wh",
+          "price_per_wh_battery",
+          "total_load"
         ],
         "title": "GeneticEnergyManagementParameters",
         "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
@@ -5014,51 +5013,51 @@
       },
       "GeneticSimulationResult": {
         "properties": {
-          "Last_Wh_pro_Stunde": {
+          "load_wh_per_hour": {
             "items": {
               "type": "number"
             },
             "type": "array",
-            "title": "Last Wh Pro Stunde",
-            "description": "TBD"
+            "title": "Load Wh Per Hour",
+            "description": "The load in watt-hours per hour."
           },
-          "EAuto_SoC_pro_Stunde": {
+          "ev_soc_per_hour": {
             "items": {
               "type": "number"
             },
             "type": "array",
-            "title": "Eauto Soc Pro Stunde",
+            "title": "Ev Soc Per Hour",
             "description": "The state of charge of the EV for each hour."
           },
-          "Einnahmen_Euro_pro_Stunde": {
+          "revenue_per_hour": {
             "items": {
               "type": "number"
             },
             "type": "array",
-            "title": "Einnahmen Euro Pro Stunde",
-            "description": "The revenue from grid feed-in or other sources in euros per hour."
+            "title": "Revenue Per Hour",
+            "description": "The revenue from grid feed-in or other sources per hour."
           },
-          "Gesamt_Verluste": {
+          "total_losses": {
             "type": "number",
-            "title": "Gesamt Verluste",
+            "title": "Total Losses",
             "description": "The total losses in watt-hours over the entire period."
           },
-          "Gesamtbilanz_Euro": {
+          "total_balance": {
             "type": "number",
-            "title": "Gesamtbilanz Euro",
-            "description": "The total balance of revenues minus costs in euros."
+            "title": "Total Balance",
+            "description": "The total balance of revenues minus costs."
           },
-          "Gesamteinnahmen_Euro": {
+          "total_revenue": {
             "type": "number",
-            "title": "Gesamteinnahmen Euro",
-            "description": "The total revenues in euros."
+            "title": "Total Revenue",
+            "description": "The total revenues."
           },
-          "Gesamtkosten_Euro": {
+          "total_costs": {
             "type": "number",
-            "title": "Gesamtkosten Euro",
-            "description": "The total costs in euros."
+            "title": "Total Costs",
+            "description": "The total costs."
           },
-          "Home_appliance_wh_per_hour": {
+          "home_appliance_wh_per_hour": {
             "items": {
               "anyOf": [
                 {
@@ -5073,13 +5072,138 @@
             "title": "Home Appliance Wh Per Hour",
             "description": "The energy consumption of a household appliance in watt-hours per hour."
           },
+          "costs_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Costs Per Hour",
+            "description": "The costs per hour."
+          },
+          "grid_consumption_wh_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Grid Consumption Wh Per Hour",
+            "description": "The grid energy drawn in watt-hours per hour."
+          },
+          "grid_feed_in_wh_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Grid Feed In Wh Per Hour",
+            "description": "The energy fed into the grid in watt-hours per hour."
+          },
+          "losses_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Losses Per Hour",
+            "description": "The losses in watt-hours per hour."
+          },
+          "battery_soc_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Battery Soc Per Hour",
+            "description": "The state of charge of the battery (not the EV) in percentage per hour."
+          },
+          "electricity_price": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Electricity Price",
+            "description": "Used Electricity Price, including predictions"
+          },
+          "Last_Wh_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Last Wh Pro Stunde",
+            "description": "Deprecated: Use load_wh_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "EAuto_SoC_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Eauto Soc Pro Stunde",
+            "description": "Deprecated: Use ev_soc_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Einnahmen_Euro_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Einnahmen Euro Pro Stunde",
+            "description": "Deprecated: Use revenue_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Gesamt_Verluste": {
+            "type": "number",
+            "title": "Gesamt Verluste",
+            "description": "Deprecated: Use total_losses instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Gesamtbilanz_Euro": {
+            "type": "number",
+            "title": "Gesamtbilanz Euro",
+            "description": "Deprecated: Use total_balance instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Gesamteinnahmen_Euro": {
+            "type": "number",
+            "title": "Gesamteinnahmen Euro",
+            "description": "Deprecated: Use total_revenue instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Gesamtkosten_Euro": {
+            "type": "number",
+            "title": "Gesamtkosten Euro",
+            "description": "Deprecated: Use total_costs instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Home_appliance_wh_per_hour": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Home Appliance Wh Per Hour",
+            "description": "Deprecated: Use home_appliance_wh_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
           "Kosten_Euro_pro_Stunde": {
             "items": {
               "type": "number"
             },
             "type": "array",
             "title": "Kosten Euro Pro Stunde",
-            "description": "The costs in euros per hour."
+            "description": "Deprecated: Use costs_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
           },
           "Netzbezug_Wh_pro_Stunde": {
             "items": {
@@ -5087,7 +5211,9 @@
             },
             "type": "array",
             "title": "Netzbezug Wh Pro Stunde",
-            "description": "The grid energy drawn in watt-hours per hour."
+            "description": "Deprecated: Use grid_consumption_wh_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
           },
           "Netzeinspeisung_Wh_pro_Stunde": {
             "items": {
@@ -5095,7 +5221,9 @@
             },
             "type": "array",
             "title": "Netzeinspeisung Wh Pro Stunde",
-            "description": "The energy fed into the grid in watt-hours per hour."
+            "description": "Deprecated: Use grid_feed_in_wh_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
           },
           "Verluste_Pro_Stunde": {
             "items": {
@@ -5103,7 +5231,9 @@
             },
             "type": "array",
             "title": "Verluste Pro Stunde",
-            "description": "The losses in watt-hours per hour."
+            "description": "Deprecated: Use losses_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
           },
           "akku_soc_pro_stunde": {
             "items": {
@@ -5111,7 +5241,9 @@
             },
             "type": "array",
             "title": "Akku Soc Pro Stunde",
-            "description": "The state of charge of the battery (not the EV) in percentage per hour."
+            "description": "Deprecated: Use battery_soc_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
           },
           "Electricity_price": {
             "items": {
@@ -5119,12 +5251,27 @@
             },
             "type": "array",
             "title": "Electricity Price",
-            "description": "Used Electricity Price, including predictions"
+            "description": "Deprecated: Use electricity_price instead.",
+            "deprecated": true,
+            "readOnly": true
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
+          "load_wh_per_hour",
+          "ev_soc_per_hour",
+          "revenue_per_hour",
+          "total_losses",
+          "total_balance",
+          "total_revenue",
+          "total_costs",
+          "home_appliance_wh_per_hour",
+          "costs_per_hour",
+          "grid_consumption_wh_per_hour",
+          "grid_feed_in_wh_per_hour",
+          "losses_per_hour",
+          "battery_soc_per_hour",
+          "electricity_price",
           "Last_Wh_pro_Stunde",
           "EAuto_SoC_pro_Stunde",
           "Einnahmen_Euro_pro_Stunde",
@@ -5236,7 +5383,7 @@
           "eauto_obj"
         ],
         "title": "GeneticSolution",
-        "description": "**Note**: The first value of \"Last_Wh_per_hour\", \"Netzeinspeisung_Wh_per_hour\", and \"Netzbezug_Wh_per_hour\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
+        "description": "**Note**: The first value of \"load_wh_per_hour\", \"grid_feed_in_wh_per_hour\", and \"grid_consumption_wh_per_hour\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
       },
       "GesamtlastRequest": {
         "properties": {

@@ -278,7 +278,7 @@ class EnergyManagement(
                     start_hour = EnergyManagement._start_datetime.hour
                     solution = await loop.run_in_executor(
                         None,
-                        lambda: optimization.optimierung_ems(
+                        lambda: optimization.optimize_ems(
                             start_hour=start_hour,
                             parameters=cast(
                                 GeneticOptimizationParameters, genetic_parameters
@@ -355,7 +355,7 @@ class EnergyManagement(
                 start_hour = EnergyManagement._start_datetime.hour
                 solution = await loop.run_in_executor(
                     None,
-                    lambda: optimization.optimierung_ems(
+                    lambda: optimization.optimize_ems(
                         start_hour=start_hour,
                         parameters=genetic_parameters,
                         ngen=genetic_individuals,

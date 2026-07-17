@@ -265,11 +265,11 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
     y2_axis = LinearAxis(y_range_name="factor", axis_label="Factor [0.0..1.0]")
     plot.add_layout(y2_axis, "left")
     # y3 axis
-    y3_axis = LinearAxis(y_range_name="amt_kwh", axis_label="Electricty Price [currency/kWh]")
+    y3_axis = LinearAxis(y_range_name="amt_kwh", axis_label="Electricity Price [amount/kWh]")
     y3_axis.axis_label_text_color = "red"
     plot.add_layout(y3_axis, "right")
     # y4 axis
-    y4_axis = LinearAxis(y_range_name="amt", axis_label="Amount [currency]")
+    y4_axis = LinearAxis(y_range_name="amt", axis_label="Amount")
     plot.add_layout(y4_axis, "right")
 
     plot.toolbar.autohide = True

@@ -43,7 +43,7 @@ class ElecPriceCommonSettings(SettingsBaseModel):
         default=None,
         ge=0,
         json_schema_extra={
-            "description": "Electricity price charges [€/kWh]. Will be added to variable market price.",
+            "description": "Electricity price charges [amount/kWh]. Will be added to variable market price.",
             "examples": [0.21],
         },
     )

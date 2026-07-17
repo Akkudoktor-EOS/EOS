@@ -54,7 +54,7 @@ def ElectricityPriceForecast(
         ),
         title=f"Electricity Price Prediction ({provider})",
         x_axis_label=f"Datetime [localtime {date_time_tz}]",
-        y_axis_label="Price [€/kWh]",
+        y_axis_label="Price [amount/kWh]",
         sizing_mode="stretch_width",
         height=400,
     )

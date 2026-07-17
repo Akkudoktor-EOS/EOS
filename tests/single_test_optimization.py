@@ -148,22 +148,22 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
     )
     print(f"temperature_forecast: {temperature_forecast}")
 
-    # Electricity Price (in Euro per Wh)
-    strompreis_euro_pro_wh = await prediction_eos.key_to_array(
+    # Electricity price (per Wh)
+    electricity_price_per_wh = await prediction_eos.key_to_array(
         key="elecprice_marketprice_wh",
         start_datetime=prediction_eos.ems_start_datetime,
         end_datetime=prediction_eos.end_datetime,
         fill_method="ffill",
     )
-    print(f"strompreis_euro_pro_wh: {strompreis_euro_pro_wh}")
+    print(f"electricity_price_per_wh: {electricity_price_per_wh}")
 
     # Overall System Load (in W)
-    gesamtlast = await prediction_eos.key_to_array(
+    total_load = await prediction_eos.key_to_array(
         key="load_mean",
         start_datetime=prediction_eos.ems_start_datetime,
         end_datetime=prediction_eos.end_datetime,
     )
-    print(f"gesamtlast: {gesamtlast}")
+    print(f"total_load: {total_load}")
 
     # Start Solution (binary)
     start_solution = None
@@ -173,11 +173,11 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
     return GeneticOptimizationParameters(
         **{
             "ems": {
-                "preis_euro_pro_wh_akku": 0e-05,
-                "einspeiseverguetung_euro_pro_wh": 7e-05,
-                "gesamtlast": gesamtlast,
-                "pv_prognose_wh": pv_forecast,
-                "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
+                "price_per_wh_battery": 0e-05,
+                "feed_in_tariff_per_wh": 7e-05,
+                "total_load": total_load,
+                "pv_forecast_wh": pv_forecast,
+                "electricity_price_per_wh": electricity_price_per_wh,
             },
             "pv_akku": {
                 "device_id": "battery 1",
@@ -304,14 +304,14 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
         17.4,
     ]
 
-    # Electricity Price (in Euro per Wh)
-    strompreis_euro_pro_wh = np.full(48, 0.001)
-    strompreis_euro_pro_wh[0:10] = 0.00001
-    strompreis_euro_pro_wh[11:15] = 0.00005
-    strompreis_euro_pro_wh[20] = 0.00001
+    # Electricity price (per Wh)
+    electricity_price_per_wh = np.full(48, 0.001)
+    electricity_price_per_wh[0:10] = 0.00001
+    electricity_price_per_wh[11:15] = 0.00005
+    electricity_price_per_wh[20] = 0.00001
 
     # Overall System Load (in W)
-    gesamtlast = [
+    total_load = [
         676.71,
         876.19,
         527.13,
@@ -369,11 +369,11 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
     return GeneticOptimizationParameters(
         **{
             "ems": {
-                "preis_euro_pro_wh_akku": 0e-05,
-                "einspeiseverguetung_euro_pro_wh": 7e-05,
-                "gesamtlast": gesamtlast,
-                "pv_prognose_wh": pv_forecast,
-                "strompreis_euro_pro_wh": strompreis_euro_pro_wh,
+                "price_per_wh_battery": 0e-05,
+                "feed_in_tariff_per_wh": 7e-05,
+                "total_load": total_load,
+                "pv_forecast_wh": pv_forecast,
+                "electricity_price_per_wh": electricity_price_per_wh,
             },
             "pv_akku": {
                 "device_id": "battery 1",

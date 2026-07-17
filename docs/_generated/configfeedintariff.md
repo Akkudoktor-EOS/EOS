@@ -95,7 +95,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| feed_in_tariff_kwh | `Optional[float]` | `rw` | `None` | Electricity price feed in tariff [€/kWH]. |
+| feed_in_tariff_kwh | `Optional[float]` | `rw` | `None` | Electricity price feed in tariff [amount/kWh]. |
 :::
 <!-- pyml enable line-length -->
 
