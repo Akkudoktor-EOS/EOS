@@ -4,6 +4,16 @@ All notable changes to the akkudoktoreos project will be documented in this file
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## Unreleased
+
+### Added
+
+- New PV forecast providers giving operators more cloud forecast sources to choose from in
+  addition to Akkudoktor, VRM and Import:
+  - `PVForecastPVNode` — native 15-minute forecasts from the pvnode.com API.
+  - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
+  - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
+
 ## 0.3.0 (2026-03-17)
 
 Akkudoktor-EOS can now be run as Home Assistant add-on and standalone.
