@@ -448,7 +448,7 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,
         [
-            parameters.ems.gesamtlast[start_hour:],
+            parameters.ems.total_load[start_hour:],
         ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
@@ -458,7 +458,7 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,
         [
-            parameters.ems.pv_prognose_wh[start_hour:],
+            parameters.ems.pv_forecast_wh[start_hour:],
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
@@ -469,15 +469,15 @@ def prepare_visualize(
         next_full_hour_date,
         [
             np.full(
-                len(parameters.ems.gesamtlast) - start_hour,
-                parameters.ems.einspeiseverguetung_euro_pro_wh[start_hour:]
-                if isinstance(parameters.ems.einspeiseverguetung_euro_pro_wh, list)
-                else parameters.ems.einspeiseverguetung_euro_pro_wh,
+                len(parameters.ems.total_load) - start_hour,
+                parameters.ems.feed_in_tariff_per_wh[start_hour:]
+                if isinstance(parameters.ems.feed_in_tariff_per_wh, list)
+                else parameters.ems.feed_in_tariff_per_wh,
             )
         ],
         title="Remuneration",
         # xlabel="Hours", # not enough space
-        ylabel="€/Wh",
+        ylabel="amount/Wh",
         x2label=None,  # not enough space
     )
     if parameters.temperature_forecast:
@@ -497,11 +497,11 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
         [
-            results["result"]["Last_Wh_pro_Stunde"],
-            results["result"]["Home_appliance_wh_per_hour"],
-            results["result"]["Netzeinspeisung_Wh_pro_Stunde"],
-            results["result"]["Netzbezug_Wh_pro_Stunde"],
-            results["result"]["Verluste_Pro_Stunde"],
+            results["result"]["load_wh_per_hour"],
+            results["result"]["home_appliance_wh_per_hour"],
+            results["result"]["grid_feed_in_wh_per_hour"],
+            results["result"]["grid_consumption_wh_per_hour"],
+            results["result"]["losses_per_hour"],
         ],
         title="Energy Flow per Hour",
         # xlabel="Date", # not enough space
@@ -521,7 +521,7 @@ def prepare_visualize(
     # Group 3:
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
-        [results["result"]["akku_soc_pro_stunde"], results["result"]["EAuto_SoC_pro_Stunde"]],
+        [results["result"]["battery_soc_per_hour"], results["result"]["ev_soc_per_hour"]],
         title="Battery SOC",
         # xlabel="Date", # not enough space
         ylabel="%",
@@ -533,10 +533,10 @@ def prepare_visualize(
     )
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
-        [parameters.ems.strompreis_euro_pro_wh[start_hour:]],
+        [parameters.ems.electricity_price_per_wh[start_hour:]],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
-        ylabel="Electricity Price (€/Wh)",
+        ylabel="Electricity Price (amount/Wh)",
         x2label=None,  # not enough space
     )
 
@@ -570,50 +570,50 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
         [
-            results["result"]["Kosten_Euro_pro_Stunde"],
-            results["result"]["Einnahmen_Euro_pro_Stunde"],
+            results["result"]["costs_per_hour"],
+            results["result"]["revenue_per_hour"],
         ],
         title="Financial Balance per Hour",
         # xlabel="Date", # not enough space
-        ylabel="Euro",
+        ylabel="Amount",
         labels=["Costs", "Revenue"],
     )
 
     extra_data = results["extra_data"]
     report.create_scatter_plot(
-        extra_data["verluste"],
-        extra_data["bilanz"],
+        extra_data["losses"],
+        extra_data["balance"],
         title="Scatter Plot",
         xlabel="losses",
         ylabel="balance",
-        c=extra_data["nebenbedingung"],
+        c=extra_data["constraints"],
     )
 
     values_list = [
         [
-            results["result"]["Gesamtkosten_Euro"],
-            results["result"]["Gesamteinnahmen_Euro"],
-            results["result"]["Gesamtbilanz_Euro"],
+            results["result"]["total_costs"],
+            results["result"]["total_revenue"],
+            results["result"]["total_balance"],
         ]
     ]
-    labels = ["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"]
+    labels = ["Total Costs [amount]", "Total Revenue [amount]", "Total Balance [amount]"]
 
     report.create_bar_chart(
         labels=labels,
         values_list=values_list,
         title="Financial Overview",
-        ylabel="Euro",
-        xlabels=["Total Costs [€]", "Total Revenue [€]", "Total Balance [€]"],
+        ylabel="Amount",
+        xlabels=["Total Costs [amount]", "Total Revenue [amount]", "Total Balance [amount]"],
     )
 
     report.finalize_group()
 
     # Group 1: Scatter plot of losses vs balance with color-coded constraints
-    f1 = np.array(extra_data["verluste"])  # Losses
-    f2 = np.array(extra_data["bilanz"])  # Balance
-    n1 = np.array(extra_data["nebenbedingung"])  # Constraints
+    f1 = np.array(extra_data["losses"])  # Losses
+    f2 = np.array(extra_data["balance"])  # Balance
+    n1 = np.array(extra_data["constraints"])  # Constraints
 
-    # Filter data where 'nebenbedingung' < 0.01
+    # Filter data where 'constraints' < 0.01
     filtered_indices = n1 < 0.01
     filtered_losses = f1[filtered_indices]
     filtered_balance = f2[filtered_indices]

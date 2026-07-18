@@ -17,7 +17,7 @@ class FeedInTariffFixedCommonSettings(SettingsBaseModel):
         default=None,
         ge=0,
         json_schema_extra={
-            "description": "Electricity price feed in tariff [€/kWH].",
+            "description": "Electricity price feed in tariff [amount/kWh].",
             "examples": [0.078],
         },
     )

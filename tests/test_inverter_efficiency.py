@@ -582,7 +582,7 @@ def _run_evaluate_with_mocked_sim(
         fitness = optim.evaluate(
             fake_individual,
             parameters=Mock(
-                ems=Mock(preis_euro_pro_wh_akku=0.0),
+                ems=Mock(price_per_wh_battery=0.0),
                 eauto=None,
             ),
             start_hour=start_hour,

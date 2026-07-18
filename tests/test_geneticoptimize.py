@@ -56,7 +56,7 @@ def test_optimize(
     config_eos: ConfigEOS,
     is_finalize: bool,
 ):
-    """Test optimierung_ems."""
+    """Test optimize_ems."""
     # Test parameters
     fixed_start_hour = 10
     fixed_seed = 42
@@ -125,7 +125,7 @@ def test_optimize(
         ),
     ) as prepare_visualize_patch:
         # Call the optimization function
-        genetic_solution = genetic_optimization.optimierung_ems(
+        genetic_solution = genetic_optimization.optimize_ems(
             parameters=input_data, start_hour=fixed_start_hour, ngen=ngen
         )
         # The function creates a visualization result PDF as a side-effect.
