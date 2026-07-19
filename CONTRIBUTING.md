@@ -32,8 +32,7 @@ Setup virtual environment, then activate virtual environment and install develop
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements-dev.txt
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 Install make to get access to helpful shortcuts (documentation generation, manual formatting, etc.).
