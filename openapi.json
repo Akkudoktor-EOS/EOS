@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607200446185246"
+    "version": "v0.3.0.dev2607201124501528"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -3495,6 +3495,10 @@
           "energycharts": {
             "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
             "description": "Energy Charts provider settings."
+          },
+          "tibber": {
+            "$ref": "#/components/schemas/ElecPriceTibberCommonSettings",
+            "description": "Tibber electricity price provider settings."
           }
         },
         "type": "object",
@@ -3562,6 +3566,10 @@
           "energycharts": {
             "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
             "description": "Energy Charts provider settings."
+          },
+          "tibber": {
+            "$ref": "#/components/schemas/ElecPriceTibberCommonSettings",
+            "description": "Tibber electricity price provider settings."
           },
           "providers": {
             "items": {
@@ -3690,6 +3698,43 @@
         "type": "object",
         "title": "ElecPriceImportCommonSettings",
         "description": "Common settings for elecprice data import from file or JSON String."
+      },
+      "ElecPriceTibberCommonSettings": {
+        "properties": {
+          "access_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Token",
+            "description": "Tibber API access token.",
+            "examples": [
+              "tibber_pat_..."
+            ]
+          },
+          "home_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Home Id",
+            "description": "Optional Tibber home id. If omitted, the first home with a subscription is used.",
+            "examples": [
+              "00000000-0000-0000-0000-000000000000"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecPriceTibberCommonSettings",
+        "description": "Common settings for the Tibber electricity price provider."
       },
       "ElectricVehicleParameters": {
         "properties": {

@@ -280,7 +280,8 @@
     "providers": [
       "ElecPriceAkkudoktor",
       "ElecPriceEnergyCharts",
-      "ElecPriceImport"
+      "ElecPriceImport",
+      "ElecPriceTibber"
     ]
   },
   "feedintariff": {
