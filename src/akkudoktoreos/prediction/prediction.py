@@ -40,6 +40,7 @@ from akkudoktoreos.prediction.feedintariffakkudoktor import FeedInTariffAkkudokt
 from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
+from akkudoktoreos.prediction.feedintariffdvhubonline import FeedInTariffDvhubOnline
 from akkudoktoreos.prediction.feedintarifftibber import FeedInTariffTibber
 from akkudoktoreos.prediction.loadakkudoktor import (
     LoadAkkudoktor,
@@ -89,6 +90,7 @@ feedintariff_akkudoktor = FeedInTariffAkkudoktor()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
 feedintariff_tibber = FeedInTariffTibber()
+feedintariff_dvhub_online = FeedInTariffDvhubOnline()
 loadforecast_akkudoktor = LoadAkkudoktor()
 loadforecast_akkudoktor_adjusted = LoadAkkudoktorAdjusted()
 loadforecast_vrm = LoadVrm()
@@ -118,6 +120,7 @@ def prediction_providers() -> (
             FeedInTariffFixed,
             FeedInTariffImport,
             FeedInTariffTibber,
+            FeedInTariffDvhubOnline,
             LoadAkkudoktor,
             LoadAkkudoktorAdjusted,
             LoadVrm,
@@ -150,6 +153,7 @@ def prediction_providers() -> (
         feedintariff_fixed, \
         feedintariff_import, \
         feedintariff_tibber, \
+        feedintariff_dvhub_online, \
         loadforecast_akkudoktor, \
         loadforecast_akkudoktor_adjusted, \
         loadforecast_vrm, \
@@ -177,6 +181,7 @@ def prediction_providers() -> (
         feedintariff_fixed,
         feedintariff_import,
         feedintariff_tibber,
+        feedintariff_dvhub_online,
         loadforecast_akkudoktor,
         loadforecast_akkudoktor_adjusted,
         loadforecast_vrm,
@@ -209,6 +214,7 @@ class Prediction(PredictionContainer):
             FeedInTariffFixed,
             FeedInTariffImport,
             FeedInTariffTibber,
+            FeedInTariffDvhubOnline,
             LoadAkkudoktor,
             LoadAkkudoktorAdjusted,
             LoadVrm,

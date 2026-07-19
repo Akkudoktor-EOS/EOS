@@ -8,6 +8,9 @@ from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
 from akkudoktoreos.prediction.feedintariffakkudoktor import (
     FeedInTariffAkkudoktorCommonSettings,
 )
+from akkudoktoreos.prediction.feedintariffdvhubonline import (
+    FeedInTariffDvhubOnlineCommonSettings,
+)
 from akkudoktoreos.prediction.feedintariffenergycharts import (
     FeedInTariffEnergyChartsCommonSettings,
 )
@@ -27,6 +30,7 @@ def elecprice_provider_ids() -> list[str]:
             "FeedInTariffAkkudoktor",
             "FeedInTariffFixed",
             "FeedInTariffEnergyCharts",
+            "FeedInTariffDvhubOnline",
             "FeedInTariffImport",
             "FeedInTariffTibber",
         ]
@@ -52,6 +56,10 @@ class FeedInTariffCommonProviderSettings(SettingsBaseModel):
     FeedInTariffEnergyCharts: Optional[FeedInTariffEnergyChartsCommonSettings] = Field(
         default=None,
         json_schema_extra={"description": "FeedInTariffEnergyCharts settings", "examples": [None]},
+    )
+    FeedInTariffDvhubOnline: Optional[FeedInTariffDvhubOnlineCommonSettings] = Field(
+        default=None,
+        json_schema_extra={"description": "FeedInTariffDvhubOnline settings", "examples": [None]},
     )
     FeedInTariffImport: Optional[FeedInTariffImportCommonSettings] = Field(
         default=None,
@@ -82,6 +90,7 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
                 "FeedInTariffAkkudoktor",
                 "FeedInTariffFixed",
                 "FeedInTariffEnergyCharts",
+                "FeedInTariffDvhubOnline",
                 "FeedInTariffImport",
                 "FeedInTariffTibber",
             ],

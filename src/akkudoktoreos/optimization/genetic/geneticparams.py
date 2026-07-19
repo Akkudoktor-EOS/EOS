@@ -42,6 +42,9 @@ MARKET_PRICE_FEED_IN_TARIFF_PROVIDERS = frozenset(
         # price in every slot, a world where battery arbitrage can never pay,
         # and correctly converged to never cycling the battery.
         "FeedInTariffImport",
+        # FeedInTariffDvhubOnline serves raw EPEX day-ahead market prices
+        # (dvhub.online) — a market-revenue source like EnergyCharts/Tibber.
+        "FeedInTariffDvhubOnline",
     }
 )
 
