@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607231185985809"
+    "version": "v0.3.0.dev2607231331447302"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -4400,6 +4400,10 @@
           "feedintariffimport": {
             "$ref": "#/components/schemas/FeedInTariffImportCommonSettings",
             "description": "Feed in tarif import provider settings."
+          },
+          "energycharts": {
+            "$ref": "#/components/schemas/FeedInTariffEnergyChartsCommonSettings",
+            "description": "EnergyCharts feed in tariff provider settings."
           }
         },
         "type": "object",
@@ -4432,6 +4436,10 @@
             "$ref": "#/components/schemas/FeedInTariffImportCommonSettings",
             "description": "Feed in tarif import provider settings."
           },
+          "energycharts": {
+            "$ref": "#/components/schemas/FeedInTariffEnergyChartsCommonSettings",
+            "description": "EnergyCharts feed in tariff provider settings."
+          },
           "providers": {
             "items": {
               "type": "string"
@@ -4448,6 +4456,21 @@
         ],
         "title": "FeedInTariffCommonSettings",
         "description": "Feed In Tariff Prediction Configuration."
+      },
+      "FeedInTariffEnergyChartsCommonSettings": {
+        "properties": {
+          "bidding_zone": {
+            "$ref": "#/components/schemas/EnergyChartsBiddingZones",
+            "description": "Bidding Zone: 'AT', 'BE', 'CH', 'CZ', 'DE-LU', 'DE-AT-LU', 'DK1', 'DK2', 'FR', 'HU', 'IT-NORTH', 'NL', 'NO2', 'PL', 'SE4' or 'SI'",
+            "default": "DE-LU",
+            "examples": [
+              "DE-LU"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffEnergyChartsCommonSettings",
+        "description": "Common settings for Energy-Charts feed-in tariff provider."
       },
       "FeedInTariffFixedCommonSettings": {
         "properties": {
