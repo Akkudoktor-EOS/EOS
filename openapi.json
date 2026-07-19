@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607201457168588"
+    "version": "v0.3.0.dev2607210205856856"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -1958,7 +1958,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/gesamtlast": {
@@ -2004,7 +2005,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/gesamtlast_simple": {
@@ -2015,6 +2017,7 @@
         "summary": "Fastapi Gesamtlast Simple",
         "description": "Deprecated: Total Load Prediction.\n\nEndpoint to handle total load prediction.\n\nTotal load prediction starts at 00.00.00 today and is provided for 48 hours.\nIf no prediction values are available the missing ones at the start of the series are\nfilled with the first available prediction value.\n\nArgs:\n    year_energy (float): Yearly energy consumption in Wh.\n\nNote:\n    Set LoadAkkudoktor as provider, then update data with\n    '/v1/prediction/update'\n    and then request data with\n    '/v1/prediction/list?key=loadforecast_power_w' instead.",
         "operationId": "fastapi_gesamtlast_simple_gesamtlast_simple_get",
+        "deprecated": true,
         "parameters": [
           {
             "name": "year_energy",
@@ -4934,7 +4937,7 @@
           "ems": {
             "$ref": "#/components/schemas/GeneticEnergyManagementParameters"
           },
-          "pv_akku": {
+          "pv_battery": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/SolarPanelBatteryParameters"
@@ -4942,7 +4945,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "PV battery parameters."
           },
           "inverter": {
             "anyOf": [
@@ -4954,7 +4958,7 @@
               }
             ]
           },
-          "eauto": {
+          "ev": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ElectricVehicleParameters"
@@ -4962,7 +4966,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Electric vehicle parameters."
           },
           "dishwasher": {
             "anyOf": [
@@ -5012,13 +5017,12 @@
             "description": "Can be `null` or contain a previous solution (if available)."
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "ems",
-          "pv_akku",
+          "pv_battery",
           "inverter",
-          "eauto"
+          "ev"
         ],
         "title": "GeneticOptimizationParameters",
         "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
@@ -5328,7 +5332,7 @@
             "title": "Discharge Allowed",
             "description": "Array with discharge values (1 for discharge, 0 otherwise)."
           },
-          "eautocharge_hours_float": {
+          "ev_charge_hours_float": {
             "anyOf": [
               {
                 "items": {
@@ -5340,13 +5344,13 @@
                 "type": "null"
               }
             ],
-            "title": "Eautocharge Hours Float",
-            "description": "TBD"
+            "title": "Ev Charge Hours Float",
+            "description": "Array with EV charging values as relative power (0.0-1.0), or `null` if no EV is optimized."
           },
           "result": {
             "$ref": "#/components/schemas/GeneticSimulationResult"
           },
-          "eauto_obj": {
+          "ev_obj": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/ElectricVehicleResult"
@@ -5354,7 +5358,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Electric vehicle state after optimization."
           },
           "start_solution": {
             "anyOf": [
@@ -5382,16 +5387,47 @@
             ],
             "title": "Washingstart",
             "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
+          },
+          "eautocharge_hours_float": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eautocharge Hours Float",
+            "description": "Deprecated: Use ev_charge_hours_float instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "eauto_obj": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ElectricVehicleResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deprecated: Use ev_obj instead.",
+            "deprecated": true,
+            "readOnly": true
           }
         },
-        "additionalProperties": false,
         "type": "object",
         "required": [
           "ac_charge",
           "dc_charge",
           "discharge_allowed",
-          "eautocharge_hours_float",
+          "ev_charge_hours_float",
           "result",
+          "ev_obj",
+          "eautocharge_hours_float",
           "eauto_obj"
         ],
         "title": "GeneticSolution",

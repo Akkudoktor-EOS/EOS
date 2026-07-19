@@ -1173,7 +1173,7 @@ def fastapi_energy_management_plan_get() -> EnergyManagementPlan:
     return plan
 
 
-@app.get("/strompreis", tags=["prediction"])
+@app.get("/strompreis", tags=["prediction"], deprecated=True)
 async def fastapi_strompreis() -> list[float]:
     """Deprecated: Electricity Market Price Prediction per Wh [amount/Wh].
 
@@ -1236,7 +1236,7 @@ class GesamtlastRequest(PydanticBaseModel):
     hours: int
 
 
-@app.post("/gesamtlast", tags=["prediction"])
+@app.post("/gesamtlast", tags=["prediction"], deprecated=True)
 async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     """Deprecated: Total Load Prediction with adjustment.
 
@@ -1333,7 +1333,7 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     return prediction_list
 
 
-@app.get("/gesamtlast_simple", tags=["prediction"])
+@app.get("/gesamtlast_simple", tags=["prediction"], deprecated=True)
 async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     """Deprecated: Total Load Prediction.
 

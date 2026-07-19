@@ -126,3 +126,45 @@ if __name__ == "__main__":
     test_genetic_params_english_output()
     test_simulation_result_translations()
     print("\n✅✅✅ All translation tests passed! ✅✅✅")
+
+def test_optimization_parameters_device_translations():
+    """Test that German device field names are accepted and re-emitted."""
+    from akkudoktoreos.optimization.genetic.geneticparams import (
+        GeneticOptimizationParameters,
+    )
+
+    ems_de = {
+        "pv_prognose_wh": [100.0, 200.0],
+        "strompreis_euro_pro_wh": [0.0003, 0.0003],
+        "einspeiseverguetung_euro_pro_wh": 0.00007,
+        "preis_euro_pro_wh_akku": 0.0001,
+        "gesamtlast": [500.0, 600.0],
+    }
+    params = GeneticOptimizationParameters(
+        ems=ems_de,
+        pv_akku={"device_id": "battery1", "capacity_wh": 8000},
+        inverter=None,
+        eauto={"device_id": "ev1", "capacity_wh": 60000},
+    )
+    # English attributes are populated from the German input names
+    assert params.pv_battery is not None
+    assert params.pv_battery.capacity_wh == 8000
+    assert params.ev is not None
+    assert params.ev.capacity_wh == 60000
+
+    # English input names work as well
+    params_en = GeneticOptimizationParameters(
+        ems=ems_de,
+        pv_battery={"device_id": "battery1", "capacity_wh": 8000},
+        inverter=None,
+        ev={"device_id": "ev1", "capacity_wh": 60000},
+    )
+    assert params_en.pv_battery is not None
+    assert params_en.ev is not None
+
+    # Both names are present in the output (backward compatibility)
+    dumped = params.model_dump()
+    for name in ("pv_battery", "pv_akku", "ev", "eauto"):
+        assert name in dumped, f"{name} missing in output"
+    assert dumped["pv_akku"] == dumped["pv_battery"]
+    assert dumped["eauto"] == dumped["ev"]
