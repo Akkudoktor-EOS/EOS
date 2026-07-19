@@ -16,7 +16,7 @@ null is treated as 0 W so the optimizer's linear resampling does not interpolate
 phantom production across the night.
 
 Notes:
-    - Requires ``pvforecast.provider_settings.PVForecastPVNode.api_key`` (Bearer auth).
+    - Requires ``pvforecast.pvnode.api_key`` (Bearer auth).
     - API: https://api.pvnode.com/v2  (15-minute resolution).
 """
 
@@ -81,7 +81,7 @@ class PVForecastPVNode(PVForecastProvider):
 
     @property
     def _settings(self) -> PVForecastPVNodeCommonSettings:
-        settings = self.config.pvforecast.provider_settings.PVForecastPVNode
+        settings = self.config.pvforecast.pvnode
         if settings is None:
             settings = PVForecastPVNodeCommonSettings()
         return settings
@@ -158,7 +158,7 @@ class PVForecastPVNode(PVForecastProvider):
         settings = self._settings
         api_key = settings.api_key
         if not api_key:
-            raise ValueError("PVForecastPVNode requires pvforecast...PVForecastPVNode.api_key")
+            raise ValueError("PVForecastPVNode requires pvforecast.pvnode.api_key")
 
         headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
         params = {"forecast_days": str(settings.forecast_days)}
@@ -189,7 +189,7 @@ class PVForecastPVNode(PVForecastProvider):
         if latitude is None or longitude is None:
             raise ValueError(
                 "PVForecastPVNode inline mode needs general.latitude/longitude "
-                "(or set pvforecast...PVForecastPVNode.site_id)"
+                "(or set pvforecast.pvnode.site_id)"
             )
         planes = self.config.pvforecast.planes or []
         strings = []

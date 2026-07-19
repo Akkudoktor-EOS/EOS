@@ -44,14 +44,14 @@ class LoadCommonSettings(SettingsBaseModel):
         json_schema_extra={"description": "LoadAkkudoktor provider settings."},
     )
 
-    loadvrm: LoadVrmCommonSettings = Field(
-        default_factory=LoadVrmCommonSettings,
-        json_schema_extra={"description": "LoadVrm provider settings."},
-    )
-
     loadimport: LoadImportCommonSettings = Field(
         default_factory=LoadImportCommonSettings,
         json_schema_extra={"description": "LoadImport provider settings."},
+    )
+
+    vrm: LoadVrmCommonSettings = Field(
+        default_factory=LoadVrmCommonSettings,
+        json_schema_extra={"description": "Victron Remote Management (VRM) provider settings."},
     )
 
     @computed_field  # type: ignore[prop-decorator]

@@ -63,7 +63,7 @@ class PVForecastSolcast(PVForecastProvider):
 
     @property
     def _settings(self) -> PVForecastSolcastCommonSettings:
-        settings = self.config.pvforecast.provider_settings.PVForecastSolcast
+        settings = self.config.pvforecast.solcast
         if settings is None:
             settings = PVForecastSolcastCommonSettings()
         return settings

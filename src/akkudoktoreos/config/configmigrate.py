@@ -48,49 +48,105 @@ MIGRATION_MAP: Dict[
         None,  # drop
     ],
 ] = {
-    # 0.2.0.dev -> 0.2.0.dev
+    # adapter
+    # =======
+    # - HomeAssistant
     "adapter/homeassistant/optimization_solution_entity_ids": (
         "adapter/homeassistant/solution_entity_ids",
         lambda v: v if isinstance(v, list) else None,
     ),
-    "general/data_folder_path": ("general/data_folder_path", _KEEP_DEFAULT),
-    # 0.2.0 -> 0.2.0+dev
+    # - NodeRed
+    # devices
+    # =======
+    # - batteries
+    "devices/batteries/0/initial_soc_percentage": None,
+    # - electric_vehicles
+    "devices/electric_vehicles/0/initial_soc_percentage": None,
+    # elecprice
+    # =========
+    # - ElecPriceAkkudoktor
+    # - ElecPriceEnergyCharts
+    # - ElecPriceFixed
+    # - ElecPriceImport
     "elecprice/provider_settings/ElecPriceImport/import_file_path": "elecprice/elecpriceimport/import_file_path",
     "elecprice/provider_settings/ElecPriceImport/import_json": "elecprice/elecpriceimport/import_json",
-    "load/provider_settings/LoadAkkudoktor/loadakkudoktor_year_energy_kwh": "load/loadakkudoktor/loadakkudoktor_year_energy_kwh",
-    "load/provider_settings/LoadVrm/load_vrm_idsite": "load/loadvrm/load_vrm_idsite",
-    "load/provider_settings/LoadVrm/load_vrm_token": "load/loadvrm/load_vrm_token",
-    "load/provider_settings/LoadImport/import_file_path": "load/loadimport/import_file_path",
-    "load/provider_settings/LoadImport/import_json": "load/loadimport/import_json",
-    # 0.1.0 -> 0.2.0+dev
-    "devices/batteries/0/initial_soc_percentage": None,
-    "devices/electric_vehicles/0/initial_soc_percentage": None,
     "elecprice/provider_settings/import_file_path": "elecprice/elecpriceimport/import_file_path",
     "elecprice/provider_settings/import_json": "elecprice/elecpriceimport/import_json",
+    # feedintariff
+    # ============
+    # - FeedInTariffFixed
+    "feedintariff/provider_settings/FeedInTariffFixed/feed_in_tariff_kwh": "feedintariff/feedintarifffixed/feed_in_tariff_kwh",
+    # - FeedInTariffImport
+    "feedintariff/provider_settings/FeedInTariffImport/import_file_path": "feedintariff/feedintariffimport/import_file_path",
+    "feedintariff/provider_settings/FeedInTariffImport/import_json": "feedintariff/feedintariffimport/import_json",
+    # general
+    # =======
+    "general/data_folder_path": ("general/data_folder_path", _KEEP_DEFAULT),
+    # load
+    # ====
+    # - LoadAkkudoktor
+    "load/provider_settings/LoadAkkudoktor/loadakkudoktor_year_energy_kwh": "load/loadakkudoktor/loadakkudoktor_year_energy_kwh",
+    "load/provider_settings/loadakkudoktor_year_energy": "load/loadakkudoktor/loadakkudoktor_year_energy_kwh",
+    # - LoadVrm
+    "load/loadvrm/load_vrm_idsite": "load/vrm/site_id",
+    "load/loadvrm/load_vrm_token": "load/vrm/token",
+    "load/provider_settings/load_vrm_idsite": "load/vrm/site_id",
+    "load/provider_settings/load_vrm_token": "load/vrm/token",
+    "load/provider_settings/LoadVrm/load_vrm_idsite": "load/vrm/site_id",
+    "load/provider_settings/LoadVrm/load_vrm_token": "load/vrm/token",
+    # - LoadImport
+    "load/provider_settings/LoadImport/import_file_path": "load/loadimport/import_file_path",
+    "load/provider_settings/LoadImport/import_json": "load/loadimport/import_json",
     "load/provider_settings/import_file_path": "load/loadimport/import_file_path",
     "load/provider_settings/import_json": "load/loadimport/import_json",
-    "load/provider_settings/loadakkudoktor_year_energy": "load/loadakkudoktor/loadakkudoktor_year_energy_kwh",
-    "load/provider_settings/load_vrm_idsite": "load/loadvrm/load_vrm_idsite",
-    "load/provider_settings/load_vrm_token": "load/loadvrm/load_vrm_token",
+    # logging
+    # =======
     "logging/level": "logging/console_level",
     "logging/root_level": None,
+    # measurement
+    # ===========
     "measurement/load0_name": "measurement/load_emr_keys/0",
     "measurement/load1_name": "measurement/load_emr_keys/1",
     "measurement/load2_name": "measurement/load_emr_keys/2",
     "measurement/load3_name": "measurement/load_emr_keys/3",
     "measurement/load4_name": "measurement/load_emr_keys/4",
+    # optimization
+    # ============
     "optimization/ev_available_charge_rates_percent": (
         "devices/electric_vehicles/0/charge_rates",
         lambda v: [x / 100 for x in v],
     ),
     "optimization/hours": "optimization/horizon_hours",
     "optimization/penalty": ("optimization/genetic/penalties/ev_soc_miss", lambda v: float(v)),
-    "pvforecast/provider_settings/import_file_path": "pvforecast/provider_settings/PVForecastImport/import_file_path",
-    "pvforecast/provider_settings/import_json": "pvforecast/provider_settings/PVForecastImport/import_json",
-    "pvforecast/provider_settings/load_vrm_idsite": "pvforecast/provider_settings/PVForecastVrm/load_vrm_idsite",
-    "pvforecast/provider_settings/load_vrm_token": "pvforecast/provider_settings/PVForecastVrm/load_vrm_token",
-    "weather/provider_settings/import_file_path": "weather/provider_settings/WeatherImport/import_file_path",
-    "weather/provider_settings/import_json": "weather/provider_settings/WeatherImport/import_json",
+    # pvforecast
+    # ==========
+    # - PVForecastAkkudoktor
+    # - PVForecastVrm
+    "pvforecast/provider_settings/PVForecastVrm/pvforecast_vrm_token": "pvforecast/vrm/token",
+    "pvforecast/provider_settings/PVForecastVrm/pvforecast_vrm_idsite": "pvforecast/vrm/site_id",
+    "pvforecast/provider_settings/load_vrm_idsite": "pvforecast/vrm/site_id",
+    "pvforecast/provider_settings/load_vrm_token": "pvforecast/vrm/token",
+    # - PVForecastPVNode
+    "pvforecast/provider_settings/PVForecastPVNode/api_key": "pvforecast/pvnode/api_key",
+    "pvforecast/provider_settings/PVForecastPVNode/site_id": "pvforecast/pvnode/site_id",
+    "pvforecast/provider_settings/PVForecastPVNode/forecast_days": "pvforecast/pvnode/forecast_days",
+    # - PVForecastForecastSolar
+    "pvforecast/provider_settings/PVForecastForecastSolar/api_key": "pvforecast/forecastsolar/api_key",
+    # - PVForecastSolcast
+    "pvforecast/provider_settings/PVForecastSolcast/api_key": "pvforecast/solcast/api_key",
+    "pvforecast/provider_settings/PVForecastSolcast/site_id": "pvforecast/solcast/site_id",
+    # - PVForecastImport
+    "pvforecast/provider_settings/PVForecastImport/import_file_path": "pvforecast/pvforecastimport/import_file_path",
+    "pvforecast/provider_settings/PVForecastImport/import_json": "pvforecast/pvforecastimport/import_json",
+    "pvforecast/provider_settings/import_file_path": "pvforecast/pvforecastimport/import_file_path",
+    "pvforecast/provider_settings/import_json": "pvforecast/pvforecastimport/import_json",
+    # weather
+    # =======
+    # - WeatherImport
+    "weather/provider_settings/WeatherImport/import_file_path": "weather/weatherimport/import_file_path",
+    "weather/provider_settings/WeatherImport/import_json": "weather/weatherimport/import_json",
+    "weather/provider_settings/import_file_path": "weather/weatherimport/import_file_path",
+    "weather/provider_settings/import_json": "weather/weatherimport/import_json",
 }
 
 # -----------------------------

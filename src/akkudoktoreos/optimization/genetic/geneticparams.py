@@ -392,10 +392,8 @@ class GeneticOptimizationParameters(
                     {
                         "feedintariff": {
                             "provider": "FeedInTariffFixed",
-                            "provider_settings": {
-                                "FeedInTariffFixed": {
-                                    "feed_in_tariff_kwh": 0.078,
-                                },
+                            "feedintarifffixed": {
+                                "feed_in_tariff_kwh": 0.078,
                             },
                         },
                     }

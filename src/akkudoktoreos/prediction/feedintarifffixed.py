@@ -37,9 +37,7 @@ class FeedInTariffFixed(FeedInTariffProvider):
     async def _update_data(self, force_update: Optional[bool] = False) -> None:
         error_msg = "Feed in tariff not provided"
         try:
-            feed_in_tariff = (
-                self.config.feedintariff.provider_settings.FeedInTariffFixed.feed_in_tariff_kwh
-            )
+            feed_in_tariff = self.config.feedintariff.feedintarifffixed.feed_in_tariff_kwh
         except Exception:
             logger.exception(error_msg)
             raise ValueError(error_msg)

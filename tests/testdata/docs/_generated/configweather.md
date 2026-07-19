@@ -8,8 +8,8 @@
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | provider | `EOS_WEATHER__PROVIDER` | `Optional[str]` | `rw` | `None` | Weather provider id of provider to be used. |
-| provider_settings | `EOS_WEATHER__PROVIDER_SETTINGS` | `WeatherCommonProviderSettings` | `rw` | `required` | Provider settings |
 | providers | | `list[str]` | `ro` | `N/A` | Available weather provider ids. |
+| weatherimport | `EOS_WEATHER__WEATHERIMPORT` | `WeatherImportCommonSettings` | `rw` | `required` | Weather import provider settings |
 :::
 <!-- pyml enable line-length -->
 
@@ -22,8 +22,9 @@
    {
        "weather": {
            "provider": "WeatherImport",
-           "provider_settings": {
-               "WeatherImport": null
+           "weatherimport": {
+               "import_file_path": null,
+               "import_json": null
            }
        }
    }
@@ -39,8 +40,9 @@
    {
        "weather": {
            "provider": "WeatherImport",
-           "provider_settings": {
-               "WeatherImport": null
+           "weatherimport": {
+               "import_file_path": null,
+               "import_json": null
            },
            "providers": [
                "BrightSky",
@@ -56,7 +58,7 @@
 ### Common settings for weather data import from file or JSON string
 
 <!-- pyml disable line-length -->
-:::{table} weather::provider_settings::WeatherImport
+:::{table} weather::weatherimport
 :widths: 10 10 5 5 30
 :align: left
 
@@ -75,40 +77,9 @@
 ```json
    {
        "weather": {
-           "provider_settings": {
-               "WeatherImport": {
-                   "import_file_path": null,
-                   "import_json": "{\"weather_temp_air\": [18.3, 17.8, 16.9]}"
-               }
-           }
-       }
-   }
-```
-<!-- pyml enable line-length -->
-
-### Weather Forecast Provider Configuration
-
-<!-- pyml disable line-length -->
-:::{table} weather::provider_settings
-:widths: 10 10 5 5 30
-:align: left
-
-| Name | Type | Read-Only | Default | Description |
-| ---- | ---- | --------- | ------- | ----------- |
-| WeatherImport | `Optional[akkudoktoreos.prediction.weatherimport.WeatherImportCommonSettings]` | `rw` | `None` | WeatherImport settings |
-:::
-<!-- pyml enable line-length -->
-
-<!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
-<!-- pyml enable no-emphasis-as-heading -->
-
-<!-- pyml disable line-length -->
-```json
-   {
-       "weather": {
-           "provider_settings": {
-               "WeatherImport": null
+           "weatherimport": {
+               "import_file_path": null,
+               "import_json": "{\"weather_temp_air\": [18.3, 17.8, 16.9]}"
            }
        }
    }

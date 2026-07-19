@@ -220,9 +220,9 @@ Configuration options:
     - `FeedInTariffFixed`: Provides fixed feed in tariff values.
     - `FeedInTariffImport`: Imports from a file or JSON string or by endpoint data provision.
 
-  - `provider_settings.feed_in_tariff_kwh`: Fixed feed in tariff (€/kWh).
-  - `provider_settings.import_file_path`: Path to the file to import feed in tariff forecast data from.
-  - `provider_settings.import_json`: JSON string, dictionary of feed in tariff value lists.
+  - `feedintarifffixed.feed_in_tariff_kwh`: Fixed feed in tariff (€/kWh).
+  - `feedintariffimport.import_file_path`: Path to the file to import feed in tariff forecast data from.
+  - `feedintariffimport.import_json`: JSON string, dictionary of feed in tariff value lists.
 
 ### FeedInTariffImport Provider
 
@@ -264,14 +264,14 @@ Configuration options:
   - `provider`: Load provider id of provider to be used.
 
     - `LoadAkkudoktor`: Retrieves from local database.
-    - `LoadVrm`: Retrieves data from the VRM API by Victron Energy.
+    - `LoadVrm`: Retrieves data from the Victron Remeote Management (VRM) API by Victron Energy.
     - `LoadImport`: Imports from a file or JSON string or by endpoint data provision.
 
-  - `provider_settings.LoadAkkudoktor.loadakkudoktor_year_energy_kwh`: Yearly energy consumption (kWh).
-  - `provider_settings.LoadVRM.load_vrm_token`: API token.
-  - `provider_settings.LoadVRM.load_vrm_idsite`: load_vrm_idsite.
-  - `provider_settings.LoadImport.loadimport_file_path`: Path to the file to import load forecast data from.
-  - `provider_settings.LoadImport.loadimport_json`: JSON string, dictionary of load forecast value lists.
+  - `loadakkudoktor.loadakkudoktor_year_energy_kwh`: Yearly energy consumption (kWh).
+  - `vrm.load_vrm_token`: API token.
+  - `vrm.load_vrm_idsite`: load_vrm_idsite.
+  - `loadimport.loadimport_file_path`: Path to the file to import load forecast data from.
+  - `loadimport.loadimport_json`: JSON string, dictionary of load forecast value lists.
 
 ### LoadAkkudoktor Provider
 
@@ -312,12 +312,10 @@ Preferences. This token must be stored in the EOS configuration along with the V
     {
         "load": {
             "provider": "LoadVrm",
-            "provider_settings": {
-                "LoadVRM": {
-                    "load_vrm_token": "dummy-token",
-                    "load_vrm_idsite": 12345
-                }
-             }
+            "vrm": {
+                "token": "dummy-token",
+                "site_id": 12345
+            }
         }
     }
 ```
@@ -371,12 +369,24 @@ Configuration options:
 
   - `provider`: PVForecast provider id of provider to be used.
 
-    - `PVForecastAkkudoktor`: Retrieves from Akkudoktor.net.
-    - `PVForecastVrm`: Retrieves data from the VRM API by Victron Energy.
+    - `PVForecastAkkudoktor`: Retrieves forcast from Akkudoktor.net.
+    - `PVForecastVrm`: Retrieves forecast from the Victron Remote Management (VRM) API.
     - `PVForecastPVNode`: Retrieves native 15-minute forecasts from the pvnode.com API.
     - `PVForecastForecastSolar`: Retrieves forecasts from the free Forecast.Solar API.
     - `PVForecastSolcast`: Retrieves forecasts from the Solcast rooftop-site API.
     - `PVForecastImport`: Imports from a file or JSON string or by endpoint data provision.
+
+  - `vrm.token`: Victron Remote Management (VRM) access token.
+  - `vrm.site_id`: Victron Remote Management (VRM) installation ID.
+  - `pvnode.site_id`: pvnode.com saved-site id. Leave empty for inline mode.
+  - `pvnode.api_key`: pvnode.com API key.
+  - `pvnode.site_id`: pvnode.com saved-site id. Leave empty for inline mode.
+  - `pvnode.forecast_days`: Forecast horizon in days (1-7).
+  - `forecastsolar.api_key`: Forecast.Solar API key (optional).
+  - `solcast.api_key`: Solcast API key.
+  - `solcast.site_id`: Solcast rooftop resource (site) id.
+  - `pvforcastimport.import_file_path`: Path to the file to import PV forecast data from.
+  - `pvforcastimport.import_json`: JSON string, dictionary of PV forecast value lists.
 
   - `planes[].surface_tilt`: Tilt angle from horizontal plane. Ignored for two-axis tracking.
   - `planes[].surface_azimuth`: Orientation (azimuth angle) of the (fixed) plane.
@@ -402,14 +412,6 @@ Configuration options:
   - `planes[].inverter_paco`: AC power rating of the inverter. [W]
   - `planes[].modules_per_string`: Number of the PV modules of the strings of this plane.
   - `planes[].strings_per_inverter`: Number of the strings of the inverter of this plane.
-  - `provider_settings.import_file_path`: Path to the file to import PV forecast data from.
-  - `provider_settings.import_json`: JSON string, dictionary of PV forecast value lists.
-  - `provider_settings.PVForecastPVNode.api_key`: pvnode.com API key.
-  - `provider_settings.PVForecastPVNode.site_id`: pvnode.com saved-site id. Leave empty for inline mode.
-  - `provider_settings.PVForecastPVNode.forecast_days`: Forecast horizon in days (1-7).
-  - `provider_settings.PVForecastForecastSolar.api_key`: Forecast.Solar API key (optional).
-  - `provider_settings.PVForecastSolcast.api_key`: Solcast API key.
-  - `provider_settings.PVForecastSolcast.site_id`: Solcast rooftop resource (site) id.
 
 ---
 
@@ -575,18 +577,19 @@ Example:
 
 ### PVForecastVrm Provider
 
-The `PVForecastVrm` provider retrieves pv power forecast data from the VRM API by Victron Energy.
-To receive forecasts, the system data must be configured under Dynamic ESS in the VRM portal.
-To query the forecasts, an API token is required, which can also be created in the VRM portal under Preferences.
-This token must be stored in the EOS configuration along with the VRM-Installations-ID.
+The `PVForecastVrm` provider retrieves pv power forecast data from the Victron Remote Management
+(VRM) API by Victron Energy. To receive forecasts, the system data must be configured under Dynamic
+ESS in the VRM portal. To query the forecasts, an API token is required, which can also be created
+in the VRM portal under Preferences. This token must be stored in the EOS configuration along with
+the VRM-Installations-ID (site_id).
 
 ```python
     {
         "pvforecast": {
             "provider": "PVForecastVrm",
-            "provider_settings": {
-                "pvforecast_vrm_token": "dummy-token",
-                "pvforecast_vrm_idsite": 12345
+            "vrm": {
+                "token": "dummy-token",
+                "site_id": 12345
             }
     }
 ```
@@ -624,12 +627,10 @@ site id empty to send the configured `planes` geometry inline.
     {
         "pvforecast": {
             "provider": "PVForecastPVNode",
-            "provider_settings": {
-                "PVForecastPVNode": {
-                    "api_key": "your-pvnode-key",
-                    "site_id": "your-site-id",
-                    "forecast_days": 2
-                }
+            "pvnode": {
+                "api_key": "your-pvnode-key",
+                "site_id": "your-site-id",
+                "forecast_days": 2
             }
         }
     }
@@ -651,10 +652,8 @@ the system geometry from the configured `planes` (one request per plane, summed 
     {
         "pvforecast": {
             "provider": "PVForecastForecastSolar",
-            "provider_settings": {
-                "PVForecastForecastSolar": {
-                    "api_key": null
-                }
+            "forecastsolar": {
+               "api_key": null
             }
         }
     }
@@ -676,11 +675,9 @@ tier limits the number of API calls per day.
     {
         "pvforecast": {
             "provider": "PVForecastSolcast",
-            "provider_settings": {
-                "PVForecastSolcast": {
-                    "api_key": "your-solcast-key",
-                    "site_id": "your-resource-id"
-                }
+            "solcast": {
+                "api_key": "your-solcast-key",
+                "site_id": "your-resource-id"
             }
         }
     }
@@ -727,10 +724,10 @@ Configuration options:
     - `BrightSky`: Retrieves from [BrightSky](https://api.brightsky.dev).
     - `ClearOutside`: Retrieves from [ClearOutside](https://clearoutside.com/forecast).
     - `OpenMeteo`: Retrieves from [OpenMeteo](https://api.open-meteo.com/v1/forecast).
-    - `LoadImport`: Imports from a file or JSON string or by endpoint data provision.
+    - `WeatherImport`: Imports from a file or JSON string or by endpoint data provision.
 
-  - `provider_settings.import_file_path`: Path to the file to import weatherforecast data from.
-  - `provider_settings.import_json`: JSON string, dictionary of weather forecast value lists.
+  - `weatherimport.import_file_path`: Path to the file to import weatherforecast data from.
+  - `weatherimport.import_json`: JSON string, dictionary of weather forecast value lists.
 
 ### BrightSky Provider
 
@@ -837,7 +834,7 @@ The prediction keys for the weather forecast data are:
 - `weather_wind_direction`: Wind Direction (°)
 - `weather_wind_speed`: Wind Speed (kmph)
 
-The PV forecast data must be provided in one of the formats described in
+The weather forecast data must be provided in one of the formats described in
 <project:#prediction-import-providers>. The data source can be given in the
 `import_file_path` or `import_json` configuration option.
 

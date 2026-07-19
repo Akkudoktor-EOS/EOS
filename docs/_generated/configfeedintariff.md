@@ -7,8 +7,9 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| feedintarifffixed | `EOS_FEEDINTARIFF__FEEDINTARIFFFIXED` | `FeedInTariffFixedCommonSettings` | `rw` | `required` | Fixed feed in tariff provider settings. |
+| feedintariffimport | `EOS_FEEDINTARIFF__FEEDINTARIFFIMPORT` | `FeedInTariffImportCommonSettings` | `rw` | `required` | Feed in tarif import provider settings. |
 | provider | `EOS_FEEDINTARIFF__PROVIDER` | `Optional[str]` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
-| provider_settings | `EOS_FEEDINTARIFF__PROVIDER_SETTINGS` | `FeedInTariffCommonProviderSettings` | `rw` | `required` | Provider settings |
 | providers | | `list[str]` | `ro` | `N/A` | Available feed in tariff provider ids. |
 :::
 <!-- pyml enable line-length -->
@@ -22,9 +23,12 @@
    {
        "feedintariff": {
            "provider": "FeedInTariffFixed",
-           "provider_settings": {
-               "FeedInTariffFixed": null,
-               "FeedInTariffImport": null
+           "feedintarifffixed": {
+               "feed_in_tariff_kwh": null
+           },
+           "feedintariffimport": {
+               "import_file_path": null,
+               "import_json": null
            }
        }
    }
@@ -40,9 +44,12 @@
    {
        "feedintariff": {
            "provider": "FeedInTariffFixed",
-           "provider_settings": {
-               "FeedInTariffFixed": null,
-               "FeedInTariffImport": null
+           "feedintarifffixed": {
+               "feed_in_tariff_kwh": null
+           },
+           "feedintariffimport": {
+               "import_file_path": null,
+               "import_json": null
            },
            "providers": [
                "FeedInTariffFixed",
@@ -56,7 +63,7 @@
 ### Common settings for feed in tariff data import from file or JSON string
 
 <!-- pyml disable line-length -->
-:::{table} feedintariff::provider_settings::FeedInTariffImport
+:::{table} feedintariff::feedintariffimport
 :widths: 10 10 5 5 30
 :align: left
 
@@ -75,11 +82,9 @@
 ```json
    {
        "feedintariff": {
-           "provider_settings": {
-               "FeedInTariffImport": {
-                   "import_file_path": null,
-                   "import_json": "{\"fead_in_tariff_wh\": [0.000078, 0.000078, 0.000023]}"
-               }
+           "feedintariffimport": {
+               "import_file_path": null,
+               "import_json": "{\"fead_in_tariff_wh\": [0.000078, 0.000078, 0.000023]}"
            }
        }
    }
@@ -89,7 +94,7 @@
 ### Common settings for elecprice fixed price
 
 <!-- pyml disable line-length -->
-:::{table} feedintariff::provider_settings::FeedInTariffFixed
+:::{table} feedintariff::feedintarifffixed
 :widths: 10 10 5 5 30
 :align: left
 
@@ -107,41 +112,8 @@
 ```json
    {
        "feedintariff": {
-           "provider_settings": {
-               "FeedInTariffFixed": {
-                   "feed_in_tariff_kwh": 0.078
-               }
-           }
-       }
-   }
-```
-<!-- pyml enable line-length -->
-
-### Feed In Tariff Prediction Provider Configuration
-
-<!-- pyml disable line-length -->
-:::{table} feedintariff::provider_settings
-:widths: 10 10 5 5 30
-:align: left
-
-| Name | Type | Read-Only | Default | Description |
-| ---- | ---- | --------- | ------- | ----------- |
-| FeedInTariffFixed | `Optional[akkudoktoreos.prediction.feedintarifffixed.FeedInTariffFixedCommonSettings]` | `rw` | `None` | FeedInTariffFixed settings |
-| FeedInTariffImport | `Optional[akkudoktoreos.prediction.feedintariffimport.FeedInTariffImportCommonSettings]` | `rw` | `None` | FeedInTariffImport settings |
-:::
-<!-- pyml enable line-length -->
-
-<!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
-<!-- pyml enable no-emphasis-as-heading -->
-
-<!-- pyml disable line-length -->
-```json
-   {
-       "feedintariff": {
-           "provider_settings": {
-               "FeedInTariffFixed": null,
-               "FeedInTariffImport": null
+           "feedintarifffixed": {
+               "feed_in_tariff_kwh": 0.078
            }
        }
    }

@@ -7,6 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| forecastsolar | `EOS_PVFORECAST__FORECASTSOLAR` | `PVForecastForecastSolarCommonSettings` | `rw` | `required` | ForecastSolar provider settings |
 | max_planes | `EOS_PVFORECAST__MAX_PLANES` | `Optional[int]` | `rw` | `0` | Maximum number of planes that can be set |
 | planes | `EOS_PVFORECAST__PLANES` | `Optional[list[akkudoktoreos.prediction.pvforecast.PVForecastPlaneSetting]]` | `rw` | `None` | Plane configuration. |
 | planes_azimuth | | `List[float]` | `ro` | `N/A` | Compute a list of the azimuths per active planes. |
@@ -15,8 +16,11 @@
 | planes_tilt | | `List[float]` | `ro` | `N/A` | Compute a list of the tilts per active planes. |
 | planes_userhorizon | | `Any` | `ro` | `N/A` | Compute a list of the user horizon per active planes. |
 | provider | `EOS_PVFORECAST__PROVIDER` | `Optional[str]` | `rw` | `None` | PVForecast provider id of provider to be used. |
-| provider_settings | `EOS_PVFORECAST__PROVIDER_SETTINGS` | `PVForecastCommonProviderSettings` | `rw` | `required` | Provider settings |
 | providers | | `list[str]` | `ro` | `N/A` | Available PVForecast provider ids. |
+| pvforecastimport | `EOS_PVFORECAST__PVFORECASTIMPORT` | `PVForecastImportCommonSettings` | `rw` | `required` | PV forecast import provider settings |
+| pvnode | `EOS_PVFORECAST__PVNODE` | `PVForecastPVNodeCommonSettings` | `rw` | `required` | PVNode provider settings |
+| solcast | `EOS_PVFORECAST__SOLCAST` | `PVForecastSolcastCommonSettings` | `rw` | `required` | Solcast provider settings |
+| vrm | `EOS_PVFORECAST__VRM` | `PVForecastVrmCommonSettings` | `rw` | `required` | Victron Remote Management (VRM) provider settings |
 :::
 <!-- pyml enable line-length -->
 
@@ -29,12 +33,25 @@
    {
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
-           "provider_settings": {
-               "PVForecastImport": null,
-               "PVForecastVrm": null,
-               "PVForecastPVNode": null,
-               "PVForecastForecastSolar": null,
-               "PVForecastSolcast": null
+           "pvforecastimport": {
+               "import_file_path": null,
+               "import_json": null
+           },
+           "vrm": {
+               "token": "your-token",
+               "site_id": 12345
+           },
+           "pvnode": {
+               "api_key": "",
+               "site_id": null,
+               "forecast_days": 2
+           },
+           "forecastsolar": {
+               "api_key": null
+           },
+           "solcast": {
+               "api_key": "",
+               "site_id": ""
            },
            "planes": [
                {
@@ -97,12 +114,25 @@
    {
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
-           "provider_settings": {
-               "PVForecastImport": null,
-               "PVForecastVrm": null,
-               "PVForecastPVNode": null,
-               "PVForecastForecastSolar": null,
-               "PVForecastSolcast": null
+           "pvforecastimport": {
+               "import_file_path": null,
+               "import_json": null
+           },
+           "vrm": {
+               "token": "your-token",
+               "site_id": 12345
+           },
+           "pvnode": {
+               "api_key": "",
+               "site_id": null,
+               "forecast_days": 2
+           },
+           "forecastsolar": {
+               "api_key": null
+           },
+           "solcast": {
+               "api_key": "",
+               "site_id": ""
            },
            "planes": [
                {
@@ -192,10 +222,41 @@
 ```
 <!-- pyml enable line-length -->
 
+### Common settings for PV forecast VRM API
+
+<!-- pyml disable line-length -->
+:::{table} pvforecast::vrm
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| site_id | `int` | `rw` | `12345` | VRM-Installation-ID |
+| token | `str` | `rw` | `your-token` | Access token for connecting to the Victron Remote Management (VRM) API |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "pvforecast": {
+           "vrm": {
+               "token": "your-token",
+               "site_id": 12345
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
 ### Common settings for the Solcast PV forecast provider
 
 <!-- pyml disable line-length -->
-:::{table} pvforecast::provider_settings::PVForecastSolcast
+:::{table} pvforecast::solcast
 :widths: 10 10 5 5 30
 :align: left
 
@@ -214,42 +275,9 @@
 ```json
    {
        "pvforecast": {
-           "provider_settings": {
-               "PVForecastSolcast": {
-                   "api_key": "your-solcast-key",
-                   "site_id": "abcd-1234-efgh-5678"
-               }
-           }
-       }
-   }
-```
-<!-- pyml enable line-length -->
-
-### Common settings for the Forecast.Solar PV forecast provider
-
-<!-- pyml disable line-length -->
-:::{table} pvforecast::provider_settings::PVForecastForecastSolar
-:widths: 10 10 5 5 30
-:align: left
-
-| Name | Type | Read-Only | Default | Description |
-| ---- | ---- | --------- | ------- | ----------- |
-| api_key | `Optional[str]` | `rw` | `None` | Forecast.Solar API key. Optional — the public endpoint works without a key (lower rate limit). |
-:::
-<!-- pyml enable line-length -->
-
-<!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
-<!-- pyml enable no-emphasis-as-heading -->
-
-<!-- pyml disable line-length -->
-```json
-   {
-       "pvforecast": {
-           "provider_settings": {
-               "PVForecastForecastSolar": {
-                   "api_key": null
-               }
+           "solcast": {
+               "api_key": "your-solcast-key",
+               "site_id": "abcd-1234-efgh-5678"
            }
        }
    }
@@ -259,7 +287,7 @@
 ### Common settings for the pvnode.com PV forecast provider
 
 <!-- pyml disable line-length -->
-:::{table} pvforecast::provider_settings::PVForecastPVNode
+:::{table} pvforecast::pvnode
 :widths: 10 10 5 5 30
 :align: left
 
@@ -279,45 +307,10 @@
 ```json
    {
        "pvforecast": {
-           "provider_settings": {
-               "PVForecastPVNode": {
-                   "api_key": "pvn_live_xxxxxxxxxxxxxxxx",
-                   "site_id": "abcd-1234",
-                   "forecast_days": 2
-               }
-           }
-       }
-   }
-```
-<!-- pyml enable line-length -->
-
-### Common settings for PV forecast VRM API
-
-<!-- pyml disable line-length -->
-:::{table} pvforecast::provider_settings::PVForecastVrm
-:widths: 10 10 5 5 30
-:align: left
-
-| Name | Type | Read-Only | Default | Description |
-| ---- | ---- | --------- | ------- | ----------- |
-| pvforecast_vrm_idsite | `int` | `rw` | `12345` | VRM-Installation-ID |
-| pvforecast_vrm_token | `str` | `rw` | `your-token` | Token for Connecting VRM API |
-:::
-<!-- pyml enable line-length -->
-
-<!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
-<!-- pyml enable no-emphasis-as-heading -->
-
-<!-- pyml disable line-length -->
-```json
-   {
-       "pvforecast": {
-           "provider_settings": {
-               "PVForecastVrm": {
-                   "pvforecast_vrm_token": "your-token",
-                   "pvforecast_vrm_idsite": 12345
-               }
+           "pvnode": {
+               "api_key": "pvn_live_xxxxxxxxxxxxxxxx",
+               "site_id": "abcd-1234",
+               "forecast_days": 2
            }
        }
    }
@@ -327,7 +320,7 @@
 ### Common settings for pvforecast data import from file or JSON string
 
 <!-- pyml disable line-length -->
-:::{table} pvforecast::provider_settings::PVForecastImport
+:::{table} pvforecast::pvforecastimport
 :widths: 10 10 5 5 30
 :align: left
 
@@ -346,48 +339,9 @@
 ```json
    {
        "pvforecast": {
-           "provider_settings": {
-               "PVForecastImport": {
-                   "import_file_path": null,
-                   "import_json": "{\"pvforecast_ac_power\": [0, 8.05, 352.91]}"
-               }
-           }
-       }
-   }
-```
-<!-- pyml enable line-length -->
-
-### PV Forecast Provider Configuration
-
-<!-- pyml disable line-length -->
-:::{table} pvforecast::provider_settings
-:widths: 10 10 5 5 30
-:align: left
-
-| Name | Type | Read-Only | Default | Description |
-| ---- | ---- | --------- | ------- | ----------- |
-| PVForecastForecastSolar | `Optional[akkudoktoreos.prediction.pvforecastforecastsolar.PVForecastForecastSolarCommonSettings]` | `rw` | `None` | PVForecastForecastSolar settings |
-| PVForecastImport | `Optional[akkudoktoreos.prediction.pvforecastimport.PVForecastImportCommonSettings]` | `rw` | `None` | PVForecastImport settings |
-| PVForecastPVNode | `Optional[akkudoktoreos.prediction.pvforecastpvnode.PVForecastPVNodeCommonSettings]` | `rw` | `None` | PVForecastPVNode settings |
-| PVForecastSolcast | `Optional[akkudoktoreos.prediction.pvforecastsolcast.PVForecastSolcastCommonSettings]` | `rw` | `None` | PVForecastSolcast settings |
-| PVForecastVrm | `Optional[akkudoktoreos.prediction.pvforecastvrm.PVForecastVrmCommonSettings]` | `rw` | `None` | PVForecastVrm settings |
-:::
-<!-- pyml enable line-length -->
-
-<!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
-<!-- pyml enable no-emphasis-as-heading -->
-
-<!-- pyml disable line-length -->
-```json
-   {
-       "pvforecast": {
-           "provider_settings": {
-               "PVForecastImport": null,
-               "PVForecastVrm": null,
-               "PVForecastPVNode": null,
-               "PVForecastForecastSolar": null,
-               "PVForecastSolcast": null
+           "pvforecastimport": {
+               "import_file_path": null,
+               "import_json": "{\"pvforecast_ac_power\": [0, 8.05, 352.91]}"
            }
        }
    }
@@ -454,6 +408,35 @@
                    "strings_per_inverter": 2
                }
            ]
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the Forecast.Solar PV forecast provider
+
+<!-- pyml disable line-length -->
+:::{table} pvforecast::forecastsolar
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| api_key | `Optional[str]` | `rw` | `None` | Forecast.Solar API key. Optional — the public endpoint works without a key (lower rate limit). |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "pvforecast": {
+           "forecastsolar": {
+               "api_key": null
+           }
        }
    }
 ```

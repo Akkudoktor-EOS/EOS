@@ -26,14 +26,14 @@ class VrmForecastResponse(PydanticBaseModel):
 class LoadVrmCommonSettings(SettingsBaseModel):
     """Common settings for load forecast VRM API."""
 
-    load_vrm_token: str = Field(
+    token: str = Field(
         default="your-token",
         json_schema_extra={
-            "description": "Token for Connecting VRM API",
+            "description": "Access token for connecting to the Victron Remote Management (VRM) API",
             "examples": ["your-token"],
         },
     )
-    load_vrm_idsite: int = Field(
+    site_id: int = Field(
         default=12345, json_schema_extra={"description": "VRM-Installation-ID", "examples": [12345]}
     )
 
@@ -62,9 +62,9 @@ class LoadVrm(LoadProvider):
     def _request_forecast(self, start_ts: int, end_ts: int) -> VrmForecastResponse:
         """Fetch forecast data from Victron VRM API."""
         base_url = "https://vrmapi.victronenergy.com/v2/installations"
-        vrm_settings = self.config.load.loadvrm
-        installation_id = vrm_settings.load_vrm_idsite
-        api_token = vrm_settings.load_vrm_token
+        vrm_settings = self.config.load.vrm
+        installation_id = vrm_settings.site_id
+        api_token = vrm_settings.token
 
         url = f"{base_url}/{installation_id}/stats?type=forecast&start={start_ts}&end={end_ts}&interval=hours"
         headers = {"X-Authorization": f"Token {api_token}", "Content-Type": "application/json"}

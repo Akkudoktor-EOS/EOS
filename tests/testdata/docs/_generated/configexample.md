@@ -119,9 +119,12 @@
        },
        "feedintariff": {
            "provider": "FeedInTariffFixed",
-           "provider_settings": {
-               "FeedInTariffFixed": null,
-               "FeedInTariffImport": null
+           "feedintarifffixed": {
+               "feed_in_tariff_kwh": null
+           },
+           "feedintariffimport": {
+               "import_file_path": null,
+               "import_json": null
            }
        },
        "general": {
@@ -138,13 +141,13 @@
            "loadakkudoktor": {
                "loadakkudoktor_year_energy_kwh": null
            },
-           "loadvrm": {
-               "load_vrm_token": "your-token",
-               "load_vrm_idsite": 12345
-           },
            "loadimport": {
                "import_file_path": null,
                "import_json": null
+           },
+           "vrm": {
+               "token": "your-token",
+               "site_id": 12345
            }
        },
        "logging": {
@@ -185,12 +188,25 @@
        },
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
-           "provider_settings": {
-               "PVForecastImport": null,
-               "PVForecastVrm": null,
-               "PVForecastPVNode": null,
-               "PVForecastForecastSolar": null,
-               "PVForecastSolcast": null
+           "pvforecastimport": {
+               "import_file_path": null,
+               "import_json": null
+           },
+           "vrm": {
+               "token": "your-token",
+               "site_id": 12345
+           },
+           "pvnode": {
+               "api_key": "",
+               "site_id": null,
+               "forecast_days": 2
+           },
+           "forecastsolar": {
+               "api_key": null
+           },
+           "solcast": {
+               "api_key": "",
+               "site_id": ""
            },
            "planes": [
                {
@@ -254,8 +270,9 @@
        "utils": {},
        "weather": {
            "provider": "WeatherImport",
-           "provider_settings": {
-               "WeatherImport": null
+           "weatherimport": {
+               "import_file_path": null,
+               "import_json": null
            }
        }
    }

@@ -26,15 +26,6 @@ def weather_provider_ids() -> list[str]:
     ]
 
 
-class WeatherCommonProviderSettings(SettingsBaseModel):
-    """Weather Forecast Provider Configuration."""
-
-    WeatherImport: Optional[WeatherImportCommonSettings] = Field(
-        default=None,
-        json_schema_extra={"description": "WeatherImport settings", "examples": [None]},
-    )
-
-
 class WeatherCommonSettings(SettingsBaseModel):
     """Weather Forecast Configuration."""
 
@@ -46,17 +37,9 @@ class WeatherCommonSettings(SettingsBaseModel):
         },
     )
 
-    provider_settings: WeatherCommonProviderSettings = Field(
-        default_factory=WeatherCommonProviderSettings,
-        json_schema_extra={
-            "description": "Provider settings",
-            "examples": [
-                # Example 1: Empty/default settings (all providers None)
-                {
-                    "WeatherImport": None,
-                },
-            ],
-        },
+    weatherimport: WeatherImportCommonSettings = Field(
+        default_factory=WeatherImportCommonSettings,
+        json_schema_extra={"description": "Weather import provider settings"},
     )
 
     @computed_field  # type: ignore[prop-decorator]

@@ -67,16 +67,16 @@ class WeatherImport(WeatherProvider, PredictionImportProvider):
     async def _update_data(self, force_update: Optional[bool] = False) -> None:
         # Both _sequence_lock and _record_lock are already held by the caller.
         # Use internal sync methods only — never await public async counterparts.
-        if self.config.weather.provider_settings.WeatherImport is None:
+        if self.config.weather.weatherimport is None:
             logger.debug(f"{self.provider_id()} data update without provider settings.")
             return
-        if self.config.weather.provider_settings.WeatherImport.import_file_path:
+        if self.config.weather.weatherimport.import_file_path:
             await self._import_from_file(
-                self.config.weather.provider_settings.WeatherImport.import_file_path,
+                self.config.weather.weatherimport.import_file_path,
                 key_prefix="weather",
             )
-        if self.config.weather.provider_settings.WeatherImport.import_json:
+        if self.config.weather.weatherimport.import_json:
             await self._import_from_json(
-                self.config.weather.provider_settings.WeatherImport.import_json,
+                self.config.weather.weatherimport.import_json,
                 key_prefix="weather",
             )

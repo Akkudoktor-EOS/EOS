@@ -17,13 +17,10 @@ def pvforecast_instance(config_eos):
     # Settings for PVForecastVrm
     settings = {
         "pvforecast": {
-            "provider": "PVForecastVrm",
-            "provider_settings": {
-                "PVForecastVrm": {
-                    "pvforecast_vrm_token": "dummy-token",
-                    "pvforecast_vrm_idsite": 12345,
-                },
-            }
+            "vrm": {
+                "token": "dummy-token",
+                "site_id": 12345,
+            },
         }
     }
     config_eos.merge_settings_from_dict(settings)

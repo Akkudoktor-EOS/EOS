@@ -180,31 +180,6 @@ class PVForecastPlaneSetting(SettingsBaseModel):
         return pvtechchoice
 
 
-class PVForecastCommonProviderSettings(SettingsBaseModel):
-    """PV Forecast Provider Configuration."""
-
-    PVForecastImport: Optional[PVForecastImportCommonSettings] = Field(
-        default=None,
-        json_schema_extra={"description": "PVForecastImport settings", "examples": [None]},
-    )
-    PVForecastVrm: Optional[PVForecastVrmCommonSettings] = Field(
-        default=None,
-        json_schema_extra={"description": "PVForecastVrm settings", "examples": [None]},
-    )
-    PVForecastPVNode: Optional[PVForecastPVNodeCommonSettings] = Field(
-        default=None,
-        json_schema_extra={"description": "PVForecastPVNode settings", "examples": [None]},
-    )
-    PVForecastForecastSolar: Optional[PVForecastForecastSolarCommonSettings] = Field(
-        default=None,
-        json_schema_extra={"description": "PVForecastForecastSolar settings", "examples": [None]},
-    )
-    PVForecastSolcast: Optional[PVForecastSolcastCommonSettings] = Field(
-        default=None,
-        json_schema_extra={"description": "PVForecastSolcast settings", "examples": [None]},
-    )
-
-
 class PVForecastCommonSettings(SettingsBaseModel):
     """PV Forecast Configuration."""
 
@@ -221,18 +196,29 @@ class PVForecastCommonSettings(SettingsBaseModel):
         },
     )
 
-    provider_settings: PVForecastCommonProviderSettings = Field(
-        default_factory=PVForecastCommonProviderSettings,
-        json_schema_extra={
-            "description": "Provider settings",
-            "examples": [
-                # Example 1: Empty/default settings (all providers None)
-                {
-                    "PVForecastImport": None,
-                    "PVForecastVrm": None,
-                },
-            ],
-        },
+    pvforecastimport: PVForecastImportCommonSettings = Field(
+        default_factory=PVForecastImportCommonSettings,
+        json_schema_extra={"description": "PV forecast import provider settings"},
+    )
+
+    vrm: PVForecastVrmCommonSettings = Field(
+        default_factory=PVForecastVrmCommonSettings,
+        json_schema_extra={"description": "Victron Remote Management (VRM) provider settings"},
+    )
+
+    pvnode: PVForecastPVNodeCommonSettings = Field(
+        default_factory=PVForecastPVNodeCommonSettings,
+        json_schema_extra={"description": "PVNode provider settings"},
+    )
+
+    forecastsolar: PVForecastForecastSolarCommonSettings = Field(
+        default_factory=PVForecastForecastSolarCommonSettings,
+        json_schema_extra={"description": "ForecastSolar provider settings"},
+    )
+
+    solcast: PVForecastSolcastCommonSettings = Field(
+        default_factory=PVForecastSolcastCommonSettings,
+        json_schema_extra={"description": "Solcast provider settings"},
     )
 
     planes: Optional[list[PVForecastPlaneSetting]] = Field(

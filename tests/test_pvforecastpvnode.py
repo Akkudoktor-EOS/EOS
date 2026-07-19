@@ -13,12 +13,10 @@ def pvforecast_instance(config_eos):
         "general": {"latitude": 52.5, "longitude": 13.4},
         "pvforecast": {
             "provider": "PVForecastPVNode",
-            "provider_settings": {
-                "PVForecastPVNode": {
-                    "api_key": "dummy-key",
-                    "site_id": "test-site-123",
-                    "forecast_days": 2,
-                },
+            "pvnode": {
+                "api_key": "dummy-key",
+                "site_id": "test-site-123",
+                "forecast_days": 2,
             },
         },
     }
@@ -122,8 +120,8 @@ def test_request_forecast_inline_post_when_no_site(config_eos):
             "general": {"latitude": 52.5, "longitude": 13.4},
             "pvforecast": {
                 "provider": "PVForecastPVNode",
+                "pvnode": {"api_key": "k", "site_id": None},
                 "planes": [{"surface_tilt": 30.0, "surface_azimuth": 180.0, "peakpower": 5.0}],
-                "provider_settings": {"PVForecastPVNode": {"api_key": "k", "site_id": None}},
             },
         }
     )
