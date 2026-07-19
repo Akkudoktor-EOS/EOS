@@ -521,10 +521,10 @@ def fastapi_config_file_put() -> ConfigEOS:
     try:
         get_config().to_config_file()
         return get_config()
-    except:
+    except Exception as e:
         raise HTTPException(
             status_code=404,
-            detail=f"Cannot save configuration to file '{get_config().config_file_path}'.",
+            detail=f"Cannot save configuration to file '{get_config().config_file_path}': {e}",
         )
 
 

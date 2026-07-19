@@ -16,7 +16,7 @@ def load_providers() -> list[str]:
     """Valid load provider ids."""
     try:
         prediction_eos = get_prediction()
-    except:
+    except Exception:
         # Prediction may not be initialized
         # Return at least provider used in example
         return ["LoadAkkudoktor", "LoadVrm", "LoadImport"]

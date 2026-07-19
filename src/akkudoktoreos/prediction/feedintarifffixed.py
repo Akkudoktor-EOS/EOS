@@ -40,7 +40,7 @@ class FeedInTariffFixed(FeedInTariffProvider):
             feed_in_tariff = (
                 self.config.feedintariff.provider_settings.FeedInTariffFixed.feed_in_tariff_kwh
             )
-        except:
+        except Exception:
             logger.exception(error_msg)
             raise ValueError(error_msg)
         if feed_in_tariff is None:

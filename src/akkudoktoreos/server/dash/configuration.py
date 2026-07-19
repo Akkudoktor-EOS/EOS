@@ -528,7 +528,7 @@ def Configuration(
             value_json_str: str = data.get("value", "")
             try:
                 value = json.loads(value_json_str)
-            except:
+            except Exception:
                 if value_json_str in ("None", "none", "Null", "null"):
                     value = None
                 else:
@@ -602,7 +602,7 @@ def Configuration(
     # find some special configuration values
     try:
         max_planes = int(config_details["pvforecast.max_planes"]["value"])
-    except:
+    except Exception:
         max_planes = 0
     logger.debug(f"max_planes: {max_planes}")
 
@@ -610,7 +610,7 @@ def Configuration(
         homeassistant_entity_ids = json.loads(
             config_details["adapter.homeassistant.homeassistant_entity_ids"]["value"]
         )
-    except:
+    except Exception:
         homeassistant_entity_ids = []
     logger.debug(f"homeassistant_entity_ids: {homeassistant_entity_ids}")
 
@@ -619,7 +619,7 @@ def Configuration(
         eos_solution_entity_ids = json.loads(
             config_details["adapter.homeassistant.eos_solution_entity_ids"]["value"]
         )
-    except:
+    except Exception:
         eos_solution_entity_ids = []
     logger.debug(f"eos_solution_entity_ids {eos_solution_entity_ids}")
 
@@ -628,14 +628,14 @@ def Configuration(
         eos_device_instruction_entity_ids = json.loads(
             config_details["adapter.homeassistant.eos_device_instruction_entity_ids"]["value"]
         )
-    except:
+    except Exception:
         eos_device_instruction_entity_ids = []
     logger.debug(f"eos_device_instruction_entity_ids {eos_device_instruction_entity_ids}")
 
     devices_measurement_keys = []
     try:
         devices_measurement_keys = json.loads(config_details["devices.measurement_keys"]["value"])
-    except:
+    except Exception:
         devices_measurement_keys = []
     logger.debug(f"devices_measurement_keys {devices_measurement_keys}")
 
@@ -691,7 +691,7 @@ def Configuration(
                 # Special configuration for prediction provider setting
                 try:
                     provider_ids = json.loads(config_details[config["name"] + "s"]["value"])
-                except:
+                except Exception:
                     provider_ids = []
                 if config["type"].startswith("Optional[list"):
                     update_form_factory = make_config_update_list_form(provider_ids)
