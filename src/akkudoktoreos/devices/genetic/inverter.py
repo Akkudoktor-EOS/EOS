@@ -51,6 +51,7 @@ class Inverter:
         consumption: float,
         hour: int,
         allow_battery_grid_export: bool = False,
+        export_reserve_ac_wh: float = 0.0,
     ) -> tuple[float, float, float, float]:
         """Process one slot using probabilistic direct PV-to-load overlap.
 
@@ -59,6 +60,13 @@ class Inverter:
         PV-to-load power. The remaining load and PV surplus are then handled
         independently, because both can occur during different sub-intervals of
         the same hourly or 15-minute slot.
+
+        ``export_reserve_ac_wh`` is delivered-AC energy the battery must keep
+        for overnight household self-consumption. It only caps the
+        battery-to-grid export path (direct marketing): covering the slot's own
+        load may still use the reserve, so the pack rides the night on
+        self-consumption instead of selling out in the evening and re-importing
+        the whole night from the grid.
         """
         losses = 0.0
         grid_export = 0.0
@@ -126,6 +134,24 @@ class Inverter:
             remaining_battery_ac = (
                 self.battery.remaining_discharge_energy_wh(hour) * self.dc_to_ac_efficiency
             )
+            # Overnight reserve: energy earmarked for tonight's household load
+            # is not exportable. Self-consumption above already had full access.
+            # The reserve caps the SOC POOL, not the per-slot power budget: a
+            # night reserve larger than one slot's discharge budget must NOT
+            # zero out export in every slot — only the energy above
+            # min_soc + reserve is sellable, at full slot power.
+            if export_reserve_ac_wh > 0.0:
+                disch_eff = self.battery.discharging_efficiency
+                if self.dc_to_ac_efficiency > 0.0 and disch_eff > 0.0:
+                    reserve_dc_wh = export_reserve_ac_wh / (self.dc_to_ac_efficiency * disch_eff)
+                else:
+                    reserve_dc_wh = export_reserve_ac_wh
+                soc_exportable_ac = (
+                    max(self.battery.soc_wh - self.battery.min_soc_wh - reserve_dc_wh, 0.0)
+                    * disch_eff
+                    * self.dc_to_ac_efficiency
+                )
+                remaining_battery_ac = min(remaining_battery_ac, soc_exportable_ac)
             export_capacity = min(remaining_inverter_ac_capacity, remaining_battery_ac)
             battery_export_ac, battery_export_losses = self._discharge_battery_to_ac(
                 export_capacity, hour
