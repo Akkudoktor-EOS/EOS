@@ -281,7 +281,7 @@ class GeneticOptimizationParameters(
                     interval=interval,
                     fill_method="linear",
                 )
-                pvforecast_ac_power = (array * power_to_energy_per_interval_factor).to_list()
+                pvforecast_ac_power = (array * power_to_energy_per_interval_factor).tolist()
             except:
                 logger.info(
                     "No PV forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
@@ -335,7 +335,7 @@ class GeneticOptimizationParameters(
                     interval=interval,
                     fill_method="ffill",
                 )
-                elecprice_marketprice_wh = array.to_list()
+                elecprice_marketprice_wh = array.tolist()
             except:
                 logger.info(
                     "No Electricity Marketprice forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
@@ -352,7 +352,7 @@ class GeneticOptimizationParameters(
                     interval=interval,
                     fill_method="ffill",
                 )
-                loadforecast_power_w = array.to_list()
+                loadforecast_power_w = array.tolist()
             except:
                 logger.info(
                     "No Load forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
@@ -378,7 +378,7 @@ class GeneticOptimizationParameters(
                     interval=interval,
                     fill_method="ffill",
                 )
-                feed_in_tariff_wh = array.to_list()
+                feed_in_tariff_wh = array.tolist()
             except:
                 logger.info(
                     "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
@@ -406,7 +406,7 @@ class GeneticOptimizationParameters(
                     interval=interval,
                     fill_method="ffill",
                 )
-                weather_temp_air = array.to_list()
+                weather_temp_air = array.tolist()
             except:
                 logger.info(
                     "No weather forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
