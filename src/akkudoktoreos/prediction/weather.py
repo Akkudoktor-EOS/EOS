@@ -14,7 +14,7 @@ def weather_provider_ids() -> list[str]:
     """Valid weather provider ids."""
     try:
         prediction_eos = get_prediction()
-    except:
+    except Exception:
         # Prediction may not be initialized
         # Return at least provider used in example
         return ["WeatherImport"]
