@@ -100,7 +100,7 @@ class OptimizationCommonSettings(SettingsBaseModel):
         """The keys of the solution."""
         try:
             ems_eos = get_ems()
-        except:
+        except Exception:
             # ems might not be initialized
             return []
 
