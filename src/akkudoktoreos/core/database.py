@@ -109,7 +109,7 @@ class DatabaseCommonSettings(SettingsBaseModel):
     )
 
     compaction_interval_sec: Optional[int] = Field(
-        default=7 * 24 * 3600,  # weekly
+        default=3600,  # hourly
         ge=0,
         json_schema_extra={
             "description": (
@@ -117,7 +117,7 @@ class DatabaseCommonSettings(SettingsBaseModel):
                 "Compaction downsamples old records to reduce storage while retaining "
                 "coverage. Set to None to disable automatic compaction."
             ),
-            "examples": [604800],  # 1 week
+            "examples": [3600],  # 1 hour
         },
     )
 

@@ -1603,7 +1603,14 @@ class DatabaseRecordProtocolMixin(
             end_timestamp=end_timestamp,
         )
 
-        for record in self.records:
+        # Use bisect to find the first record at or after start_timestamp.
+        # _db_sorted_timestamps and self.records are always kept in parallel
+        # (same insertion index), so bisect_left gives the correct slice start.
+        start_idx = 0
+        if start_timestamp and not isinstance(start_timestamp, _DatabaseTimestampUnbound):
+            start_idx = bisect.bisect_left(self._db_sorted_timestamps, start_timestamp)
+
+        for record in self.records[start_idx:]:
             record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
 
             if start_timestamp and record_date_time_timestamp < start_timestamp:
@@ -1702,7 +1709,7 @@ class DatabaseRecordProtocolMixin(
                     f"Vacuum requested for database '{self.db_namespace()}' but keep limit is infinite."
                 )
                 return 0
-            keep_hours = keep_duration.hours
+            keep_hours = int(keep_duration.total_seconds() // 3600)
 
         if keep_hours is not None:
             _, db_max = await self.db_timestamp_range()

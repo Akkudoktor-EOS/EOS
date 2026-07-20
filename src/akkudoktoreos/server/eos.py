@@ -184,7 +184,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         "save_eos_database", save_eos_database, interval_attr="database/autosave_interval_sec"
     )
     manager.register(
-        "compact_eos_database", save_eos_database, interval_attr="database/compaction_interval_sec"
+        "compact_eos_database",
+        compact_eos_database,
+        interval_attr="database/compaction_interval_sec",
     )
     manager.register("manage_energy", ems_manage_energy, interval_attr="ems/interval")
 
