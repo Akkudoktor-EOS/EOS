@@ -146,7 +146,7 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
         try:
             adapter_eos = get_adapter()
             result = adapter_eos.provider_by_id("HomeAssistant").get_homeassistant_entity_ids()
-        except:
+        except Exception:
             return []
         return result
 
@@ -157,7 +157,7 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
         try:
             adapter_eos = get_adapter()
             result = adapter_eos.provider_by_id("HomeAssistant").get_eos_solution_entity_ids()
-        except:
+        except Exception:
             return []
         return result
 
@@ -170,7 +170,7 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
             result = adapter_eos.provider_by_id(
                 "HomeAssistant"
             ).get_eos_device_instruction_entity_ids()
-        except:
+        except Exception:
             return []
         return result
 
@@ -256,7 +256,7 @@ class HomeAssistantAdapter(AdapterProvider):
             optimization_solution_keys = self.config.optimization.keys
             for key in sorted(optimization_solution_keys):
                 solution_entity_ids.append(self._entity_id_from_solution_key(key))
-        except:
+        except Exception:
             solution_entity_ids = []
         return solution_entity_ids
 

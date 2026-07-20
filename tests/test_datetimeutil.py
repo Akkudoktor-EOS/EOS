@@ -1204,7 +1204,11 @@ def test_to_datetime(
         # print(f"Result:   {result} tz={result.timezone}")
         # print(f"Compare:  {compare}")
         if expected_approximately:
-            assert compare.time_diff < 300
+            # Compare using Unix timestamps to avoid pendulum timezone state
+            # issues and to prevent staleness from parametrize collection time.
+            import time
+
+            assert abs(result.timestamp() - time.time()) < 300
         else:
             assert compare.equal == True
 

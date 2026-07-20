@@ -809,7 +809,7 @@ class DatabaseRecordProtocolMixin(
         self._db_load_phase = DatabaseRecordProtocolLoadPhase.NONE
         try:
             del self._db_initialized
-        except:
+        except Exception:
             logger.debug("_db_reset_state called on uninitialized sequence")
 
     def _db_clone_empty(self: T_DatabaseRecordProtocol) -> T_DatabaseRecordProtocol:
