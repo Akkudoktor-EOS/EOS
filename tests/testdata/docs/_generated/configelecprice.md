@@ -13,6 +13,7 @@
 | energycharts | `EOS_ELECPRICE__ENERGYCHARTS` | `ElecPriceEnergyChartsCommonSettings` | `rw` | `required` | Energy Charts provider settings. |
 | provider | `EOS_ELECPRICE__PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available electricity price provider ids. |
+| tibber | `EOS_ELECPRICE__TIBBER` | `ElecPriceTibberCommonSettings` | `rw` | `required` | Tibber electricity price provider settings. |
 | vat_rate | `EOS_ELECPRICE__VAT_RATE` | `Optional[float]` | `rw` | `1.19` | VAT rate factor applied to electricity price when charges are used. |
 :::
 <!-- pyml enable line-length -->
@@ -39,6 +40,10 @@
            },
            "energycharts": {
                "bidding_zone": "DE-LU"
+           },
+           "tibber": {
+               "access_token": null,
+               "home_id": null
            }
        }
    }
@@ -68,12 +73,48 @@
            "energycharts": {
                "bidding_zone": "DE-LU"
            },
+           "tibber": {
+               "access_token": null,
+               "home_id": null
+           },
            "providers": [
                "ElecPriceAkkudoktor",
                "ElecPriceEnergyCharts",
                "ElecPriceFixed",
-               "ElecPriceImport"
+               "ElecPriceImport",
+               "ElecPriceTibber"
            ]
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the Tibber electricity price provider
+
+<!-- pyml disable line-length -->
+:::{table} elecprice::tibber
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| access_token | `Optional[str]` | `rw` | `None` | Tibber API access token. |
+| home_id | `Optional[str]` | `rw` | `None` | Optional Tibber home id. If omitted, the first home with a subscription is used. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "elecprice": {
+           "tibber": {
+               "access_token": "tibber_pat_...",
+               "home_id": "00000000-0000-0000-0000-000000000000"
+           }
        }
    }
 ```
