@@ -10,6 +10,7 @@ from akkudoktoreos.prediction.elecpriceenergycharts import (
 )
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixedCommonSettings
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImportCommonSettings
+from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibberCommonSettings
 
 
 def elecprice_provider_ids() -> list[str]:
@@ -17,9 +18,14 @@ def elecprice_provider_ids() -> list[str]:
     try:
         prediction_eos = get_prediction()
     except Exception:
-        # Prediction may not be initialized
-        # Return at least provider used in example
-        return ["ElecPriceAkkudoktor"]
+        # Prediction may not be initialized. Return static built-in provider ids.
+        return [
+            "ElecPriceAkkudoktor",
+            "ElecPriceEnergyCharts",
+            "ElecPriceFixed",
+            "ElecPriceImport",
+            "ElecPriceTibber",
+        ]
 
     return [
         provider.provider_id()
@@ -70,6 +76,11 @@ class ElecPriceCommonSettings(SettingsBaseModel):
     energycharts: ElecPriceEnergyChartsCommonSettings = Field(
         default_factory=ElecPriceEnergyChartsCommonSettings,
         json_schema_extra={"description": "Energy Charts provider settings."},
+    )
+
+    tibber: ElecPriceTibberCommonSettings = Field(
+        default_factory=ElecPriceTibberCommonSettings,
+        json_schema_extra={"description": "Tibber electricity price provider settings."},
     )
 
     @computed_field  # type: ignore[prop-decorator]

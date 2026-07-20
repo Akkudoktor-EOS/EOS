@@ -110,6 +110,10 @@
            },
            "energycharts": {
                "bidding_zone": "DE-LU"
+           },
+           "tibber": {
+               "access_token": null,
+               "home_id": null
            }
        },
        "ems": {
