@@ -284,8 +284,9 @@ class GeneticOptimizationParameters(
                 pvforecast_ac_power = (array * power_to_energy_per_interval_factor).tolist()
             except Exception as e:
                 logger.info(
-                    "No PV forecast data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                    "No PV forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 cls.config.merge_settings_from_dict(
                     {
@@ -338,8 +339,9 @@ class GeneticOptimizationParameters(
                 elecprice_marketprice_wh = array.tolist()
             except Exception as e:
                 logger.info(
-                    "No Electricity Marketprice forecast data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                    "No Electricity Marketprice forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 cls.config.elecprice.provider = "ElecPriceAkkudoktor"
                 # Retry
@@ -355,8 +357,9 @@ class GeneticOptimizationParameters(
                 loadforecast_power_w = array.tolist()
             except Exception as e:
                 logger.info(
-                    "No Load forecast data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                    "No Load forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 cls.config.merge_settings_from_dict(
                     {
@@ -381,8 +384,9 @@ class GeneticOptimizationParameters(
                 feed_in_tariff_wh = array.tolist()
             except Exception as e:
                 logger.info(
-                    "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                    "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 cls.config.merge_settings_from_dict(
                     {
@@ -409,8 +413,9 @@ class GeneticOptimizationParameters(
                 weather_temp_air = array.tolist()
             except Exception as e:
                 logger.info(
-                    "No weather forecast data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                    "No weather forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 cls.config.weather.provider = "BrightSky"
                 # Retry
@@ -444,8 +449,9 @@ class GeneticOptimizationParameters(
                     )
                 except Exception as e:
                     logger.info(
-                        "No battery device data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                        "No battery device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                         attempt,
+                        e,
                     )
                     cls.config.devices.batteries = [{"device_id": "battery1", "capacity_wh": 8000}]
                     # Retry
@@ -516,8 +522,9 @@ class GeneticOptimizationParameters(
                     )
                 except Exception as e:
                     logger.info(
-                        "No electric_vehicle device data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                        "No electric_vehicle device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                         attempt,
+                        e,
                     )
                     cls.config.devices.max_electric_vehicles = 1
                     cls.config.devices.electric_vehicles = [
@@ -582,8 +589,9 @@ class GeneticOptimizationParameters(
                     )
                 except Exception as e:
                     logger.info(
-                        "No inverter device data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                        "No inverter device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                         attempt,
+                        e,
                     )
                     cls.config.devices.inverters = [
                         {
@@ -637,8 +645,9 @@ class GeneticOptimizationParameters(
                     )
                 except Exception as e:
                     logger.info(
-                        "No home appliance device data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                        "No home appliance device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                         attempt,
+                        e,
                     )
                     cls.config.devices.home_appliances = [
                         {
@@ -670,8 +679,9 @@ class GeneticOptimizationParameters(
                 )
             except Exception as e:
                 logger.info(
-                    "Can not prepare optimization parameters - will retry. Parameter preparation attempt {}: {e}",
+                    "Can not prepare optimization parameters - will retry. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 oparams = None
                 # Retry
