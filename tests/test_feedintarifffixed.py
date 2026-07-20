@@ -60,3 +60,27 @@ def test_invalid_provider(provider, config_eos):
 # ------------------------------------------------
 # Fixed feed in tariv values
 # ------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_update_data_fills_prediction_horizon(provider, config_eos):
+    """Test that the fixed tariff fills the whole prediction horizon."""
+    ems_eos = get_ems()
+    start_dt = to_datetime("2024-01-01 00:00:00", in_timezone="Europe/Berlin")
+    ems_eos.set_start_datetime(start_dt)
+
+    config_eos.optimization.interval = 3600
+    config_eos.prediction.hours = 24
+
+    await provider.update_data(force_enable=True, force_update=True)
+
+    # One record per optimization interval over the whole horizon
+    assert len(provider) == 24
+
+    records = provider.records
+    for i, record in enumerate(records):
+        # Constant tariff (0.078 kWh = 0.000078 Wh) on interval boundaries
+        assert abs(record.feed_in_tariff_wh - 0.000078) < 1e-9
+        assert record.date_time.minute == 0
+        assert record.date_time.second == 0
+        assert compare_datetimes(record.date_time, start_dt.add(hours=i)).equal
