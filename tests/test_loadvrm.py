@@ -19,9 +19,9 @@ def load_vrm_instance(config_eos):
     settings = {
         "load": {
             "provider": "LoadVrm",
-            "loadvrm": {
-                "load_vrm_token": "dummy-token",
-                "load_vrm_idsite": 12345,
+            "vrm": {
+                "token": "dummy-token",
+                "site_id": 12345,
             },
         }
     }

@@ -12,10 +12,10 @@ def _config(config_eos, planes=None, api_key=None):
         "general": {"latitude": 52.5, "longitude": 13.4},
         "pvforecast": {
             "provider": "PVForecastForecastSolar",
+            "forecastsolar": {"api_key": api_key},
             "planes": planes
             if planes is not None
             else [{"surface_tilt": 30.0, "surface_azimuth": 180.0, "peakpower": 5.0}],
-            "provider_settings": {"PVForecastForecastSolar": {"api_key": api_key}},
         },
     }
     config_eos.merge_settings_from_dict(settings)

@@ -19,11 +19,9 @@ def provider(sample_import_1_json, config_eos):
     settings = {
         "pvforecast": {
             "provider": "PVForecastImport",
-            "provider_settings": {
-                "PVForecastImport": {
-                    "import_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
-                    "import_json": json.dumps(sample_import_1_json),
-                },
+            "pvforecastimport": {
+                "import_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
+                "import_json": json.dumps(sample_import_1_json),
             },
         }
     }
@@ -57,10 +55,8 @@ def test_invalid_provider(provider, config_eos):
     settings = {
         "pvforecast": {
             "provider": "<invalid>",
-            "provider_settings": {
-                "PVForecastImport": {
-                    "import_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
-                },
+            "pvforecastimport": {
+                "import_file_path": str(FILE_TESTDATA_PVFORECASTIMPORT_1_JSON),
             },
         }
     }
@@ -92,11 +88,11 @@ async def test_import(provider, sample_import_1_json, start_datetime, from_file,
     ems_eos = get_ems()
     ems_eos.set_start_datetime(to_datetime(start_datetime, in_timezone="Europe/Berlin"))
     if from_file:
-        config_eos.pvforecast.provider_settings.PVForecastImport.import_json = None
-        assert config_eos.pvforecast.provider_settings.PVForecastImport.import_json is None
+        config_eos.pvforecast.pvforecastimport.import_json = None
+        assert config_eos.pvforecast.pvforecastimport.import_json is None
     else:
-        config_eos.pvforecast.provider_settings.PVForecastImport.import_file_path = None
-        assert config_eos.pvforecast.provider_settings.PVForecastImport.import_file_path is None
+        config_eos.pvforecast.pvforecastimport.import_file_path = None
+        assert config_eos.pvforecast.pvforecastimport.import_file_path is None
     await provider.delete_by_datetime(start_datetime=None, end_datetime=None)
 
     # Call the method

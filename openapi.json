@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607201124501528"
+    "version": "v0.3.0.dev2607201194575252"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -3490,7 +3490,7 @@
           },
           "elecpriceimport": {
             "$ref": "#/components/schemas/ElecPriceImportCommonSettings",
-            "description": "Import provider settings."
+            "description": "Electricity price import provider settings."
           },
           "energycharts": {
             "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
@@ -3561,7 +3561,7 @@
           },
           "elecpriceimport": {
             "$ref": "#/components/schemas/ElecPriceImportCommonSettings",
-            "description": "Import provider settings."
+            "description": "Electricity price import provider settings."
           },
           "energycharts": {
             "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
@@ -4372,41 +4372,6 @@
         "title": "FRBCTimerStatus",
         "description": "Current status of an FRBC Timer.\n\nIndicates when the Timer will be finished."
       },
-      "FeedInTariffCommonProviderSettings": {
-        "properties": {
-          "FeedInTariffFixed": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FeedInTariffFixedCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "FeedInTariffFixed settings",
-            "examples": [
-              null
-            ]
-          },
-          "FeedInTariffImport": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FeedInTariffImportCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "FeedInTariffImport settings",
-            "examples": [
-              null
-            ]
-          }
-        },
-        "type": "object",
-        "title": "FeedInTariffCommonProviderSettings",
-        "description": "Feed In Tariff Prediction Provider Configuration."
-      },
       "FeedInTariffCommonSettings-Input": {
         "properties": {
           "provider": {
@@ -4425,12 +4390,13 @@
               "FeedInTarifImport"
             ]
           },
-          "provider_settings": {
-            "$ref": "#/components/schemas/FeedInTariffCommonProviderSettings",
-            "description": "Provider settings",
-            "examples": [
-              {}
-            ]
+          "feedintarifffixed": {
+            "$ref": "#/components/schemas/FeedInTariffFixedCommonSettings",
+            "description": "Fixed feed in tariff provider settings."
+          },
+          "feedintariffimport": {
+            "$ref": "#/components/schemas/FeedInTariffImportCommonSettings",
+            "description": "Feed in tarif import provider settings."
           }
         },
         "type": "object",
@@ -4455,12 +4421,13 @@
               "FeedInTarifImport"
             ]
           },
-          "provider_settings": {
-            "$ref": "#/components/schemas/FeedInTariffCommonProviderSettings",
-            "description": "Provider settings",
-            "examples": [
-              {}
-            ]
+          "feedintarifffixed": {
+            "$ref": "#/components/schemas/FeedInTariffFixedCommonSettings",
+            "description": "Fixed feed in tariff provider settings."
+          },
+          "feedintariffimport": {
+            "$ref": "#/components/schemas/FeedInTariffImportCommonSettings",
+            "description": "Feed in tarif import provider settings."
           },
           "providers": {
             "items": {
@@ -6424,13 +6391,13 @@
             "$ref": "#/components/schemas/LoadAkkudoktorCommonSettings",
             "description": "LoadAkkudoktor provider settings."
           },
-          "loadvrm": {
-            "$ref": "#/components/schemas/LoadVrmCommonSettings",
-            "description": "LoadVrm provider settings."
-          },
           "loadimport": {
             "$ref": "#/components/schemas/LoadImportCommonSettings",
             "description": "LoadImport provider settings."
+          },
+          "vrm": {
+            "$ref": "#/components/schemas/LoadVrmCommonSettings",
+            "description": "Victron Remote Management (VRM) provider settings."
           }
         },
         "type": "object",
@@ -6458,13 +6425,13 @@
             "$ref": "#/components/schemas/LoadAkkudoktorCommonSettings",
             "description": "LoadAkkudoktor provider settings."
           },
-          "loadvrm": {
-            "$ref": "#/components/schemas/LoadVrmCommonSettings",
-            "description": "LoadVrm provider settings."
-          },
           "loadimport": {
             "$ref": "#/components/schemas/LoadImportCommonSettings",
             "description": "LoadImport provider settings."
+          },
+          "vrm": {
+            "$ref": "#/components/schemas/LoadVrmCommonSettings",
+            "description": "Victron Remote Management (VRM) provider settings."
           },
           "providers": {
             "items": {
@@ -6527,18 +6494,18 @@
       },
       "LoadVrmCommonSettings": {
         "properties": {
-          "load_vrm_token": {
+          "token": {
             "type": "string",
-            "title": "Load Vrm Token",
-            "description": "Token for Connecting VRM API",
+            "title": "Token",
+            "description": "Access token for connecting to the Victron Remote Management (VRM) API",
             "default": "your-token",
             "examples": [
               "your-token"
             ]
           },
-          "load_vrm_idsite": {
+          "site_id": {
             "type": "integer",
-            "title": "Load Vrm Idsite",
+            "title": "Site Id",
             "description": "VRM-Installation-ID",
             "default": 12345,
             "examples": [
@@ -7657,83 +7624,6 @@
         "title": "PPBCStartInterruptionInstruction",
         "description": "Represents an instruction to interrupt execution of a running power sequence.\n\nThis model defines a control instruction that interrupts the execution of an\nactive power sequence. It enables dynamic control over sequence execution,\nallowing temporary suspension of a sequence in response to changing system conditions\nor requirements, particularly for sequences marked as interruptible."
       },
-      "PVForecastCommonProviderSettings": {
-        "properties": {
-          "PVForecastImport": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PVForecastImportCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "PVForecastImport settings",
-            "examples": [
-              null
-            ]
-          },
-          "PVForecastVrm": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PVForecastVrmCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "PVForecastVrm settings",
-            "examples": [
-              null
-            ]
-          },
-          "PVForecastPVNode": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PVForecastPVNodeCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "PVForecastPVNode settings",
-            "examples": [
-              null
-            ]
-          },
-          "PVForecastForecastSolar": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PVForecastForecastSolarCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "PVForecastForecastSolar settings",
-            "examples": [
-              null
-            ]
-          },
-          "PVForecastSolcast": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PVForecastSolcastCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "PVForecastSolcast settings",
-            "examples": [
-              null
-            ]
-          }
-        },
-        "type": "object",
-        "title": "PVForecastCommonProviderSettings",
-        "description": "PV Forecast Provider Configuration."
-      },
       "PVForecastCommonSettings-Input": {
         "properties": {
           "provider": {
@@ -7751,12 +7641,25 @@
               "PVForecastAkkudoktor"
             ]
           },
-          "provider_settings": {
-            "$ref": "#/components/schemas/PVForecastCommonProviderSettings",
-            "description": "Provider settings",
-            "examples": [
-              {}
-            ]
+          "pvforecastimport": {
+            "$ref": "#/components/schemas/PVForecastImportCommonSettings",
+            "description": "PV forecast import provider settings"
+          },
+          "vrm": {
+            "$ref": "#/components/schemas/PVForecastVrmCommonSettings",
+            "description": "Victron Remote Management (VRM) provider settings"
+          },
+          "pvnode": {
+            "$ref": "#/components/schemas/PVForecastPVNodeCommonSettings",
+            "description": "PVNode provider settings"
+          },
+          "forecastsolar": {
+            "$ref": "#/components/schemas/PVForecastForecastSolarCommonSettings",
+            "description": "ForecastSolar provider settings"
+          },
+          "solcast": {
+            "$ref": "#/components/schemas/PVForecastSolcastCommonSettings",
+            "description": "Solcast provider settings"
           },
           "planes": {
             "anyOf": [
@@ -7855,12 +7758,25 @@
               "PVForecastAkkudoktor"
             ]
           },
-          "provider_settings": {
-            "$ref": "#/components/schemas/PVForecastCommonProviderSettings",
-            "description": "Provider settings",
-            "examples": [
-              {}
-            ]
+          "pvforecastimport": {
+            "$ref": "#/components/schemas/PVForecastImportCommonSettings",
+            "description": "PV forecast import provider settings"
+          },
+          "vrm": {
+            "$ref": "#/components/schemas/PVForecastVrmCommonSettings",
+            "description": "Victron Remote Management (VRM) provider settings"
+          },
+          "pvnode": {
+            "$ref": "#/components/schemas/PVForecastPVNodeCommonSettings",
+            "description": "PVNode provider settings"
+          },
+          "forecastsolar": {
+            "$ref": "#/components/schemas/PVForecastForecastSolarCommonSettings",
+            "description": "ForecastSolar provider settings"
+          },
+          "solcast": {
+            "$ref": "#/components/schemas/PVForecastSolcastCommonSettings",
+            "description": "Solcast provider settings"
           },
           "planes": {
             "anyOf": [
@@ -8402,18 +8318,18 @@
       },
       "PVForecastVrmCommonSettings": {
         "properties": {
-          "pvforecast_vrm_token": {
+          "token": {
             "type": "string",
-            "title": "Pvforecast Vrm Token",
-            "description": "Token for Connecting VRM API",
+            "title": "Token",
+            "description": "Access token for connecting to the Victron Remote Management (VRM) API",
             "default": "your-token",
             "examples": [
               "your-token"
             ]
           },
-          "pvforecast_vrm_idsite": {
+          "site_id": {
             "type": "integer",
-            "title": "Pvforecast Vrm Idsite",
+            "title": "Site Id",
             "description": "VRM-Installation-ID",
             "default": 12345,
             "examples": [
@@ -9523,27 +9439,6 @@
         "title": "ValueTimeWindowSequence",
         "description": "Sequence of value time windows.\n\nThis model specializes `TimeWindowSequence` to ensure that all\ncontained windows are instances of `ValueTimeWindow`.\nIt provides the full set of sequence operations (containment checks,\navailability, start time calculations) for value windows."
       },
-      "WeatherCommonProviderSettings": {
-        "properties": {
-          "WeatherImport": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/WeatherImportCommonSettings"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "WeatherImport settings",
-            "examples": [
-              null
-            ]
-          }
-        },
-        "type": "object",
-        "title": "WeatherCommonProviderSettings",
-        "description": "Weather Forecast Provider Configuration."
-      },
       "WeatherCommonSettings-Input": {
         "properties": {
           "provider": {
@@ -9561,12 +9456,9 @@
               "WeatherImport"
             ]
           },
-          "provider_settings": {
-            "$ref": "#/components/schemas/WeatherCommonProviderSettings",
-            "description": "Provider settings",
-            "examples": [
-              {}
-            ]
+          "weatherimport": {
+            "$ref": "#/components/schemas/WeatherImportCommonSettings",
+            "description": "Weather import provider settings"
           }
         },
         "type": "object",
@@ -9590,12 +9482,9 @@
               "WeatherImport"
             ]
           },
-          "provider_settings": {
-            "$ref": "#/components/schemas/WeatherCommonProviderSettings",
-            "description": "Provider settings",
-            "examples": [
-              {}
-            ]
+          "weatherimport": {
+            "$ref": "#/components/schemas/WeatherImportCommonSettings",
+            "description": "Weather import provider settings"
           },
           "providers": {
             "items": {

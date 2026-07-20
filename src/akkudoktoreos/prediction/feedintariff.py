@@ -25,19 +25,6 @@ def feedintariff_provider_ids() -> list[str]:
     ]
 
 
-class FeedInTariffCommonProviderSettings(SettingsBaseModel):
-    """Feed In Tariff Prediction Provider Configuration."""
-
-    FeedInTariffFixed: Optional[FeedInTariffFixedCommonSettings] = Field(
-        default=None,
-        json_schema_extra={"description": "FeedInTariffFixed settings", "examples": [None]},
-    )
-    FeedInTariffImport: Optional[FeedInTariffImportCommonSettings] = Field(
-        default=None,
-        json_schema_extra={"description": "FeedInTariffImport settings", "examples": [None]},
-    )
-
-
 class FeedInTariffCommonSettings(SettingsBaseModel):
     """Feed In Tariff Prediction Configuration."""
 
@@ -49,18 +36,14 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
         },
     )
 
-    provider_settings: FeedInTariffCommonProviderSettings = Field(
-        default_factory=FeedInTariffCommonProviderSettings,
-        json_schema_extra={
-            "description": "Provider settings",
-            "examples": [
-                # Example 1: Empty/default settings (all providers None)
-                {
-                    "FeedInTariffFixed": None,
-                    "FeedInTariffImport": None,
-                },
-            ],
-        },
+    feedintarifffixed: FeedInTariffFixedCommonSettings = Field(
+        default_factory=FeedInTariffFixedCommonSettings,
+        json_schema_extra={"description": "Fixed feed in tariff provider settings."},
+    )
+
+    feedintariffimport: FeedInTariffImportCommonSettings = Field(
+        default_factory=FeedInTariffImportCommonSettings,
+        json_schema_extra={"description": "Feed in tarif import provider settings."},
     )
 
     @computed_field  # type: ignore[prop-decorator]

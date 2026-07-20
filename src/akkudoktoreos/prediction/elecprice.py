@@ -70,7 +70,7 @@ class ElecPriceCommonSettings(SettingsBaseModel):
 
     elecpriceimport: ElecPriceImportCommonSettings = Field(
         default_factory=ElecPriceImportCommonSettings,
-        json_schema_extra={"description": "Import provider settings."},
+        json_schema_extra={"description": "Electricity price import provider settings."},
     )
 
     energycharts: ElecPriceEnergyChartsCommonSettings = Field(

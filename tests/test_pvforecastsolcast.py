@@ -12,9 +12,7 @@ def pvforecast_instance(config_eos):
     settings = {
         "pvforecast": {
             "provider": "PVForecastSolcast",
-            "provider_settings": {
-                "PVForecastSolcast": {"api_key": "dummy-key", "site_id": "site-abc"},
-            },
+            "solcast": {"api_key": "dummy-key", "site_id": "site-abc"},
         },
     }
     config_eos.merge_settings_from_dict(settings)

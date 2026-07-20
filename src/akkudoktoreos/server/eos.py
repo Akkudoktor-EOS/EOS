@@ -1314,7 +1314,7 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
             detail=f"Can not update predictions: {e}",
         )
 
-    # Get the forcast starting at start of day
+    # Get the forecast starting at start of day
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
@@ -1374,7 +1374,7 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
             detail=f"Can not update predictions: {e}",
         )
 
-    # Get the forcast starting at start of day
+    # Get the forecast starting at start of day
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
@@ -1430,7 +1430,7 @@ async def fastapi_pvforecast() -> ForecastResponse:
             detail=f"Can not update predictions: {e}",
         )
 
-    # Get the forcast starting at start of day
+    # Get the forecast starting at start of day
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:

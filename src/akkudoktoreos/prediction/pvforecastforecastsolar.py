@@ -62,7 +62,7 @@ class PVForecastForecastSolar(PVForecastProvider):
 
     @property
     def _api_key(self) -> Optional[str]:
-        settings = self.config.pvforecast.provider_settings.PVForecastForecastSolar
+        settings = self.config.pvforecast.forecastsolar
         return settings.api_key if settings is not None else None
 
     def _to_utc_datetime(self, local_ts: Any, iana_tz: Optional[str]) -> Any:
