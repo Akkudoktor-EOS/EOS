@@ -242,6 +242,8 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
 class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
     """**Note**: The first value of "load_wh_per_hour", "grid_feed_in_wh_per_hour", and "grid_consumption_wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
 
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
     ac_charge: list[float] = Field(
         json_schema_extra={
             "description": "Array with AC charging values as relative power (0.0-1.0), other values set to 0."
@@ -257,9 +259,17 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             "description": "Array with discharge values (1 for discharge, 0 otherwise)."
         }
     )
-    eautocharge_hours_float: Optional[list[float]] = Field(json_schema_extra={"description": "TBD"})
+    ev_charge_hours_float: Optional[list[float]] = Field(
+        validation_alias=AliasChoices("ev_charge_hours_float", "eautocharge_hours_float"),
+        json_schema_extra={
+            "description": "Array with EV charging values as relative power (0.0-1.0), or `null` if no EV is optimized."
+        },
+    )
     result: GeneticSimulationResult
-    eauto_obj: Optional[ElectricVehicleResult]
+    ev_obj: Optional[ElectricVehicleResult] = Field(
+        validation_alias=AliasChoices("ev_obj", "eauto_obj"),
+        json_schema_extra={"description": "Electric vehicle state after optimization."},
+    )
     start_solution: Optional[list[float]] = Field(
         default=None,
         json_schema_extra={
@@ -273,6 +283,17 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         },
     )
 
+    # Computed fields for backward compatibility (deprecated German names)
+    @computed_field(json_schema_extra={"deprecated": True})
+    def eautocharge_hours_float(self) -> Optional[list[float]]:
+        """Deprecated: Use ev_charge_hours_float instead."""
+        return self.ev_charge_hours_float
+
+    @computed_field(json_schema_extra={"deprecated": True})
+    def eauto_obj(self) -> Optional[ElectricVehicleResult]:
+        """Deprecated: Use ev_obj instead."""
+        return self.ev_obj
+
     @field_validator(
         "ac_charge",
         "dc_charge",
@@ -283,7 +304,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         return NumpyEncoder.convert_numpy(field)[0]
 
     @field_validator(
-        "eauto_obj",
+        "ev_obj",
         mode="before",
     )
     def convert_eauto(cls, field: Any) -> Any:
@@ -548,14 +569,14 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             solution[key] = operation[key]
 
         # Add EV battery solution
-        # eautocharge_hours_float start at hour 0 of start day
+        # ev_charge_hours_float start at hour 0 of start day
         # result.ev_soc_per_hour start at start_datetime.hour
-        if self.eauto_obj:
+        if self.ev_obj:
             ev_device_id = self._ev_device_id()
-            if self.eautocharge_hours_float is None:
+            if self.ev_charge_hours_float is None:
                 # Electric vehicle is full enough. No load times.
                 solution[f"{ev_device_id}_soc_factor"] = [
-                    self.eauto_obj.initial_soc_percentage / 100.0
+                    self.ev_obj.initial_soc_percentage / 100.0
                 ] * n_points
                 solution["genetic_ev_charge_factor"] = [0.0] * n_points
                 # operation modes
@@ -576,7 +597,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 operation = {
                     "genetic_ev_charge_factor": [],
                 }
-                for hour_idx, rate in enumerate(self.eautocharge_hours_float):
+                for hour_idx, rate in enumerate(self.ev_charge_hours_float):
                     if hour_idx < start_day_hour:
                         continue
                     if hour_idx >= start_day_hour + n_points:
@@ -791,10 +812,10 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             )
 
         # Add EV battery instructions (fill rate based control)
-        # eautocharge_hours_float start at hour 0 of start day
-        if self.eauto_obj:
+        # ev_charge_hours_float start at hour 0 of start day
+        if self.ev_obj:
             resource_id = self._ev_device_id()
-            if self.eautocharge_hours_float is None:
+            if self.ev_charge_hours_float is None:
                 # Electric vehicle is full enough. No load times.
                 logger.debug("EV: {} - SoC >= min, no optimization", resource_id)
                 plan.add_instruction(
@@ -810,9 +831,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 last_operation_mode = None
                 last_operation_mode_factor = None
                 logger.debug(
-                    "EV: {} - {}", resource_id, self.eautocharge_hours_float[start_day_hour:]
+                    "EV: {} - {}", resource_id, self.ev_charge_hours_float[start_day_hour:]
                 )
-                for hour_idx, rate in enumerate(self.eautocharge_hours_float):
+                for hour_idx, rate in enumerate(self.ev_charge_hours_float):
                     if hour_idx < start_day_hour:
                         continue
                     operation_mode, operation_mode_factor = self._battery_operation_from_solution(

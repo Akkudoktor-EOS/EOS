@@ -54,6 +54,8 @@ The server can be started with `make run`. A full overview of the main shortcuts
 
 ### Code Style
 
+All code, comments, docstrings, identifiers and API field names are written in English.
+
 Our code style checks use [`pre-commit`](https://pre-commit.com).
 
 To run formatting automatically before every commit:

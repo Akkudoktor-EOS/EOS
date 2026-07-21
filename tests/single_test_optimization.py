@@ -179,7 +179,7 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
                 "pv_forecast_wh": pv_forecast,
                 "electricity_price_per_wh": electricity_price_per_wh,
             },
-            "pv_akku": {
+            "pv_battery": {
                 "device_id": "battery 1",
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
@@ -190,7 +190,7 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
                 "max_power_wh": 10000,
                 "battery_id": "battery 1",
             },
-            "eauto": {
+            "ev": {
                 "device_id": "electric vehicle 1",
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,
@@ -375,7 +375,7 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
                 "pv_forecast_wh": pv_forecast,
                 "electricity_price_per_wh": electricity_price_per_wh,
             },
-            "pv_akku": {
+            "pv_battery": {
                 "device_id": "battery 1",
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
@@ -386,7 +386,7 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
                 "max_power_wh": 10000,
                 "battery_id": "battery 1",
             },
-            "eauto": {
+            "ev": {
                 "device_id": "electric vehicle 1",
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,

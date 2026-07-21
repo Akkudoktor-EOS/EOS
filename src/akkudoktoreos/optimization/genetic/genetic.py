@@ -435,12 +435,10 @@ class GeneticOptimization(OptimizationBase):
     ):
         """Initialize the optimization problem with the required parameters."""
         self.opti_param: dict[str, Any] = {}
-        self.fixed_eauto_hours = (
-            self.config.prediction.hours - self.config.optimization.horizon_hours
-        )
+        self.fixed_ev_hours = self.config.prediction.hours - self.config.optimization.horizon_hours
         self.ev_possible_charge_values: list[float] = [1.0]
         # Separate charge-level list for battery AC charging (independent of EV rates).
-        # Populated from parameters.pv_akku.charge_rates in optimize_ems.
+        # Populated from parameters.pv_battery.charge_rates in optimize_ems.
         self.bat_possible_charge_values: list[float] = [1.0]
         self.verbose = verbose
         self.fix_seed = fixed_seed
@@ -526,9 +524,9 @@ class GeneticOptimization(OptimizationBase):
                 self.config.prediction.hours : self.config.prediction.hours * 2
             ]
             (ev_charge_part_mutated,) = self.toolbox.mutate_ev_charge_index(ev_charge_part)
-            ev_charge_part_mutated[self.config.prediction.hours - self.fixed_eauto_hours :] = [
+            ev_charge_part_mutated[self.config.prediction.hours - self.fixed_ev_hours :] = [
                 0
-            ] * self.fixed_eauto_hours
+            ] * self.fixed_ev_hours
             individual[self.config.prediction.hours : self.config.prediction.hours * 2] = (
                 ev_charge_part_mutated
             )
@@ -563,14 +561,14 @@ class GeneticOptimization(OptimizationBase):
     def merge_individual(
         self,
         discharge_hours_bin: np.ndarray,
-        eautocharge_hours_index: Optional[np.ndarray],
+        ev_charge_hours_index: Optional[np.ndarray],
         washingstart_int: Optional[int],
     ) -> list[int]:
         """Merge the individual components back into a single solution list.
 
         Parameters:
             discharge_hours_bin (np.ndarray): Binary discharge hours.
-            eautocharge_hours_index (Optional[np.ndarray]): EV charge hours as integers, or None.
+            ev_charge_hours_index (Optional[np.ndarray]): EV charge hours as integers, or None.
             washingstart_int (Optional[int]): Dishwasher start time as integer, or None.
 
         Returns:
@@ -580,8 +578,8 @@ class GeneticOptimization(OptimizationBase):
         individual = discharge_hours_bin.tolist()
 
         # Add EV charge hours if applicable
-        if self.optimize_ev and eautocharge_hours_index is not None:
-            individual.extend(eautocharge_hours_index.tolist())
+        if self.optimize_ev and ev_charge_hours_index is not None:
+            individual.extend(ev_charge_hours_index.tolist())
         elif self.optimize_ev:
             # If optimize_ev is active but no EV data is available, append zeros
             individual.extend([0] * self.config.prediction.hours)
@@ -609,7 +607,7 @@ class GeneticOptimization(OptimizationBase):
         discharge_hours_bin = np.array(individual[: self.config.prediction.hours], dtype=int)
 
         # EV charge hours as a NumPy array of ints (if optimize_ev is True)
-        eautocharge_hours_index = (
+        ev_charge_hours_index = (
             # append ev charging states to individual
             np.array(
                 individual[self.config.prediction.hours : self.config.prediction.hours * 2],
@@ -626,7 +624,7 @@ class GeneticOptimization(OptimizationBase):
             else None
         )
 
-        return discharge_hours_bin, eautocharge_hours_index, washingstart_int
+        return discharge_hours_bin, ev_charge_hours_index, washingstart_int
 
     def setup_deap_environment(self, opti_param: dict[str, Any], start_hour: int) -> None:
         """Set up the DEAP environment with fitness and individual creation rules."""
@@ -701,7 +699,7 @@ class GeneticOptimization(OptimizationBase):
         This is an internal function.
         """
         self.simulation.reset()
-        discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
+        discharge_hours_bin, ev_charge_hours_index, washingstart_int = self.split_individual(
             individual
         )
 
@@ -721,13 +719,13 @@ class GeneticOptimization(OptimizationBase):
             self.simulation.dc_charge_hours = np.full(self.config.prediction.hours, 1)
         self.simulation.ac_charge_hours = ac_charge_hours
 
-        if eautocharge_hours_index is not None:
-            eautocharge_hours_float = np.array(
-                [self.ev_possible_charge_values[i] for i in eautocharge_hours_index],
+        if ev_charge_hours_index is not None:
+            ev_charge_hours_float = np.array(
+                [self.ev_possible_charge_values[i] for i in ev_charge_hours_index],
                 float,
             )
             # discharge is set to 0 by default
-            self.simulation.ev_charge_hours = eautocharge_hours_float
+            self.simulation.ev_charge_hours = ev_charge_hours_float
         else:
             # discharge is set to 0 by default
             self.simulation.ev_charge_hours = np.full(self.config.prediction.hours, 0)
@@ -786,34 +784,32 @@ class GeneticOptimization(OptimizationBase):
 
         # EV 100% & charge not allowed
         if self.optimize_ev:
-            discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
+            discharge_hours_bin, ev_charge_hours_index, washingstart_int = self.split_individual(
                 individual
             )
 
-            eauto_soc_per_hour = np.array(
+            ev_soc_per_hour = np.array(
                 simulation_result.get("EAuto_SoC_pro_Stunde", [])
             )  # Beispielkey
 
-            if eauto_soc_per_hour is None or eautocharge_hours_index is None:
-                raise ValueError("eauto_soc_per_hour or eautocharge_hours_index is None")
-            min_length = min(eauto_soc_per_hour.size, eautocharge_hours_index.size)
-            eauto_soc_per_hour_tail = eauto_soc_per_hour[-min_length:]
-            eautocharge_hours_index_tail = eautocharge_hours_index[-min_length:]
+            if ev_soc_per_hour is None or ev_charge_hours_index is None:
+                raise ValueError("ev_soc_per_hour or ev_charge_hours_index is None")
+            min_length = min(ev_soc_per_hour.size, ev_charge_hours_index.size)
+            ev_soc_per_hour_tail = ev_soc_per_hour[-min_length:]
+            ev_charge_hours_index_tail = ev_charge_hours_index[-min_length:]
 
             # Mask
-            invalid_charge_mask = (eauto_soc_per_hour_tail == 100) & (
-                eautocharge_hours_index_tail > 0
-            )
+            invalid_charge_mask = (ev_soc_per_hour_tail == 100) & (ev_charge_hours_index_tail > 0)
 
             if np.any(invalid_charge_mask):
                 invalid_indices = np.where(invalid_charge_mask)[0]
                 if len(invalid_indices) > 1:
-                    eautocharge_hours_index_tail[invalid_indices] = 0
+                    ev_charge_hours_index_tail[invalid_indices] = 0
 
-                eautocharge_hours_index[-min_length:] = eautocharge_hours_index_tail.tolist()
+                ev_charge_hours_index[-min_length:] = ev_charge_hours_index_tail.tolist()
 
                 adjusted_individual = self.merge_individual(
-                    discharge_hours_bin, eautocharge_hours_index, washingstart_int
+                    discharge_hours_bin, ev_charge_hours_index, washingstart_int
                 )
 
                 individual[:] = adjusted_individual
@@ -852,7 +848,7 @@ class GeneticOptimization(OptimizationBase):
 
         #     # Merge the updated discharge_hours_bin back into the individual
         #     adjusted_individual = self.merge_individual(
-        #         discharge_hours_bin, eautocharge_hours_index, washingstart_int
+        #         discharge_hours_bin, ev_charge_hours_index, washingstart_int
         #     )
         #     individual[:] = adjusted_individual
 
@@ -860,8 +856,8 @@ class GeneticOptimization(OptimizationBase):
         individual.extra_data = (  # type: ignore[attr-defined]
             simulation_result["Gesamtbilanz_Euro"],
             simulation_result["Gesamt_Verluste"],
-            parameters.eauto.min_soc_percentage - self.simulation.ev.current_soc_percentage()
-            if parameters.eauto and self.simulation.ev
+            parameters.ev.min_soc_percentage - self.simulation.ev.current_soc_percentage()
+            if parameters.ev and self.simulation.ev
             else 0,
         )
 
@@ -971,7 +967,7 @@ class GeneticOptimization(OptimizationBase):
                         excess_cost_per_wh = break_even_price - best_uncovered_price
                         total_balance += ac_wh * excess_cost_per_wh * ac_penalty_factor
 
-        if self.optimize_ev and parameters.eauto and self.simulation.ev:
+        if self.optimize_ev and parameters.ev and self.simulation.ev:
             try:
                 penalty = self.config.optimization.genetic.penalties["ev_soc_miss"]
             except Exception:
@@ -982,12 +978,10 @@ class GeneticOptimization(OptimizationBase):
                 )
             ev_soc_percentage = self.simulation.ev.current_soc_percentage()
             if (
-                ev_soc_percentage < parameters.eauto.min_soc_percentage
-                or ev_soc_percentage > parameters.eauto.max_soc_percentage
+                ev_soc_percentage < parameters.ev.min_soc_percentage
+                or ev_soc_percentage > parameters.ev.max_soc_percentage
             ):
-                total_balance += (
-                    abs(parameters.eauto.min_soc_percentage - ev_soc_percentage) * penalty
-                )
+                total_balance += abs(parameters.ev.min_soc_percentage - ev_soc_percentage) * penalty
 
         return (total_balance,)
 
@@ -1084,26 +1078,26 @@ class GeneticOptimization(OptimizationBase):
 
         # Initialize PV and EV batteries
         battery: Optional[Battery] = None
-        if parameters.pv_akku:
+        if parameters.pv_battery:
             battery = Battery(
-                parameters.pv_akku,
+                parameters.pv_battery,
                 prediction_hours=self.config.prediction.hours,
             )
             battery.set_charge_per_hour(np.full(self.config.prediction.hours, 0))
 
         ev: Optional[Battery] = None
-        if parameters.eauto:
+        if parameters.ev:
             ev = Battery(
-                parameters.eauto,
+                parameters.ev,
                 prediction_hours=self.config.prediction.hours,
             )
             ev.set_charge_per_hour(np.full(self.config.prediction.hours, 1))
             self.optimize_ev = (
-                parameters.eauto.min_soc_percentage - parameters.eauto.initial_soc_percentage >= 0
+                parameters.ev.min_soc_percentage - parameters.ev.initial_soc_percentage >= 0
             )
             # electrical vehicle charge rates
-            if parameters.eauto.charge_rates is not None:
-                self.ev_possible_charge_values = parameters.eauto.charge_rates
+            if parameters.ev.charge_rates is not None:
+                self.ev_possible_charge_values = parameters.ev.charge_rates
             elif (
                 self.config.devices.electric_vehicles
                 and self.config.devices.electric_vehicles[0]
@@ -1134,9 +1128,9 @@ class GeneticOptimization(OptimizationBase):
         # Battery AC charge rates — use the battery's configured charge_rates so the
         # optimizer can select partial AC charge power (e.g. 10 %, 50 %, 100 %) instead
         # of always forcing full power.  Falls back to [1.0] when not configured.
-        if parameters.pv_akku and parameters.pv_akku.charge_rates:
+        if parameters.pv_battery and parameters.pv_battery.charge_rates:
             self.bat_possible_charge_values = [
-                r for r in parameters.pv_akku.charge_rates if r > 0.0
+                r for r in parameters.pv_battery.charge_rates if r > 0.0
             ] or [1.0]
         elif (
             self.config.devices.batteries
@@ -1195,16 +1189,16 @@ class GeneticOptimization(OptimizationBase):
         simulation_result = self.evaluate_inner(start_solution)
 
         # Prepare results
-        discharge_hours_bin, eautocharge_hours_index, washingstart_int = self.split_individual(
+        discharge_hours_bin, ev_charge_hours_index, washingstart_int = self.split_individual(
             start_solution
         )
         # home appliance may have choosen a different appliance start hour
         if self.simulation.home_appliance:
             washingstart_int = self.simulation.home_appliance_start_hour
 
-        eautocharge_hours_float = (
-            [self.ev_possible_charge_values[i] for i in eautocharge_hours_index]
-            if eautocharge_hours_index is not None
+        ev_charge_hours_float = (
+            [self.ev_possible_charge_values[i] for i in ev_charge_hours_index]
+            if ev_charge_hours_index is not None
             else None
         )
 
@@ -1233,9 +1227,9 @@ class GeneticOptimization(OptimizationBase):
                 "ac_charge": ac_charge_hours,
                 "dc_charge": dc_charge_hours,
                 "discharge_allowed": discharge,
-                "eautocharge_hours_float": eautocharge_hours_float,
+                "ev_charge_hours_float": ev_charge_hours_float,
                 "result": GeneticSimulationResult(**simulation_result).model_dump(),
-                "eauto_obj": self.simulation.ev.to_dict() if self.simulation.ev else None,
+                "ev_obj": self.simulation.ev.to_dict() if self.simulation.ev else None,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,
                 "extra_data": extra_data,
@@ -1254,9 +1248,9 @@ class GeneticOptimization(OptimizationBase):
                 "ac_charge": ac_charge_hours,
                 "dc_charge": dc_charge_hours,
                 "discharge_allowed": discharge,
-                "eautocharge_hours_float": eautocharge_hours_float,
+                "ev_charge_hours_float": ev_charge_hours_float,
                 "result": GeneticSimulationResult(**simulation_result),
-                "eauto_obj": self.simulation.ev,
+                "ev_obj": self.simulation.ev,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,
             }

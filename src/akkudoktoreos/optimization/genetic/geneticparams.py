@@ -137,10 +137,18 @@ class GeneticOptimizationParameters(
     optimization process, such as forecasts, pricing, battery and appliance models.
     """
 
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
     ems: GeneticEnergyManagementParameters
-    pv_akku: Optional[SolarPanelBatteryParameters]
+    pv_battery: Optional[SolarPanelBatteryParameters] = Field(
+        validation_alias=AliasChoices("pv_battery", "pv_akku"),
+        json_schema_extra={"description": "PV battery parameters."},
+    )
     inverter: Optional[InverterParameters]
-    eauto: Optional[ElectricVehicleParameters]
+    ev: Optional[ElectricVehicleParameters] = Field(
+        validation_alias=AliasChoices("ev", "eauto"),
+        json_schema_extra={"description": "Electric vehicle parameters."},
+    )
     dishwasher: Optional[HomeApplianceParameters] = None
     temperature_forecast: Optional[list[Optional[float]]] = Field(
         default=None,
@@ -154,6 +162,17 @@ class GeneticOptimizationParameters(
             "description": "Can be `null` or contain a previous solution (if available)."
         },
     )
+
+    # Computed fields for backward compatibility (deprecated German names)
+    @computed_field(json_schema_extra={"deprecated": True})
+    def pv_akku(self) -> Optional[SolarPanelBatteryParameters]:
+        """Deprecated: Use pv_battery instead."""
+        return self.pv_battery
+
+    @computed_field(json_schema_extra={"deprecated": True})
+    def eauto(self) -> Optional[ElectricVehicleParameters]:
+        """Deprecated: Use ev instead."""
+        return self.ev
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
@@ -457,7 +476,7 @@ class GeneticOptimizationParameters(
                 # Levelized cost of ownership
                 if battery_config.levelized_cost_of_storage_kwh is None:
                     logger.info(
-                        "No battery device LCOS data available - defaulting to 0 €/kWh. Parameter preparation attempt {}.",
+                        "No battery device LCOS data available - defaulting to 0 [amount/kWh]. Parameter preparation attempt {}.",
                         attempt,
                     )
                     battery_config.levelized_cost_of_storage_kwh = 0
@@ -669,8 +688,8 @@ class GeneticOptimizationParameters(
                         price_per_wh_battery=battery_lcos_kwh / 1000,
                     ),
                     temperature_forecast=weather_temp_air,
-                    pv_akku=battery_params,
-                    eauto=electric_vehicle_params,
+                    pv_battery=battery_params,
+                    ev=electric_vehicle_params,
                     inverter=inverter_params,
                     dishwasher=home_appliance_params,
                     start_solution=start_solution,
