@@ -80,11 +80,12 @@ def test_request_forecast_uses_site_and_bearer(pvforecast_instance):
         assert mock_get.call_args.kwargs["params"]["format"] == "json"
 
 
-def test_update_data_skips_when_disabled(pvforecast_instance, config_eos):
+@pytest.mark.asyncio
+async def test_update_data_skips_when_disabled(pvforecast_instance, config_eos):
     config_eos.merge_settings_from_dict({"pvforecast": {"provider": "PVForecastAkkudoktor"}})
     with patch.object(pvforecast_instance, "_request_forecast") as mock_req, \
          patch.object(PVForecastSolcast, "update_value") as mock_update:
-        pvforecast_instance._update_data()
+        await pvforecast_instance._update_data()
         mock_req.assert_not_called()
         mock_update.assert_not_called()
 

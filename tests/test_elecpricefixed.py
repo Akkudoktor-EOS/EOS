@@ -92,7 +92,6 @@ def cache_store():
     return CacheFileStore()
 
 
-@pytest.mark.asyncio
 class TestElecPriceFixed:
     """Tests for ElecPriceFixed provider."""
 
@@ -111,6 +110,7 @@ class TestElecPriceFixed:
         provider.config.reset_settings()
         assert not provider.enabled()
 
+    @pytest.mark.asyncio
     async def test_update_data_hourly_intervals(self, provider, config_eos):
         """Test updating data with hourly intervals (3600s)."""
         # Set start datetime
@@ -142,6 +142,7 @@ class TestElecPriceFixed:
         for i in range(8, 24):
             assert abs(records[i].elecprice_marketprice_wh - 0.00034) < 1e-6
 
+    @pytest.mark.asyncio
     async def test_update_data_15min_intervals(self, provider, config_eos):
         """Test updating data with 15-minute intervals (900s)."""
         ems_eos = get_ems()
@@ -175,6 +176,7 @@ class TestElecPriceFixed:
                 f"Expected day rate at interval {i}, got {records[i].elecprice_marketprice_wh}"
             )
 
+    @pytest.mark.asyncio
     async def test_update_data_30min_intervals(self, provider, config_eos):
         """Test updating data with 30-minute intervals (1800s)."""
         ems_eos = get_ems()
@@ -208,6 +210,7 @@ class TestElecPriceFixed:
                 f"Expected day rate at interval {i}, got {records[i].elecprice_marketprice_wh}"
             )
 
+    @pytest.mark.asyncio
     async def test_update_data_without_config(self, provider, config_eos):
         """Test update_data fails without configuration."""
         # Remove elecpricefixed settings
@@ -216,6 +219,7 @@ class TestElecPriceFixed:
         with pytest.raises(ValueError, match="No time windows configured"):
             await provider.update_data(force_enable=True, force_update=True)
 
+    @pytest.mark.asyncio
     async def test_update_data_without_time_windows(self, provider, config_eos):
         """Test update_data fails without time windows."""
         # Set empty time windows
@@ -225,6 +229,7 @@ class TestElecPriceFixed:
         with pytest.raises(ValueError, match="No time windows configured"):
             await provider.update_data(force_enable=True, force_update=True)
 
+    @pytest.mark.asyncio
     async def test_key_to_array_resampling(self, provider, config_eos):
         """Test that key_to_array can resample to different intervals."""
         # Setup provider with hourly data
