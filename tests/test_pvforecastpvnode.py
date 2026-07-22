@@ -87,19 +87,21 @@ async def test_update_data_sets_ac_and_dc_power(pvforecast_instance):
         mock_update.assert_has_calls(expected, any_order=False)
 
 
-def test_update_data_skips_when_disabled(pvforecast_instance, config_eos):
+@pytest.mark.asyncio
+async def test_update_data_skips_when_disabled(pvforecast_instance, config_eos):
     config_eos.merge_settings_from_dict({"pvforecast": {"provider": "PVForecastAkkudoktor"}})
     with patch.object(pvforecast_instance, "_request_forecast") as mock_req, \
          patch.object(PVForecastPVNode, "update_value") as mock_update:
-        pvforecast_instance._update_data()
+        await pvforecast_instance._update_data()
         mock_req.assert_not_called()
         mock_update.assert_not_called()
 
 
-def test_update_data_skips_on_empty_forecast(pvforecast_instance):
+@pytest.mark.asyncio
+async def test_update_data_skips_on_empty_forecast(pvforecast_instance):
     with patch.object(pvforecast_instance, "_request_forecast", return_value={"values": []}), \
          patch.object(PVForecastPVNode, "update_value") as mock_update:
-        pvforecast_instance._update_data()
+        await pvforecast_instance._update_data()
         mock_update.assert_not_called()
 
 

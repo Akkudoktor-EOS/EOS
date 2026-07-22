@@ -36,7 +36,6 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
         else:
             assert actual[key] == pytest.approx(value)
 
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "fn_in, fn_out, ngen, break_even",
@@ -48,7 +47,7 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
         ("optimize_input_2.json", "optimize_result_2_be.json", 3, 1),
     ],
 )
-def test_optimize(
+async def test_optimize(
     fn_in: str,
     fn_out: str,
     ngen: int,
@@ -147,7 +146,7 @@ def test_optimize(
     compare_dict(genetic_solution.model_dump(), expected_result.model_dump())
 
     # Check the correct generic optimization solution is created
-    optimization_solution = genetic_solution.optimization_solution()
+    optimization_solution = await genetic_solution.optimization_solution()
     # @TODO
 
     # Check the correct generic energy management plan is created
