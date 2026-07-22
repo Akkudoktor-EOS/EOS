@@ -40,7 +40,6 @@ def sample_import_1_json():
     return input_data
 
 
-@pytest.mark.asyncio
 class TestElecPriceImport:
     # ------------------------------------------------
     # General forecast
@@ -72,6 +71,7 @@ class TestElecPriceImport:
     # ------------------------------------------------
 
 
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "start_datetime, from_file",
         [

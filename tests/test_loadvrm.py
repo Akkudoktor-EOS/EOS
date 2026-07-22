@@ -49,9 +49,9 @@ def mock_forecast_response():
         totals={}
     )
 
-@pytest.mark.asyncio
 class TestLoadVRM:
 
+    @pytest.mark.asyncio
     async def test_update_data_calls_update_value(self, load_vrm_instance):
         with patch.object(load_vrm_instance, "_request_forecast", return_value=mock_forecast_response()), \
             patch.object(LoadVrm, "update_value") as mock_update:
@@ -100,6 +100,7 @@ class TestLoadVRM:
             assert "Failed to fetch load forecast" in str(exc_info.value)
             mock_get.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_update_data_does_nothing_on_empty_forecast(self, load_vrm_instance):
         empty_response = VrmForecastResponse(
             success=True,

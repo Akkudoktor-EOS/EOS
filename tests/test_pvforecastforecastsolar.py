@@ -114,11 +114,12 @@ def test_request_forecast_sums_planes(config_eos):
         assert body["watts"]["2025-01-01 12:00:00"] == 1800.0
 
 
-def test_update_data_skips_when_disabled(pvforecast_instance, config_eos):
+@pytest.mark.asyncio
+async def test_update_data_skips_when_disabled(pvforecast_instance, config_eos):
     config_eos.merge_settings_from_dict({"pvforecast": {"provider": "PVForecastAkkudoktor"}})
     with patch.object(pvforecast_instance, "_request_forecast") as mock_req, \
          patch.object(PVForecastForecastSolar, "update_value") as mock_update:
-        pvforecast_instance._update_data()
+        await pvforecast_instance._update_data()
         mock_req.assert_not_called()
         mock_update.assert_not_called()
 

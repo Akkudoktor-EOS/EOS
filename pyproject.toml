@@ -36,7 +36,7 @@ dependencies = [
     "requests==2.34.2",
     "pandas==3.0.3",
     "pendulum==3.2.0",
-    "platformdirs==4.10.1",
+    "platformdirs==4.11.0",
     "psutil==7.2.2",
     "pvlib==0.15.2",
     "pydantic==2.13.4",
@@ -59,7 +59,7 @@ dev = [
     # - commitizen - sync with requirements-dev.txt (if on pypi)
     #
     # !!! Sync .pre-commit-config.yaml with these dependencies !!!
-    "pre-commit==4.6.0",
+    "pre-commit==4.6.1",
     "mypy==2.3.0",
     "types-requests==2.33.0.20260712", # for mypy
     "pandas-stubs==3.0.3.260530", # for mypy
@@ -73,7 +73,7 @@ dev = [
     "sphinx==9.0.4",
     "sphinx_rtd_theme==3.1.0",
     "sphinx-tabs==3.5.0",
-    "GitPython==3.1.52",
+    "GitPython==3.1.53",
     "myst-parser==5.1.0",
     "docutils==0.23",
     "sphinxcontrib-mermaid==2.1.0   ",
