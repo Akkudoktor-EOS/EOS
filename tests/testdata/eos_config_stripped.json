@@ -121,9 +121,5 @@
     },
     "weather": {
         "provider": "BrightSky"
-    },
-    "server": {
-        "eosdash_host": "127.0.0.1",
-        "eosdash_port": 8504
     }
 }

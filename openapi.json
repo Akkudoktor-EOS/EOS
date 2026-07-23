@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607210805856856"
+    "version": "v0.3.0.dev2607231185985809"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -8573,14 +8573,7 @@
       "ServerCommonSettings": {
         "properties": {
           "host": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Host",
             "description": "EOS server IP address. Defaults to 127.0.0.1.",
             "default": "127.0.0.1",
@@ -8590,14 +8583,7 @@
             ]
           },
           "port": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
             "title": "Port",
             "description": "EOS server IP port number. Defaults to 8503.",
             "default": 8503,
@@ -8632,32 +8618,20 @@
             "default": true
           },
           "eosdash_host": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Eosdash Host",
             "description": "EOSdash server IP address. Defaults to EOS server IP address.",
+            "default": "127.0.0.1",
             "examples": [
               "127.0.0.1",
               "localhost"
             ]
           },
           "eosdash_port": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "integer",
             "title": "Eosdash Port",
-            "description": "EOSdash server IP port number. Defaults to EOS server IP port number + 1.",
+            "description": "EOSdash server IP port number. Defaults to 8504.",
+            "default": 8504,
             "examples": [
               8504
             ]

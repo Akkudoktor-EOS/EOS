@@ -7,19 +7,24 @@ import pwd
 import re
 import socket
 import time
-from typing import Optional
+from typing import Any, Optional
 
 import psutil
 from loguru import logger
 from pydantic import Field, field_validator
 
-from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.config.configabc import SettingsBaseModel, is_home_assistant_addon
 from akkudoktoreos.core.coreabc import get_config
 
 
 def get_default_host() -> str:
     """Default host for EOS."""
     return "127.0.0.1"
+
+
+def get_default_port() -> int:
+    """Default port for EOS."""
+    return 8503
 
 
 def get_host_ip() -> str:
@@ -326,15 +331,15 @@ def fix_data_directories_permissions(run_as_user: Optional[str] = None) -> None:
 class ServerCommonSettings(SettingsBaseModel):
     """Server Configuration."""
 
-    host: Optional[str] = Field(
+    host: str = Field(
         default=get_default_host(),
         json_schema_extra={
             "description": "EOS server IP address. Defaults to 127.0.0.1.",
             "examples": ["127.0.0.1", "localhost"],
         },
     )
-    port: Optional[int] = Field(
-        default=8503,
+    port: int = Field(
+        default=get_default_port(),
         json_schema_extra={
             "description": "EOS server IP port number. Defaults to 8503.",
             "examples": [
@@ -349,17 +354,17 @@ class ServerCommonSettings(SettingsBaseModel):
         default=True,
         json_schema_extra={"description": "EOS server to start EOSdash server. Defaults to True."},
     )
-    eosdash_host: Optional[str] = Field(
-        default=None,
+    eosdash_host: str = Field(
+        default=get_default_host(),
         json_schema_extra={
             "description": "EOSdash server IP address. Defaults to EOS server IP address.",
             "examples": ["127.0.0.1", "localhost"],
         },
     )
-    eosdash_port: Optional[int] = Field(
-        default=None,
+    eosdash_port: int = Field(
+        default=get_default_port() + 1,
         json_schema_extra={
-            "description": "EOSdash server IP port number. Defaults to EOS server IP port number + 1.",
+            "description": "EOSdash server IP port number. Defaults to 8504.",
             "examples": [
                 8504,
             ],
@@ -406,10 +411,32 @@ class ServerCommonSettings(SettingsBaseModel):
             value = validate_ip_or_hostname(value)
         return value
 
-    @field_validator("port", "eosdash_port")
-    def validate_server_port(cls, value: Optional[int]) -> Optional[int]:
-        if value is not None and not (1024 <= value <= 49151):
+    @field_validator("port", mode="before")
+    def validate_server_port(cls, value: Any) -> int:
+        default_port = get_default_port()
+        if value is None:
+            return default_port
+        value = int(value)
+        if is_home_assistant_addon() and value != default_port:
+            raise ValueError(
+                f"Server port number `{default_port}` for Home Assistant add-on can not be changed."
+            )
+        if not (1024 <= value <= 49151):
             raise ValueError("Server port number must be between 1024 and 49151.")
+        return value
+
+    @field_validator("eosdash_port", mode="before")
+    def validate_eosdash_port(cls, value: Any) -> int:
+        default_port = get_default_port() + 1
+        if value is None:
+            return default_port
+        value = int(value)
+        if is_home_assistant_addon() and value != default_port:
+            raise ValueError(
+                f"EOSdash port number `{default_port}` for Home Assistant add-on can not be changed."
+            )
+        if not (1024 <= value <= 49151):
+            raise ValueError("EOSdash port number must be between 1024 and 49151.")
         return value
 
     @field_validator("run_as_user")

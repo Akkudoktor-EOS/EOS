@@ -464,13 +464,23 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
 
             # Server host
             if args.host is not None:
-                set_nested(settings, "server.host", args.host)
-                logger.debug(f"CLI arg: server.host set to {args.host}")
+                if "dash" in sys.argv[0]:
+                    # Config is read from EOSdash
+                    set_nested(settings, "server.eosdash_host", args.host)
+                    logger.debug(f"CLI arg: server.eosdash_host set to {args.host}")
+                else:
+                    set_nested(settings, "server.host", args.host)
+                    logger.debug(f"CLI arg: server.host set to {args.host}")
 
             # Server port
             if args.port is not None:
-                set_nested(settings, "server.port", args.port)
-                logger.debug(f"CLI arg: server.port set to {args.port}")
+                if "dash" in sys.argv[0]:
+                    # Config is read from EOSdash
+                    set_nested(settings, "server.eosdash_port", args.port)
+                    logger.debug(f"CLI arg: server.eosdash_port set to {args.port}")
+                else:
+                    set_nested(settings, "server.port", args.port)
+                    logger.debug(f"CLI arg: server.port set to {args.port}")
 
             # Server startup_eosdash
             if args.startup_eosdash is not None:

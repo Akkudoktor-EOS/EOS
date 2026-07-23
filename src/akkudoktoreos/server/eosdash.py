@@ -39,6 +39,9 @@ from akkudoktoreos.server.server import (
 )
 from akkudoktoreos.utils.stringutil import str2bool
 
+# Config is the EOS configuration
+# Config uses sysv args for initialisation
+# sysv host and port is set for EOSdash but expected to be set for EOS
 config_eos = get_config(init=True)
 
 
