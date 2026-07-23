@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pandas as pd
 import pytest
+import pytest_asyncio
 
 from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings

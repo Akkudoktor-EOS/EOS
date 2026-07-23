@@ -36,6 +36,7 @@ from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibber
+from akkudoktoreos.prediction.feedintariffakkudoktor import FeedInTariffAkkudoktor
 from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
@@ -82,6 +83,7 @@ elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
 elecprice_tibber = ElecPriceTibber()
+feedintariff_akkudoktor = FeedInTariffAkkudoktor()
 feedintariff_energy_charts = FeedInTariffEnergyCharts()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
@@ -108,6 +110,7 @@ def prediction_providers() -> list[
         ElecPriceFixed,
         ElecPriceImport,
         ElecPriceTibber,
+        FeedInTariffAkkudoktor,
         FeedInTariffEnergyCharts,
         FeedInTariffFixed,
         FeedInTariffImport,
@@ -137,6 +140,7 @@ def prediction_providers() -> list[
         elecprice_fixed, \
         elecprice_import, \
         elecprice_tibber, \
+        feedintariff_akkudoktor, \
         feedintariff_energy_charts, \
         feedintariff_fixed, \
         feedintariff_import, \
@@ -162,6 +166,7 @@ def prediction_providers() -> list[
         elecprice_fixed,
         elecprice_import,
         elecprice_tibber,
+        feedintariff_akkudoktor,
         feedintariff_energy_charts,
         feedintariff_fixed,
         feedintariff_import,
@@ -192,6 +197,7 @@ class Prediction(PredictionContainer):
             ElecPriceFixed,
             ElecPriceImport,
             ElecPriceTibber,
+            FeedInTariffAkkudoktor,
             FeedInTariffEnergyCharts,
             FeedInTariffFixed,
             FeedInTariffImport,
