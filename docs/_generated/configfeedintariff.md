@@ -7,6 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| energycharts | `EOS_FEEDINTARIFF__ENERGYCHARTS` | `FeedInTariffEnergyChartsCommonSettings` | `rw` | `required` | EnergyCharts feed in tariff provider settings. |
 | feedintarifffixed | `EOS_FEEDINTARIFF__FEEDINTARIFFFIXED` | `FeedInTariffFixedCommonSettings` | `rw` | `required` | Fixed feed in tariff provider settings. |
 | feedintariffimport | `EOS_FEEDINTARIFF__FEEDINTARIFFIMPORT` | `FeedInTariffImportCommonSettings` | `rw` | `required` | Feed in tarif import provider settings. |
 | provider | `EOS_FEEDINTARIFF__PROVIDER` | `Optional[str]` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
@@ -29,6 +30,9 @@
            "feedintariffimport": {
                "import_file_path": null,
                "import_json": null
+           },
+           "energycharts": {
+               "bidding_zone": "DE-LU"
            }
        }
    }
@@ -51,7 +55,11 @@
                "import_file_path": null,
                "import_json": null
            },
+           "energycharts": {
+               "bidding_zone": "DE-LU"
+           },
            "providers": [
+               "FeedInTariffEnergyCharts",
                "FeedInTariffFixed",
                "FeedInTariffImport"
            ]
@@ -114,6 +122,35 @@
        "feedintariff": {
            "feedintarifffixed": {
                "feed_in_tariff_kwh": 0.078
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for Energy-Charts feed-in tariff provider
+
+<!-- pyml disable line-length -->
+:::{table} feedintariff::energycharts
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| bidding_zone | `<enum 'EnergyChartsBiddingZones'>` | `rw` | `DE-LU` | Bidding Zone: 'AT', 'BE', 'CH', 'CZ', 'DE-LU', 'DE-AT-LU', 'DK1', 'DK2', 'FR', 'HU', 'IT-NORTH', 'NL', 'NO2', 'PL', 'SE4' or 'SI' |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "feedintariff": {
+           "energycharts": {
+               "bidding_zone": "DE-LU"
            }
        }
    }

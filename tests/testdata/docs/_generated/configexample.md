@@ -129,6 +129,9 @@
            "feedintariffimport": {
                "import_file_path": null,
                "import_json": null
+           },
+           "energycharts": {
+               "bidding_zone": "DE-LU"
            }
        },
        "general": {

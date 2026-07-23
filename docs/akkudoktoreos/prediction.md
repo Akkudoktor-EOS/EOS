@@ -217,12 +217,48 @@ Configuration options:
 
   - `provider`: Feed in tariff provider id of provider to be used.
 
+    - `FeedInTariffEnergyCharts`: Retrieves Energy-Charts day-ahead market prices and extends
+      them to the configured prediction horizon when necessary.
     - `FeedInTariffFixed`: Provides fixed feed in tariff values.
     - `FeedInTariffImport`: Imports from a file or JSON string or by endpoint data provision.
 
+  - `energycharts.bidding_zone`: Bidding zone Energy Charts shall provide feed-in tariff for.
   - `feedintarifffixed.feed_in_tariff_kwh`: Fixed feed in tariff (€/kWh).
   - `feedintariffimport.import_file_path`: Path to the file to import feed in tariff forecast data from.
   - `feedintariffimport.import_json`: JSON string, dictionary of feed in tariff value lists.
+
+### FeedInTariffEnergyCharts Provider
+
+The `FeedInTariffEnergyCharts` provider uses the raw Energy-Charts day-ahead market price as the
+feed-in tariff. It stores prices in `feed_in_tariff_wh` without adding electricity import charges
+or VAT. The data is loaded from the Energy-Charts `/price` endpoint for the configured bidding
+zone. The native Energy-Charts resolution, including quarter-hour data, is retained.
+
+Energy-Charts usually supplies prices only for the published day-ahead period. If that data does
+not cover the complete configured prediction horizon, the provider extends it as follows:
+
+- With more than 800 hours of history, an ETS (Holt-Winters exponential smoothing) forecast with
+  weekly seasonality is used.
+- With more than 168 hours of history, an ETS forecast with daily seasonality is used.
+- With less history, the median of the available values is used as a constant fallback.
+
+The seasonal periods are adjusted to the source resolution. For example, quarter-hour data uses
+four values per hour. Values already supplied by Energy-Charts are kept unchanged; only missing
+future slots after the last published price are forecast. Consequently, a 15-minute optimization
+uses four forecast values per hour without converting them to hourly averages.
+
+Example configuration:
+
+```json
+{
+  "feedintariff": {
+    "provider": "FeedInTariffEnergyCharts",
+    "energycharts": {
+      "bidding_zone": "DE-LU"
+    }
+  }
+}
+```
 
 ### FeedInTariffImport Provider
 
