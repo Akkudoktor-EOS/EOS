@@ -77,7 +77,6 @@
     "server": {
         "host": "0.0.0.0",
         "verbose": true,
-        "eosdash_host": "0.0.0.0",
-        "eosdash_port": 8504
+        "eosdash_host": "0.0.0.0"
     }
 }
