@@ -59,6 +59,7 @@
                "bidding_zone": "DE-LU"
            },
            "providers": [
+               "FeedInTariffAkkudoktor",
                "FeedInTariffEnergyCharts",
                "FeedInTariffFixed",
                "FeedInTariffImport"

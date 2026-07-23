@@ -208,15 +208,17 @@ data and rely on file/JSON imports only for initial setup.
 
 Prediction keys:
 
-- `feed_in_tarif_wh`: Feed in tarif per Wh (€/Wh).
-- `feed_in_tarif_kwh`: Feed in tarif per kWh (€/kWh)
+- `feed_in_tariff_wh`: Feed in tarif per Wh (€/Wh).
+- `feed_in_tariff_kwh`: Feed in tarif per kWh (€/kWh)
 
 Configuration options:
 
-- `feedintarif`: Feed in tariff configuration.
+- `feedintariff`: Feed in tariff configuration.
 
   - `provider`: Feed in tariff provider id of provider to be used.
 
+    - `FeedInTariffAkkudoktor`: Retrieves raw day-ahead market prices from the public
+      Akkudoktor API without
     - `FeedInTariffEnergyCharts`: Retrieves Energy-Charts day-ahead market prices and extends
       them to the configured prediction horizon when necessary.
     - `FeedInTariffFixed`: Provides fixed feed in tariff values.
@@ -226,6 +228,25 @@ Configuration options:
   - `feedintarifffixed.feed_in_tariff_kwh`: Fixed feed in tariff (€/kWh).
   - `feedintariffimport.import_file_path`: Path to the file to import feed in tariff forecast data from.
   - `feedintariffimport.import_json`: JSON string, dictionary of feed in tariff value lists.
+
+### FeedInTariffAkkudoktor Provider
+
+The `FeedInTariffAkkudoktor` provider uses raw day-ahead market prices from
+`https://api.akkudoktor.net/prices` as `feed_in_tariff_wh`. It does not add electricity import
+charges or VAT. Published prices are extended to the configured prediction horizon with the same
+seasonal ETS or median fallback used by the Akkudoktor electricity-price provider.
+
+The Akkudoktor endpoint currently forwards hourly market prices from aWATTar. With a 15-minute
+optimization interval, EOS holds each hourly price constant for its four quarter-hour slots. This
+keeps the slot grid consistent but does not create genuine quarter-hour market prices.
+
+```json
+{
+  "feedintariff": {
+    "provider": "FeedInTariffAkkudoktor"
+  }
+}
+```
 
 ### FeedInTariffEnergyCharts Provider
 

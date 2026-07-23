@@ -20,9 +20,10 @@ def feedintariff_provider_ids() -> list[str]:
         # Prediction may not be initialized
         # Return at least provider used in example
         return [
+            "FeedInTariffAkkudoktor",
             "FeedInTariffEnergyCharts",
             "FeedInTariffFixed",
-            "FeedInTarifImport",
+            "FeedInTariffImport",
         ]
 
     return [
