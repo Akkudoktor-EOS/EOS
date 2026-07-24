@@ -80,7 +80,7 @@ class ElecPriceFixed(ElecPriceProvider):
             raise ValueError(error_msg)
 
         start_datetime = self.ems_start_datetime
-        interval_seconds = self.config.optimization.interval
+        interval_seconds = 900  # Usual smallest time interval (15 min) used in electricty prices
         total_hours = self.config.prediction.hours
         interval = to_duration(interval_seconds)
 

@@ -14,8 +14,8 @@ from loguru import logger
 
 from akkudoktoreos.core.coreabc import get_config, get_ems, get_prediction
 from akkudoktoreos.core.emsettings import EnergyManagementMode
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticOptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0params import (
+    Genetic0OptimizationParameters,
 )
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
@@ -24,7 +24,7 @@ prediction_eos = get_prediction()
 ems_eos = get_ems()
 
 
-async def prepare_optimization_real_parameters() -> GeneticOptimizationParameters:
+async def prepare_optimization_real_parameters() -> Genetic0OptimizationParameters:
     """Prepare and return optimization parameters with real world data.
 
     Returns:
@@ -41,10 +41,9 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
             "historic_hours": 24,
         },
         "optimization": {
-            "horizon_hours": 24,
-            "interval": 3600,
-            "algorithm": "GENETIC",
-            "genetic": {
+            "algorithm": "GENETIC0",
+            "genetic0": {
+                "horizon_hours": 24,
                 "individuals": 300,
                 "generations": 400,
                 "seed": None,
@@ -170,7 +169,7 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
     print(f"start_solution: {start_solution}")
 
     # Define parameters for the optimization problem
-    return GeneticOptimizationParameters(
+    return Genetic0OptimizationParameters(
         **{
             "ems": {
                 "price_per_wh_battery": 0e-05,
@@ -204,7 +203,7 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
     )
 
 
-def prepare_optimization_parameters() -> GeneticOptimizationParameters:
+def prepare_optimization_parameters() -> Genetic0OptimizationParameters:
     """Prepare and return optimization parameters with predefined data.
 
     Returns:
@@ -215,10 +214,10 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
         {
             "prediction": {"hours": 48},
             "optimization": {
-                "algorithm": "GENETIC",
-                "genetic": {
-                    "horizon_hours": 48,
-                    "interval_sec": 3600,
+                "horizon_hours": 48,
+                "interval": 3600,
+                "algorithm": "GENETIC0",
+                "genetic0": {
                     "individuals": 300,
                     "generations": 400,
                     "seed": None,
@@ -366,7 +365,7 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
     start_solution = None
 
     # Define parameters for the optimization problem
-    return GeneticOptimizationParameters(
+    return Genetic0OptimizationParameters(
         **{
             "ems": {
                 "price_per_wh_battery": 0e-05,
@@ -415,7 +414,7 @@ def run_optimization(
     # Prepare parameters
     if parameters_file:
         with open(parameters_file, "r") as f:
-            parameters = GeneticOptimizationParameters(**json.load(f))
+            parameters = Genetic0OptimizationParameters(**json.load(f))
     elif real_world:
         parameters = asyncio.run(prepare_optimization_real_parameters())
     else:
@@ -432,13 +431,14 @@ def run_optimization(
         ems_eos.run(
             start_datetime=start_datetime,
             mode=EnergyManagementMode.OPTIMIZATION,
-            genetic_parameters=parameters,
-            genetic_generations=ngen,
-            genetic_seed=seed,
+            algorithm="GENETIC0",
+            genetic0_parameters=parameters,
+            genetic0_generations=ngen,
+            genetic0_seed=seed,
         )
     )
 
-    solution = ems_eos.genetic_solution()
+    solution = ems_eos.genetic0_solution()
     if solution is None:
         return None
     return solution.model_dump_json()
