@@ -223,6 +223,7 @@ Configuration options:
       them to the configured prediction horizon when necessary.
     - `FeedInTariffFixed`: Provides fixed feed in tariff values.
     - `FeedInTariffImport`: Imports from a file or JSON string or by endpoint data provision.
+    - `FeedInTariffTibber`: Retrieves Tibber's native quarter-hour energy-price component.
 
   - `energycharts.bidding_zone`: Bidding zone Energy Charts shall provide feed-in tariff for.
   - `feedintarifffixed.feed_in_tariff_kwh`: Fixed feed in tariff (€/kWh).
@@ -307,6 +308,25 @@ sources** can lead to unintended data overwrites. Moreover, after a restart, eve
 from the configuration may be reloaded. To avoid these issues, use the **PUT** endpoint for live
 data and rely on file/JSON imports only for initial setup.
 :::
+
+### FeedInTariffTibber Provider
+
+The `FeedInTariffTibber` provider requests `priceInfo` and `priceInfoRange` with
+`resolution: QUARTER_HOURLY` and preserves the native 15-minute timestamps. It uses Tibber's
+`energy` spot-price component without the `tax` part or EOS electricity-price charges. The
+end-customer `total` component is deliberately ignored.
+
+The provider deliberately rejects hourly API responses instead of silently repeating them. It
+reuses `elecprice.tibber.access_token` and `elecprice.tibber.home_id`, so no duplicate credentials
+are needed.
+
+```json
+{
+  "feedintariff": {
+    "provider": "FeedInTariffTibber"
+  }
+}
+```
 
 ## Load Prediction
 

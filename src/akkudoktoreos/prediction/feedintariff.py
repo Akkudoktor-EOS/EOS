@@ -17,13 +17,13 @@ def feedintariff_provider_ids() -> list[str]:
     try:
         prediction_eos = get_prediction()
     except Exception:
-        # Prediction may not be initialized
-        # Return at least provider used in example
+        # Prediction may not be initialized. Return static built-in provider ids.
         return [
             "FeedInTariffAkkudoktor",
             "FeedInTariffEnergyCharts",
             "FeedInTariffFixed",
             "FeedInTariffImport",
+            "FeedInTariffTibber",
         ]
 
     return [

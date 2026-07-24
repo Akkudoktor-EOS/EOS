@@ -9,7 +9,7 @@
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | loadakkudoktor | `EOS_LOAD__LOADAKKUDOKTOR` | `LoadAkkudoktorCommonSettings` | `rw` | `required` | LoadAkkudoktor provider settings. |
 | loadimport | `EOS_LOAD__LOADIMPORT` | `LoadImportCommonSettings` | `rw` | `required` | LoadImport provider settings. |
-| provider | `EOS_LOAD__PROVIDER` | `Optional[str]` | `rw` | `None` | Load provider id of provider to be used. |
+| provider | `EOS_LOAD__PROVIDER` | `str | None` | `rw` | `None` | Load provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available load provider ids. |
 | vrm | `EOS_LOAD__VRM` | `LoadVrmCommonSettings` | `rw` | `required` | Victron Remote Management (VRM) provider settings. |
 :::
@@ -111,8 +111,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import load data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
+| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import load data from. |
+| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 
@@ -142,7 +142,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| loadakkudoktor_year_energy_kwh | `Optional[float]` | `rw` | `None` | Yearly energy consumption (kWh). |
+| loadakkudoktor_year_energy_kwh | `float | None` | `rw` | `None` | Yearly energy consumption (kWh). |
 :::
 <!-- pyml enable line-length -->
 
