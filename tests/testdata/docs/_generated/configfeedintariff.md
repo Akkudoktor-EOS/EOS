@@ -10,7 +10,7 @@
 | energycharts | `EOS_FEEDINTARIFF__ENERGYCHARTS` | `FeedInTariffEnergyChartsCommonSettings` | `rw` | `required` | EnergyCharts feed in tariff provider settings. |
 | feedintarifffixed | `EOS_FEEDINTARIFF__FEEDINTARIFFFIXED` | `FeedInTariffFixedCommonSettings` | `rw` | `required` | Fixed feed in tariff provider settings. |
 | feedintariffimport | `EOS_FEEDINTARIFF__FEEDINTARIFFIMPORT` | `FeedInTariffImportCommonSettings` | `rw` | `required` | Feed in tarif import provider settings. |
-| provider | `EOS_FEEDINTARIFF__PROVIDER` | `Optional[str]` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
+| provider | `EOS_FEEDINTARIFF__PROVIDER` | `str | None` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available feed in tariff provider ids. |
 :::
 <!-- pyml enable line-length -->
@@ -62,7 +62,8 @@
                "FeedInTariffAkkudoktor",
                "FeedInTariffEnergyCharts",
                "FeedInTariffFixed",
-               "FeedInTariffImport"
+               "FeedInTariffImport",
+               "FeedInTariffTibber"
            ]
        }
    }
@@ -78,8 +79,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import feed in tariff data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of feed in tariff forecast value lists. |
+| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import feed in tariff data from. |
+| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of feed in tariff forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 
@@ -109,7 +110,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| feed_in_tariff_kwh | `Optional[float]` | `rw` | `None` | Electricity price feed in tariff [amount/kWh]. |
+| feed_in_tariff_kwh | `float | None` | `rw` | `None` | Electricity price feed in tariff [amount/kWh]. |
 :::
 <!-- pyml enable line-length -->
 

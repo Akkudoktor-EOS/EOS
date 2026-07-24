@@ -75,10 +75,10 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| generations | `Optional[int]` | `rw` | `400` | Number of generations to evolve [>= 10]. Defaults to 400. |
-| individuals | `Optional[int]` | `rw` | `300` | Number of individuals (solutions) in the population [>= 10]. Defaults to 300. |
-| penalties | `dict[str, Union[float, int, str]]` | `rw` | `required` | Penalty parameters used in fitness evaluation. |
-| seed | `Optional[int]` | `rw` | `None` | Random seed for reproducibility. None = random. |
+| generations | `int | None` | `rw` | `400` | Number of generations to evolve [>= 10]. Defaults to 400. |
+| individuals | `int | None` | `rw` | `300` | Number of individuals (solutions) in the population [>= 10]. Defaults to 300. |
+| penalties | `dict[str, float | int | str]` | `rw` | `required` | Penalty parameters used in fitness evaluation. |
+| seed | `int | None` | `rw` | `None` | Random seed for reproducibility. None = random. |
 :::
 <!-- pyml enable line-length -->
 
