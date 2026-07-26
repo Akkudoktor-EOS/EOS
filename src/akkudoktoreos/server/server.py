@@ -1,13 +1,20 @@
 """Server Module."""
 
-import grp
 import ipaddress
 import os
-import pwd
 import re
 import socket
+import sys
 import time
 from typing import Any, Optional
+
+try:
+    # Only available on Linux/Unix type systems
+    import grp
+    import pwd
+except ModuleNotFoundError:
+    grp = None  # type: ignore[assignment]
+    pwd = None  # type: ignore[assignment]
 
 import psutil
 from loguru import logger
@@ -185,6 +192,12 @@ def drop_root_privileges(run_as_user: Optional[str] = None) -> bool:
         - The target user must exist inside the container (valid entry in
           ``/etc/passwd`` and ``/etc/group``).
     """
+    if pwd is None or grp is None or not hasattr(os, "geteuid"):
+        if run_as_user is not None:
+            logger.error(f"Privilege switching is not supported on `{sys.platform}`.")
+            return False
+        return True
+
     # Determine current user
     current_user = pwd.getpwuid(os.geteuid()).pw_name
 
@@ -264,6 +277,10 @@ def fix_data_directories_permissions(run_as_user: Optional[str] = None) -> None:
         run_as_user (Optional[str]): The user who should own the data directories and files.
             Defaults to current one.
     """
+    if pwd is None or not hasattr(os, "geteuid") or not hasattr(os, "chown"):
+        logger.debug(f"Skipping data directory ownership fix on `{sys.platform}`.")
+        return
+
     config_eos = get_config()
 
     base_dirs = [
@@ -442,6 +459,8 @@ class ServerCommonSettings(SettingsBaseModel):
     @field_validator("run_as_user")
     def validate_user(cls, value: Optional[str]) -> Optional[str]:
         if value is not None:
+            if pwd is None:
+                raise ValueError(f"User privilege switching is not supported on `{sys.platform}`.")
             # Resolve target user info
             try:
                 pw_record = pwd.getpwnam(value)
