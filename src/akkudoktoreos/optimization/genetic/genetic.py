@@ -237,7 +237,7 @@ class GeneticSimulation(PydanticBaseModel):
         loads_energy_per_hour = np.full((total_hours), np.nan)
         feedin_energy_per_hour = np.full((total_hours), np.nan)
         consumption_energy_per_hour = np.full((total_hours), np.nan)
-        costs_per_hour = np.full((total_hours), np.nan)
+        costs_per_hour = np.full((total_hours), 0.0)
         revenue_per_hour = np.full((total_hours), np.nan)
         losses_wh_per_hour = np.full((total_hours), np.nan)
         electricity_price_per_hour = np.full((total_hours), np.nan)
@@ -409,7 +409,7 @@ class GeneticSimulation(PydanticBaseModel):
             electricity_price_per_hour[hour_idx] = hourly_electricity_price
 
             # Financial calculations
-            costs_per_hour[hour_idx] = energy_consumption_grid_actual * hourly_electricity_price
+            costs_per_hour[hour_idx] += energy_consumption_grid_actual * hourly_electricity_price
             revenue_per_hour[hour_idx] = (
                 energy_feedin_grid_actual * elect_revenue_per_hour_arr_fast[hour]
             )
