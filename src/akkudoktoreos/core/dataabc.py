@@ -21,7 +21,6 @@ from typing import (
     Any,
     Dict,
     Iterator,
-    Literal,
     Optional,
     Tuple,
     Type,
@@ -61,6 +60,11 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeData,
     PydanticDateTimeDataFrame,
 )
+from akkudoktoreos.core.types import (
+    BoundaryMode,
+    FillMethod,
+    ResampleMethod,
+)
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
     Duration,
@@ -68,6 +72,8 @@ from akkudoktoreos.utils.datetimeutil import (
     to_datetime,
     to_duration,
 )
+
+# ==================== Base Class ====================
 
 
 class DataABC(ConfigMixin, StartMixin, PydanticBaseModel):
@@ -1196,9 +1202,10 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
         interval: Optional[Duration] = None,
-        fill_method: Optional[str] = None,
+        fill_method: Optional[FillMethod] = None,
+        resample_method: ResampleMethod = "mean",
         dropna: Optional[bool] = True,
-        boundary: Literal["strict", "context"] = "context",
+        boundary: BoundaryMode = "context",
         align_to_interval: bool = False,
     ) -> NDArray[Shape["*"], Any]:
         """Extract an array indexed by fixed time intervals from data records within an optional date range.
@@ -1209,14 +1216,25 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             end_datetime (datetime, optional): The end date for filtering the records (exclusive).
             interval (duration, optional): The fixed time interval. Defaults to 1 hour.
             fill_method (str): Method to handle missing values during resampling.
+
                 - 'linear': Linearly interpolate missing values (for numeric data only).
                 - 'time': Interpolate missing values (for numeric data only).
                 - 'ffill': Forward fill missing values.
                 - 'bfill': Backward fill missing values.
-                - 'none': Defaults to 'linear' for numeric values, otherwise 'ffill'.
+                - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+            resample_method (str):
+                Method used to aggregate values within a resampling interval.
+
+                - "first": Use the first value in each interval.
+                - "mean": Compute the arithmetic mean of all samples in each interval.
+                - "interval_mean": Compute the time-weighted mean assuming each
+                  value remains valid until the next timestamp (piecewise-constant
+                  signal).
+
             dropna: (bool, optional): Whether to drop NAN/ None values before processing.
                 Defaults to True.
-            boundary (Literal["strict", "context"]):
+            boundary (Literal["strict", "context"]): resampling boundary
                 "strict"  → only values inside [start, end)
                 "context" → include one value before and after for proper resampling
             align_to_interval (bool): When True, snap the resample origin to the nearest
@@ -1248,6 +1266,9 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         # Validate fill method
         if fill_method not in ("ffill", "bfill", "linear", "time", "none", None):
             raise ValueError(f"Unsupported fill method: {fill_method}")
+
+        if resample_method not in ("first", "mean", "interval_mean"):
+            raise ValueError(f"Unsupported resample method: {resample_method}")
 
         if boundary not in ("strict", "context"):
             raise ValueError(f"Unsupported boundary mode: {boundary}")
@@ -1368,10 +1389,32 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         if is_numeric:
             # Step 1: aggregate — collapses sub-interval data (e.g. 4x 15min → 1h mean).
             # Produces NaN for buckets where no data existed at all.
-            resampled = pd.to_numeric(
-                series.resample(resample_freq, origin=resample_origin).mean(),
-                errors="coerce",  # ← ensures float64, not object dtype
-            )
+            numeric_series = pd.to_numeric(
+                series, errors="coerce"
+            )  # ← ensures float64, not object dtype
+
+            if resample_method == "first":
+                resampled = numeric_series.resample(
+                    resample_freq,
+                    origin=resample_origin,
+                ).first()
+
+            elif resample_method == "mean":
+                resampled = numeric_series.resample(
+                    resample_freq,
+                    origin=resample_origin,
+                ).mean()
+
+            elif resample_method == "interval_mean":
+                # Treat each value as valid until the next timestamp.
+                expanded = numeric_series.resample("1s").ffill()
+                resampled = expanded.resample(
+                    resample_freq,
+                    origin=resample_origin,
+                ).mean()
+
+            else:
+                raise ValueError(f"Unsupported resample method: {resample_method}")
 
             # Step 2: fill gaps — interpolates or fills the NaN buckets from step 1.
             if fill_method in ("linear", "time"):
@@ -2385,23 +2428,59 @@ class DataContainer(SingletonMixin, DataABC):
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
         interval: Optional[Duration] = None,
-        fill_method: Optional[str] = None,
-        boundary: Optional[str] = "context",
+        fill_method: Optional[FillMethod] = None,
+        resample_method: ResampleMethod = "mean",
+        dropna: Optional[bool] = True,
+        boundary: BoundaryMode = "context",
+        align_to_interval: bool = False,
     ) -> NDArray[Shape["*"], Any]:
         """Retrieve an array indexed by fixed time intervals for a specified key from the data in each DataProvider.
 
         Iterates through providers to find and return the first available array for the specified key.
 
         Args:
-            key (str): The field name to retrieve, representing a data attribute in DataRecords.
+            key (str): The field name in the DataRecord from which to extract values.
             start_datetime (datetime, optional): The start date for filtering the records (inclusive).
             end_datetime (datetime, optional): The end date for filtering the records (exclusive).
             interval (duration, optional): The fixed time interval. Defaults to 1 hour.
             fill_method (str): Method to handle missing values during resampling.
+
                 - 'linear': Linearly interpolate missing values (for numeric data only).
+                - 'time': Interpolate missing values (for numeric data only).
                 - 'ffill': Forward fill missing values.
                 - 'bfill': Backward fill missing values.
-                - 'none': Defaults to 'linear' for numeric values, otherwise 'ffill'.
+                - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+            resample_method (str):
+                Method used to aggregate values within a resampling interval.
+
+                - "first": Use the first value in each interval.
+                - "mean": Compute the arithmetic mean of all samples in each interval.
+                - "interval_mean": Compute the time-weighted mean assuming each
+                  value remains valid until the next timestamp (piecewise-constant
+                  signal).
+
+            dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+                Defaults to True.
+            boundary (Literal["strict", "context"]):
+                "strict"  → only values inside [start, end)
+                "context" → include one value before and after for proper resampling
+            align_to_interval (bool): When True, snap the resample origin to the nearest
+                UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+                that bucket timestamps always fall on wall-clock-round times regardless of
+                when ``start_datetime`` falls:
+
+                - 15-minute interval → buckets on :00, :15, :30, :45
+                - 1-hour interval    → buckets on the hour
+
+                When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+                no start is given), preserving the existing behaviour where buckets are
+                aligned to the query window rather than the clock.
+
+                Set to True when storing compacted records back to the database so that the
+                resulting timestamps are predictable and human-readable.  Leave False for
+                forecast or reporting queries where alignment to the exact query window is
+                more important than clock-round boundaries.
 
         Returns:
             np.ndarray: A NumPy array containing aggregated data for the specified key.
@@ -2421,7 +2500,10 @@ class DataContainer(SingletonMixin, DataABC):
                     end_datetime=end_datetime,
                     interval=interval,
                     fill_method=fill_method,
+                    resample_method=resample_method,
+                    dropna=dropna,
                     boundary=boundary,
+                    align_to_interval=align_to_interval,
                 )
                 break
             except KeyError:
@@ -2437,23 +2519,60 @@ class DataContainer(SingletonMixin, DataABC):
         keys: list[str],
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
-        interval: Optional[Any] = None,  # Duration assumed
-        fill_method: Optional[str] = None,
+        interval: Optional[Duration] = None,
+        fill_method: Optional[FillMethod] = None,
+        resample_method: ResampleMethod = "mean",
+        dropna: Optional[bool] = True,
+        boundary: BoundaryMode = "context",
+        align_to_interval: bool = False,
     ) -> pd.DataFrame:
         """Retrieve a dataframe indexed by fixed time intervals for specified keys from the data in each DataProvider.
 
         Generates a pandas DataFrame using the NumPy arrays for each specified key, ensuring a common time index.
 
         Args:
-            keys (list[str]): A list of field names to retrieve.
-            start_datetime (datetime, optional): Start date for filtering records (inclusive).
-            end_datetime (datetime, optional): End date for filtering records (exclusive).
+            keys (list[str]): The field names in the DataRecords from which to extract values.
+            start_datetime (datetime, optional): The start date for filtering the records (inclusive).
+            end_datetime (datetime, optional): The end date for filtering the records (exclusive).
             interval (duration, optional): The fixed time interval. Defaults to 1 hour.
-            fill_method (str, optional): Method to handle missing values during resampling.
+            fill_method (str): Method to handle missing values during resampling.
+
                 - 'linear': Linearly interpolate missing values (for numeric data only).
+                - 'time': Interpolate missing values (for numeric data only).
                 - 'ffill': Forward fill missing values.
                 - 'bfill': Backward fill missing values.
-                - 'none': Defaults to 'linear' for numeric values, otherwise 'ffill'.
+                - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+            resample_method (str):
+                Method used to aggregate values within a resampling interval.
+
+                - "first": Use the first value in each interval.
+                - "mean": Compute the arithmetic mean of all samples in each interval.
+                - "interval_mean": Compute the time-weighted mean assuming each
+                  value remains valid until the next timestamp (piecewise-constant
+                  signal).
+
+            dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+                Defaults to True.
+            boundary (Literal["strict", "context"]):
+                "strict"  → only values inside [start, end)
+                "context" → include one value before and after for proper resampling
+            align_to_interval (bool): When True, snap the resample origin to the nearest
+                UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+                that bucket timestamps always fall on wall-clock-round times regardless of
+                when ``start_datetime`` falls:
+
+                - 15-minute interval → buckets on :00, :15, :30, :45
+                - 1-hour interval    → buckets on the hour
+
+                When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+                no start is given), preserving the existing behaviour where buckets are
+                aligned to the query window rather than the clock.
+
+                Set to True when storing compacted records back to the database so that the
+                resulting timestamps are predictable and human-readable.  Leave False for
+                forecast or reporting queries where alignment to the exact query window is
+                more important than clock-round boundaries.
 
         Returns:
             pd.DataFrame: A DataFrame where each column represents a key's array with a common time index.
@@ -2503,7 +2622,15 @@ class DataContainer(SingletonMixin, DataABC):
         for key in keys:
             try:
                 array = await self.key_to_array(
-                    key, start_datetime, end_datetime, interval, fill_method
+                    key=key,
+                    start_datetime=start_datetime,
+                    end_datetime=end_datetime,
+                    interval=interval,
+                    fill_method=fill_method,
+                    resample_method=resample_method,
+                    dropna=dropna,
+                    boundary=boundary,
+                    align_to_interval=align_to_interval,
                 )
 
                 if len(array) != len(reference_index):
@@ -2519,6 +2646,43 @@ class DataContainer(SingletonMixin, DataABC):
             raise KeyError(f"No valid data found for the requested keys {keys}.")
 
         return pd.DataFrame(data, index=reference_index)
+
+    async def key_delete_by_datetime(
+        self,
+        key: str,
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+    ) -> None:
+        """Delete an attribute specified by `key` from records in the sequence within a given datetime range.
+
+        This method removes the attribute identified by `key` from records that have a `date_time` value falling
+        within the specified `start_datetime` (inclusive) and `end_datetime` (exclusive) range.
+
+        - If only `start_datetime` is specified, attributes will be removed from records from that date onward.
+        - If only `end_datetime` is specified, attributes will be removed from records up to that date.
+        - If neither `start_datetime` nor `end_datetime` is given, the attribute will be removed from all records.
+
+        Args:
+            key (str): The attribute name to delete from each record.
+            start_datetime (datetime, optional): The start datetime to begin attribute deletion (inclusive).
+            end_datetime (datetime, optional): The end datetime to stop attribute deletion (exclusive).
+
+        Raises:
+            KeyError: If `key` is not a valid attribute of the records.
+        """
+        key_error = True
+        for provider in self.enabled_providers:
+            try:
+                await provider.key_delete_by_datetime(
+                    key=key, start_datetime=start_datetime, end_datetime=end_datetime
+                )
+                key_error = False
+            except KeyError:
+                key_error = True
+                continue
+
+        if key_error:
+            raise KeyError(f"key `{key}` is not in predictions")
 
     def provider_by_id(self, provider_id: str) -> DataProvider:
         """Retrieves a data provider by its unique identifier.

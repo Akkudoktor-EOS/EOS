@@ -631,8 +631,8 @@ class TestCacheFileDecorators:
         cache_file.seek(0)  # Move to the start of the file
         assert cache_file.read() == result1
 
-    def test_cache_in_file_handles_ttl(self, cache_file_store):
-        """Test that the cache_infile decorator handles the with_ttl parameter."""
+    def test_cache_in_file_handles_ttl_in_call(self, cache_file_store):
+        """Test that the cache_infile decorator handles the with_ttl parameter in decorator."""
 
         # Define a simple function to decorate
         @cache_in_file(mode="w+")
@@ -641,6 +641,47 @@ class TestCacheFileDecorators:
 
         # Call the decorated function
         result1 = my_function(with_ttl="1 second")  # type: ignore[call-arg]
+        assert result1 == "New result"
+        assert len(cache_file_store._store) == 1
+        key = list(cache_file_store._store.keys())[0]
+
+        # Assert result was written to cache file
+        key = next(iter(cache_file_store._store))
+        cache_file = cache_file_store._store[key].cache_file
+        assert cache_file is not None
+        cache_file.seek(0)  # Move to the start of the file
+        assert cache_file.read() == result1
+
+        # Modify cache file
+        result2 = "Cached result"
+        cache_file.seek(0)
+        cache_file.write(result2)
+        cache_file.seek(0)  # Move to the start of the file
+        assert cache_file.read() == result2
+
+        # Call the decorated function again
+        result = my_function(with_ttl="1 second")  # type: ignore[call-arg]
+        cache_file.seek(0)  # Move to the start of the file
+        assert cache_file.read() == result2
+        assert result == result2
+
+        # Wait one second to let the cache time out
+        sleep(2)
+
+        # Call again - cache should be timed out
+        result = my_function(with_ttl="1 second")  # type: ignore[call-arg]
+        assert result == result1
+
+    def test_cache_in_file_handles_ttl_in_decorator(self, cache_file_store):
+        """Test that the cache_infile decorator handles the with_ttl parameter in call."""
+
+        # Define a simple function to decorate
+        @cache_in_file(mode="w+", with_ttl="1 second")
+        def my_function():
+            return "New result"
+
+        # Call the decorated function
+        result1 = my_function()
         assert result1 == "New result"
         assert len(cache_file_store._store) == 1
         key = list(cache_file_store._store.keys())[0]

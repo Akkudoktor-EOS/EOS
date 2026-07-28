@@ -77,6 +77,7 @@ Methods:
 
 """
 
+import random
 from typing import Any, List, Optional, Union
 
 import requests
@@ -230,7 +231,9 @@ class PVForecastAkkudoktor(PVForecastProvider):
         """
         base_url = "https://api.akkudoktor.net/forecast"
         query_params: dict[str, Any] = {
-            "lat": self.config.general.latitude,
+            # Randomize lat a little bit to circumvent caching by api.akkudoktor.
+            # Caching used to provide very old data
+            "lat": round(float(self.config.general.latitude) + random.uniform(0.000, 0.001), 6),  # noqa: S311
             "lon": self.config.general.longitude,
         }
 
@@ -332,11 +335,22 @@ class PVForecastAkkudoktor(PVForecastProvider):
         """
         akkudoktor_data: Optional[AkkudoktorForecast] = None
 
+        # Hopefully skip internediate caches
+        headers = {
+            "Accept": "application/json",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+        }
+
         for plane in self.config.pvforecast.planes:
             plane_url = self._url(plane)
-            response = requests.get(plane_url, timeout=10)
+            response = requests.get(plane_url, headers=headers, timeout=10)
+            logger.info("[PVForecastAkkudoktor] URL: {}", response.request.url)
+            logger.info("[PVForecastAkkudoktor] Headers: {}", response.request.headers)
+            logger.info("[PVForecastAkkudoktor] Status: {}", response.status_code)
+            logger.info("[PVForecastAkkudoktor] Response headers: {}", response.headers)
+
             response.raise_for_status()  # Raise an error for bad responses
-            logger.debug(f"Response from {plane_url}: {response}")
             plane_data = self._validate_data(response.content)
 
             if akkudoktor_data is None:
@@ -369,6 +383,8 @@ class PVForecastAkkudoktor(PVForecastProvider):
             raise ValueError(error_msg)
 
         # Get Akkudoktor PV Forecast data for the given configuration.
+        if force_update:
+            logger.info("[PVForecastAkkudoktor] force update.")
         akkudoktor_data = self._request_forecast(force_update=force_update)  # type: ignore
 
         # Timezone of the PV system
@@ -377,16 +393,35 @@ class PVForecastAkkudoktor(PVForecastProvider):
             logger.error(f"Akkudoktor schema change: {error_msg}")
             raise ValueError(error_msg)
 
+        prediction_horizon = self.ems_start_datetime.start_of("day")
+        prediction_horizon = prediction_horizon.add(hours=self.config.prediction.hours)
+
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
-        if len(akkudoktor_data.values[0]) < self.config.prediction.hours:
-            # Expect one value set per prediction hour
-            error_msg = (
-                f"The forecast must cover at least {self.config.prediction.hours} hours, "
-                f"but only {len(akkudoktor_data.values[0])} data sets are given in forecast data."
-            )
-            logger.error(f"Akkudoktor schema change: {error_msg}")
-            raise ValueError(error_msg)
+        for plane_idx, plane_values in enumerate(akkudoktor_data.values):
+            last_datetime = plane_values[-1].datetime
+            dt = to_datetime(last_datetime, in_timezone=self.config.general.timezone)
+
+            prediction_horizon = self.ems_start_datetime.start_of("day")
+            prediction_horizon = prediction_horizon.add(hours=self.config.prediction.hours - 1)
+            if compare_datetimes(dt, prediction_horizon).lt:
+                error_msg = (
+                    f"The forecast must cover at least the `{prediction_horizon}` prediction horizon, "
+                    f"but only data up to `{dt}` is given in "
+                    f"forecast data for plane `{plane_idx}`."
+                )
+                logger.error(f"Akkudoktor schema change: {error_msg}")
+                raise ValueError(error_msg)
+
+            if len(plane_values) < self.config.prediction.hours:
+                # Expect one value set per prediction hour
+                error_msg = (
+                    f"The forecast must cover at least `{self.config.prediction.hours}` hours, "
+                    f"but only `{len(plane_values)}` data sets are given in "
+                    f"forecast data for plane `{plane_idx}`."
+                )
+                logger.error(f"Akkudoktor schema change: {error_msg}")
+                raise ValueError(error_msg)
 
         if not self.ems_start_datetime:
             raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
@@ -416,7 +451,8 @@ class PVForecastAkkudoktor(PVForecastProvider):
             raise ValueError(
                 f"The forecast must cover at least {self.config.prediction.hours} hours, "
                 f"but only {len(self)} hours starting from {self.ems_start_datetime} "
-                f"were predicted."
+                f"were predicted.\n"
+                f"{akkudoktor_data}"
             )
 
     def report_ac_power_and_measurement(self) -> str:
