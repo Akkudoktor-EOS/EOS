@@ -7,6 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| dvhubonline | `EOS_FEEDINTARIFF__DVHUBONLINE` | `FeedInTariffDvhubOnlineCommonSettings` | `rw` | `required` | DvhubOnline feed in tariff provider settings. |
 | energycharts | `EOS_FEEDINTARIFF__ENERGYCHARTS` | `FeedInTariffEnergyChartsCommonSettings` | `rw` | `required` | EnergyCharts feed in tariff provider settings. |
 | feedintarifffixed | `EOS_FEEDINTARIFF__FEEDINTARIFFFIXED` | `FeedInTariffFixedCommonSettings` | `rw` | `required` | Fixed feed in tariff provider settings. |
 | feedintariffimport | `EOS_FEEDINTARIFF__FEEDINTARIFFIMPORT` | `FeedInTariffImportCommonSettings` | `rw` | `required` | Feed in tarif import provider settings. |
@@ -30,6 +31,10 @@
            "feedintariffimport": {
                "import_file_path": null,
                "import_json": null
+           },
+           "dvhubonline": {
+               "base_url": "https://dvhub.online",
+               "zone": "DE-LU"
            },
            "energycharts": {
                "bidding_zone": "DE-LU"
@@ -55,11 +60,16 @@
                "import_file_path": null,
                "import_json": null
            },
+           "dvhubonline": {
+               "base_url": "https://dvhub.online",
+               "zone": "DE-LU"
+           },
            "energycharts": {
                "bidding_zone": "DE-LU"
            },
            "providers": [
                "FeedInTariffAkkudoktor",
+               "FeedInTariffDvhubOnline",
                "FeedInTariffEnergyCharts",
                "FeedInTariffFixed",
                "FeedInTariffImport",
@@ -153,6 +163,37 @@
        "feedintariff": {
            "energycharts": {
                "bidding_zone": "DE-LU"
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the dvhub.online feed-in tariff provider
+
+<!-- pyml disable line-length -->
+:::{table} feedintariff::dvhubonline
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| base_url | `str` | `rw` | `https://dvhub.online` | Base URL of the dvhub.online price API. |
+| zone | `str` | `rw` | `DE-LU` | Bidding zone passed to the dvhub.online price API. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "feedintariff": {
+           "dvhubonline": {
+               "base_url": "https://dvhub.online",
+               "zone": "DE-LU"
            }
        }
    }

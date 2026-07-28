@@ -37,6 +37,7 @@ from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibber
 from akkudoktoreos.prediction.feedintariffakkudoktor import FeedInTariffAkkudoktor
+from akkudoktoreos.prediction.feedintariffdvhubonline import FeedInTariffDvhubOnline
 from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
@@ -85,6 +86,7 @@ elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
 elecprice_tibber = ElecPriceTibber()
 feedintariff_akkudoktor = FeedInTariffAkkudoktor()
+feedintariff_dvhubonline = FeedInTariffDvhubOnline()
 feedintariff_energy_charts = FeedInTariffEnergyCharts()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
@@ -113,6 +115,7 @@ def prediction_providers() -> list[
         ElecPriceImport,
         ElecPriceTibber,
         FeedInTariffAkkudoktor,
+        FeedInTariffDvhubOnline,
         FeedInTariffEnergyCharts,
         FeedInTariffFixed,
         FeedInTariffImport,
@@ -144,6 +147,7 @@ def prediction_providers() -> list[
         elecprice_import, \
         elecprice_tibber, \
         feedintariff_akkudoktor, \
+        feedintariff_dvhubonline, \
         feedintariff_energy_charts, \
         feedintariff_fixed, \
         feedintariff_import, \
@@ -171,6 +175,7 @@ def prediction_providers() -> list[
         elecprice_import,
         elecprice_tibber,
         feedintariff_akkudoktor,
+        feedintariff_dvhubonline,
         feedintariff_energy_charts,
         feedintariff_fixed,
         feedintariff_import,
@@ -203,6 +208,7 @@ class Prediction(PredictionContainer):
             ElecPriceImport,
             ElecPriceTibber,
             FeedInTariffAkkudoktor,
+            FeedInTariffDvhubOnline,
             FeedInTariffEnergyCharts,
             FeedInTariffFixed,
             FeedInTariffImport,
