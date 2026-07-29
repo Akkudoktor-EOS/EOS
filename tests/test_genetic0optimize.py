@@ -8,11 +8,11 @@ import pytest
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
 from akkudoktoreos.core.coreabc import get_ems
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimization
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticOptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0 import Genetic0Optimization
+from akkudoktoreos.optimization.genetic0.genetic0params import (
+    Genetic0OptimizationParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
+from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.utils.datetimeutil import to_datetime
 from akkudoktoreos.utils.visualize import (
     prepare_visualize,  # Import the new prepare_visualize
@@ -40,11 +40,11 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
 @pytest.mark.parametrize(
     "fn_in, fn_out, ngen, break_even",
     [
-        ("optimize_input_1.json", "optimize_result_1.json", 3, 0),
-        ("optimize_input_2.json", "optimize_result_2.json", 3, 0),
-        ("optimize_input_2.json", "optimize_result_2_full.json", 400, 0),
-        ("optimize_input_1.json", "optimize_result_1_be.json", 3, 1),
-        ("optimize_input_2.json", "optimize_result_2_be.json", 3, 1),
+        ("genetic0optimize_input_1.json", "genetic0optimize_result_1.json", 3, 0),
+        ("genetic0optimize_input_2.json", "genetic0optimize_result_2.json", 3, 0),
+        ("genetic0optimize_input_2.json", "genetic0optimize_result_2_full.json", 400, 0),
+        ("genetic0optimize_input_1.json", "genetic0optimize_result_1_be.json", 3, 1),
+        ("genetic0optimize_input_2.json", "genetic0optimize_result_2_be.json", 3, 1),
     ],
 )
 async def test_optimize(
@@ -67,8 +67,8 @@ async def test_optimize(
                 "hours": 48
             },
             "optimization": {
-                "algorithm": "GENETIC",
-                "genetic": {
+                "algorithm": "GENETIC0",
+                "genetic0": {
                     "horizon_hours": 48,
                     "individuals": 300,
                     "generations": 10,
@@ -92,7 +92,7 @@ async def test_optimize(
     # Load input and output data
     file = DIR_TESTDATA / fn_in
     with file.open("r") as f_in:
-        input_data = GeneticOptimizationParameters(**json.load(f_in))
+        input_data = Genetic0OptimizationParameters(**json.load(f_in))
 
     file = DIR_TESTDATA / fn_out
     # In case a new test case is added, we don't want to fail here, so the new output is written
@@ -100,7 +100,7 @@ async def test_optimize(
     try:
         with file.open("r") as f_out:
             expected_data = json.load(f_out)
-            expected_result = GeneticSolution(**expected_data)
+            expected_result = Genetic0Solution(**expected_data)
     except FileNotFoundError:
         pass
 
@@ -110,7 +110,7 @@ async def test_optimize(
     # Throw away any cached results of the last energy management run.
     CacheEnergyManagementStore().clear()
 
-    genetic_optimization = GeneticOptimization(fixed_seed=fixed_seed)
+    genetic0_optimization = Genetic0Optimization(fixed_seed=fixed_seed)
 
     # Activate with pytest --finalize
     if ngen > 10 and not is_finalize:
@@ -125,7 +125,7 @@ async def test_optimize(
         ),
     ) as prepare_visualize_patch:
         # Call the optimization function
-        genetic_solution = genetic_optimization.optimize_ems(
+        genetic0_solution = genetic0_optimization.optimize_ems(
             parameters=input_data, start_hour=fixed_start_hour, ngen=ngen
         )
         # The function creates a visualization result PDF as a side-effect.
@@ -135,21 +135,21 @@ async def test_optimize(
     # Write test output to file, so we can take it as new data on intended change
     TESTDATA_FILE = DIR_TESTDATA / f"new_{fn_out}"
     with TESTDATA_FILE.open("w", encoding="utf-8", newline="\n") as f_out:
-        f_out.write(genetic_solution.model_dump_json(indent=4, exclude_unset=True))
+        f_out.write(genetic0_solution.model_dump_json(indent=4, exclude_unset=True))
 
-    assert genetic_solution.result.Gesamtbilanz_Euro == pytest.approx(
+    assert genetic0_solution.result.Gesamtbilanz_Euro == pytest.approx(
         expected_result.result.Gesamtbilanz_Euro
     )
 
     # Assert that the output contains all expected entries.
     # This does not assert that the optimization always gives the same result!
     # Reproducibility and mathematical accuracy should be tested on the level of individual components.
-    compare_dict(genetic_solution.model_dump(), expected_result.model_dump())
+    compare_dict(genetic0_solution.model_dump(), expected_result.model_dump())
 
     # Check the correct generic optimization solution is created
-    optimization_solution = await genetic_solution.optimization_solution()
+    optimization_solution = await genetic0_solution.optimization_solution()
     # @TODO
 
     # Check the correct generic energy management plan is created
-    plan = genetic_solution.energy_management_plan()
+    plan = genetic0_solution.energy_management_plan()
     # @TODO

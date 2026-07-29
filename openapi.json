@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607241195820468"
+    "version": "v0.3.0.dev2607290898922686"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -1913,6 +1913,57 @@
         }
       }
     },
+    "/v1/energy-management/optimization/solution/{algorithm}": {
+      "get": {
+        "tags": [
+          "energy-management"
+        ],
+        "summary": "Fastapi Energy Management Optimization Solution Algorithm Get",
+        "description": "Get the latest algorithm specific solution of the optimization.\n\nArgs:\n    algorithm: Optimization algorithm",
+        "operationId": "fastapi_energy_management_optimization_solution_algorithm_get_v1_energy_management_optimization_solution__algorithm__get",
+        "parameters": [
+          {
+            "name": "algorithm",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Algorithm"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/GeneticSolution"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Genetic0Solution"
+                    }
+                  ],
+                  "title": "Response Fastapi Energy Management Optimization Solution Algorithm Get V1 Energy Management Optimization Solution  Algorithm  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/energy-management/plan": {
       "get": {
         "tags": [
@@ -2085,7 +2136,7 @@
           "optimize"
         ],
         "summary": "Fastapi Optimize",
-        "description": "Deprecated: Optimize.\n\nEndpoint to handle optimization.\n\nNote:\n    Use automatic optimization instead.",
+        "description": "Deprecated: Optimize.\n\nEndpoint to handle optimization.\n\nUses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).\n\nNote:\n    Use automatic optimization instead.\n    \"v1/energy-management/optimization/solution/GENETIC0\"",
         "operationId": "fastapi_optimize_optimize_post",
         "parameters": [
           {
@@ -2130,7 +2181,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/GeneticOptimizationParameters"
+                "$ref": "#/components/schemas/Genetic0OptimizationParameters"
               }
             }
           }
@@ -2141,7 +2192,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GeneticSolution"
+                  "$ref": "#/components/schemas/Genetic0Solution"
                 }
               }
             }
@@ -3739,136 +3790,6 @@
         "title": "ElecPriceTibberCommonSettings",
         "description": "Common settings for the Tibber electricity price provider."
       },
-      "ElectricVehicleParameters": {
-        "properties": {
-          "device_id": {
-            "type": "string",
-            "title": "Device Id",
-            "description": "ID of electric vehicle",
-            "examples": [
-              "ev1"
-            ]
-          },
-          "hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
-            "examples": [
-              null
-            ]
-          },
-          "capacity_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Capacity Wh",
-            "description": "An integer representing the capacity of the battery in watt-hours.",
-            "examples": [
-              8000
-            ]
-          },
-          "charging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Charging Efficiency",
-            "description": "A float representing the charging efficiency of the battery.",
-            "default": 0.88
-          },
-          "discharging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Discharging Efficiency",
-            "description": "A float representing the discharge efficiency of the battery.",
-            "default": 1.0
-          },
-          "max_charge_power_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Charge Power W",
-            "description": "Maximum charging power in watts.",
-            "default": 5000
-          },
-          "initial_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Initial Soc Percentage",
-            "description": "An integer representing the current state of charge (SOC) of the battery in percentage.",
-            "default": 0,
-            "examples": [
-              42
-            ]
-          },
-          "min_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Min Soc Percentage",
-            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
-            "default": 0,
-            "examples": [
-              10
-            ]
-          },
-          "max_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Max Soc Percentage",
-            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
-            "default": 100
-          },
-          "charge_rates": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charge Rates",
-            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
-            "examples": [
-              [
-                0.0,
-                0.25,
-                0.5,
-                0.75,
-                1.0
-              ],
-              null
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "device_id",
-          "capacity_wh"
-        ],
-        "title": "ElectricVehicleParameters",
-        "description": "Battery Electric Vehicle Device Simulation Configuration."
-      },
       "ElectricVehicleResult": {
         "properties": {
           "device_id": {
@@ -4816,8 +4737,1307 @@
         "title": "GeneralSettings",
         "description": "General settings."
       },
-      "GeneticCommonSettings": {
+      "Genetic0CommonSettings-Input": {
         "properties": {
+          "horizon_hours": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Horizon Hours",
+            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
+            ]
+          },
+          "individuals": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 10.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Individuals",
+            "description": "Number of individuals (solutions) in the population [>= 10]. Defaults to 300.",
+            "default": 300,
+            "examples": [
+              300
+            ]
+          },
+          "generations": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 10.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generations",
+            "description": "Number of generations to evolve [>= 10]. Defaults to 400.",
+            "default": 400,
+            "examples": [
+              400
+            ]
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed",
+            "description": "Random seed for reproducibility. None = random.",
+            "examples": [
+              null,
+              42
+            ]
+          },
+          "penalties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Penalties",
+            "description": "Penalty parameters used in fitness evaluation.",
+            "examples": [
+              {
+                "ev_soc_miss": 10
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "Genetic0CommonSettings",
+        "description": "GENETIC0 Optimization Algorithm Configuration."
+      },
+      "Genetic0CommonSettings-Output": {
+        "properties": {
+          "horizon_hours": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Horizon Hours",
+            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
+            ]
+          },
+          "individuals": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 10.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Individuals",
+            "description": "Number of individuals (solutions) in the population [>= 10]. Defaults to 300.",
+            "default": 300,
+            "examples": [
+              300
+            ]
+          },
+          "generations": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 10.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generations",
+            "description": "Number of generations to evolve [>= 10]. Defaults to 400.",
+            "default": 400,
+            "examples": [
+              400
+            ]
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed",
+            "description": "Random seed for reproducibility. None = random.",
+            "examples": [
+              null,
+              42
+            ]
+          },
+          "penalties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Penalties",
+            "description": "Penalty parameters used in fitness evaluation.",
+            "examples": [
+              {
+                "ev_soc_miss": 10
+              }
+            ]
+          },
+          "interval_sec": {
+            "type": "integer",
+            "title": "Interval Sec",
+            "description": "The optimization interval [sec]. Fixed to 1 hour (3600 seconds).",
+            "readOnly": true
+          },
+          "horizon": {
+            "type": "integer",
+            "title": "Horizon",
+            "description": "Number of optimization steps.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "interval_sec",
+          "horizon"
+        ],
+        "title": "Genetic0CommonSettings",
+        "description": "GENETIC0 Optimization Algorithm Configuration."
+      },
+      "Genetic0ElectricVehicleParameters": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of electric vehicle",
+            "examples": [
+              "ev1"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "capacity_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacity Wh",
+            "description": "An integer representing the capacity of the battery in watt-hours.",
+            "examples": [
+              8000
+            ]
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Charging Efficiency",
+            "description": "A float representing the charging efficiency of the battery.",
+            "default": 0.88
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Discharging Efficiency",
+            "description": "A float representing the discharge efficiency of the battery.",
+            "default": 1.0
+          },
+          "max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Charge Power W",
+            "description": "Maximum charging power in watts.",
+            "default": 5000
+          },
+          "initial_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Initial Soc Percentage",
+            "description": "An integer representing the current state of charge (SOC) of the battery in percentage.",
+            "default": 0,
+            "examples": [
+              42
+            ]
+          },
+          "min_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Min Soc Percentage",
+            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "default": 0,
+            "examples": [
+              10
+            ]
+          },
+          "max_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Soc Percentage",
+            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
+            "default": 100
+          },
+          "charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Rates",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [
+              [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              null
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "capacity_wh"
+        ],
+        "title": "Genetic0ElectricVehicleParameters",
+        "description": "Battery Electric Vehicle Device Simulation Configuration."
+      },
+      "Genetic0ElectricVehicleResult": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of electric vehicle",
+            "examples": [
+              "ev1"
+            ]
+          },
+          "hours": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Hours",
+            "description": "Number of hours in the simulation.",
+            "examples": [
+              24
+            ]
+          },
+          "charge_array": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Charge Array",
+            "description": "Hourly charging status (0 for no charging, 1 for charging)."
+          },
+          "discharge_array": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Discharge Array",
+            "description": "Hourly discharging status (0 for no discharging, 1 for discharging)."
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "title": "Discharging Efficiency",
+            "description": "The discharge efficiency as a float.."
+          },
+          "capacity_wh": {
+            "type": "integer",
+            "title": "Capacity Wh",
+            "description": "Capacity of the EV\u2019s battery in watt-hours."
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "title": "Charging Efficiency",
+            "description": "Charging efficiency as a float.."
+          },
+          "max_charge_power_w": {
+            "type": "integer",
+            "title": "Max Charge Power W",
+            "description": "Maximum charging power in watts."
+          },
+          "soc_wh": {
+            "type": "number",
+            "title": "Soc Wh",
+            "description": "State of charge of the battery in watt-hours at the start of the simulation."
+          },
+          "initial_soc_percentage": {
+            "type": "integer",
+            "title": "Initial Soc Percentage",
+            "description": "State of charge at the start of the simulation in percentage."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "hours",
+          "charge_array",
+          "discharge_array",
+          "discharging_efficiency",
+          "capacity_wh",
+          "charging_efficiency",
+          "max_charge_power_w",
+          "soc_wh",
+          "initial_soc_percentage"
+        ],
+        "title": "Genetic0ElectricVehicleResult",
+        "description": "Result class containing information related to the electric vehicle's charging and discharging behavior."
+      },
+      "Genetic0EnergyManagementParameters": {
+        "properties": {
+          "pv_forecast_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pv Forecast Wh",
+            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+          },
+          "electricity_price_per_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Electricity Price Per Wh",
+            "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
+          },
+          "feed_in_tariff_per_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Feed In Tariff Per Wh",
+            "description": "A float or array of floats representing the feed-in compensation per watt-hour."
+          },
+          "price_per_wh_battery": {
+            "type": "number",
+            "title": "Price Per Wh Battery",
+            "description": "A float representing the cost of battery energy per watt-hour."
+          },
+          "total_load": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Total Load",
+            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
+          }
+        },
+        "type": "object",
+        "required": [
+          "pv_forecast_wh",
+          "electricity_price_per_wh",
+          "feed_in_tariff_per_wh",
+          "price_per_wh_battery",
+          "total_load"
+        ],
+        "title": "Genetic0EnergyManagementParameters",
+        "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
+      },
+      "Genetic0HomeApplianceParameters": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of home appliance",
+            "examples": [
+              "dishwasher"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "consumption_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Consumption Wh",
+            "description": "An integer representing the energy consumption of a household device in watt-hours.",
+            "examples": [
+              2000
+            ]
+          },
+          "duration_h": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Duration H",
+            "description": "An integer representing the usage duration of a household device in hours.",
+            "examples": [
+              3
+            ]
+          },
+          "time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "List of allowed time windows. Defaults to optimization general time window.",
+            "examples": [
+              [
+                {
+                  "duration": "3 hours",
+                  "start_time": "10:00"
+                }
+              ]
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "consumption_wh",
+          "duration_h"
+        ],
+        "title": "Genetic0HomeApplianceParameters",
+        "description": "Home Appliance Device Simulation Configuration."
+      },
+      "Genetic0InverterParameters": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of inverter",
+            "examples": [
+              "inverter1"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "max_power_wh": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Power Wh",
+            "examples": [
+              10000
+            ]
+          },
+          "battery_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Id",
+            "description": "ID of battery",
+            "examples": [
+              null,
+              "battery1"
+            ]
+          },
+          "ac_to_dc_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Ac To Dc Efficiency",
+            "description": "Efficiency of AC to DC conversion (for AC/grid charging of battery). Set to 0 to disable AC charging via inverter. Default 1.0 for backward compatibility (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0,
+              0.0
+            ]
+          },
+          "dc_to_ac_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Dc To Ac Efficiency",
+            "description": "Efficiency of DC to AC conversion (for battery discharging to AC load/grid). Default 1.0 for backward compatibility (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0
+            ]
+          },
+          "max_ac_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ac Charge Power W",
+            "description": "Maximum AC charging power in watts. None means no additional limit (battery's own max_charge_power_w applies). Set to 0 to disable AC charging.",
+            "examples": [
+              null,
+              0,
+              5000
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "max_power_wh"
+        ],
+        "title": "Genetic0InverterParameters",
+        "description": "Inverter Device Simulation Configuration."
+      },
+      "Genetic0OptimizationParameters": {
+        "properties": {
+          "ems": {
+            "$ref": "#/components/schemas/Genetic0EnergyManagementParameters"
+          },
+          "pv_battery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PV battery parameters."
+          },
+          "inverter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0InverterParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ev": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Electric vehicle parameters."
+          },
+          "dishwasher": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0HomeApplianceParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "temperature_forecast": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Forecast",
+            "description": "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
+          },
+          "start_solution": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution",
+            "description": "Can be `null` or contain a previous solution (if available)."
+          }
+        },
+        "type": "object",
+        "required": [
+          "ems",
+          "pv_battery",
+          "inverter",
+          "ev"
+        ],
+        "title": "Genetic0OptimizationParameters",
+        "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
+      },
+      "Genetic0SimulationResult": {
+        "properties": {
+          "load_wh_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Load Wh Per Hour",
+            "description": "The load in watt-hours per hour."
+          },
+          "ev_soc_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Ev Soc Per Hour",
+            "description": "The state of charge of the EV for each hour."
+          },
+          "revenue_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Revenue Per Hour",
+            "description": "The revenue from grid feed-in or other sources per hour."
+          },
+          "total_losses": {
+            "type": "number",
+            "title": "Total Losses",
+            "description": "The total losses in watt-hours over the entire period."
+          },
+          "total_balance": {
+            "type": "number",
+            "title": "Total Balance",
+            "description": "The total balance of revenues minus costs."
+          },
+          "total_revenue": {
+            "type": "number",
+            "title": "Total Revenue",
+            "description": "The total revenues."
+          },
+          "total_costs": {
+            "type": "number",
+            "title": "Total Costs",
+            "description": "The total costs."
+          },
+          "home_appliance_wh_per_hour": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Home Appliance Wh Per Hour",
+            "description": "The energy consumption of a household appliance in watt-hours per hour."
+          },
+          "costs_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Costs Per Hour",
+            "description": "The costs per hour."
+          },
+          "grid_consumption_wh_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Grid Consumption Wh Per Hour",
+            "description": "The grid energy drawn in watt-hours per hour."
+          },
+          "grid_feed_in_wh_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Grid Feed In Wh Per Hour",
+            "description": "The energy fed into the grid in watt-hours per hour."
+          },
+          "losses_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Losses Per Hour",
+            "description": "The losses in watt-hours per hour."
+          },
+          "battery_soc_per_hour": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Battery Soc Per Hour",
+            "description": "The state of charge of the battery (not the EV) in percentage per hour."
+          },
+          "electricity_price": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Electricity Price",
+            "description": "Used Electricity Price, including predictions"
+          },
+          "Last_Wh_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Last Wh Pro Stunde",
+            "description": "Deprecated: Use load_wh_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "EAuto_SoC_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Eauto Soc Pro Stunde",
+            "description": "Deprecated: Use ev_soc_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Einnahmen_Euro_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Einnahmen Euro Pro Stunde",
+            "description": "Deprecated: Use revenue_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Gesamt_Verluste": {
+            "type": "number",
+            "title": "Gesamt Verluste",
+            "description": "Deprecated: Use total_losses instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Gesamtbilanz_Euro": {
+            "type": "number",
+            "title": "Gesamtbilanz Euro",
+            "description": "Deprecated: Use total_balance instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Gesamteinnahmen_Euro": {
+            "type": "number",
+            "title": "Gesamteinnahmen Euro",
+            "description": "Deprecated: Use total_revenue instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Gesamtkosten_Euro": {
+            "type": "number",
+            "title": "Gesamtkosten Euro",
+            "description": "Deprecated: Use total_costs instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Home_appliance_wh_per_hour": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Home Appliance Wh Per Hour",
+            "description": "Deprecated: Use home_appliance_wh_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Kosten_Euro_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Kosten Euro Pro Stunde",
+            "description": "Deprecated: Use costs_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Netzbezug_Wh_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Netzbezug Wh Pro Stunde",
+            "description": "Deprecated: Use grid_consumption_wh_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Netzeinspeisung_Wh_pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Netzeinspeisung Wh Pro Stunde",
+            "description": "Deprecated: Use grid_feed_in_wh_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Verluste_Pro_Stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Verluste Pro Stunde",
+            "description": "Deprecated: Use losses_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "akku_soc_pro_stunde": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Akku Soc Pro Stunde",
+            "description": "Deprecated: Use battery_soc_per_hour instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "Electricity_price": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Electricity Price",
+            "description": "Deprecated: Use electricity_price instead.",
+            "deprecated": true,
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "load_wh_per_hour",
+          "ev_soc_per_hour",
+          "revenue_per_hour",
+          "total_losses",
+          "total_balance",
+          "total_revenue",
+          "total_costs",
+          "home_appliance_wh_per_hour",
+          "costs_per_hour",
+          "grid_consumption_wh_per_hour",
+          "grid_feed_in_wh_per_hour",
+          "losses_per_hour",
+          "battery_soc_per_hour",
+          "electricity_price",
+          "Last_Wh_pro_Stunde",
+          "EAuto_SoC_pro_Stunde",
+          "Einnahmen_Euro_pro_Stunde",
+          "Gesamt_Verluste",
+          "Gesamtbilanz_Euro",
+          "Gesamteinnahmen_Euro",
+          "Gesamtkosten_Euro",
+          "Home_appliance_wh_per_hour",
+          "Kosten_Euro_pro_Stunde",
+          "Netzbezug_Wh_pro_Stunde",
+          "Netzeinspeisung_Wh_pro_Stunde",
+          "Verluste_Pro_Stunde",
+          "akku_soc_pro_stunde",
+          "Electricity_price"
+        ],
+        "title": "Genetic0SimulationResult",
+        "description": "This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."
+      },
+      "Genetic0SolarPanelBatteryParameters": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of battery",
+            "examples": [
+              "battery1"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "capacity_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacity Wh",
+            "description": "An integer representing the capacity of the battery in watt-hours.",
+            "examples": [
+              8000
+            ]
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Charging Efficiency",
+            "description": "A float representing the charging efficiency of the battery.",
+            "default": 0.88
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Discharging Efficiency",
+            "description": "A float representing the discharge efficiency of the battery.",
+            "default": 0.88
+          },
+          "max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Charge Power W",
+            "description": "Maximum charging power in watts.",
+            "default": 5000
+          },
+          "initial_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Initial Soc Percentage",
+            "description": "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state).",
+            "default": 0,
+            "examples": [
+              42
+            ]
+          },
+          "min_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Min Soc Percentage",
+            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "default": 0,
+            "examples": [
+              10
+            ]
+          },
+          "max_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Soc Percentage",
+            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
+            "default": 100
+          },
+          "charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Rates",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [
+              [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              null
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "capacity_wh"
+        ],
+        "title": "Genetic0SolarPanelBatteryParameters",
+        "description": "PV battery device simulation configuration."
+      },
+      "Genetic0Solution": {
+        "properties": {
+          "ac_charge": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Ac Charge",
+            "description": "Array with AC charging values as relative power (0.0-1.0), other values set to 0."
+          },
+          "dc_charge": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Dc Charge",
+            "description": "Array with DC charging values as relative power (0-1), other values set to 0."
+          },
+          "discharge_allowed": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Discharge Allowed",
+            "description": "Array with discharge values (1 for discharge, 0 otherwise)."
+          },
+          "ev_charge_hours_float": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ev Charge Hours Float",
+            "description": "Array with EV charging values as relative power (0.0-1.0), or `null` if no EV is optimized."
+          },
+          "result": {
+            "$ref": "#/components/schemas/Genetic0SimulationResult"
+          },
+          "ev_obj": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Electric vehicle state after optimization."
+          },
+          "start_solution": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution",
+            "description": "An array of binary values (0 or 1) representing a possible starting solution for the simulation."
+          },
+          "washingstart": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Washingstart",
+            "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
+          },
+          "eautocharge_hours_float": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eautocharge Hours Float",
+            "description": "Deprecated: Use ev_charge_hours_float instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "eauto_obj": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deprecated: Use ev_obj instead.",
+            "deprecated": true,
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "ac_charge",
+          "dc_charge",
+          "discharge_allowed",
+          "ev_charge_hours_float",
+          "result",
+          "ev_obj",
+          "eautocharge_hours_float",
+          "eauto_obj"
+        ],
+        "title": "Genetic0Solution",
+        "description": "**Note**: The first value of \"load_wh_per_hour\", \"grid_feed_in_wh_per_hour\", and \"grid_consumption_wh_per_hour\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
+      },
+      "GeneticCommonSettings-Input": {
+        "properties": {
+          "interval_sec": {
+            "type": "integer",
+            "maximum": 3600.0,
+            "minimum": 900.0,
+            "title": "Interval Sec",
+            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
+            "default": 3600,
+            "examples": [
+              3600,
+              900
+            ]
+          },
+          "horizon_hours": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Horizon Hours",
+            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
+            ]
+          },
           "individuals": {
             "anyOf": [
               {
@@ -4895,160 +6115,119 @@
         },
         "type": "object",
         "title": "GeneticCommonSettings",
-        "description": "General Genetic Optimization Algorithm Configuration."
+        "description": "GENETIC Optimization Algorithm Configuration."
       },
-      "GeneticEnergyManagementParameters": {
+      "GeneticCommonSettings-Output": {
         "properties": {
-          "pv_forecast_wh": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Pv Forecast Wh",
-            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+          "interval_sec": {
+            "type": "integer",
+            "maximum": 3600.0,
+            "minimum": 900.0,
+            "title": "Interval Sec",
+            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
+            "default": 3600,
+            "examples": [
+              3600,
+              900
+            ]
           },
-          "electricity_price_per_wh": {
-            "items": {
-              "type": "number"
-            },
-            "type": "array",
-            "title": "Electricity Price Per Wh",
-            "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
+          "horizon_hours": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Horizon Hours",
+            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
+            ]
           },
-          "feed_in_tariff_per_wh": {
+          "individuals": {
             "anyOf": [
               {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
+                "type": "integer",
+                "minimum": 10.0
               },
               {
-                "type": "number"
+                "type": "null"
               }
             ],
-            "title": "Feed In Tariff Per Wh",
-            "description": "A float or array of floats representing the feed-in compensation per watt-hour."
+            "title": "Individuals",
+            "description": "Number of individuals (solutions) in the population [>= 10]. Defaults to 300.",
+            "default": 300,
+            "examples": [
+              300
+            ]
           },
-          "price_per_wh_battery": {
-            "type": "number",
-            "title": "Price Per Wh Battery",
-            "description": "A float representing the cost of battery energy per watt-hour."
+          "generations": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 10.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generations",
+            "description": "Number of generations to evolve [>= 10]. Defaults to 400.",
+            "default": 400,
+            "examples": [
+              400
+            ]
           },
-          "total_load": {
-            "items": {
-              "type": "number"
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed",
+            "description": "Random seed for reproducibility. None = random.",
+            "examples": [
+              null,
+              42
+            ]
+          },
+          "penalties": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ]
             },
-            "type": "array",
-            "title": "Total Load",
-            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
+            "type": "object",
+            "title": "Penalties",
+            "description": "Penalty parameters used in fitness evaluation.",
+            "examples": [
+              {
+                "ev_soc_miss": 10
+              }
+            ]
+          },
+          "horizon": {
+            "type": "integer",
+            "title": "Horizon",
+            "description": "Number of optimization steps.",
+            "readOnly": true
           }
         },
         "type": "object",
         "required": [
-          "pv_forecast_wh",
-          "electricity_price_per_wh",
-          "feed_in_tariff_per_wh",
-          "price_per_wh_battery",
-          "total_load"
+          "horizon"
         ],
-        "title": "GeneticEnergyManagementParameters",
-        "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
-      },
-      "GeneticOptimizationParameters": {
-        "properties": {
-          "ems": {
-            "$ref": "#/components/schemas/GeneticEnergyManagementParameters"
-          },
-          "pv_battery": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SolarPanelBatteryParameters"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "PV battery parameters."
-          },
-          "inverter": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/InverterParameters"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "ev": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ElectricVehicleParameters"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Electric vehicle parameters."
-          },
-          "dishwasher": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/HomeApplianceParameters"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "temperature_forecast": {
-            "anyOf": [
-              {
-                "items": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Temperature Forecast",
-            "description": "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
-          },
-          "start_solution": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Solution",
-            "description": "Can be `null` or contain a previous solution (if available)."
-          }
-        },
-        "type": "object",
-        "required": [
-          "ems",
-          "pv_battery",
-          "inverter",
-          "ev"
-        ],
-        "title": "GeneticOptimizationParameters",
-        "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
+        "title": "GeneticCommonSettings",
+        "description": "GENETIC Optimization Algorithm Configuration."
       },
       "GeneticSimulationResult": {
         "properties": {
@@ -5638,80 +6817,6 @@
         ],
         "title": "HomeApplianceCommonSettings",
         "description": "Home Appliance devices base settings."
-      },
-      "HomeApplianceParameters": {
-        "properties": {
-          "device_id": {
-            "type": "string",
-            "title": "Device Id",
-            "description": "ID of home appliance",
-            "examples": [
-              "dishwasher"
-            ]
-          },
-          "hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
-            "examples": [
-              null
-            ]
-          },
-          "consumption_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Consumption Wh",
-            "description": "An integer representing the energy consumption of a household device in watt-hours.",
-            "examples": [
-              2000
-            ]
-          },
-          "duration_h": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Duration H",
-            "description": "An integer representing the usage duration of a household device in hours.",
-            "examples": [
-              3
-            ]
-          },
-          "time_windows": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TimeWindowSequence-Input"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "List of allowed time windows. Defaults to optimization general time window.",
-            "examples": [
-              [
-                {
-                  "duration": "3 hours",
-                  "start_time": "10:00"
-                }
-              ]
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "device_id",
-          "consumption_wh",
-          "duration_h"
-        ],
-        "title": "HomeApplianceParameters",
-        "description": "Home Appliance Device Simulation Configuration."
       },
       "HomeAssistantAdapterCommonSettings-Input": {
         "properties": {
@@ -6303,109 +7408,6 @@
         ],
         "title": "InverterCommonSettings",
         "description": "Inverter devices base settings."
-      },
-      "InverterParameters": {
-        "properties": {
-          "device_id": {
-            "type": "string",
-            "title": "Device Id",
-            "description": "ID of inverter",
-            "examples": [
-              "inverter1"
-            ]
-          },
-          "hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
-            "examples": [
-              null
-            ]
-          },
-          "max_power_wh": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Max Power Wh",
-            "examples": [
-              10000
-            ]
-          },
-          "battery_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Battery Id",
-            "description": "ID of battery",
-            "examples": [
-              null,
-              "battery1"
-            ]
-          },
-          "ac_to_dc_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "minimum": 0.0,
-            "title": "Ac To Dc Efficiency",
-            "description": "Efficiency of AC to DC conversion (for AC/grid charging of battery). Set to 0 to disable AC charging via inverter. Default 1.0 for backward compatibility (no additional inverter loss).",
-            "default": 1.0,
-            "examples": [
-              0.95,
-              1.0,
-              0.0
-            ]
-          },
-          "dc_to_ac_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Dc To Ac Efficiency",
-            "description": "Efficiency of DC to AC conversion (for battery discharging to AC load/grid). Default 1.0 for backward compatibility (no additional inverter loss).",
-            "default": 1.0,
-            "examples": [
-              0.95,
-              1.0
-            ]
-          },
-          "max_ac_charge_power_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Ac Charge Power W",
-            "description": "Maximum AC charging power in watts. None means no additional limit (battery's own max_charge_power_w applies). Set to 0 to disable AC charging.",
-            "examples": [
-              null,
-              0,
-              5000
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "device_id",
-          "max_power_wh"
-        ],
-        "title": "InverterParameters",
-        "description": "Inverter Device Simulation Configuration."
       },
       "LoadAkkudoktorCommonSettings": {
         "properties": {
@@ -7064,40 +8066,31 @@
       },
       "OptimizationCommonSettings-Input": {
         "properties": {
-          "horizon_hours": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Horizon Hours",
-            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
-            "default": 24,
-            "examples": [
-              24
-            ]
-          },
-          "interval": {
-            "type": "integer",
-            "maximum": 3600.0,
-            "minimum": 900.0,
-            "title": "Interval",
-            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
-            "default": 3600,
-            "examples": [
-              3600,
-              900
-            ]
-          },
           "algorithm": {
             "type": "string",
             "title": "Algorithm",
             "description": "The optimization algorithm. Defaults to GENETIC",
             "default": "GENETIC",
             "examples": [
-              "GENETIC"
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "genetic": {
-            "$ref": "#/components/schemas/GeneticCommonSettings",
-            "description": "Genetic optimization algorithm configuration.",
+            "$ref": "#/components/schemas/GeneticCommonSettings-Input",
+            "description": "GENETIC optimization algorithm configuration.",
+            "examples": [
+              {
+                "individuals": 400,
+                "penalties": {
+                  "ev_soc_miss": 10
+                }
+              }
+            ]
+          },
+          "genetic0": {
+            "$ref": "#/components/schemas/Genetic0CommonSettings-Input",
+            "description": "GENETIC0 optimization algorithm configuration.",
             "examples": [
               {
                 "individuals": 400,
@@ -7114,40 +8107,19 @@
       },
       "OptimizationCommonSettings-Output": {
         "properties": {
-          "horizon_hours": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Horizon Hours",
-            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
-            "default": 24,
-            "examples": [
-              24
-            ]
-          },
-          "interval": {
-            "type": "integer",
-            "maximum": 3600.0,
-            "minimum": 900.0,
-            "title": "Interval",
-            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
-            "default": 3600,
-            "examples": [
-              3600,
-              900
-            ]
-          },
           "algorithm": {
             "type": "string",
             "title": "Algorithm",
             "description": "The optimization algorithm. Defaults to GENETIC",
             "default": "GENETIC",
             "examples": [
-              "GENETIC"
+              "GENETIC",
+              "GENETIC0"
             ]
           },
           "genetic": {
-            "$ref": "#/components/schemas/GeneticCommonSettings",
-            "description": "Genetic optimization algorithm configuration.",
+            "$ref": "#/components/schemas/GeneticCommonSettings-Output",
+            "description": "GENETIC optimization algorithm configuration.",
             "examples": [
               {
                 "individuals": 400,
@@ -7157,6 +8129,27 @@
               }
             ]
           },
+          "genetic0": {
+            "$ref": "#/components/schemas/Genetic0CommonSettings-Output",
+            "description": "GENETIC0 optimization algorithm configuration.",
+            "examples": [
+              {
+                "individuals": 400,
+                "penalties": {
+                  "ev_soc_miss": 10
+                }
+              }
+            ]
+          },
+          "algorithms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Algorithms",
+            "description": "Available optimization algorithms.",
+            "readOnly": true
+          },
           "keys": {
             "items": {
               "type": "string"
@@ -7165,18 +8158,12 @@
             "title": "Keys",
             "description": "The keys of the solution.",
             "readOnly": true
-          },
-          "horizon": {
-            "type": "integer",
-            "title": "Horizon",
-            "description": "Number of optimization steps.",
-            "readOnly": true
           }
         },
         "type": "object",
         "required": [
-          "keys",
-          "horizon"
+          "algorithms",
+          "keys"
         ],
         "title": "OptimizationCommonSettings",
         "description": "General Optimization Configuration."
@@ -8899,136 +9886,6 @@
         "type": "object",
         "title": "SettingsEOS",
         "description": "Settings for all EOS.\n\nOnly used to update the configuration with specific settings."
-      },
-      "SolarPanelBatteryParameters": {
-        "properties": {
-          "device_id": {
-            "type": "string",
-            "title": "Device Id",
-            "description": "ID of battery",
-            "examples": [
-              "battery1"
-            ]
-          },
-          "hours": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours",
-            "description": "Number of prediction hours. Defaults to global config prediction hours.",
-            "examples": [
-              null
-            ]
-          },
-          "capacity_wh": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Capacity Wh",
-            "description": "An integer representing the capacity of the battery in watt-hours.",
-            "examples": [
-              8000
-            ]
-          },
-          "charging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Charging Efficiency",
-            "description": "A float representing the charging efficiency of the battery.",
-            "default": 0.88
-          },
-          "discharging_efficiency": {
-            "type": "number",
-            "maximum": 1.0,
-            "exclusiveMinimum": 0.0,
-            "title": "Discharging Efficiency",
-            "description": "A float representing the discharge efficiency of the battery.",
-            "default": 0.88
-          },
-          "max_charge_power_w": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Charge Power W",
-            "description": "Maximum charging power in watts.",
-            "default": 5000
-          },
-          "initial_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Initial Soc Percentage",
-            "description": "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state).",
-            "default": 0,
-            "examples": [
-              42
-            ]
-          },
-          "min_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Min Soc Percentage",
-            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
-            "default": 0,
-            "examples": [
-              10
-            ]
-          },
-          "max_soc_percentage": {
-            "type": "integer",
-            "maximum": 100.0,
-            "minimum": 0.0,
-            "title": "Max Soc Percentage",
-            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
-            "default": 100
-          },
-          "charge_rates": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "number"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charge Rates",
-            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
-            "examples": [
-              [
-                0.0,
-                0.25,
-                0.5,
-                0.75,
-                1.0
-              ],
-              null
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "device_id",
-          "capacity_wh"
-        ],
-        "title": "SolarPanelBatteryParameters",
-        "description": "PV battery device simulation configuration."
       },
       "TimeWindow-Input": {
         "properties": {
