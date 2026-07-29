@@ -130,6 +130,10 @@
                "import_file_path": null,
                "import_json": null
            },
+           "dvhubonline": {
+               "base_url": "https://dvhub.online",
+               "zone": "DE-LU"
+           },
            "energycharts": {
                "bidding_zone": "DE-LU"
            }
