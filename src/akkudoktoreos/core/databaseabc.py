@@ -549,7 +549,7 @@ class DatabaseRecordProtocolMixin(
             interval: Optional[Duration] = None,
             fill_method: Optional[FillMethod] = None,
             resample_method: ResampleMethod = "mean",
-            dropna: Optional[bool] = True,
+            dropna: bool = True,
             boundary: BoundaryMode = "context",
             align_to_interval: bool = False,
         ) -> NDArray[Shape["*"], Any]: ...

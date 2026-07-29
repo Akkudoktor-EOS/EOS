@@ -15,10 +15,18 @@ from akkudoktoreos.core.logabc import LOGGING_LEVELS
 class LoggingCommonSettings(SettingsBaseModel):
     """Logging Configuration."""
 
+    api_level: Optional[str] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Logging level for API response.",
+            "examples": LOGGING_LEVELS,
+        },
+    )
+
     console_level: Optional[str] = Field(
         default=None,
         json_schema_extra={
-            "description": "Logging level when logging to console.",
+            "description": "Logging level for logging to console.",
             "examples": LOGGING_LEVELS,
         },
     )
@@ -26,7 +34,7 @@ class LoggingCommonSettings(SettingsBaseModel):
     file_level: Optional[str] = Field(
         default=None,
         json_schema_extra={
-            "description": "Logging level when logging to file.",
+            "description": "Logging level for logging to file.",
             "examples": LOGGING_LEVELS,
         },
     )

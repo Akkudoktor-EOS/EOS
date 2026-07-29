@@ -1,6 +1,6 @@
 """Genetic0 algorithm optimisation solution."""
 
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -28,6 +28,9 @@ from akkudoktoreos.devices.devicesabc import (
 from akkudoktoreos.devices.genetic0.genetic0battery import Genetic0Battery
 from akkudoktoreos.optimization.genetic0.genetic0devices import (
     Genetic0ParametersBaseModel,
+)
+from akkudoktoreos.optimization.genetic0.genetic0params import (
+    Genetic0OptimizationParameters,
 )
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
@@ -244,8 +247,9 @@ class Genetic0SimulationResult(Genetic0ParametersBaseModel):
         return NumpyEncoder.convert_numpy(field)[0]
 
 
-class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
-    """**Note**: The first value of "load_wh_per_hour", "grid_feed_in_wh_per_hour", and "grid_consumption_wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
+# Legacy GENETIC solution dataset. To keep the /optimize endpoint compatible.
+class Genetic0SolutionLegacy(Genetic0ParametersBaseModel):
+    """GENETIC0 solution legacy dataset."""
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
@@ -286,6 +290,109 @@ class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
         json_schema_extra={
             "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
         },
+    )
+
+    # Computed fields for backward compatibility (deprecated German names)
+    @computed_field(json_schema_extra={"deprecated": True})
+    def eautocharge_hours_float(self) -> Optional[list[float]]:
+        """Deprecated: Use ev_charge_hours_float instead."""
+        return self.ev_charge_hours_float
+
+    @computed_field(json_schema_extra={"deprecated": True})
+    def eauto_obj(self) -> Optional[Genetic0ElectricVehicleResult]:
+        """Deprecated: Use ev_obj instead."""
+        return self.ev_obj
+
+    @field_validator(
+        "ac_charge",
+        "dc_charge",
+        "discharge_allowed",
+        mode="before",
+    )
+    def convert_numpy(cls, field: Any) -> Any:
+        return NumpyEncoder.convert_numpy(field)[0]
+
+    @field_validator(
+        "ev_obj",
+        mode="before",
+    )
+    def convert_eauto(cls, field: Any) -> Any:
+        if isinstance(field, Genetic0Battery):
+            return Genetic0ElectricVehicleResult(**field.to_dict())
+        return field
+
+
+class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
+    """**Note**: The first value of "load_wh_per_hour", "grid_feed_in_wh_per_hour", and "grid_consumption_wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    parameters: Genetic0OptimizationParameters = Field(
+        json_schema_extra={"description": "Optimization parameters used to generate solution."}
+    )
+    ac_charge: list[float] = Field(
+        json_schema_extra={
+            "description": "Array with AC charging values as relative power (0.0-1.0), other values set to 0."
+        }
+    )
+    dc_charge: list[float] = Field(
+        json_schema_extra={
+            "description": "Array with DC charging values as relative power (0-1), other values set to 0."
+        }
+    )
+    discharge_allowed: list[int] = Field(
+        json_schema_extra={
+            "description": "Array with discharge values (1 for discharge, 0 otherwise)."
+        }
+    )
+    ev_charge_hours_float: Optional[list[float]] = Field(
+        validation_alias=AliasChoices("ev_charge_hours_float", "eautocharge_hours_float"),
+        json_schema_extra={
+            "description": "Array with EV charging values as relative power (0.0-1.0), or `null` if no EV is optimized."
+        },
+    )
+    result: Genetic0SimulationResult
+    ev_obj: Optional[Genetic0ElectricVehicleResult] = Field(
+        validation_alias=AliasChoices("ev_obj", "eauto_obj"),
+        json_schema_extra={"description": "Electric vehicle state after optimization."},
+    )
+    start_hour: int = Field(
+        default=0,
+        json_schema_extra={"description": "Start hour."},
+    )
+    start_solution: Optional[list[float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "An array of binary values (0 or 1) representing a possible starting solution for the simulation."
+        },
+    )
+    washingstart: Optional[int] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
+        },
+    )
+    extra_data: Optional[dict[str, Union[list[int], list[float]]]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": ("Dictionary of balance: TBD, losses: TBD, constraints: TBD.")
+        },
+    )
+    fitness_history: Optional[dict[str, Union[list[int], list[float]]]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Dictionary of "
+                "gen: Generation numbers (X-axis), "
+                "avg: Average fitness for each generation (Y-axis), "
+                "max: Maximum fitness for each generation (Y-axis), "
+                "min: Minimum fitness for each generation (Y-axis)."
+            )
+        },
+    )
+    fixed_seed: Optional[int] = Field(
+        default=None,
+        json_schema_extra={"description": "Fixed seed."},
     )
 
     # Computed fields for backward compatibility (deprecated German names)

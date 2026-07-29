@@ -1221,39 +1221,20 @@ class GeneticOptimization(OptimizationBase):
         else:
             discharge = discharge.tolist()
 
-        # Visualize the results in PDF
-        try:
-            from akkudoktoreos.utils.visualize import prepare_visualize
-
-            visualize = {
-                "ac_charge": ac_charge_hours,
-                "dc_charge": dc_charge_hours,
-                "discharge_allowed": discharge,
-                "ev_charge_hours_float": ev_charge_hours_float,
-                "result": GeneticSimulationResult(**simulation_result).model_dump(),
-                "ev_obj": self.simulation.ev.to_dict() if self.simulation.ev else None,
-                "start_solution": start_solution,
-                "washingstart": washingstart_int,
-                "extra_data": extra_data,
-                "fitness_history": self.fitness_history,
-                "fixed_seed": self.fix_seed,
-            }
-
-            prepare_visualize(parameters, visualize, start_hour=start_hour)
-
-        except Exception as ex:
-            error_msg = f"Visualization failed: {ex}"
-            logger.error(error_msg)
-
         return GeneticSolution(
             **{
+                "parameters": parameters,
                 "ac_charge": ac_charge_hours,
                 "dc_charge": dc_charge_hours,
                 "discharge_allowed": discharge,
                 "ev_charge_hours_float": ev_charge_hours_float,
                 "result": GeneticSimulationResult(**simulation_result),
                 "ev_obj": self.simulation.ev,
+                "start_hour": start_hour,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,
+                "extra_data": extra_data,
+                "fitness_history": self.fitness_history,
+                "fixed_seed": self.fix_seed,
             }
         )
