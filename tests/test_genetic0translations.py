@@ -3,13 +3,13 @@
 
 import json
 
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticEnergyManagementParameters,
+from akkudoktoreos.optimization.genetic0.genetic0 import Genetic0SimulationResult
+from akkudoktoreos.optimization.genetic0.genetic0params import (
+    Genetic0EnergyManagementParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSimulationResult
 
 
-def test_genetic_params_german_input():
+def test_genetic0_params_german_input():
     """Test that German field names are accepted as input."""
     data_de = {
         "pv_prognose_wh": [100.0, 200.0],
@@ -18,11 +18,11 @@ def test_genetic_params_german_input():
         "preis_euro_pro_wh_akku": 0.0001,
         "gesamtlast": [500.0, 600.0],
     }
-    params = GeneticEnergyManagementParameters(**data_de)
+    params = Genetic0EnergyManagementParameters(**data_de)
     assert params.pv_forecast_wh == [100.0, 200.0]
     print("✅ German input accepted")
 
-def test_genetic_params_english_input():
+def test_genetic0_params_english_input():
     """Test that English field names are accepted as input."""
     data_en = {
         "pv_forecast_wh": [100.0, 200.0],
@@ -31,11 +31,11 @@ def test_genetic_params_english_input():
         "price_per_wh_battery": 0.0001,
         "total_load": [500.0, 600.0],
     }
-    params = GeneticEnergyManagementParameters(**data_en)
+    params = Genetic0EnergyManagementParameters(**data_en)
     assert params.pv_forecast_wh == [100.0, 200.0]
     print("✅ English input accepted")
 
-def test_genetic_params_english_output():
+def test_genetic0_params_english_output():
     """Test that both English and German field names are in JSON output (backward compatibility)."""
     data_de = {
         "pv_prognose_wh": [100.0, 200.0],
@@ -44,7 +44,7 @@ def test_genetic_params_english_output():
         "preis_euro_pro_wh_akku": 0.0001,
         "gesamtlast": [500.0, 600.0],
     }
-    params = GeneticEnergyManagementParameters(**data_de)
+    params = Genetic0EnergyManagementParameters(**data_de)
     json_output = json.loads(params.model_dump_json(by_alias=True))
 
     # English names should be in output
@@ -66,7 +66,7 @@ def test_genetic_params_english_output():
     assert json_output["electricity_price_per_wh"] == json_output["strompreis_euro_pro_wh"]
     print("✅ Both English and German output generated")
 
-def test_simulation_result_translations():
+def test_genetic0_simulation_result_translations():
     """Test simulation result field translations."""
     data_de = {
         "Last_Wh_pro_Stunde": [100.0, 200.0],
@@ -84,7 +84,7 @@ def test_simulation_result_translations():
         "akku_soc_pro_stunde": [80.0, 90.0],
         "Electricity_price": [0.0003, 0.0003],
     }
-    result = GeneticSimulationResult(**data_de)
+    result = Genetic0SimulationResult(**data_de)
     json_output = json.loads(result.model_dump_json(by_alias=True))
 
     # Check English field names in output
@@ -121,16 +121,16 @@ def test_simulation_result_translations():
     print("✅ Simulation result translations work")
 
 if __name__ == "__main__":
-    test_genetic_params_german_input()
-    test_genetic_params_english_input()
-    test_genetic_params_english_output()
-    test_simulation_result_translations()
+    test_genetic0_params_german_input()
+    test_genetic0_params_english_input()
+    test_genetic0_params_english_output()
+    test_genetic0_simulation_result_translations()
     print("\n✅✅✅ All translation tests passed! ✅✅✅")
 
-def test_optimization_parameters_device_translations():
+def test_genetic0_optimization_parameters_device_translations():
     """Test that German device field names are accepted and re-emitted."""
-    from akkudoktoreos.optimization.genetic.geneticparams import (
-        GeneticOptimizationParameters,
+    from akkudoktoreos.optimization.genetic0.genetic0params import (
+        Genetic0OptimizationParameters,
     )
 
     ems_de = {
@@ -140,7 +140,7 @@ def test_optimization_parameters_device_translations():
         "preis_euro_pro_wh_akku": 0.0001,
         "gesamtlast": [500.0, 600.0],
     }
-    params = GeneticOptimizationParameters(
+    params = Genetic0OptimizationParameters(
         ems=ems_de,
         pv_akku={"device_id": "battery1", "capacity_wh": 8000},
         inverter=None,
@@ -153,7 +153,7 @@ def test_optimization_parameters_device_translations():
     assert params.ev.capacity_wh == 60000
 
     # English input names work as well
-    params_en = GeneticOptimizationParameters(
+    params_en = Genetic0OptimizationParameters(
         ems=ems_de,
         pv_battery={"device_id": "battery1", "capacity_wh": 8000},
         inverter=None,

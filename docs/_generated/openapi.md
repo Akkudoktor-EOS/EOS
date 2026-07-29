@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2607241195820468`
+**Version**: `v0.3.0.dev2607290898922686`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -125,8 +125,11 @@ Deprecated: Optimize.
 
 Endpoint to handle optimization.
 
+Uses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).
+
 Note:
     Use automatic optimization instead.
+    "v1/energy-management/optimization/solution/GENETIC0"
 """
 ```
 <!-- pyml enable line-length -->
@@ -140,7 +143,7 @@ Note:
 **Request Body**:
 
 - `application/json`: {
-  "$ref": "#/components/schemas/GeneticOptimizationParameters"
+  "$ref": "#/components/schemas/Genetic0OptimizationParameters"
 }
 
 **Responses**:
@@ -744,6 +747,37 @@ Get the latest solution of the optimization.
 **Responses**:
 
 - **200**: Successful Response
+
+---
+
+## GET /v1/energy-management/optimization/solution/{algorithm}
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_optimization_solution_algorithm_get_v1_energy-management_optimization_solution__algorithm__get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_optimization_solution_algorithm_get_v1_energy-management_optimization_solution__algorithm__get)
+<!-- pyml enable line-length -->
+
+Fastapi Energy Management Optimization Solution Algorithm Get
+
+<!-- pyml disable line-length -->
+```python
+"""
+Get the latest algorithm specific solution of the optimization.
+
+Args:
+    algorithm: Optimization algorithm
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `algorithm` (path, required): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
 
 ---
 

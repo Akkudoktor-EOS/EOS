@@ -48,9 +48,10 @@ from akkudoktoreos.core.pydantic import (
 )
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import ResourceKey
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticOptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0params import (
+    Genetic0OptimizationParameters,
 )
+from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
@@ -1161,6 +1162,38 @@ def fastapi_energy_management_optimization_solution_get() -> OptimizationSolutio
     return solution
 
 
+@app.get("/v1/energy-management/optimization/solution/{algorithm}", tags=["energy-management"])
+async def fastapi_energy_management_optimization_solution_algorithm_get(
+    algorithm: str,
+) -> Union[GeneticSolution, Genetic0Solution]:
+    """Get the latest algorithm specific solution of the optimization.
+
+    Args:
+        algorithm: Optimization algorithm
+    """
+    algorithm = algorithm.upper()
+    if algorithm not in get_config().optimization.algorithms:
+        raise HTTPException(
+            status_code=404, detail=f"Optimization algorithm '{algorithm}' unknown."
+        )
+    if algorithm == "GENETIC":
+        genetic_solution = get_ems().genetic_solution()
+        if genetic_solution is None:
+            raise HTTPException(
+                status_code=404, detail=f"'{algorithm}' optimization solution not available."
+            )
+        return genetic_solution
+    if algorithm == "GENETIC0":
+        genetic0_solution = get_ems().genetic0_solution()
+        if genetic0_solution is None:
+            raise HTTPException(
+                status_code=404, detail=f"'{algorithm}' optimization solution not available."
+            )
+        return genetic0_solution
+    # Should never happen
+    raise HTTPException(status_code=500, detail=f"'{algorithm}' validated but not handled.")
+
+
 @app.get("/v1/energy-management/plan", tags=["energy-management"])
 def fastapi_energy_management_plan_get() -> EnergyManagementPlan:
     """Get the latest energy management plan."""
@@ -1458,20 +1491,23 @@ async def fastapi_pvforecast() -> ForecastResponse:
 
 @app.post("/optimize", tags=["optimize"])
 async def fastapi_optimize(
-    parameters: GeneticOptimizationParameters,
+    parameters: Genetic0OptimizationParameters,
     start_hour: Annotated[
         Optional[int], Query(description="Defaults to current hour of the day.")
     ] = None,
     ngen: Annotated[
         Optional[int], Query(description="Number of indivuals to generate for genetic algorithm.")
     ] = None,
-) -> GeneticSolution:
+) -> Genetic0Solution:
     """Deprecated: Optimize.
 
     Endpoint to handle optimization.
 
+    Uses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).
+
     Note:
         Use automatic optimization instead.
+        "v1/energy-management/optimization/solution/GENETIC0"
     """
     if start_hour is None:
         start_datetime = None
@@ -1483,13 +1519,14 @@ async def fastapi_optimize(
         await get_ems().run(
             start_datetime=start_datetime,
             mode=EnergyManagementMode.OPTIMIZATION,
-            genetic_parameters=parameters,
-            genetic_individuals=ngen,
+            algorithm="GENETIC0",
+            genetic0_parameters=parameters,
+            genetic0_generations=ngen,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Optimize error: {e}.")
 
-    solution = get_ems().genetic_solution()
+    solution = get_ems().genetic0_solution()
     if solution is None:
         raise HTTPException(status_code=400, detail="Optimize error: no solution stored by run.")
 

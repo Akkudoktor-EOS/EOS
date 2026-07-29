@@ -1,4 +1,4 @@
-"""Genetic algorithm."""
+"""Genetic0 algorithm."""
 
 import random
 import time
@@ -11,21 +11,20 @@ from numpydantic import NDArray, Shape
 from pydantic import ConfigDict, Field
 
 from akkudoktoreos.core.pydantic import PydanticBaseModel
-from akkudoktoreos.devices.genetic.battery import Battery
-from akkudoktoreos.devices.genetic.homeappliance import HomeAppliance
-from akkudoktoreos.devices.genetic.inverter import Inverter
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticEnergyManagementParameters,
-    GeneticOptimizationParameters,
+from akkudoktoreos.devices.genetic0.genetic0battery import Genetic0Battery
+from akkudoktoreos.devices.genetic0.genetic0homeappliance import Genetic0HomeAppliance
+from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0Inverter
+from akkudoktoreos.optimization.genetic0.genetic0params import (
+    Genetic0EnergyManagementParameters,
 )
-from akkudoktoreos.optimization.genetic.geneticsolution import (
-    GeneticSimulationResult,
-    GeneticSolution,
+from akkudoktoreos.optimization.genetic0.genetic0solution import (
+    Genetic0SimulationResult,
+    Genetic0Solution,
 )
 from akkudoktoreos.optimization.optimizationabc import OptimizationBase
 
 
-class GeneticSimulation(PydanticBaseModel):
+class Genetic0Simulation(PydanticBaseModel):
     """Device simulation for GENETIC optimization algorithm."""
 
     # Disable validation on assignment to speed up simulation runs.
@@ -77,18 +76,15 @@ class GeneticSimulation(PydanticBaseModel):
         },
     )
 
-    battery: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
-    ev: Optional[Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
-    home_appliance: Optional[HomeAppliance] = Field(
+    battery: Optional[Genetic0Battery] = Field(
         default=None, json_schema_extra={"description": "TBD."}
     )
-    inverter: Optional[Inverter] = Field(default=None, json_schema_extra={"description": "TBD."})
-    price_per_wh_battery: float = Field(
-        default=0.0,
-        ge=0,
-        json_schema_extra={
-            "description": "LCOS cost per Wh charged into the battery (battery degradation cost)."
-        },
+    ev: Optional[Genetic0Battery] = Field(default=None, json_schema_extra={"description": "TBD."})
+    home_appliance: Optional[Genetic0HomeAppliance] = Field(
+        default=None, json_schema_extra={"description": "TBD."}
+    )
+    inverter: Optional[Genetic0Inverter] = Field(
+        default=None, json_schema_extra={"description": "TBD."}
     )
 
     ac_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
@@ -113,12 +109,12 @@ class GeneticSimulation(PydanticBaseModel):
 
     def prepare(
         self,
-        parameters: GeneticEnergyManagementParameters,
+        parameters: Genetic0EnergyManagementParameters,
         optimization_hours: int,
         prediction_hours: int,
-        ev: Optional[Battery] = None,
-        home_appliance: Optional[HomeAppliance] = None,
-        inverter: Optional[Inverter] = None,
+        ev: Optional[Genetic0Battery] = None,
+        home_appliance: Optional[Genetic0HomeAppliance] = None,
+        inverter: Optional[Genetic0Inverter] = None,
     ) -> None:
         """Prepare simulation runs.
 
@@ -145,7 +141,6 @@ class GeneticSimulation(PydanticBaseModel):
         self.ev = ev
         self.home_appliance = home_appliance
         self.inverter = inverter
-        self.price_per_wh_battery = parameters.price_per_wh_battery
 
         # Initialize per-hour action arrays for the prediction horizon
         self.ac_charge_hours = np.full(self.prediction_hours, 0.0)
@@ -214,7 +209,7 @@ class GeneticSimulation(PydanticBaseModel):
             if elect_revenue_per_hour_arr_fast is None:
                 missing.append("Electricity Revenue Per Hour")
             if bat_discharge_hours_fast is None:
-                missing.append("Battery Discharge Hours")
+                missing.append("Genetic0Battery Discharge Hours")
             if ev_discharge_hours_fast is None:
                 missing.append("EV Discharge Hours")
             msg = ", ".join(missing)
@@ -237,7 +232,7 @@ class GeneticSimulation(PydanticBaseModel):
         loads_energy_per_hour = np.full((total_hours), np.nan)
         feedin_energy_per_hour = np.full((total_hours), np.nan)
         consumption_energy_per_hour = np.full((total_hours), np.nan)
-        costs_per_hour = np.full((total_hours), 0.0)
+        costs_per_hour = np.full((total_hours), np.nan)
         revenue_per_hour = np.full((total_hours), np.nan)
         losses_wh_per_hour = np.full((total_hours), np.nan)
         electricity_price_per_hour = np.full((total_hours), np.nan)
@@ -387,17 +382,13 @@ class GeneticSimulation(PydanticBaseModel):
                         dc_energy = battery_charged_energy_actual + battery_losses_actual
                         # AC energy consumed from grid (accounts for AC→DC conversion loss)
                         ac_energy = dc_energy / ac_to_dc_eff_fast
-                        # Inverter AC→DC conversion losses
+                        # Genetic0Inverter AC→DC conversion losses
                         inverter_charge_losses = ac_energy - dc_energy
 
                         consumption += ac_energy
                         energy_consumption_grid_actual += ac_energy
                         losses_wh_per_hour[hour_idx] += (
                             battery_losses_actual + inverter_charge_losses
-                        )
-                        # LCOS cost for battery charging (degradation)
-                        costs_per_hour[hour_idx] += (
-                            battery_charged_energy_actual * self.price_per_wh_battery
                         )
 
             # Update hourly arrays
@@ -409,7 +400,7 @@ class GeneticSimulation(PydanticBaseModel):
             electricity_price_per_hour[hour_idx] = hourly_electricity_price
 
             # Financial calculations
-            costs_per_hour[hour_idx] += energy_consumption_grid_actual * hourly_electricity_price
+            costs_per_hour[hour_idx] = energy_consumption_grid_actual * hourly_electricity_price
             revenue_per_hour[hour_idx] = (
                 energy_feedin_grid_actual * elect_revenue_per_hour_arr_fast[hour]
             )
@@ -437,7 +428,7 @@ class GeneticSimulation(PydanticBaseModel):
         }
 
 
-class GeneticOptimization(OptimizationBase):
+class Genetic0Optimization(OptimizationBase):
     """GENETIC algorithm to solve energy optimization."""
 
     def __init__(
@@ -448,7 +439,7 @@ class GeneticOptimization(OptimizationBase):
         """Initialize the optimization problem with the required parameters."""
         self.opti_param: dict[str, Any] = {}
         self.fixed_ev_hours = (
-            self.config.prediction.hours - self.config.optimization.genetic.horizon_hours
+            self.config.prediction.hours - self.config.optimization.genetic0.horizon_hours
         )
         self.ev_possible_charge_values: list[float] = [1.0]
         # Separate charge-level list for battery AC charging (independent of EV rates).
@@ -468,14 +459,14 @@ class GeneticOptimization(OptimizationBase):
             random.seed(self.fix_seed)
 
         # Create Simulation
-        self.simulation = GeneticSimulation()
+        self.simulation = Genetic0Simulation()
 
     def decode_charge_discharge(
         self, discharge_hours_bin: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Decode the input array into ac_charge, dc_charge, and discharge arrays."""
         discharge_hours_bin_np = np.array(discharge_hours_bin)
-        # Battery AC charge uses its own charge-level list (bat_possible_charge_values).
+        # Genetic0Battery AC charge uses its own charge-level list (bat_possible_charge_values).
         len_bat = len(self.bat_possible_charge_values)
 
         # Categorization (using battery charge levels):
@@ -653,7 +644,7 @@ class GeneticOptimization(OptimizationBase):
         creator.create("Individual", list, fitness=creator.FitnessMin)
 
         self.toolbox = base.Toolbox()
-        # Battery state space uses bat_possible_charge_values; EV index space uses ev_possible_charge_values.
+        # Genetic0Battery state space uses bat_possible_charge_values; EV index space uses ev_possible_charge_values.
         len_bat = len(self.bat_possible_charge_values)
         len_ev = len(self.ev_possible_charge_values)
 
@@ -750,7 +741,7 @@ class GeneticOptimization(OptimizationBase):
     def evaluate(
         self,
         individual: list[int],
-        parameters: GeneticOptimizationParameters,
+        parameters: Genetic0EnergyManagementParameters,
         start_hour: int,
         worst_case: bool,
     ) -> tuple[float]:
@@ -763,7 +754,7 @@ class GeneticOptimization(OptimizationBase):
         Args:
             individual (list[int]):
                 The genome representing one candidate solution.
-            parameters (GeneticOptimizationParameters):
+            parameters (Genetic0EnergyManagementParameters):
                 Optimization parameters that influence simulation behavior,
                 constraints, and scoring logic.
             start_hour (int):
@@ -847,7 +838,7 @@ class GeneticOptimization(OptimizationBase):
         #     #     len_ac + 2
         #     # )  # Activate discharge for these hours
 
-        #     # When Battery SoC then set the Discharge randomly to 0 or 1. otherwise it's very
+        #     # When Genetic0Battery SoC then set the Discharge randomly to 0 or 1. otherwise it's very
         #     # unlikely to get a state where a battery can store energy for a longer time
         #     # Find hours where battery SoC is 0
         #     zero_soc_mask = battery_soc_per_hour_tail == 0
@@ -875,19 +866,15 @@ class GeneticOptimization(OptimizationBase):
             else 0,
         )
 
-        # Battery residual value: value net SOC change at avg(grid_price, feed_in) of last hour
-        if (
-            self.simulation.battery
-            and self.simulation.inverter
-            and self.simulation.elect_price_hourly is not None
-            and self.simulation.elect_revenue_per_hour_arr is not None
-        ):
+        # Adjust total balance with battery value and penalties for unmet SOC
+        if self.simulation.battery:
             battery_energy_content = self.simulation.battery.current_energy_content()
-            initial_soc_wh = (self.simulation.battery.initial_soc_percentage / 100.0) * self.simulation.battery.capacity_wh
-            net_change_wh = battery_energy_content - initial_soc_wh
-            avg_price = (float(self.simulation.elect_price_hourly[-1]) + float(self.simulation.elect_revenue_per_hour_arr[-1])) / 2.0
-            adjusted_energy = net_change_wh * self.simulation.inverter.dc_to_ac_efficiency
-            total_balance += -(adjusted_energy * avg_price)
+            # Apply DC→AC inverter efficiency to residual battery value
+            # (stored DC energy must pass through inverter to be usable as AC)
+            if self.simulation.inverter:
+                battery_energy_content *= self.simulation.inverter.dc_to_ac_efficiency
+            battery_residual_value = battery_energy_content * parameters.ems.price_per_wh_battery
+            total_balance += -battery_residual_value
 
         # --- AC charging break-even penalty ---
         # Penalise AC charging decisions that cannot be economically justified given the
@@ -939,7 +926,7 @@ class GeneticOptimization(OptimizationBase):
                 # Configurable penalty multiplier (default 1 = economic loss in currency units)
                 try:
                     ac_penalty_factor = float(
-                        self.config.optimization.genetic.penalties["ac_charge_break_even"]
+                        self.config.optimization.genetic0.penalties["ac_charge_break_even"]
                     )
                 except Exception:
                     ac_penalty_factor = 1.0
@@ -986,20 +973,8 @@ class GeneticOptimization(OptimizationBase):
                         total_balance += ac_wh * excess_cost_per_wh * ac_penalty_factor
 
         if self.optimize_ev and parameters.ev and self.simulation.ev:
-            # EV residual value: value net EV charge change at avg(grid_price, feed_in) of last hour
-            if (
-                self.simulation.elect_price_hourly is not None
-                and self.simulation.elect_revenue_per_hour_arr is not None
-            ):
-                ev_energy_content = self.simulation.ev.current_energy_content()
-                ev_initial_soc_wh = (self.simulation.ev.initial_soc_percentage / 100.0) * self.simulation.ev.capacity_wh
-                net_change_wh = ev_energy_content - ev_initial_soc_wh
-                avg_price = (float(self.simulation.elect_price_hourly[-1]) + float(self.simulation.elect_revenue_per_hour_arr[-1])) / 2.0
-                total_balance += -(net_change_wh * avg_price)
-
-            # EV SOC miss penalty
             try:
-                penalty = self.config.optimization.genetic.penalties["ev_soc_miss"]
+                penalty = self.config.optimization.genetic0.penalties["ev_soc_miss"]
             except Exception:
                 # Use default
                 penalty = 10
@@ -1026,7 +1001,7 @@ class GeneticOptimization(OptimizationBase):
         """
         # Set the number of inviduals in a generation
         try:
-            individuals = self.config.optimization.genetic.individuals
+            individuals = self.config.optimization.genetic0.individuals
             if individuals is None:
                 raise
         except Exception:
@@ -1081,11 +1056,11 @@ class GeneticOptimization(OptimizationBase):
 
     def optimize_ems(
         self,
-        parameters: GeneticOptimizationParameters,
+        parameters: Genetic0EnergyManagementParameters,
         start_hour: Optional[int] = None,
         worst_case: bool = False,
         ngen: Optional[int] = None,
-    ) -> GeneticSolution:
+    ) -> Genetic0Solution:
         """Perform EMS (Energy Management System) optimization and visualize results."""
         if start_hour is None:
             start_hour = self.ems.start_datetime.hour
@@ -1099,7 +1074,7 @@ class GeneticOptimization(OptimizationBase):
         generations = ngen
         if generations is None:
             try:
-                generations = self.config.optimization.genetic.generations
+                generations = self.config.optimization.genetic0.generations
             except Exception:
                 generations = 400
                 logger.error("Generations not configured. Using {}.", generations)
@@ -1107,17 +1082,17 @@ class GeneticOptimization(OptimizationBase):
         self.simulation.reset()
 
         # Initialize PV and EV batteries
-        battery: Optional[Battery] = None
+        battery: Optional[Genetic0Battery] = None
         if parameters.pv_battery:
-            battery = Battery(
+            battery = Genetic0Battery(
                 parameters.pv_battery,
                 prediction_hours=self.config.prediction.hours,
             )
             battery.set_charge_per_hour(np.full(self.config.prediction.hours, 0))
 
-        ev: Optional[Battery] = None
+        ev: Optional[Genetic0Battery] = None
         if parameters.ev:
-            ev = Battery(
+            ev = Genetic0Battery(
                 parameters.ev,
                 prediction_hours=self.config.prediction.hours,
             )
@@ -1155,7 +1130,7 @@ class GeneticOptimization(OptimizationBase):
         else:
             self.optimize_ev = False
 
-        # Battery AC charge rates — use the battery's configured charge_rates so the
+        # Genetic0Battery AC charge rates — use the battery's configured charge_rates so the
         # optimizer can select partial AC charge power (e.g. 10 %, 50 %, 100 %) instead
         # of always forcing full power.  Falls back to [1.0] when not configured.
         if parameters.pv_battery and parameters.pv_battery.charge_rates:
@@ -1172,13 +1147,13 @@ class GeneticOptimization(OptimizationBase):
             ] or [1.0]
         else:
             self.bat_possible_charge_values = [1.0]
-        logger.debug("Battery AC charge levels: {}", self.bat_possible_charge_values)
+        logger.debug("Genetic0Battery AC charge levels: {}", self.bat_possible_charge_values)
 
         # Initialize household appliance if applicable
         dishwasher = (
-            HomeAppliance(
+            Genetic0HomeAppliance(
                 parameters=parameters.dishwasher,
-                optimization_hours=self.config.optimization.genetic.horizon_hours,
+                optimization_hours=self.config.optimization.genetic0.horizon_hours,
                 prediction_hours=self.config.prediction.hours,
             )
             if parameters.dishwasher is not None
@@ -1186,9 +1161,9 @@ class GeneticOptimization(OptimizationBase):
         )
 
         # Initialize the inverter and energy management system
-        inverter: Optional[Inverter] = None
+        inverter: Optional[Genetic0Inverter] = None
         if parameters.inverter:
-            inverter = Inverter(
+            inverter = Genetic0Inverter(
                 parameters.inverter,
                 battery=battery,
             )
@@ -1196,7 +1171,7 @@ class GeneticOptimization(OptimizationBase):
         # Prepare device simulation
         self.simulation.prepare(
             parameters=parameters.ems,
-            optimization_hours=self.config.optimization.genetic.horizon_hours,
+            optimization_hours=self.config.optimization.genetic0.horizon_hours,
             prediction_hours=self.config.prediction.hours,
             inverter=inverter,  # battery is part of inverter
             ev=ev,
@@ -1258,7 +1233,7 @@ class GeneticOptimization(OptimizationBase):
                 "dc_charge": dc_charge_hours,
                 "discharge_allowed": discharge,
                 "ev_charge_hours_float": ev_charge_hours_float,
-                "result": GeneticSimulationResult(**simulation_result).model_dump(),
+                "result": Genetic0SimulationResult(**simulation_result).model_dump(),
                 "ev_obj": self.simulation.ev.to_dict() if self.simulation.ev else None,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,
@@ -1273,13 +1248,13 @@ class GeneticOptimization(OptimizationBase):
             error_msg = f"Visualization failed: {ex}"
             logger.error(error_msg)
 
-        return GeneticSolution(
+        return Genetic0Solution(
             **{
                 "ac_charge": ac_charge_hours,
                 "dc_charge": dc_charge_hours,
                 "discharge_allowed": discharge,
                 "ev_charge_hours_float": ev_charge_hours_float,
-                "result": GeneticSimulationResult(**simulation_result),
+                "result": Genetic0SimulationResult(**simulation_result),
                 "ev_obj": self.simulation.ev,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,

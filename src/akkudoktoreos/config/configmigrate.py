@@ -112,12 +112,14 @@ MIGRATION_MAP: Dict[
     "measurement/load4_name": "measurement/load_emr_keys/4",
     # optimization
     # ============
+    "optimization/interval": None,
+    "optimization/horizon_hours": "optimization/genetic0/horizon_hours",
     "optimization/ev_available_charge_rates_percent": (
         "devices/electric_vehicles/0/charge_rates",
         lambda v: [x / 100 for x in v],
     ),
-    "optimization/hours": "optimization/horizon_hours",
-    "optimization/penalty": ("optimization/genetic/penalties/ev_soc_miss", lambda v: float(v)),
+    "optimization/hours": "optimization/genetic0/horizon_hours",
+    "optimization/penalty": ("optimization/genetic0/penalties/ev_soc_miss", lambda v: float(v)),
     # pvforecast
     # ==========
     # - PVForecastAkkudoktor

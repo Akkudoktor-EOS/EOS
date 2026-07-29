@@ -1,4 +1,4 @@
-"""Genetic algorithm optimisation solution."""
+"""Genetic0 algorithm optimisation solution."""
 
 from typing import Any, Optional
 
@@ -22,14 +22,16 @@ from akkudoktoreos.devices.devicesabc import (
     ApplianceOperationMode,
     BatteryOperationMode,
 )
-from akkudoktoreos.devices.genetic.battery import Battery
-from akkudoktoreos.optimization.genetic.geneticdevices import GeneticParametersBaseModel
+from akkudoktoreos.devices.genetic0.genetic0battery import Genetic0Battery
+from akkudoktoreos.optimization.genetic0.genetic0devices import (
+    Genetic0ParametersBaseModel,
+)
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 from akkudoktoreos.utils.utils import NumpyEncoder
 
 
-class DeviceOptimizeResult(GeneticParametersBaseModel):
+class DeviceOptimizeResult(Genetic0ParametersBaseModel):
     device_id: str = Field(
         json_schema_extra={"description": "ID of device", "examples": ["device1"]}
     )
@@ -39,7 +41,7 @@ class DeviceOptimizeResult(GeneticParametersBaseModel):
     )
 
 
-class ElectricVehicleResult(DeviceOptimizeResult):
+class Genetic0ElectricVehicleResult(DeviceOptimizeResult):
     """Result class containing information related to the electric vehicle's charging and discharging behavior."""
 
     device_id: str = Field(
@@ -83,7 +85,7 @@ class ElectricVehicleResult(DeviceOptimizeResult):
         return NumpyEncoder.convert_numpy(field)[0]
 
 
-class GeneticSimulationResult(GeneticParametersBaseModel):
+class Genetic0SimulationResult(Genetic0ParametersBaseModel):
     """This object contains the results of the simulation and provides insights into various parameters over the entire forecast period."""
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
@@ -239,7 +241,7 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
         return NumpyEncoder.convert_numpy(field)[0]
 
 
-class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
+class Genetic0Solution(ConfigMixin, Genetic0ParametersBaseModel):
     """**Note**: The first value of "load_wh_per_hour", "grid_feed_in_wh_per_hour", and "grid_consumption_wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
@@ -265,8 +267,8 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             "description": "Array with EV charging values as relative power (0.0-1.0), or `null` if no EV is optimized."
         },
     )
-    result: GeneticSimulationResult
-    ev_obj: Optional[ElectricVehicleResult] = Field(
+    result: Genetic0SimulationResult
+    ev_obj: Optional[Genetic0ElectricVehicleResult] = Field(
         validation_alias=AliasChoices("ev_obj", "eauto_obj"),
         json_schema_extra={"description": "Electric vehicle state after optimization."},
     )
@@ -290,7 +292,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         return self.ev_charge_hours_float
 
     @computed_field(json_schema_extra={"deprecated": True})
-    def eauto_obj(self) -> Optional[ElectricVehicleResult]:
+    def eauto_obj(self) -> Optional[Genetic0ElectricVehicleResult]:
         """Deprecated: Use ev_obj instead."""
         return self.ev_obj
 
@@ -308,8 +310,8 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         mode="before",
     )
     def convert_eauto(cls, field: Any) -> Any:
-        if isinstance(field, Battery):
-            return ElectricVehicleResult(**field.to_dict())
+        if isinstance(field, Genetic0Battery):
+            return Genetic0ElectricVehicleResult(**field.to_dict())
         return field
 
     def _battery_device_id(self) -> str:
@@ -740,7 +742,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             generated_at=to_datetime(),
             comment="Optimization solution derived from GeneticSolution.",
             valid_from=start_datetime,
-            valid_until=start_datetime.add(hours=self.config.optimization.genetic.horizon_hours),
+            valid_until=start_datetime.add(hours=self.config.optimization.genetic0.horizon_hours),
             total_losses_energy_wh=self.result.total_losses,
             total_revenues_amt=self.result.total_revenue,
             total_costs_amt=self.result.total_costs,

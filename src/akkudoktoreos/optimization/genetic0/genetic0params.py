@@ -1,4 +1,4 @@
-"""GENETIC algorithm paramters.
+"""GENETIC0 algorithm paramters.
 
 This module defines the Pydantic-based configuration and input parameter models
 used in the energy optimization routines, including photovoltaic forecasts,
@@ -27,12 +27,12 @@ from akkudoktoreos.core.coreabc import (
     PredictionMixin,
     get_ems,
 )
-from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
-from akkudoktoreos.optimization.genetic.geneticdevices import (
-    ElectricVehicleParameters,
-    HomeApplianceParameters,
-    InverterParameters,
-    SolarPanelBatteryParameters,
+from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
+from akkudoktoreos.optimization.genetic0.genetic0devices import (
+    Genetic0ElectricVehicleParameters,
+    Genetic0HomeApplianceParameters,
+    Genetic0InverterParameters,
+    Genetic0SolarPanelBatteryParameters,
 )
 from akkudoktoreos.utils.datetimeutil import to_duration
 
@@ -41,7 +41,7 @@ from akkudoktoreos.utils.datetimeutil import to_duration
 # StartMixin                  - Creates circular dependency with ems.py
 
 
-class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
+class Genetic0EnergyManagementParameters(Genetic0ParametersBaseModel):
     """Encapsulates energy-related forecasts and costs used in GENETIC optimization."""
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
@@ -123,13 +123,13 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
         return self
 
 
-class GeneticOptimizationParameters(
+class Genetic0OptimizationParameters(
     ConfigMixin,
     MeasurementMixin,
     PredictionMixin,
     # EnergyManagementSystemMixin, # Creates circular dependency with ems.py
     # StartMixin,                  # Creates circular dependency with ems.py
-    GeneticParametersBaseModel,
+    Genetic0ParametersBaseModel,
 ):
     """Main parameter class for running the genetic energy optimization.
 
@@ -139,17 +139,17 @@ class GeneticOptimizationParameters(
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
-    ems: GeneticEnergyManagementParameters
-    pv_battery: Optional[SolarPanelBatteryParameters] = Field(
+    ems: Genetic0EnergyManagementParameters
+    pv_battery: Optional[Genetic0SolarPanelBatteryParameters] = Field(
         validation_alias=AliasChoices("pv_battery", "pv_akku"),
         json_schema_extra={"description": "PV battery parameters."},
     )
-    inverter: Optional[InverterParameters]
-    ev: Optional[ElectricVehicleParameters] = Field(
+    inverter: Optional[Genetic0InverterParameters]
+    ev: Optional[Genetic0ElectricVehicleParameters] = Field(
         validation_alias=AliasChoices("ev", "eauto"),
         json_schema_extra={"description": "Electric vehicle parameters."},
     )
-    dishwasher: Optional[HomeApplianceParameters] = None
+    dishwasher: Optional[Genetic0HomeApplianceParameters] = None
     temperature_forecast: Optional[list[Optional[float]]] = Field(
         default=None,
         json_schema_extra={
@@ -165,12 +165,12 @@ class GeneticOptimizationParameters(
 
     # Computed fields for backward compatibility (deprecated German names)
     @computed_field(json_schema_extra={"deprecated": True})
-    def pv_akku(self) -> Optional[SolarPanelBatteryParameters]:
+    def pv_akku(self) -> Optional[Genetic0SolarPanelBatteryParameters]:
         """Deprecated: Use pv_battery instead."""
         return self.pv_battery
 
     @computed_field(json_schema_extra={"deprecated": True})
-    def eauto(self) -> Optional[ElectricVehicleParameters]:
+    def eauto(self) -> Optional[Genetic0ElectricVehicleParameters]:
         """Deprecated: Use ev instead."""
         return self.ev
 
@@ -206,7 +206,7 @@ class GeneticOptimizationParameters(
         return start_solution
 
     @classmethod
-    async def prepare(cls) -> "Optional[GeneticOptimizationParameters]":
+    async def prepare(cls) -> "Optional[Genetic0OptimizationParameters]":
         """Prepare optimization parameters from config, forecast and measurement data.
 
         Fills in values needed for optimization from available configuration, predictions and
@@ -216,7 +216,7 @@ class GeneticOptimizationParameters(
         (not at start datetime of energy management run)
 
         Returns:
-            GeneticOptimizationParameters: The fully prepared optimization parameters.
+            Genetic0OptimizationParameters: The fully prepared optimization parameters.
 
         Raises:
             ValueError: If required configuration values like start time are missing.
@@ -224,7 +224,7 @@ class GeneticOptimizationParameters(
         ems = get_ems()
 
         # The optimization paramters
-        oparams: "Optional[GeneticOptimizationParameters]" = None
+        oparams: "Optional[Genetic0OptimizationParameters]" = None
 
         # Check for run definitions
         if ems.start_datetime is None:
@@ -246,39 +246,30 @@ class GeneticOptimizationParameters(
         if cls.config.prediction.historic_hours is None:
             logger.info("Prediction historic hours unknown - defaulting to 24 hours.")
             cls.config.prediction.historic_hours = 24
-        # Check optimization definitions
-        if cls.config.optimization.genetic.horizon_hours is None:
+        # Check optimization definitions. interval_sec is fixed to 1 hour.
+        if cls.config.optimization.genetic0.horizon_hours is None:
             logger.info("Optimization horizon unknown - defaulting to 24 hours.")
-            cls.config.optimization.genetic.horizon_hours = 24
-        if cls.config.optimization.genetic.interval_sec is None:
-            logger.info("Optimization interval unknown - defaulting to 3600 seconds.")
-            cls.config.optimization.genetic.interval_sec = 3600
-        if cls.config.optimization.genetic.interval_sec != 3600:
-            logger.info(
-                f"Optimization interval '{cls.config.optimization.genetic.interval_sec}' seconds "
-                "not supported - forced to 3600 seconds."
-            )
-            cls.config.optimization.genetic.interval_sec = 3600
+            cls.config.optimization.genetic0.horizon_hours = 24
         # Check genetic algorithm definitions
-        if cls.config.optimization.genetic.individuals is None:
+        if cls.config.optimization.genetic0.individuals is None:
             logger.info("Genetic individuals unknown - defaulting to 300.")
-            cls.config.optimization.genetic.individuals = 300
-        if cls.config.optimization.genetic.generations is None:
+            cls.config.optimization.genetic0.individuals = 300
+        if cls.config.optimization.genetic0.generations is None:
             logger.info("Genetic generations unknown - defaulting to 400.")
-            cls.config.optimization.genetic.generations = 400
-        if "ev_soc_miss" not in cls.config.optimization.genetic.penalties:
+            cls.config.optimization.genetic0.generations = 400
+        if "ev_soc_miss" not in cls.config.optimization.genetic0.penalties:
             logger.info("Genetic penalties unknown - defaulting to ev_soc_miss = 10.")
-            cls.config.optimization.genetic.penalties["ev_soc_miss"] = 10
+            cls.config.optimization.genetic0.penalties["ev_soc_miss"] = 10
 
         # Get start solution from last run
         start_solution = None
-        last_solution = ems.genetic_solution()
+        last_solution = ems.genetic0_solution()
         if last_solution and last_solution.start_solution:
             start_solution = last_solution.start_solution
 
         # Add forecast and device data
-        interval = to_duration(cls.config.optimization.genetic.interval_sec)
-        power_to_energy_per_interval_factor = cls.config.optimization.genetic.interval_sec / 3600
+        interval = to_duration(cls.config.optimization.genetic0.interval_sec)
+        power_to_energy_per_interval_factor = cls.config.optimization.genetic0.interval_sec / 3600
         parameter_start_datetime = ems.start_datetime.set(hour=0, second=0, microsecond=0)
         parameter_end_datetime = parameter_start_datetime.add(hours=cls.config.prediction.hours)
         max_retries = 10
@@ -455,7 +446,7 @@ class GeneticOptimizationParameters(
                     cls.config.devices.batteries = [{"device_id": "battery1", "capacity_wh": 8000}]
                 try:
                     battery_config = cls.config.devices.batteries[0]
-                    battery_params = SolarPanelBatteryParameters(
+                    battery_params = Genetic0SolarPanelBatteryParameters(
                         device_id=battery_config.device_id,
                         capacity_wh=battery_config.capacity_wh,
                         charging_efficiency=battery_config.charging_efficiency,
@@ -528,7 +519,7 @@ class GeneticOptimizationParameters(
                     ]
                 try:
                     electric_vehicle_config = cls.config.devices.electric_vehicles[0]
-                    electric_vehicle_params = ElectricVehicleParameters(
+                    electric_vehicle_params = Genetic0ElectricVehicleParameters(
                         device_id=electric_vehicle_config.device_id,
                         capacity_wh=electric_vehicle_config.capacity_wh,
                         charging_efficiency=electric_vehicle_config.charging_efficiency,
@@ -597,7 +588,7 @@ class GeneticOptimizationParameters(
                     ]
                 try:
                     inverter_config = cls.config.devices.inverters[0]
-                    inverter_params = InverterParameters(
+                    inverter_params = Genetic0InverterParameters(
                         device_id=inverter_config.device_id,
                         max_power_wh=inverter_config.max_power_w,
                         battery_id=inverter_config.battery_id,
@@ -655,7 +646,7 @@ class GeneticOptimizationParameters(
                     ]
                 try:
                     home_appliance_config = cls.config.devices.home_appliances[0]
-                    home_appliance_params = HomeApplianceParameters(
+                    home_appliance_params = Genetic0HomeApplianceParameters(
                         device_id=home_appliance_config.device_id,
                         consumption_wh=home_appliance_config.consumption_wh,
                         duration_h=home_appliance_config.duration_h,
@@ -680,8 +671,8 @@ class GeneticOptimizationParameters(
 
             # We got all parameter data
             try:
-                oparams = GeneticOptimizationParameters(
-                    ems=GeneticEnergyManagementParameters(
+                oparams = Genetic0OptimizationParameters(
+                    ems=Genetic0EnergyManagementParameters(
                         pv_forecast_wh=pvforecast_ac_power,
                         electricity_price_per_wh=elecprice_marketprice_wh,
                         feed_in_tariff_per_wh=feed_in_tariff_wh,

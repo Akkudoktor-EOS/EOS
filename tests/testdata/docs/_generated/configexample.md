@@ -177,10 +177,19 @@
            ]
        },
        "optimization": {
-           "horizon_hours": 24,
-           "interval": 3600,
            "algorithm": "GENETIC",
            "genetic": {
+               "interval_sec": 3600,
+               "horizon_hours": 24,
+               "individuals": 400,
+               "generations": 400,
+               "seed": null,
+               "penalties": {
+                   "ev_soc_miss": 10
+               }
+           },
+           "genetic0": {
+               "horizon_hours": 24,
                "individuals": 400,
                "generations": 400,
                "seed": null,
