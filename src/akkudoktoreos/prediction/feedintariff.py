@@ -5,6 +5,9 @@ from pydantic import Field, computed_field, field_validator
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
+from akkudoktoreos.prediction.feedintariffdvhubonline import (
+    FeedInTariffDvhubOnlineCommonSettings,
+)
 from akkudoktoreos.prediction.feedintariffenergycharts import (
     FeedInTariffEnergyChartsCommonSettings,
 )
@@ -20,6 +23,7 @@ def feedintariff_provider_ids() -> list[str]:
         # Prediction may not be initialized. Return static built-in provider ids.
         return [
             "FeedInTariffAkkudoktor",
+            "FeedInTariffDvhubOnline",
             "FeedInTariffEnergyCharts",
             "FeedInTariffFixed",
             "FeedInTariffImport",
@@ -52,6 +56,11 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
     feedintariffimport: FeedInTariffImportCommonSettings = Field(
         default_factory=FeedInTariffImportCommonSettings,
         json_schema_extra={"description": "Feed in tarif import provider settings."},
+    )
+
+    dvhubonline: FeedInTariffDvhubOnlineCommonSettings = Field(
+        default_factory=FeedInTariffDvhubOnlineCommonSettings,
+        json_schema_extra={"description": "DvhubOnline feed in tariff provider settings."},
     )
 
     energycharts: FeedInTariffEnergyChartsCommonSettings = Field(

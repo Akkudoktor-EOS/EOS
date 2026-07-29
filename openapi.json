@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607290898922686"
+    "version": "v0.3.0.dev2607290944830210"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -4322,6 +4322,10 @@
             "$ref": "#/components/schemas/FeedInTariffImportCommonSettings",
             "description": "Feed in tarif import provider settings."
           },
+          "dvhubonline": {
+            "$ref": "#/components/schemas/FeedInTariffDvhubOnlineCommonSettings",
+            "description": "DvhubOnline feed in tariff provider settings."
+          },
           "energycharts": {
             "$ref": "#/components/schemas/FeedInTariffEnergyChartsCommonSettings",
             "description": "EnergyCharts feed in tariff provider settings."
@@ -4357,6 +4361,10 @@
             "$ref": "#/components/schemas/FeedInTariffImportCommonSettings",
             "description": "Feed in tarif import provider settings."
           },
+          "dvhubonline": {
+            "$ref": "#/components/schemas/FeedInTariffDvhubOnlineCommonSettings",
+            "description": "DvhubOnline feed in tariff provider settings."
+          },
           "energycharts": {
             "$ref": "#/components/schemas/FeedInTariffEnergyChartsCommonSettings",
             "description": "EnergyCharts feed in tariff provider settings."
@@ -4377,6 +4385,31 @@
         ],
         "title": "FeedInTariffCommonSettings",
         "description": "Feed In Tariff Prediction Configuration."
+      },
+      "FeedInTariffDvhubOnlineCommonSettings": {
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "title": "Base Url",
+            "description": "Base URL of the dvhub.online price API.",
+            "default": "https://dvhub.online",
+            "examples": [
+              "https://dvhub.online"
+            ]
+          },
+          "zone": {
+            "type": "string",
+            "title": "Zone",
+            "description": "Bidding zone passed to the dvhub.online price API.",
+            "default": "DE-LU",
+            "examples": [
+              "DE-LU"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffDvhubOnlineCommonSettings",
+        "description": "Common settings for the dvhub.online feed-in tariff provider."
       },
       "FeedInTariffEnergyChartsCommonSettings": {
         "properties": {
