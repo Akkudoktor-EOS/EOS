@@ -526,6 +526,7 @@ def _make_mock_simulation(
     sim.ev = None
     sim.ac_charge_hours = np.array(ac_charge_hours, dtype=float)
     sim.elect_price_hourly = np.array(elect_price_hourly, dtype=float)
+    sim.elect_revenue_per_hour_arr = np.array(elect_price_hourly, dtype=float)
     sim.load_energy_array = np.array(load_energy_array, dtype=float)
     return sim
 

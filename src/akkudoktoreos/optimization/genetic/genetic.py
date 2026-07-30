@@ -83,6 +83,13 @@ class GeneticSimulation(PydanticBaseModel):
         default=None, json_schema_extra={"description": "TBD."}
     )
     inverter: Optional[Inverter] = Field(default=None, json_schema_extra={"description": "TBD."})
+    price_per_wh_battery: float = Field(
+        default=0.0,
+        ge=0,
+        json_schema_extra={
+            "description": "LCOS cost per Wh charged into the battery (battery degradation cost)."
+        },
+    )
 
     ac_charge_hours: Optional[NDArray[Shape["*"], float]] = Field(
         default=None, json_schema_extra={"description": "TBD"}
@@ -138,6 +145,7 @@ class GeneticSimulation(PydanticBaseModel):
         self.ev = ev
         self.home_appliance = home_appliance
         self.inverter = inverter
+        self.price_per_wh_battery = parameters.price_per_wh_battery
 
         # Initialize per-hour action arrays for the prediction horizon
         self.ac_charge_hours = np.full(self.prediction_hours, 0.0)
@@ -229,7 +237,7 @@ class GeneticSimulation(PydanticBaseModel):
         loads_energy_per_hour = np.full((total_hours), np.nan)
         feedin_energy_per_hour = np.full((total_hours), np.nan)
         consumption_energy_per_hour = np.full((total_hours), np.nan)
-        costs_per_hour = np.full((total_hours), np.nan)
+        costs_per_hour = np.full((total_hours), 0.0)
         revenue_per_hour = np.full((total_hours), np.nan)
         losses_wh_per_hour = np.full((total_hours), np.nan)
         electricity_price_per_hour = np.full((total_hours), np.nan)
@@ -387,6 +395,10 @@ class GeneticSimulation(PydanticBaseModel):
                         losses_wh_per_hour[hour_idx] += (
                             battery_losses_actual + inverter_charge_losses
                         )
+                        # LCOS cost for battery charging (degradation)
+                        costs_per_hour[hour_idx] += (
+                            battery_charged_energy_actual * self.price_per_wh_battery
+                        )
 
             # Update hourly arrays
             feedin_energy_per_hour[hour_idx] = energy_feedin_grid_actual
@@ -397,7 +409,7 @@ class GeneticSimulation(PydanticBaseModel):
             electricity_price_per_hour[hour_idx] = hourly_electricity_price
 
             # Financial calculations
-            costs_per_hour[hour_idx] = energy_consumption_grid_actual * hourly_electricity_price
+            costs_per_hour[hour_idx] += energy_consumption_grid_actual * hourly_electricity_price
             revenue_per_hour[hour_idx] = (
                 energy_feedin_grid_actual * elect_revenue_per_hour_arr_fast[hour]
             )
@@ -863,15 +875,19 @@ class GeneticOptimization(OptimizationBase):
             else 0,
         )
 
-        # Adjust total balance with battery value and penalties for unmet SOC
-        if self.simulation.battery:
+        # Battery residual value: value net SOC change at avg(grid_price, feed_in) of last hour
+        if (
+            self.simulation.battery
+            and self.simulation.inverter
+            and self.simulation.elect_price_hourly is not None
+            and self.simulation.elect_revenue_per_hour_arr is not None
+        ):
             battery_energy_content = self.simulation.battery.current_energy_content()
-            # Apply DC→AC inverter efficiency to residual battery value
-            # (stored DC energy must pass through inverter to be usable as AC)
-            if self.simulation.inverter:
-                battery_energy_content *= self.simulation.inverter.dc_to_ac_efficiency
-            battery_residual_value = battery_energy_content * parameters.ems.price_per_wh_battery
-            total_balance += -battery_residual_value
+            initial_soc_wh = (self.simulation.battery.initial_soc_percentage / 100.0) * self.simulation.battery.capacity_wh
+            net_change_wh = battery_energy_content - initial_soc_wh
+            avg_price = (float(self.simulation.elect_price_hourly[-1]) + float(self.simulation.elect_revenue_per_hour_arr[-1])) / 2.0
+            adjusted_energy = net_change_wh * self.simulation.inverter.dc_to_ac_efficiency
+            total_balance += -(adjusted_energy * avg_price)
 
         # --- AC charging break-even penalty ---
         # Penalise AC charging decisions that cannot be economically justified given the
@@ -970,6 +986,18 @@ class GeneticOptimization(OptimizationBase):
                         total_balance += ac_wh * excess_cost_per_wh * ac_penalty_factor
 
         if self.optimize_ev and parameters.ev and self.simulation.ev:
+            # EV residual value: value net EV charge change at avg(grid_price, feed_in) of last hour
+            if (
+                self.simulation.elect_price_hourly is not None
+                and self.simulation.elect_revenue_per_hour_arr is not None
+            ):
+                ev_energy_content = self.simulation.ev.current_energy_content()
+                ev_initial_soc_wh = (self.simulation.ev.initial_soc_percentage / 100.0) * self.simulation.ev.capacity_wh
+                net_change_wh = ev_energy_content - ev_initial_soc_wh
+                avg_price = (float(self.simulation.elect_price_hourly[-1]) + float(self.simulation.elect_revenue_per_hour_arr[-1])) / 2.0
+                total_balance += -(net_change_wh * avg_price)
+
+            # EV SOC miss penalty
             try:
                 penalty = self.config.optimization.genetic.penalties["ev_soc_miss"]
             except Exception:
