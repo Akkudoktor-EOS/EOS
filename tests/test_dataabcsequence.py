@@ -427,6 +427,34 @@ class TestDataSequence:
                 fill_method="invalid",
             )
 
+    async def test_key_to_array_resample_first(self, sequence):
+        """Test that resample_method='first' returns the first sample in each interval."""
+        interval = to_duration("1 hour")
+
+        for minute, value in (
+            (0, 1.0),
+            (15, 2.0),
+            (30, 3.0),
+            (45, 4.0),
+        ):
+            await sequence.insert_by_datetime(
+                self.create_test_record(
+                    pendulum.datetime(2023, 11, 6, 0, minute),
+                    value,
+                )
+            )
+
+        array = await sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6, 0),
+            end_datetime=pendulum.datetime(2023, 11, 6, 1),
+            interval=interval,
+            resample_method="first",
+        )
+
+        assert len(array) == 1
+        assert array[0] == 1.0
+
     async def test_key_to_array_resample_mean(self, sequence):
         """Test that numeric resampling uses mean when multiple values fall into one interval."""
         interval = to_duration("1 hour")
@@ -447,12 +475,77 @@ class TestDataSequence:
             start_datetime=pendulum.datetime(2023, 11, 6, 0),
             end_datetime=pendulum.datetime(2023, 11, 6, 1),
             interval=interval,
+            resample_method="mean",
         )
 
         assert isinstance(array, np.ndarray)
         assert len(array) == 1  # one interval: 0:00-1:00
         # The first interval mean = (1+2+3+4)/4 = 2.5
         assert array[0] == pytest.approx(2.5)
+
+    async def test_key_to_array_resample_interval_mean(self, sequence):
+        """Test that interval_mean computes a time-weighted mean."""
+
+        interval = to_duration("1 hour")
+
+        await sequence.insert_by_datetime(
+            self.create_test_record(
+                pendulum.datetime(2023, 11, 6, 0, 0),
+                10.0,
+            )
+        )
+        await sequence.insert_by_datetime(
+            self.create_test_record(
+                pendulum.datetime(2023, 11, 6, 0, 45),
+                20.0,
+            )
+        )
+        await sequence.insert_by_datetime(
+            self.create_test_record(
+                pendulum.datetime(2023, 11, 6, 1, 0),
+                20.0,
+            )
+        )
+
+        array = await sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6, 0),
+            end_datetime=pendulum.datetime(2023, 11, 6, 1),
+            interval=interval,
+            resample_method="interval_mean",
+            fill_method="none",
+        )
+
+        assert len(array) == 1
+
+        # 10 for 45 min, 20 for 15 min
+        expected = (10 * 45 + 20 * 15) / 60
+
+        assert array[0] == pytest.approx(expected)
+
+    async def test_key_to_array_invalid_resample_method(self, sequence):
+        """Test invalid resample_method raises an error."""
+
+        interval = to_duration("1 hour")
+
+        await sequence.insert_by_datetime(
+            self.create_test_record(
+                pendulum.datetime(2023, 11, 6),
+                1.0,
+            )
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Unsupported resample method: invalid",
+        ):
+            await sequence.key_to_array(
+                key="data_value",
+                start_datetime=pendulum.datetime(2023, 11, 6),
+                end_datetime=pendulum.datetime(2023, 11, 6, 1),
+                interval=interval,
+                resample_method="invalid",
+            )
 
     # ------------------------------------------------------------------
     # key_to_array — align_to_interval parameter

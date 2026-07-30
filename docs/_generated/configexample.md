@@ -32,7 +32,7 @@
            "initial_load_window_h": 48,
            "keep_duration_h": 48,
            "autosave_interval_sec": 5,
-           "compaction_interval_sec": 604800,
+           "compaction_interval_sec": 3600,
            "batch_size": 100
        },
        "devices": {
@@ -110,6 +110,10 @@
            },
            "energycharts": {
                "bidding_zone": "DE-LU"
+           },
+           "tibber": {
+               "access_token": null,
+               "home_id": null
            }
        },
        "ems": {
@@ -119,9 +123,19 @@
        },
        "feedintariff": {
            "provider": "FeedInTariffFixed",
-           "provider_settings": {
-               "FeedInTariffFixed": null,
-               "FeedInTariffImport": null
+           "feedintarifffixed": {
+               "feed_in_tariff_kwh": null
+           },
+           "feedintariffimport": {
+               "import_file_path": null,
+               "import_json": null
+           },
+           "dvhubonline": {
+               "base_url": "https://dvhub.online",
+               "zone": "DE-LU"
+           },
+           "energycharts": {
+               "bidding_zone": "DE-LU"
            }
        },
        "general": {
@@ -138,13 +152,13 @@
            "loadakkudoktor": {
                "loadakkudoktor_year_energy_kwh": null
            },
-           "loadvrm": {
-               "load_vrm_token": "your-token",
-               "load_vrm_idsite": 12345
-           },
            "loadimport": {
                "import_file_path": null,
                "import_json": null
+           },
+           "vrm": {
+               "token": "your-token",
+               "site_id": 12345
            }
        },
        "logging": {
@@ -167,10 +181,19 @@
            ]
        },
        "optimization": {
-           "horizon_hours": 24,
-           "interval": 3600,
            "algorithm": "GENETIC",
            "genetic": {
+               "interval_sec": 3600,
+               "horizon_hours": 24,
+               "individuals": 400,
+               "generations": 400,
+               "seed": null,
+               "penalties": {
+                   "ev_soc_miss": 10
+               }
+           },
+           "genetic0": {
+               "horizon_hours": 24,
                "individuals": 400,
                "generations": 400,
                "seed": null,
@@ -185,12 +208,25 @@
        },
        "pvforecast": {
            "provider": "PVForecastAkkudoktor",
-           "provider_settings": {
-               "PVForecastImport": null,
-               "PVForecastVrm": null,
-               "PVForecastPVNode": null,
-               "PVForecastForecastSolar": null,
-               "PVForecastSolcast": null
+           "pvforecastimport": {
+               "import_file_path": null,
+               "import_json": null
+           },
+           "vrm": {
+               "token": "your-token",
+               "site_id": 12345
+           },
+           "pvnode": {
+               "api_key": "",
+               "site_id": null,
+               "forecast_days": 2
+           },
+           "forecastsolar": {
+               "api_key": null
+           },
+           "solcast": {
+               "api_key": "",
+               "site_id": ""
            },
            "planes": [
                {
@@ -254,8 +290,9 @@
        "utils": {},
        "weather": {
            "provider": "WeatherImport",
-           "provider_settings": {
-               "WeatherImport": null
+           "weatherimport": {
+               "import_file_path": null,
+               "import_json": null
            }
        }
    }

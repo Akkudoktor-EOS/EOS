@@ -5,6 +5,12 @@ from pydantic import Field, computed_field, field_validator
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.feedintariffabc import FeedInTariffProvider
+from akkudoktoreos.prediction.feedintariffdvhubonline import (
+    FeedInTariffDvhubOnlineCommonSettings,
+)
+from akkudoktoreos.prediction.feedintariffenergycharts import (
+    FeedInTariffEnergyChartsCommonSettings,
+)
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixedCommonSettings
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImportCommonSettings
 
@@ -14,28 +20,21 @@ def feedintariff_provider_ids() -> list[str]:
     try:
         prediction_eos = get_prediction()
     except Exception:
-        # Prediction may not be initialized
-        # Return at least provider used in example
-        return ["FeedInTariffFixed", "FeedInTarifImport"]
+        # Prediction may not be initialized. Return static built-in provider ids.
+        return [
+            "FeedInTariffAkkudoktor",
+            "FeedInTariffDvhubOnline",
+            "FeedInTariffEnergyCharts",
+            "FeedInTariffFixed",
+            "FeedInTariffImport",
+            "FeedInTariffTibber",
+        ]
 
     return [
         provider.provider_id()
         for provider in prediction_eos.providers
         if isinstance(provider, FeedInTariffProvider)
     ]
-
-
-class FeedInTariffCommonProviderSettings(SettingsBaseModel):
-    """Feed In Tariff Prediction Provider Configuration."""
-
-    FeedInTariffFixed: Optional[FeedInTariffFixedCommonSettings] = Field(
-        default=None,
-        json_schema_extra={"description": "FeedInTariffFixed settings", "examples": [None]},
-    )
-    FeedInTariffImport: Optional[FeedInTariffImportCommonSettings] = Field(
-        default=None,
-        json_schema_extra={"description": "FeedInTariffImport settings", "examples": [None]},
-    )
 
 
 class FeedInTariffCommonSettings(SettingsBaseModel):
@@ -49,18 +48,24 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
         },
     )
 
-    provider_settings: FeedInTariffCommonProviderSettings = Field(
-        default_factory=FeedInTariffCommonProviderSettings,
-        json_schema_extra={
-            "description": "Provider settings",
-            "examples": [
-                # Example 1: Empty/default settings (all providers None)
-                {
-                    "FeedInTariffFixed": None,
-                    "FeedInTariffImport": None,
-                },
-            ],
-        },
+    feedintarifffixed: FeedInTariffFixedCommonSettings = Field(
+        default_factory=FeedInTariffFixedCommonSettings,
+        json_schema_extra={"description": "Fixed feed in tariff provider settings."},
+    )
+
+    feedintariffimport: FeedInTariffImportCommonSettings = Field(
+        default_factory=FeedInTariffImportCommonSettings,
+        json_schema_extra={"description": "Feed in tarif import provider settings."},
+    )
+
+    dvhubonline: FeedInTariffDvhubOnlineCommonSettings = Field(
+        default_factory=FeedInTariffDvhubOnlineCommonSettings,
+        json_schema_extra={"description": "DvhubOnline feed in tariff provider settings."},
+    )
+
+    energycharts: FeedInTariffEnergyChartsCommonSettings = Field(
+        default_factory=FeedInTariffEnergyChartsCommonSettings,
+        json_schema_extra={"description": "EnergyCharts feed in tariff provider settings."},
     )
 
     @computed_field  # type: ignore[prop-decorator]

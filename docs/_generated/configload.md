@@ -9,9 +9,9 @@
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | loadakkudoktor | `EOS_LOAD__LOADAKKUDOKTOR` | `LoadAkkudoktorCommonSettings` | `rw` | `required` | LoadAkkudoktor provider settings. |
 | loadimport | `EOS_LOAD__LOADIMPORT` | `LoadImportCommonSettings` | `rw` | `required` | LoadImport provider settings. |
-| loadvrm | `EOS_LOAD__LOADVRM` | `LoadVrmCommonSettings` | `rw` | `required` | LoadVrm provider settings. |
-| provider | `EOS_LOAD__PROVIDER` | `Optional[str]` | `rw` | `None` | Load provider id of provider to be used. |
+| provider | `EOS_LOAD__PROVIDER` | `str | None` | `rw` | `None` | Load provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available load provider ids. |
+| vrm | `EOS_LOAD__VRM` | `LoadVrmCommonSettings` | `rw` | `required` | Victron Remote Management (VRM) provider settings. |
 :::
 <!-- pyml enable line-length -->
 
@@ -27,13 +27,13 @@
            "loadakkudoktor": {
                "loadakkudoktor_year_energy_kwh": null
            },
-           "loadvrm": {
-               "load_vrm_token": "your-token",
-               "load_vrm_idsite": 12345
-           },
            "loadimport": {
                "import_file_path": null,
                "import_json": null
+           },
+           "vrm": {
+               "token": "your-token",
+               "site_id": 12345
            }
        }
    }
@@ -52,13 +52,13 @@
            "loadakkudoktor": {
                "loadakkudoktor_year_energy_kwh": null
            },
-           "loadvrm": {
-               "load_vrm_token": "your-token",
-               "load_vrm_idsite": 12345
-           },
            "loadimport": {
                "import_file_path": null,
                "import_json": null
+           },
+           "vrm": {
+               "token": "your-token",
+               "site_id": 12345
            },
            "providers": [
                "LoadAkkudoktor",
@@ -74,14 +74,14 @@
 ### Common settings for load forecast VRM API
 
 <!-- pyml disable line-length -->
-:::{table} load::loadvrm
+:::{table} load::vrm
 :widths: 10 10 5 5 30
 :align: left
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| load_vrm_idsite | `int` | `rw` | `12345` | VRM-Installation-ID |
-| load_vrm_token | `str` | `rw` | `your-token` | Token for Connecting VRM API |
+| site_id | `int` | `rw` | `12345` | VRM-Installation-ID |
+| token | `str` | `rw` | `your-token` | Access token for connecting to the Victron Remote Management (VRM) API |
 :::
 <!-- pyml enable line-length -->
 
@@ -93,9 +93,9 @@
 ```json
    {
        "load": {
-           "loadvrm": {
-               "load_vrm_token": "your-token",
-               "load_vrm_idsite": 12345
+           "vrm": {
+               "token": "your-token",
+               "site_id": 12345
            }
        }
    }
@@ -111,8 +111,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import load data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
+| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import load data from. |
+| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of load forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 
@@ -142,7 +142,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| loadakkudoktor_year_energy_kwh | `Optional[float]` | `rw` | `None` | Yearly energy consumption (kWh). |
+| loadakkudoktor_year_energy_kwh | `float | None` | `rw` | `None` | Yearly energy consumption (kWh). |
 :::
 <!-- pyml enable line-length -->
 

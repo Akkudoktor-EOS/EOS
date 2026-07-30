@@ -4,7 +4,10 @@
     "provider": "ElecPriceImport"
   },
   "feedintariff": {
-    "provider": "FeedInTariffFixed"
+    "provider": "FeedInTariffFixed",
+    "feedintarifffixed": {
+      "feed_in_tariff_kwh": 0.00007
+    }
   },
   "general": {
     "latitude": 52.5,

@@ -77,6 +77,7 @@ Methods:
 
 """
 
+import random
 from typing import Any, List, Optional, Union
 
 import requests
@@ -85,6 +86,7 @@ from pydantic import Field, ValidationError, computed_field, field_validator
 
 from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.pydantic import PydanticBaseModel
+from akkudoktoreos.prediction.pvforecast import PVForecastPlaneSetting
 from akkudoktoreos.prediction.pvforecastabc import (
     PVForecastDataRecord,
     PVForecastProvider,
@@ -143,8 +145,8 @@ class AkkudoktorForecastValue(PydanticBaseModel):
     datetime: str
     dcPower: float
     power: float
-    sunTilt: float
-    sunAzimuth: float
+    sunTilt: Optional[float]
+    sunAzimuth: Optional[float]
     temperature: Optional[float]
     relativehumidity_2m: Optional[float]
     windspeed_10m: Optional[float]
@@ -222,46 +224,99 @@ class PVForecastAkkudoktor(PVForecastProvider):
             raise ValueError(error_msg)
         return akkudoktor_data
 
-    def _url(self) -> str:
-        """Build akkudoktor.net API request URL."""
+    def _url(self, plane: PVForecastPlaneSetting) -> str:
+        """Build akkudoktor.net API request URL.
+
+        One request per plane.
+        """
         base_url = "https://api.akkudoktor.net/forecast"
-        query_params = [
-            f"lat={self.config.general.latitude}",
-            f"lon={self.config.general.longitude}",
-        ]
+        query_params: dict[str, Any] = {
+            # Randomize lat a little bit to circumvent caching by api.akkudoktor.
+            # Caching used to provide very old data
+            "lat": round(float(self.config.general.latitude) + random.uniform(0.000, 0.001), 6),  # noqa: S311
+            "lon": self.config.general.longitude,
+        }
 
-        for i in range(len(self.config.pvforecast.planes)):
-            query_params.append(f"power={int(self.config.pvforecast.planes_peakpower[i] * 1000)}")
-            # EOS orientation of of pv modules in azimuth in degree:
-            #   north=0, east=90, south=180, west=270
-            # Akkudoktor orientation of pv modules in azimuth in degree:
-            #   north=+-180, east=-90, south=0, west=90
-            azimuth_akkudoktor = int(self.config.pvforecast.planes_azimuth[i]) - 180
-            query_params.append(f"azimuth={azimuth_akkudoktor}")
-            query_params.append(f"tilt={int(self.config.pvforecast.planes_tilt[i])}")
-            query_params.append(
-                f"powerInverter={int(self.config.pvforecast.planes_inverter_paco[i])}"
-            )
-            horizon_values = ",".join(
-                str(round(h)) for h in self.config.pvforecast.planes_userhorizon[i]
-            )
-            query_params.append(f"horizont={horizon_values}")
+        # power pv modules in watts ($float)
+        if plane.peakpower is None:
+            error_msg = "PVForecastAkkudoktor is missing plane peakpower configuration"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        query_params["power"] = float(plane.peakpower) * 1000
 
-        # Append fixed query parameters
-        query_params.extend(
-            [
-                "past_days=5",
-                "cellCoEff=-0.36",
-                "inverterEfficiency=0.8",
-                "albedo=0.25",
-                f"timezone={self.config.general.timezone}",
-                "hourly=relativehumidity_2m%2Cwindspeed_10m",
-            ]
-        )
+        # EOS orientation of of pv modules in azimuth in degree ($float):
+        #   north=0, east=90, south=180, west=270
+        # Akkudoktor orientation of pv modules in azimuth in degree:
+        #   north=+-180, east=-90, south=0, west=90
+        if plane.surface_azimuth is None:
+            error_msg = "PVForecastAkkudoktor is missing plane surface_azimuth configuration"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        query_params["azimuth"] = float(plane.surface_azimuth) - 180
 
-        # Join all query parameters with `&`
-        url = f"{base_url}?{'&'.join(query_params)}"
+        # tilt of pv modules degree ($float)
+        # 0 = flat / horizontal 30 = 30° tilt (on a roof) 90 = vertical (at a wall)
+        if plane.surface_tilt is None:
+            error_msg = "PVForecastAkkudoktor is missing plane surface_tilt configuration"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        query_params["tilt"] = float(plane.surface_tilt)
+
+        # days with calculated data up to 92 Days (3 months)
+        # query_params["past_days] = past_days
+
+        # Change the used time cycles between "minutely_15" and "hourly" ($string).
+        query_params["timecycle"] = "hourly"  # @TODO switch to 15 minutes if really supported
+
+        # cellcoefficient of your pv modules. It is used for calculate losses with the
+        # temperature of the modules. Value in percent ($float).
+        query_params["cellCoEff"] = -0.36
+
+        # albedo value ($float)
+        query_params["albedo"] = 0.25
+
+        # timezone $string
+        query_params["timezone"] = self.config.general.timezone
+
+        # max power of the inverter in watts. it will used, if the power of the inverter
+        # is lower than the power generation of the modules. default: no limit. ($float)
+        if plane.inverter_paco is None:
+            error_msg = "PVForecastAkkudoktor is missing plane inverter_paco configuration"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        query_params["powerInverter"] = float(plane.inverter_paco)
+
+        # returns max- and min generation from differnt weathermodels $int.
+        # query_params["range"] = 0
+
+        # horizon to calculate shading up to 360 values to describe shading situation for your pv.
+        # For this, you use can a comma separated string with obsticals hight in angle
+        # (-180 = north, -90 = east, 0 = south, 90 = east). Also transparency is optional supported
+        # with a "t" after angle-
+        # e.g.
+        # 10,20,10,15 => -180..-90° azimuth + 10° tilt | -90°..0 azimuth + 20° tilt | ...
+        # 10t0.3,15t0.8 => -180..0° azimuth + 10° tilt + 30% transparency |
+        #                   0°..180 azimuth + 15° tilt + 80% transarency
+        # 10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10,10 (18 x "10")
+        #               => every 20° azimuth (360/18) with 10° tilt
+        if plane.userhorizon:
+            query_params["horizont"] = ",".join(str(round(h)) for h in plane.userhorizon)
+
+        # additional hourly data from open-meteo with "," splittet values.
+        # Check https://open-meteo.com/en/docs/dwd-api
+        query_params["hourly"] = "relativehumidity_2m,windspeed_10m"
+
+        # Use requests to build the URL with proper encoding
+        req = requests.Request("GET", base_url, params=query_params)
+        prepared = req.prepare()
+        url = prepared.url
         logger.debug(f"Akkudoktor URL: {url}")
+
+        if url is None:
+            error_msg = f"Cannot prepare URL for {req}"
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
         return url
 
     @cache_in_file(with_ttl="1 hour")
@@ -278,11 +333,39 @@ class PVForecastAkkudoktor(PVForecastProvider):
         Raises:
             ValueError: If the API response does not include expected `meta` data.
         """
-        response = requests.get(self._url(), timeout=10)
-        response.raise_for_status()  # Raise an error for bad responses
-        logger.debug(f"Response from {self._url()}: {response}")
-        akkudoktor_data = self._validate_data(response.content)
+        akkudoktor_data: Optional[AkkudoktorForecast] = None
+
+        # Hopefully skip internediate caches
+        headers = {
+            "Accept": "application/json",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+        }
+
+        for plane in self.config.pvforecast.planes:
+            plane_url = self._url(plane)
+            response = requests.get(plane_url, headers=headers, timeout=10)
+            logger.info("[PVForecastAkkudoktor] URL: {}", response.request.url)
+            logger.info("[PVForecastAkkudoktor] Headers: {}", response.request.headers)
+            logger.info("[PVForecastAkkudoktor] Status: {}", response.status_code)
+            logger.info("[PVForecastAkkudoktor] Response headers: {}", response.headers)
+
+            response.raise_for_status()  # Raise an error for bad responses
+            plane_data = self._validate_data(response.content)
+
+            if akkudoktor_data is None:
+                akkudoktor_data = plane_data
+            else:
+                # Add plane data to total akkudoktor data
+                akkudoktor_data.values.append(plane_data.values[0])
+
+        if akkudoktor_data is None:
+            error_msg = "PVForecastAkkudoktor is missing plane configuration"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
         # We are working on fresh data (no cache), report update time
+        self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
 
         return akkudoktor_data
 
@@ -300,6 +383,8 @@ class PVForecastAkkudoktor(PVForecastProvider):
             raise ValueError(error_msg)
 
         # Get Akkudoktor PV Forecast data for the given configuration.
+        if force_update:
+            logger.info("[PVForecastAkkudoktor] force update.")
         akkudoktor_data = self._request_forecast(force_update=force_update)  # type: ignore
 
         # Timezone of the PV system
@@ -308,16 +393,35 @@ class PVForecastAkkudoktor(PVForecastProvider):
             logger.error(f"Akkudoktor schema change: {error_msg}")
             raise ValueError(error_msg)
 
+        prediction_horizon = self.ems_start_datetime.start_of("day")
+        prediction_horizon = prediction_horizon.add(hours=self.config.prediction.hours)
+
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
-        if len(akkudoktor_data.values[0]) < self.config.prediction.hours:
-            # Expect one value set per prediction hour
-            error_msg = (
-                f"The forecast must cover at least {self.config.prediction.hours} hours, "
-                f"but only {len(akkudoktor_data.values[0])} data sets are given in forecast data."
-            )
-            logger.error(f"Akkudoktor schema change: {error_msg}")
-            raise ValueError(error_msg)
+        for plane_idx, plane_values in enumerate(akkudoktor_data.values):
+            last_datetime = plane_values[-1].datetime
+            dt = to_datetime(last_datetime, in_timezone=self.config.general.timezone)
+
+            prediction_horizon = self.ems_start_datetime.start_of("day")
+            prediction_horizon = prediction_horizon.add(hours=self.config.prediction.hours - 1)
+            if compare_datetimes(dt, prediction_horizon).lt:
+                error_msg = (
+                    f"The forecast must cover at least the `{prediction_horizon}` prediction horizon, "
+                    f"but only data up to `{dt}` is given in "
+                    f"forecast data for plane `{plane_idx}`."
+                )
+                logger.error(f"Akkudoktor schema change: {error_msg}")
+                raise ValueError(error_msg)
+
+            if len(plane_values) < self.config.prediction.hours:
+                # Expect one value set per prediction hour
+                error_msg = (
+                    f"The forecast must cover at least `{self.config.prediction.hours}` hours, "
+                    f"but only `{len(plane_values)}` data sets are given in "
+                    f"forecast data for plane `{plane_idx}`."
+                )
+                logger.error(f"Akkudoktor schema change: {error_msg}")
+                raise ValueError(error_msg)
 
         if not self.ems_start_datetime:
             raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
@@ -347,7 +451,8 @@ class PVForecastAkkudoktor(PVForecastProvider):
             raise ValueError(
                 f"The forecast must cover at least {self.config.prediction.hours} hours, "
                 f"but only {len(self)} hours starting from {self.ems_start_datetime} "
-                f"were predicted."
+                f"were predicted.\n"
+                f"{akkudoktor_data}"
             )
 
     def report_ac_power_and_measurement(self) -> str:

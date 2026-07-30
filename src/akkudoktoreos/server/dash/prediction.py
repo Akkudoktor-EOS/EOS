@@ -177,7 +177,7 @@ def LoadForecast(predictions: pd.DataFrame, config: dict, date_time_tz: str, dar
         "date_time",
         "loadforecast_power_w",
         source=source,
-        legend_label="Load forcast value (adjusted by measurement)",
+        legend_label="Load forecast value (adjusted by measurement)",
         color="red",
     )
     plot.line(

@@ -179,7 +179,7 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
                 "pv_forecast_wh": pv_forecast,
                 "electricity_price_per_wh": electricity_price_per_wh,
             },
-            "pv_akku": {
+            "pv_battery": {
                 "device_id": "battery 1",
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
@@ -190,7 +190,7 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
                 "max_power_wh": 10000,
                 "battery_id": "battery 1",
             },
-            "eauto": {
+            "ev": {
                 "device_id": "electric vehicle 1",
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,
@@ -215,10 +215,10 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
         {
             "prediction": {"hours": 48},
             "optimization": {
-                "horizon_hours": 48,
-                "interval": 3600,
                 "algorithm": "GENETIC",
                 "genetic": {
+                    "horizon_hours": 48,
+                    "interval_sec": 3600,
                     "individuals": 300,
                     "generations": 400,
                     "seed": None,
@@ -375,7 +375,7 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
                 "pv_forecast_wh": pv_forecast,
                 "electricity_price_per_wh": electricity_price_per_wh,
             },
-            "pv_akku": {
+            "pv_battery": {
                 "device_id": "battery 1",
                 "capacity_wh": 26400,
                 "initial_soc_percentage": 15,
@@ -386,7 +386,7 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
                 "max_power_wh": 10000,
                 "battery_id": "battery 1",
             },
-            "eauto": {
+            "ev": {
                 "device_id": "electric vehicle 1",
                 "min_soc_percentage": 50,
                 "capacity_wh": 60000,
@@ -433,7 +433,7 @@ def run_optimization(
             start_datetime=start_datetime,
             mode=EnergyManagementMode.OPTIMIZATION,
             genetic_parameters=parameters,
-            genetic_individuals=ngen,
+            genetic_generations=ngen,
             genetic_seed=seed,
         )
     )

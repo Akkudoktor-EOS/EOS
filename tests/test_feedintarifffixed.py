@@ -16,10 +16,8 @@ def provider(config_eos):
     settings = {
         "feedintariff": {
             "provider": "FeedInTariffFixed",
-            "provider_settings": {
-                "FeedInTariffFixed": {
-                    "feed_in_tariff_kwh": 0.078,
-                },
+            "feedintarifffixed": {
+                "feed_in_tariff_kwh": 0.078,
             },
         }
     }
@@ -46,10 +44,8 @@ def test_invalid_provider(provider, config_eos):
     settings = {
         "feedintariff": {
             "provider": "<invalid>",
-            "provider_settings": {
-                "FeedInTariffFixed": {
-                    "feed_in_tariff_kwh": 0.078,
-                },
+            "feedintarifffixed": {
+                "feed_in_tariff_kwh": 0.078,
             },
         }
     }

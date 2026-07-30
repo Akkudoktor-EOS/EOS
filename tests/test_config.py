@@ -80,7 +80,7 @@ def test_computed_paths(config_eos):
 def test_config_from_env(monkeypatch, config_eos):
     """Test configuration from env."""
     assert config_eos.server.port == 8503
-    assert config_eos.server.eosdash_port is None
+    assert config_eos.server.eosdash_port == 8504
 
     monkeypatch.setenv("EOS_SERVER__PORT", "8553")
     monkeypatch.setenv("EOS_SERVER__EOSDASH_PORT", "8555")

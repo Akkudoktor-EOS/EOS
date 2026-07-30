@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2607181096091018`
+**Version**: `v0.3.0.dev2607301181843779`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -38,9 +38,9 @@ Deprecated: Total Load Prediction with adjustment.
 
 Endpoint to handle total load prediction adjusted by latest measured data.
 
-Total load prediction starts at 00.00.00 today and is provided for 48 hours.
-If no prediction values are available the missing ones at the start of the series are
-filled with the first available prediction value.
+Total load prediction starts at 00.00.00 today and is provided for 48 hours
+in 1-hour intervals. If no prediction values are available the missing ones
+at the start of the series are filled with the first available prediction value.
 
 Note:
     Use '/v1/prediction/list?key=loadforecast_power_w' instead.
@@ -82,9 +82,9 @@ Deprecated: Total Load Prediction.
 
 Endpoint to handle total load prediction.
 
-Total load prediction starts at 00.00.00 today and is provided for 48 hours.
-If no prediction values are available the missing ones at the start of the series are
-filled with the first available prediction value.
+Total load prediction starts at 00.00.00 today and is provided for 48 hours
+in 1-hour intervals. If no prediction values are available the missing ones
+at the start of the series are filled with the first available prediction value.
 
 Args:
     year_energy (float): Yearly energy consumption in Wh.
@@ -125,8 +125,11 @@ Deprecated: Optimize.
 
 Endpoint to handle optimization.
 
+Uses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).
+
 Note:
     Use automatic optimization instead.
+    "v1/energy-management/optimization/solution/GENETIC0"
 """
 ```
 <!-- pyml enable line-length -->
@@ -140,7 +143,7 @@ Note:
 **Request Body**:
 
 - `application/json`: {
-  "$ref": "#/components/schemas/GeneticOptimizationParameters"
+  "$ref": "#/components/schemas/Genetic0OptimizationParameters"
 }
 
 **Responses**:
@@ -166,9 +169,9 @@ Deprecated: PV Forecast Prediction.
 
 Endpoint to handle PV forecast prediction.
 
-PVForecast starts at 00.00.00 today and is provided for 48 hours.
-If no forecast values are available the missing ones at the start of the series are
-filled with the first available forecast value.
+PVForecast starts at 00.00.00 today and is provided for 48 hours
+in 1-hour intervals. If no forecast values are available the missing ones
+at the start of the series are filled with the first available forecast value.
 
 Note:
     Set PVForecastAkkudoktor as provider, then update data with
@@ -199,9 +202,9 @@ Fastapi Strompreis
 """
 Deprecated: Electricity Market Price Prediction per Wh [amount/Wh].
 
-Electricity prices start at 00.00.00 today and are provided for 48 hours.
-If no prices are available the missing ones at the start of the series are
-filled with the first available price.
+Electricity prices start at 00.00.00 today and are provided for 48 hours
+in 1-hour intervals. If no prices are available the missing ones at the
+start of the series are filled with the first available price.
 
 Note:
     Electricity price charges are added.
@@ -747,6 +750,37 @@ Get the latest solution of the optimization.
 
 ---
 
+## GET /v1/energy-management/optimization/solution/{algorithm}
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_energy_management_optimization_solution_algorithm_get_v1_energy-management_optimization_solution__algorithm__get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_energy_management_optimization_solution_algorithm_get_v1_energy-management_optimization_solution__algorithm__get)
+<!-- pyml enable line-length -->
+
+Fastapi Energy Management Optimization Solution Algorithm Get
+
+<!-- pyml disable line-length -->
+```python
+"""
+Get the latest algorithm specific solution of the optimization.
+
+Args:
+    algorithm: Optimization algorithm
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `algorithm` (path, required): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
 ## GET /v1/energy-management/plan
 
 <!-- pyml disable line-length -->
@@ -1057,15 +1091,54 @@ Fastapi Prediction Dataframe Get
 <!-- pyml disable line-length -->
 ```python
 """
-Get prediction for given key within given date range as series.
+Get prediction for given keys within given date range as dataframe.
 
 Args:
-    key (str): Prediction key
+    key (list[str]): Prediction keys
     start_datetime (Optional[str]): Starting datetime (inclusive).
         Defaults to start datetime of latest prediction.
     end_datetime (Optional[str]: Ending datetime (exclusive).
+        Defaults to end datetime of latest prediction.
+    interval (Optional[str]): Time duration for each interval.
+        Defaults to 1 hour.
+    fill_method (str): Method to handle missing values during resampling.
 
-Defaults to end datetime of latest prediction.
+        - 'linear': Linearly interpolate missing values (for numeric data only).
+        - 'time': Interpolate missing values (for numeric data only).
+        - 'ffill': Forward fill missing values.
+        - 'bfill': Backward fill missing values.
+        - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+    resample_method (str):
+        Method used to aggregate values within a resampling interval.
+
+        - "first": Use the first value in each interval.
+        - "mean": Compute the arithmetic mean of all samples in each interval.
+        - "interval_mean": Compute the time-weighted mean assuming each
+            value remains valid until the next timestamp (piecewise-constant
+            signal).
+
+    dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+        Defaults to True.
+    boundary (Literal["strict", "context"]): resampling boundary
+        "strict"  → only values inside [start, end)
+        "context" → include one value before and after for proper resampling
+    align_to_interval (bool): When True, snap the resample origin to the nearest
+        UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+        that bucket timestamps always fall on wall-clock-round times regardless of
+        when ``start_datetime`` falls:
+
+        - 15-minute interval → buckets on :00, :15, :30, :45
+        - 1-hour interval    → buckets on the hour
+
+        When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+        no start is given), preserving the existing behaviour where buckets are
+        aligned to the query window rather than the clock.
+
+        Set to True when storing compacted records back to the database so that the
+        resulting timestamps are predictable and human-readable.  Leave False for
+        forecast or reporting queries where alignment to the exact query window is
+        more important than clock-round boundaries.
 """
 ```
 <!-- pyml enable line-length -->
@@ -1079,6 +1152,16 @@ Defaults to end datetime of latest prediction.
 - `end_datetime` (query, optional): Ending datetime (exclusive).
 
 - `interval` (query, optional): Time duration for each interval. Defaults to 1 hour.
+
+- `fill_method` (query, optional): Method to handle missing values during resampling.
+
+- `resample_method` (query, optional): Method used to aggregate values within a resampling interval.
+
+- `dropna` (query, optional): Drop NAN/ None values before processing.
+
+- `boundary` (query, optional): Resampling boundary mode.
+
+- `align_to_interval` (query, optional): Snap resample origin to the nearest UTC epoch-aligned boundary of interval.
 
 **Responses**:
 
@@ -1188,6 +1271,44 @@ Args:
         Defaults to end datetime of latest prediction.
     interval (Optional[str]): Time duration for each interval.
         Defaults to 1 hour.
+    fill_method (str): Method to handle missing values during resampling.
+
+        - 'linear': Linearly interpolate missing values (for numeric data only).
+        - 'time': Interpolate missing values (for numeric data only).
+        - 'ffill': Forward fill missing values.
+        - 'bfill': Backward fill missing values.
+        - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+    resample_method (str):
+        Method used to aggregate values within a resampling interval.
+
+        - "first": Use the first value in each interval.
+        - "mean": Compute the arithmetic mean of all samples in each interval.
+        - "interval_mean": Compute the time-weighted mean assuming each
+            value remains valid until the next timestamp (piecewise-constant
+            signal).
+
+    dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+        Defaults to True.
+    boundary (Literal["strict", "context"]): resampling boundary
+        "strict"  → only values inside [start, end)
+        "context" → include one value before and after for proper resampling
+    align_to_interval (bool): When True, snap the resample origin to the nearest
+        UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+        that bucket timestamps always fall on wall-clock-round times regardless of
+        when ``start_datetime`` falls:
+
+        - 15-minute interval → buckets on :00, :15, :30, :45
+        - 1-hour interval    → buckets on the hour
+
+        When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+        no start is given), preserving the existing behaviour where buckets are
+        aligned to the query window rather than the clock.
+
+        Set to True when storing compacted records back to the database so that the
+        resulting timestamps are predictable and human-readable.  Leave False for
+        forecast or reporting queries where alignment to the exact query window is
+        more important than clock-round boundaries.
 """
 ```
 <!-- pyml enable line-length -->
@@ -1201,6 +1322,16 @@ Args:
 - `end_datetime` (query, optional): Ending datetime (exclusive).
 
 - `interval` (query, optional): Time duration for each interval. Defaults to 1 hour.
+
+- `fill_method` (query, optional): Method to handle missing values during resampling.
+
+- `resample_method` (query, optional): Method used to aggregate values within a resampling interval.
+
+- `dropna` (query, optional): Drop NAN/ None values before processing.
+
+- `boundary` (query, optional): Resampling boundary mode.
+
+- `align_to_interval` (query, optional): Snap resample origin to the nearest UTC epoch-aligned boundary of interval.
 
 **Responses**:
 
@@ -1232,6 +1363,38 @@ Args:
 **Parameters**:
 
 - `enabled` (query, optional): No description provided.
+
+**Responses**:
+
+- **200**: Successful Response
+
+- **422**: Validation Error
+
+---
+
+## DELETE /v1/prediction/range
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_range_delete_v1_prediction_range_delete), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_range_delete_v1_prediction_range_delete)
+<!-- pyml enable line-length -->
+
+Fastapi Prediction Range Delete
+
+<!-- pyml disable line-length -->
+```python
+"""
+Delete prediction values for a key within a datetime range.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Parameters**:
+
+- `key` (query, required): Prediction key.
+
+- `start_datetime` (query, optional): Start datetime.
+
+- `end_datetime` (query, optional): End datetime.
 
 **Responses**:
 

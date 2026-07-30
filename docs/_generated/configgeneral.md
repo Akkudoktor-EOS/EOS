@@ -7,18 +7,18 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| config_file_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration file. |
-| config_folder_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Path to EOS configuration directory. |
+| config_file_path | | `pathlib.Path | None` | `ro` | `N/A` | Path to EOS configuration file. |
+| config_folder_path | | `pathlib.Path | None` | `ro` | `N/A` | Path to EOS configuration directory. |
 | config_save_interval_sec | `EOS_GENERAL__CONFIG_SAVE_INTERVAL_SEC` | `int` | `rw` | `60` | Automatic configuration file saving interval [seconds]. |
 | config_save_mode | `EOS_GENERAL__CONFIG_SAVE_MODE` | `<enum 'ConfigSaveMode'>` | `rw` | `AUTOMATIC` | Configuration file save mode for configuration changes ['MANUAL', 'AUTOMATIC']. Defaults to 'AUTOMATIC'. |
 | data_folder_path | `EOS_GENERAL__DATA_FOLDER_PATH` | `Path` | `rw` | `required` | Path to EOS data folder. |
-| data_output_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Computed data_output_path based on data_folder_path. |
-| data_output_subpath | `EOS_GENERAL__DATA_OUTPUT_SUBPATH` | `Optional[pathlib.Path]` | `rw` | `output` | Sub-path for the EOS output data folder. |
+| data_output_path | | `pathlib.Path | None` | `ro` | `N/A` | Computed data_output_path based on data_folder_path. |
+| data_output_subpath | `EOS_GENERAL__DATA_OUTPUT_SUBPATH` | `pathlib.Path | None` | `rw` | `output` | Sub-path for the EOS output data folder. |
 | home_assistant_addon | `EOS_GENERAL__HOME_ASSISTANT_ADDON` | `bool` | `rw` | `required` | EOS is running as home assistant add-on. |
-| latitude | `EOS_GENERAL__LATITUDE` | `Optional[float]` | `rw` | `52.52` | Latitude in decimal degrees between -90 and 90. North is positive (ISO 19115) (°) |
-| longitude | `EOS_GENERAL__LONGITUDE` | `Optional[float]` | `rw` | `13.405` | Longitude in decimal degrees within -180 to 180 (°) |
-| timezone | | `Optional[str]` | `ro` | `N/A` | Computed timezone based on latitude and longitude. |
-| version | `EOS_GENERAL__VERSION` | `Optional[str]` | `rw` | `None` | Configuration file version. |
+| latitude | `EOS_GENERAL__LATITUDE` | `float | None` | `rw` | `52.52` | Latitude in decimal degrees between -90 and 90. North is positive (ISO 19115) (°) |
+| longitude | `EOS_GENERAL__LONGITUDE` | `float | None` | `rw` | `13.405` | Longitude in decimal degrees within -180 to 180 (°) |
+| timezone | | `str | None` | `ro` | `N/A` | Computed timezone based on latitude and longitude. |
+| version | `EOS_GENERAL__VERSION` | `str | None` | `rw` | `None` | Configuration file version. |
 :::
 <!-- pyml enable line-length -->
 

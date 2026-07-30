@@ -38,7 +38,6 @@ def adapter(config_eos, mock_ems: MagicMock) -> NodeREDAdapter:
     return ad
 
 
-@pytest.mark.asyncio
 class TestNodeREDAdapter:
 
     def test_provider_id(self, adapter: NodeREDAdapter):
@@ -52,6 +51,7 @@ class TestNodeREDAdapter:
         adapter.config.adapter.provider = ["HomeAssistant", "NodeRED"]
         assert adapter.enabled() is True
 
+    @pytest.mark.asyncio
     @patch("requests.get")
     async def test_update_datetime(self, mock_get, adapter: NodeREDAdapter):
         adapter.ems.stage.return_value = EnergyManagementStage.DATA_ACQUISITION
@@ -64,6 +64,7 @@ class TestNodeREDAdapter:
         mock_get.assert_called_once()
         assert compare_datetimes(adapter.update_datetime, now).approximately_equal
 
+    @pytest.mark.asyncio
     @patch("requests.get")
     async def test_update_data_data_acquisition_success(self, mock_get    , adapter: NodeREDAdapter):
         adapter.ems.stage.return_value = EnergyManagementStage.DATA_ACQUISITION
@@ -76,12 +77,14 @@ class TestNodeREDAdapter:
         url, = mock_get.call_args[0]
         assert "/eos/data_aquisition" in url
 
+    @pytest.mark.asyncio
     @patch("requests.get", side_effect=Exception("boom"))
     async def test_update_data_data_acquisition_failure(self, mock_get, adapter: NodeREDAdapter):
         adapter.ems.stage.return_value = EnergyManagementStage.DATA_ACQUISITION
         with pytest.raises(RuntimeError):
             await adapter.update_data(force_enable=True)
 
+    @pytest.mark.asyncio
     @patch("requests.post")
     async def test_update_data_control_dispatch_instructions(self, mock_post, adapter: NodeREDAdapter):
         adapter.ems.stage.return_value = EnergyManagementStage.CONTROL_DISPATCH
@@ -110,12 +113,14 @@ class TestNodeREDAdapter:
         url, = mock_post.call_args[0]
         assert "/eos/control_dispatch" in url
 
+    @pytest.mark.asyncio
     @patch("requests.post")
     async def test_update_data_disabled_provider(self, mock_post, adapter: NodeREDAdapter):
         adapter.config.adapter.provider = ["HomeAssistant"]  # NodeRED disabled
         await adapter.update_data(force_enable=False)
         mock_post.assert_not_called()
 
+    @pytest.mark.asyncio
     @patch("requests.post")
     async def test_update_data_force_enable_overrides_disabled(self, mock_post, adapter: NodeREDAdapter):
         adapter.config.adapter.provider = ["HomeAssistant"]

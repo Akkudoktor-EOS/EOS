@@ -6,7 +6,9 @@
         "longitude": 13.4
     },
     "optimization": {
-        "horizon_hours": 48
+        "genetic0": {
+            "horizon_hours": 48
+        }
     },
     "elecprice": {
         "provider": "ElecPriceImport",
@@ -14,7 +16,6 @@
     },
     "server": {
         "host": "0.0.0.0",
-        "eosdash_host": "0.0.0.0",
-        "eosdash_port": 8504
+        "eosdash_host": "0.0.0.0"
     }
 }

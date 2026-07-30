@@ -60,7 +60,7 @@ class Inverter:
                 remaining_load_evq = (generation - consumption) * (1.0 - scr)
 
                 if remaining_load_evq > 0:
-                    # Akku muss den Restverbrauch decken
+                    # The battery must cover the remaining consumption
                     if self.battery:
                         # Request more DC from battery to account for DC→AC conversion loss
                         dc_request = remaining_load_evq / dc_to_ac_eff
@@ -75,7 +75,7 @@ class Inverter:
                     else:
                         from_battery_ac = 0.0
 
-                    # Wenn der Akku den Restverbrauch nicht vollständig decken kann, wird der Rest ins Netz gezogen
+                    # If the battery cannot fully cover the remaining consumption, the rest is drawn from the grid
                     if remaining_load_evq > 0:
                         grid_import += remaining_load_evq
                         remaining_load_evq = 0

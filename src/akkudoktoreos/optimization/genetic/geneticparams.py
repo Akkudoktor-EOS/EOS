@@ -137,10 +137,18 @@ class GeneticOptimizationParameters(
     optimization process, such as forecasts, pricing, battery and appliance models.
     """
 
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
     ems: GeneticEnergyManagementParameters
-    pv_akku: Optional[SolarPanelBatteryParameters]
+    pv_battery: Optional[SolarPanelBatteryParameters] = Field(
+        validation_alias=AliasChoices("pv_battery", "pv_akku"),
+        json_schema_extra={"description": "PV battery parameters."},
+    )
     inverter: Optional[InverterParameters]
-    eauto: Optional[ElectricVehicleParameters]
+    ev: Optional[ElectricVehicleParameters] = Field(
+        validation_alias=AliasChoices("ev", "eauto"),
+        json_schema_extra={"description": "Electric vehicle parameters."},
+    )
     dishwasher: Optional[HomeApplianceParameters] = None
     temperature_forecast: Optional[list[Optional[float]]] = Field(
         default=None,
@@ -154,6 +162,17 @@ class GeneticOptimizationParameters(
             "description": "Can be `null` or contain a previous solution (if available)."
         },
     )
+
+    # Computed fields for backward compatibility (deprecated German names)
+    @computed_field(json_schema_extra={"deprecated": True})
+    def pv_akku(self) -> Optional[SolarPanelBatteryParameters]:
+        """Deprecated: Use pv_battery instead."""
+        return self.pv_battery
+
+    @computed_field(json_schema_extra={"deprecated": True})
+    def eauto(self) -> Optional[ElectricVehicleParameters]:
+        """Deprecated: Use ev instead."""
+        return self.ev
 
     @model_validator(mode="after")
     def validate_list_length(self) -> Self:
@@ -228,17 +247,18 @@ class GeneticOptimizationParameters(
             logger.info("Prediction historic hours unknown - defaulting to 24 hours.")
             cls.config.prediction.historic_hours = 24
         # Check optimization definitions
-        if cls.config.optimization.horizon_hours is None:
+        if cls.config.optimization.genetic.horizon_hours is None:
             logger.info("Optimization horizon unknown - defaulting to 24 hours.")
-            cls.config.optimization.horizon_hours = 24
-        if cls.config.optimization.interval is None:
+            cls.config.optimization.genetic.horizon_hours = 24
+        if cls.config.optimization.genetic.interval_sec is None:
             logger.info("Optimization interval unknown - defaulting to 3600 seconds.")
-            cls.config.optimization.interval = 3600
-        if cls.config.optimization.interval != 3600:
+            cls.config.optimization.genetic.interval_sec = 3600
+        if cls.config.optimization.genetic.interval_sec != 3600:
             logger.info(
-                "Optimization interval '{}' seconds not supported - forced to 3600 seconds."
+                f"Optimization interval '{cls.config.optimization.genetic.interval_sec}' seconds "
+                "not supported - forced to 3600 seconds."
             )
-            cls.config.optimization.interval = 3600
+            cls.config.optimization.genetic.interval_sec = 3600
         # Check genetic algorithm definitions
         if cls.config.optimization.genetic.individuals is None:
             logger.info("Genetic individuals unknown - defaulting to 300.")
@@ -257,8 +277,8 @@ class GeneticOptimizationParameters(
             start_solution = last_solution.start_solution
 
         # Add forecast and device data
-        interval = to_duration(cls.config.optimization.interval)
-        power_to_energy_per_interval_factor = cls.config.optimization.interval / 3600
+        interval = to_duration(cls.config.optimization.genetic.interval_sec)
+        power_to_energy_per_interval_factor = cls.config.optimization.genetic.interval_sec / 3600
         parameter_start_datetime = ems.start_datetime.set(hour=0, second=0, microsecond=0)
         parameter_end_datetime = parameter_start_datetime.add(hours=cls.config.prediction.hours)
         max_retries = 10
@@ -281,11 +301,12 @@ class GeneticOptimizationParameters(
                     interval=interval,
                     fill_method="linear",
                 )
-                pvforecast_ac_power = (array * power_to_energy_per_interval_factor).to_list()
+                pvforecast_ac_power = (array * power_to_energy_per_interval_factor).tolist()
             except Exception as e:
                 logger.info(
-                    "No PV forecast data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                    "No PV forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 cls.config.merge_settings_from_dict(
                     {
@@ -335,11 +356,12 @@ class GeneticOptimizationParameters(
                     interval=interval,
                     fill_method="ffill",
                 )
-                elecprice_marketprice_wh = array.to_list()
+                elecprice_marketprice_wh = array.tolist()
             except Exception as e:
                 logger.info(
-                    "No Electricity Marketprice forecast data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                    "No Electricity Marketprice forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 cls.config.elecprice.provider = "ElecPriceAkkudoktor"
                 # Retry
@@ -352,11 +374,12 @@ class GeneticOptimizationParameters(
                     interval=interval,
                     fill_method="ffill",
                 )
-                loadforecast_power_w = array.to_list()
+                loadforecast_power_w = array.tolist()
             except Exception as e:
                 logger.info(
-                    "No Load forecast data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                    "No Load forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 cls.config.merge_settings_from_dict(
                     {
@@ -378,20 +401,19 @@ class GeneticOptimizationParameters(
                     interval=interval,
                     fill_method="ffill",
                 )
-                feed_in_tariff_wh = array.to_list()
+                feed_in_tariff_wh = array.tolist()
             except Exception as e:
                 logger.info(
-                    "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                    "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 cls.config.merge_settings_from_dict(
                     {
                         "feedintariff": {
                             "provider": "FeedInTariffFixed",
-                            "provider_settings": {
-                                "FeedInTariffFixed": {
-                                    "feed_in_tariff_kwh": 0.078,
-                                },
+                            "feedintarifffixed": {
+                                "feed_in_tariff_kwh": 0.078,
                             },
                         },
                     }
@@ -406,11 +428,12 @@ class GeneticOptimizationParameters(
                     interval=interval,
                     fill_method="ffill",
                 )
-                weather_temp_air = array.to_list()
+                weather_temp_air = array.tolist()
             except Exception as e:
                 logger.info(
-                    "No weather forecast data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                    "No weather forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 cls.config.weather.provider = "BrightSky"
                 # Retry
@@ -444,8 +467,9 @@ class GeneticOptimizationParameters(
                     )
                 except Exception as e:
                     logger.info(
-                        "No battery device data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                        "No battery device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                         attempt,
+                        e,
                     )
                     cls.config.devices.batteries = [{"device_id": "battery1", "capacity_wh": 8000}]
                     # Retry
@@ -453,7 +477,7 @@ class GeneticOptimizationParameters(
                 # Levelized cost of ownership
                 if battery_config.levelized_cost_of_storage_kwh is None:
                     logger.info(
-                        "No battery device LCOS data available - defaulting to 0 €/kWh. Parameter preparation attempt {}.",
+                        "No battery device LCOS data available - defaulting to 0 [amount/kWh]. Parameter preparation attempt {}.",
                         attempt,
                     )
                     battery_config.levelized_cost_of_storage_kwh = 0
@@ -516,8 +540,9 @@ class GeneticOptimizationParameters(
                     )
                 except Exception as e:
                     logger.info(
-                        "No electric_vehicle device data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                        "No electric_vehicle device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                         attempt,
+                        e,
                     )
                     cls.config.devices.max_electric_vehicles = 1
                     cls.config.devices.electric_vehicles = [
@@ -582,8 +607,9 @@ class GeneticOptimizationParameters(
                     )
                 except Exception as e:
                     logger.info(
-                        "No inverter device data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                        "No inverter device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                         attempt,
+                        e,
                     )
                     cls.config.devices.inverters = [
                         {
@@ -637,8 +663,9 @@ class GeneticOptimizationParameters(
                     )
                 except Exception as e:
                     logger.info(
-                        "No home appliance device data available - defaulting to demo data. Parameter preparation attempt {}: {e}",
+                        "No home appliance device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                         attempt,
+                        e,
                     )
                     cls.config.devices.home_appliances = [
                         {
@@ -662,16 +689,17 @@ class GeneticOptimizationParameters(
                         price_per_wh_battery=battery_lcos_kwh / 1000,
                     ),
                     temperature_forecast=weather_temp_air,
-                    pv_akku=battery_params,
-                    eauto=electric_vehicle_params,
+                    pv_battery=battery_params,
+                    ev=electric_vehicle_params,
                     inverter=inverter_params,
                     dishwasher=home_appliance_params,
                     start_solution=start_solution,
                 )
             except Exception as e:
                 logger.info(
-                    "Can not prepare optimization parameters - will retry. Parameter preparation attempt {}: {e}",
+                    "Can not prepare optimization parameters - will retry. Parameter preparation attempt {}: {}",
                     attempt,
+                    e,
                 )
                 oparams = None
                 # Retry

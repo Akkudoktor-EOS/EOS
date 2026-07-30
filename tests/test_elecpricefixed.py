@@ -92,7 +92,6 @@ def cache_store():
     return CacheFileStore()
 
 
-@pytest.mark.asyncio
 class TestElecPriceFixed:
     """Tests for ElecPriceFixed provider."""
 
@@ -111,44 +110,13 @@ class TestElecPriceFixed:
         provider.config.reset_settings()
         assert not provider.enabled()
 
-    async def test_update_data_hourly_intervals(self, provider, config_eos):
-        """Test updating data with hourly intervals (3600s)."""
-        # Set start datetime
-        ems_eos = get_ems()
-        start_dt = to_datetime("2024-01-01 00:00:00", in_timezone="Europe/Berlin")
-        ems_eos.set_start_datetime(start_dt)
-
-        # Configure hourly intervals
-        config_eos.optimization.interval = 3600
-        config_eos.prediction.hours = 24
-
-        # Update data
-        await provider.update_data(force_enable=True, force_update=True)
-
-        # Verify data was generated
-        assert len(provider) == 24  # 24 hours * 1 interval per hour
-
-        # Check prices
-        records = provider.records
-
-        # First 8 hours should be night rate (0.288 kWh = 0.000288 Wh)
-        for i in range(8):
-            assert abs(records[i].elecprice_marketprice_wh - 0.000288) < 1e-6
-            # Verify timestamps are on hour boundaries
-            assert records[i].date_time.minute == 0
-            assert records[i].date_time.second == 0
-
-        # Next 16 hours should be day rate (0.34 kWh = 0.00034 Wh)
-        for i in range(8, 24):
-            assert abs(records[i].elecprice_marketprice_wh - 0.00034) < 1e-6
-
+    @pytest.mark.asyncio
     async def test_update_data_15min_intervals(self, provider, config_eos):
         """Test updating data with 15-minute intervals (900s)."""
         ems_eos = get_ems()
         start_dt = to_datetime("2024-01-01 00:00:00", in_timezone="Europe/Berlin")
         ems_eos.set_start_datetime(start_dt)
 
-        config_eos.optimization.interval = 900
         config_eos.prediction.hours = 10  # spans both windows: 00:00–10:00 = 40 intervals
 
         await provider.update_data(force_enable=True, force_update=True)
@@ -175,39 +143,7 @@ class TestElecPriceFixed:
                 f"Expected day rate at interval {i}, got {records[i].elecprice_marketprice_wh}"
             )
 
-    async def test_update_data_30min_intervals(self, provider, config_eos):
-        """Test updating data with 30-minute intervals (1800s)."""
-        ems_eos = get_ems()
-        start_dt = to_datetime("2024-01-01 00:00:00", in_timezone="Europe/Berlin")
-        ems_eos.set_start_datetime(start_dt)
-
-        config_eos.optimization.interval = 1800
-        config_eos.prediction.hours = 10  # spans both windows: 00:00–10:00 = 20 intervals
-
-        await provider.update_data(force_enable=True, force_update=True)
-
-        # 10 hours * 2 intervals per hour = 20 intervals
-        assert len(provider) == 20
-
-        records = provider.records
-
-        # Check timestamps are on 30-minute boundaries
-        for record in records:
-            assert record.date_time.minute in (0, 30)
-            assert record.date_time.second == 0
-
-        # First 16 intervals: 00:00–08:00, night rate (8h * 2 = 16)
-        for i in range(16):
-            assert abs(records[i].elecprice_marketprice_wh - 0.000288) < 1e-6, (
-                f"Expected night rate at interval {i}, got {records[i].elecprice_marketprice_wh}"
-            )
-
-        # Remaining 4 intervals: 08:00–10:00, day rate (2h * 2 = 4)
-        for i in range(16, 20):
-            assert abs(records[i].elecprice_marketprice_wh - 0.00034) < 1e-6, (
-                f"Expected day rate at interval {i}, got {records[i].elecprice_marketprice_wh}"
-            )
-
+    @pytest.mark.asyncio
     async def test_update_data_without_config(self, provider, config_eos):
         """Test update_data fails without configuration."""
         # Remove elecpricefixed settings
@@ -216,6 +152,7 @@ class TestElecPriceFixed:
         with pytest.raises(ValueError, match="No time windows configured"):
             await provider.update_data(force_enable=True, force_update=True)
 
+    @pytest.mark.asyncio
     async def test_update_data_without_time_windows(self, provider, config_eos):
         """Test update_data fails without time windows."""
         # Set empty time windows
@@ -225,14 +162,14 @@ class TestElecPriceFixed:
         with pytest.raises(ValueError, match="No time windows configured"):
             await provider.update_data(force_enable=True, force_update=True)
 
+    @pytest.mark.asyncio
     async def test_key_to_array_resampling(self, provider, config_eos):
         """Test that key_to_array can resample to different intervals."""
-        # Setup provider with hourly data
+        # Provider provides 15-minutes data
         ems_eos = get_ems()
         start_dt = to_datetime("2024-01-01 00:00:00", in_timezone="Europe/Berlin")
         ems_eos.set_start_datetime(start_dt)
 
-        config_eos.optimization.interval = 3600
         config_eos.prediction.hours = 24
 
         await provider.update_data(force_enable=True, force_update=True)
@@ -310,7 +247,6 @@ class TestElecPriceFixedIntegration:
 
         config_eos.elecprice.elecpricefixed = ElecPriceFixedCommonSettings(time_windows=time_windows)
         config_eos.prediction.hours = 168  # 7 days
-        config_eos.optimization.interval = 900  # 15 minutes
 
         # Update data
         await provider.update_data(force_enable=True, force_update=True)

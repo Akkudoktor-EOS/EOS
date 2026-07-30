@@ -13,12 +13,10 @@ def pvforecast_instance(config_eos):
         "general": {"latitude": 52.5, "longitude": 13.4},
         "pvforecast": {
             "provider": "PVForecastPVNode",
-            "provider_settings": {
-                "PVForecastPVNode": {
-                    "api_key": "dummy-key",
-                    "site_id": "test-site-123",
-                    "forecast_days": 2,
-                },
+            "pvnode": {
+                "api_key": "dummy-key",
+                "site_id": "test-site-123",
+                "forecast_days": 2,
             },
         },
     }
@@ -89,19 +87,21 @@ async def test_update_data_sets_ac_and_dc_power(pvforecast_instance):
         mock_update.assert_has_calls(expected, any_order=False)
 
 
-def test_update_data_skips_when_disabled(pvforecast_instance, config_eos):
+@pytest.mark.asyncio
+async def test_update_data_skips_when_disabled(pvforecast_instance, config_eos):
     config_eos.merge_settings_from_dict({"pvforecast": {"provider": "PVForecastAkkudoktor"}})
     with patch.object(pvforecast_instance, "_request_forecast") as mock_req, \
          patch.object(PVForecastPVNode, "update_value") as mock_update:
-        pvforecast_instance._update_data()
+        await pvforecast_instance._update_data()
         mock_req.assert_not_called()
         mock_update.assert_not_called()
 
 
-def test_update_data_skips_on_empty_forecast(pvforecast_instance):
+@pytest.mark.asyncio
+async def test_update_data_skips_on_empty_forecast(pvforecast_instance):
     with patch.object(pvforecast_instance, "_request_forecast", return_value={"values": []}), \
          patch.object(PVForecastPVNode, "update_value") as mock_update:
-        pvforecast_instance._update_data()
+        await pvforecast_instance._update_data()
         mock_update.assert_not_called()
 
 
@@ -122,8 +122,8 @@ def test_request_forecast_inline_post_when_no_site(config_eos):
             "general": {"latitude": 52.5, "longitude": 13.4},
             "pvforecast": {
                 "provider": "PVForecastPVNode",
+                "pvnode": {"api_key": "k", "site_id": None},
                 "planes": [{"surface_tilt": 30.0, "surface_azimuth": 180.0, "peakpower": 5.0}],
-                "provider_settings": {"PVForecastPVNode": {"api_key": "k", "site_id": None}},
             },
         }
     )

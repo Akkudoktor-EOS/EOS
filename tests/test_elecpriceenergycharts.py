@@ -52,7 +52,6 @@ def cache_store():
     return CacheFileStore()
 
 
-@pytest.mark.asyncio
 class TestElecPriceEnergyCharts:
     # ------------------------------------------------
     # General forecast
@@ -63,18 +62,15 @@ class TestElecPriceEnergyCharts:
         another_instance = ElecPriceEnergyCharts()
         assert provider is another_instance
 
-
     def test_invalid_provider(self, provider, monkeypatch):
         """Test requesting an unsupported provider."""
         monkeypatch.setenv("EOS_ELECPRICE__ELECPRICE_PROVIDER", "<invalid>")
         provider.config.reset_settings()
         assert not provider.enabled()
 
-
     # ------------------------------------------------
     # Akkudoktor
     # ------------------------------------------------
-
 
     @patch("akkudoktoreos.prediction.elecpriceenergycharts.logger.error")
     def test_validate_data_invalid_format(self, mock_logger, provider):
@@ -83,7 +79,6 @@ class TestElecPriceEnergyCharts:
         with pytest.raises(ValueError):
             provider._validate_data(invalid_data)
         mock_logger.assert_called_once_with(mock_logger.call_args[0][0])
-
 
     @patch("requests.get")
     def test_request_forecast(self, mock_get, provider, sample_energycharts_json):
@@ -101,7 +96,7 @@ class TestElecPriceEnergyCharts:
         assert energy_charts_data.unix_seconds[0] == 1733785200
         assert energy_charts_data.price[0] == 92.85
 
-
+    @pytest.mark.asyncio
     @patch("requests.get")
     async def test_update_data(self, mock_get, provider, sample_energycharts_json, cache_store):
         """Test fetching forecast from Energy-Charts."""
@@ -133,7 +128,7 @@ class TestElecPriceEnergyCharts:
         )
         assert len(np_price_array) == provider.total_hours
 
-
+    @pytest.mark.asyncio
     @patch("requests.get")
     async def test_update_data_with_incomplete_forecast(self, mock_get, provider):
         """Test `_update_data` with incomplete or missing forecast data."""
@@ -145,7 +140,6 @@ class TestElecPriceEnergyCharts:
         logger.info("The following errors are intentional and part of the test.")
         with pytest.raises(ValueError):
             await provider._update_data(force_update=True)
-
 
     @pytest.mark.parametrize(
         "status_code, exception",
@@ -169,7 +163,7 @@ class TestElecPriceEnergyCharts:
         else:
             provider._request_forecast()
 
-
+    @pytest.mark.asyncio
     @patch("requests.get")
     @patch("akkudoktoreos.core.cache.CacheFileStore")
     async def test_cache_integration(self, mock_cache, mock_get, provider, sample_energycharts_json):
@@ -188,7 +182,7 @@ class TestElecPriceEnergyCharts:
         mock_cache_instance.create.assert_called_once()
         mock_cache_instance.get.assert_called_once()
 
-
+    @pytest.mark.asyncio
     async def test_key_to_array_resampling(self, provider):
         """Test resampling of forecast data to NumPy array."""
         await provider.update_data(force_update=True)
@@ -200,7 +194,6 @@ class TestElecPriceEnergyCharts:
         )
         assert isinstance(array, np.ndarray)
         assert len(array) == provider.total_hours
-
 
     @patch("requests.get")
     def test_request_forecast_url_bidding_zone_is_value(self, mock_get, provider, sample_energycharts_json):
@@ -238,11 +231,9 @@ class TestElecPriceEnergyCharts:
             f"but got bzn='{bzn_value}' in URL: {actual_url}"
         )
 
-
     # ------------------------------------------------
     # Development Energy Charts
     # ------------------------------------------------
-
 
     @pytest.mark.skip(reason="For development only")
     def test_energycharts_development_forecast_data(self, provider):

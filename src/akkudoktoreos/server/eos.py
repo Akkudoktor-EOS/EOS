@@ -46,11 +46,17 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeDataFrame,
     PydanticDateTimeSeries,
 )
+from akkudoktoreos.core.types import (
+    BoundaryMode,
+    FillMethod,
+    ResampleMethod,
+)
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import ResourceKey
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticOptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0params import (
+    Genetic0OptimizationParameters,
 )
+from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
@@ -184,7 +190,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         "save_eos_database", save_eos_database, interval_attr="database/autosave_interval_sec"
     )
     manager.register(
-        "compact_eos_database", save_eos_database, interval_attr="database/compaction_interval_sec"
+        "compact_eos_database",
+        compact_eos_database,
+        interval_attr="database/compaction_interval_sec",
     )
     manager.register("manage_energy", ems_manage_energy, interval_attr="ems/interval")
 
@@ -970,16 +978,77 @@ async def fastapi_prediction_dataframe_get(
         Optional[str],
         Query(description="Time duration for each interval. Defaults to 1 hour."),
     ] = None,
+    fill_method: Annotated[
+        Optional[FillMethod],
+        Query(description="Method to handle missing values during resampling."),
+    ] = None,
+    resample_method: Annotated[
+        ResampleMethod,
+        Query(description="Method used to aggregate values within a resampling interval."),
+    ] = "mean",
+    dropna: Annotated[
+        Optional[bool],
+        Query(description="Drop NAN/ None values before processing."),
+    ] = None,
+    boundary: Annotated[
+        BoundaryMode,
+        Query(description="Resampling boundary mode."),
+    ] = "context",
+    align_to_interval: Annotated[
+        bool,
+        Query(
+            description="Snap resample origin to the nearest UTC epoch-aligned boundary of interval."
+        ),
+    ] = False,
 ) -> PydanticDateTimeDataFrame:
-    """Get prediction for given key within given date range as series.
+    """Get prediction for given keys within given date range as dataframe.
 
     Args:
-        key (str): Prediction key
+        key (list[str]): Prediction keys
         start_datetime (Optional[str]): Starting datetime (inclusive).
             Defaults to start datetime of latest prediction.
         end_datetime (Optional[str]: Ending datetime (exclusive).
+            Defaults to end datetime of latest prediction.
+        interval (Optional[str]): Time duration for each interval.
+            Defaults to 1 hour.
+        fill_method (str): Method to handle missing values during resampling.
 
-    Defaults to end datetime of latest prediction.
+            - 'linear': Linearly interpolate missing values (for numeric data only).
+            - 'time': Interpolate missing values (for numeric data only).
+            - 'ffill': Forward fill missing values.
+            - 'bfill': Backward fill missing values.
+            - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+        resample_method (str):
+            Method used to aggregate values within a resampling interval.
+
+            - "first": Use the first value in each interval.
+            - "mean": Compute the arithmetic mean of all samples in each interval.
+            - "interval_mean": Compute the time-weighted mean assuming each
+                value remains valid until the next timestamp (piecewise-constant
+                signal).
+
+        dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+            Defaults to True.
+        boundary (Literal["strict", "context"]): resampling boundary
+            "strict"  → only values inside [start, end)
+            "context" → include one value before and after for proper resampling
+        align_to_interval (bool): When True, snap the resample origin to the nearest
+            UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+            that bucket timestamps always fall on wall-clock-round times regardless of
+            when ``start_datetime`` falls:
+
+            - 15-minute interval → buckets on :00, :15, :30, :45
+            - 1-hour interval    → buckets on the hour
+
+            When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+            no start is given), preserving the existing behaviour where buckets are
+            aligned to the query window rather than the clock.
+
+            Set to True when storing compacted records back to the database so that the
+            resulting timestamps are predictable and human-readable.  Leave False for
+            forecast or reporting queries where alignment to the exact query window is
+            more important than clock-round boundaries.
     """
     for key in keys:
         if key not in get_prediction().record_keys:
@@ -992,10 +1061,25 @@ async def fastapi_prediction_dataframe_get(
         end_datetime = get_prediction().end_datetime
     else:
         end_datetime = to_datetime(end_datetime)
-    df = await get_prediction().keys_to_dataframe(
-        keys=keys, start_datetime=start_datetime, end_datetime=end_datetime, interval=interval
-    )
-    return PydanticDateTimeDataFrame.from_dataframe(df, tz=get_config().general.timezone)
+
+    try:
+        prediction_df = await get_prediction().keys_to_dataframe(
+            keys=keys,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval=interval,
+            fill_method=fill_method,
+            resample_method=resample_method,
+            dropna=dropna,
+            boundary=boundary,
+            align_to_interval=align_to_interval,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Error on prediction dataframe for '{key}': {e}"
+        )
+
+    return PydanticDateTimeDataFrame.from_dataframe(prediction_df, tz=get_config().general.timezone)
 
 
 @app.get("/v1/prediction/list", tags=["prediction"])
@@ -1013,6 +1097,28 @@ async def fastapi_prediction_list_get(
         Optional[str],
         Query(description="Time duration for each interval. Defaults to 1 hour."),
     ] = None,
+    fill_method: Annotated[
+        Optional[FillMethod],
+        Query(description="Method to handle missing values during resampling."),
+    ] = None,
+    resample_method: Annotated[
+        ResampleMethod,
+        Query(description="Method used to aggregate values within a resampling interval."),
+    ] = "mean",
+    dropna: Annotated[
+        Optional[bool],
+        Query(description="Drop NAN/ None values before processing."),
+    ] = None,
+    boundary: Annotated[
+        BoundaryMode,
+        Query(description="Resampling boundary mode."),
+    ] = "context",
+    align_to_interval: Annotated[
+        bool,
+        Query(
+            description="Snap resample origin to the nearest UTC epoch-aligned boundary of interval."
+        ),
+    ] = False,
 ) -> List[Any]:
     """Get prediction for given key within given date range as value list.
 
@@ -1024,6 +1130,44 @@ async def fastapi_prediction_list_get(
             Defaults to end datetime of latest prediction.
         interval (Optional[str]): Time duration for each interval.
             Defaults to 1 hour.
+        fill_method (str): Method to handle missing values during resampling.
+
+            - 'linear': Linearly interpolate missing values (for numeric data only).
+            - 'time': Interpolate missing values (for numeric data only).
+            - 'ffill': Forward fill missing values.
+            - 'bfill': Backward fill missing values.
+            - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+        resample_method (str):
+            Method used to aggregate values within a resampling interval.
+
+            - "first": Use the first value in each interval.
+            - "mean": Compute the arithmetic mean of all samples in each interval.
+            - "interval_mean": Compute the time-weighted mean assuming each
+                value remains valid until the next timestamp (piecewise-constant
+                signal).
+
+        dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+            Defaults to True.
+        boundary (Literal["strict", "context"]): resampling boundary
+            "strict"  → only values inside [start, end)
+            "context" → include one value before and after for proper resampling
+        align_to_interval (bool): When True, snap the resample origin to the nearest
+            UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+            that bucket timestamps always fall on wall-clock-round times regardless of
+            when ``start_datetime`` falls:
+
+            - 15-minute interval → buckets on :00, :15, :30, :45
+            - 1-hour interval    → buckets on the hour
+
+            When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+            no start is given), preserving the existing behaviour where buckets are
+            aligned to the query window rather than the clock.
+
+            Set to True when storing compacted records back to the database so that the
+            resulting timestamps are predictable and human-readable.  Leave False for
+            forecast or reporting queries where alignment to the exact query window is
+            more important than clock-round boundaries.
     """
     if key not in get_prediction().record_keys:
         raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
@@ -1039,13 +1183,23 @@ async def fastapi_prediction_list_get(
         interval = to_duration("1 hour")
     else:
         interval = to_duration(interval)
-    prediction_array = await get_prediction().key_to_array(
-        key=key,
-        start_datetime=start_datetime,
-        end_datetime=end_datetime,
-        interval=interval,
-    )
-    prediction_list = prediction_array.tolist()
+
+    try:
+        prediction_array = await get_prediction().key_to_array(
+            key=key,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval=interval,
+            fill_method=fill_method,
+            resample_method=resample_method,
+            dropna=dropna,
+            boundary=boundary,
+            align_to_interval=align_to_interval,
+        )
+        prediction_list = prediction_array.tolist()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error on prediction list for '{key}': {e}")
+
     return prediction_list
 
 
@@ -1147,6 +1301,53 @@ async def fastapi_prediction_update_provider(
     return Response()
 
 
+@app.delete("/v1/prediction/range", tags=["prediction"])
+async def fastapi_prediction_range_delete(
+    key: Annotated[str, Query(description="Prediction key.")],
+    start_datetime: Annotated[Optional[str], Query(description="Start datetime.")] = None,
+    end_datetime: Annotated[Optional[str], Query(description="End datetime.")] = None,
+) -> PydanticDateTimeSeries:
+    """Delete prediction values for a key within a datetime range."""
+    try:
+        if key not in get_prediction().record_keys:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Key '{key}' not found in predictions",
+            )
+
+        try:
+            start_dt = to_datetime(start_datetime) if start_datetime else None
+            end_dt = to_datetime(end_datetime) if end_datetime else None
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid datetime: {e}",
+            )
+
+        try:
+            await get_prediction().key_delete_by_datetime(
+                key=key,
+                start_datetime=start_dt,
+                end_datetime=end_dt,
+            )
+        except KeyError:
+            # No data for key in predictions
+            pass
+
+        pdseries = await get_prediction().key_to_series(key=key)
+        return PydanticDateTimeSeries.from_series(pdseries)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        trace = "".join(traceback.TracebackException.from_exception(e).format())
+        logger.exception(f"Unexpected error deleting prediction range: {key}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error:\n{e}\n{trace}",
+        )
+
+
 @app.get("/v1/energy-management/optimization/solution", tags=["energy-management"])
 def fastapi_energy_management_optimization_solution_get() -> OptimizationSolution:
     """Get the latest solution of the optimization."""
@@ -1157,6 +1358,38 @@ def fastapi_energy_management_optimization_solution_get() -> OptimizationSolutio
             detail="Can not get the optimization solution.\nDid you configure automatic optimization?",
         )
     return solution
+
+
+@app.get("/v1/energy-management/optimization/solution/{algorithm}", tags=["energy-management"])
+async def fastapi_energy_management_optimization_solution_algorithm_get(
+    algorithm: str,
+) -> Union[GeneticSolution, Genetic0Solution]:
+    """Get the latest algorithm specific solution of the optimization.
+
+    Args:
+        algorithm: Optimization algorithm
+    """
+    algorithm = algorithm.upper()
+    if algorithm not in get_config().optimization.algorithms:
+        raise HTTPException(
+            status_code=404, detail=f"Optimization algorithm '{algorithm}' unknown."
+        )
+    if algorithm == "GENETIC":
+        genetic_solution = get_ems().genetic_solution()
+        if genetic_solution is None:
+            raise HTTPException(
+                status_code=404, detail=f"'{algorithm}' optimization solution not available."
+            )
+        return genetic_solution
+    if algorithm == "GENETIC0":
+        genetic0_solution = get_ems().genetic0_solution()
+        if genetic0_solution is None:
+            raise HTTPException(
+                status_code=404, detail=f"'{algorithm}' optimization solution not available."
+            )
+        return genetic0_solution
+    # Should never happen
+    raise HTTPException(status_code=500, detail=f"'{algorithm}' validated but not handled.")
 
 
 @app.get("/v1/energy-management/plan", tags=["energy-management"])
@@ -1171,13 +1404,13 @@ def fastapi_energy_management_plan_get() -> EnergyManagementPlan:
     return plan
 
 
-@app.get("/strompreis", tags=["prediction"])
+@app.get("/strompreis", tags=["prediction"], deprecated=True)
 async def fastapi_strompreis() -> list[float]:
     """Deprecated: Electricity Market Price Prediction per Wh [amount/Wh].
 
-    Electricity prices start at 00.00.00 today and are provided for 48 hours.
-    If no prices are available the missing ones at the start of the series are
-    filled with the first available price.
+    Electricity prices start at 00.00.00 today and are provided for 48 hours
+    in 1-hour intervals. If no prices are available the missing ones at the
+    start of the series are filled with the first available price.
 
     Note:
         Electricity price charges are added.
@@ -1216,7 +1449,9 @@ async def fastapi_strompreis() -> list[float]:
             key="elecprice_marketprice_wh",
             start_datetime=start_datetime,
             end_datetime=end_datetime,
+            interval=to_duration("1 hour"),
             fill_method="ffill",
+            resample_method="interval_mean",
         )
         elecprice_list = elecprice_array.tolist()
     except Exception as e:
@@ -1234,15 +1469,15 @@ class GesamtlastRequest(PydanticBaseModel):
     hours: int
 
 
-@app.post("/gesamtlast", tags=["prediction"])
+@app.post("/gesamtlast", tags=["prediction"], deprecated=True)
 async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     """Deprecated: Total Load Prediction with adjustment.
 
     Endpoint to handle total load prediction adjusted by latest measured data.
 
-    Total load prediction starts at 00.00.00 today and is provided for 48 hours.
-    If no prediction values are available the missing ones at the start of the series are
-    filled with the first available prediction value.
+    Total load prediction starts at 00.00.00 today and is provided for 48 hours
+    in 1-hour intervals. If no prediction values are available the missing ones
+    at the start of the series are filled with the first available prediction value.
 
     Note:
         Use '/v1/prediction/list?key=loadforecast_power_w' instead.
@@ -1312,7 +1547,7 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
             detail=f"Can not update predictions: {e}",
         )
 
-    # Get the forcast starting at start of day
+    # Get the forecast starting at start of day
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
@@ -1320,6 +1555,11 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
             key="loadforecast_power_w",
             start_datetime=start_datetime,
             end_datetime=end_datetime,
+            interval=to_duration("1 hour"),
+            fill_method="ffill",
+            resample_method="interval_mean",
+            dropna=True,
+            boundary="context",
         )
         prediction_list = prediction_array.tolist()
     except Exception as e:
@@ -1331,15 +1571,15 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     return prediction_list
 
 
-@app.get("/gesamtlast_simple", tags=["prediction"])
+@app.get("/gesamtlast_simple", tags=["prediction"], deprecated=True)
 async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
     """Deprecated: Total Load Prediction.
 
     Endpoint to handle total load prediction.
 
-    Total load prediction starts at 00.00.00 today and is provided for 48 hours.
-    If no prediction values are available the missing ones at the start of the series are
-    filled with the first available prediction value.
+    Total load prediction starts at 00.00.00 today and is provided for 48 hours
+    in 1-hour intervals. If no prediction values are available the missing ones
+    at the start of the series are filled with the first available prediction value.
 
     Args:
         year_energy (float): Yearly energy consumption in Wh.
@@ -1372,7 +1612,7 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
             detail=f"Can not update predictions: {e}",
         )
 
-    # Get the forcast starting at start of day
+    # Get the forecast starting at start of day
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
@@ -1380,6 +1620,11 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
             key="loadforecast_power_w",
             start_datetime=start_datetime,
             end_datetime=end_datetime,
+            interval=to_duration("1 hour"),
+            fill_method="ffill",
+            resample_method="interval_mean",
+            dropna=True,
+            boundary="context",
         )
         prediction_list = prediction_array.tolist()
     except Exception as e:
@@ -1402,9 +1647,9 @@ async def fastapi_pvforecast() -> ForecastResponse:
 
     Endpoint to handle PV forecast prediction.
 
-    PVForecast starts at 00.00.00 today and is provided for 48 hours.
-    If no forecast values are available the missing ones at the start of the series are
-    filled with the first available forecast value.
+    PVForecast starts at 00.00.00 today and is provided for 48 hours
+    in 1-hour intervals. If no forecast values are available the missing ones
+    at the start of the series are filled with the first available forecast value.
 
     Note:
         Set PVForecastAkkudoktor as provider, then update data with
@@ -1428,7 +1673,7 @@ async def fastapi_pvforecast() -> ForecastResponse:
             detail=f"Can not update predictions: {e}",
         )
 
-    # Get the forcast starting at start of day
+    # Get the forecast starting at start of day
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
     try:
@@ -1436,12 +1681,22 @@ async def fastapi_pvforecast() -> ForecastResponse:
             key="pvforecast_ac_power",
             start_datetime=start_datetime,
             end_datetime=end_datetime,
+            interval=to_duration("1 hour"),
+            fill_method="ffill",
+            resample_method="interval_mean",
+            dropna=True,
+            boundary="context",
         )
         ac_power_list = ac_power_array.tolist()
         temp_air_array = await get_prediction().key_to_array(
             key="pvforecastakkudoktor_temp_air",
             start_datetime=start_datetime,
             end_datetime=end_datetime,
+            interval=to_duration("1 hour"),
+            fill_method="ffill",
+            resample_method="interval_mean",
+            dropna=True,
+            boundary="context",
         )
         temp_air_list = temp_air_array.tolist()
     except Exception as e:
@@ -1456,20 +1711,23 @@ async def fastapi_pvforecast() -> ForecastResponse:
 
 @app.post("/optimize", tags=["optimize"])
 async def fastapi_optimize(
-    parameters: GeneticOptimizationParameters,
+    parameters: Genetic0OptimizationParameters,
     start_hour: Annotated[
         Optional[int], Query(description="Defaults to current hour of the day.")
     ] = None,
     ngen: Annotated[
         Optional[int], Query(description="Number of indivuals to generate for genetic algorithm.")
     ] = None,
-) -> GeneticSolution:
+) -> Genetic0Solution:
     """Deprecated: Optimize.
 
     Endpoint to handle optimization.
 
+    Uses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).
+
     Note:
         Use automatic optimization instead.
+        "v1/energy-management/optimization/solution/GENETIC0"
     """
     if start_hour is None:
         start_datetime = None
@@ -1481,13 +1739,14 @@ async def fastapi_optimize(
         await get_ems().run(
             start_datetime=start_datetime,
             mode=EnergyManagementMode.OPTIMIZATION,
-            genetic_parameters=parameters,
-            genetic_individuals=ngen,
+            algorithm="GENETIC0",
+            genetic0_parameters=parameters,
+            genetic0_generations=ngen,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Optimize error: {e}.")
 
-    solution = get_ems().genetic_solution()
+    solution = get_ems().genetic0_solution()
     if solution is None:
         raise HTTPException(status_code=400, detail="Optimize error: no solution stored by run.")
 

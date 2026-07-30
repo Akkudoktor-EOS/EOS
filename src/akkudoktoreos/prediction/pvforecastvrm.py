@@ -1,4 +1,4 @@
-"""Retrieves pvforecast data from VRM API."""
+"""Retrieves pvforecast data from Victron Remote Management (VRM) API."""
 
 from typing import Any, Optional, Union
 
@@ -26,14 +26,14 @@ class VrmForecastResponse(PydanticBaseModel):
 class PVForecastVrmCommonSettings(SettingsBaseModel):
     """Common settings for PV forecast VRM API."""
 
-    pvforecast_vrm_token: str = Field(
+    token: str = Field(
         default="your-token",
         json_schema_extra={
-            "description": "Token for Connecting VRM API",
+            "description": "Access token for connecting to the Victron Remote Management (VRM) API",
             "examples": ["your-token"],
         },
     )
-    pvforecast_vrm_idsite: int = Field(
+    site_id: int = Field(
         default=12345, json_schema_extra={"description": "VRM-Installation-ID", "examples": [12345]}
     )
 
@@ -63,8 +63,8 @@ class PVForecastVrm(PVForecastProvider):
     def _request_forecast(self, start_ts: int, end_ts: int) -> VrmForecastResponse:
         """Fetch forecast data from Victron VRM API."""
         source = "https://vrmapi.victronenergy.com/v2/installations"
-        id_site = self.config.pvforecast.provider_settings.PVForecastVrm.pvforecast_vrm_idsite
-        api_token = self.config.pvforecast.provider_settings.PVForecastVrm.pvforecast_vrm_token
+        id_site = self.config.pvforecast.vrm.site_id
+        api_token = self.config.pvforecast.vrm.token
         headers = {"X-Authorization": f"Token {api_token}", "Content-Type": "application/json"}
         url = f"{source}/{id_site}/stats?type=forecast&start={start_ts}&end={end_ts}&interval=hours"
         logger.debug(f"Requesting VRM forecast: {url}")

@@ -11,9 +11,16 @@ import pytest
 import requests
 from conftest import cleanup_eos_eosdash
 from loguru import logger
+from pydantic import ValidationError
 
+from akkudoktoreos.config.configabc import is_home_assistant_addon
 from akkudoktoreos.core.version import __version__
-from akkudoktoreos.server.server import get_default_host, wait_for_port_free
+from akkudoktoreos.server.server import (
+    ServerCommonSettings,
+    get_default_host,
+    get_default_port,
+    wait_for_port_free,
+)
 
 
 class TestServer:
@@ -43,6 +50,38 @@ class TestServer:
         assert str(config_file_path).startswith(eos_dir)
         assert str(data_folder_path).startswith(eos_dir)
         assert str(data_ouput_path).startswith(eos_dir)
+
+
+class TestServerSettingsValidation:
+    """Test the port restrictions in ServerCommonSettings when running as HA addon."""
+
+    def test_ha_addon_default_ports_ok(self, config_eos, monkeypatch):
+        """Default ports are accepted in HA addon mode."""
+        monkeypatch.setattr('akkudoktoreos.server.server.is_home_assistant_addon', lambda: True)
+        assert config_eos.server.port == get_default_port()           # 8503
+        assert config_eos.server.eosdash_port == get_default_port() + 1  # 8504
+
+    def test_server_port_restriction_in_ha_addon(self, config_eos, monkeypatch):
+        """Server port must be the default (8503) in HA addon mode."""
+        monkeypatch.setattr('akkudoktoreos.server.server.is_home_assistant_addon', lambda: True)
+        with pytest.raises(ValidationError) as excinfo:
+            config_eos.server.port = 9000
+        assert "Server port number `8503` for Home Assistant add-on can not be changed" in str(excinfo.value)
+
+    def test_eosdash_port_restriction_in_ha_addon(self, config_eos, monkeypatch):
+        """EOSdash port must be the default (8504) in HA addon mode."""
+        monkeypatch.setattr('akkudoktoreos.server.server.is_home_assistant_addon', lambda: True)
+        with pytest.raises(ValidationError) as excinfo:
+            config_eos.server.eosdash_port = 9001
+        assert "EOSdash port number `8504` for Home Assistant add-on can not be changed" in str(excinfo.value)
+
+    def test_ports_allowed_when_not_ha_addon(self, config_eos):
+        """Custom ports are allowed when not in HA addon mode."""
+        # is_home_assistant_addon() returns False by default in this test environment
+        config_eos.server.port = 9000
+        config_eos.server.eosdash_port = 9001
+        assert config_eos.server.port == 9000
+        assert config_eos.server.eosdash_port == 9001
 
 
 class TestServerStartStop:
