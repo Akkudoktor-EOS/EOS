@@ -18,6 +18,9 @@ from akkudoktoreos.core.emplan import (
     FRBCInstruction,
 )
 from akkudoktoreos.core.pydantic import PydanticDateTimeDataFrame
+from akkudoktoreos.core.types import (
+    FillMethod,
+)
 from akkudoktoreos.devices.devicesabc import (
     ApplianceOperationMode,
     BatteryOperationMode,
@@ -673,7 +676,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         )
         pred = get_prediction()
 
-        for pred_key, pred_fill_method, pred_solution_key, pred_solution_factor in [
+        prediction_specs: list[tuple[str, FillMethod, str, float]] = [
             (
                 "pvforecast_ac_power",
                 "linear",
@@ -722,7 +725,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 "loadakkudoktor_mean_energy_wh",
                 power_to_energy_per_interval_factor,
             ),
-        ]:
+        ]
+
+        for pred_key, pred_fill_method, pred_solution_key, pred_solution_factor in prediction_specs:
             if pred_key in pred.record_keys:
                 array = await pred.key_to_array(
                     key=pred_key,

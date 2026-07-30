@@ -786,3 +786,49 @@ class TestSystem:
             assert result.status_code == HTTPStatus.OK
             cache = result.json()
             assert cache == {}
+
+    def test_deprecated_strompreis(self, server_setup_for_class, is_system_test):
+        """Test deprecated /strompreis endpoint.
+
+        Deprecated /strompreis aggregates 15-minute spot prices to hourly means.
+        """
+        server = server_setup_for_class["server"]
+        eos_dir = server_setup_for_class["eos_dir"]
+        start_datetime = to_datetime().start_of("day")
+        end_datetime = start_datetime.add(days=2)
+
+        # Reset electricity market price
+        result = requests.delete(
+            f"{server}/v1/prediction/range",
+            params = {
+                "key": "elecprice_marketprice_wh",
+            }
+        )
+        assert result.status_code in (HTTPStatus.OK, HTTPStatus.NOT_FOUND)
+
+        if not is_system_test:
+            return
+
+        # Call /strompreis
+        result = requests.get(f"{server}/strompreis")
+        assert result.status_code == HTTPStatus.OK
+
+        strompreis_data = result.json()
+        assert len(strompreis_data) == 48
+
+        # Get the same data by v1 interface
+        result = requests.get(
+            f"{server}/v1/prediction/list",
+            params = {
+                "key": "elecprice_marketprice_wh",
+                "start_datetime": to_datetime(start_datetime, as_string=True),
+                "end_datetime": to_datetime(end_datetime, as_string=True),
+                "interval" : "1 hour",
+                "fill_method" : "ffill",
+                "resample_method" : "interval_mean",
+            }
+        )
+        assert result.status_code == HTTPStatus.OK
+
+        v1_data = result.json()
+        assert strompreis_data == pytest.approx(v1_data)

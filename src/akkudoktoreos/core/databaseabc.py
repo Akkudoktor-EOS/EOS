@@ -17,7 +17,6 @@ from typing import (
     Generic,
     Iterable,
     Iterator,
-    Literal,
     Optional,
     Protocol,
     Self,
@@ -33,6 +32,11 @@ from akkudoktoreos.core.coreabc import (
     ConfigMixin,
     DatabaseMixin,
     SingletonMixin,
+)
+from akkudoktoreos.core.types import (
+    BoundaryMode,
+    FillMethod,
+    ResampleMethod,
 )
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
@@ -543,9 +547,10 @@ class DatabaseRecordProtocolMixin(
             start_datetime: Optional[DateTime] = None,
             end_datetime: Optional[DateTime] = None,
             interval: Optional[Duration] = None,
-            fill_method: Optional[str] = None,
+            fill_method: Optional[FillMethod] = None,
+            resample_method: ResampleMethod = "mean",
             dropna: Optional[bool] = True,
-            boundary: Literal["strict", "context"] = "context",
+            boundary: BoundaryMode = "context",
             align_to_interval: bool = False,
         ) -> NDArray[Shape["*"], Any]: ...
 
