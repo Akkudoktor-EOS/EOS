@@ -622,6 +622,20 @@ class DatabaseRecordProtocolMixin(
 
             self._db_initialized: bool = True
 
+        # Ensure the configured database backend is actually opened.
+        # `db_enabled` reflects `database.is_open`, and every DB code path is guarded
+        # behind `db_enabled`. Without an explicit open here the backend is never
+        # opened (lazy open via `_run_db` is unreachable), so records would only ever
+        # persist to the JSON file fallback and never reload into memory on startup.
+        if not self.database.is_open:
+            try:
+                await self.database.open(namespace=self.db_namespace())
+            except Exception:
+                logger.exception(
+                    f"Could not open database backend for namespace '{self.db_namespace()}'; "
+                    "falling back to file storage."
+                )
+
         if not self._db_storage_initialized and self.db_enabled:
             # Metadata
             existing_metadata = await self._db_load_metadata()
