@@ -975,6 +975,44 @@ class TestDataSequence:
         assert dates == [to_datetime(datetime(2023, 11, 5)), to_datetime(datetime(2023, 11, 6))]
         assert values == [0.8, 0.9]
 
+    async def test_key_to_dict_dropna_removes_nan(self, sequence):
+        """`dropna=True` (default) must drop records whose value is NaN, not just None."""
+        record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
+        record2 = self.create_test_record(datetime(2023, 11, 6), float("nan"))
+        record3 = self.create_test_record(datetime(2023, 11, 7), 0.9)
+        await sequence.insert_by_datetime(record1)
+        await sequence.insert_by_datetime(record2)
+        await sequence.insert_by_datetime(record3)
+
+        # Default dropna=True must drop the NaN record.
+        data_dict = await sequence.key_to_dict("data_value")
+        assert to_datetime(datetime(2023, 11, 6), as_string=True) not in data_dict
+        assert data_dict[to_datetime(datetime(2023, 11, 5), as_string=True)] == 0.8
+        assert data_dict[to_datetime(datetime(2023, 11, 7), as_string=True)] == 0.9
+
+        # With dropna=False the NaN record must be kept.
+        data_dict_keep = await sequence.key_to_dict("data_value", dropna=False)
+        assert pd.isna(data_dict_keep[to_datetime(datetime(2023, 11, 6), as_string=True)])
+
+    async def test_key_to_lists_dropna_removes_nan(self, sequence):
+        """`dropna=True` (default) must drop records whose value is NaN, not just None."""
+        record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
+        record2 = self.create_test_record(datetime(2023, 11, 6), float("nan"))
+        record3 = self.create_test_record(datetime(2023, 11, 7), 0.9)
+        await sequence.insert_by_datetime(record1)
+        await sequence.insert_by_datetime(record2)
+        await sequence.insert_by_datetime(record3)
+
+        # Default dropna=True must drop the NaN record.
+        dates, values = await sequence.key_to_lists("data_value")
+        assert dates == [to_datetime(datetime(2023, 11, 5)), to_datetime(datetime(2023, 11, 7))]
+        assert values == [0.8, 0.9]
+
+        # With dropna=False the NaN record must be kept.
+        dates_keep, values_keep = await sequence.key_to_lists("data_value", dropna=False)
+        assert len(values_keep) == 3
+        assert pd.isna(values_keep[1])
+
     async def test_to_dataframe_full_data(self, sequence):
         """Test conversion of all records to a DataFrame without filtering."""
         record1 = self.create_test_record("2024-01-01T12:00:00Z", 10)
