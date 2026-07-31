@@ -44,7 +44,16 @@
     },
     "elecprice": {
         "provider": "ElecPriceAkkudoktor",
-        "charges_kwh": 0.21
+        "charges": [
+            {
+                "type": "fixed",
+                "amount": 0.21
+            },
+            {
+                "type": "percent",
+                "amount": 0.19
+            }
+        ]
     },
     "load": {
         "loadakkudoktor": {

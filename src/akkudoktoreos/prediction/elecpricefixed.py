@@ -103,9 +103,12 @@ class ElecPriceFixed(ElecPriceProvider):
             align_to_interval=True,
         )
 
-        # Convert kWh → Wh and store one entry per interval step.
+        # Convert kWh → Wh and store one entry per interval step. The configured
+        # fixed price is treated as the market (working) price; configured charge
+        # components are applied on top.
         for idx, price_kwh in enumerate(prices_kwh):
             current_dt = start_datetime.add(seconds=idx * interval_seconds)
-            await self.update_value(current_dt, "elecprice_marketprice_wh", price_kwh / 1000.0)
+            price_wh = self.apply_charges(price_kwh / 1000.0)
+            await self.update_value(current_dt, "elecprice_marketprice_wh", price_wh)
 
         logger.debug(f"Successfully generated {len(prices_kwh)} fixed electricity price entries")

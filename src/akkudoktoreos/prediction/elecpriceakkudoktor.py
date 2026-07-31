@@ -153,9 +153,6 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
 
-        # Get charges_kwh in wh
-        charges_wh = (self.config.elecprice.charges_kwh or 0) / 1000
-
         highest_orig_datetime = None  # newest datetime from the api after that we want to update.
         series_data = pd.Series(dtype=float)  # Initialize an empty series
 
@@ -164,7 +161,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
             if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
                 highest_orig_datetime = orig_datetime
 
-            price_wh = value.marketpriceEurocentPerKWh / (100 * 1000) + charges_wh
+            price_wh = self.apply_charges(value.marketpriceEurocentPerKWh / (100 * 1000))
 
             # Collect all values into the Pandas Series
             series_data.at[orig_datetime] = price_wh

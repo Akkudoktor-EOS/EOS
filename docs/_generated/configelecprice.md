@@ -7,14 +7,13 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `float | None` | `rw` | `None` | Electricity price charges [amount/kWh]. Will be added to variable market price. |
+| charges | `EOS_ELECPRICE__CHARGES` | `list[akkudoktoreos.prediction.elecprice.ElecPriceChargeComponent] | None` | `rw` | `None` | Ordered list of electricity price charge/fee components added on top of the market (spot working) price to build the final consumer price. Applied by all providers except the import provider. If omitted, the market price is used unchanged. |
 | elecpricefixed | `EOS_ELECPRICE__ELECPRICEFIXED` | `ElecPriceFixedCommonSettings` | `rw` | `required` | Fixed electricity price provider settings. |
 | elecpriceimport | `EOS_ELECPRICE__ELECPRICEIMPORT` | `ElecPriceImportCommonSettings` | `rw` | `required` | Electricity price import provider settings. |
 | energycharts | `EOS_ELECPRICE__ENERGYCHARTS` | `ElecPriceEnergyChartsCommonSettings` | `rw` | `required` | Energy Charts provider settings. |
 | provider | `EOS_ELECPRICE__PROVIDER` | `str | None` | `rw` | `None` | Electricity price provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available electricity price provider ids. |
 | tibber | `EOS_ELECPRICE__TIBBER` | `ElecPriceTibberCommonSettings` | `rw` | `required` | Tibber electricity price provider settings. |
-| vat_rate | `EOS_ELECPRICE__VAT_RATE` | `float | None` | `rw` | `1.19` | VAT rate factor applied to electricity price when charges are used. |
 :::
 <!-- pyml enable line-length -->
 
@@ -27,8 +26,26 @@
    {
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
-           "charges_kwh": 0.21,
-           "vat_rate": 1.19,
+           "charges": [
+               {
+                   "name": "Netzentgelt",
+                   "type": "fixed",
+                   "amount": 0.1153,
+                   "basis": null
+               },
+               {
+                   "name": "Stromsteuer",
+                   "type": "fixed",
+                   "amount": 0.0205,
+                   "basis": null
+               },
+               {
+                   "name": "MwSt",
+                   "type": "percent",
+                   "amount": 0.19,
+                   "basis": null
+               }
+           ],
            "elecpricefixed": {
                "time_windows": {
                    "windows": []
@@ -59,8 +76,26 @@
    {
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
-           "charges_kwh": 0.21,
-           "vat_rate": 1.19,
+           "charges": [
+               {
+                   "name": "Netzentgelt",
+                   "type": "fixed",
+                   "amount": 0.1153,
+                   "basis": null
+               },
+               {
+                   "name": "Stromsteuer",
+                   "type": "fixed",
+                   "amount": 0.0205,
+                   "basis": null
+               },
+               {
+                   "name": "MwSt",
+                   "type": "percent",
+                   "amount": 0.19,
+                   "basis": null
+               }
+           ],
            "elecpricefixed": {
                "time_windows": {
                    "windows": []
@@ -305,11 +340,55 @@ price applicable during that interval.
                            "day_of_week": null,
                            "date": null,
                            "locale": null,
-                           "value": 0.34
-                       }
+                            "value": 0.34
+                        }
+                    ]
+                }
+            }
+        }
+    }
+ ```
+<!-- pyml enable line-length -->
+
+### A single electricity price charge/fee component
+
+Components are applied in order (first to last) on top of the market
+(spot working) price to build the final consumer price. A component is
+either a fixed absolute amount per kWh or a percentage add-on computed on a
+configurable basis.
+
+<!-- pyml disable line-length -->
+:::{table} elecprice::charges::list
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| amount | `float` | `rw` | `required` | For 'fixed' components the absolute amount per kWh [amount/kWh]. For 'percent' components the rate as a fraction (e.g. 0.19 for 19%). |
+| basis | `list[str] | None` | `rw` | `None` | Only used for 'percent' components. Names of the preceding components (and/or the literal 'market' for the market price) that form the basis of the percentage. If omitted, the percentage applies to the full accumulated price so far (market price plus all preceding add-ons). |
+| name | `str | None` | `rw` | `None` | Optional name of the charge component. Used to reference this component as the basis of a later percentage component. |
+| type | `Literal['fixed', 'percent']` | `rw` | `required` | Type of the charge component. 'fixed' adds an absolute amount per kWh, 'percent' adds a percentage of a basis. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "elecprice": {
+           "charges": [
+               {
+                   "name": "Netzentgelt",
+                   "type": "fixed",
+                   "amount": 0.0205,
+                   "basis": [
+                       "market"
                    ]
                }
-           }
+           ]
        }
    }
 ```

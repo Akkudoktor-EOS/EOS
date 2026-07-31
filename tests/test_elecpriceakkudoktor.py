@@ -211,6 +211,37 @@ class TestElecPriceAkkudokor:
         assert len(array) == provider.total_hours
 
 
+    @pytest.mark.asyncio
+    @patch("requests.get")
+    async def test_charges_applied(
+        self, mock_get, provider, sample_akkudoktor_1_json, cache_store
+    ):
+        """Configured charge components are applied on top of the market price."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = json.dumps(sample_akkudoktor_1_json)
+        mock_get.return_value = mock_response
+
+        # Baseline: no charges configured.
+        cache_store.clear(clear_all=True)
+        ems_eos = get_ems()
+        ems_eos.set_start_datetime(to_datetime("2024-12-11 00:00:00", in_timezone="Europe/Berlin"))
+        await provider.update_data(force_enable=True, force_update=True)
+        baseline = provider.records[0]["elecprice_marketprice_wh"]
+
+        # Now configure a fixed charge plus 19% VAT on everything.
+        provider.config.elecprice.charges = [
+            {"type": "fixed", "amount": 0.10},
+            {"type": "percent", "amount": 0.19},
+        ]
+        cache_store.clear(clear_all=True)
+        await provider.update_data(force_enable=True, force_update=True)
+        with_charges = provider.records[0]["elecprice_marketprice_wh"]
+
+        expected = (baseline + 0.10 / 1000) * 1.19
+        assert with_charges == pytest.approx(expected)
+
+
     # ------------------------------------------------
     # Development Akkudoktor
     # ------------------------------------------------

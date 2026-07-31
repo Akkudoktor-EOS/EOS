@@ -15,7 +15,7 @@ from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 def provider(config_eos):
     config_eos.merge_settings_from_dict(
         {
-            "elecprice": {"charges_kwh": 0.30},
+            "elecprice": {"charges": [{"type": "fixed", "amount": 0.30}]},
             "feedintariff": {"provider": "FeedInTariffAkkudoktor"},
         }
     )

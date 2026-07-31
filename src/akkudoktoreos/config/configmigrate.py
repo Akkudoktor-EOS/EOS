@@ -72,6 +72,11 @@ MIGRATION_MAP: Dict[
     "elecprice/provider_settings/ElecPriceImport/import_json": "elecprice/elecpriceimport/import_json",
     "elecprice/provider_settings/import_file_path": "elecprice/elecpriceimport/import_file_path",
     "elecprice/provider_settings/import_json": "elecprice/elecpriceimport/import_json",
+    # - charges_kwh/vat_rate are combined into the new 'charges' component list
+    #   by _migrate_elecprice_charges(); drop the legacy keys here so they are
+    #   not carried over by the automatic migration.
+    "elecprice/charges_kwh": None,
+    "elecprice/vat_rate": None,
     # feedintariff
     # ============
     # - FeedInTariffFixed
@@ -222,18 +227,21 @@ def migrate_config_data(config_data: Dict[str, Any]) -> "SettingsEOSDefaults":
                 f"Failed mapped migration '{old_path}' -> '{new_path}': {e}"
             )
 
-    # 2) Automatic migration for remaining fields
+    # 2) Combine legacy elecprice charges_kwh/vat_rate into the new charges list
+    _migrate_elecprice_charges(config_data, new_config)
+
+    # 3) Automatic migration for remaining fields
     auto_count += _migrate_matching_fields(
         config_data, new_config, migrated_source_paths, skipped_paths
     )
 
-    # 3) Ensure version
+    # 4) Ensure version
     try:
         new_config.set_nested_value("general/version", __version__)
     except Exception as e:
         logger.warning(f"Could not set version on new configuration model: {e}")
 
-    # 4) Log final migration summary
+    # 5) Log final migration summary
     logger.info(
         f"Migration summary: "
         f"mapped fields: {mapped_count}, automatically migrated: {auto_count}, skipped: {len(skipped_paths)}"
@@ -336,6 +344,42 @@ def migrate_config_file(config_file: Path, backup_file: Path) -> bool:
     except Exception as e:
         logger.exception(f"Unexpected error during migration: {e}")
         return False
+
+
+def _migrate_elecprice_charges(
+    config_data: Dict[str, Any], new_config: "SettingsEOSDefaults"
+) -> None:
+    """Combine legacy ``elecprice.charges_kwh``/``vat_rate`` into ``elecprice.charges``.
+
+    The old model added a single fixed charge (``charges_kwh``) and optionally
+    multiplied the sum by a VAT factor (``vat_rate``). This is reproduced with a
+    fixed component followed by a percentage (VAT) component whose rate is
+    ``vat_rate - 1`` (the factor 1.19 becomes a 0.19 add-on on everything).
+    """
+    charges_kwh = _get_json_nested_value(config_data, "elecprice/charges_kwh")
+    vat_rate = _get_json_nested_value(config_data, "elecprice/vat_rate")
+
+    if charges_kwh is None:
+        # Nothing to migrate; a lone vat_rate had no effect in the old model.
+        return
+
+    components: List[Dict[str, Any]] = [
+        {"type": "fixed", "amount": float(charges_kwh)},
+    ]
+
+    # Old default vat_rate was 1.19. Preserve the effective VAT add-on. Only a
+    # rate > 1 produced an actual surcharge in the old model.
+    effective_vat = 1.19 if vat_rate is None else float(vat_rate)
+    if effective_vat > 1.0:
+        components.append({"type": "percent", "amount": round(effective_vat - 1.0, 10)})
+
+    try:
+        new_config.set_nested_value("elecprice/charges", components)
+        logger.debug(
+            f"✅ Migrated elecprice charges_kwh/vat_rate → 'elecprice/charges' = {components!r}"
+        )
+    except Exception as e:
+        logger.opt(exception=True).warning(f"Failed migrating elecprice charges: {e}")
 
 
 def _get_json_nested_value(data: dict, path: str) -> Any:

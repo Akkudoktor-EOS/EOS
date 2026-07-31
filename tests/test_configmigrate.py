@@ -248,3 +248,44 @@ class TestConfigMigration:
             # Remove the .new working file only if the test passed (failed == False)
             if not failed and working_file.exists():
                 working_file.unlink(missing_ok=True)
+
+    def test_migrate_elecprice_charges_combines_legacy_fields(self):
+        """Legacy charges_kwh/vat_rate combine into an equivalent charges list."""
+        config = {
+            "general": {"version": "0.0.0-old"},
+            "elecprice": {
+                "provider": "ElecPriceAkkudoktor",
+                "charges_kwh": 0.21,
+                "vat_rate": 1.19,
+            },
+        }
+        new_config = configmigrate.migrate_config_data(config)
+        charges = new_config.elecprice.charges
+        assert charges is not None
+        assert [(c.type, c.amount) for c in charges] == [
+            ("fixed", 0.21),
+            ("percent", pytest.approx(0.19)),
+        ]
+
+    def test_migrate_elecprice_charges_without_vat(self):
+        """A default (unset) vat_rate still produces the 19% VAT add-on."""
+        config = {
+            "general": {"version": "0.0.0-old"},
+            "elecprice": {"charges_kwh": 0.30},
+        }
+        new_config = configmigrate.migrate_config_data(config)
+        charges = new_config.elecprice.charges
+        assert charges is not None
+        assert [(c.type, c.amount) for c in charges] == [
+            ("fixed", 0.30),
+            ("percent", pytest.approx(0.19)),
+        ]
+
+    def test_migrate_elecprice_charges_none_is_noop(self):
+        """No charges_kwh means no charges list is created."""
+        config = {
+            "general": {"version": "0.0.0-old"},
+            "elecprice": {"charges_kwh": None, "vat_rate": 1.19},
+        }
+        new_config = configmigrate.migrate_config_data(config)
+        assert new_config.elecprice.charges is None

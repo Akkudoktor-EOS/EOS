@@ -139,8 +139,41 @@ Configuration options:
     - `ElecPriceFixed`: Caluclates from configured time window prices.
     - `ElecPriceImport`: Imports from a file or JSON string or by endpoint data provision.
 
-  - `charges_kwh`: Electricity price charges (€/kWh).
-  - `vat_rate`: VAT rate factor applied to electricity price when charges are used (default: 1.19).
+  - `charges`: Ordered list of charge/fee components added on top of the market
+    (spot working) price to build the final consumer price. Applied by all
+    providers except `ElecPriceImport`. Each component has:
+
+    - `name`: Optional label, used to reference the component as the basis of a
+      later percentage component.
+    - `type`: `fixed` (an absolute amount per kWh) or `percent` (a percentage
+      of a basis).
+    - `amount`: For `fixed`, the amount per kWh (€/kWh). For `percent`, the rate
+      as a fraction (e.g. `0.19` for 19 %).
+    - `basis`: Only for `percent` components. Names of preceding components
+      (and/or the literal `market` for the market price) that form the basis of
+      the percentage. If omitted, the percentage applies to the full accumulated
+      price so far (market price plus all preceding add-ons).
+
+    Components are processed first to last, so a German price build-up can be
+    expressed as, e.g.:
+
+    ```json
+    {
+        "elecprice": {
+            "charges": [
+                {"name": "Netzentgelt", "type": "fixed", "amount": 0.1153},
+                {"name": "Konzessionsabgabe", "type": "fixed", "amount": 0.018},
+                {"name": "Stromsteuer", "type": "fixed", "amount": 0.0205},
+                {"name": "Umlagen", "type": "fixed", "amount": 0.0158},
+                {"name": "MwSt", "type": "percent", "amount": 0.19}
+            ]
+        }
+    }
+    ```
+
+    If `charges` is omitted the market price is used unchanged (useful for
+    providers such as Tibber that already deliver a full consumer price).
+
   - `elecpricefixed.time_windows.windows`: The time windows with associated electricity prices.
   - `elecpriceimport.import_file_path`: Path to the file to import electricity price forecast data from.
   - `elecpriceimport.import_json`: JSON string, dictionary of electricity price forecast value lists.
@@ -151,8 +184,8 @@ Configuration options:
 The `ElecPriceAkkudoktor` provider retrieves electricity prices directly from **Akkudoktor.net**,
 which supplies price data for the next 24 hours. For periods beyond 24 hours, the provider generates
 prices by extrapolating historical price data combined with the most recent actual prices obtained
-from Akkudoktor.net. Electricity price charges given in the `charges_kwh` configuration
-option are added.
+from Akkudoktor.net. The configured `charges` components are applied on top of the
+market price.
 
 ### ElecPriceEnergyCharts Provider
 
@@ -166,9 +199,11 @@ forecasting by combining real-time market data with historical price trends.
 
 Charges and VAT
 
-- If `charges_kwh` configuration option is greater than 0, the electricity price is calculated as:
-  `(market price + charges_kwh) * vat_rate` where `vat_rate` is configurable (default: 1.19 for 19% VAT).
-- If `charges_kwh` is set to 0, the electricity price is simply: `market_price` (no VAT applied).
+- The market price is passed through the configured `charges` components (see above)
+  to build the final consumer price. VAT is modelled as a `percent` component (e.g.
+  `{"type": "percent", "amount": 0.19}`) which, with the default (omitted) `basis`,
+  applies to the market price plus all preceding add-ons.
+- If `charges` is omitted the market price is used unchanged.
 
 **Note:** For the most accurate forecasts, it is recommended to set the `historic_hours` parameter to 840.
 

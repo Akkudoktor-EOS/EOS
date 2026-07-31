@@ -147,9 +147,6 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
 
-        # Get charges_kwh in wh
-        charges_wh = (self.config.elecprice.charges_kwh or 0) / 1000
-
         # Initialize
         highest_orig_datetime = None  # newest datetime from the api after that we want to update.
         series_data = pd.Series(dtype=float)  # Initialize an empty series
@@ -164,12 +161,8 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
                 highest_orig_datetime = orig_datetime
 
-            # Convert EUR/MWh to EUR/Wh, apply charges and VAT if charges > 0
-            if charges_wh > 0:
-                vat_rate = self.config.elecprice.vat_rate or 1.19
-                price_wh = ((price_eur_per_mwh / 1_000_000) + charges_wh) * vat_rate
-            else:
-                price_wh = price_eur_per_mwh / 1_000_000
+            # Convert EUR/MWh to EUR/Wh and apply configured charges.
+            price_wh = self.apply_charges(price_eur_per_mwh / 1_000_000)
 
             # Store in series
             series_data.at[orig_datetime] = price_wh

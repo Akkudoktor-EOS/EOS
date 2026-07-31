@@ -3743,6 +3743,81 @@
         "title": "DevicesCommonSettings",
         "description": "Base configuration for devices simulation settings."
       },
+      "ElecPriceChargeComponent": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Optional name of the charge component. Used to reference this component as the basis of a later percentage component.",
+            "examples": [
+              "Netzentgelt",
+              "Stromsteuer",
+              "MwSt"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "fixed",
+              "percent"
+            ],
+            "title": "Type",
+            "description": "Type of the charge component. 'fixed' adds an absolute amount per kWh, 'percent' adds a percentage of a basis.",
+            "examples": [
+              "fixed",
+              "percent"
+            ]
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Amount",
+            "description": "For 'fixed' components the absolute amount per kWh [amount/kWh]. For 'percent' components the rate as a fraction (e.g. 0.19 for 19%).",
+            "examples": [
+              0.0205,
+              0.19
+            ]
+          },
+          "basis": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basis",
+            "description": "Only used for 'percent' components. Names of the preceding components (and/or the literal 'market' for the market price) that form the basis of the percentage. If omitted, the percentage applies to the full accumulated price so far (market price plus all preceding add-ons).",
+            "examples": [
+              [
+                "market"
+              ],
+              [
+                "Netzentgelt",
+                "Stromsteuer"
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "amount"
+        ],
+        "title": "ElecPriceChargeComponent",
+        "description": "A single electricity price charge/fee component.\n\nComponents are applied in order (first to last) on top of the market\n(spot working) price to build the final consumer price. A component is\neither a fixed absolute amount per kWh or a percentage add-on computed on a\nconfigurable basis."
+      },
       "ElecPriceCommonSettings-Input": {
         "properties": {
           "provider": {
@@ -3760,37 +3835,38 @@
               "ElecPriceAkkudoktor"
             ]
           },
-          "charges_kwh": {
+          "charges": {
             "anyOf": [
               {
-                "type": "number",
-                "minimum": 0.0
+                "items": {
+                  "$ref": "#/components/schemas/ElecPriceChargeComponent"
+                },
+                "type": "array"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Charges Kwh",
-            "description": "Electricity price charges [amount/kWh]. Will be added to variable market price.",
+            "title": "Charges",
+            "description": "Ordered list of electricity price charge/fee components added on top of the market (spot working) price to build the final consumer price. Applied by all providers except the import provider. If omitted, the market price is used unchanged.",
             "examples": [
-              0.21
-            ]
-          },
-          "vat_rate": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vat Rate",
-            "description": "VAT rate factor applied to electricity price when charges are used.",
-            "default": 1.19,
-            "examples": [
-              1.19
+              [
+                {
+                  "name": "Netzentgelt",
+                  "type": "fixed",
+                  "amount": 0.1153
+                },
+                {
+                  "name": "Stromsteuer",
+                  "type": "fixed",
+                  "amount": 0.0205
+                },
+                {
+                  "name": "MwSt",
+                  "type": "percent",
+                  "amount": 0.19
+                }
+              ]
             ]
           },
           "elecpricefixed": {
@@ -3831,37 +3907,38 @@
               "ElecPriceAkkudoktor"
             ]
           },
-          "charges_kwh": {
+          "charges": {
             "anyOf": [
               {
-                "type": "number",
-                "minimum": 0.0
+                "items": {
+                  "$ref": "#/components/schemas/ElecPriceChargeComponent"
+                },
+                "type": "array"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Charges Kwh",
-            "description": "Electricity price charges [amount/kWh]. Will be added to variable market price.",
+            "title": "Charges",
+            "description": "Ordered list of electricity price charge/fee components added on top of the market (spot working) price to build the final consumer price. Applied by all providers except the import provider. If omitted, the market price is used unchanged.",
             "examples": [
-              0.21
-            ]
-          },
-          "vat_rate": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vat Rate",
-            "description": "VAT rate factor applied to electricity price when charges are used.",
-            "default": 1.19,
-            "examples": [
-              1.19
+              [
+                {
+                  "name": "Netzentgelt",
+                  "type": "fixed",
+                  "amount": 0.1153
+                },
+                {
+                  "name": "Stromsteuer",
+                  "type": "fixed",
+                  "amount": 0.0205
+                },
+                {
+                  "name": "MwSt",
+                  "type": "percent",
+                  "amount": 0.19
+                }
+              ]
             ]
           },
           "elecpricefixed": {
