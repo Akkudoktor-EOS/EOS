@@ -11,6 +11,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import AsyncIterator, Optional, Type
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -159,6 +160,59 @@ class TestDataSequenceDatabaseProtocol:
         sequence = SampleDataSequence()
         await _reset_sequence_state(sequence)
         assert sequence.db_enabled is False
+
+    async def test_nodb_provider_does_not_call_open(self, config_eos, monkeypatch):
+        """Disabled providers (None/NoDB) must not repeatedly open the backend.
+
+        `NoDB.is_open` is always False, so without the provider guard every
+        `_db_ensure_initialized()` (and thus every record operation) would call
+        `Database.open()`.
+        """
+        config_eos.database.provider = None
+        sequence = SampleDataSequence()
+
+        open_mock = AsyncMock()
+        monkeypatch.setattr(sequence.database, "open", open_mock)
+
+        await _reset_sequence_state(sequence)
+        # Several operations that all funnel through _db_ensure_initialized().
+        await sequence._db_ensure_initialized()
+        await sequence.db_insert_record(
+            SampleDataRecord(date_time=to_datetime("2024-01-01T00:00:00Z"), temperature=1.0)
+        )
+        await sequence.db_save_records()
+        await sequence.db_load_records()
+
+        assert sequence.db_enabled is False
+        open_mock.assert_not_called()
+
+    async def test_failed_open_is_not_retried_per_operation(
+        self, config_eos, monkeypatch
+    ):
+        """An unavailable backend must be opened at most once, not per operation.
+
+        The failure is swallowed (falls back to file storage) and the one-shot
+        `_db_open_attempted` flag prevents retry/re-log on every record op.
+        """
+        config_eos.database.provider = "LMDB"
+        sequence = SampleDataSequence()
+
+        open_mock = AsyncMock(side_effect=RuntimeError("backend unavailable"))
+        monkeypatch.setattr(sequence.database, "open", open_mock)
+
+        # None of these must raise despite the failing backend.
+        await _reset_sequence_state(sequence)
+        await sequence._db_ensure_initialized()
+        await sequence.db_insert_record(
+            SampleDataRecord(date_time=to_datetime("2024-01-01T00:00:00Z"), temperature=1.0)
+        )
+        await sequence.db_save_records()
+        await sequence.db_load_records()
+
+        assert sequence.db_enabled is False
+        assert open_mock.call_count == 1
+
+        config_eos.database.provider = None
 
     async def test_insert_and_save_records(self, async_database_instance):
         sequence = SampleDataSequence()
