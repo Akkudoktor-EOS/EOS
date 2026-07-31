@@ -147,6 +147,8 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
 
+        self.log_charges_plan()
+
         # Initialize
         highest_orig_datetime = None  # newest datetime from the api after that we want to update.
         series_data = pd.Series(dtype=float)  # Initialize an empty series

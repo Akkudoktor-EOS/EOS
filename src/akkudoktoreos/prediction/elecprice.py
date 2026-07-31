@@ -1,5 +1,6 @@
 from typing import Literal, Optional
 
+from loguru import logger
 from pydantic import Field, computed_field, field_validator
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
@@ -191,3 +192,40 @@ class ElecPriceCommonSettings(SettingsBaseModel):
             contributions[key] = contributions.get(key, 0.0) + added
 
         return total_kwh / 1000.0
+
+    def describe_charges(self) -> Optional[str]:
+        """Return a human-readable description of the configured charge plan.
+
+        Describes, in application order, how the final consumer price is built
+        from the market (spot working) price. For percentage components the
+        resolved basis (the preceding components and/or ``"market"`` the
+        percentage applies to) is spelled out. Returns ``None`` when no charges
+        are configured.
+        """
+        if not self.charges:
+            return None
+
+        lines = ["market (spot working price)"]
+        for index, component in enumerate(self.charges):
+            name = component.name if component.name is not None else f"#{index + 1}"
+            if component.type == "fixed":
+                lines.append(f"+ {name}: fixed {component.amount} /kWh")
+            else:  # percent
+                if component.basis is None:
+                    basis_desc = "market + all preceding add-ons"
+                else:
+                    basis_desc = " + ".join(component.basis)
+                lines.append(f"+ {name}: {component.amount:.2%} of ({basis_desc})")
+        return "; ".join(lines)
+
+    def log_charges_plan(self) -> None:
+        """Log the configured charge plan once (info level).
+
+        Intended to be called once per electricity price update so the user can
+        see, without per-timestamp noise, how charges/fees build the final
+        consumer price on top of the market price. No-op when no charges are
+        configured.
+        """
+        description = self.describe_charges()
+        if description is not None:
+            logger.info(f"Applying electricity price charges: {description}")

@@ -242,6 +242,41 @@ class TestElecPriceAkkudokor:
         assert with_charges == pytest.approx(expected)
 
 
+    @pytest.mark.asyncio
+    @patch("requests.get")
+    async def test_charges_plan_logged_once(
+        self, mock_get, provider, sample_akkudoktor_1_json, cache_store, caplog
+    ):
+        """The charge plan is logged once per update, not per timestamp."""
+        import logging
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.content = json.dumps(sample_akkudoktor_1_json)
+        mock_get.return_value = mock_response
+
+        provider.config.elecprice.charges = [
+            {"name": "Netzentgelt", "type": "fixed", "amount": 0.10},
+            {"name": "MwSt", "type": "percent", "amount": 0.19},
+        ]
+        cache_store.clear(clear_all=True)
+        ems_eos = get_ems()
+        ems_eos.set_start_datetime(to_datetime("2024-12-11 00:00:00", in_timezone="Europe/Berlin"))
+
+        with caplog.at_level(logging.INFO):
+            await provider.update_data(force_enable=True, force_update=True)
+
+        plan_logs = {
+            r.getMessage()
+            for r in caplog.records
+            if "Applying electricity price charges" in r.getMessage()
+        }
+        assert len(plan_logs) == 1
+        message = plan_logs.pop()
+        assert "Netzentgelt" in message
+        assert "MwSt" in message
+
+
     # ------------------------------------------------
     # Development Akkudoktor
     # ------------------------------------------------

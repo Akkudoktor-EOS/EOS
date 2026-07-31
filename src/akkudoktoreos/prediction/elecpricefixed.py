@@ -106,6 +106,7 @@ class ElecPriceFixed(ElecPriceProvider):
         # Convert kWh → Wh and store one entry per interval step. The configured
         # fixed price is treated as the market (working) price; configured charge
         # components are applied on top.
+        self.log_charges_plan()
         for idx, price_kwh in enumerate(prices_kwh):
             current_dt = start_datetime.add(seconds=idx * interval_seconds)
             price_wh = self.apply_charges(price_kwh / 1000.0)

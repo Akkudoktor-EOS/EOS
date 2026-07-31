@@ -81,3 +81,14 @@ class ElecPriceProvider(PredictionProvider):
         not apply charges (its data is assumed to be final).
         """
         return self.config.elecprice.apply_charges(market_price_wh)
+
+    def log_charges_plan(self) -> None:
+        """Log the configured charge plan once (info level).
+
+        Convenience wrapper delegating to
+        :meth:`ElecPriceCommonSettings.log_charges_plan`. Providers should call
+        this once per update before applying charges, so the resolved plan
+        (including which components each percentage applies to) is visible in
+        the logs without per-timestamp noise.
+        """
+        self.config.elecprice.log_charges_plan()

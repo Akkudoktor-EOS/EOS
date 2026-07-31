@@ -299,6 +299,8 @@ class ElecPriceTibber(ElecPriceProvider):
         if not points:
             raise ValueError("Tibber response contains no price points")
 
+        self.log_charges_plan()
+
         series_data = pd.Series(dtype=float)
         for point in points:
             orig_datetime = to_datetime(point.startsAt, in_timezone=self.config.general.timezone)

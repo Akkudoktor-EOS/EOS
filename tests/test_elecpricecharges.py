@@ -113,3 +113,64 @@ class TestElecPriceChargeComponent:
         )
         with pytest.raises(ValueError):
             _apply(settings, 0.20 / 1000)
+
+
+class TestElecPriceChargesDescription:
+    def test_describe_none_when_no_charges(self):
+        assert ElecPriceCommonSettings(charges=None).describe_charges() is None
+        assert ElecPriceCommonSettings(charges=[]).describe_charges() is None
+
+    def test_describe_percent_default_basis(self):
+        settings = ElecPriceCommonSettings(
+            charges=[
+                ElecPriceChargeComponent(name="Netzentgelt", type="fixed", amount=0.1153),
+                ElecPriceChargeComponent(name="MwSt", type="percent", amount=0.19),
+            ]
+        )
+        desc = settings.describe_charges()
+        assert desc is not None
+        assert "market (spot working price)" in desc
+        assert "Netzentgelt: fixed 0.1153 /kWh" in desc
+        # Percent component names its (default) basis explicitly.
+        assert "MwSt: 19.00% of (market + all preceding add-ons)" in desc
+
+    def test_describe_percent_explicit_basis_lists_components(self):
+        settings = ElecPriceCommonSettings(
+            charges=[
+                ElecPriceChargeComponent(name="Netzentgelt", type="fixed", amount=0.1153),
+                ElecPriceChargeComponent(name="Stromsteuer", type="fixed", amount=0.0205),
+                ElecPriceChargeComponent(
+                    name="surcharge",
+                    type="percent",
+                    amount=0.05,
+                    basis=["Netzentgelt", "Stromsteuer"],
+                ),
+            ]
+        )
+        desc = settings.describe_charges()
+        assert desc is not None
+        # The percent component's log/description spells out which preceding
+        # components it applies to.
+        assert "surcharge: 5.00% of (Netzentgelt + Stromsteuer)" in desc
+
+    def test_log_charges_plan_emits_info_once(self, caplog):
+        import logging
+
+        settings = ElecPriceCommonSettings(
+            charges=[
+                ElecPriceChargeComponent(name="Netzentgelt", type="fixed", amount=0.1153),
+                ElecPriceChargeComponent(name="MwSt", type="percent", amount=0.19),
+            ]
+        )
+        with caplog.at_level(logging.INFO):
+            settings.log_charges_plan()
+        messages = [r.getMessage() for r in caplog.records]
+        assert any("Netzentgelt" in m and "MwSt" in m for m in messages)
+
+    def test_log_charges_plan_noop_without_charges(self, caplog):
+        import logging
+
+        settings = ElecPriceCommonSettings(charges=None)
+        with caplog.at_level(logging.INFO):
+            settings.log_charges_plan()
+        assert caplog.records == []
