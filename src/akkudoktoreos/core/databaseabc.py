@@ -635,8 +635,8 @@ class DatabaseRecordProtocolMixin(
         #
         # Skip disabled providers (None/"NoDB"): persistence is intentionally off and
         # `NoDB.is_open` is always False, so opening it would run on every call. Only
-        # attempt the open once; on failure we log and fall back to file storage
-        # without retrying (and re-logging) on every subsequent record operation.
+        # attempt the open once; on failure we log without retrying (and re-logging)
+        # on every subsequent record operation.
         provider = self.config.database.provider
         if (
             provider not in (None, "NoDB")
@@ -648,8 +648,7 @@ class DatabaseRecordProtocolMixin(
                 await self.database.open(namespace=self.db_namespace())
             except Exception:
                 logger.exception(
-                    f"Could not open database backend for namespace '{self.db_namespace()}'; "
-                    "falling back to file storage."
+                    f"Could not open database backend for namespace '{self.db_namespace()}'."
                 )
 
         if not self._db_storage_initialized and self.db_enabled:
