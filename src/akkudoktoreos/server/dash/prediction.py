@@ -6,7 +6,7 @@ from bokeh.models import ColumnDataSource, LinearAxis, Range1d
 from bokeh.plotting import figure
 from monsterui.franken import FT, Grid, P
 
-from akkudoktoreos.core.pydantic import PydanticDateTimeDataFrame
+from akkudoktoreos.core.pydantic import PydanticDateTimeSeries
 from akkudoktoreos.server.dash.bokeh import Bokeh, bokey_apply_theme_to_plot
 from akkudoktoreos.server.dash.components import Error
 
@@ -208,7 +208,9 @@ def Prediction(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = 
     if data and data.get("dark", None) == "true":
         dark = True
 
-    # Get current configuration from server
+    # ---------------------------------------------------------------------
+    # Get configuration
+    # ---------------------------------------------------------------------
     try:
         result = requests.get(f"{server}/v1/config", timeout=10)
         result.raise_for_status()
@@ -220,30 +222,62 @@ def Prediction(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = 
         )
     config = result.json()
 
-    # Get Forecasts
+    # ---------------------------------------------------------------------
+    # Describe how every prediction should be retrieved.
+    # ---------------------------------------------------------------------
+    prediction_requests = [
+        ("pvforecast_ac_power", "first", "ffill"),
+        ("elecprice_marketprice_kwh", "first", "ffill"),
+        ("weather_relative_humidity", "mean", "linear"),
+        ("weather_temp_air", "mean", "linear"),
+        ("weather_ghi", "mean", "linear"),
+        ("weather_dni", "mean", "linear"),
+        ("weather_dhi", "mean", "linear"),
+        ("loadforecast_power_w", "first", "ffill"),
+        ("loadakkudoktor_std_power_w", "first", "ffill"),
+        ("loadakkudoktor_mean_power_w", "first", "ffill"),
+    ]
+
+    # ---------------------------------------------------------------------
+    # Fetch all series
+    # ---------------------------------------------------------------------
+    series_list = []
+
     try:
-        params = {
-            "keys": [
-                "pvforecast_ac_power",
-                "elecprice_marketprice_kwh",
-                "weather_relative_humidity",
-                "weather_temp_air",
-                "weather_ghi",
-                "weather_dni",
-                "weather_dhi",
-                "loadforecast_power_w",
-                "loadakkudoktor_std_power_w",
-                "loadakkudoktor_mean_power_w",
-            ],
-        }
-        result = requests.get(f"{server}/v1/prediction/dataframe", params=params, timeout=10)
-        result.raise_for_status()
-        predictions = PydanticDateTimeDataFrame(**result.json()).to_dataframe()
+        for options in prediction_requests:
+            key = options[0]
+            resample_method = options[1]
+            fill_method = options[2]
+
+            params = {
+                "key": key,
+                "interval": "15 minutes",
+                "processing": "resampled",
+                "resample_method": resample_method,
+                "fill_method": fill_method,
+            }
+
+            result = requests.get(
+                f"{server}/v1/prediction/series",
+                params=params,
+                timeout=10,
+            )
+            result.raise_for_status()
+
+            series = PydanticDateTimeSeries(**result.json()).to_series().rename(key)
+            series_list.append(series)
+
     except requests.exceptions.HTTPError as err:
         detail = result.json()["detail"]
         return Error(f"Can not retrieve predictions from {server}: {err}, {detail}")
     except Exception as err:
         return Error(f"Can not retrieve predictions from {server}: {err}")
+
+    # ---------------------------------------------------------------------
+    # Merge into dataframe
+    # ---------------------------------------------------------------------
+    predictions = pd.concat(series_list, axis=1).reset_index()
+    predictions.rename(columns={"index": "date_time"}, inplace=True)
 
     # Remove time offset from UTC to get naive local time and make bokeh plot in local time
     date_time_tz = predictions["date_time"].dt.tz
