@@ -1,9 +1,12 @@
 import json
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
+from pypdf import PdfReader
 
 from akkudoktoreos.config.config import ConfigEOS
 from akkudoktoreos.core.cache import CacheEnergyManagementStore
@@ -13,14 +16,14 @@ from akkudoktoreos.optimization.genetic0.genetic0params import (
     Genetic0OptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
-from akkudoktoreos.utils.datetimeutil import to_datetime
-from akkudoktoreos.utils.visualize import (
-    prepare_visualize,  # Import the new prepare_visualize
+from akkudoktoreos.optimization.genetic0.genetic0visualize import (
+    genetic0_prepare_visualize,
 )
+from akkudoktoreos.utils.datetimeutil import to_datetime
 
 ems_eos = get_ems(init=True) # init once
 
-DIR_TESTDATA = Path(__file__).parent / "testdata"
+DIR_TESTDATA = Path(__file__).parent / "testdata" / "genetic0"
 
 
 def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
@@ -40,11 +43,11 @@ def compare_dict(actual: dict[str, Any], expected: dict[str, Any]):
 @pytest.mark.parametrize(
     "fn_in, fn_out, ngen, break_even",
     [
-        ("genetic0optimize_input_1.json", "genetic0optimize_result_1.json", 3, 0),
-        ("genetic0optimize_input_2.json", "genetic0optimize_result_2.json", 3, 0),
-        ("genetic0optimize_input_2.json", "genetic0optimize_result_2_full.json", 400, 0),
-        ("genetic0optimize_input_1.json", "genetic0optimize_result_1_be.json", 3, 1),
-        ("genetic0optimize_input_2.json", "genetic0optimize_result_2_be.json", 3, 1),
+        ("optimize_input_1.json", "optimize_result_1.json", 3, 0),
+        ("optimize_input_2.json", "optimize_result_2.json", 3, 0),
+        ("optimize_input_2.json", "optimize_result_2_full.json", 400, 0),
+        ("optimize_input_1.json", "optimize_result_1_be.json", 3, 1),
+        ("optimize_input_2.json", "optimize_result_2_be.json", 3, 1),
     ],
 )
 async def test_optimize(
@@ -90,19 +93,9 @@ async def test_optimize(
     )
 
     # Load input and output data
-    file = DIR_TESTDATA / fn_in
-    with file.open("r") as f_in:
+    parameter_file = DIR_TESTDATA / fn_in
+    with parameter_file.open("r") as f_in:
         input_data = Genetic0OptimizationParameters(**json.load(f_in))
-
-    file = DIR_TESTDATA / fn_out
-    # In case a new test case is added, we don't want to fail here, so the new output is written
-    # to disk before
-    try:
-        with file.open("r") as f_out:
-            expected_data = json.load(f_out)
-            expected_result = Genetic0Solution(**expected_data)
-    except FileNotFoundError:
-        pass
 
     # Fake energy management run start datetime
     ems_eos.set_start_datetime(to_datetime().set(hour=fixed_start_hour))
@@ -116,26 +109,36 @@ async def test_optimize(
     if ngen > 10 and not is_finalize:
         pytest.skip()
 
-    visualize_filename = str((DIR_TESTDATA / f"new_{fn_out}").with_suffix(".pdf"))
-
-    with patch(
-        "akkudoktoreos.utils.visualize.prepare_visualize",
-        side_effect=lambda parameters, results, *args, **kwargs: prepare_visualize(
-            parameters, results, filename=visualize_filename, **kwargs
-        ),
-    ) as prepare_visualize_patch:
-        # Call the optimization function
-        genetic0_solution = genetic0_optimization.optimize_ems(
-            parameters=input_data, start_hour=fixed_start_hour, ngen=ngen
-        )
-        # The function creates a visualization result PDF as a side-effect.
-        prepare_visualize_patch.assert_called_once()
-        assert Path(visualize_filename).exists()
+    # Call the optimization function
+    genetic0_solution = genetic0_optimization.optimize_ems(
+        parameters=input_data, start_hour=fixed_start_hour, ngen=ngen
+    )
 
     # Write test output to file, so we can take it as new data on intended change
     TESTDATA_FILE = DIR_TESTDATA / f"new_{fn_out}"
     with TESTDATA_FILE.open("w", encoding="utf-8", newline="\n") as f_out:
         f_out.write(genetic0_solution.model_dump_json(indent=4, exclude_unset=True))
+
+    solution_file = DIR_TESTDATA / fn_out
+    # In case a new test case is added, we don't want to fail here, so the new output is written
+    # to disk before
+    try:
+        with solution_file.open("r") as f_out:
+            expected_data = json.load(f_out)
+            expected_result = Genetic0Solution(**expected_data)
+    except ValidationError:
+        # Expected genetic solution data does not fit to Genetic0Solution data schema
+        # Possibly the Genetic0Solution class changed.
+        pytest.fail(
+            f"ValidationError: Can not load expected solution from {solution_file}\n"
+            f"cp {TESTDATA_FILE} {solution_file}\n"
+        )
+    except FileNotFoundError:
+        # Should not happen
+        pytest.fail(
+            f"FileNotFoundError: Can not load expected solution from {solution_file}\n"
+            f"cp {TESTDATA_FILE} {solution_file}\n"
+        )
 
     assert genetic0_solution.result.Gesamtbilanz_Euro == pytest.approx(
         expected_result.result.Gesamtbilanz_Euro
@@ -153,3 +156,16 @@ async def test_optimize(
     # Check the correct generic energy management plan is created
     plan = genetic0_solution.energy_management_plan()
     # @TODO
+
+    # Check visualization works
+    pdf = genetic0_prepare_visualize(
+        solution=genetic0_solution,
+    )
+    assert pdf.startswith(b"%PDF-")
+
+    reader = PdfReader(BytesIO(pdf))
+    assert len(reader.pages) == 6
+
+
+    # Everything passed, remove generated files
+    TESTDATA_FILE.unlink()
