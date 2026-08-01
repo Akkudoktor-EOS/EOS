@@ -218,7 +218,7 @@ class WeatherOpenMeteo(WeatherProvider):
             error_msg = f"No WeatherDataRecord key for '{description}'"
             logger.error(error_msg)
             raise ValueError(error_msg)
-        series = await self.key_to_series(key)
+        series = await self.key_to_raw_series(key)
         return series
 
     async def _description_from_series(self, description: str, data: pd.Series) -> None:

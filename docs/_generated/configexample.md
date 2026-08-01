@@ -180,6 +180,7 @@
            }
        },
        "logging": {
+           "api_level": "TRACE",
            "console_level": "TRACE",
            "file_level": "TRACE"
        },

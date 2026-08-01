@@ -1,4 +1,109 @@
 import html
+import traceback
+from dataclasses import dataclass
+
+from fastapi import FastAPI, Request
+from fastapi.exceptions import HTTPException, RequestValidationError
+from fastapi.responses import JSONResponse
+from loguru import logger
+
+from akkudoktoreos.core.coreabc import get_config
+
+
+@dataclass(slots=True)
+class EOSProblem(Exception):
+    """Application exception returned as RFC 7807 Problem Details."""
+
+    status: int
+    title: str
+    detail: str
+    type: str = "about:blank"
+    cause: Exception | None = None
+
+    def __str__(self) -> str:
+        return self.detail
+
+
+def _problem_response(
+    *,
+    request: Request,
+    status: int,
+    title: str,
+    detail: str,
+    type: str,
+    cause: Exception | None = None,
+) -> JSONResponse:
+    body = {
+        "type": type,
+        "title": title,
+        "status": status,
+        "detail": detail,
+        "instance": request.url.path,
+    }
+
+    if cause is not None:
+        logger.exception(cause)
+
+        if get_config().logging.api_level in ("TRACE", "DEBUG"):
+            body["traceback"] = traceback.format_exception(cause)
+
+    return JSONResponse(
+        status_code=status,
+        media_type="application/problem+json",
+        content=body,
+    )
+
+
+async def eos_problem_handler(request: Request, exc: EOSProblem) -> JSONResponse:
+    return _problem_response(
+        request=request,
+        status=exc.status,
+        title=exc.title,
+        detail=exc.detail,
+        cause=exc.cause,
+        type=exc.type,
+    )
+
+
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    return _problem_response(
+        request=request,
+        status=exc.status_code,
+        title="HTTP Error",
+        detail=str(exc.detail),
+        cause=exc,
+        type="about:blank",
+    )
+
+
+async def unexpected_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    return _problem_response(
+        request=request,
+        status=500,
+        title="Internal Server Error",
+        detail=str(exc),
+        cause=exc,
+        type="/problems/internal-server-error",
+    )
+
+
+async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    return _problem_response(
+        request=request,
+        status=422,
+        title="Validation Error",
+        detail="Request validation failed.",
+        cause=exc,
+        type="/problems/validation",
+    )
+
+
+def register_problem_handlers(app: FastAPI) -> None:
+    app.add_exception_handler(EOSProblem, eos_problem_handler)
+    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(Exception, unexpected_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_handler)
+
 
 ERROR_PAGE_TEMPLATE = """
 <!DOCTYPE html>

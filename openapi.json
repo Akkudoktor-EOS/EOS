@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607301181843779"
+    "version": "v0.3.0.dev2608010961051894"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -953,6 +953,7 @@
           "measurement"
         ],
         "summary": "Fastapi Measurement Keys Get",
+        "description": "Get a list of available measurement keys.",
         "operationId": "fastapi_measurement_keys_get_v1_measurement_keys_get",
         "responses": {
           "200": {
@@ -978,7 +979,7 @@
           "measurement"
         ],
         "summary": "Fastapi Measurement Series Get",
-        "description": "Get the measurements of given key as series.",
+        "description": "Get measurements for given key within given date range as series.\n\nArgs:\n    key (str): Measurement key\n    start_datetime (Optional[str]): Starting datetime (inclusive).\n        Defaults to datetime of first measurement.\n    end_datetime (Optional[str]: Ending datetime (exclusive).\n        Defaults to datetime after latest measurement.\n    interval (Optional[str]): Time duration for each interval.\n        Defaults to 1 hour.\n    fill_method (str): Method to handle missing values during resampling.\n\n        - 'linear': Linearly interpolate missing values (for numeric data only).\n        - 'time': Interpolate missing values (for numeric data only).\n        - 'ffill': Forward fill missing values.\n        - 'bfill': Backward fill missing values.\n        - Defaults to 'linear' for numeric values, otherwise 'ffill'.\n\n    resample_method (str):\n        Method used to aggregate values within a resampling interval.\n\n        - \"first\": Use the first value in each interval.\n        - \"mean\": Compute the arithmetic mean of all samples in each interval.\n        - \"interval_mean\": Compute the time-weighted mean assuming each\n            value remains valid until the next timestamp (piecewise-constant\n            signal).\n\n    dropna: (bool): Whether to drop NAN/ None values before processing.\n        Defaults to True.\n    boundary (Literal[\"strict\", \"context\"]): resampling boundary\n        \"strict\"  \u2192 only values inside [start, end)\n        \"context\" \u2192 include one value before and after for proper resampling\n    align_to_interval (bool): When True, snap the resample origin to the nearest\n        UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures\n        that bucket timestamps always fall on wall-clock-round times regardless of\n        when ``start_datetime`` falls:\n\n        - 15-minute interval \u2192 buckets on :00, :15, :30, :45\n        - 1-hour interval    \u2192 buckets on the hour\n\n        When False (default), the origin is ``query_start`` (or ``\"start_day\"`` when\n        no start is given), preserving the existing behaviour where buckets are\n        aligned to the query window rather than the clock.\n\n        Set to True when storing compacted records back to the database so that the\n        resulting timestamps are predictable and human-readable.  Leave False for\n        forecast or reporting queries where alignment to the exact query window is\n        more important than clock-round boundaries.\n    processing (SeriesProcessing):\n        Processing mode for the returned series.\n\n        - ``SeriesProcessing.RESAMPLED``: Return a processed series.\n            Measurements are first filtered by ``start_datetime``,\n            ``end_datetime``, and ``dropna``, then resampled according to\n            ``interval`` and ``resample_method``, and finally missing values\n            are filled using ``fill_method``.\n        - ``SeriesProcessing.RAW``: Return the original measurement series.\n            Measurements are filtered by ``start_datetime``,\n            ``end_datetime``, and ``dropna`` only. No resampling or filling is\n            performed, and ``interval``, ``fill_method``,\n            ``resample_method``, ``boundary``, and\n            ``align_to_interval`` are ignored.\n\n        Defaults to ``SeriesProcessing.RAW``.\n\nReturns:\n    Series",
         "operationId": "fastapi_measurement_series_get_v1_measurement_series_get",
         "parameters": [
           {
@@ -991,6 +992,152 @@
               "title": "Key"
             },
             "description": "Measurement key."
+          },
+          {
+            "name": "start_datetime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Starting datetime (inclusive).",
+              "title": "Start Datetime"
+            },
+            "description": "Starting datetime (inclusive)."
+          },
+          {
+            "name": "end_datetime",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Ending datetime (exclusive).",
+              "title": "End Datetime"
+            },
+            "description": "Ending datetime (exclusive)."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time duration for each interval. Defaults to 1 hour.",
+              "title": "Interval"
+            },
+            "description": "Time duration for each interval. Defaults to 1 hour."
+          },
+          {
+            "name": "fill_method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "linear",
+                    "time",
+                    "ffill",
+                    "bfill"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Method to handle missing values during resampling.",
+              "title": "Fill Method"
+            },
+            "description": "Method to handle missing values during resampling."
+          },
+          {
+            "name": "resample_method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "first",
+                "mean",
+                "interval_mean"
+              ],
+              "type": "string",
+              "description": "Method used to aggregate values within a resampling interval.",
+              "default": "mean",
+              "title": "Resample Method"
+            },
+            "description": "Method used to aggregate values within a resampling interval."
+          },
+          {
+            "name": "dropna",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Drop NAN/ None values before processing.",
+              "default": true,
+              "title": "Dropna"
+            },
+            "description": "Drop NAN/ None values before processing."
+          },
+          {
+            "name": "boundary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "strict",
+                "context"
+              ],
+              "type": "string",
+              "description": "Resampling boundary mode.",
+              "default": "context",
+              "title": "Boundary"
+            },
+            "description": "Resampling boundary mode."
+          },
+          {
+            "name": "align_to_interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Snap resample origin to the nearest UTC epoch-aligned boundary of interval.",
+              "default": false,
+              "title": "Align To Interval"
+            },
+            "description": "Snap resample origin to the nearest UTC epoch-aligned boundary of interval."
+          },
+          {
+            "name": "processing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SeriesProcessing",
+              "description": "Processing mode. 'raw' returns original measurement data without resampling or filling.",
+              "default": "raw"
+            },
+            "description": "Processing mode. 'raw' returns original measurement data without resampling or filling."
           }
         ],
         "responses": {
@@ -1389,7 +1536,7 @@
           "prediction"
         ],
         "summary": "Fastapi Prediction Series Get",
-        "description": "Get prediction for given key within given date range as series.\n\nArgs:\n    key (str): Prediction key\n    start_datetime (Optional[str]): Starting datetime (inclusive).\n        Defaults to start datetime of latest prediction.\n    end_datetime (Optional[str]: Ending datetime (exclusive).\n        Defaults to end datetime of latest prediction.",
+        "description": "Get prediction for given key within given date range as series.\n\nArgs:\n    key (str): Prediction key\n    start_datetime (Optional[str]): Starting datetime (inclusive).\n        Defaults to start datetime of latest prediction.\n    end_datetime (Optional[str]: Ending datetime (exclusive).\n        Defaults to end datetime of latest prediction.\n    interval (Optional[str]): Time duration for each interval.\n        Defaults to 1 hour.\n    fill_method (str): Method to handle missing values during resampling.\n\n        - 'linear': Linearly interpolate missing values (for numeric data only).\n        - 'time': Interpolate missing values (for numeric data only).\n        - 'ffill': Forward fill missing values.\n        - 'bfill': Backward fill missing values.\n        - Defaults to 'linear' for numeric values, otherwise 'ffill'.\n\n    resample_method (str):\n        Method used to aggregate values within a resampling interval.\n\n        - \"first\": Use the first value in each interval.\n        - \"mean\": Compute the arithmetic mean of all samples in each interval.\n        - \"interval_mean\": Compute the time-weighted mean assuming each\n            value remains valid until the next timestamp (piecewise-constant\n            signal).\n\n    dropna: (bool): Whether to drop NAN/ None values before processing.\n        Defaults to True.\n    boundary (Literal[\"strict\", \"context\"]): resampling boundary\n        \"strict\"  \u2192 only values inside [start, end)\n        \"context\" \u2192 include one value before and after for proper resampling\n    align_to_interval (bool): When True, snap the resample origin to the nearest\n        UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures\n        that bucket timestamps always fall on wall-clock-round times regardless of\n        when ``start_datetime`` falls:\n\n        - 15-minute interval \u2192 buckets on :00, :15, :30, :45\n        - 1-hour interval    \u2192 buckets on the hour\n\n        When False (default), the origin is ``query_start`` (or ``\"start_day\"`` when\n        no start is given), preserving the existing behaviour where buckets are\n        aligned to the query window rather than the clock.\n\n        Set to True when storing compacted records back to the database so that the\n        resulting timestamps are predictable and human-readable.  Leave False for\n        forecast or reporting queries where alignment to the exact query window is\n        more important than clock-round boundaries.\n    processing (SeriesProcessing):\n        Processing mode for the returned series.\n\n        - ``SeriesProcessing.RESAMPLED``: Return a processed series.\n            Measurements are first filtered by ``start_datetime``,\n            ``end_datetime``, and ``dropna``, then resampled according to\n            ``interval`` and ``resample_method``, and finally missing values\n            are filled using ``fill_method``.\n        - ``SeriesProcessing.RAW``: Return the original measurement series.\n            Measurements are filtered by ``start_datetime``,\n            ``end_datetime``, and ``dropna`` only. No resampling or filling is\n            performed, and ``interval``, ``fill_method``,\n            ``resample_method``, ``boundary``, and\n            ``align_to_interval`` are ignored.\n\n        Defaults to ``SeriesProcessing.RAW``.\n\nReturns:\n    Array",
         "operationId": "fastapi_prediction_series_get_v1_prediction_series_get",
         "parameters": [
           {
@@ -1438,6 +1585,116 @@
               "title": "End Datetime"
             },
             "description": "Ending datetime (exclusive)."
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Time duration for each interval. Defaults to 1 hour.",
+              "title": "Interval"
+            },
+            "description": "Time duration for each interval. Defaults to 1 hour."
+          },
+          {
+            "name": "fill_method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "linear",
+                    "time",
+                    "ffill",
+                    "bfill"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Method to handle missing values during resampling.",
+              "title": "Fill Method"
+            },
+            "description": "Method to handle missing values during resampling."
+          },
+          {
+            "name": "resample_method",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "first",
+                "mean",
+                "interval_mean"
+              ],
+              "type": "string",
+              "description": "Method used to aggregate values within a resampling interval.",
+              "default": "mean",
+              "title": "Resample Method"
+            },
+            "description": "Method used to aggregate values within a resampling interval."
+          },
+          {
+            "name": "dropna",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Drop NAN/ None values before processing.",
+              "default": true,
+              "title": "Dropna"
+            },
+            "description": "Drop NAN/ None values before processing."
+          },
+          {
+            "name": "boundary",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "strict",
+                "context"
+              ],
+              "type": "string",
+              "description": "Resampling boundary mode.",
+              "default": "context",
+              "title": "Boundary"
+            },
+            "description": "Resampling boundary mode."
+          },
+          {
+            "name": "align_to_interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Snap resample origin to the nearest UTC epoch-aligned boundary of interval.",
+              "default": false,
+              "title": "Align To Interval"
+            },
+            "description": "Snap resample origin to the nearest UTC epoch-aligned boundary of interval."
+          },
+          {
+            "name": "processing",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/SeriesProcessing",
+              "description": "Processing mode. 'raw' returns original measurement data without resampling or filling.",
+              "default": "raw"
+            },
+            "description": "Processing mode. 'raw' returns original measurement data without resampling or filling."
           }
         ],
         "responses": {
@@ -1470,7 +1727,7 @@
           "prediction"
         ],
         "summary": "Fastapi Prediction Dataframe Get",
-        "description": "Get prediction for given keys within given date range as dataframe.\n\nArgs:\n    key (list[str]): Prediction keys\n    start_datetime (Optional[str]): Starting datetime (inclusive).\n        Defaults to start datetime of latest prediction.\n    end_datetime (Optional[str]: Ending datetime (exclusive).\n        Defaults to end datetime of latest prediction.\n    interval (Optional[str]): Time duration for each interval.\n        Defaults to 1 hour.\n    fill_method (str): Method to handle missing values during resampling.\n\n        - 'linear': Linearly interpolate missing values (for numeric data only).\n        - 'time': Interpolate missing values (for numeric data only).\n        - 'ffill': Forward fill missing values.\n        - 'bfill': Backward fill missing values.\n        - Defaults to 'linear' for numeric values, otherwise 'ffill'.\n\n    resample_method (str):\n        Method used to aggregate values within a resampling interval.\n\n        - \"first\": Use the first value in each interval.\n        - \"mean\": Compute the arithmetic mean of all samples in each interval.\n        - \"interval_mean\": Compute the time-weighted mean assuming each\n            value remains valid until the next timestamp (piecewise-constant\n            signal).\n\n    dropna: (bool, optional): Whether to drop NAN/ None values before processing.\n        Defaults to True.\n    boundary (Literal[\"strict\", \"context\"]): resampling boundary\n        \"strict\"  \u2192 only values inside [start, end)\n        \"context\" \u2192 include one value before and after for proper resampling\n    align_to_interval (bool): When True, snap the resample origin to the nearest\n        UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures\n        that bucket timestamps always fall on wall-clock-round times regardless of\n        when ``start_datetime`` falls:\n\n        - 15-minute interval \u2192 buckets on :00, :15, :30, :45\n        - 1-hour interval    \u2192 buckets on the hour\n\n        When False (default), the origin is ``query_start`` (or ``\"start_day\"`` when\n        no start is given), preserving the existing behaviour where buckets are\n        aligned to the query window rather than the clock.\n\n        Set to True when storing compacted records back to the database so that the\n        resulting timestamps are predictable and human-readable.  Leave False for\n        forecast or reporting queries where alignment to the exact query window is\n        more important than clock-round boundaries.",
+        "description": "Get prediction for given keys within given date range as dataframe.\n\nArgs:\n    key (list[str]): Prediction keys\n    start_datetime (Optional[str]): Starting datetime (inclusive).\n        Defaults to start datetime of latest prediction.\n    end_datetime (Optional[str]: Ending datetime (exclusive).\n        Defaults to end datetime of latest prediction.\n    interval (Optional[str]): Time duration for each interval.\n        Defaults to 1 hour.\n    fill_method (str): Method to handle missing values during resampling.\n\n        - 'linear': Linearly interpolate missing values (for numeric data only).\n        - 'time': Interpolate missing values (for numeric data only).\n        - 'ffill': Forward fill missing values.\n        - 'bfill': Backward fill missing values.\n        - Defaults to 'linear' for numeric values, otherwise 'ffill'.\n\n    resample_method (str):\n        Method used to aggregate values within a resampling interval.\n\n        - \"first\": Use the first value in each interval.\n        - \"mean\": Compute the arithmetic mean of all samples in each interval.\n        - \"interval_mean\": Compute the time-weighted mean assuming each\n            value remains valid until the next timestamp (piecewise-constant\n            signal).\n\n    dropna: (bool): Whether to drop NAN/ None values before processing.\n        Defaults to True.\n    boundary (Literal[\"strict\", \"context\"]): resampling boundary\n        \"strict\"  \u2192 only values inside [start, end)\n        \"context\" \u2192 include one value before and after for proper resampling\n    align_to_interval (bool): When True, snap the resample origin to the nearest\n        UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures\n        that bucket timestamps always fall on wall-clock-round times regardless of\n        when ``start_datetime`` falls:\n\n        - 15-minute interval \u2192 buckets on :00, :15, :30, :45\n        - 1-hour interval    \u2192 buckets on the hour\n\n        When False (default), the origin is ``query_start`` (or ``\"start_day\"`` when\n        no start is given), preserving the existing behaviour where buckets are\n        aligned to the query window rather than the clock.\n\n        Set to True when storing compacted records back to the database so that the\n        resulting timestamps are predictable and human-readable.  Leave False for\n        forecast or reporting queries where alignment to the exact query window is\n        more important than clock-round boundaries.",
         "operationId": "fastapi_prediction_dataframe_get_v1_prediction_dataframe_get",
         "parameters": [
           {
@@ -1587,15 +1844,9 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
+              "type": "boolean",
               "description": "Drop NAN/ None values before processing.",
+              "default": true,
               "title": "Dropna"
             },
             "description": "Drop NAN/ None values before processing."
@@ -1659,7 +1910,7 @@
           "prediction"
         ],
         "summary": "Fastapi Prediction List Get",
-        "description": "Get prediction for given key within given date range as value list.\n\nArgs:\n    key (str): Prediction key\n    start_datetime (Optional[str]): Starting datetime (inclusive).\n        Defaults to start datetime of latest prediction.\n    end_datetime (Optional[str]: Ending datetime (exclusive).\n        Defaults to end datetime of latest prediction.\n    interval (Optional[str]): Time duration for each interval.\n        Defaults to 1 hour.\n    fill_method (str): Method to handle missing values during resampling.\n\n        - 'linear': Linearly interpolate missing values (for numeric data only).\n        - 'time': Interpolate missing values (for numeric data only).\n        - 'ffill': Forward fill missing values.\n        - 'bfill': Backward fill missing values.\n        - Defaults to 'linear' for numeric values, otherwise 'ffill'.\n\n    resample_method (str):\n        Method used to aggregate values within a resampling interval.\n\n        - \"first\": Use the first value in each interval.\n        - \"mean\": Compute the arithmetic mean of all samples in each interval.\n        - \"interval_mean\": Compute the time-weighted mean assuming each\n            value remains valid until the next timestamp (piecewise-constant\n            signal).\n\n    dropna: (bool, optional): Whether to drop NAN/ None values before processing.\n        Defaults to True.\n    boundary (Literal[\"strict\", \"context\"]): resampling boundary\n        \"strict\"  \u2192 only values inside [start, end)\n        \"context\" \u2192 include one value before and after for proper resampling\n    align_to_interval (bool): When True, snap the resample origin to the nearest\n        UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures\n        that bucket timestamps always fall on wall-clock-round times regardless of\n        when ``start_datetime`` falls:\n\n        - 15-minute interval \u2192 buckets on :00, :15, :30, :45\n        - 1-hour interval    \u2192 buckets on the hour\n\n        When False (default), the origin is ``query_start`` (or ``\"start_day\"`` when\n        no start is given), preserving the existing behaviour where buckets are\n        aligned to the query window rather than the clock.\n\n        Set to True when storing compacted records back to the database so that the\n        resulting timestamps are predictable and human-readable.  Leave False for\n        forecast or reporting queries where alignment to the exact query window is\n        more important than clock-round boundaries.",
+        "description": "Get prediction for given key within given date range as value list.\n\nArgs:\n    key (str): Prediction key\n    start_datetime (Optional[str]): Starting datetime (inclusive).\n        Defaults to start datetime of latest prediction.\n    end_datetime (Optional[str]: Ending datetime (exclusive).\n        Defaults to end datetime of latest prediction.\n    interval (Optional[str]): Time duration for each interval.\n        Defaults to 1 hour.\n    fill_method (str): Method to handle missing values during resampling.\n\n        - 'linear': Linearly interpolate missing values (for numeric data only).\n        - 'time': Interpolate missing values (for numeric data only).\n        - 'ffill': Forward fill missing values.\n        - 'bfill': Backward fill missing values.\n        - Defaults to 'linear' for numeric values, otherwise 'ffill'.\n\n    resample_method (str):\n        Method used to aggregate values within a resampling interval.\n\n        - \"first\": Use the first value in each interval.\n        - \"mean\": Compute the arithmetic mean of all samples in each interval.\n        - \"interval_mean\": Compute the time-weighted mean assuming each\n            value remains valid until the next timestamp (piecewise-constant\n            signal).\n\n    dropna: (bool): Whether to drop NAN/ None values before processing.\n        Defaults to True.\n    boundary (Literal[\"strict\", \"context\"]): resampling boundary\n        \"strict\"  \u2192 only values inside [start, end)\n        \"context\" \u2192 include one value before and after for proper resampling\n    align_to_interval (bool): When True, snap the resample origin to the nearest\n        UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures\n        that bucket timestamps always fall on wall-clock-round times regardless of\n        when ``start_datetime`` falls:\n\n        - 15-minute interval \u2192 buckets on :00, :15, :30, :45\n        - 1-hour interval    \u2192 buckets on the hour\n\n        When False (default), the origin is ``query_start`` (or ``\"start_day\"`` when\n        no start is given), preserving the existing behaviour where buckets are\n        aligned to the query window rather than the clock.\n\n        Set to True when storing compacted records back to the database so that the\n        resulting timestamps are predictable and human-readable.  Leave False for\n        forecast or reporting queries where alignment to the exact query window is\n        more important than clock-round boundaries.",
         "operationId": "fastapi_prediction_list_get_v1_prediction_list_get",
         "parameters": [
           {
@@ -1773,15 +2024,9 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
+              "type": "boolean",
               "description": "Drop NAN/ None values before processing.",
+              "default": true,
               "title": "Dropna"
             },
             "description": "Drop NAN/ None values before processing."
@@ -2436,7 +2681,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Genetic0OptimizationParameters"
+                "$ref": "#/components/schemas/Genetic0OptimizationParameters-Input"
               }
             }
           }
@@ -2447,7 +2692,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Genetic0Solution"
+                  "$ref": "#/components/schemas/Genetic0SolutionLegacy"
                 }
               }
             }
@@ -2476,10 +2721,8 @@
           "200": {
             "description": "Successful Response",
             "content": {
-              "application/pdf": {
-                "schema": {
-                  "type": "string"
-                }
+              "application/json": {
+                "schema": {}
               }
             }
           }
@@ -4122,6 +4365,136 @@
         "title": "ElecPriceTibberCommonSettings",
         "description": "Common settings for the Tibber electricity price provider."
       },
+      "ElectricVehicleParameters": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of electric vehicle",
+            "examples": [
+              "ev1"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "capacity_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacity Wh",
+            "description": "An integer representing the capacity of the battery in watt-hours.",
+            "examples": [
+              8000
+            ]
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Charging Efficiency",
+            "description": "A float representing the charging efficiency of the battery.",
+            "default": 0.88
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Discharging Efficiency",
+            "description": "A float representing the discharge efficiency of the battery.",
+            "default": 1.0
+          },
+          "max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Charge Power W",
+            "description": "Maximum charging power in watts.",
+            "default": 5000
+          },
+          "initial_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Initial Soc Percentage",
+            "description": "An integer representing the current state of charge (SOC) of the battery in percentage.",
+            "default": 0,
+            "examples": [
+              42
+            ]
+          },
+          "min_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Min Soc Percentage",
+            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "default": 0,
+            "examples": [
+              10
+            ]
+          },
+          "max_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Soc Percentage",
+            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
+            "default": 100
+          },
+          "charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Rates",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [
+              [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              null
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "capacity_wh"
+        ],
+        "title": "ElectricVehicleParameters",
+        "description": "Battery Electric Vehicle Device Simulation Configuration."
+      },
       "ElectricVehicleResult": {
         "properties": {
           "device_id": {
@@ -5513,7 +5886,7 @@
         "title": "Genetic0ElectricVehicleResult",
         "description": "Result class containing information related to the electric vehicle's charging and discharging behavior."
       },
-      "Genetic0EnergyManagementParameters": {
+      "Genetic0EnergyManagementParameters-Input": {
         "properties": {
           "pv_forecast_wh": {
             "items": {
@@ -5571,7 +5944,124 @@
         "title": "Genetic0EnergyManagementParameters",
         "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
       },
-      "Genetic0HomeApplianceParameters": {
+      "Genetic0EnergyManagementParameters-Output": {
+        "properties": {
+          "pv_forecast_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pv Forecast Wh",
+            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+          },
+          "electricity_price_per_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Electricity Price Per Wh",
+            "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
+          },
+          "feed_in_tariff_per_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Feed In Tariff Per Wh",
+            "description": "A float or array of floats representing the feed-in compensation per watt-hour."
+          },
+          "price_per_wh_battery": {
+            "type": "number",
+            "title": "Price Per Wh Battery",
+            "description": "A float representing the cost of battery energy per watt-hour."
+          },
+          "total_load": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Total Load",
+            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
+          },
+          "pv_prognose_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pv Prognose Wh",
+            "description": "Deprecated: Use pv_forecast_wh instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "strompreis_euro_pro_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Strompreis Euro Pro Wh",
+            "description": "Deprecated: Use electricity_price_per_wh instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "einspeiseverguetung_euro_pro_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Einspeiseverguetung Euro Pro Wh",
+            "description": "Deprecated: Use feed_in_tariff_per_wh instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "preis_euro_pro_wh_akku": {
+            "type": "number",
+            "title": "Preis Euro Pro Wh Akku",
+            "description": "Deprecated: Use price_per_wh_battery instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "gesamtlast": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Gesamtlast",
+            "description": "Deprecated: Use total_load instead.",
+            "deprecated": true,
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "pv_forecast_wh",
+          "electricity_price_per_wh",
+          "feed_in_tariff_per_wh",
+          "price_per_wh_battery",
+          "total_load",
+          "pv_prognose_wh",
+          "strompreis_euro_pro_wh",
+          "einspeiseverguetung_euro_pro_wh",
+          "preis_euro_pro_wh_akku",
+          "gesamtlast"
+        ],
+        "title": "Genetic0EnergyManagementParameters",
+        "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
+      },
+      "Genetic0HomeApplianceParameters-Input": {
         "properties": {
           "device_id": {
             "type": "string",
@@ -5619,6 +6109,80 @@
             "anyOf": [
               {
                 "$ref": "#/components/schemas/TimeWindowSequence-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "List of allowed time windows. Defaults to optimization general time window.",
+            "examples": [
+              [
+                {
+                  "duration": "3 hours",
+                  "start_time": "10:00"
+                }
+              ]
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "consumption_wh",
+          "duration_h"
+        ],
+        "title": "Genetic0HomeApplianceParameters",
+        "description": "Home Appliance Device Simulation Configuration."
+      },
+      "Genetic0HomeApplianceParameters-Output": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of home appliance",
+            "examples": [
+              "dishwasher"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "consumption_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Consumption Wh",
+            "description": "An integer representing the energy consumption of a household device in watt-hours.",
+            "examples": [
+              2000
+            ]
+          },
+          "duration_h": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Duration H",
+            "description": "An integer representing the usage duration of a household device in hours.",
+            "examples": [
+              3
+            ]
+          },
+          "time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Output"
               },
               {
                 "type": "null"
@@ -5748,10 +6312,10 @@
         "title": "Genetic0InverterParameters",
         "description": "Inverter Device Simulation Configuration."
       },
-      "Genetic0OptimizationParameters": {
+      "Genetic0OptimizationParameters-Input": {
         "properties": {
           "ems": {
-            "$ref": "#/components/schemas/Genetic0EnergyManagementParameters"
+            "$ref": "#/components/schemas/Genetic0EnergyManagementParameters-Input"
           },
           "pv_battery": {
             "anyOf": [
@@ -5788,7 +6352,7 @@
           "dishwasher": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/Genetic0HomeApplianceParameters"
+                "$ref": "#/components/schemas/Genetic0HomeApplianceParameters-Input"
               },
               {
                 "type": "null"
@@ -5839,6 +6403,129 @@
           "pv_battery",
           "inverter",
           "ev"
+        ],
+        "title": "Genetic0OptimizationParameters",
+        "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
+      },
+      "Genetic0OptimizationParameters-Output": {
+        "properties": {
+          "ems": {
+            "$ref": "#/components/schemas/Genetic0EnergyManagementParameters-Output"
+          },
+          "pv_battery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PV battery parameters."
+          },
+          "inverter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0InverterParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ev": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Electric vehicle parameters."
+          },
+          "dishwasher": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0HomeApplianceParameters-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "temperature_forecast": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Forecast",
+            "description": "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
+          },
+          "start_solution": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution",
+            "description": "Can be `null` or contain a previous solution (if available)."
+          },
+          "pv_akku": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0SolarPanelBatteryParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deprecated: Use pv_battery instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "eauto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deprecated: Use ev instead.",
+            "deprecated": true,
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "ems",
+          "pv_battery",
+          "inverter",
+          "ev",
+          "pv_akku",
+          "eauto"
         ],
         "title": "Genetic0OptimizationParameters",
         "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
@@ -6254,6 +6941,212 @@
       },
       "Genetic0Solution": {
         "properties": {
+          "parameters": {
+            "$ref": "#/components/schemas/Genetic0OptimizationParameters-Output",
+            "description": "Optimization parameters used to generate solution."
+          },
+          "ac_charge": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Ac Charge",
+            "description": "Array with AC charging values as relative power (0.0-1.0), other values set to 0."
+          },
+          "dc_charge": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Dc Charge",
+            "description": "Array with DC charging values as relative power (0-1), other values set to 0."
+          },
+          "discharge_allowed": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Discharge Allowed",
+            "description": "Array with discharge values (1 for discharge, 0 otherwise)."
+          },
+          "ev_charge_hours_float": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ev Charge Hours Float",
+            "description": "Array with EV charging values as relative power (0.0-1.0), or `null` if no EV is optimized."
+          },
+          "result": {
+            "$ref": "#/components/schemas/Genetic0SimulationResult"
+          },
+          "ev_obj": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Electric vehicle state after optimization."
+          },
+          "start_hour": {
+            "type": "integer",
+            "title": "Start Hour",
+            "description": "Start hour.",
+            "default": 0
+          },
+          "start_solution": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution",
+            "description": "An array of binary values (0 or 1) representing a possible starting solution for the simulation."
+          },
+          "washingstart": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Washingstart",
+            "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
+          },
+          "extra_data": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "items": {
+                        "type": "number"
+                      },
+                      "type": "array"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Data",
+            "description": "Dictionary of balance: TBD, losses: TBD, constraints: TBD."
+          },
+          "fitness_history": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "items": {
+                        "type": "number"
+                      },
+                      "type": "array"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fitness History",
+            "description": "Dictionary of gen: Generation numbers (X-axis), avg: Average fitness for each generation (Y-axis), max: Maximum fitness for each generation (Y-axis), min: Minimum fitness for each generation (Y-axis)."
+          },
+          "fixed_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed Seed",
+            "description": "Fixed seed."
+          },
+          "eautocharge_hours_float": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eautocharge Hours Float",
+            "description": "Deprecated: Use ev_charge_hours_float instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "eauto_obj": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Genetic0ElectricVehicleResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deprecated: Use ev_obj instead.",
+            "deprecated": true,
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "parameters",
+          "ac_charge",
+          "dc_charge",
+          "discharge_allowed",
+          "ev_charge_hours_float",
+          "result",
+          "ev_obj",
+          "eautocharge_hours_float",
+          "eauto_obj"
+        ],
+        "title": "Genetic0Solution",
+        "description": "**Note**: The first value of \"load_wh_per_hour\", \"grid_feed_in_wh_per_hour\", and \"grid_consumption_wh_per_hour\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
+      },
+      "Genetic0SolutionLegacy": {
+        "properties": {
           "ac_charge": {
             "items": {
               "type": "number"
@@ -6376,8 +7269,8 @@
           "eautocharge_hours_float",
           "eauto_obj"
         ],
-        "title": "Genetic0Solution",
-        "description": "**Note**: The first value of \"load_wh_per_hour\", \"grid_feed_in_wh_per_hour\", and \"grid_consumption_wh_per_hour\", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."
+        "title": "Genetic0SolutionLegacy",
+        "description": "GENETIC0 solution legacy dataset."
       },
       "GeneticCommonSettings-Input": {
         "properties": {
@@ -6593,6 +7486,246 @@
         ],
         "title": "GeneticCommonSettings",
         "description": "GENETIC Optimization Algorithm Configuration."
+      },
+      "GeneticEnergyManagementParameters": {
+        "properties": {
+          "pv_forecast_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pv Forecast Wh",
+            "description": "An array of floats representing the forecasted photovoltaic output in watts for different time intervals."
+          },
+          "electricity_price_per_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Electricity Price Per Wh",
+            "description": "An array of floats representing the electricity price per watt-hour for different time intervals."
+          },
+          "feed_in_tariff_per_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Feed In Tariff Per Wh",
+            "description": "A float or array of floats representing the feed-in compensation per watt-hour."
+          },
+          "price_per_wh_battery": {
+            "type": "number",
+            "title": "Price Per Wh Battery",
+            "description": "A float representing the cost of battery energy per watt-hour."
+          },
+          "total_load": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Total Load",
+            "description": "An array of floats representing the total load (consumption) in watts for different time intervals."
+          },
+          "pv_prognose_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Pv Prognose Wh",
+            "description": "Deprecated: Use pv_forecast_wh instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "strompreis_euro_pro_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Strompreis Euro Pro Wh",
+            "description": "Deprecated: Use electricity_price_per_wh instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "einspeiseverguetung_euro_pro_wh": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Einspeiseverguetung Euro Pro Wh",
+            "description": "Deprecated: Use feed_in_tariff_per_wh instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "preis_euro_pro_wh_akku": {
+            "type": "number",
+            "title": "Preis Euro Pro Wh Akku",
+            "description": "Deprecated: Use price_per_wh_battery instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "gesamtlast": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Gesamtlast",
+            "description": "Deprecated: Use total_load instead.",
+            "deprecated": true,
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "pv_forecast_wh",
+          "electricity_price_per_wh",
+          "feed_in_tariff_per_wh",
+          "price_per_wh_battery",
+          "total_load",
+          "pv_prognose_wh",
+          "strompreis_euro_pro_wh",
+          "einspeiseverguetung_euro_pro_wh",
+          "preis_euro_pro_wh_akku",
+          "gesamtlast"
+        ],
+        "title": "GeneticEnergyManagementParameters",
+        "description": "Encapsulates energy-related forecasts and costs used in GENETIC optimization."
+      },
+      "GeneticOptimizationParameters": {
+        "properties": {
+          "ems": {
+            "$ref": "#/components/schemas/GeneticEnergyManagementParameters"
+          },
+          "pv_battery": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SolarPanelBatteryParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PV battery parameters."
+          },
+          "inverter": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InverterParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ev": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ElectricVehicleParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Electric vehicle parameters."
+          },
+          "dishwasher": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HomeApplianceParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "temperature_forecast": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Forecast",
+            "description": "An array of floats representing the temperature forecast in degrees Celsius for different time intervals."
+          },
+          "start_solution": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Solution",
+            "description": "Can be `null` or contain a previous solution (if available)."
+          },
+          "pv_akku": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SolarPanelBatteryParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deprecated: Use pv_battery instead.",
+            "deprecated": true,
+            "readOnly": true
+          },
+          "eauto": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ElectricVehicleParameters"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deprecated: Use ev instead.",
+            "deprecated": true,
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "ems",
+          "pv_battery",
+          "inverter",
+          "ev",
+          "pv_akku",
+          "eauto"
+        ],
+        "title": "GeneticOptimizationParameters",
+        "description": "Main parameter class for running the genetic energy optimization.\n\nCollects all model and configuration parameters necessary to run the\noptimization process, such as forecasts, pricing, battery and appliance models."
       },
       "GeneticSimulationResult": {
         "properties": {
@@ -6875,6 +8008,10 @@
       },
       "GeneticSolution": {
         "properties": {
+          "parameters": {
+            "$ref": "#/components/schemas/GeneticOptimizationParameters",
+            "description": "Optimization parameters used to generate solution."
+          },
           "ac_charge": {
             "items": {
               "type": "number"
@@ -6928,6 +8065,12 @@
             ],
             "description": "Electric vehicle state after optimization."
           },
+          "start_hour": {
+            "type": "integer",
+            "title": "Start Hour",
+            "description": "Start hour.",
+            "default": 0
+          },
           "start_solution": {
             "anyOf": [
               {
@@ -6954,6 +8097,74 @@
             ],
             "title": "Washingstart",
             "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
+          },
+          "extra_data": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "items": {
+                        "type": "number"
+                      },
+                      "type": "array"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Data",
+            "description": "Dictionary of balance: TBD, losses: TBD, constraints: TBD."
+          },
+          "fitness_history": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "items": {
+                        "type": "integer"
+                      },
+                      "type": "array"
+                    },
+                    {
+                      "items": {
+                        "type": "number"
+                      },
+                      "type": "array"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fitness History",
+            "description": "Dictionary of gen: Generation numbers (X-axis), avg: Average fitness for each generation (Y-axis), max: Maximum fitness for each generation (Y-axis), min: Minimum fitness for each generation (Y-axis)."
+          },
+          "fixed_seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixed Seed",
+            "description": "Fixed seed."
           },
           "eautocharge_hours_float": {
             "anyOf": [
@@ -6988,6 +8199,7 @@
         },
         "type": "object",
         "required": [
+          "parameters",
           "ac_charge",
           "dc_charge",
           "discharge_allowed",
@@ -7182,6 +8394,80 @@
         ],
         "title": "HomeApplianceCommonSettings",
         "description": "Home Appliance devices base settings."
+      },
+      "HomeApplianceParameters": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of home appliance",
+            "examples": [
+              "dishwasher"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "consumption_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Consumption Wh",
+            "description": "An integer representing the energy consumption of a household device in watt-hours.",
+            "examples": [
+              2000
+            ]
+          },
+          "duration_h": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Duration H",
+            "description": "An integer representing the usage duration of a household device in hours.",
+            "examples": [
+              3
+            ]
+          },
+          "time_windows": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWindowSequence-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "List of allowed time windows. Defaults to optimization general time window.",
+            "examples": [
+              [
+                {
+                  "duration": "3 hours",
+                  "start_time": "10:00"
+                }
+              ]
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "consumption_wh",
+          "duration_h"
+        ],
+        "title": "HomeApplianceParameters",
+        "description": "Home Appliance Device Simulation Configuration."
       },
       "HomeAssistantAdapterCommonSettings-Input": {
         "properties": {
@@ -7774,6 +9060,109 @@
         "title": "InverterCommonSettings",
         "description": "Inverter devices base settings."
       },
+      "InverterParameters": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of inverter",
+            "examples": [
+              "inverter1"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "max_power_wh": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Power Wh",
+            "examples": [
+              10000
+            ]
+          },
+          "battery_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Id",
+            "description": "ID of battery",
+            "examples": [
+              null,
+              "battery1"
+            ]
+          },
+          "ac_to_dc_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Ac To Dc Efficiency",
+            "description": "Efficiency of AC to DC conversion (for AC/grid charging of battery). Set to 0 to disable AC charging via inverter. Default 1.0 for backward compatibility (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0,
+              0.0
+            ]
+          },
+          "dc_to_ac_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Dc To Ac Efficiency",
+            "description": "Efficiency of DC to AC conversion (for battery discharging to AC load/grid). Default 1.0 for backward compatibility (no additional inverter loss).",
+            "default": 1.0,
+            "examples": [
+              0.95,
+              1.0
+            ]
+          },
+          "max_ac_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ac Charge Power W",
+            "description": "Maximum AC charging power in watts. None means no additional limit (battery's own max_charge_power_w applies). Set to 0 to disable AC charging.",
+            "examples": [
+              null,
+              0,
+              5000
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "max_power_wh"
+        ],
+        "title": "InverterParameters",
+        "description": "Inverter Device Simulation Configuration."
+      },
       "LoadAkkudoktorCommonSettings": {
         "properties": {
           "loadakkudoktor_year_energy_kwh": {
@@ -7945,6 +9334,26 @@
       },
       "LoggingCommonSettings-Input": {
         "properties": {
+          "api_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Level",
+            "description": "Logging level for API response.",
+            "examples": [
+              "TRACE",
+              "DEBUG",
+              "INFO",
+              "WARNING",
+              "ERROR",
+              "CRITICAL"
+            ]
+          },
           "console_level": {
             "anyOf": [
               {
@@ -7955,7 +9364,7 @@
               }
             ],
             "title": "Console Level",
-            "description": "Logging level when logging to console.",
+            "description": "Logging level for logging to console.",
             "examples": [
               "TRACE",
               "DEBUG",
@@ -7975,7 +9384,7 @@
               }
             ],
             "title": "File Level",
-            "description": "Logging level when logging to file.",
+            "description": "Logging level for logging to file.",
             "examples": [
               "TRACE",
               "DEBUG",
@@ -7992,6 +9401,26 @@
       },
       "LoggingCommonSettings-Output": {
         "properties": {
+          "api_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Level",
+            "description": "Logging level for API response.",
+            "examples": [
+              "TRACE",
+              "DEBUG",
+              "INFO",
+              "WARNING",
+              "ERROR",
+              "CRITICAL"
+            ]
+          },
           "console_level": {
             "anyOf": [
               {
@@ -8002,7 +9431,7 @@
               }
             ],
             "title": "Console Level",
-            "description": "Logging level when logging to console.",
+            "description": "Logging level for logging to console.",
             "examples": [
               "TRACE",
               "DEBUG",
@@ -8022,7 +9451,7 @@
               }
             ],
             "title": "File Level",
-            "description": "Logging level when logging to file.",
+            "description": "Logging level for logging to file.",
             "examples": [
               "TRACE",
               "DEBUG",
@@ -9945,6 +11374,14 @@
         "title": "PydanticDateTimeSeries",
         "description": "Pydantic model for validating pandas Series with datetime index in JSON format.\n\nThis model handles Series data serialized with orient='index', where the keys are\ndatetime strings and values are the series values. Provides validation and\nconversion between JSON and pandas Series with datetime index.\n\nAttributes:\n    data (Dict[str, Any]): Dictionary mapping datetime strings to values.\n    dtype (str): The data type of the series values.\n    tz (str | None): Timezone name if the datetime index is timezone-aware."
       },
+      "SeriesProcessing": {
+        "type": "string",
+        "enum": [
+          "raw",
+          "resampled"
+        ],
+        "title": "SeriesProcessing"
+      },
       "ServerCommonSettings": {
         "properties": {
           "host": {
@@ -10251,6 +11688,136 @@
         "type": "object",
         "title": "SettingsEOS",
         "description": "Settings for all EOS.\n\nOnly used to update the configuration with specific settings."
+      },
+      "SolarPanelBatteryParameters": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "title": "Device Id",
+            "description": "ID of battery",
+            "examples": [
+              "battery1"
+            ]
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours",
+            "description": "Number of prediction hours. Defaults to global config prediction hours.",
+            "examples": [
+              null
+            ]
+          },
+          "capacity_wh": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Capacity Wh",
+            "description": "An integer representing the capacity of the battery in watt-hours.",
+            "examples": [
+              8000
+            ]
+          },
+          "charging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Charging Efficiency",
+            "description": "A float representing the charging efficiency of the battery.",
+            "default": 0.88
+          },
+          "discharging_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Discharging Efficiency",
+            "description": "A float representing the discharge efficiency of the battery.",
+            "default": 0.88
+          },
+          "max_charge_power_w": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Charge Power W",
+            "description": "Maximum charging power in watts.",
+            "default": 5000
+          },
+          "initial_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Initial Soc Percentage",
+            "description": "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state).",
+            "default": 0,
+            "examples": [
+              42
+            ]
+          },
+          "min_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Min Soc Percentage",
+            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "default": 0,
+            "examples": [
+              10
+            ]
+          },
+          "max_soc_percentage": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Max Soc Percentage",
+            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage.",
+            "default": 100
+          },
+          "charge_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Charge Rates",
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [
+              [
+                0.0,
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              null
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "device_id",
+          "capacity_wh"
+        ],
+        "title": "SolarPanelBatteryParameters",
+        "description": "PV battery device simulation configuration."
       },
       "TimeWindow-Input": {
         "properties": {
