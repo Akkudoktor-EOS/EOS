@@ -1043,7 +1043,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             if (
                 record.date_time is None
                 or (dropna and getattr(record, key, None) is None)
-                or (dropna and getattr(record, key, None) == float("nan"))
+                or (dropna and pd.isna(getattr(record, key, None)))
             ):
                 continue
             record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
@@ -1122,7 +1122,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             if (
                 record.date_time is None
                 or (getattr(record, key, None) is None)  # key is not in record
-                or (dropna and getattr(record, key, None) == float("nan"))
+                or (dropna and pd.isna(getattr(record, key, None)))
             ):
                 continue
             record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
