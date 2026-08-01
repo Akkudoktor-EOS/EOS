@@ -46,6 +46,16 @@ IGNORE_LOCATIONS = [
     # pathlib
     r"\.Path.*",
 
+    # PVLib
+    r"\.pvlib.*",
+    r"\.PVSystem.*",
+    r"\.disc.*",
+    r"\.Location.*",
+    r"\.ModelChain.*",
+    r"\.retrieve_sam.*",
+    r"\.get_solarposition.*",
+    r"\.TEMPERATURE_MODEL_PARAMETERS.*",
+
     # MarkdownIt
     r"\.MarkdownIt.*",
 

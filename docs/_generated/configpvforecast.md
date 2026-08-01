@@ -18,6 +18,7 @@
 | provider | `EOS_PVFORECAST__PROVIDER` | `str | None` | `rw` | `None` | PVForecast provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available PVForecast provider ids. |
 | pvforecastimport | `EOS_PVFORECAST__PVFORECASTIMPORT` | `PVForecastImportCommonSettings` | `rw` | `required` | PV forecast import provider settings |
+| pvlib | `EOS_PVFORECAST__PVLIB` | `PVForecastPVLibCommonSettings` | `rw` | `required` | PVLib provider settings |
 | pvnode | `EOS_PVFORECAST__PVNODE` | `PVForecastPVNodeCommonSettings` | `rw` | `required` | PVNode provider settings |
 | solcast | `EOS_PVFORECAST__SOLCAST` | `PVForecastSolcastCommonSettings` | `rw` | `required` | Solcast provider settings |
 | vrm | `EOS_PVFORECAST__VRM` | `PVForecastVrmCommonSettings` | `rw` | `required` | Victron Remote Management (VRM) provider settings |
@@ -41,6 +42,7 @@
                "token": "your-token",
                "site_id": 12345
            },
+           "pvlib": {},
            "pvnode": {
                "api_key": "",
                "site_id": null,
@@ -122,6 +124,7 @@
                "token": "your-token",
                "site_id": 12345
            },
+           "pvlib": {},
            "pvnode": {
                "api_key": "",
                "site_id": null,
@@ -183,11 +186,12 @@
            "max_planes": 1,
            "providers": [
                "PVForecastAkkudoktor",
-               "PVForecastVrm",
-               "PVForecastPVNode",
                "PVForecastForecastSolar",
+               "PVForecastImport",
+               "PVForecastPVLib",
+               "PVForecastPVNode",
                "PVForecastSolcast",
-               "PVForecastImport"
+               "PVForecastVrm"
            ],
            "planes_peakpower": [
                5.0,
@@ -317,6 +321,32 @@
 ```
 <!-- pyml enable line-length -->
 
+### Common settings for pvforecast data calculation with PVLib
+
+<!-- pyml disable line-length -->
+:::{table} pvforecast::pvlib
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "pvforecast": {
+           "pvlib": {}
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
 ### Common settings for pvforecast data import from file or JSON string
 
 <!-- pyml disable line-length -->
@@ -357,13 +387,13 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| albedo | `float | None` | `rw` | `None` | Proportion of the light hitting the ground that it reflects back. |
+| albedo | `float | None` | `rw` | `0.2` | Proportion of the light hitting the ground that it reflects back. |
 | inverter_model | `str | None` | `rw` | `None` | Model of the inverter of this plane. |
 | inverter_paco | `int | None` | `rw` | `None` | AC power rating of the inverter [W]. |
 | loss | `float | None` | `rw` | `14.0` | Sum of PV system losses in percent |
 | module_model | `str | None` | `rw` | `None` | Model of the PV modules of this plane. |
 | modules_per_string | `int | None` | `rw` | `None` | Number of the PV modules of the strings of this plane. |
-| mountingplace | `str | None` | `rw` | `free` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
+| mountingplace | `str | None` | `rw` | `building` | Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated. |
 | optimal_surface_tilt | `bool | None` | `rw` | `False` | Calculate the optimum tilt angle. Ignored for two-axis tracking. |
 | optimalangles | `bool | None` | `rw` | `False` | Calculate the optimum tilt and azimuth angles. Ignored for two-axis tracking. |
 | peakpower | `float | None` | `rw` | `None` | Nominal power of PV system in kW. |
@@ -395,7 +425,7 @@
                    ],
                    "peakpower": 5.0,
                    "pvtechchoice": "crystSi",
-                   "mountingplace": "free",
+                   "mountingplace": "building",
                    "loss": 14.0,
                    "trackingtype": 0,
                    "optimal_surface_tilt": false,

@@ -1,0 +1,10 @@
+Name,Vac,Pso,Paco,Pdco,Vdco,C0,C1,C2,C3,Pnt,Vdcmax,Idcmax,Mppt_low,Mppt_high,CEC_Date,CEC_hybrid,CEC_Type
+Units,V,W,W,W,V,1/W,1/V,1/V,1/V,W,V,A,V,V,,,
+[0],inv_snl_ac_voltage,inv_snl_pso,inv_snl_paco,inv_snl_pdco,inv_snl_vdco,inv_snl_c0,inv_snl_c1,inv_snl_c2,inv_snl_c3,inv_snl_pnt,inv_snl_vdcmax,inv_snl_idcmax,inv_snl_mppt_low,inv_snl_mppt_hi,inv_cec_date,inv_cec_hybrid,inv_cec_type
+Sungrow: SH25T,400,250,27500,26000,600,-0.0000828,-0.000759,-0.0001722,-0.0000414,25,1100,80,200,950,01/01/2025,Y,Hybrid
+Sungrow: SH20T,400,200,22000,21000,600,-0.00007584,-0.0007245,-0.0001587,-0.00003834,25,1100,80,200,950,01/01/2025,Y,Hybrid
+Sungrow: SH15T,400,150,16500,15700,600,-0.000069,-0.00069,-0.000138,-0.0000345,25,1100,80,200,950,01/01/2025,Y,Hybrid
+Sungrow: SH10RT,400,100,11000,10467,600,-0.00005892,-0.0006555,-0.0001173,-0.00002934,25,1100,80,200,950,01/01/2025,Y,Hybrid
+Sungrow: SH6RT,400,55,6000,6120,600,-0.000108,-0.001202,-0.000215,-0.0000538,25,1000,25,200,950,01/01/2025,Y,Hybrid
+Sungrow: SH10RS,400,100,10000,9500,600,-0.000065,-0.00075,-0.00013,-0.000032,25,1000,25,250,850,01/01/2025,N,Grid-Tie
+Fox ESS: KH/KA10,240,32,10500,15000,360,-0.000001128,-0.000001128,0.0025,0.0025,15,600,20,80,500,01/01/2025,Y,Hybrid

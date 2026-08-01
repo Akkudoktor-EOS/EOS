@@ -1,7 +1,10 @@
+
+import bz2
 import hashlib
 import json
 import logging
 import os
+import pickle
 import signal
 import subprocess
 import sys
@@ -14,6 +17,7 @@ from pathlib import Path
 from typing import Generator, Optional, Union
 from unittest.mock import PropertyMock, patch
 
+import pandas as pd
 import pendulum
 import psutil
 import pytest
@@ -176,6 +180,74 @@ def cfg_non_existent(request):
 # ------------------------------------
 
 
+@pytest.fixture(scope="session")
+def cec_databases_data() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load CEC test databases once per test session."""
+    DIR_TESTDATA = Path(__file__).parent / "testdata" / "pvforecastpvlib"
+    FILE_TESTDATA_CEC_INVERTERS_PBZ2 = DIR_TESTDATA / "cec_inverters.pbz2"
+    FILE_TESTDATA_CEC_MODULES_PBZ2 = DIR_TESTDATA / "cec_modules.pbz2"
+
+    with bz2.BZ2File(FILE_TESTDATA_CEC_MODULES_PBZ2, "rb") as f:
+        modules: pd.DataFrame = pickle.load(f)
+    with bz2.BZ2File(FILE_TESTDATA_CEC_INVERTERS_PBZ2, "rb") as f:
+        inverters: pd.DataFrame = pickle.load(f)
+
+    return modules, inverters
+
+
+@pytest.fixture(autouse=True)
+def cec_databases(monkeypatch, cec_databases_data) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Short-circuit CEC database access for every test (per-test patch, session-cached data).
+
+    Config requests the database in PVForecastPVLibCommonSettings by a computed_field.
+
+    To undo this fixture in a specific class do:
+        @pytest.fixture(autouse=True)
+        def cec_databases(self):
+            yield None
+    """
+    modules, inverters = cec_databases_data
+
+    def fake_update_cec_database() -> None:
+        #print(f"_update_cec_database faked")
+        pass
+
+    def fake_load_cec_database(path: Path) -> pd.DataFrame:
+        #print(f"_loadcec_database faked")
+        if "inverter" in path.name:
+            return inverters
+        if "module" in path.name:
+            return modules
+        raise ValueError(f"Unexpected CEC database path in test: {path}")
+
+    def fake_cec_inverters() -> pd.DataFrame:
+        #print(f"_cec_inverters faked")
+        return inverters
+
+    def fake_cec_modules() -> pd.DataFrame:
+        #print(f"_cec_modules faked")
+        return modules
+
+    monkeypatch.setattr(
+        "akkudoktoreos.prediction.pvforecastpvlib._update_cec_database",
+        fake_update_cec_database,
+    )
+    monkeypatch.setattr(
+        "akkudoktoreos.prediction.pvforecastpvlib._load_cec_database",
+        fake_load_cec_database,
+    )
+    monkeypatch.setattr(
+        "akkudoktoreos.prediction.pvforecastpvlib._cec_inverters",
+        fake_cec_inverters,
+    )
+    monkeypatch.setattr(
+        "akkudoktoreos.prediction.pvforecastpvlib._cec_modules",
+        fake_cec_modules,
+    )
+
+    return modules, inverters
+
+
 @pytest.fixture
 def config_default_dirs(tmpdir):
     """Fixture that provides a list of directories to be used as config dir."""
@@ -234,6 +306,7 @@ def user_data_dir(config_default_dirs):
 
 @pytest.fixture
 def config_eos_factory(
+    cec_databases,
     disable_debug_logging,
     user_config_dir,
     user_data_dir,

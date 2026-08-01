@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2608010961051894`
+**Version**: `v0.3.0.dev2608071015082558`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -1461,6 +1461,50 @@ Args:
 - **200**: Successful Response
 
 - **422**: Validation Error
+
+---
+
+## GET /v1/prediction/pvforecast/pvlib/inverters
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_pvforecast_inverters_get_v1_prediction_pvforecast_pvlib_inverters_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_pvforecast_inverters_get_v1_prediction_pvforecast_pvlib_inverters_get)
+<!-- pyml enable line-length -->
+
+Fastapi Prediction Pvforecast Inverters Get
+
+<!-- pyml disable line-length -->
+```python
+"""
+Get inverter names supported by PVForecast PVLib provider.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
+
+---
+
+## GET /v1/prediction/pvforecast/pvlib/modules
+
+<!-- pyml disable line-length -->
+**Links**: [local](http://localhost:8503/docs#/default/fastapi_prediction_pvforecast_modules_get_v1_prediction_pvforecast_pvlib_modules_get), [eos](https://petstore3.swagger.io/?url=https://raw.githubusercontent.com/Akkudoktor-EOS/EOS/refs/heads/main/openapi.json#/default/fastapi_prediction_pvforecast_modules_get_v1_prediction_pvforecast_pvlib_modules_get)
+<!-- pyml enable line-length -->
+
+Fastapi Prediction Pvforecast Modules Get
+
+<!-- pyml disable line-length -->
+```python
+"""
+Get module names supported by PVForecast PVLib provider.
+"""
+```
+<!-- pyml enable line-length -->
+
+**Responses**:
+
+- **200**: Successful Response
 
 ---
 

@@ -1258,9 +1258,8 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
                 - 15-minute interval → buckets on :00, :15, :30, :45
                 - 1-hour interval    → buckets on the hour
 
-                When False (default), the origin is ``query_start`` (or ``"start_day"`` when
-                no start is given), preserving the existing behaviour where buckets are
-                aligned to the query window rather than the clock.
+                When False (default), the origin is the requested start_datetime, or the timestamp
+                of the first returned sample if no start time was specified.
 
                 Set to True when storing compacted records back to the database so that the
                 resulting timestamps are predictable and human-readable.  Leave False for
@@ -1323,25 +1322,33 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             key=key, start_datetime=query_start, end_datetime=query_end, dropna=dropna
         )
 
+        # Determine the resampling start to be used to calculate resample origin
+        if start_datetime is not None:
+            # Use user supplied start datetime for resampling start
+            resample_start = start_datetime
+        elif not series.empty:
+            # Use first data sample to define the resampling start
+            resample_start = to_datetime(series.index[0])
+        else:
+            # No explicit start and no data available.
+            resample_start = None
+
         # Ensure we have at least one value
         if series.empty:
-            dummy_time = (
-                query_start - interval if query_start is not None else to_datetime(to_maxtime=False)
-            )
+            dummy_time = start_datetime or end_datetime or to_datetime(to_maxtime=False)
             series = pd.Series(
                 [None],
                 index=pd.DatetimeIndex([dummy_time], tz="UTC"),
                 name=key,
             )
 
+        # prepend context samples
         if query_start is not None:
             idx = series.index
 
-            # Number of samples before query_start
             start_index = idx.searchsorted(pd.Timestamp(query_start), side="left")
 
             if start_index == 0:
-                # No value before query_start -> prepend dummy
                 prepend = pd.Series(
                     [series.iloc[0]],
                     index=pd.DatetimeIndex([query_start - interval], tz="UTC"),
@@ -1350,30 +1357,9 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
                 series = pd.concat([prepend, series])
 
             elif start_index > 1:
-                # Keep only the last sample before query_start
                 series = series.iloc[start_index - 1 :]
 
-            # Determine resample origin
-            if align_to_interval:
-                # Snap to nearest UTC epoch-aligned floor of the interval so that bucket
-                # timestamps land on wall-clock-round boundaries (:00, :15, :30, :45 etc.)
-                # regardless of sub-second jitter in query_start.
-                interval_sec = int(interval.total_seconds())
-                if interval_sec > 0:
-                    start_epoch = int(query_start.timestamp())
-                    floored_epoch = (start_epoch // interval_sec) * interval_sec
-                    resample_origin: Union[str, pd.Timestamp] = pd.Timestamp(
-                        floored_epoch, unit="s", tz="UTC"
-                    )
-                else:
-                    resample_origin = query_start
-            else:
-                # Original behaviour: align to the query window start.
-                resample_origin = query_start
-        else:
-            # We do not have a query_start, align resample buckets to midnight of first day
-            resample_origin = "start_day"
-
+        # append context samples
         if query_end is not None:
             if compare_datetimes(to_datetime(series.index[-1]), query_end).lt:
                 append = pd.Series(
@@ -1382,6 +1368,26 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
                     name=key,
                 )
                 series = pd.concat([series, append])
+
+        # Determine resampling origin
+        if align_to_interval and resample_start:
+            interval_sec = int(interval.total_seconds())
+
+            if interval_sec > 0:
+                start_epoch = int(resample_start.timestamp())
+                floored_epoch = (start_epoch // interval_sec) * interval_sec
+
+                resample_origin: Union[pd.Timestamp, str] = pd.Timestamp(
+                    floored_epoch, unit="s", tz="UTC"
+                )
+            else:
+                resample_origin = resample_start
+        else:
+            # Preserve original behaviour: buckets start at the resample start.
+            resample_origin = resample_start
+        if resample_origin is None:
+            # We have no resample origin - take start of day as default
+            resample_origin = "start_day"
 
         # Check for numeric values
         numeric_series = pd.to_numeric(series, errors="coerce")  # ensures float64, not object dtype
@@ -2611,7 +2617,8 @@ class DataContainer(SingletonMixin, DataABC):
                 continue
 
         if series is None:
-            raise KeyError(f"No data found for key '{key}'.")
+            provider_ids = [provider.provider_id() for provider in self.enabled_providers]
+            raise KeyError(f"No data found for key '{key}' in enabled providers '{provider_ids}'.")
 
         return series
 
@@ -2804,7 +2811,6 @@ class DataContainer(SingletonMixin, DataABC):
             if end_datetime:
                 end_datetime = end_datetime.add(seconds=1)
 
-        # Create a DatetimeIndex based on start, end, and interval
         if start_datetime is None or end_datetime is None:
             raise ValueError(
                 f"Can not determine datetime range. Got '{start_datetime}'..'{end_datetime}'."
@@ -2832,8 +2838,13 @@ class DataContainer(SingletonMixin, DataABC):
                     )
 
                 if reference_index is None:
-                    reference_index = series.index
+                    reference_index = series.index.copy()
                 elif not series.index.equals(reference_index):
+                    logger.error(
+                        f"keys_to_dataframe: Time index mismatch for key '{key}'.\n"
+                        f"ref: {reference_index},\n"
+                        f"index: {series.index}"
+                    )
                     raise ValueError(f"Time index mismatch for key '{key}'.")
 
                 data[key] = series

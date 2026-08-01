@@ -63,8 +63,8 @@
            "providers": [
                "LoadAkkudoktor",
                "LoadAkkudoktorAdjusted",
-               "LoadVrm",
-               "LoadImport"
+               "LoadImport",
+               "LoadVrm"
            ]
        }
    }

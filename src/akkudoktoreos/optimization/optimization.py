@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Optional
 
 from pydantic import Field, computed_field
@@ -13,22 +14,29 @@ from akkudoktoreos.optimization.genetic.geneticsettings import GeneticCommonSett
 from akkudoktoreos.utils.datetimeutil import DateTime
 
 
-def optimization_algorithms() -> list[str]:
-    """Valid optimization algorithms."""
-    # Return static built-in optimization algorithms.
-    return [
-        "GENETIC",
-        "GENETIC0",
-    ]
+class OptimizationAlgorithm(StrEnum):
+    """Optimization Algorithm."""
+
+    GENETIC = "GENETIC"
+    GENETIC0 = "GENETIC0"
+
+
+def optimization_default_algorithm() -> OptimizationAlgorithm:
+    """Provide default optimization algorithm."""
+    return OptimizationAlgorithm.GENETIC
 
 
 class OptimizationCommonSettings(SettingsBaseModel):
     """General Optimization Configuration."""
 
-    algorithm: str = Field(
-        default="GENETIC",
+    algorithm: OptimizationAlgorithm = Field(
+        default_factory=optimization_default_algorithm,
         json_schema_extra={
-            "description": "The optimization algorithm. Defaults to GENETIC",
+            "description": (
+                f"Optimization algorithm "
+                f"[{' | '.join(mode.value for mode in OptimizationAlgorithm)}]. "
+                f"Defaults to {optimization_default_algorithm()}."
+            ),
             "examples": ["GENETIC", "GENETIC0"],
         },
     )
@@ -54,7 +62,7 @@ class OptimizationCommonSettings(SettingsBaseModel):
     @property
     def algorithms(self) -> list[str]:
         """Available optimization algorithms."""
-        return optimization_algorithms()
+        return [algo.value for algo in OptimizationAlgorithm]
 
     @computed_field  # type: ignore[prop-decorator]
     @property
