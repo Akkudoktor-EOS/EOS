@@ -147,9 +147,6 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
 
-        # Get charges_kwh in wh
-        charges_wh = (self.config.elecprice.charges_kwh or 0) / 1000
-
         # Initialize
         highest_orig_datetime = None  # newest datetime from the api after that we want to update.
         series_data = pd.Series(dtype=float)  # Initialize an empty series
@@ -164,17 +161,39 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
                 highest_orig_datetime = orig_datetime
 
-            # Convert EUR/MWh to EUR/Wh, apply charges and VAT if charges > 0
-            if charges_wh > 0:
-                vat_rate = self.config.elecprice.vat_rate or 1.19
-                price_wh = ((price_eur_per_mwh / 1_000_000) + charges_wh) * vat_rate
-            else:
-                price_wh = price_eur_per_mwh / 1_000_000
+            # Convert EUR/MWh to EUR/Wh and add the configured retail price components.
+            price_wh = self._price_with_charges(
+                price_eur_per_mwh / 1_000_000, orig_datetime
+            )
 
             # Store in series
             series_data.at[orig_datetime] = price_wh
 
         return series_data
+
+    def _charges_kwh_for_datetime(self, date_time: datetime) -> float:
+        """Return constant charges plus the first matching variable network fee."""
+        constant_charges_kwh = self.config.elecprice.charges_kwh or 0.0
+        component_charges_kwh = sum(self.config.elecprice.charge_components_kwh.values())
+        network_fees = self.config.elecprice.network_fees_kwh
+        network_fee_kwh = network_fees.get_value_for_datetime(to_datetime(date_time))
+        return constant_charges_kwh + component_charges_kwh + network_fee_kwh
+
+    def _price_with_charges(self, market_price_wh: float, date_time: datetime) -> float:
+        """Build the gross retail price from a net market price in EUR/Wh."""
+        charges_kwh = self._charges_kwh_for_datetime(date_time)
+        if charges_kwh <= 0:
+            return market_price_wh
+        vat_rate = self.config.elecprice.vat_rate or 1.19
+        return (market_price_wh + charges_kwh / 1000.0) * vat_rate
+
+    def _price_without_charges(self, retail_price_wh: float, date_time: datetime) -> float:
+        """Reverse configured charges so ETS forecasts only the underlying market price."""
+        charges_kwh = self._charges_kwh_for_datetime(date_time)
+        if charges_kwh <= 0:
+            return retail_price_wh
+        vat_rate = self.config.elecprice.vat_rate or 1.19
+        return retail_price_wh / vat_rate - charges_kwh / 1000.0
 
     @staticmethod
     def _resolution_seconds(series: pd.Series) -> int:
@@ -243,7 +262,9 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
 
         if needs_update:
             logger.info(
-                f"Update ElecPriceEnergyCharts is needed, last in history: {self.highest_orig_datetime}"
+                "Update {} is needed, last in history: {}",
+                self.provider_id(),
+                self.highest_orig_datetime,
             )
             # Set start_date try to take data from 5 weeks back for prediction
             start_date = to_datetime(
@@ -260,7 +281,9 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             self.key_from_series("elecprice_marketprice_wh", series_data)
         else:
             logger.info(
-                f"No Update ElecPriceEnergyCharts is needed, last in history: {self.highest_orig_datetime}"
+                "No update {} is needed, last in history: {}",
+                self.provider_id(),
+                self.highest_orig_datetime,
             )
 
         if not self.highest_orig_datetime:  # mypy fix
@@ -274,11 +297,24 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         )
         resolution_seconds = self._resolution_seconds(raw_series)
         slots_per_hour = 3600 // resolution_seconds
-        history = self.key_to_array(
+        priced_history = self.key_to_array(
             key="elecprice_marketprice_wh",
-            end_datetime=self.highest_orig_datetime,
+            end_datetime=to_datetime(self.highest_orig_datetime),
             interval=to_duration(f"{resolution_seconds} seconds"),
             fill_method="linear",
+        )
+        history_start = self.highest_orig_datetime - to_duration(
+            f"{max(len(priced_history) - 1, 0) * resolution_seconds} seconds"
+        )
+        history = np.array(
+            [
+                self._price_without_charges(
+                    float(price_wh),
+                    history_start + to_duration(f"{i * resolution_seconds} seconds"),
+                )
+                for i, price_wh in enumerate(priced_history)
+            ],
+            dtype=float,
         )
 
         # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
@@ -326,11 +362,15 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             raise ValueError("No data available")
 
         # write predictions into the records, update if exist.
+        prediction_index = [
+            self.highest_orig_datetime + to_duration(f"{(i + 1) * resolution_seconds} seconds")
+            for i in range(len(prediction))
+        ]
         prediction_series = pd.Series(
-            data=prediction,
-            index=[
-                self.highest_orig_datetime + to_duration(f"{(i + 1) * resolution_seconds} seconds")
-                for i in range(len(prediction))
+            data=[
+                self._price_with_charges(float(price_wh), timestamp)
+                for timestamp, price_wh in zip(prediction_index, prediction)
             ],
+            index=prediction_index,
         )
         self.key_from_series("elecprice_marketprice_wh", prediction_series)

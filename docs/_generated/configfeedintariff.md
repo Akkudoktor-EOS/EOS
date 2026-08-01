@@ -23,11 +23,14 @@
    {
        "feedintariff": {
            "direct_marketing_enabled": false,
-           "provider": "FeedInTariffFixed",
+           "provider": "FeedInTariffAkkudoktor",
            "provider_settings": {
+               "FeedInTariffAkkudoktor": null,
                "FeedInTariffFixed": null,
                "FeedInTariffEnergyCharts": null,
-               "FeedInTariffImport": null
+               "FeedInTariffImport": null,
+               "FeedInTariffTibber": null,
+               "FeedInTariffSMARD": null
            }
        }
    }
@@ -43,17 +46,82 @@
    {
        "feedintariff": {
            "direct_marketing_enabled": false,
-           "provider": "FeedInTariffFixed",
+           "provider": "FeedInTariffAkkudoktor",
            "provider_settings": {
+               "FeedInTariffAkkudoktor": null,
                "FeedInTariffFixed": null,
                "FeedInTariffEnergyCharts": null,
-               "FeedInTariffImport": null
+               "FeedInTariffImport": null,
+               "FeedInTariffTibber": null,
+               "FeedInTariffSMARD": null
            },
            "providers": [
                "FeedInTariffEnergyCharts",
+               "FeedInTariffAkkudoktor",
                "FeedInTariffFixed",
-               "FeedInTariffImport"
+               "FeedInTariffImport",
+               "FeedInTariffSMARD",
+               "FeedInTariffTibber"
            ]
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Settings for SMARD feed-in prices shared with ``elecprice.smard``
+
+<!-- pyml disable line-length -->
+:::{table} feedintariff::provider_settings::FeedInTariffSMARD
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "feedintariff": {
+           "provider_settings": {
+               "FeedInTariffSMARD": {}
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Settings for the Tibber feed-in tariff provider
+
+Authentication is shared with ``elecprice.tibber`` so the access token and
+home id do not have to be configured twice.
+
+<!-- pyml disable line-length -->
+:::{table} feedintariff::provider_settings::FeedInTariffTibber
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "feedintariff": {
+           "provider_settings": {
+               "FeedInTariffTibber": {}
+           }
        }
    }
 ```
@@ -154,18 +222,19 @@
 ```
 <!-- pyml enable line-length -->
 
-### Feed In Tariff Prediction Provider Configuration
+### Settings for the Akkudoktor feed-in tariff provider
+
+The public Akkudoktor price endpoint only needs the timezone already
+configured in ``general.timezone``, so no provider-specific values are
+currently required.
 
 <!-- pyml disable line-length -->
-:::{table} feedintariff::provider_settings
+:::{table} feedintariff::provider_settings::FeedInTariffAkkudoktor
 :widths: 10 10 5 5 30
 :align: left
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| FeedInTariffEnergyCharts | `Optional[akkudoktoreos.prediction.feedintariffenergycharts.FeedInTariffEnergyChartsCommonSettings]` | `rw` | `None` | FeedInTariffEnergyCharts settings |
-| FeedInTariffFixed | `Optional[akkudoktoreos.prediction.feedintarifffixed.FeedInTariffFixedCommonSettings]` | `rw` | `None` | FeedInTariffFixed settings |
-| FeedInTariffImport | `Optional[akkudoktoreos.prediction.feedintariffimport.FeedInTariffImportCommonSettings]` | `rw` | `None` | FeedInTariffImport settings |
 :::
 <!-- pyml enable line-length -->
 
@@ -178,9 +247,46 @@
    {
        "feedintariff": {
            "provider_settings": {
+               "FeedInTariffAkkudoktor": {}
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Feed In Tariff Prediction Provider Configuration
+
+<!-- pyml disable line-length -->
+:::{table} feedintariff::provider_settings
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| FeedInTariffAkkudoktor | `Optional[akkudoktoreos.prediction.feedintariffakkudoktor.FeedInTariffAkkudoktorCommonSettings]` | `rw` | `None` | FeedInTariffAkkudoktor settings |
+| FeedInTariffEnergyCharts | `Optional[akkudoktoreos.prediction.feedintariffenergycharts.FeedInTariffEnergyChartsCommonSettings]` | `rw` | `None` | FeedInTariffEnergyCharts settings |
+| FeedInTariffFixed | `Optional[akkudoktoreos.prediction.feedintarifffixed.FeedInTariffFixedCommonSettings]` | `rw` | `None` | FeedInTariffFixed settings |
+| FeedInTariffImport | `Optional[akkudoktoreos.prediction.feedintariffimport.FeedInTariffImportCommonSettings]` | `rw` | `None` | FeedInTariffImport settings |
+| FeedInTariffSMARD | `Optional[akkudoktoreos.prediction.feedintariffsmard.FeedInTariffSMARDCommonSettings]` | `rw` | `None` | FeedInTariffSMARD settings |
+| FeedInTariffTibber | `Optional[akkudoktoreos.prediction.feedintarifftibber.FeedInTariffTibberCommonSettings]` | `rw` | `None` | FeedInTariffTibber settings |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "feedintariff": {
+           "provider_settings": {
+               "FeedInTariffAkkudoktor": null,
                "FeedInTariffFixed": null,
                "FeedInTariffEnergyCharts": null,
-               "FeedInTariffImport": null
+               "FeedInTariffImport": null,
+               "FeedInTariffTibber": null,
+               "FeedInTariffSMARD": null
            }
        }
    }

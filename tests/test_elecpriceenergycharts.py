@@ -8,6 +8,7 @@ import requests
 from loguru import logger
 
 from akkudoktoreos.core.cache import CacheFileStore
+from akkudoktoreos.config.configabc import ValueTimeWindowSequence
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.elecpriceakkudoktor import (
     AkkudoktorElecPrice,
@@ -156,6 +157,61 @@ def test_update_data_keeps_quarter_hour_resolution(provider):
     )
     assert len(result) == provider.config.prediction.hours * 4
     assert result.index.to_series().diff().dropna().dt.total_seconds().unique().tolist() == [900.0]
+
+
+def test_parse_data_adds_constant_charges_variable_network_fees_and_vat(provider):
+    """Build the gross retail price from market price and the matching Module 3 fee."""
+    provider.config.elecprice.charges_kwh = None
+    provider.config.elecprice.charge_components_kwh = {
+        "electricity_tax": 0.0205,
+        "concession_fee": 0.0132,
+        "kwkg_levy": 0.00446,
+        "section_19_levy": 0.01559,
+        "offshore_grid_levy": 0.00941,
+    }
+    provider.config.elecprice.vat_rate = 1.19
+    provider.config.elecprice.network_fees_kwh = ValueTimeWindowSequence(
+        windows=[
+            {"start_time": "00:00", "duration": "7 hours", "value": 0.0095},
+            {"start_time": "07:00", "duration": "8 hours", "value": 0.0953},
+            {"start_time": "15:00", "duration": "5 hours", "value": 0.1565},
+            {"start_time": "20:00", "duration": "4 hours", "value": 0.0953},
+        ]
+    )
+    start = to_datetime("2026-01-15 00:00:00", in_timezone="Europe/Berlin")
+    timestamps = [start, start.add(hours=7), start.add(hours=15), start.add(hours=20)]
+    data = EnergyChartsElecPrice(
+        license_info="",
+        unix_seconds=[int(timestamp.timestamp()) for timestamp in timestamps],
+        price=[100.0] * len(timestamps),
+        unit="EUR/MWh",
+        deprecated=False,
+    )
+
+    result_kwh = provider._parse_data(data) * 1000
+
+    assert result_kwh.iloc[0] == pytest.approx((0.1 + 0.06316 + 0.0095) * 1.19)
+    assert result_kwh.iloc[1] == pytest.approx((0.1 + 0.06316 + 0.0953) * 1.19)
+    assert result_kwh.iloc[2] == pytest.approx((0.1 + 0.06316 + 0.1565) * 1.19)
+    assert result_kwh.iloc[3] == pytest.approx((0.1 + 0.06316 + 0.0953) * 1.19)
+
+
+def test_market_price_charge_round_trip(provider):
+    """Seasonal forecasting can remove and reapply timestamp-dependent retail charges."""
+    provider.config.elecprice.charges_kwh = None
+    provider.config.elecprice.charge_components_kwh = {"statutory_charges": 0.06316}
+    provider.config.elecprice.vat_rate = 1.19
+    provider.config.elecprice.network_fees_kwh = ValueTimeWindowSequence(
+        windows=[{"start_time": "15:00", "duration": "5 hours", "value": 0.1565}]
+    )
+    timestamp = to_datetime("2026-01-15 16:30:00", in_timezone="Europe/Berlin")
+    market_price_wh = -0.00002
+
+    retail_price_wh = provider._price_with_charges(market_price_wh, timestamp)
+
+    assert provider._price_without_charges(retail_price_wh, timestamp) == pytest.approx(
+        market_price_wh
+    )
 
 
 @patch("requests.get")

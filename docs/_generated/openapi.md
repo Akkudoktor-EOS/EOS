@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2607071966322885`
+**Version**: `v0.3.0.dev2608010951962828`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -122,7 +122,9 @@ Note:
 
 - `start_hour` (query, optional): Defaults to current hour of the day.
 
-- `ngen` (query, optional): Number of indivuals to generate for genetic algorithm.
+- `ngen` (query, optional): Deprecated alias for the number of genetic generations. Defaults to optimization.genetic.generations.
+
+- `individuals` (query, optional): Override optimization.genetic.individuals for this run.
 
 **Request Body**:
 

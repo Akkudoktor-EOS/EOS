@@ -7,12 +7,15 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| charge_components_kwh | `EOS_ELECPRICE__CHARGE_COMPONENTS_KWH` | `dict[str, Annotated[float, FieldInfo(annotation=NoneType, required=True, metadata=[Ge(ge=0)])]]` | `rw` | `required` | Named constant net charge components [€/kWh]. Their sum is added to charges_kwh, variable network fees, and the market price. |
 | charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `Optional[float]` | `rw` | `None` | Electricity price charges [€/kWh]. Will be added to variable market price. |
 | elecpricefixed | `EOS_ELECPRICE__ELECPRICEFIXED` | `ElecPriceFixedCommonSettings` | `rw` | `required` | Fixed electricity price provider settings. |
 | elecpriceimport | `EOS_ELECPRICE__ELECPRICEIMPORT` | `ElecPriceImportCommonSettings` | `rw` | `required` | Import provider settings. |
 | energycharts | `EOS_ELECPRICE__ENERGYCHARTS` | `ElecPriceEnergyChartsCommonSettings` | `rw` | `required` | Energy Charts provider settings. |
+| network_fees_kwh | `EOS_ELECPRICE__NETWORK_FEES_KWH` | `ValueTimeWindowSequence` | `rw` | `required` | Recurring time windows for variable network fees [€/kWh, net]. The first matching window is added to charges_kwh and the market price. |
 | provider | `EOS_ELECPRICE__PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available electricity price provider ids. |
+| smard | `EOS_ELECPRICE__SMARD` | `ElecPriceSMARDCommonSettings` | `rw` | `required` | Direct SMARD electricity price provider settings. |
 | tibber | `EOS_ELECPRICE__TIBBER` | `ElecPriceTibberCommonSettings` | `rw` | `required` | Tibber electricity price provider settings. |
 | vat_rate | `EOS_ELECPRICE__VAT_RATE` | `Optional[float]` | `rw` | `1.19` | VAT rate factor applied to electricity price when charges are used. |
 :::
@@ -44,6 +47,54 @@
            "tibber": {
                "access_token": null,
                "home_id": null
+           },
+           "charge_components_kwh": {
+               "electricity_tax": 0.0205,
+               "concession_fee": 0.0132,
+               "kwkg_levy": 0.00446,
+               "section_19_levy": 0.01559,
+               "offshore_grid_levy": 0.00941,
+               "supplier_markup": 0.0
+           },
+           "smard": {
+               "filter_id": 4169,
+               "region": "DE"
+           },
+           "network_fees_kwh": {
+               "windows": [
+                   {
+                       "start_time": "00:00:00.000000",
+                       "duration": "7 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.0095
+                   },
+                   {
+                       "start_time": "07:00:00.000000",
+                       "duration": "8 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.0953
+                   },
+                   {
+                       "start_time": "15:00:00.000000",
+                       "duration": "5 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.1565
+                   },
+                   {
+                       "start_time": "20:00:00.000000",
+                       "duration": "4 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.0953
+                   }
+               ]
            }
        }
    }
@@ -77,9 +128,58 @@
                "access_token": null,
                "home_id": null
            },
+           "charge_components_kwh": {
+               "electricity_tax": 0.0205,
+               "concession_fee": 0.0132,
+               "kwkg_levy": 0.00446,
+               "section_19_levy": 0.01559,
+               "offshore_grid_levy": 0.00941,
+               "supplier_markup": 0.0
+           },
+           "smard": {
+               "filter_id": 4169,
+               "region": "DE"
+           },
+           "network_fees_kwh": {
+               "windows": [
+                   {
+                       "start_time": "00:00:00.000000",
+                       "duration": "7 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.0095
+                   },
+                   {
+                       "start_time": "07:00:00.000000",
+                       "duration": "8 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.0953
+                   },
+                   {
+                       "start_time": "15:00:00.000000",
+                       "duration": "5 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.1565
+                   },
+                   {
+                       "start_time": "20:00:00.000000",
+                       "duration": "4 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.0953
+                   }
+               ]
+           },
            "providers": [
                "ElecPriceAkkudoktor",
                "ElecPriceEnergyCharts",
+               "ElecPriceSMARD",
                "ElecPriceTibber",
                "ElecPriceFixed",
                "ElecPriceImport"
@@ -114,6 +214,37 @@
            "tibber": {
                "access_token": "tibber_pat_...",
                "home_id": "00000000-0000-0000-0000-000000000000"
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the direct SMARD electricity-price provider
+
+<!-- pyml disable line-length -->
+:::{table} elecprice::smard
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| filter_id | `int` | `rw` | `4169` | SMARD filter id for the German/Luxembourg day-ahead price. |
+| region | `str` | `rw` | `DE` | SMARD market region used in the chart-data endpoint. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "elecprice": {
+           "smard": {
+               "filter_id": 4169,
+               "region": "DE"
            }
        }
    }

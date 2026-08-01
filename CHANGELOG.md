@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## Unreleased
 
 ### Added
+- Add direct `ElecPriceSMARD` and `FeedInTariffSMARD` providers for German/Luxembourg
+  day-ahead prices without relying on a supplier account or the rate-limited Energy-Charts API.
+  The providers retrieve SMARD's native quarter-hour prices, cache weekly chart-data chunks, and
+  extend missing horizon slots with the existing seasonal ETS forecast. Feed-in prices remain raw,
+  while import prices can include retail charges.
+- Add named net electricity-price components and recurring time-window network fees. Constant
+  taxes, levies, supplier charges, and the matching dynamic grid fee are added to the underlying
+  market price before VAT; seasonal forecasting continues to model only the market-price component.
 - Add `FeedInTariffAkkudoktor`, using raw hourly Akkudoktor/aWATTar day-ahead market prices as
   feed-in tariff data without import charges or VAT. Quarter-hour optimization holds each hourly
   value constant for four slots.

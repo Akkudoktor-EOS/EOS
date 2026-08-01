@@ -136,10 +136,13 @@ Configuration options:
 
     - `ElecPriceAkkudoktor`: Retrieves from Akkudoktor.net.
     - `ElecPriceEnergyCharts`: Retrieves from Energy-Charts.info.
+    - `ElecPriceSMARD`: Retrieves German/Luxembourg day-ahead prices directly from SMARD.de.
     - `ElecPriceFixed`: Caluclates from configured time window prices.
     - `ElecPriceImport`: Imports from a file or JSON string or by endpoint data provision.
 
   - `charges_kwh`: Electricity price charges (€/kWh).
+  - `charge_components_kwh`: Named constant net-charge components (€/kWh), summed automatically.
+  - `network_fees_kwh.windows`: Recurring time windows with variable net-grid fees (€/kWh).
   - `vat_rate`: VAT rate factor applied to electricity price when charges are used (default: 1.19).
   - `elecpricefixed.time_windows.windows`: The time windows with associated electricity prices.
   - `elecpriceimport.import_file_path`: Path to the file to import electricity price forecast data from.
@@ -166,11 +169,31 @@ forecasting by combining real-time market data with historical price trends.
 
 Charges and VAT
 
-- If `charges_kwh` configuration option is greater than 0, the electricity price is calculated as:
-  `(market price + charges_kwh) * vat_rate` where `vat_rate` is configurable (default: 1.19 for 19% VAT).
-- If `charges_kwh` is set to 0, the electricity price is simply: `market_price` (no VAT applied).
+- If constant charges or a matching `network_fees_kwh` window is greater than 0, the electricity
+  price is calculated as: `(market price + charges_kwh + sum(charge components) + network fee)
+  * vat_rate` where
+  `vat_rate` is configurable (default: 1.19 for 19% VAT).
+- If all constant charges and network-fee windows are empty or zero, the electricity price is
+  simply `market_price` (no VAT applied, preserving the existing raw-market-price behaviour).
+
+`charges_kwh`, every `charge_components_kwh` value, and `network_fees_kwh` are net values. Time
+windows repeat daily unless their optional `date` or `day_of_week` constraints are set. The first
+matching window is used. Named components make statutory levies and the supplier markup auditable
+instead of hiding them in one aggregate. The supplier-specific markup defaults to zero in the
+example and must be taken from the electricity supply contract.
 
 **Note:** For the most accurate forecasts, it is recommended to set the `historic_hours` parameter to 840.
+
+### ElecPriceSMARD Provider
+
+The `ElecPriceSMARD` provider retrieves quarter-hourly German/Luxembourg day-ahead prices directly from
+the public SMARD chart-data endpoint. It requests the required weekly chunks only and caches the
+combined response for one hour. Missing quarter-hour slots beyond the published day-ahead horizon are generated
+with the same daily or weekly seasonal ETS forecast as the Energy-Charts provider. Constant charges,
+time-variable network fees, and VAT are applied after forecasting the underlying market price.
+
+The same raw SMARD series is also available as `FeedInTariffSMARD` for direct-marketing feed-in
+revenue. Import-only charges, network fees, and VAT are deliberately not applied there.
 
 ### ElecPriceFixed Provider
 

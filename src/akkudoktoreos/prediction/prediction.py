@@ -35,11 +35,13 @@ from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
+from akkudoktoreos.prediction.elecpricesmard import ElecPriceSMARD
 from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibber
 from akkudoktoreos.prediction.feedintariffakkudoktor import FeedInTariffAkkudoktor
 from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
+from akkudoktoreos.prediction.feedintariffsmard import FeedInTariffSMARD
 from akkudoktoreos.prediction.feedintarifftibber import FeedInTariffTibber
 from akkudoktoreos.prediction.loadakkudoktor import (
     LoadAkkudoktor,
@@ -81,6 +83,7 @@ class PredictionCommonSettings(SettingsBaseModel):
 # Initialize forecast providers, all are singletons.
 elecprice_akkudoktor = ElecPriceAkkudoktor()
 elecprice_energy_charts = ElecPriceEnergyCharts()
+elecprice_smard = ElecPriceSMARD()
 elecprice_tibber = ElecPriceTibber()
 elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
@@ -88,6 +91,7 @@ feedintariff_energy_charts = FeedInTariffEnergyCharts()
 feedintariff_akkudoktor = FeedInTariffAkkudoktor()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
+feedintariff_smard = FeedInTariffSMARD()
 feedintariff_tibber = FeedInTariffTibber()
 loadforecast_akkudoktor = LoadAkkudoktor()
 loadforecast_akkudoktor_adjusted = LoadAkkudoktorAdjusted()
@@ -110,6 +114,7 @@ def prediction_providers() -> (
         Union[
             ElecPriceAkkudoktor,
             ElecPriceEnergyCharts,
+            ElecPriceSMARD,
             ElecPriceTibber,
             ElecPriceFixed,
             ElecPriceImport,
@@ -117,6 +122,7 @@ def prediction_providers() -> (
             FeedInTariffAkkudoktor,
             FeedInTariffFixed,
             FeedInTariffImport,
+            FeedInTariffSMARD,
             FeedInTariffTibber,
             LoadAkkudoktor,
             LoadAkkudoktorAdjusted,
@@ -142,6 +148,7 @@ def prediction_providers() -> (
     global \
         elecprice_akkudoktor, \
         elecprice_energy_charts, \
+        elecprice_smard, \
         elecprice_tibber, \
         elecprice_fixed, \
         elecprice_import, \
@@ -149,6 +156,7 @@ def prediction_providers() -> (
         feedintariff_akkudoktor, \
         feedintariff_fixed, \
         feedintariff_import, \
+        feedintariff_smard, \
         feedintariff_tibber, \
         loadforecast_akkudoktor, \
         loadforecast_akkudoktor_adjusted, \
@@ -169,6 +177,7 @@ def prediction_providers() -> (
     return [
         elecprice_akkudoktor,
         elecprice_energy_charts,
+        elecprice_smard,
         elecprice_tibber,
         elecprice_fixed,
         elecprice_import,
@@ -176,6 +185,7 @@ def prediction_providers() -> (
         feedintariff_akkudoktor,
         feedintariff_fixed,
         feedintariff_import,
+        feedintariff_smard,
         feedintariff_tibber,
         loadforecast_akkudoktor,
         loadforecast_akkudoktor_adjusted,
@@ -201,6 +211,7 @@ class Prediction(PredictionContainer):
         Union[
             ElecPriceAkkudoktor,
             ElecPriceEnergyCharts,
+            ElecPriceSMARD,
             ElecPriceTibber,
             ElecPriceFixed,
             ElecPriceImport,
@@ -208,6 +219,7 @@ class Prediction(PredictionContainer):
             FeedInTariffAkkudoktor,
             FeedInTariffFixed,
             FeedInTariffImport,
+            FeedInTariffSMARD,
             FeedInTariffTibber,
             LoadAkkudoktor,
             LoadAkkudoktorAdjusted,

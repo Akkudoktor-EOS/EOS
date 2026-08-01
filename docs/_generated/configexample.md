@@ -114,6 +114,54 @@
            "tibber": {
                "access_token": null,
                "home_id": null
+           },
+           "charge_components_kwh": {
+               "electricity_tax": 0.0205,
+               "concession_fee": 0.0132,
+               "kwkg_levy": 0.00446,
+               "section_19_levy": 0.01559,
+               "offshore_grid_levy": 0.00941,
+               "supplier_markup": 0.0
+           },
+           "smard": {
+               "filter_id": 4169,
+               "region": "DE"
+           },
+           "network_fees_kwh": {
+               "windows": [
+                   {
+                       "start_time": "00:00:00.000000",
+                       "duration": "7 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.0095
+                   },
+                   {
+                       "start_time": "07:00:00.000000",
+                       "duration": "8 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.0953
+                   },
+                   {
+                       "start_time": "15:00:00.000000",
+                       "duration": "5 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.1565
+                   },
+                   {
+                       "start_time": "20:00:00.000000",
+                       "duration": "4 hours",
+                       "day_of_week": null,
+                       "date": null,
+                       "locale": null,
+                       "value": 0.0953
+                   }
+               ]
            }
        },
        "ems": {
@@ -123,11 +171,14 @@
        },
        "feedintariff": {
            "direct_marketing_enabled": false,
-           "provider": "FeedInTariffFixed",
+           "provider": "FeedInTariffAkkudoktor",
            "provider_settings": {
+               "FeedInTariffAkkudoktor": null,
                "FeedInTariffFixed": null,
                "FeedInTariffEnergyCharts": null,
-               "FeedInTariffImport": null
+               "FeedInTariffImport": null,
+               "FeedInTariffTibber": null,
+               "FeedInTariffSMARD": null
            }
        },
        "general": {

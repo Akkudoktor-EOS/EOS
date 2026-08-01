@@ -116,8 +116,9 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
         energycharts = ElecPriceEnergyCharts()
         if len(history) > 800 * slots_per_hour:
             logger.info(
-                "Using weekly seasonal ETS forecast for Energy-Charts feed-in tariff "
+                "Using weekly seasonal ETS forecast for {} "
                 "with {} historical values.",
+                self.provider_id(),
                 len(history),
             )
             return energycharts._predict_ets(
@@ -125,8 +126,9 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             )
         if len(history) > 168 * slots_per_hour:
             logger.info(
-                "Using daily seasonal ETS forecast for Energy-Charts feed-in tariff "
+                "Using daily seasonal ETS forecast for {} "
                 "with {} historical values.",
+                self.provider_id(),
                 len(history),
             )
             return energycharts._predict_ets(
@@ -134,12 +136,13 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             )
         if len(history) > 0:
             logger.warning(
-                "Using constant median fallback for Energy-Charts feed-in tariff "
+                "Using constant median fallback for {} "
                 "with only {} historical values.",
+                self.provider_id(),
                 len(history),
             )
             return energycharts._predict_median(history, hours=slots)
-        logger.error("No feed-in tariff data available for Energy-Charts prediction")
+        logger.error("No feed-in tariff data available for {} prediction", self.provider_id())
         raise ValueError("No data available")
 
     def _update_data(self, force_update: Optional[bool] = False) -> None:
@@ -181,8 +184,9 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
 
         if needs_update:
             logger.info(
-                "Update FeedInTariffEnergyCharts is needed, last in history: {}, "
+                "Update {} is needed, last in history: {}, "
                 "force_update={}, history_refresh={}",
+                self.provider_id(),
                 self.highest_orig_datetime,
                 bool(force_update),
                 needs_history_refresh,
@@ -211,15 +215,17 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
                 # slots, so downstream (e.g. /gesamtlast, optimization) still
                 # gets a usable feed-in tariff series.
                 logger.warning(
-                    "Energy-Charts feed-in tariff update failed ({}); keeping "
+                    "{} update failed ({}); keeping "
                     "existing history until {} and extrapolating the remaining "
                     "slots via ETS.",
+                    self.provider_id(),
                     exc,
                     self.highest_orig_datetime,
                 )
         else:
             logger.info(
-                "No update FeedInTariffEnergyCharts is needed, last in history: {}",
+                "No update {} is needed, last in history: {}",
+                self.provider_id(),
                 self.highest_orig_datetime,
             )
 

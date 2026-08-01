@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2607101210858200"
+    "version": "v0.3.0.dev2608010951962828"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -2005,16 +2005,36 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "integer"
+                  "type": "integer",
+                  "minimum": 1
                 },
                 {
                   "type": "null"
                 }
               ],
-              "description": "Number of indivuals to generate for genetic algorithm.",
+              "description": "Deprecated alias for the number of genetic generations. Defaults to optimization.genetic.generations.",
               "title": "Ngen"
             },
-            "description": "Number of indivuals to generate for genetic algorithm."
+            "description": "Deprecated alias for the number of genetic generations. Defaults to optimization.genetic.generations."
+          },
+          {
+            "name": "individuals",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 10
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Override optimization.genetic.individuals for this run.",
+              "title": "Individuals"
+            },
+            "description": "Override optimization.genetic.individuals for this run."
           }
         ],
         "requestBody": {
@@ -3405,6 +3425,59 @@
           "tibber": {
             "$ref": "#/components/schemas/ElecPriceTibberCommonSettings",
             "description": "Tibber electricity price provider settings."
+          },
+          "charge_components_kwh": {
+            "additionalProperties": {
+              "type": "number",
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Charge Components Kwh",
+            "description": "Named constant net charge components [\u20ac/kWh]. Their sum is added to charges_kwh, variable network fees, and the market price.",
+            "examples": [
+              {
+                "concession_fee": 0.0132,
+                "electricity_tax": 0.0205,
+                "kwkg_levy": 0.00446,
+                "offshore_grid_levy": 0.00941,
+                "section_19_levy": 0.01559,
+                "supplier_markup": 0.0
+              }
+            ]
+          },
+          "smard": {
+            "$ref": "#/components/schemas/ElecPriceSMARDCommonSettings",
+            "description": "Direct SMARD electricity price provider settings."
+          },
+          "network_fees_kwh": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Input",
+            "description": "Recurring time windows for variable network fees [\u20ac/kWh, net]. The first matching window is added to charges_kwh and the market price.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "7 hours",
+                    "start_time": "00:00",
+                    "value": 0.0095
+                  },
+                  {
+                    "duration": "8 hours",
+                    "start_time": "07:00",
+                    "value": 0.0953
+                  },
+                  {
+                    "duration": "5 hours",
+                    "start_time": "15:00",
+                    "value": 0.1565
+                  },
+                  {
+                    "duration": "4 hours",
+                    "start_time": "20:00",
+                    "value": 0.0953
+                  }
+                ]
+              }
+            ]
           }
         },
         "type": "object",
@@ -3476,6 +3549,59 @@
           "tibber": {
             "$ref": "#/components/schemas/ElecPriceTibberCommonSettings",
             "description": "Tibber electricity price provider settings."
+          },
+          "charge_components_kwh": {
+            "additionalProperties": {
+              "type": "number",
+              "minimum": 0.0
+            },
+            "type": "object",
+            "title": "Charge Components Kwh",
+            "description": "Named constant net charge components [\u20ac/kWh]. Their sum is added to charges_kwh, variable network fees, and the market price.",
+            "examples": [
+              {
+                "concession_fee": 0.0132,
+                "electricity_tax": 0.0205,
+                "kwkg_levy": 0.00446,
+                "offshore_grid_levy": 0.00941,
+                "section_19_levy": 0.01559,
+                "supplier_markup": 0.0
+              }
+            ]
+          },
+          "smard": {
+            "$ref": "#/components/schemas/ElecPriceSMARDCommonSettings",
+            "description": "Direct SMARD electricity price provider settings."
+          },
+          "network_fees_kwh": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Output",
+            "description": "Recurring time windows for variable network fees [\u20ac/kWh, net]. The first matching window is added to charges_kwh and the market price.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "7 hours",
+                    "start_time": "00:00",
+                    "value": 0.0095
+                  },
+                  {
+                    "duration": "8 hours",
+                    "start_time": "07:00",
+                    "value": 0.0953
+                  },
+                  {
+                    "duration": "5 hours",
+                    "start_time": "15:00",
+                    "value": 0.1565
+                  },
+                  {
+                    "duration": "4 hours",
+                    "start_time": "20:00",
+                    "value": 0.0953
+                  }
+                ]
+              }
+            ]
           },
           "providers": {
             "items": {
@@ -3604,6 +3730,33 @@
         "type": "object",
         "title": "ElecPriceImportCommonSettings",
         "description": "Common settings for elecprice data import from file or JSON String."
+      },
+      "ElecPriceSMARDCommonSettings": {
+        "properties": {
+          "filter_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Filter Id",
+            "description": "SMARD filter id for the German/Luxembourg day-ahead price.",
+            "default": 4169,
+            "examples": [
+              4169
+            ]
+          },
+          "region": {
+            "type": "string",
+            "minLength": 2,
+            "title": "Region",
+            "description": "SMARD market region used in the chart-data endpoint.",
+            "default": "DE",
+            "examples": [
+              "DE"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecPriceSMARDCommonSettings",
+        "description": "Common settings for the direct SMARD electricity-price provider."
       },
       "ElecPriceTibberCommonSettings": {
         "properties": {
@@ -4278,8 +4431,28 @@
         "title": "FRBCTimerStatus",
         "description": "Current status of an FRBC Timer.\n\nIndicates when the Timer will be finished."
       },
+      "FeedInTariffAkkudoktorCommonSettings": {
+        "properties": {},
+        "type": "object",
+        "title": "FeedInTariffAkkudoktorCommonSettings",
+        "description": "Settings for the Akkudoktor feed-in tariff provider.\n\nThe public Akkudoktor price endpoint only needs the timezone already\nconfigured in ``general.timezone``, so no provider-specific values are\ncurrently required."
+      },
       "FeedInTariffCommonProviderSettings": {
         "properties": {
+          "FeedInTariffAkkudoktor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedInTariffAkkudoktorCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "FeedInTariffAkkudoktor settings",
+            "examples": [
+              null
+            ]
+          },
           "FeedInTariffFixed": {
             "anyOf": [
               {
@@ -4321,6 +4494,34 @@
             "examples": [
               null
             ]
+          },
+          "FeedInTariffTibber": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedInTariffTibberCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "FeedInTariffTibber settings",
+            "examples": [
+              null
+            ]
+          },
+          "FeedInTariffSMARD": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FeedInTariffSMARDCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "FeedInTariffSMARD settings",
+            "examples": [
+              null
+            ]
           }
         },
         "type": "object",
@@ -4351,9 +4552,12 @@
             "title": "Provider",
             "description": "Feed in tariff provider id of provider to be used.",
             "examples": [
+              "FeedInTariffAkkudoktor",
               "FeedInTariffFixed",
               "FeedInTariffEnergyCharts",
-              "FeedInTariffImport"
+              "FeedInTariffImport",
+              "FeedInTariffSMARD",
+              "FeedInTariffTibber"
             ]
           },
           "provider_settings": {
@@ -4392,9 +4596,12 @@
             "title": "Provider",
             "description": "Feed in tariff provider id of provider to be used.",
             "examples": [
+              "FeedInTariffAkkudoktor",
               "FeedInTariffFixed",
               "FeedInTariffEnergyCharts",
-              "FeedInTariffImport"
+              "FeedInTariffImport",
+              "FeedInTariffSMARD",
+              "FeedInTariffTibber"
             ]
           },
           "provider_settings": {
@@ -4500,6 +4707,18 @@
         "type": "object",
         "title": "FeedInTariffImportCommonSettings",
         "description": "Common settings for feed in tariff data import from file or JSON string."
+      },
+      "FeedInTariffSMARDCommonSettings": {
+        "properties": {},
+        "type": "object",
+        "title": "FeedInTariffSMARDCommonSettings",
+        "description": "Settings for SMARD feed-in prices shared with ``elecprice.smard``."
+      },
+      "FeedInTariffTibberCommonSettings": {
+        "properties": {},
+        "type": "object",
+        "title": "FeedInTariffTibberCommonSettings",
+        "description": "Settings for the Tibber feed-in tariff provider.\n\nAuthentication is shared with ``elecprice.tibber`` so the access token and\nhome id do not have to be configured twice."
       },
       "ForecastResponse": {
         "properties": {
@@ -5313,6 +5532,11 @@
           "hours": {
             "type": "integer",
             "title": "Hours"
+          },
+          "force_update": {
+            "type": "boolean",
+            "title": "Force Update",
+            "default": false
           }
         },
         "type": "object",
