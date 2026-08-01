@@ -217,7 +217,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         # Determine if update is needed and how many days
         past_days = 35
         if self.highest_orig_datetime:
-            history_series = await self.key_to_series(
+            history_series = await self.key_to_raw_series(
                 key="elecprice_marketprice_wh", start_datetime=self.ems_start_datetime
             )
             # If history lower, then start_datetime

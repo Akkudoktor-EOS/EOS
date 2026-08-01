@@ -549,7 +549,7 @@ class DatabaseRecordProtocolMixin(
             interval: Optional[Duration] = None,
             fill_method: Optional[FillMethod] = None,
             resample_method: ResampleMethod = "mean",
-            dropna: Optional[bool] = True,
+            dropna: bool = True,
             boundary: BoundaryMode = "context",
             align_to_interval: bool = False,
         ) -> NDArray[Shape["*"], Any]: ...
@@ -620,7 +620,36 @@ class DatabaseRecordProtocolMixin(
             self._db_metadata = None
             self._db_storage_initialized: bool = False
 
+            # Whether an explicit backend open has already been attempted.
+            # One-shot per init so a closed/failed backend is not retried on
+            # every record operation. Re-armed when DB state is reset.
+            self._db_open_attempted: bool = False
+
             self._db_initialized: bool = True
+
+        # Ensure the configured database backend is actually opened.
+        # `db_enabled` reflects `database.is_open`, and every DB code path is guarded
+        # behind `db_enabled`. Without an explicit open here the backend is never
+        # opened (lazy open via `_run_db` is unreachable), so records would only ever
+        # persist to the JSON file fallback and never reload into memory on startup.
+        #
+        # Skip disabled providers (None/"NoDB"): persistence is intentionally off and
+        # `NoDB.is_open` is always False, so opening it would run on every call. Only
+        # attempt the open once; on failure we log without retrying (and re-logging)
+        # on every subsequent record operation.
+        provider = self.config.database.provider
+        if (
+            provider not in (None, "NoDB")
+            and not self.database.is_open
+            and not self._db_open_attempted
+        ):
+            self._db_open_attempted = True
+            try:
+                await self.database.open(namespace=self.db_namespace())
+            except Exception:
+                logger.exception(
+                    f"Could not open database backend for namespace '{self.db_namespace()}'."
+                )
 
         if not self._db_storage_initialized and self.db_enabled:
             # Metadata

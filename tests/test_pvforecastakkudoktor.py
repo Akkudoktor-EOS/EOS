@@ -346,7 +346,7 @@ async def test_timezone_behaviour(
     other_end_datetime = other_start_datetime + to_duration("24 hours")
     expected_end_datetime = to_datetime("2024-10-07T00:00:00+0200", in_timezone=other_timezone)
     assert compare_datetimes(other_end_datetime, expected_end_datetime).equal
-    forecast_temps = await provider.key_to_series(
+    forecast_temps = await provider.key_to_raw_series(
         "pvforecastakkudoktor_temp_air", other_start_datetime, other_end_datetime
     )
     assert len(forecast_temps) == 23  # 24-1, first temperature is null
@@ -355,7 +355,7 @@ async def test_timezone_behaviour(
 
     # Test fetching AC power forecast
     other_end_datetime = other_start_datetime + to_duration("48 hours")
-    forecast_measured = await provider.key_to_series(
+    forecast_measured = await provider.key_to_raw_series(
         "pvforecastakkudoktor_ac_power_measured", other_start_datetime, other_end_datetime
     )
     assert len(forecast_measured) == 1
