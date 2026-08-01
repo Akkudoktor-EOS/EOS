@@ -1,7 +1,7 @@
 import json
-import os
 import textwrap
 from collections.abc import Sequence
+from io import BytesIO
 from typing import Callable, Optional, Union
 
 import matplotlib
@@ -12,7 +12,7 @@ import pendulum
 from matplotlib.backends.backend_pdf import PdfPages
 
 from akkudoktoreos.core.coreabc import ConfigMixin, get_ems
-from akkudoktoreos.optimization.genetic.genetic import GeneticOptimizationParameters
+from akkudoktoreos.optimization.genetic0.genetic0solution import Genetic0Solution
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 matplotlib.use(
@@ -23,39 +23,29 @@ matplotlib.use(
 debug_visualize: bool = False
 
 
-class VisualizationReport(ConfigMixin):
+class Genetic0VisualizationReport(ConfigMixin):
     def __init__(
         self,
-        filename: str = "visualization_results.pdf",
         version: str = "0.0.1",
-        create_img: bool = True,
     ) -> None:
-        # Initialize the report with a given filename and empty groups
-        self.filename = filename
+        # Initialize the report with empty groups
         self.groups: list[list[Callable[[], None]]] = []  # Store groups of charts
         self.current_group: list[
             Callable[[], None]
         ] = []  # Store current group of charts being created
-        self.pdf_pages = PdfPages(filename, metadata={})  # Initialize PdfPages without metadata
+
+        # file like buffer to create the PDF
+        self._buffer = BytesIO()
+        self.pdf_pages: PdfPages | None = None
+
         self.version = version  # overwrite version as test for constant output of pdf for test
         self.current_time = to_datetime(
             as_string="YYYY-MM-DD HH:mm:ss", in_timezone=self.config.general.timezone
         )
-        self.create_img = create_img
 
     def add_chart_to_group(self, chart_func: Callable[[], None], title: str | None) -> None:
         """Add a chart function to the current group and save it as a PNG and SVG."""
         self.current_group.append(chart_func)
-        if self.create_img and title:
-            server_output_dir = self.config.cache.path()
-            server_output_dir.mkdir(parents=True, exist_ok=True)
-            fig, ax = plt.subplots()
-            chart_func()
-            plt.tight_layout()  # Adjust the layout to ensure titles are not cut off
-            sanitized_title = "".join(c if c.isalnum() else "_" for c in title)
-            chart_filename_base = os.path.join(server_output_dir, f"chart_{sanitized_title}")
-            fig.savefig(f"{chart_filename_base}.svg")
-            plt.close(fig)
 
     def finalize_group(self) -> None:
         """Finalize the current group and prepare for a new group."""
@@ -66,22 +56,15 @@ class VisualizationReport(ConfigMixin):
         self.current_group = []  # Reset current group for new charts
 
     def _initialize_pdf(self) -> None:
-        """Create the output directory if it doesn't exist and initialize the PDF."""
-        output_dir = self.config.general.data_output_path
-
-        # If self.filename is already a valid path, use it; otherwise, combine it with output_dir
-        if os.path.isabs(self.filename):
-            output_file = self.filename
-        else:
-            output_dir.mkdir(parents=True, exist_ok=True)
-            output_file = os.path.join(output_dir, self.filename)
-
-        self.pdf_pages = PdfPages(
-            output_file, metadata={}
-        )  # Re-initialize PdfPages without metadata
+        """Initialize the PDF."""
+        self._buffer = BytesIO()
+        self.pdf_pages = PdfPages(self._buffer, metadata={})  # Initialize PdfPages without metadata
 
     def _save_group_to_pdf(self, group: list[Callable[[], None]]) -> None:
         """Save a group of charts to the PDF."""
+        if self.pdf_pages is None:  # make mypy happy
+            raise RuntimeError("Report not initialized")
+
         fig_count = len(group)  # Number of charts in the group
 
         if fig_count == 0:
@@ -304,8 +287,8 @@ class VisualizationReport(ConfigMixin):
 
     def create_bar_chart(
         self,
-        labels: list[str],
-        values_list: Sequence[Union[int, float, list[Union[int, float]]]],
+        labels: Sequence[str],
+        values_list: Sequence[Sequence[int | float]],
         title: str,
         ylabel: str,
         xlabels: Optional[list[str]] = None,
@@ -371,6 +354,9 @@ class VisualizationReport(ConfigMixin):
         """Add a page with text content to the PDF."""
 
         def chart() -> None:
+            if self.pdf_pages is None:  # make mypy happy
+                raise RuntimeError("Report not initialized")
+
             fig = plt.figure(figsize=(8.5, 11))  # Create a standard page size
             plt.axis("off")  # Turn off axes for a clean page
             wrapped_text = textwrap.fill(text, width=80)  # Wrap text to fit the page width
@@ -398,6 +384,9 @@ class VisualizationReport(ConfigMixin):
         """
 
         def chart() -> None:
+            if self.pdf_pages is None:  # make mypy happy
+                raise RuntimeError("Report not initialized")
+
             # Convert JSON object to a formatted string
             json_str = json.dumps(json_obj, indent=4)
 
@@ -424,31 +413,37 @@ class VisualizationReport(ConfigMixin):
 
         self.add_chart_to_group(chart, title)  # Treat the JSON page as a "chart" in the group
 
-    def generate_pdf(self) -> None:
-        """Generate the PDF report with all the added chart groups."""
+    def generate_pdf(self) -> bytes:
+        """Generate the PDF report with all the added chart groups.
+
+        Returns:
+            PDF report as bytes object
+        """
         self._initialize_pdf()  # Initialize the PDF
 
+        buffer = BytesIO()
+        self.pdf_pages = PdfPages(buffer, metadata={})
+
         for group in self.groups:
-            self._save_group_to_pdf(group)  # Save each group to the PDF
+            self._save_group_to_pdf(group)
 
-        self.pdf_pages.close()  # Close the PDF to finalize the report
+        self.pdf_pages.close()
+        return buffer.getvalue()
 
 
-def prepare_visualize(
-    parameters: GeneticOptimizationParameters,
-    results: dict,
-    filename: str = "visualization_results.pdf",
-    start_hour: int = 0,
-) -> None:
+def genetic0_prepare_visualize(
+    solution: Genetic0Solution,
+) -> bytes:
     global debug_visualize
 
-    report = VisualizationReport(filename)
+    report = Genetic0VisualizationReport()
     next_full_hour_date = get_ems().start_datetime
+    start_hour = solution.start_hour
     # Group 1:
     report.create_line_chart_date(
         next_full_hour_date,
         [
-            parameters.ems.total_load[start_hour:],
+            solution.parameters.ems.total_load[start_hour:],
         ],
         title="Load Profile",
         # xlabel="Hours", # not enough space
@@ -458,7 +453,7 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,
         [
-            parameters.ems.pv_forecast_wh[start_hour:],
+            solution.parameters.ems.pv_forecast_wh[start_hour:],
         ],
         title="PV Forecast",
         # xlabel="Hours", # not enough space
@@ -469,10 +464,10 @@ def prepare_visualize(
         next_full_hour_date,
         [
             np.full(
-                len(parameters.ems.total_load) - start_hour,
-                parameters.ems.feed_in_tariff_per_wh[start_hour:]
-                if isinstance(parameters.ems.feed_in_tariff_per_wh, list)
-                else parameters.ems.feed_in_tariff_per_wh,
+                len(solution.parameters.ems.total_load) - start_hour,
+                solution.parameters.ems.feed_in_tariff_per_wh[start_hour:]
+                if isinstance(solution.parameters.ems.feed_in_tariff_per_wh, list)
+                else solution.parameters.ems.feed_in_tariff_per_wh,
             )
         ],
         title="Remuneration",
@@ -480,11 +475,11 @@ def prepare_visualize(
         ylabel="amount/Wh",
         x2label=None,  # not enough space
     )
-    if parameters.temperature_forecast:
+    if solution.parameters.temperature_forecast:
         report.create_line_chart_date(
             next_full_hour_date,
             [
-                parameters.temperature_forecast[start_hour:],
+                solution.parameters.temperature_forecast[start_hour:],
             ],
             title="Temperature Forecast",
             # xlabel="Hours", # not enough space
@@ -495,13 +490,13 @@ def prepare_visualize(
 
     # Group 2:
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
-        [
-            results["result"]["load_wh_per_hour"],
-            results["result"]["home_appliance_wh_per_hour"],
-            results["result"]["grid_feed_in_wh_per_hour"],
-            results["result"]["grid_consumption_wh_per_hour"],
-            results["result"]["losses_per_hour"],
+        start_date=next_full_hour_date,  # start_date
+        y_list=[
+            solution.result.load_wh_per_hour,
+            solution.result.home_appliance_wh_per_hour,
+            solution.result.grid_feed_in_wh_per_hour,
+            solution.result.grid_consumption_wh_per_hour,
+            solution.result.losses_per_hour,
         ],
         title="Energy Flow per Hour",
         # xlabel="Date", # not enough space
@@ -520,8 +515,8 @@ def prepare_visualize(
 
     # Group 3:
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
-        [results["result"]["battery_soc_per_hour"], results["result"]["ev_soc_per_hour"]],
+        start_date=next_full_hour_date,
+        y_list=[solution.result.battery_soc_per_hour, solution.result.ev_soc_per_hour],
         title="Battery SOC",
         # xlabel="Date", # not enough space
         ylabel="%",
@@ -532,8 +527,8 @@ def prepare_visualize(
         markers=["o", "x"],
     )
     report.create_line_chart_date(
-        next_full_hour_date,  # start_date
-        [parameters.ems.electricity_price_per_wh[start_hour:]],
+        start_date=next_full_hour_date,  # start_date
+        y_list=[solution.parameters.ems.electricity_price_per_wh[start_hour:]],
         # title="Electricity Price", # not enough space
         # xlabel="Date", # not enough space
         ylabel="Electricity Price (amount/Wh)",
@@ -550,11 +545,11 @@ def prepare_visualize(
     labels = labels[start_hour:] + labels
 
     report.create_bar_chart(
-        labels,
-        [
-            results["ac_charge"][start_hour:],
-            results["dc_charge"][start_hour:],
-            results["discharge_allowed"][start_hour:],
+        labels=labels,
+        values_list=[
+            solution.ac_charge[start_hour:],
+            solution.dc_charge[start_hour:],
+            solution.discharge_allowed[start_hour:],
         ],
         title="AC/DC Charging and Discharge Overview",
         ylabel="Relative Power (0-1) / Discharge (0 or 1)",
@@ -570,8 +565,8 @@ def prepare_visualize(
     report.create_line_chart_date(
         next_full_hour_date,  # start_date
         [
-            results["result"]["costs_per_hour"],
-            results["result"]["revenue_per_hour"],
+            solution.result.costs_per_hour,
+            solution.result.revenue_per_hour,
         ],
         title="Financial Balance per Hour",
         # xlabel="Date", # not enough space
@@ -579,21 +574,22 @@ def prepare_visualize(
         labels=["Costs", "Revenue"],
     )
 
-    extra_data = results["extra_data"]
-    report.create_scatter_plot(
-        extra_data["losses"],
-        extra_data["balance"],
-        title="Scatter Plot",
-        xlabel="losses",
-        ylabel="balance",
-        c=extra_data["constraints"],
-    )
+    extra_data = solution.extra_data
+    if extra_data:
+        report.create_scatter_plot(
+            x=np.array(extra_data["losses"]),
+            y=np.array(extra_data["balance"]),
+            title="Scatter Plot",
+            xlabel="losses",
+            ylabel="balance",
+            c=np.array(extra_data["constraints"]),
+        )
 
     values_list = [
         [
-            results["result"]["total_costs"],
-            results["result"]["total_revenue"],
-            results["result"]["total_balance"],
+            solution.result.total_costs,
+            solution.result.total_revenue,
+            solution.result.total_balance,
         ]
     ]
     labels = ["Total Costs [amount]", "Total Revenue [amount]", "Total Balance [amount]"]
@@ -609,69 +605,77 @@ def prepare_visualize(
     report.finalize_group()
 
     # Group 1: Scatter plot of losses vs balance with color-coded constraints
-    f1 = np.array(extra_data["losses"])  # Losses
-    f2 = np.array(extra_data["balance"])  # Balance
-    n1 = np.array(extra_data["constraints"])  # Constraints
+    if extra_data:
+        f1 = np.array(extra_data["losses"])  # Losses
+        f2 = np.array(extra_data["balance"])  # Balance
+        n1 = np.array(extra_data["constraints"])  # Constraints
 
-    # Filter data where 'constraints' < 0.01
-    filtered_indices = n1 < 0.01
-    filtered_losses = f1[filtered_indices]
-    filtered_balance = f2[filtered_indices]
+        # Filter data where 'constraints' < 0.01
+        filtered_indices = n1 < 0.01
+        filtered_losses = f1[filtered_indices]
+        filtered_balance = f2[filtered_indices]
 
-    # Group 2: Violin plot for filtered losses
-    if filtered_losses.size > 0:
-        report.create_violin_plot(
-            data_list=[filtered_losses],  # Data for filtered losses
-            labels=["Filtered Losses"],  # Label for the violin plot
-            title="Violin Plot for Filtered Losses (Constraint < 0.01)",
-            xlabel="Losses",
-            ylabel="Values",
-        )
-    else:
-        print("No data available for filtered losses violin plot (Constraint < 0.01)")
+        # Group 2: Violin plot for filtered losses
+        if filtered_losses.size > 0:
+            report.create_violin_plot(
+                data_list=[filtered_losses],  # Data for filtered losses
+                labels=["Filtered Losses"],  # Label for the violin plot
+                title="Violin Plot for Filtered Losses (Constraint < 0.01)",
+                xlabel="Losses",
+                ylabel="Values",
+            )
+        else:
+            print("No data available for filtered losses violin plot (Constraint < 0.01)")
 
     # Group 3: Violin plot for filtered balance
-    if filtered_balance.size > 0:
-        report.create_violin_plot(
-            data_list=[filtered_balance],  # Data for filtered balance
-            labels=["Filtered Balance"],  # Label for the violin plot
-            title="Violin Plot for Filtered Balance (Constraint < 0.01)",
-            xlabel="Balance",
-            ylabel="Values",
-        )
-    else:
-        print("No data available for filtered balance violin plot (Constraint < 0.01)")
+    if extra_data:
+        if filtered_balance.size > 0:
+            report.create_violin_plot(
+                data_list=[filtered_balance],  # Data for filtered balance
+                labels=["Filtered Balance"],  # Label for the violin plot
+                title="Violin Plot for Filtered Balance (Constraint < 0.01)",
+                xlabel="Balance",
+                ylabel="Values",
+            )
+        else:
+            print("No data available for filtered balance violin plot (Constraint < 0.01)")
 
-    if filtered_balance.size > 0 or filtered_losses.size > 0:
-        report.finalize_group()
-    if debug_visualize or results["fixed_seed"]:
-        report.create_line_chart(
-            0,
-            [
-                results["fitness_history"]["avg"],
-                results["fitness_history"]["max"],
-                results["fitness_history"]["min"],
-            ],
-            title=f"DEBUG: Generation Fitness for seed {results['fixed_seed']}",
-            xlabel="Generation",
-            ylabel="Fitness",
-            labels=[
-                "avg",
-                "max",
-                "min",
-            ],
-            markers=[".", ".", "."],
-        )
-        report.finalize_group()
+        if filtered_balance.size > 0 or filtered_losses.size > 0:
+            report.finalize_group()
+
+    if solution.fitness_history:
+        if debug_visualize or solution.fixed_seed:
+            report.create_line_chart(
+                start_hour=0,
+                y_list=[
+                    np.array(solution.fitness_history["avg"]),
+                    np.array(solution.fitness_history["max"]),
+                    np.array(solution.fitness_history["min"]),
+                ],
+                title=f"DEBUG: Generation Fitness for seed {solution.fixed_seed}",
+                xlabel="Generation",
+                ylabel="Fitness",
+                labels=[
+                    "avg",
+                    "max",
+                    "min",
+                ],
+                markers=[".", ".", "."],
+            )
+            report.finalize_group()
+
     # Generate the PDF report
-    report.generate_pdf()
+    pdf = report.generate_pdf()
+
+    # Return pdf (a bytes object)
+    return pdf
 
 
-def generate_example_report(filename: str = "example_report.pdf") -> None:
+def genetic0_generate_example_report(filename: str = "example_report.pdf") -> None:
     """Generate example visualization report."""
     global debug_visualize
 
-    report = VisualizationReport(filename, "test")
+    report = Genetic0VisualizationReport("test")
     x_hours = 0  # Define x-axis start values (e.g., hours)
 
     # Group 1: Adding charts to be displayed on the same page
@@ -785,9 +789,13 @@ def generate_example_report(filename: str = "example_report.pdf") -> None:
         ylabel="test",
     )
     report.finalize_group()
-    # Generate the PDF report
-    report.generate_pdf()
+    # Generate the PDF report (a bytes object)
+    pdf = report.generate_pdf()
+
+    # write to file
+    with open(filename, "wb") as f:
+        f.write(pdf)
 
 
 if __name__ == "__main__":
-    generate_example_report()
+    genetic0_generate_example_report()

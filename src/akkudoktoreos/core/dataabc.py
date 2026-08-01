@@ -1009,7 +1009,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         key: str,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
-        dropna: Optional[bool] = None,
+        dropna: bool = True,
     ) -> Dict[DateTime, Any]:
         """Extract a dictionary indexed by the date_time field of the DataRecords.
 
@@ -1020,7 +1020,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             key (str): The field name in the DataRecord from which to extract values.
             start_datetime (datetime, optional): The start date to filter records (inclusive).
             end_datetime (datetime, optional): The end date to filter records (exclusive).
-            dropna: (bool, optional): Whether to drop NAN/ None values before processing. Defaults to True.
+            dropna: (bool): Whether to drop NAN/ None values before processing. Defaults to True.
 
         Returns:
             Dict[datetime, Any]: A dictionary with the date_time of each record as the key
@@ -1038,8 +1038,6 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         end_timestamp = DatabaseTimestamp.from_datetime(end_datetime) if end_datetime else None
 
         # Create a dictionary to hold date_time and corresponding values
-        if dropna is None:
-            dropna = True
         filtered_data = {}
         async for record in self.db_iterate_records(start_timestamp, end_timestamp):
             if (
@@ -1090,7 +1088,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         key: str,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
-        dropna: Optional[bool] = None,
+        dropna: bool = True,
     ) -> Tuple[list[DateTime], list[Optional[float]]]:
         """Extracts two lists from data records within an optional date range.
 
@@ -1102,7 +1100,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             key (str): The key of the attribute in DataRecord to extract.
             start_datetime (datetime, optional): The start date for filtering the records (inclusive).
             end_datetime (datetime, optional): The end date for filtering the records (exclusive).
-            dropna: (bool, optional): Whether to drop NAN/ None values before processing. Defaults to True.
+            dropna: (bool): Whether to drop NAN/ None values before processing. Defaults to True.
 
         Returns:
             tuple: A tuple containing a list of datetime values and a list of extracted values.
@@ -1119,8 +1117,6 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         end_timestamp = DatabaseTimestamp.from_datetime(end_datetime) if end_datetime else None
 
         # Create two lists to hold date_time and corresponding values
-        if dropna is None:
-            dropna = True
         filtered_records = []
         async for record in self.db_iterate_records(start_timestamp, end_timestamp):
             if (
@@ -1155,48 +1151,51 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         async with self._record_lock:
             await self._key_from_lists(key, dates, values)
 
-    async def key_to_series(
+    async def key_to_raw_series(
         self,
         key: str,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
-        dropna: Optional[bool] = None,
+        dropna: bool = True,
     ) -> pd.Series:
-        """Extract a series indexed by the date_time field from data records within an optional date range.
+        """Return the raw time series stored for a key.
+
+        Retrieves the timestamps and values exactly as stored by the underlying data provider.
+        The returned index therefore represents the original timestamps of the stored records.
 
         Args:
-            key (str): The field name in the DataRecord from which to extract values.
-            start_datetime (datetime, optional): The start date for filtering the records (inclusive).
-            end_datetime (datetime, optional): The end date for filtering the records (exclusive).
-            dropna: (bool, optional): Whether to drop NAN/ None values before processing. Defaults to True.
+            key: Field name to extract from the stored records.
+            start_datetime: Inclusive lower bound for timestamps.
+            end_datetime: Exclusive upper bound for timestamps.
+            dropna: Whether to discard records whose value is None or NaN.
 
         Returns:
-            pd.Series: A Pandas Series with the index as the date_time of each record
-                        and the values extracted from the specified key.
+            A pandas Series indexed by the original timestamps.
 
         Raises:
-            KeyError: If the specified key is not found in any of the DataRecords.
+            KeyError: If the key does not exist.
         """
+        # Normalize datetime arguments
+        start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
+        end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
+
         dates, values = await self.key_to_lists(
             key=key, start_datetime=start_datetime, end_datetime=end_datetime, dropna=dropna
         )
-        series = pd.Series(data=values, index=pd.DatetimeIndex(dates), name=key)
+
+        # Construct series
+        index = pd.to_datetime(dates, utc=True)
+        series = pd.Series(values, index=index, name=key)
+
+        # Check for correct series
+        if not isinstance(series.index, pd.DatetimeIndex):
+            raise TypeError(f"Expected pd.DatetimeIndex, but got {type(series.index).__name__}.")
+        if series.index.tz is None:
+            raise TypeError("Expected timezone-aware DatetimeIndex.")
+
         return series
 
-    async def key_from_series(self, key: str, series: pd.Series) -> None:
-        """Update the DataSequence from a Pandas Series.
-
-        The series index should represent the date_time of each DataRecord, and the series values
-        should represent the corresponding data values for the specified key.
-
-        Args:
-            series (pd.Series): A Pandas Series containing data to update the DataSequence.
-            key (str): The field name in the DataRecord that corresponds to the values in the Series.
-        """
-        async with self._record_lock:
-            await self._key_from_series(key, series)
-
-    async def key_to_array(
+    async def key_to_series(
         self,
         key: str,
         start_datetime: Optional[DateTime] = None,
@@ -1204,11 +1203,25 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         interval: Optional[Duration] = None,
         fill_method: Optional[FillMethod] = None,
         resample_method: ResampleMethod = "mean",
-        dropna: Optional[bool] = True,
+        dropna: bool = True,
         boundary: BoundaryMode = "context",
         align_to_interval: bool = False,
-    ) -> NDArray[Shape["*"], Any]:
-        """Extract an array indexed by fixed time intervals from data records within an optional date range.
+    ) -> pd.Series:
+        """Return a pandas Series for a data key.
+
+        The method performs all preprocessing required for resampling:
+
+        - validates the input arguments,
+        - extends the query window when context resampling is requested,
+        - loads the raw database values,
+        - inserts boundary values when necessary,
+        - determines the resampling origin,
+        - performs aggregation,
+        - fills missing values,
+        - truncates the result back to the requested interval.
+
+        The DatetimeIndex represents the actual bucket timestamps and should therefore be
+        considered the authoritative timestamp information for the resampled data.
 
         Args:
             key (str): The field name in the DataRecord from which to extract values.
@@ -1232,7 +1245,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
                   value remains valid until the next timestamp (piecewise-constant
                   signal).
 
-            dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+            dropna: (bool): Whether to drop NAN/ None values before processing.
                 Defaults to True.
             boundary (Literal["strict", "context"]): resampling boundary
                 "strict"  → only values inside [start, end)
@@ -1255,14 +1268,12 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
                 more important than clock-round boundaries.
 
         Returns:
-            np.ndarray: A NumPy Array of the values at the chosen frequency extracted from the
-                specified key.
+            A resampled pandas Series whose index contains the correct timestamps
+            for every returned value.
 
         Raises:
             KeyError: If the specified key is not found in any of the DataRecords.
         """
-        self._validate_key(key)
-
         # Validate fill method
         if fill_method not in ("ffill", "bfill", "linear", "time", "none", None):
             raise ValueError(f"Unsupported fill method: {fill_method}")
@@ -1307,36 +1318,40 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
                 else:
                     query_end = DatabaseTimestamp.to_datetime(query_end_timestamp).add(seconds=1)
 
-        # Load raw lists (already sorted & filtered)
-        dates, values = await self.key_to_lists(
+        # Load raw series
+        series = await self.key_to_raw_series(
             key=key, start_datetime=query_start, end_datetime=query_end, dropna=dropna
         )
-        values_len = len(values)
 
-        # Bring lists into shape
-        if values_len < 1:
-            # No values, assume at least one value set to None
-            if query_start is not None:
-                dates.append(query_start - interval)
-            else:
-                dates.append(to_datetime(to_maxtime=False))
-            values.append(None)
+        # Ensure we have at least one value
+        if series.empty:
+            dummy_time = (
+                query_start - interval if query_start is not None else to_datetime(to_maxtime=False)
+            )
+            series = pd.Series(
+                [None],
+                index=pd.DatetimeIndex([dummy_time], tz="UTC"),
+                name=key,
+            )
 
         if query_start is not None:
-            start_index = 0
-            while start_index < values_len:
-                if compare_datetimes(dates[start_index], query_start).ge:
-                    break
-                start_index += 1
+            idx = series.index
+
+            # Number of samples before query_start
+            start_index = idx.searchsorted(pd.Timestamp(query_start), side="left")
+
             if start_index == 0:
-                # No value before start
-                # Add dummy value
-                dates.insert(0, query_start - interval)
-                values.insert(0, values[0])
+                # No value before query_start -> prepend dummy
+                prepend = pd.Series(
+                    [series.iloc[0]],
+                    index=pd.DatetimeIndex([query_start - interval], tz="UTC"),
+                    name=key,
+                )
+                series = pd.concat([prepend, series])
+
             elif start_index > 1:
-                # Truncate all values before latest value before query_start
-                dates = dates[start_index - 1 :]
-                values = values[start_index - 1 :]
+                # Keep only the last sample before query_start
+                series = series.iloc[start_index - 1 :]
 
             # Determine resample origin
             if align_to_interval:
@@ -1360,23 +1375,17 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             resample_origin = "start_day"
 
         if query_end is not None:
-            if compare_datetimes(dates[-1], query_end).lt:
-                # Add dummy value at query_end
-                dates.append(query_end)
-                values.append(values[-1])
-
-        # Construct series
-        index = pd.to_datetime(dates, utc=True)
-        series = pd.Series(values, index=index, name=key)
-        if series.index.inferred_type != "datetime64":
-            raise TypeError(
-                f"Expected DatetimeIndex, but got {type(series.index)} "
-                f"infered to {series.index.inferred_type}: {series}"
-            )
+            if compare_datetimes(to_datetime(series.index[-1]), query_end).lt:
+                append = pd.Series(
+                    [series.iloc[-1]],
+                    index=pd.DatetimeIndex([query_end], tz="UTC"),
+                    name=key,
+                )
+                series = pd.concat([series, append])
 
         # Check for numeric values
-        numeric = pd.to_numeric(series.dropna(), errors="coerce")
-        is_numeric = numeric.notna().all()
+        numeric_series = pd.to_numeric(series, errors="coerce")  # ensures float64, not object dtype
+        is_numeric = numeric_series.dropna().notna().all()
 
         # Determine default fill method depending on dtype
         if fill_method is None:
@@ -1388,10 +1397,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         # Perform the resampling
         if is_numeric:
             # Step 1: aggregate — collapses sub-interval data (e.g. 4x 15min → 1h mean).
-            # Produces NaN for buckets where no data existed at all.
-            numeric_series = pd.to_numeric(
-                series, errors="coerce"
-            )  # ← ensures float64, not object dtype
+            # numeric_series has NaN for buckets where no data existed at all.
 
             if resample_method == "first":
                 resampled = numeric_series.resample(
@@ -1433,22 +1439,114 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             elif fill_method == "bfill":
                 resampled = resampled.bfill()
 
+        if start_datetime is not None and len(resampled) > 0:
+            resampled = resampled.truncate(before=start_datetime)
+        if end_datetime is not None and len(resampled) > 0:
+            resampled = resampled.truncate(after=end_datetime.subtract(seconds=1))
+
         logger.debug(
-            "Resampled for '{}' with length {}: {}...{}",
+            "Resampled series for '{}' with length {}: {}...{}",
             key,
             len(resampled),
             resampled[:10],
             resampled[-10:],
         )
 
-        # Convert the resampled series to a NumPy array
-        if start_datetime is not None and len(resampled) > 0:
-            resampled = resampled.truncate(before=start_datetime)
-        if end_datetime is not None and len(resampled) > 0:
-            resampled = resampled.truncate(after=end_datetime.subtract(seconds=1))
-        array = resampled.values
+        return resampled
 
-        # Convert NaN to None if there are actually NaNs
+    async def key_from_series(self, key: str, series: pd.Series) -> None:
+        """Update the DataSequence from a Pandas Series.
+
+        The series index should represent the date_time of each DataRecord, and the series values
+        should represent the corresponding data values for the specified key.
+
+        Args:
+            series (pd.Series): A Pandas Series containing data to update the DataSequence.
+            key (str): The field name in the DataRecord that corresponds to the values in the Series.
+        """
+        async with self._record_lock:
+            await self._key_from_series(key, series)
+
+    async def key_to_array(
+        self,
+        key: str,
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+        fill_method: Optional[FillMethod] = None,
+        resample_method: ResampleMethod = "mean",
+        dropna: bool = True,
+        boundary: BoundaryMode = "context",
+        align_to_interval: bool = False,
+    ) -> NDArray[Shape["*"], Any]:
+        """Extract an array indexed by fixed time intervals from data records within an optional date range.
+
+        Args:
+            key (str): The field name in the DataRecord from which to extract values.
+            start_datetime (datetime, optional): The start date for filtering the records (inclusive).
+            end_datetime (datetime, optional): The end date for filtering the records (exclusive).
+            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
+            fill_method (str): Method to handle missing values during resampling.
+
+                - 'linear': Linearly interpolate missing values (for numeric data only).
+                - 'time': Interpolate missing values (for numeric data only).
+                - 'ffill': Forward fill missing values.
+                - 'bfill': Backward fill missing values.
+                - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+            resample_method (str):
+                Method used to aggregate values within a resampling interval.
+
+                - "first": Use the first value in each interval.
+                - "mean": Compute the arithmetic mean of all samples in each interval.
+                - "interval_mean": Compute the time-weighted mean assuming each
+                  value remains valid until the next timestamp (piecewise-constant
+                  signal).
+
+            dropna: (bool): Whether to drop NAN/ None values before processing.
+                Defaults to True.
+            boundary (Literal["strict", "context"]): resampling boundary
+                "strict"  → only values inside [start, end)
+                "context" → include one value before and after for proper resampling
+            align_to_interval (bool): When True, snap the resample origin to the nearest
+                UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+                that bucket timestamps always fall on wall-clock-round times regardless of
+                when ``start_datetime`` falls:
+
+                - 15-minute interval → buckets on :00, :15, :30, :45
+                - 1-hour interval    → buckets on the hour
+
+                When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+                no start is given), preserving the existing behaviour where buckets are
+                aligned to the query window rather than the clock.
+
+                Set to True when storing compacted records back to the database so that the
+                resulting timestamps are predictable and human-readable.  Leave False for
+                forecast or reporting queries where alignment to the exact query window is
+                more important than clock-round boundaries.
+
+        Returns:
+            np.ndarray: A NumPy Array of the values at the chosen frequency extracted from the
+                specified key.
+
+        Raises:
+            KeyError: If the specified key is not found in any of the DataRecords.
+        """
+        series = await self.key_to_series(
+            key=key,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval=interval,
+            fill_method=fill_method,
+            resample_method=resample_method,
+            dropna=dropna,
+            boundary=boundary,
+            align_to_interval=align_to_interval,
+        )
+
+        array = series.to_numpy()
+
+        # Convert NaN to None if necessary
         if (
             isinstance(array, np.ndarray)
             and np.issubdtype(array.dtype.type, np.floating)
@@ -1458,7 +1556,11 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             array[pd.isna(array)] = None
 
         logger.debug(
-            "Array for '{}' with length {}: {}...{}", key, len(array), array[:10], array[-10:]
+            "Array for '{}' with length {}: {}...{}",
+            key,
+            len(array),
+            array[:10],
+            array[-10:],
         )
 
         return array
@@ -2380,12 +2482,12 @@ class DataContainer(SingletonMixin, DataABC):
                         # Log as warning and continue so the remaining providers still run.
                         logger.warning(error)
 
-    async def key_to_series(
+    async def key_to_raw_series(
         self,
         key: str,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
-        dropna: Optional[bool] = None,
+        dropna: bool = True,
     ) -> pd.Series:
         """Extract a series indexed by the date_time field from data records within an optional date range.
 
@@ -2395,7 +2497,93 @@ class DataContainer(SingletonMixin, DataABC):
             key (str): The field name in the DataRecord from which to extract values.
             start_datetime (datetime, optional): The start date for filtering the records (inclusive).
             end_datetime (datetime, optional): The end date for filtering the records (exclusive).
-            dropna: (bool, optional): Whether to drop NAN/ None values before processing. Defaults to True.
+            dropna: (bool): Whether to drop NAN/ None values before processing.
+                Defaults to True.
+
+        Returns:
+            pd.Series: A Pandas Series with the index as the date_time of each record
+                        and the values extracted from the specified key.
+
+        Raises:
+            KeyError: If the specified key is not found in any of the DataRecords.
+        """
+        series = None
+        for provider in self.enabled_providers:
+            try:
+                series = await provider.key_to_raw_series(
+                    key=key,
+                    start_datetime=start_datetime,
+                    end_datetime=end_datetime,
+                    dropna=dropna,
+                )
+                break
+            except KeyError:
+                continue
+
+        if series is None:
+            raise KeyError(f"No data found for key '{key}'.")
+
+        return series
+
+    async def key_to_series(
+        self,
+        key: str,
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+        fill_method: Optional[FillMethod] = None,
+        resample_method: ResampleMethod = "mean",
+        dropna: bool = True,
+        boundary: BoundaryMode = "context",
+        align_to_interval: bool = False,
+    ) -> pd.Series:
+        """Extract a series indexed by the date_time field from data records within an optional date range.
+
+        Iterates through providers to find and return the first available series for the specified key.
+
+        Args:
+            key (str): The field name in the DataRecord from which to extract values.
+            start_datetime (datetime, optional): The start date for filtering the records (inclusive).
+            end_datetime (datetime, optional): The end date for filtering the records (exclusive).
+            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
+            fill_method (str): Method to handle missing values during resampling.
+
+                - 'linear': Linearly interpolate missing values (for numeric data only).
+                - 'time': Interpolate missing values (for numeric data only).
+                - 'ffill': Forward fill missing values.
+                - 'bfill': Backward fill missing values.
+                - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+            resample_method (str):
+                Method used to aggregate values within a resampling interval.
+
+                - "first": Use the first value in each interval.
+                - "mean": Compute the arithmetic mean of all samples in each interval.
+                - "interval_mean": Compute the time-weighted mean assuming each
+                  value remains valid until the next timestamp (piecewise-constant
+                  signal).
+
+            dropna: (bool): Whether to drop NAN/ None values before processing.
+                Defaults to True.
+            boundary (Literal["strict", "context"]):
+                "strict"  → only values inside [start, end)
+                "context" → include one value before and after for proper resampling
+            align_to_interval (bool): When True, snap the resample origin to the nearest
+                UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+                that bucket timestamps always fall on wall-clock-round times regardless of
+                when ``start_datetime`` falls:
+
+                - 15-minute interval → buckets on :00, :15, :30, :45
+                - 1-hour interval    → buckets on the hour
+
+                When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+                no start is given), preserving the existing behaviour where buckets are
+                aligned to the query window rather than the clock.
+
+                Set to True when storing compacted records back to the database so that the
+                resulting timestamps are predictable and human-readable.  Leave False for
+                forecast or reporting queries where alignment to the exact query window is
+                more important than clock-round boundaries.
 
         Returns:
             pd.Series: A Pandas Series with the index as the date_time of each record
@@ -2408,10 +2596,15 @@ class DataContainer(SingletonMixin, DataABC):
         for provider in self.enabled_providers:
             try:
                 series = await provider.key_to_series(
-                    key,
+                    key=key,
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
+                    interval=interval,
+                    fill_method=fill_method,
+                    resample_method=resample_method,
                     dropna=dropna,
+                    boundary=boundary,
+                    align_to_interval=align_to_interval,
                 )
                 break
             except KeyError:
@@ -2430,7 +2623,7 @@ class DataContainer(SingletonMixin, DataABC):
         interval: Optional[Duration] = None,
         fill_method: Optional[FillMethod] = None,
         resample_method: ResampleMethod = "mean",
-        dropna: Optional[bool] = True,
+        dropna: bool = True,
         boundary: BoundaryMode = "context",
         align_to_interval: bool = False,
     ) -> NDArray[Shape["*"], Any]:
@@ -2460,7 +2653,7 @@ class DataContainer(SingletonMixin, DataABC):
                   value remains valid until the next timestamp (piecewise-constant
                   signal).
 
-            dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+            dropna: (bool): Whether to drop NAN/ None values before processing.
                 Defaults to True.
             boundary (Literal["strict", "context"]):
                 "strict"  → only values inside [start, end)
@@ -2495,7 +2688,7 @@ class DataContainer(SingletonMixin, DataABC):
         for provider in self.enabled_providers:
             try:
                 array = await provider.key_to_array(
-                    key,
+                    key=key,
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
                     interval=interval,
@@ -2522,13 +2715,13 @@ class DataContainer(SingletonMixin, DataABC):
         interval: Optional[Duration] = None,
         fill_method: Optional[FillMethod] = None,
         resample_method: ResampleMethod = "mean",
-        dropna: Optional[bool] = True,
+        dropna: bool = True,
         boundary: BoundaryMode = "context",
         align_to_interval: bool = False,
     ) -> pd.DataFrame:
         """Retrieve a dataframe indexed by fixed time intervals for specified keys from the data in each DataProvider.
 
-        Generates a pandas DataFrame using the NumPy arrays for each specified key, ensuring a common time index.
+        Generates a pandas DataFrame of data for each specified key, ensuring a common time index.
 
         Args:
             keys (list[str]): The field names in the DataRecords from which to extract values.
@@ -2552,7 +2745,7 @@ class DataContainer(SingletonMixin, DataABC):
                   value remains valid until the next timestamp (piecewise-constant
                   signal).
 
-            dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+            dropna: (bool): Whether to drop NAN/ None values before processing.
                 Defaults to True.
             boundary (Literal["strict", "context"]):
                 "strict"  → only values inside [start, end)
@@ -2575,17 +2768,23 @@ class DataContainer(SingletonMixin, DataABC):
                 more important than clock-round boundaries.
 
         Returns:
-            pd.DataFrame: A DataFrame where each column represents a key's array with a common time index.
+            pd.DataFrame: A DataFrame whose columns contain the (resampled) values
+                for each requested key and whose index is the common (resampled) DatetimeIndex.
 
         Raises:
             KeyError: If no valid data is found for any of the requested keys.
-            ValueError: If any retrieved array has a different time index than the first one.
+            ValueError: If any retrieved series has a different DatetimeIndex than the first one.
         """
+        if not keys:
+            raise ValueError("keys must not be empty.")
+
         # Ensure datetime objects are normalized
         start_datetime = to_datetime(start_datetime, to_maxtime=False) if start_datetime else None
         end_datetime = to_datetime(end_datetime, to_maxtime=False) if end_datetime else None
+
         if interval is None:
             interval = to_duration("1 hour")
+
         if start_datetime is None:
             # Take earliest datetime of all providers that are enabled
             for provider in self.enabled_providers:
@@ -2601,7 +2800,6 @@ class DataContainer(SingletonMixin, DataABC):
                 if end_datetime is None:
                     end_datetime = max_dt
                 elif max_dt and compare_datetimes(max_dt, end_datetime).gt:
-                    min_dt = await provider.min_datetime()
                     end_datetime = max_dt
             if end_datetime:
                 end_datetime = end_datetime.add(seconds=1)
@@ -2611,17 +2809,13 @@ class DataContainer(SingletonMixin, DataABC):
             raise ValueError(
                 f"Can not determine datetime range. Got '{start_datetime}'..'{end_datetime}'."
             )
-        reference_index = pd.date_range(
-            start=start_datetime,
-            end=end_datetime,
-            freq=interval,
-            inclusive="left",
-        )
 
-        data = {}
+        reference_index: Optional[pd.DatetimeIndex] = None
+        data: dict[str, pd.Series] = {}
+
         for key in keys:
             try:
-                array = await self.key_to_array(
+                series = await self.key_to_series(
                     key=key,
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
@@ -2632,20 +2826,24 @@ class DataContainer(SingletonMixin, DataABC):
                     boundary=boundary,
                     align_to_interval=align_to_interval,
                 )
-
-                if len(array) != len(reference_index):
-                    raise ValueError(
-                        f"Array length mismatch for key '{key}' (expected {len(reference_index)}, got {len(array)})"
+                if not isinstance(series.index, pd.DatetimeIndex):  # make mypy happy
+                    raise TypeError(
+                        f"Expected DatetimeIndex for key '{key}', got {type(series.index).__name__}"
                     )
 
-                data[key] = array
+                if reference_index is None:
+                    reference_index = series.index
+                elif not series.index.equals(reference_index):
+                    raise ValueError(f"Time index mismatch for key '{key}'.")
+
+                data[key] = series
             except KeyError as e:
-                raise KeyError(f"Failed to retrieve data for key '{key}': {e}")
+                raise KeyError(f"Failed to retrieve data for key '{key}': {e}") from e
 
         if not data:
             raise KeyError(f"No valid data found for the requested keys {keys}.")
 
-        return pd.DataFrame(data, index=reference_index)
+        return pd.DataFrame(data)  # Pandas aligns the series in data by their index
 
     async def key_delete_by_datetime(
         self,
