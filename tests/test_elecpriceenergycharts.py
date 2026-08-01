@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import numpy as np
+import pandas as pd
 import pytest
 import requests
 from loguru import logger
@@ -61,6 +62,11 @@ def test_singleton_instance(provider):
     """Test that ElecPriceForecast behaves as a singleton."""
     another_instance = ElecPriceEnergyCharts()
     assert provider is another_instance
+
+
+def test_keeps_weekly_price_history(provider):
+    """Retain enough native-resolution values for the weekly ETS forecast."""
+    assert provider.historic_hours_min() == 24 * 35
 
 
 def test_invalid_provider(provider, monkeypatch):
@@ -157,6 +163,53 @@ def test_update_data_keeps_quarter_hour_resolution(provider):
     )
     assert len(result) == provider.config.prediction.hours * 4
     assert result.index.to_series().diff().dropna().dt.total_seconds().unique().tolist() == [900.0]
+
+
+def test_update_data_repairs_short_quarter_hour_history(provider):
+    """A previously retained 48-hour series is replaced with the full ETS history."""
+    start = to_datetime("2026-08-01 00:00:00", in_timezone="Europe/Berlin")
+    get_ems().set_start_datetime(start)
+    provider.highest_orig_datetime = start.add(hours=24)
+    short_history = pd.Series(
+        0.0001,
+        index=pd.date_range(start=start.subtract(hours=48), periods=192, freq="15min"),
+    )
+    weekly_history = pd.Series(
+        0.0001,
+        index=pd.date_range(start=start.subtract(days=35), periods=3204, freq="15min"),
+    )
+    refreshed_data = EnergyChartsElecPrice(
+        license_info="",
+        unix_seconds=[int(provider.highest_orig_datetime.timestamp())],
+        price=[100.0],
+        unit="EUR/MWh",
+        deprecated=False,
+    )
+    predicted_slots = provider.config.prediction.hours * 4 - 97
+
+    with (
+        patch.object(
+            ElecPriceEnergyCharts,
+            "key_to_series",
+            side_effect=[short_history, weekly_history],
+        ),
+        patch.object(
+            ElecPriceEnergyCharts, "key_to_array", return_value=weekly_history.to_numpy()
+        ),
+        patch.object(ElecPriceEnergyCharts, "key_from_series"),
+        patch.object(
+            ElecPriceEnergyCharts, "_request_forecast", return_value=refreshed_data
+        ) as request,
+        patch.object(
+            ElecPriceEnergyCharts,
+            "_predict_ets",
+            return_value=np.full(predicted_slots, 0.0001),
+        ) as predict,
+    ):
+        provider._update_data()
+
+    assert request.call_args.kwargs["start_date"] == "2026-06-27"
+    assert predict.call_args.kwargs["seasonal_periods"] == 168 * 4
 
 
 def test_parse_data_adds_constant_charges_variable_network_fees_and_vat(provider):

@@ -91,6 +91,10 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
 
     highest_orig_datetime: Optional[datetime] = None
 
+    def historic_hours_min(self) -> int:
+        """Keep enough market-price history for weekly seasonal extrapolation."""
+        return 24 * 35
+
     @classmethod
     def provider_id(cls) -> str:
         """Return the unique identifier for the Energy-Charts provider."""
@@ -246,25 +250,41 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         if not self.ems_start_datetime:
             raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
 
-        # Determine if update is needed and how many days
+        # Determine if an update or history repair is needed and how many days to request.
         past_days = 35
+        needs_history_refresh = False
         if self.highest_orig_datetime:
-            history_series = self.key_to_series(
-                key="elecprice_marketprice_wh", start_datetime=self.ems_start_datetime
+            raw_history = self.key_to_series(
+                key="elecprice_marketprice_wh",
+                end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
             )
-            # If history lower, then start_datetime
-            if history_series.index.min() <= self.ems_start_datetime:
+
+            # Do not mistake the current forecast window for sufficient ETS history. This also
+            # repairs installations that retained only the previous 48-hour default history.
+            if not raw_history.empty:
+                resolution_seconds = self._resolution_seconds(raw_history)
+                slots_per_hour = 3600 // resolution_seconds
+                needs_history_refresh = len(raw_history) <= 800 * slots_per_hour
+            else:
+                needs_history_refresh = True
+
+            if not needs_history_refresh and not force_update:
                 past_days = 0
 
-            needs_update = end > self.highest_orig_datetime
+            needs_update = (
+                bool(force_update) or end > self.highest_orig_datetime or needs_history_refresh
+            )
         else:
             needs_update = True
 
         if needs_update:
             logger.info(
-                "Update {} is needed, last in history: {}",
+                "Update {} is needed, last in history: {}, "
+                "force_update={}, history_refresh={}",
                 self.provider_id(),
                 self.highest_orig_datetime,
+                bool(force_update),
+                needs_history_refresh,
             )
             # Set start_date try to take data from 5 weeks back for prediction
             start_date = to_datetime(
