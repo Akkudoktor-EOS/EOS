@@ -180,11 +180,11 @@ class TestDataSequence:
         retrieved_record = await sequence.get_by_datetime(dt1)
         assert retrieved_record.data_value == 0.9  # Record should have merged with new value
 
-    async def test_key_to_series(self, sequence):
+    async def test_key_to_raw_series(self, sequence):
         dt = to_datetime(datetime(2023, 11, 6))
         record = self.create_test_record(dt, 0.8)
         await sequence.insert_by_datetime(record)
-        series = await sequence.key_to_series("data_value")
+        series = await sequence.key_to_raw_series("data_value")
         assert isinstance(series, pd.Series)
 
         retrieved_record = await sequence.get_by_datetime(dt)
@@ -228,7 +228,7 @@ class TestDataSequence:
         assert retrieved_record2 is not None
         assert retrieved_record2.data_value == 8.0
 
-        series = await sequence.key_to_series(
+        series = await sequence.key_to_raw_series(
             key="data_value", start_datetime=start_datetime, end_datetime=end_datetime
         )
         assert len(series) == 2

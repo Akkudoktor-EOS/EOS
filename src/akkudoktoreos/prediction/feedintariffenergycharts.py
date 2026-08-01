@@ -170,7 +170,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
         past_days = 35
         needs_history_refresh = False
         if self.highest_orig_datetime:
-            raw_history = await self.key_to_series(
+            raw_history = await self.key_to_raw_series(
                 key="feed_in_tariff_wh",
                 end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
             )
@@ -243,7 +243,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        raw_series = await self.key_to_series(
+        raw_series = await self.key_to_raw_series(
             key="feed_in_tariff_wh",
             end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
         )

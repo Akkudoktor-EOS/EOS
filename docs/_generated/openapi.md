@@ -1,6 +1,6 @@
 # Akkudoktor-EOS
 
-**Version**: `v0.3.0.dev2607301181843779`
+**Version**: `v0.3.0.dev2608010961051894`
 
 <!-- pyml disable line-length -->
 **Description**: This project provides a comprehensive solution for simulating and optimizing an energy system based on renewable energy sources. With a focus on photovoltaic (PV) systems, battery storage (batteries), load management (consumer requirements), heat pumps, electric vehicles, and consideration of electricity price data, this system enables forecasting and optimization of energy flow and costs over a specified period.
@@ -143,7 +143,7 @@ Note:
 **Request Body**:
 
 - `application/json`: {
-  "$ref": "#/components/schemas/Genetic0OptimizationParameters"
+  "$ref": "#/components/schemas/Genetic0OptimizationParameters-Input"
 }
 
 **Responses**:
@@ -948,6 +948,14 @@ Merge the measurement data given as dataframe into EOS measurements.
 
 Fastapi Measurement Keys Get
 
+<!-- pyml disable line-length -->
+```python
+"""
+Get a list of available measurement keys.
+"""
+```
+<!-- pyml enable line-length -->
+
 **Responses**:
 
 - **200**: Successful Response
@@ -997,7 +1005,73 @@ Fastapi Measurement Series Get
 <!-- pyml disable line-length -->
 ```python
 """
-Get the measurements of given key as series.
+Get measurements for given key within given date range as series.
+
+Args:
+    key (str): Measurement key
+    start_datetime (Optional[str]): Starting datetime (inclusive).
+        Defaults to datetime of first measurement.
+    end_datetime (Optional[str]: Ending datetime (exclusive).
+        Defaults to datetime after latest measurement.
+    interval (Optional[str]): Time duration for each interval.
+        Defaults to 1 hour.
+    fill_method (str): Method to handle missing values during resampling.
+
+        - 'linear': Linearly interpolate missing values (for numeric data only).
+        - 'time': Interpolate missing values (for numeric data only).
+        - 'ffill': Forward fill missing values.
+        - 'bfill': Backward fill missing values.
+        - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+    resample_method (str):
+        Method used to aggregate values within a resampling interval.
+
+        - "first": Use the first value in each interval.
+        - "mean": Compute the arithmetic mean of all samples in each interval.
+        - "interval_mean": Compute the time-weighted mean assuming each
+            value remains valid until the next timestamp (piecewise-constant
+            signal).
+
+    dropna: (bool): Whether to drop NAN/ None values before processing.
+        Defaults to True.
+    boundary (Literal["strict", "context"]): resampling boundary
+        "strict"  → only values inside [start, end)
+        "context" → include one value before and after for proper resampling
+    align_to_interval (bool): When True, snap the resample origin to the nearest
+        UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+        that bucket timestamps always fall on wall-clock-round times regardless of
+        when ``start_datetime`` falls:
+
+        - 15-minute interval → buckets on :00, :15, :30, :45
+        - 1-hour interval    → buckets on the hour
+
+        When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+        no start is given), preserving the existing behaviour where buckets are
+        aligned to the query window rather than the clock.
+
+        Set to True when storing compacted records back to the database so that the
+        resulting timestamps are predictable and human-readable.  Leave False for
+        forecast or reporting queries where alignment to the exact query window is
+        more important than clock-round boundaries.
+    processing (SeriesProcessing):
+        Processing mode for the returned series.
+
+        - ``SeriesProcessing.RESAMPLED``: Return a processed series.
+            Measurements are first filtered by ``start_datetime``,
+            ``end_datetime``, and ``dropna``, then resampled according to
+            ``interval`` and ``resample_method``, and finally missing values
+            are filled using ``fill_method``.
+        - ``SeriesProcessing.RAW``: Return the original measurement series.
+            Measurements are filtered by ``start_datetime``,
+            ``end_datetime``, and ``dropna`` only. No resampling or filling is
+            performed, and ``interval``, ``fill_method``,
+            ``resample_method``, ``boundary``, and
+            ``align_to_interval`` are ignored.
+
+        Defaults to ``SeriesProcessing.RAW``.
+
+Returns:
+    Series
 """
 ```
 <!-- pyml enable line-length -->
@@ -1005,6 +1079,24 @@ Get the measurements of given key as series.
 **Parameters**:
 
 - `key` (query, required): Measurement key.
+
+- `start_datetime` (query, optional): Starting datetime (inclusive).
+
+- `end_datetime` (query, optional): Ending datetime (exclusive).
+
+- `interval` (query, optional): Time duration for each interval. Defaults to 1 hour.
+
+- `fill_method` (query, optional): Method to handle missing values during resampling.
+
+- `resample_method` (query, optional): Method used to aggregate values within a resampling interval.
+
+- `dropna` (query, optional): Drop NAN/ None values before processing.
+
+- `boundary` (query, optional): Resampling boundary mode.
+
+- `align_to_interval` (query, optional): Snap resample origin to the nearest UTC epoch-aligned boundary of interval.
+
+- `processing` (query, optional): Processing mode. 'raw' returns original measurement data without resampling or filling.
 
 **Responses**:
 
@@ -1118,7 +1210,7 @@ Args:
             value remains valid until the next timestamp (piecewise-constant
             signal).
 
-    dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+    dropna: (bool): Whether to drop NAN/ None values before processing.
         Defaults to True.
     boundary (Literal["strict", "context"]): resampling boundary
         "strict"  → only values inside [start, end)
@@ -1288,7 +1380,7 @@ Args:
             value remains valid until the next timestamp (piecewise-constant
             signal).
 
-    dropna: (bool, optional): Whether to drop NAN/ None values before processing.
+    dropna: (bool): Whether to drop NAN/ None values before processing.
         Defaults to True.
     boundary (Literal["strict", "context"]): resampling boundary
         "strict"  → only values inside [start, end)
@@ -1423,6 +1515,65 @@ Args:
         Defaults to start datetime of latest prediction.
     end_datetime (Optional[str]: Ending datetime (exclusive).
         Defaults to end datetime of latest prediction.
+    interval (Optional[str]): Time duration for each interval.
+        Defaults to 1 hour.
+    fill_method (str): Method to handle missing values during resampling.
+
+        - 'linear': Linearly interpolate missing values (for numeric data only).
+        - 'time': Interpolate missing values (for numeric data only).
+        - 'ffill': Forward fill missing values.
+        - 'bfill': Backward fill missing values.
+        - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+    resample_method (str):
+        Method used to aggregate values within a resampling interval.
+
+        - "first": Use the first value in each interval.
+        - "mean": Compute the arithmetic mean of all samples in each interval.
+        - "interval_mean": Compute the time-weighted mean assuming each
+            value remains valid until the next timestamp (piecewise-constant
+            signal).
+
+    dropna: (bool): Whether to drop NAN/ None values before processing.
+        Defaults to True.
+    boundary (Literal["strict", "context"]): resampling boundary
+        "strict"  → only values inside [start, end)
+        "context" → include one value before and after for proper resampling
+    align_to_interval (bool): When True, snap the resample origin to the nearest
+        UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+        that bucket timestamps always fall on wall-clock-round times regardless of
+        when ``start_datetime`` falls:
+
+        - 15-minute interval → buckets on :00, :15, :30, :45
+        - 1-hour interval    → buckets on the hour
+
+        When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+        no start is given), preserving the existing behaviour where buckets are
+        aligned to the query window rather than the clock.
+
+        Set to True when storing compacted records back to the database so that the
+        resulting timestamps are predictable and human-readable.  Leave False for
+        forecast or reporting queries where alignment to the exact query window is
+        more important than clock-round boundaries.
+    processing (SeriesProcessing):
+        Processing mode for the returned series.
+
+        - ``SeriesProcessing.RESAMPLED``: Return a processed series.
+            Measurements are first filtered by ``start_datetime``,
+            ``end_datetime``, and ``dropna``, then resampled according to
+            ``interval`` and ``resample_method``, and finally missing values
+            are filled using ``fill_method``.
+        - ``SeriesProcessing.RAW``: Return the original measurement series.
+            Measurements are filtered by ``start_datetime``,
+            ``end_datetime``, and ``dropna`` only. No resampling or filling is
+            performed, and ``interval``, ``fill_method``,
+            ``resample_method``, ``boundary``, and
+            ``align_to_interval`` are ignored.
+
+        Defaults to ``SeriesProcessing.RAW``.
+
+Returns:
+    Array
 """
 ```
 <!-- pyml enable line-length -->
@@ -1434,6 +1585,20 @@ Args:
 - `start_datetime` (query, optional): Starting datetime (inclusive).
 
 - `end_datetime` (query, optional): Ending datetime (exclusive).
+
+- `interval` (query, optional): Time duration for each interval. Defaults to 1 hour.
+
+- `fill_method` (query, optional): Method to handle missing values during resampling.
+
+- `resample_method` (query, optional): Method used to aggregate values within a resampling interval.
+
+- `dropna` (query, optional): Drop NAN/ None values before processing.
+
+- `boundary` (query, optional): Resampling boundary mode.
+
+- `align_to_interval` (query, optional): Snap resample origin to the nearest UTC epoch-aligned boundary of interval.
+
+- `processing` (query, optional): Processing mode. 'raw' returns original measurement data without resampling or filling.
 
 **Responses**:
 

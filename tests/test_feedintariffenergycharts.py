@@ -93,7 +93,7 @@ class TestFeedInTariffEnergyCharts:
         with patch.object(provider, "_request_forecast", return_value=energy_charts_data):
             await provider._update_data(force_update=True)
 
-        result = await provider.key_to_series(
+        result = await provider.key_to_raw_series(
             key="feed_in_tariff_wh",
             start_datetime=start,
             end_datetime=start.add(hours=provider.config.prediction.hours),
