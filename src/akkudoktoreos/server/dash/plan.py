@@ -175,6 +175,12 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
     # Feed Bokeh the true UTC instant (naive-UTC). Bokeh renders datetime axes in the
     # viewing browser's local timezone, so a browser in the EOS config timezone shows
     # correct local wall-clock. (Bokeh 3.9.1 has no server-side axis timezone.)
+    #
+    # Known limitation: if the viewing browser is in a different timezone than the
+    # EOS-configured one, the axis will show the browser's local time instead of the
+    # EOS system's configured time. Rendering independently of the browser's timezone
+    # would require a client-side formatter (e.g. a Bokeh CustomJSTickFormatter using
+    # Intl.DateTimeFormat with an explicit IANA timeZone) and is left as a follow-up.
     df["date_time_local"] = pd.to_datetime(df["date_time"], utc=True).dt.tz_localize(None)
 
     # There is a special case if we have daylight saving time change in the time series

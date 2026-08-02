@@ -279,6 +279,26 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
     assert config_no_coords.timezone is None
 
 
+@pytest.mark.parametrize(
+    "latitude, longitude, expected_timezone",
+    [
+        (0.0, 10.0, "Africa/Libreville"),  # Latitude on the equator (falsy 0.0)
+        (51.5074, 0.0, "Europe/London"),  # Longitude on the prime meridian (falsy 0.0)
+        (0.0, 0.0, "UTC"),  # Both coordinates are 0.0
+    ],
+)
+def test_config_common_settings_timezone_with_zero_coordinate(
+    latitude, longitude, expected_timezone
+):
+    """Timezone must be computed even when latitude or longitude is exactly 0.0.
+
+    A truthiness check (``if self.latitude and self.longitude``) treats ``0.0``
+    as falsy, incorrectly returning ``None`` for valid coordinates on the
+    equator or prime meridian.
+    """
+    settings = GeneralSettings(latitude=latitude, longitude=longitude)
+    assert settings.timezone == expected_timezone
+
 
 # Test partial assignments and possible side effects
 @pytest.mark.parametrize(
