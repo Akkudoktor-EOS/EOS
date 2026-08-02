@@ -11,17 +11,7 @@
         }
     },
     "elecprice": {
-        "provider": "ElecPriceImport",
-        "charges": [
-            {
-                "type": "fixed",
-                "amount": 0.21
-            },
-            {
-                "type": "percent",
-                "amount": 0.19
-            }
-        ]
+        "provider": "ElecPriceImport"
     },
     "server": {
         "host": "0.0.0.0",

@@ -351,27 +351,62 @@ def _migrate_elecprice_charges(
 ) -> None:
     """Combine legacy ``elecprice.charges_kwh``/``vat_rate`` into ``elecprice.charges``.
 
-    The old model added a single fixed charge (``charges_kwh``) and optionally
-    multiplied the sum by a VAT factor (``vat_rate``). This is reproduced with a
-    fixed component followed by a percentage (VAT) component whose rate is
-    ``vat_rate - 1`` (the factor 1.19 becomes a 0.19 add-on on everything).
+    The old model did *not* apply ``charges_kwh``/``vat_rate`` uniformly across
+    providers, so a single provider-agnostic conversion would silently change
+    already configured electricity prices for some providers. To keep the
+    migration behavior-preserving, it reproduces the exact legacy formula of
+    the configured provider:
+
+    - ``ElecPriceAkkudoktor`` (and no provider configured, since Akkudoktor is
+      the default): ``price = market + charges_kwh``. VAT was never applied,
+      so only a ``fixed`` component is emitted.
+    - ``ElecPriceEnergyCharts``: ``price = (market + charges_kwh) * vat_rate``,
+      but only when ``charges_kwh > 0``. This is reproduced with a ``fixed``
+      component followed by a ``percent`` component whose rate is
+      ``vat_rate - 1`` (the factor 1.19 becomes a 0.19 add-on on everything).
+      When ``charges_kwh`` is not a positive number, no component is emitted,
+      matching the old "unchanged market price" behavior.
+    - Any other provider (``ElecPriceFixed``, ``ElecPriceTibber``,
+      ``ElecPriceImport``, ...): ``charges_kwh``/``vat_rate`` were never read,
+      so they are dropped without creating any ``charges`` component.
     """
     charges_kwh = _get_json_nested_value(config_data, "elecprice/charges_kwh")
     vat_rate = _get_json_nested_value(config_data, "elecprice/vat_rate")
+    provider = _get_json_nested_value(config_data, "elecprice/provider")
 
     if charges_kwh is None:
         # Nothing to migrate; a lone vat_rate had no effect in the old model.
         return
 
-    components: List[Dict[str, Any]] = [
-        {"type": "fixed", "amount": float(charges_kwh)},
-    ]
+    charges_kwh = float(charges_kwh)
 
-    # Old default vat_rate was 1.19. Preserve the effective VAT add-on. Only a
-    # rate > 1 produced an actual surcharge in the old model.
-    effective_vat = 1.19 if vat_rate is None else float(vat_rate)
-    if effective_vat > 1.0:
-        components.append({"type": "percent", "amount": round(effective_vat - 1.0, 10)})
+    if provider is None or provider == "ElecPriceAkkudoktor":
+        # Old ElecPriceAkkudoktor formula: market + charges_kwh. VAT was never
+        # applied, regardless of vat_rate.
+        components: List[Dict[str, Any]] = [{"type": "fixed", "amount": charges_kwh}]
+    elif provider == "ElecPriceEnergyCharts":
+        if charges_kwh <= 0.0:
+            # Old ElecPriceEnergyCharts only applied charges/VAT when
+            # charges_kwh > 0; otherwise the market price was unchanged.
+            logger.debug(
+                "elecprice charges_kwh <= 0 for ElecPriceEnergyCharts had no effect in the "
+                "old model; not migrating to 'elecprice/charges'."
+            )
+            return
+        # Old default vat_rate was 1.19.
+        effective_vat = 1.19 if vat_rate is None else float(vat_rate)
+        components = [
+            {"type": "fixed", "amount": charges_kwh},
+            {"type": "percent", "amount": round(effective_vat - 1.0, 10)},
+        ]
+    else:
+        # Old ElecPriceFixed/ElecPriceTibber/ElecPriceImport/... never read
+        # charges_kwh/vat_rate; preserve that by dropping them without effect.
+        logger.debug(
+            f"elecprice charges_kwh/vat_rate had no effect for provider '{provider}' in the "
+            "old model; not migrating to 'elecprice/charges'."
+        )
+        return
 
     try:
         new_config.set_nested_value("elecprice/charges", components)

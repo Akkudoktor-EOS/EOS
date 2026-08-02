@@ -249,8 +249,12 @@ class TestConfigMigration:
             if not failed and working_file.exists():
                 working_file.unlink(missing_ok=True)
 
-    def test_migrate_elecprice_charges_combines_legacy_fields(self):
-        """Legacy charges_kwh/vat_rate combine into an equivalent charges list."""
+    def test_migrate_elecprice_charges_akkudoktor_never_had_vat(self):
+        """ElecPriceAkkudoktor previously added charges_kwh without ever applying VAT.
+
+        The migration must reproduce that exact behavior (fixed charge only), even
+        though vat_rate is set, to avoid silently increasing the migrated price.
+        """
         config = {
             "general": {"version": "0.0.0-old"},
             "elecprice": {
@@ -264,11 +268,10 @@ class TestConfigMigration:
         assert charges is not None
         assert [(c.type, c.amount) for c in charges] == [
             ("fixed", 0.21),
-            ("percent", pytest.approx(0.19)),
         ]
 
-    def test_migrate_elecprice_charges_without_vat(self):
-        """A default (unset) vat_rate still produces the 19% VAT add-on."""
+    def test_migrate_elecprice_charges_no_provider_defaults_to_akkudoktor_behavior(self):
+        """With no provider configured, the (Akkudoktor) default behavior applies: no VAT."""
         config = {
             "general": {"version": "0.0.0-old"},
             "elecprice": {"charges_kwh": 0.30},
@@ -278,8 +281,64 @@ class TestConfigMigration:
         assert charges is not None
         assert [(c.type, c.amount) for c in charges] == [
             ("fixed", 0.30),
+        ]
+
+    def test_migrate_elecprice_charges_energycharts_combines_legacy_fields(self):
+        """ElecPriceEnergyCharts previously applied VAT on top of market+charges."""
+        config = {
+            "general": {"version": "0.0.0-old"},
+            "elecprice": {
+                "provider": "ElecPriceEnergyCharts",
+                "charges_kwh": 0.21,
+                "vat_rate": 1.19,
+            },
+        }
+        new_config = configmigrate.migrate_config_data(config)
+        charges = new_config.elecprice.charges
+        assert charges is not None
+        assert [(c.type, c.amount) for c in charges] == [
+            ("fixed", 0.21),
             ("percent", pytest.approx(0.19)),
         ]
+
+    def test_migrate_elecprice_charges_energycharts_without_positive_charges_is_noop(self):
+        """ElecPriceEnergyCharts never applied VAT unless charges_kwh > 0."""
+        config = {
+            "general": {"version": "0.0.0-old"},
+            "elecprice": {
+                "provider": "ElecPriceEnergyCharts",
+                "charges_kwh": 0.0,
+                "vat_rate": 1.19,
+            },
+        }
+        new_config = configmigrate.migrate_config_data(config)
+        assert new_config.elecprice.charges is None
+
+    def test_migrate_elecprice_charges_fixed_provider_had_no_effect(self):
+        """ElecPriceFixed/ElecPriceTibber never read charges_kwh/vat_rate at all."""
+        config = {
+            "general": {"version": "0.0.0-old"},
+            "elecprice": {
+                "provider": "ElecPriceFixed",
+                "charges_kwh": 0.30,
+                "vat_rate": 1.19,
+            },
+        }
+        new_config = configmigrate.migrate_config_data(config)
+        assert new_config.elecprice.charges is None
+
+    def test_migrate_elecprice_charges_import_provider_had_no_effect(self):
+        """ElecPriceImport never read charges_kwh/vat_rate at all."""
+        config = {
+            "general": {"version": "0.0.0-old"},
+            "elecprice": {
+                "provider": "ElecPriceImport",
+                "charges_kwh": 0.21,
+                "vat_rate": 1.19,
+            },
+        }
+        new_config = configmigrate.migrate_config_data(config)
+        assert new_config.elecprice.charges is None
 
     def test_migrate_elecprice_charges_none_is_noop(self):
         """No charges_kwh means no charges list is created."""

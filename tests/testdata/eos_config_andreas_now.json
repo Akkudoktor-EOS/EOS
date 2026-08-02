@@ -48,10 +48,6 @@
             {
                 "type": "fixed",
                 "amount": 0.21
-            },
-            {
-                "type": "percent",
-                "amount": 0.19
             }
         ]
     },
