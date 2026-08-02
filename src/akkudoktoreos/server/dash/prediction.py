@@ -245,9 +245,19 @@ def Prediction(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = 
     except Exception as err:
         return Error(f"Can not retrieve predictions from {server}: {err}")
 
-    # Remove time offset from UTC to get naive local time and make bokeh plot in local time
-    date_time_tz = predictions["date_time"].dt.tz
-    predictions["date_time"] = pd.to_datetime(predictions["date_time"]).dt.tz_localize(None)
+    # Feed Bokeh the true UTC instant (naive-UTC). Bokeh renders datetime axes in the
+    # viewing browser's local timezone, so a browser in the EOS config timezone shows
+    # correct local wall-clock. (Bokeh 3.9.1 has no server-side axis timezone.)
+    #
+    # Known limitation: if the viewing browser is in a different timezone than the
+    # EOS-configured one, the axis will show the browser's local time instead of the
+    # EOS system's configured time. Rendering independently of the browser's timezone
+    # would require a client-side formatter (e.g. a Bokeh CustomJSTickFormatter using
+    # Intl.DateTimeFormat with an explicit IANA timeZone) and is left as a follow-up.
+    date_time_tz = config["general"].get("timezone") or "Europe/Berlin"
+    predictions["date_time"] = pd.to_datetime(predictions["date_time"], utc=True).dt.tz_localize(
+        None
+    )
 
     return Grid(
         PVForecast(predictions, config, date_time_tz, dark),

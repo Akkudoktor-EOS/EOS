@@ -185,7 +185,7 @@ class GeneralSettings(SettingsBaseModel):
     @property
     def timezone(self) -> Optional[str]:
         """Computed timezone based on latitude and longitude."""
-        if self.latitude and self.longitude:
+        if self.latitude is not None and self.longitude is not None:
             return to_timezone(location=(self.latitude, self.longitude), as_string=True)
         return None
 
