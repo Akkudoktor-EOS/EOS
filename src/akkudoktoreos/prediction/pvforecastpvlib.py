@@ -343,7 +343,7 @@ class PVForecastPVLib(PredictionMixin, PVForecastProvider):
             if plane.strings_per_inverter is None:
                 raise ValueError(f"Plane {plane_idx}: strings_per_inverter must be configured.")
 
-            mountingplace = plane.mountingplace.lower()
+            mountingplace = plane.mountingplace.lower() if plane.mountingplace is not None else None
             if mountingplace == "building":
                 temp_params = TEMPERATURE_MODEL_PARAMETERS["sapm"]["close_mount_glass_glass"]
             elif mountingplace == "free" or mountingplace is None:
