@@ -334,7 +334,7 @@ class PVForecastPVLib(PredictionMixin, PVForecastProvider):
             module = self._get_model(plane.module_model, _cec_modules(), "module")
 
             if plane.inverter_model is None:
-                raise ValueError("fPlane {plane_idx}: inverter_model must be configured.")
+                raise ValueError(f"Plane {plane_idx}: inverter_model must be configured.")
             inverter = self._get_model(plane.inverter_model, _cec_inverters(), "inverter")
 
             if plane.modules_per_string is None:
