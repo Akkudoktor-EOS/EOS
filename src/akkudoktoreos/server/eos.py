@@ -64,11 +64,15 @@ from akkudoktoreos.optimization.genetic0.genetic0visualize import (
     genetic0_prepare_visualize,
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
-from akkudoktoreos.optimization.optimization import OptimizationSolution
+from akkudoktoreos.optimization.optimization import (
+    OptimizationAlgorithm,
+    OptimizationSolution,
+)
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
+from akkudoktoreos.prediction.pvforecastpvlib import _cec_inverters, _cec_modules
 from akkudoktoreos.server.rest.error import (
     EOSProblem,
     create_error_page,
@@ -1770,6 +1774,18 @@ async def fastapi_prediction_range_delete(
         ) from e
 
 
+@app.get("/v1/prediction/pvforecast/pvlib/modules", tags=["prediction"])
+def fastapi_prediction_pvforecast_modules_get() -> list[str]:
+    """Get module names supported by PVForecast PVLib provider."""
+    return _cec_modules().columns.tolist()
+
+
+@app.get("/v1/prediction/pvforecast/pvlib/inverters", tags=["prediction"])
+def fastapi_prediction_pvforecast_inverters_get() -> list[str]:
+    """Get inverter names supported by PVForecast PVLib provider."""
+    return _cec_inverters().columns.tolist()
+
+
 @app.get("/v1/energy-management/optimization/solution", tags=["energy-management"])
 def fastapi_energy_management_optimization_solution_get() -> OptimizationSolution:
     """Get the latest solution of the optimization."""
@@ -1790,7 +1806,7 @@ def fastapi_energy_management_optimization_solution_get() -> OptimizationSolutio
 
 @app.get("/v1/energy-management/optimization/solution/{algorithm}", tags=["energy-management"])
 async def fastapi_energy_management_optimization_solution_algorithm_get(
-    algorithm: str,
+    algorithm: OptimizationAlgorithm,
 ) -> Union[GeneticSolution, Genetic0Solution]:
     """Get the latest algorithm specific solution of the optimization.
 
@@ -1799,7 +1815,6 @@ async def fastapi_energy_management_optimization_solution_algorithm_get(
     """
     solution: Optional[Union[GeneticSolution, Genetic0Solution]] = None
 
-    algorithm = algorithm.upper()
     if algorithm not in get_config().optimization.algorithms:
         raise EOSProblem(
             status=404,
@@ -1807,9 +1822,9 @@ async def fastapi_energy_management_optimization_solution_algorithm_get(
             detail=f"Optimization algorithm '{algorithm}' unknown.",
         )
 
-    if algorithm == "GENETIC":
+    if algorithm == OptimizationAlgorithm.GENETIC:
         solution = get_ems().genetic_solution()
-    elif algorithm == "GENETIC0":
+    elif algorithm == OptimizationAlgorithm.GENETIC0:
         solution = get_ems().genetic0_solution()
 
     if solution is None:
@@ -2162,7 +2177,7 @@ async def fastapi_optimize(
     await get_ems().run(
         start_datetime=start_datetime,
         mode=EnergyManagementMode.OPTIMIZATION,
-        algorithm="GENETIC0",
+        algorithm=OptimizationAlgorithm.GENETIC0,
         genetic0_parameters=parameters,
         genetic0_generations=ngen,
     )

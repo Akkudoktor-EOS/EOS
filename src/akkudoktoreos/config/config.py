@@ -697,7 +697,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         SettingsEOSDefaults.__init__(self, *args, **kwargs)
 
         self._initialized = True
-        logger.debug(f"Config setup:\n{self}")
+        logger.trace(f"Config setup:\n{self}")
 
     def merge_settings(self, settings: SettingsEOS) -> None:
         """Merges the provided settings into the global settings for EOS, with optional overwrite.

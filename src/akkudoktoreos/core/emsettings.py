@@ -5,7 +5,7 @@ Kept in an extra module to avoid cyclic dependencies on package import.
 
 from enum import StrEnum
 
-from pydantic import Field
+from pydantic import Field, computed_field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel, is_home_assistant_addon
 
@@ -51,7 +51,17 @@ class EnergyManagementCommonSettings(SettingsBaseModel):
     mode: EnergyManagementMode = Field(
         default_factory=ems_default_mode,
         json_schema_extra={
-            "description": "Energy management mode [DISABLED | OPTIMIZATION | PREDICTION].",
-            "examples": ["OPTIMIZATION", "PREDICTION"],
+            "description": (
+                f"Energy management mode "
+                f"[{' | '.join(mode.value for mode in EnergyManagementMode)}]. "
+                f"Defaults to {ems_default_mode()}."
+            ),
+            "examples": ["OPTIMIZATION"],
         },
     )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def modes(self) -> list[str]:
+        """Available energy management modes."""
+        return [mode.value for mode in EnergyManagementMode]
