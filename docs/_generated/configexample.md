@@ -235,6 +235,7 @@
                "token": "your-token",
                "site_id": 12345
            },
+           "pvlib": {},
            "pvnode": {
                "api_key": "",
                "site_id": null,

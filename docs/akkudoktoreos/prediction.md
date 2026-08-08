@@ -728,6 +728,30 @@ The PV forecast data must be provided in one of the formats described in
 The data may additionally or solely be provided by the
 **PUT** `/v1/prediction/import/PVForecastImport` endpoint.
 
+### PVForecastPVLib Provider
+
+The `PVForecastPVLib` provider calculates PV power forecasts locally using the
+[PVLib](https://pvlib-python.readthedocs.io/) simulation library. Unlike the
+API-based providers, no external forecast service is required. The provider
+uses the configured PV system geometry together with the weather prediction
+(`weather_ghi`, `weather_dni`, `weather_dhi`, `weather_temp_air`, etc.) to
+simulate the expected DC module power and AC inverter output.
+
+The provider supports multiple PV planes and automatically sums their power.
+Module and inverter models are selected from the CEC database by name or by
+their nominal power rating. AkkudoktorEOS automatically generates and caches
+the required CEC databases on first use by combining the current SAM database,
+legacy PVLib entries, and the additional EMHASS models.
+
+The following prediction keys are provided:
+
+- `pvforecast_ac_power`: Total AC power (W).
+- `pvforecast_dc_power`: Total DC power (W).
+
+Currently, the configuration options `userhorizon`, `optimalangles`, and
+tracking systems (`trackingtype != 0`) are ignored. If no `albedo` is
+configured, a default value of `0.2` is used.
+
 ### PVForecastPVNode Provider
 
 The `PVForecastPVNode` provider retrieves native 15-minute PV power forecasts from the

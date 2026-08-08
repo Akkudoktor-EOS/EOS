@@ -27,7 +27,10 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
-from akkudoktoreos.optimization.optimization import OptimizationSolution
+from akkudoktoreos.optimization.optimization import (
+    OptimizationAlgorithm,
+    OptimizationSolution,
+)
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 # The executor to execute the CPU heavy energy management run
@@ -168,7 +171,7 @@ class EnergyManagement(
         self,
         start_datetime: Optional[DateTime] = None,
         mode: Optional[EnergyManagementMode] = None,
-        algorithm: Optional[str] = None,
+        algorithm: Optional[OptimizationAlgorithm] = None,
         genetic_parameters: Optional[GeneticOptimizationParameters] = None,
         genetic_generations: Optional[int] = None,
         genetic_seed: Optional[int] = None,
@@ -192,7 +195,7 @@ class EnergyManagement(
                 - "DISABLED": Does not run.
 
                 Defaults to the mode defined in the current configuration.
-            algorithm (str, optional):
+            algorithm (OptimizationAlgorithm, optional):
                 The algorithm to use. Must be one of:
                 - "GENETIC": Optimization uses the `GENETIC` optimization algorithm.
                 - "GENETIC0": Optimization uses the `GENETIC0` optimization algorithm.
@@ -260,7 +263,16 @@ class EnergyManagement(
 
             # Update the predictions
             logger.info("Starting energy management prediction update.")
-            await self.prediction.update_data(force_enable=force_enable, force_update=force_update)
+            try:
+                await self.prediction.update_data(
+                    force_enable=force_enable, force_update=force_update
+                )
+            except Exception as e:
+                trace = "".join(traceback.TracebackException.from_exception(e).format())
+                error_msg = (
+                    f"Prediction update failed - phase {EnergyManagement._stage}:\n{e}\n{trace}"
+                )
+                logger.error(error_msg)
 
             if mode == EnergyManagementMode.PREDICTION:
                 logger.info("Energy management run done (predictions updated)")
@@ -276,7 +288,7 @@ class EnergyManagement(
                 algorithm = self.config.optimization.algorithm
 
             # --- GENETIC algorithm ---
-            if algorithm == "GENETIC":
+            if algorithm == OptimizationAlgorithm.GENETIC:
                 # Prepare optimization parameters
                 # This also creates default configurations for missing values and updates the predictions
                 logger.info(f"{algorithm}: Starting optimzation parameter preparation.")
@@ -342,7 +354,7 @@ class EnergyManagement(
                 )
 
             # --- GENETIC0 algorithm ---
-            elif algorithm == "GENETIC0":
+            elif algorithm == OptimizationAlgorithm.GENETIC0:
                 # Prepare optimization parameters
                 # This also creates default configurations for missing values and updates the predictions
                 logger.info(f"{algorithm}: Starting optimzation parameter preparation.")

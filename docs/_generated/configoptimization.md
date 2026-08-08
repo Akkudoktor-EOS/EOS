@@ -7,7 +7,7 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| algorithm | `EOS_OPTIMIZATION__ALGORITHM` | `str` | `rw` | `GENETIC` | The optimization algorithm. Defaults to GENETIC |
+| algorithm | `EOS_OPTIMIZATION__ALGORITHM` | `<enum 'OptimizationAlgorithm'>` | `rw` | `required` | Optimization algorithm [GENETIC | GENETIC0]. Defaults to GENETIC. |
 | algorithms | | `list[str]` | `ro` | `N/A` | Available optimization algorithms. |
 | genetic | `EOS_OPTIMIZATION__GENETIC` | `GeneticCommonSettings` | `rw` | `required` | GENETIC optimization algorithm configuration. |
 | genetic0 | `EOS_OPTIMIZATION__GENETIC0` | `Genetic0CommonSettings` | `rw` | `required` | GENETIC0 optimization algorithm configuration. |

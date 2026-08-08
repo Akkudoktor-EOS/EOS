@@ -11,6 +11,7 @@ from akkudoktoreos.prediction.pvforecastforecastsolar import (
     PVForecastForecastSolarCommonSettings,
 )
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
+from akkudoktoreos.prediction.pvforecastpvlib import PVForecastPVLibCommonSettings
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNodeCommonSettings
 from akkudoktoreos.prediction.pvforecastsolcast import PVForecastSolcastCommonSettings
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrmCommonSettings
@@ -25,11 +26,12 @@ def pvforecast_provider_ids() -> list[str]:
         # Return at least provider used in example
         return [
             "PVForecastAkkudoktor",
-            "PVForecastImport",
-            "PVForecastVrm",
-            "PVForecastPVNode",
             "PVForecastForecastSolar",
+            "PVForecastImport",
+            "PVForecastPVLib",
+            "PVForecastPVNode",
             "PVForecastSolcast",
+            "PVForecastVrm",
         ]
 
     return [
@@ -82,7 +84,7 @@ class PVForecastPlaneSetting(SettingsBaseModel):
         },
     )
     mountingplace: Optional[str] = Field(
-        default="free",
+        default="building",
         json_schema_extra={
             "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated."
         },
@@ -114,7 +116,7 @@ class PVForecastPlaneSetting(SettingsBaseModel):
         },
     )
     albedo: Optional[float] = Field(
-        default=None,
+        default=0.2,
         json_schema_extra={
             "description": "Proportion of the light hitting the ground that it reflects back.",
             "examples": [None],
@@ -204,6 +206,11 @@ class PVForecastCommonSettings(SettingsBaseModel):
     vrm: PVForecastVrmCommonSettings = Field(
         default_factory=PVForecastVrmCommonSettings,
         json_schema_extra={"description": "Victron Remote Management (VRM) provider settings"},
+    )
+
+    pvlib: PVForecastPVLibCommonSettings = Field(
+        default_factory=PVForecastPVLibCommonSettings,
+        json_schema_extra={"description": "PVLib provider settings"},
     )
 
     pvnode: PVForecastPVNodeCommonSettings = Field(

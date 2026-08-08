@@ -17,6 +17,7 @@ from akkudoktoreos.core.emsettings import EnergyManagementMode
 from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticOptimizationParameters,
 )
+from akkudoktoreos.optimization.optimization import OptimizationAlgorithm
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 config_eos = get_config()
@@ -432,6 +433,7 @@ def run_optimization(
         ems_eos.run(
             start_datetime=start_datetime,
             mode=EnergyManagementMode.OPTIMIZATION,
+            algorithm=OptimizationAlgorithm.GENETIC,
             genetic_parameters=parameters,
             genetic_generations=ngen,
             genetic_seed=seed,

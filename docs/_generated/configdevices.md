@@ -209,7 +209,7 @@
 | ac_to_dc_efficiency | `float` | `rw` | `1.0` | Efficiency of AC to DC conversion for grid-to-battery AC charging (0-1). Set to 0 to disable AC charging. Default 1.0 (no additional inverter loss). |
 | battery_id | `str | None` | `rw` | `None` | ID of battery controlled by this inverter. |
 | dc_to_ac_efficiency | `float` | `rw` | `1.0` | Efficiency of DC to AC conversion for battery discharging to AC load/grid (0-1). Default 1.0 (no additional inverter loss). |
-| device_id | `str` | `rw` | `<unknown>` | ID of device |
+| device_id | `str` | `rw` | `required` | ID of device |
 | max_ac_charge_power_w | `float | None` | `rw` | `None` | Maximum AC charging power in watts. null means no additional limit. Set to 0 to disable AC charging. |
 | max_power_w | `float | None` | `rw` | `None` | Maximum power [W]. |
 | measurement_keys | `list[str] | None` | `ro` | `N/A` | Measurement keys for the inverter stati that are measurements. |
@@ -372,7 +372,7 @@ as a cohesive unit for scheduling and availability checking.
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
 | consumption_wh | `int` | `rw` | `required` | Energy consumption [Wh]. |
-| device_id | `str` | `rw` | `<unknown>` | ID of device |
+| device_id | `str` | `rw` | `required` | ID of device |
 | duration_h | `int` | `rw` | `required` | Usage duration in hours [0 ... 24]. |
 | measurement_keys | `list[str] | None` | `ro` | `N/A` | Measurement keys for the home appliance stati that are measurements. |
 | time_windows | `akkudoktoreos.config.configabc.TimeWindowSequence | None` | `rw` | `None` | Sequence of allowed time windows. Defaults to optimization general time window. |
@@ -454,7 +454,7 @@ as a cohesive unit for scheduling and availability checking.
 | capacity_wh | `int` | `rw` | `8000` | Capacity [Wh]. |
 | charge_rates | `list[float] | None` | `rw` | `[0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]` | Charge rates as factor of maximum charging power [0.00 ... 1.00]. None triggers fallback to default charge-rates. |
 | charging_efficiency | `float` | `rw` | `0.88` | Charging efficiency [0.01 ... 1.00]. |
-| device_id | `str` | `rw` | `<unknown>` | ID of device |
+| device_id | `str` | `rw` | `required` | ID of device |
 | discharging_efficiency | `float` | `rw` | `0.88` | Discharge efficiency [0.01 ... 1.00]. |
 | levelized_cost_of_storage_kwh | `float` | `rw` | `0.0` | Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [amount/kWh]. |
 | max_charge_power_w | `float | None` | `rw` | `5000` | Maximum charging power [W]. |
