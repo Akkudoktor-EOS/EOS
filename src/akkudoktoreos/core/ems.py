@@ -263,7 +263,16 @@ class EnergyManagement(
 
             # Update the predictions
             logger.info("Starting energy management prediction update.")
-            await self.prediction.update_data(force_enable=force_enable, force_update=force_update)
+            try:
+                await self.prediction.update_data(
+                    force_enable=force_enable, force_update=force_update
+                )
+            except Exception as e:
+                trace = "".join(traceback.TracebackException.from_exception(e).format())
+                error_msg = (
+                    f"Prediction update failed - phase {EnergyManagement._stage}:\n{e}\n{trace}"
+                )
+                logger.error(error_msg)
 
             if mode == EnergyManagementMode.PREDICTION:
                 logger.info("Energy management run done (predictions updated)")
