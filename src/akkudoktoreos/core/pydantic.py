@@ -66,6 +66,9 @@ def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, An
     Nested dictionaries are merged recursively.
     Lists in update_dict replace source lists entirely.
 
+    Computed fields are excluded from the source model because they represent
+    derived state rather than configuration input.
+
     Args:
         source (BaseModel): Pydantic model instance serving as the source.
         update_dict (dict[str, Any]): Dictionary with updates to apply.
@@ -91,7 +94,10 @@ def merge_models(source: BaseModel, update_dict: dict[str, Any]) -> dict[str, An
         # For other types or if update_data is None, override source_data
         return update_data
 
-    source_dict = source.model_dump(exclude_unset=True)
+    source_dict = source.model_dump(
+        exclude_unset=True,
+        exclude_computed_fields=True,
+    )
     merged_result = deep_merge(source_dict, deepcopy(update_dict))
     return merged_result
 

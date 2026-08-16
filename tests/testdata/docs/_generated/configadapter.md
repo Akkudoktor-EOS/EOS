@@ -87,7 +87,7 @@ The Node-RED adapter sends to HTTP IN nodes.
 
 This is the example flow:
 
-[HTTP In \\<URL\\>] -> [Function (parse payload)] -> [Debug] -> [HTTP Response]
+`[HTTP In <URL>] -> [Function (parse payload)] -> [Debug] -> [HTTP Response]`
 
 There are two URLs that are used:
 

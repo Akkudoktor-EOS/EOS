@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2608080910933529"
+    "version": "v0.3.0.dev2608160647074704"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -9751,7 +9751,7 @@
         },
         "type": "object",
         "title": "NodeREDAdapterCommonSettings",
-        "description": "Common settings for the NodeRED adapter.\n\nThe Node-RED adapter sends to HTTP IN nodes.\n\nThis is the example flow:\n\n[HTTP In \\\\<URL\\\\>] -> [Function (parse payload)] -> [Debug] -> [HTTP Response]\n\nThere are two URLs that are used:\n\n- GET /eos/data_aquisition\n  The GET is issued before the optimization.\n- POST /eos/control_dispatch\n  The POST is issued after the optimization."
+        "description": "Common settings for the NodeRED adapter.\n\nThe Node-RED adapter sends to HTTP IN nodes.\n\nThis is the example flow:\n\n`[HTTP In <URL>] -> [Function (parse payload)] -> [Debug] -> [HTTP Response]`\n\nThere are two URLs that are used:\n\n- GET /eos/data_aquisition\n  The GET is issued before the optimization.\n- POST /eos/control_dispatch\n  The POST is issued after the optimization."
       },
       "OMBCInstruction": {
         "properties": {
