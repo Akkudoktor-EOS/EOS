@@ -87,11 +87,6 @@ class IngressMiddleware(BaseHTTPMiddleware):
             or request.headers.get("X-INGRESS-PATH", "")
         )
 
-        # Debug logging - remove after testing
-        logger.debug(f"All headers: {dict(request.headers)}")
-        logger.debug(f"Ingress path: {ingress_path}")
-        logger.debug(f"Request path: {request.url.path}")
-
         # Only set root_path if we have an ingress path
         if ingress_path:
             ROOT_PATH = ingress_path

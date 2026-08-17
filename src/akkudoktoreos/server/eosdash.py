@@ -24,7 +24,7 @@ from akkudoktoreos.server.dash.admin import Admin
 # helpers
 from akkudoktoreos.server.dash.bokeh import BokehJS
 from akkudoktoreos.server.dash.components import Page
-from akkudoktoreos.server.dash.configuration import Configuration
+from akkudoktoreos.server.dash.configuration import Configuration, config_options
 from akkudoktoreos.server.dash.context import (
     IngressMiddleware,
     safe_asset_path,
@@ -321,6 +321,19 @@ def post_eosdash_admin(request: Request, data: dict):  # type: ignore
         Admin: The Admin page component.
     """
     return Admin(*eos_server(), data)
+
+
+@app.get("/eosdash/configuration/options/{options_source:path}")
+def get_eosdash_configuration_options(  # type: ignore
+    request: Request,
+    options_source: str,
+    search: str = "",
+    select_id: str = "",
+    name: str = "",
+    current: str = "",
+):
+    """Serve a filtered <select> fragment for a select_lazy config field."""
+    return config_options(options_source, search, select_id, name, current)
 
 
 @app.get("/eosdash/configuration")

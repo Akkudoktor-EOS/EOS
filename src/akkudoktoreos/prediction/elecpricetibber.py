@@ -7,7 +7,6 @@ import pandas as pd
 import requests
 from loguru import logger
 from pydantic import Field, ValidationError
-from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.cache import cache_in_file
@@ -321,40 +320,6 @@ class ElecPriceTibber(ElecPriceProvider):
         series.index = pd.to_datetime([to_datetime(index).isoformat() for index in series.index])
         series = series.groupby(level=0).mean().sort_index()
         return series.dropna()
-
-    def _resolution_seconds(self, series: pd.Series) -> int:
-        """Infer the native slot size in seconds from the series timestamps.
-
-        Uses the median of the timestamp differences so that a single outlier gap does
-        not distort the result. Falls back to hourly (3600 s) when fewer than two
-        timestamps are available.
-        """
-        if len(series) < 2:
-            return 3600
-        deltas = pd.DatetimeIndex(series.index).to_series().diff().dropna()
-        if deltas.empty:
-            return 3600
-        resolution = int(round(deltas.dt.total_seconds().median()))
-        return resolution if resolution > 0 else 3600
-
-    def _cap_outliers(self, data: np.ndarray, sigma: int = 2) -> np.ndarray:
-        mean = data.mean()
-        std = data.std()
-        lower_bound = mean - sigma * std
-        upper_bound = mean + sigma * std
-        capped_data = data.clip(min=lower_bound, max=upper_bound)
-        return capped_data
-
-    def _predict_ets(self, history: np.ndarray, seasonal_periods: int, hours: int) -> np.ndarray:
-        clean_history = self._cap_outliers(history)
-        model = ExponentialSmoothing(
-            clean_history, seasonal="add", seasonal_periods=seasonal_periods
-        ).fit()
-        return model.forecast(hours)
-
-    def _predict_median(self, history: np.ndarray, hours: int) -> np.ndarray:
-        clean_history = self._cap_outliers(history)
-        return np.full(hours, np.median(clean_history))
 
     def _predict_missing_prices(
         self, history: np.ndarray, slots: int, slots_per_hour: int

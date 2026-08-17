@@ -5,16 +5,17 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import numpy as np
+import pandas as pd
 import pytest
 import requests
 
 from akkudoktoreos.core.coreabc import get_ems
+from akkudoktoreos.prediction.elecfeefixed import ElecFeeFixed
 from akkudoktoreos.prediction.elecpriceenergycharts import (
-    ElecPriceEnergyCharts,
     EnergyChartsElecPrice,
 )
 from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
@@ -35,8 +36,25 @@ def provider(config_eos):
     )
     provider = FeedInTariffEnergyCharts()
     provider.highest_orig_datetime = None
-    provider.records.clear()
     assert provider.enabled()
+    provider._db_reset_state()
+    return provider
+
+
+
+@pytest.fixture
+def elecfee_provider(config_eos):
+    """Fixture to create a ElecFeeFixed instance."""
+    config_eos.merge_settings_from_dict(
+        {
+            "elecfee": {
+                "provider": "ElecFeeFixed",
+            },
+        }
+    )
+    provider = ElecFeeFixed()
+    assert provider.enabled()
+    provider._db_reset_state()
     return provider
 
 
@@ -94,7 +112,7 @@ class TestFeedInTariffEnergyCharts:
             await provider._update_data(force_update=True)
 
         result = await provider.key_to_raw_series(
-            key="feed_in_tariff_wh",
+            key="feed_in_tariff_raw_wh",
             start_datetime=start,
             end_datetime=start.add(hours=provider.config.prediction.hours),
         )
@@ -127,9 +145,9 @@ class TestFeedInTariffEnergyCharts:
 
         with (
             patch.object(provider, "_request_forecast", return_value=energy_charts_data) as request,
-            patch.object(ElecPriceEnergyCharts, "_predict_ets", side_effect=fake_ets),
+            patch.object(FeedInTariffEnergyCharts, "_predict_ets", side_effect=fake_ets),
             patch.object(
-                ElecPriceEnergyCharts,
+                FeedInTariffEnergyCharts,
                 "_predict_median",
                 side_effect=AssertionError("median fallback must not be used"),
             ),
@@ -141,7 +159,7 @@ class TestFeedInTariffEnergyCharts:
             # second update reuses the retained 35-day history without another request.
             assert request.call_count == 1
             assert len(ets_history_lengths) == 2
-            assert all(length > 800 * 4 for length, _ in ets_history_lengths)
+            assert all(length > 2 * 168 * 4 for length, _ in ets_history_lengths)
             assert all(seasonal_periods == 168 * 4 for _, seasonal_periods in ets_history_lengths)
 
             await provider.update_data(force_enable=True, force_update=True)
@@ -185,10 +203,10 @@ class TestFeedInTariffEnergyCharts:
             deprecated=False,
         )
 
-        def fake_predict(history, slots, slots_per_hour):
-            return np.full(slots, 0.00005)
+        def fake_predict(history, hours, slots_per_hour=1):
+            return np.full(hours, 0.00005)
 
-        with patch.object(provider, "_predict_prices", side_effect=fake_predict):
+        with patch.object(provider, "_predict", side_effect=fake_predict):
             # First: successful update seeds history and highest_orig_datetime.
             with patch.object(provider, "_request_forecast", return_value=energy_charts_data):
                 await provider.update_data(force_enable=True, force_update=True)
@@ -218,3 +236,165 @@ class TestFeedInTariffEnergyCharts:
         ):
             with pytest.raises(requests.exceptions.ReadTimeout):
                 await provider.update_data(force_enable=True, force_update=True)
+
+    @pytest.mark.asyncio
+    async def test_update_data_no_fees_configured_defaults_gross_to_raw(self, provider):
+        """Without an ElecFee provider configured, feed_in_tariff_wh must equal the raw series.
+
+        _apply_fees() catches the KeyError from an absent ElecFee provider and
+        defaults both fee components to 0, so gross should be indistinguishable
+        from raw in that case.
+        """
+        start = to_datetime("2025-01-15 00:00:00", in_timezone="Europe/Berlin")
+        get_ems().set_start_datetime(start)
+        raw_slots = provider.config.prediction.hours * 4
+        energy_charts_data = EnergyChartsElecPrice(
+            license_info="",
+            unix_seconds=[int(start.add(minutes=15 * i).timestamp()) for i in range(raw_slots)],
+            price=[100.0] * raw_slots,
+            unit="EUR/MWh",
+            deprecated=False,
+        )
+
+        with patch.object(provider, "_request_forecast", return_value=energy_charts_data):
+            await provider._update_data(force_update=True)
+
+        raw = await provider.key_to_series(
+            key="feed_in_tariff_raw_wh",
+            start_datetime=start,
+            end_datetime=start.add(hours=provider.config.prediction.hours),
+            interval=to_duration("15 minutes"),
+        )
+        gross = await provider.key_to_series(
+            key="feed_in_tariff_wh",
+            start_datetime=start,
+            end_datetime=start.add(hours=provider.config.prediction.hours),
+            interval=to_duration("15 minutes"),
+        )
+        pd.testing.assert_series_equal(gross, raw, check_names=False)
+
+    @pytest.mark.asyncio
+    async def test_update_data_applies_feedin_fees(self, provider, config_eos):
+        """feed_in_tariff_wh must reflect the configured feed-in fee deduction.
+
+        Per _apply_fees(): gross = raw * (100 - percent_amt) / 100 - amt_wh,
+        i.e. fees are deducted from what the producer receives, the inverse
+        direction of the consumption-side markup.
+        """
+        feedin_amt_kwh = 0.001  # flat fee/kWh deducted from the feed-in payout
+        feedin_percent_amt = 5.0  # percentage deducted from the feed-in payout
+        config_eos.merge_settings_from_dict(
+            {
+                "elecfee": {
+                    "provider": "ElecFeeFixed",
+                    "elecfeefixed": {
+                        "feedin_amt_kwh": {
+                            "windows": [
+                                {"start_time": "00:00", "duration": "24 hours", "value": feedin_amt_kwh},
+                            ],
+                        },
+                        "feedin_percent_amt": {
+                            "windows": [
+                                {"start_time": "00:00", "duration": "24 hours", "value": feedin_percent_amt},
+                            ],
+                        },
+                    },
+                },
+            }
+        )
+        start = to_datetime("2025-01-15 00:00:00", in_timezone="Europe/Berlin")
+        get_ems().set_start_datetime(start)
+        await ElecFeeFixed()._update_data(force_update=True)
+
+        raw_slots = provider.config.prediction.hours * 4
+        energy_charts_data = EnergyChartsElecPrice(
+            license_info="",
+            unix_seconds=[int(start.add(minutes=15 * i).timestamp()) for i in range(raw_slots)],
+            price=[100.0] * raw_slots,  # 100 EUR/MWh = 0.1 EUR/kWh
+            unit="EUR/MWh",
+            deprecated=False,
+        )
+        with patch.object(provider, "_request_forecast", return_value=energy_charts_data):
+            await provider._update_data(force_update=True)
+
+        raw_result = await provider.key_to_series(
+            key="feed_in_tariff_raw_wh",
+            start_datetime=start,
+            end_datetime=start.add(minutes=15),
+            interval=to_duration("15 minutes"),
+        )
+        gross_result = await provider.key_to_series(
+            key="feed_in_tariff_wh",
+            start_datetime=start,
+            end_datetime=start.add(minutes=15),
+            interval=to_duration("15 minutes"),
+        )
+        raw_kwh = raw_result.iloc[0] * 1000
+        gross_kwh = gross_result.iloc[0] * 1000
+        assert raw_kwh == pytest.approx(0.1)
+        expected_gross_kwh = raw_kwh * (100.0 - feedin_percent_amt) / 100.0 - feedin_amt_kwh
+        assert gross_kwh == pytest.approx(expected_gross_kwh)
+
+    @pytest.mark.asyncio
+    async def test_update_data_covers_full_horizon_after_stale_fetch_outage(self, provider):
+        """Regression test: needed_slots must include the gap when a fetch outage
+        leaves highest_orig_datetime behind the current ems_start_datetime.
+
+        Same bug/fix as ElecPriceEnergyCharts: `covered_slots` must be allowed
+        to go negative when highest_orig_datetime is older than
+        ems_start_datetime, rather than clamped to 0, or the predicted tail
+        ends before ems_start_datetime + prediction.hours whenever an outage
+        persists long enough for the two to diverge.
+        """
+        provider.config.prediction.hours = 48
+
+        start = to_datetime("2026-01-15 00:00:00", in_timezone="Europe/Berlin")
+        get_ems().set_start_datetime(start)
+
+        raw_start = start.subtract(days=35)
+        raw_slots = int((start - raw_start).total_seconds() // 900) + 1
+        energy_charts_data = EnergyChartsElecPrice(
+            license_info="",
+            unix_seconds=[int(raw_start.add(minutes=15 * i).timestamp()) for i in range(raw_slots)],
+            price=[50.0 + float(i % 96) for i in range(raw_slots)],
+            unit="EUR/MWh",
+            deprecated=False,
+        )
+
+        def fake_ets(history, seasonal_periods, hours):
+            return np.full(hours, 0.00005)
+
+        with (
+            patch.object(provider, "_request_forecast", return_value=energy_charts_data),
+            patch.object(FeedInTariffEnergyCharts, "_predict_ets", side_effect=fake_ets),
+        ):
+            await provider.update_data(force_enable=True, force_update=True)
+
+        last_good = provider.highest_orig_datetime
+        assert last_good is not None
+
+        # Advance ems_start_datetime well past the last known data point, as
+        # if a fetch outage has persisted for a while.
+        outage_gap_hours = 20
+        new_start = to_datetime(last_good).add(hours=outage_gap_hours)
+        get_ems().set_start_datetime(new_start)
+
+        with (
+            patch.object(
+                provider, "_request_forecast", side_effect=requests.exceptions.ReadTimeout("boom")
+            ),
+            patch.object(FeedInTariffEnergyCharts, "_predict_ets", side_effect=fake_ets),
+        ):
+            await provider.update_data(force_enable=True, force_update=True)
+
+        assert provider.highest_orig_datetime == last_good
+
+        horizon_end = new_start.add(hours=provider.config.prediction.hours)
+        raw_result = await provider.key_to_series(
+            key="feed_in_tariff_raw_wh",
+            start_datetime=horizon_end.subtract(minutes=15),
+            end_datetime=horizon_end,
+            interval=to_duration("15 minutes"),
+        )
+        assert len(raw_result) == 1
+        assert not raw_result.isna().any()

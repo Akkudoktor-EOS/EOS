@@ -28,7 +28,7 @@ class TestElecPriceFixedCommonSettings:
     def test_create_settings_with_windows(self):
         """Test creating settings with time windows."""
         settings_dict = {
-            "time_windows": {
+            "elecprice_marketprice_amt_kwh": {
                 "windows": [
                     {
                         "start_time": "00:00",
@@ -46,25 +46,30 @@ class TestElecPriceFixedCommonSettings:
 
         settings = ElecPriceFixedCommonSettings(**settings_dict)
         assert settings is not None
-        assert settings.time_windows is not None
-        assert settings.time_windows.windows is not None
-        assert len(settings.time_windows.windows) == 2
+        assert settings.elecprice_marketprice_amt_kwh is not None
+        assert settings.elecprice_marketprice_amt_kwh.windows is not None
+        assert len(settings.elecprice_marketprice_amt_kwh.windows) == 2
 
     def test_create_settings_without_windows(self):
         """Test creating settings without time windows."""
         settings = ElecPriceFixedCommonSettings()
-        assert settings.time_windows is not None
-        assert settings.time_windows.windows == []
+        assert settings.elecprice_marketprice_amt_kwh is not None
+        assert settings.elecprice_marketprice_amt_kwh.windows == []
 
 
 @pytest.fixture
-def provider(monkeypatch, config_eos):
+def provider(config_eos):
     """Fixture to create a ElecPriceFixed provider instance."""
-    # Set environment variables
-    monkeypatch.setenv("EOS_ELECPRICE__ELECPRICE_PROVIDER", "ElecPriceFixed")
-
+    # Create settings and assign to config
+    config_eos.merge_settings_from_dict(
+        {
+            "elecprice": {
+                "provider": "ElecPriceFixed",
+            },
+        }
+    )
     # Create time windows
-    time_windows = ValueTimeWindowSequence(
+    elecprice_marketprice_amt_kwh = ValueTimeWindowSequence(
         windows=[
             ValueTimeWindow(
                 start_time="00:00",
@@ -78,12 +83,11 @@ def provider(monkeypatch, config_eos):
             )
         ]
     )
-
-    # Create settings and assign to config
-    config_eos.elecprice.elecpricefixed = ElecPriceFixedCommonSettings(time_windows=time_windows)
-
-    ElecPriceFixed.reset_instance()
-    return ElecPriceFixed()
+    config_eos.elecprice.elecpricefixed = ElecPriceFixedCommonSettings(elecprice_marketprice_amt_kwh=elecprice_marketprice_amt_kwh)
+    provider = ElecPriceFixed()
+    assert provider.enabled()
+    provider._db_reset_state()
+    return provider
 
 
 @pytest.fixture
@@ -144,23 +148,25 @@ class TestElecPriceFixed:
             )
 
     @pytest.mark.asyncio
-    async def test_update_data_without_config(self, provider, config_eos):
+    async def test_update_data_without_config(self, caplog, provider, config_eos):
         """Test update_data fails without configuration."""
         # Remove elecpricefixed settings
         config_eos.elecprice.elecpricefixed = {}
 
-        with pytest.raises(ValueError, match="No time windows configured"):
+        with caplog.at_level("WARNING"):
             await provider.update_data(force_enable=True, force_update=True)
+        assert "No time windows configured for `elecprice_marketprice_raw_wh`" in caplog.text
 
     @pytest.mark.asyncio
-    async def test_update_data_without_time_windows(self, provider, config_eos):
+    async def test_update_data_without_elecprice_marketprice_amt_kwh(self, caplog, provider, config_eos):
         """Test update_data fails without time windows."""
         # Set empty time windows
-        empty_settings = ElecPriceFixedCommonSettings(time_windows=ValueTimeWindowSequence(windows=[]))
+        empty_settings = ElecPriceFixedCommonSettings(elecprice_marketprice_amt_kwh=ValueTimeWindowSequence(windows=[]))
         config_eos.elecprice.elecpricefixed = empty_settings
 
-        with pytest.raises(ValueError, match="No time windows configured"):
+        with caplog.at_level("WARNING"):
             await provider.update_data(force_enable=True, force_update=True)
+        assert "No time windows configured for `elecprice_marketprice_raw_wh`" in caplog.text
 
     @pytest.mark.asyncio
     async def test_key_to_array_resampling(self, provider, config_eos):
@@ -230,7 +236,7 @@ class TestElecPriceFixedIntegration:
         ems_eos.set_start_datetime(start_dt)
 
         # Configure with realistic German electricity prices (2024)
-        time_windows = ValueTimeWindowSequence(
+        elecprice_marketprice_amt_kwh = ValueTimeWindowSequence(
             windows=[
                 ValueTimeWindow(
                     start_time="00:00",
@@ -245,7 +251,7 @@ class TestElecPriceFixedIntegration:
             ]
         )
 
-        config_eos.elecprice.elecpricefixed = ElecPriceFixedCommonSettings(time_windows=time_windows)
+        config_eos.elecprice.elecpricefixed = ElecPriceFixedCommonSettings(elecprice_marketprice_amt_kwh=elecprice_marketprice_amt_kwh)
         config_eos.prediction.hours = 168  # 7 days
 
         # Update data
@@ -257,13 +263,13 @@ class TestElecPriceFixedIntegration:
 
         # Save configuration for documentation
         config_data = {
-            "time_windows": [
+            "elecprice_marketprice_amt_kwh": [
                 {
                     "start_time": str(window.start_time),
                     "duration": str(window.duration),
                     "value": window.value
                 }
-                for window in config_eos.elecprice.elecpricefixed.time_windows.windows
+                for window in config_eos.elecprice.elecpricefixed.elecprice_marketprice_amt_kwh.windows
             ]
         }
 

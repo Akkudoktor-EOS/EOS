@@ -13,6 +13,7 @@ from akkudoktoreos.prediction.feedintariffenergycharts import (
 )
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixedCommonSettings
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImportCommonSettings
+from akkudoktoreos.prediction.feedintariffsmard import FeedInTariffSMARDCommonSettings
 
 
 def feedintariff_provider_ids() -> list[str]:
@@ -27,6 +28,7 @@ def feedintariff_provider_ids() -> list[str]:
             "FeedInTariffEnergyCharts",
             "FeedInTariffFixed",
             "FeedInTariffImport",
+            "FeedInTariffSMARD",
             "FeedInTariffTibber",
         ]
 
@@ -66,6 +68,11 @@ class FeedInTariffCommonSettings(SettingsBaseModel):
     energycharts: FeedInTariffEnergyChartsCommonSettings = Field(
         default_factory=FeedInTariffEnergyChartsCommonSettings,
         json_schema_extra={"description": "EnergyCharts feed in tariff provider settings."},
+    )
+
+    smard: FeedInTariffSMARDCommonSettings = Field(
+        default_factory=FeedInTariffSMARDCommonSettings,
+        json_schema_extra={"description": "SMARD feed in tariff provider settings."},
     )
 
     @computed_field  # type: ignore[prop-decorator]

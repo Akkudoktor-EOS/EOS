@@ -6,6 +6,7 @@
 ../_generated/configcache.md
 ../_generated/configdatabase.md
 ../_generated/configdevices.md
+../_generated/configelecfee.md
 ../_generated/configelecprice.md
 ../_generated/configems.md
 ../_generated/configfeedintariff.md

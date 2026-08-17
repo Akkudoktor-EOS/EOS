@@ -8,17 +8,20 @@ format, enabling consistent access to forecasted and historical electricity pric
 
 from typing import Any, List, Optional, Union
 
-import numpy as np
 import pandas as pd
 import requests
 from loguru import logger
 from pydantic import ValidationError
-from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
+from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
-from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
+
+
+class ElecPriceAkkudoktorCommonSettings(SettingsBaseModel):
+    """Common configuration settings for Akkodoktor electricity pricing."""
 
 
 class AkkudoktorElecPriceMeta(PydanticBaseModel):
@@ -63,6 +66,8 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         _request_forecast(): Fetches the forecast from the Akkudoktor API.
         _update_data(): Processes and updates forecast data from Akkudoktor in ElecPriceDataRecord format.
     """
+
+    highest_orig_datetime: Optional[DateTime] = None
 
     @classmethod
     def provider_id(cls) -> str:
@@ -116,28 +121,7 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return akkudoktor_data
 
-    def _cap_outliers(self, data: np.ndarray, sigma: int = 2) -> np.ndarray:
-        mean = data.mean()
-        std = data.std()
-        lower_bound = mean - sigma * std
-        upper_bound = mean + sigma * std
-        capped_data = data.clip(min=lower_bound, max=upper_bound)
-        return capped_data
-
-    def _predict_ets(self, history: np.ndarray, seasonal_periods: int, hours: int) -> np.ndarray:
-        clean_history = self._cap_outliers(history)
-        model = ExponentialSmoothing(
-            clean_history, seasonal="add", seasonal_periods=seasonal_periods
-        ).fit()
-        return model.forecast(hours)
-
-    def _predict_median(self, history: np.ndarray, hours: int) -> np.ndarray:
-        clean_history = self._cap_outliers(history)
-        return np.full(hours, np.median(clean_history))
-
-    async def _update_data(
-        self, force_update: Optional[bool] = False
-    ) -> None:  # tuple[np.ndarray, np.ndarray, np.ndarray]:
+    async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update forecast data in the ElecPriceDataRecord format.
 
         Retrieves data from Akkudoktor, maps each Akkudoktor field to the corresponding
@@ -146,64 +130,81 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         The final mapped and processed data is inserted into the sequence as `ElecPriceDataRecord`.
         """
         # Get Akkudoktor electricity price data
-        akkudoktor_data = self._request_forecast(force_update=force_update)  # type: ignore
         if not self.ems_start_datetime:
             raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
+
+        akkudoktor_data = self._request_forecast(force_update=force_update)  # type: ignore
 
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
 
-        # Get charges_kwh in wh
-        charges_wh = (self.config.elecprice.charges_kwh or 0) / 1000
-
         highest_orig_datetime = None  # newest datetime from the api after that we want to update.
-        series_data = pd.Series(dtype=float)  # Initialize an empty series
+        prices_wh = pd.Series(dtype=float)  # Initialize an empty series
 
         for value in akkudoktor_data.values:
             orig_datetime = to_datetime(value.start, in_timezone=self.config.general.timezone)
             if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
                 highest_orig_datetime = orig_datetime
 
-            price_wh = value.marketpriceEurocentPerKWh / (100 * 1000) + charges_wh
+            price_wh = value.marketpriceEurocentPerKWh / (100 * 1000)
 
             # Collect all values into the Pandas Series
-            series_data.at[orig_datetime] = price_wh
+            prices_wh.at[orig_datetime] = price_wh
 
-        # Update values using key_from_series
-        await self.key_from_series("elecprice_marketprice_wh", series_data)
-
-        # Generate history array for prediction
-        history = await self.key_to_array(
-            key="elecprice_marketprice_wh", end_datetime=highest_orig_datetime, fill_method="linear"
-        )
-
-        amount_datasets = len(self.records)
         if not highest_orig_datetime:  # mypy fix
             error_msg = f"Highest original datetime not available: {highest_orig_datetime}"
             logger.error(error_msg)
             raise ValueError(error_msg)
+        self.highest_orig_datetime = highest_orig_datetime
 
-        # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
+        # Every cycle fetches fresh data (no skip-fetch branch here, unlike
+        # ElecPriceEnergyCharts), so the gross-series recompute always needs to
+        # cover at least the freshly fetched range, in addition to the
+        # forward-looking window from ems_start_datetime.
+        gross_start_datetime = (
+            min(self.ems_start_datetime, prices_wh.index.min())
+            if not prices_wh.empty
+            else self.ems_start_datetime
+        )
+
+        # Always raw here - fees are applied once, later, over the complete
+        # raw+predicted series in _store_gross_series().
+        await self.key_from_series("elecprice_marketprice_raw_wh", prices_wh)
+
+        # Raw history only, so ETS/median always trains on the true
+        # wholesale-price signal, never on fee-inclusive values.
+        history = await self.key_to_array(
+            key="elecprice_marketprice_raw_wh",
+            end_datetime=highest_orig_datetime,
+            fill_method="linear",
+        )
+
+        # Some of our data is already in the future, so we need to predict less.
+        # If we got less data we increase the prediction hours
         needed_hours = int(
             self.config.prediction.hours
             - ((highest_orig_datetime - self.ems_start_datetime).total_seconds() // 3600)
         )
 
         if needed_hours <= 0:
+            # This might keep data longer than
+            # self.ems_start_datetime + self.config.prediction.hours in the records
             logger.warning(
-                f"No prediction needed. needed_hours={needed_hours}, hours={self.config.prediction.hours},highest_orig_datetime {highest_orig_datetime}, start_datetime {self.ems_start_datetime}"
-            )  # this might keep data longer than self.ems_start_datetime + self.config.prediction.hours in the records
+                f"No prediction needed. needed_hours={needed_hours}, "
+                f"hours={self.config.prediction.hours}, "
+                f"highest_orig_datetime {highest_orig_datetime}, "
+                f"start_datetime {self.ems_start_datetime}"
+            )
+            # Fee schedule may have changed since the last run even without new
+            # market data; recompute gross only for the window that was
+            # actually touched (or is still forward-looking) this cycle.
+            await self._store_gross_series(
+                start_datetime=gross_start_datetime,
+                end_datetime=self.highest_orig_datetime + to_duration("1 second"),
+            )
             return
 
-        if amount_datasets > 800:  # we do the full ets with seasons of 1 week
-            prediction = self._predict_ets(history, seasonal_periods=168, hours=needed_hours)
-        elif amount_datasets > 168:  # not enough data to do seasons of 1 week, but enough for 1 day
-            prediction = self._predict_ets(history, seasonal_periods=24, hours=needed_hours)
-        elif amount_datasets > 0:  # not enough data for ets, do median
-            prediction = self._predict_median(history, hours=needed_hours)
-        else:
-            logger.error("No data available for prediction")
-            raise ValueError("No data available")
+        prediction = self._predict(history, needed_hours)
 
         # write predictions into the records, update if exist.
         prediction_series = pd.Series(
@@ -213,46 +214,12 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
                 for i in range(len(prediction))
             ],
         )
-        await self.key_from_series("elecprice_marketprice_wh", prediction_series)
+        await self.key_from_series("elecprice_marketprice_raw_wh", prediction_series)
 
-        # history2 = await self.key_to_array(key="elecprice_marketprice_wh", fill_method="linear") + 0.0002
-        # return history, history2, prediction  # for debug main
-
-
-"""
-def visualize_predictions(
-    history: np.ndarray[Any, Any],
-    history2: np.ndarray[Any, Any],
-    predictions: np.ndarray[Any, Any],
-) -> None:
-    import matplotlib.pyplot as plt
-
-    plt.figure(figsize=(28, 14))
-    plt.plot(range(len(history)), history, label="History", color="green")
-    plt.plot(range(len(history2)), history2, label="History_new", color="blue")
-    plt.plot(
-        range(len(history), len(history) + len(predictions)),
-        predictions,
-        label="Predictions",
-        color="red",
-    )
-    plt.title("Predictions ets")
-    plt.xlabel("Time")
-    plt.ylabel("Price")
-    plt.legend()
-    plt.savefig("predictions_vs_true.png")
-    plt.close()
-
-
-def main() -> None:
-    # Initialize ElecPriceAkkudoktor with required parameters
-    elec_price_akkudoktor = ElecPriceAkkudoktor()
-    history, history2, predictions = elec_price_akkudoktor._update_data()
-
-    visualize_predictions(history, history2, predictions)
-    # print(history, history2, predictions)
-
-
-if __name__ == "__main__":
-    main()
-"""
+        # Bounded to [gross_start_datetime, end of the freshly predicted tail) -
+        # covers exactly what was fetched and/or predicted this cycle, not the
+        # entire (potentially multi-year) retained history.
+        await self._store_gross_series(
+            start_datetime=gross_start_datetime,
+            end_datetime=prediction_series.index.max() + to_duration("1 second"),
+        )

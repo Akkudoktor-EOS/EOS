@@ -10,7 +10,7 @@ Timezone contract under test:
 * When a timezone-aware datetime is supplied, ``start_time`` is
   interpreted as wall-clock time **in that timezone** — no tz
   conversion is applied to ``start_time`` itself.
-* Constructing a ``TimeWindow`` with an aware ``start_time`` raises
+* Constructing a ``TimeWindow`` with a naive ``start_time`` raises
   ``ValidationError``.
 """
 
@@ -20,7 +20,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from typing import cast
+
 import numpy as np
+import pandas as pd
 import pendulum
 import pytest
 from pydantic import ValidationError
@@ -722,6 +725,152 @@ class TestTimeWindowSequenceToArray:
 
 
 # ===========================================================================
+# TimeWindowSequence.to_series
+# ===========================================================================
+
+class TestTimeWindowSequenceToSeries:
+    """Tests for TimeWindowSequence.to_series.
+
+    Window layout:
+        win1: 08:00–10:00
+        win2: 14:00–17:00
+    """
+
+    def setup_method(self, method):
+        self.seq = TimeWindowSequence(
+            windows=[
+                make_window(8, 2),
+                make_window(14, 3),
+            ]
+        )
+
+    def test_basic_1h_steps_naive(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end = naive_dt(2024, 6, 16, 0)
+
+        series = self.seq.to_series(
+            start, end, pendulum.duration(hours=1)
+        )
+
+        assert isinstance(series, pd.Series)
+        assert series.shape == (24,)
+        assert isinstance(series.index, pd.DatetimeIndex)
+
+        assert series.iloc[8] == pytest.approx(1.0)
+        assert series.iloc[9] == pytest.approx(1.0)
+        assert series.iloc[10] == pytest.approx(0.0)
+
+        assert series.iloc[14] == pytest.approx(1.0)
+        assert series.iloc[15] == pytest.approx(1.0)
+        assert series.iloc[16] == pytest.approx(1.0)
+        assert series.iloc[17] == pytest.approx(0.0)
+
+    def test_values_match_to_array(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end = naive_dt(2024, 6, 16, 0)
+        interval = pendulum.duration(hours=1)
+
+        arr = self.seq.to_array(start, end, interval)
+        series = self.seq.to_series(start, end, interval)
+
+        np.testing.assert_array_equal(series.to_numpy(), arr)
+
+    def test_dtype_is_float64(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end = naive_dt(2024, 6, 15, 4)
+
+        series = self.seq.to_series(
+            start, end, pendulum.duration(hours=1)
+        )
+
+        assert series.dtype == np.float64
+
+    def test_end_is_exclusive(self):
+        start = naive_dt(2024, 6, 15, 6)
+        end = naive_dt(2024, 6, 15, 8)
+
+        series = self.seq.to_series(
+            start, end, pendulum.duration(hours=1)
+        )
+        index = cast(pd.DatetimeIndex, series.index)
+
+        assert series.shape == (2,)
+        assert list(index.hour) == [6, 7]
+        assert np.all(series.to_numpy() == 0.0)
+
+    def test_align_to_interval_false_preserves_start(self):
+        start = naive_dt(2024, 6, 15, 8, 10)
+        end = naive_dt(2024, 6, 15, 10, 10)
+
+        series = self.seq.to_series(
+            start,
+            end,
+            pendulum.duration(hours=1),
+            align_to_interval=False,
+        )
+        index = cast(pd.DatetimeIndex, series.index)
+
+        assert series.shape == (2,)
+        assert index[0] == pd.Timestamp(start)
+        assert index[1] == pd.Timestamp(start.add(hours=1))
+        assert np.all(series.to_numpy() == 1.0)
+
+    def test_align_to_interval_true_floors_start(self):
+        start = naive_dt(2024, 6, 15, 8, 10)
+        end = naive_dt(2024, 6, 15, 10, 10)
+
+        series = self.seq.to_series(
+            start,
+            end,
+            pendulum.duration(hours=1),
+            align_to_interval=True,
+        )
+        index = cast(pd.DatetimeIndex, series.index)
+
+        assert series.shape == (3,)
+        assert list(index.hour) == [8, 9, 10]
+        assert series.iloc[0] == pytest.approx(1.0)
+        assert series.iloc[1] == pytest.approx(1.0)
+        assert series.iloc[2] == pytest.approx(0.0)
+
+    def test_aware_datetime_preserves_timezone(self):
+        start = aware_dt(2024, 6, 15, 0, tz="Europe/Berlin")
+        end = aware_dt(2024, 6, 15, 4, tz="Europe/Berlin")
+
+        series = self.seq.to_series(
+            start, end, pendulum.duration(hours=1)
+        )
+        index = cast(pd.DatetimeIndex, series.index)
+
+        assert series.shape == (4,)
+        assert str(index.tz) == "Europe/Berlin"
+
+    def test_unsupported_boundary_raises(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end = naive_dt(2024, 6, 15, 4)
+
+        with pytest.raises(ValueError, match="boundary"):
+            self.seq.to_series(
+                start,
+                end,
+                pendulum.duration(hours=1),
+                boundary="strict",
+            )
+
+    def test_empty_sequence_all_zeros(self):
+        seq = TimeWindowSequence()
+        start = naive_dt(2024, 6, 15, 0)
+        end = naive_dt(2024, 6, 15, 4)
+
+        series = seq.to_series(
+            start, end, pendulum.duration(hours=1)
+        )
+
+        assert series.shape == (4,)
+        assert np.all(series.to_numpy() == 0.0)
+
+
+# ===========================================================================
 # ValueTimeWindowSequence.to_array
 # ===========================================================================
 
@@ -882,6 +1031,254 @@ class TestValueTimeWindowSequenceToArray:
 
 
 # ===========================================================================
+# ValueTimeWindowSequence.to_series
+# ===========================================================================
+
+class TestValueTimeWindowSequenceToSeries:
+    """Tests for ValueTimeWindowSequence.to_series."""
+
+    def setup_method(self, method):
+        self.seq = ValueTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(
+                    start_time="08:00:00",
+                    duration="4 hours",
+                    value=0.25,
+                ),
+                ValueTimeWindow(
+                    start_time="18:00:00",
+                    duration="4 hours",
+                    value=0.35,
+                ),
+            ]
+        )
+
+    def test_basic_1h_steps_values(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end = naive_dt(2024, 6, 16, 0)
+
+        series = self.seq.to_series(
+            start, end, pendulum.duration(hours=1)
+        )
+
+        assert isinstance(series, pd.Series)
+        assert isinstance(series.index, pd.DatetimeIndex)
+        assert series.shape == (24,)
+
+        assert series.iloc[8] == pytest.approx(0.25)
+        assert series.iloc[11] == pytest.approx(0.25)
+        assert series.iloc[12] == pytest.approx(0.0)
+
+        assert series.iloc[18] == pytest.approx(0.35)
+        assert series.iloc[21] == pytest.approx(0.35)
+        assert series.iloc[22] == pytest.approx(0.0)
+
+    def test_values_match_to_array(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end = naive_dt(2024, 6, 16, 0)
+        interval = pendulum.duration(hours=1)
+
+        arr = self.seq.to_array(start, end, interval)
+        series = self.seq.to_series(start, end, interval)
+
+        np.testing.assert_array_equal(series.to_numpy(), arr)
+
+    def test_dtype_is_float64(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end = naive_dt(2024, 6, 15, 4)
+
+        series = self.seq.to_series(
+            start, end, pendulum.duration(hours=1)
+        )
+
+        assert series.dtype == np.float64
+
+    def test_dropna_false_none_value_emits_nan(self):
+        seq = ValueTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(
+                    start_time="08:00:00",
+                    duration="2 hours",
+                    value=None,
+                ),
+                ValueTimeWindow(
+                    start_time="12:00:00",
+                    duration="2 hours",
+                    value=0.5,
+                ),
+            ]
+        )
+
+        start = naive_dt(2024, 6, 15, 8)
+        end = naive_dt(2024, 6, 15, 15)
+
+        series = seq.to_series(
+            start,
+            end,
+            pendulum.duration(hours=1),
+            dropna=False,
+        )
+        index = cast(pd.DatetimeIndex, series.index)
+
+        assert series.shape == (7,)
+        assert list(index.hour) == [8, 9, 10, 11, 12, 13, 14]
+
+        assert np.isnan(series.iloc[0])
+        assert np.isnan(series.iloc[1])
+        assert series.iloc[2] == pytest.approx(0.0)
+        assert series.iloc[3] == pytest.approx(0.0)
+        assert series.iloc[4] == pytest.approx(0.5)
+        assert series.iloc[5] == pytest.approx(0.5)
+        assert series.iloc[6] == pytest.approx(0.0)
+
+    def test_dropna_true_none_value_omits_timestamp(self):
+        seq = ValueTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(
+                    start_time="08:00:00",
+                    duration="2 hours",
+                    value=None,
+                ),
+                ValueTimeWindow(
+                    start_time="12:00:00",
+                    duration="2 hours",
+                    value=0.5,
+                ),
+            ]
+        )
+
+        start = naive_dt(2024, 6, 15, 8)
+        end = naive_dt(2024, 6, 15, 15)
+
+        series = seq.to_series(
+            start,
+            end,
+            pendulum.duration(hours=1),
+            dropna=True,
+        )
+        index = cast(pd.DatetimeIndex, series.index)
+
+        # 08:00 and 09:00 are omitted completely.
+        assert series.shape == (5,)
+        assert list(index.hour) == [10, 11, 12, 13, 14]
+
+        np.testing.assert_allclose(
+            series.to_numpy(),
+            [0.0, 0.0, 0.5, 0.5, 0.0],
+        )
+
+    def test_dropna_no_none_values_same_result(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end = naive_dt(2024, 6, 15, 6)
+        interval = pendulum.duration(hours=1)
+
+        series_true = self.seq.to_series(
+            start, end, interval, dropna=True
+        )
+        series_false = self.seq.to_series(
+            start, end, interval, dropna=False
+        )
+
+        pd.testing.assert_series_equal(series_true, series_false)
+
+    def test_aware_datetime_preserves_timezone(self):
+        start = aware_dt(2024, 6, 15, 0, tz="Europe/Berlin")
+        end = aware_dt(2024, 6, 15, 4, tz="Europe/Berlin")
+
+        series = self.seq.to_series(
+            start, end, pendulum.duration(hours=1)
+        )
+        index = cast(pd.DatetimeIndex, series.index)
+
+        assert series.shape == (4,)
+        assert str(index.tz) == "Europe/Berlin"
+
+    def test_align_to_interval_true_floors_start(self):
+        start = naive_dt(2024, 6, 15, 8, 10)
+        end = naive_dt(2024, 6, 15, 10, 10)
+
+        series = self.seq.to_series(
+            start,
+            end,
+            pendulum.duration(hours=1),
+            align_to_interval=True,
+        )
+        index = cast(pd.DatetimeIndex, series.index)
+
+        assert series.shape == (3,)
+        assert list(index.hour) == [8, 9, 10]
+        assert series.iloc[0] == pytest.approx(0.25)
+        assert series.iloc[1] == pytest.approx(0.25)
+        assert series.iloc[2] == pytest.approx(0.25)
+
+    def test_align_to_interval_false_preserves_start(self):
+        start = naive_dt(2024, 6, 15, 8, 30)
+        end = naive_dt(2024, 6, 15, 12, 30)
+
+        series = self.seq.to_series(
+            start,
+            end,
+            pendulum.duration(hours=1),
+            align_to_interval=False,
+        )
+
+        assert series.shape == (4,)
+        assert series.index[0] == pd.Timestamp(start)
+        assert series.iloc[0] == pytest.approx(0.25)
+        assert np.all(series.to_numpy() == pytest.approx(0.25))
+
+    def test_unsupported_boundary_raises(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end = naive_dt(2024, 6, 15, 4)
+
+        with pytest.raises(ValueError, match="boundary"):
+            self.seq.to_series(
+                start,
+                end,
+                pendulum.duration(hours=1),
+                boundary="inner",
+            )
+
+    def test_empty_sequence_all_zeros(self):
+        seq = ValueTimeWindowSequence()
+        start = naive_dt(2024, 6, 15, 0)
+        end = naive_dt(2024, 6, 15, 4)
+
+        series = seq.to_series(
+            start, end, pendulum.duration(hours=1)
+        )
+
+        assert series.shape == (4,)
+        assert np.all(series.to_numpy() == 0.0)
+
+    def test_overlapping_windows_first_wins(self):
+        seq = ValueTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(
+                    start_time="08:00:00",
+                    duration="4 hours",
+                    value=0.10,
+                ),
+                ValueTimeWindow(
+                    start_time="09:00:00",
+                    duration="4 hours",
+                    value=0.99,
+                ),
+            ]
+        )
+
+        start = naive_dt(2024, 6, 15, 9)
+        end = naive_dt(2024, 6, 15, 11)
+
+        series = seq.to_series(
+            start, end, pendulum.duration(hours=1)
+        )
+
+        assert series.iloc[0] == pytest.approx(0.10)
+        assert series.iloc[1] == pytest.approx(0.10)
+
+
+# ===========================================================================
 # align_to_interval — timezone-invariance
 #
 # These tests reproduce the bug that existed before the wall-clock floor fix.
@@ -957,6 +1354,22 @@ class TestAlignToIntervalTimezoneInvariance:
         assert arr[1] == pytest.approx(1.0)
         assert arr[2] == pytest.approx(0.0)
 
+    def test_tws_series_naive_floor_non_utc(self, set_other_timezone):
+        set_other_timezone()
+
+        series = self._tws_naive().to_series(
+            self._tws_naive_start(),
+            self._tws_naive_end(),
+            pendulum.duration(hours=1),
+            align_to_interval=True,
+        )
+
+        assert series.shape == (3,)
+        assert list(series.index.hour) == [8, 9, 10]
+        assert series.iloc[0] == pytest.approx(1.0)
+        assert series.iloc[1] == pytest.approx(1.0)
+        assert series.iloc[2] == pytest.approx(0.0)
+
     # ------------------------------------------------------------------
     # TimeWindowSequence — naive datetime, 30-min steps
     # floor 08:10 → 08:00; expect steps 08:00(1), 08:30(1), 09:00(1), 09:30(1), 10:00(0)
@@ -1009,6 +1422,28 @@ class TestAlignToIntervalTimezoneInvariance:
         assert arr[1] == pytest.approx(1.0)
         assert arr[2] == pytest.approx(0.0)
 
+
+    def test_tws_series_aware_floor_non_utc(self, set_other_timezone):
+        set_other_timezone()
+
+        seq = self._tws_naive()
+        start = aware_dt(2024, 6, 15, 8, 10, tz="Europe/Berlin")
+        end = aware_dt(2024, 6, 15, 10, 10, tz="Europe/Berlin")
+
+        series = seq.to_series(
+            start,
+            end,
+            pendulum.duration(hours=1),
+            align_to_interval=True,
+        )
+
+        assert series.shape == (3,)
+        assert list(series.index.hour) == [8, 9, 10]
+        assert str(series.index.tz) == "Europe/Berlin"
+        assert series.iloc[0] == pytest.approx(1.0)
+        assert series.iloc[1] == pytest.approx(1.0)
+        assert series.iloc[2] == pytest.approx(0.0)
+
     # ------------------------------------------------------------------
     # ValueTimeWindowSequence — naive datetime, 1-hour steps
     # floor 08:10 → 08:00; values 0.25 at 08:00, 09:00; 0.0 at 10:00
@@ -1039,3 +1474,33 @@ class TestAlignToIntervalTimezoneInvariance:
         assert arr[0] == pytest.approx(0.25)
         assert arr[1] == pytest.approx(0.25)
         assert arr[2] == pytest.approx(0.0)
+
+    def test_vtws_series_naive_floor_non_utc(self, set_other_timezone):
+        set_other_timezone()
+
+        seq = ValueTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(
+                    start_time="08:00:00",
+                    duration="2 hours",
+                    value=0.25,
+                )
+            ]
+        )
+
+        start = naive_dt(2024, 6, 15, 8, 10)
+        end = naive_dt(2024, 6, 15, 10, 10)
+
+        series = seq.to_series(
+            start,
+            end,
+            pendulum.duration(hours=1),
+            align_to_interval=True,
+        )
+        index = cast(pd.DatetimeIndex, series.index)
+
+        assert series.shape == (3,)
+        assert list(index.hour) == [8, 9, 10]
+        assert series.iloc[0] == pytest.approx(0.25)
+        assert series.iloc[1] == pytest.approx(0.25)
+        assert series.iloc[2] == pytest.approx(0.0)

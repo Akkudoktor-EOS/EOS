@@ -25,11 +25,20 @@ FILE_TESTDATA_ELECPRICEAKKUDOKTOR_1_JSON = DIR_TESTDATA.joinpath(
 
 
 @pytest.fixture
-def provider(monkeypatch, config_eos):
+def provider(config_eos):
     """Fixture to create a ElecPriceProvider instance."""
-    monkeypatch.setenv("EOS_ELECPRICE__ELECPRICE_PROVIDER", "ElecPriceAkkudoktor")
-    config_eos.reset_settings()
-    return ElecPriceAkkudoktor()
+    config_eos.merge_settings_from_dict(
+        {
+            "elecprice": {
+                "provider": "ElecPriceAkkudoktor",
+            },
+        }
+    )
+    provider = ElecPriceAkkudoktor()
+    provider.highest_orig_datetime = None
+    assert provider.enabled()
+    provider._db_reset_state()
+    return provider
 
 
 @pytest.fixture

@@ -10,7 +10,7 @@ from akkudoktoreos.config.configabc import (
     ValueTimeWindowSequence,
 )
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
-from akkudoktoreos.utils.datetimeutil import to_duration
+from akkudoktoreos.utils.datetimeutil import DateTime, to_duration
 
 
 class ElecPriceFixedCommonSettings(SettingsBaseModel):
@@ -21,7 +21,7 @@ class ElecPriceFixedCommonSettings(SettingsBaseModel):
     price applicable during that interval.
     """
 
-    time_windows: ValueTimeWindowSequence = Field(
+    elecprice_marketprice_amt_kwh: ValueTimeWindowSequence = Field(
         default_factory=ValueTimeWindowSequence,
         json_schema_extra={
             "description": (
@@ -54,6 +54,8 @@ class ElecPriceFixed(ElecPriceProvider):
         time_windows: Sequence of time windows with associated electricity prices.
     """
 
+    highest_orig_datetime: Optional[DateTime] = None
+
     @classmethod
     def provider_id(cls) -> str:
         """Return the unique identifier for the ElecPriceFixed provider."""
@@ -72,40 +74,60 @@ class ElecPriceFixed(ElecPriceProvider):
         Raises:
             ValueError: If no time windows are configured.
         """
-        time_windows_seq = self.config.elecprice.elecpricefixed.time_windows
-
-        if time_windows_seq is None or not time_windows_seq.windows:
-            error_msg = "No time windows configured for fixed electricity price"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+        prediction_key = "elecprice_marketprice_wh"
+        raw_prediction_key = "elecprice_marketprice_raw_wh"
+        time_windows_seq: ValueTimeWindowSequence = (
+            self.config.elecprice.elecpricefixed.elecprice_marketprice_amt_kwh
+        )
 
         start_datetime = self.ems_start_datetime
         interval_seconds = 900  # Usual smallest time interval (15 min) used in electricty prices
         total_hours = self.config.prediction.hours
         interval = to_duration(interval_seconds)
-
         end_datetime = start_datetime.add(hours=total_hours)
 
+        if time_windows_seq is None or not time_windows_seq.windows:
+            warning_msg = f"No time windows configured for `{raw_prediction_key}`, defaulting to 0."
+            logger.warning(warning_msg)
+            # Store two values to have a default interval to be used by _apply_fees
+            end_datetime = start_datetime + interval
+            await self.update_value(start_datetime, raw_prediction_key, 0.0)
+            await self.update_value(end_datetime, raw_prediction_key, 0.0)
+            self.highest_orig_datetime = end_datetime
+            await self._store_gross_series(
+                start_datetime=start_datetime,
+                end_datetime=end_datetime + to_duration("1 second"),
+            )
+            return
+
         logger.debug(
-            f"Generating fixed electricity prices for {total_hours} hours "
-            f"starting at {start_datetime}"
+            f"Generating {raw_prediction_key} for {total_hours} hours starting at {start_datetime}"
         )
 
         # Build the full price array in one call — kWh values aligned to the
-        # optimization grid.  to_array mirrors the key_to_array signature so
+        # optimization grid.  to_series mirrors the key_to_series signature so
         # the grid is constructed identically to how prediction data is read.
-        prices_kwh = time_windows_seq.to_array(
+        prices_kwh = time_windows_seq.to_series(
             start_datetime=start_datetime,
             end_datetime=end_datetime,
             interval=interval,
-            dropna=True,
+            dropna=False,
             boundary="context",
             align_to_interval=True,
         )
 
-        # Convert kWh → Wh and store one entry per interval step.
-        for idx, price_kwh in enumerate(prices_kwh):
-            current_dt = start_datetime.add(seconds=idx * interval_seconds)
-            await self.update_value(current_dt, "elecprice_marketprice_wh", price_kwh / 1000.0)
+        # Convert kWh → Wh
+        prices_wh = prices_kwh / 1000.0
 
-        logger.debug(f"Successfully generated {len(prices_kwh)} fixed electricity price entries")
+        await self.key_from_series(raw_prediction_key, prices_wh)
+        self.highest_orig_datetime = prices_wh.index.max()
+
+        # Bounded to exactly the window just generated - covers the whole
+        # forecast horizon in one shot, since ElecPriceFixed has no
+        # fetch/predict split to worry about like the other providers.
+        await self._store_gross_series(
+            start_datetime=prices_wh.index.min(),
+            end_datetime=prices_wh.index.max() + to_duration("1 second"),
+        )
+
+        logger.debug(f"Successfully generated {len(prices_wh)} `{prediction_key}` entries")

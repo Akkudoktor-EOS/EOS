@@ -43,6 +43,7 @@ from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import DevicesCommonSettings
 from akkudoktoreos.measurement.measurement import MeasurementCommonSettings
 from akkudoktoreos.optimization.optimization import OptimizationCommonSettings
+from akkudoktoreos.prediction.elecfee import ElecFeeCommonSettings
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.feedintariff import FeedInTariffCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
@@ -264,6 +265,9 @@ class SettingsEOS(pydantic_settings.BaseSettings, PydanticModelNestedValueMixin)
     prediction: Optional[PredictionCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Prediction Settings"}
     )
+    elecfee: Optional[ElecFeeCommonSettings] = Field(
+        default=None, json_schema_extra={"description": "Electricity Fee Settings"}
+    )
     elecprice: Optional[ElecPriceCommonSettings] = Field(
         default=None, json_schema_extra={"description": "Electricity Price Settings"}
     )
@@ -312,6 +316,7 @@ class SettingsEOSDefaults(SettingsEOS):
     measurement: MeasurementCommonSettings = Field(default_factory=MeasurementCommonSettings)
     optimization: OptimizationCommonSettings = Field(default_factory=OptimizationCommonSettings)
     prediction: PredictionCommonSettings = Field(default_factory=PredictionCommonSettings)
+    elecfee: ElecFeeCommonSettings = Field(default_factory=ElecFeeCommonSettings)
     elecprice: ElecPriceCommonSettings = Field(default_factory=ElecPriceCommonSettings)
     feedintariff: FeedInTariffCommonSettings = Field(default_factory=FeedInTariffCommonSettings)
     load: LoadCommonSettings = Field(default_factory=LoadCommonSettings)
@@ -621,6 +626,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 # This should not happen
                 raise RuntimeError("Config file path not set.")
 
+            settings = {}
             try:
                 backup_file = config_file.with_suffix(f".{to_datetime(as_string='YYYYMMDDHHmmss')}")
                 if migrate_config_file(config_file, backup_file):
@@ -632,7 +638,6 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 logger.error(
                     f"Error reading config file '{config_file}' (falling back to default config): {ex}"
                 )
-                settings = {}
 
             return settings
 

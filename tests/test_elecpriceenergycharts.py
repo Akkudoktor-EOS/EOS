@@ -4,12 +4,14 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import numpy as np
+import pandas as pd
 import pytest
 import requests
 from loguru import logger
 
 from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.coreabc import get_ems
+from akkudoktoreos.prediction.elecfeefixed import ElecFeeFixed
 from akkudoktoreos.prediction.elecpriceakkudoktor import (
     AkkudoktorElecPrice,
     AkkudoktorElecPriceValue,
@@ -19,7 +21,7 @@ from akkudoktoreos.prediction.elecpriceenergycharts import (
     ElecPriceEnergyCharts,
     EnergyChartsElecPrice,
 )
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
@@ -29,20 +31,46 @@ FILE_TESTDATA_ELECPRICE_ENERGYCHARTS_JSON = DIR_TESTDATA.joinpath(
 
 
 @pytest.fixture
-def provider(monkeypatch, config_eos):
+def provider(config_eos):
     """Fixture to create a ElecPriceProvider instance."""
-    monkeypatch.setenv("EOS_ELECPRICE__ELECPRICE_PROVIDER", "ElecPriceEnergyCharts")
-    config_eos.reset_settings()
-    return ElecPriceEnergyCharts()
+    config_eos.merge_settings_from_dict(
+        {
+            "elecprice": {
+                "provider": "ElecPriceEnergyCharts",
+                "energycharts": {"bidding_zone": "DE-LU"},
+            },
+        }
+    )
+    provider = ElecPriceEnergyCharts()
+    provider.highest_orig_datetime = None
+    assert provider.enabled()
+    provider._db_reset_state()
+    return provider
+
+
+@pytest.fixture
+def elecfee_provider(config_eos):
+    """Fixture to create a ElecFeeFixed instance."""
+    config_eos.merge_settings_from_dict(
+        {
+            "elecfee": {
+                "provider": "ElecFeeFixed",
+            },
+        }
+    )
+    provider = ElecFeeFixed()
+    assert provider.enabled()
+    provider._db_reset_state()
+    return provider
 
 
 @pytest.fixture
 def sample_energycharts_json():
-    """Fixture that returns sample forecast data report."""
     with FILE_TESTDATA_ELECPRICE_ENERGYCHARTS_JSON.open(
         "r", encoding="utf-8", newline=None
     ) as f_res:
         input_data = json.load(f_res)
+    """Fixture that returns sample forecast data report."""
     return input_data
 
 
@@ -69,7 +97,7 @@ class TestElecPriceEnergyCharts:
         assert not provider.enabled()
 
     # ------------------------------------------------
-    # Akkudoktor
+    # EnergyCharts
     # ------------------------------------------------
 
     @patch("akkudoktoreos.prediction.elecpriceenergycharts.logger.error")
@@ -130,16 +158,311 @@ class TestElecPriceEnergyCharts:
 
     @pytest.mark.asyncio
     @patch("requests.get")
-    async def test_update_data_with_incomplete_forecast(self, mock_get, provider):
-        """Test `_update_data` with incomplete or missing forecast data."""
-        incomplete_data: dict = {"license_info": "", "unix_seconds": [], "price": [], "unit": "", "deprecated": False}
+    async def test_update_data_with_incomplete_forecast(self, mock_get, caplog, provider):
+        """Test `_update_data` with incomplete or missing forecast data (cold start, fatal)."""
+        incomplete_data: dict = {
+            "license_info": "",
+            "unix_seconds": [],
+            "price": [],
+            "unit": "",
+            "deprecated": False
+        }
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.content = json.dumps(incomplete_data)
         mock_get.return_value = mock_response
-        logger.info("The following errors are intentional and part of the test.")
-        with pytest.raises(ValueError):
+        with caplog.at_level("WARNING"):
+            with pytest.raises(ValueError, match="No Energy-Charts electricity price data available"):
+                await provider._update_data(force_update=True)
+
+    @pytest.mark.asyncio
+    async def test_update_data_keeps_quarter_hour_resolution(self, provider):
+        # Use a range that does not overlap the hourly fixture data used by the
+        # neighbouring tests; the provider is a singleton by design.
+        start = to_datetime("2025-01-15 00:00:00", in_timezone="Europe/Berlin")
+        get_ems().set_start_datetime(start)
+        provider.highest_orig_datetime = None
+        raw_slots = provider.config.prediction.hours * 2
+        energy_charts_data = EnergyChartsElecPrice(
+            license_info="",
+            unix_seconds=[int(start.add(minutes=15 * i).timestamp()) for i in range(raw_slots)],
+            price=[100.0] * raw_slots,
+            unit="EUR/MWh",
+            deprecated=False,
+        )
+        with patch.object(provider, "_request_forecast", return_value=energy_charts_data):
             await provider._update_data(force_update=True)
+        result = await provider.key_to_series(
+            key="elecprice_marketprice_wh",
+            start_datetime=start,
+            end_datetime=start.add(hours=provider.config.prediction.hours),
+            interval=to_duration("15 minutes"),
+        )
+        assert len(result) == provider.config.prediction.hours * 4
+        assert result.index.to_series().diff().dropna().dt.total_seconds().unique().tolist() == [900.0]
+
+    @pytest.mark.asyncio
+    async def test_update_data_adds_fees(self, provider, elecfee_provider, config_eos):
+        """Build the gross retail price from market price and the matching Module 3 fee.
+
+        Also verifies the raw market price series stays fee-free, since it's what
+        ETS/median training relies on.
+        """
+        fixed_fees_amt_kwh: float = (
+            0.0205  # electricity_tax
+            + 0.0132  # concession_fee
+            + 0.00446  # kwkg_levy
+            + 0.01559  # section_19_levy
+            + 0.00941  # offshore_grid_levy
+        )
+        amt_kwh: list[float] = [  # includes dynamic network fees
+            0.0095 + fixed_fees_amt_kwh,
+            0.0953 + fixed_fees_amt_kwh,
+            0.1565 + fixed_fees_amt_kwh,
+            0.0953 + fixed_fees_amt_kwh,
+        ]
+        percent_amt: float = 19.0  # VAT %
+
+        config_eos.merge_settings_from_dict(
+            {
+                "prediction": {
+                    "hours": 48,
+                },
+                "elecfee": {
+                    "provider": "ElecFeeFixed",
+                    "elecfeefixed": {
+                        "consumption_amt_kwh": {
+                            "windows": [
+                                {"start_time": "00:00", "duration": "7 hours", "value": amt_kwh[0]},
+                                {"start_time": "07:00", "duration": "8 hours", "value": amt_kwh[1]},
+                                {"start_time": "15:00", "duration": "5 hours", "value": amt_kwh[2]},
+                                {"start_time": "20:00", "duration": "4 hours", "value": amt_kwh[3]},
+                            ],
+                        },
+                        "consumption_percent_amt": {
+                            "windows": [
+                                {"start_time": "00:00", "duration": "24 hours", "value": percent_amt},
+                            ],
+                        },
+                    },
+                },
+            },
+        )
+        ems_eos = get_ems()
+        start = to_datetime("2026-01-15 00:00:00", in_timezone="Europe/Berlin")
+        ems_eos.set_start_datetime(start)
+
+        # Create fees prediction
+        await elecfee_provider._update_data(force_update=True)
+        timestamps = [start, start.add(hours=7), start.add(hours=15), start.add(hours=20)]
+        energy_charts_data = EnergyChartsElecPrice(
+            license_info="",
+            unix_seconds=[int(timestamp.timestamp()) for timestamp in timestamps],
+            price=[100.0] * len(timestamps),
+            unit="EUR/MWh",
+            deprecated=False,
+        )
+        with patch.object(provider, "_request_forecast", return_value=energy_charts_data):
+            await provider._update_data(force_update=True)
+
+        # Raw series must stay pure market price, unaffected by fees, at every
+        # timestamp - including the ones covered by the ETS/median-predicted tail.
+        raw_result = await provider.key_to_series(
+            key="elecprice_marketprice_raw_wh",
+            start_datetime=start,
+            end_datetime=start.add(hours=provider.config.prediction.hours),
+            interval=to_duration("15 minutes"),
+        )
+        raw_result_kwh = raw_result * 1000
+
+        slots_for_test = (0*4, 7*4, 15*4, 20*4)
+        for slot in slots_for_test:
+            assert raw_result_kwh.iloc[slot] == pytest.approx(0.1)
+
+        result = await provider.key_to_series(
+            key="elecprice_marketprice_wh",
+            start_datetime=start,
+            end_datetime=start.add(hours=provider.config.prediction.hours),
+            interval=to_duration("15 minutes"),
+        )
+        result_kwh = result * 1000
+
+        rate_amt = 1.0 + percent_amt / 100.0
+        for idx, slot in enumerate(slots_for_test):
+            assert result_kwh.iloc[slot] == pytest.approx((raw_result_kwh.iloc[slot] + amt_kwh[idx]) * rate_amt)
+
+    @pytest.mark.asyncio
+    async def test_update_data_applies_fees_to_predicted_tail(self, provider, elecfee_provider, config_eos):
+        """Predicted timestamps beyond the fetched data must still get fees applied.
+
+        Regression test for a bug where the ETS/median-extrapolated tail of the
+        series was written to elecprice_marketprice_wh without ever going through
+        apply_fees(), silently dropping VAT and all fee components for any
+        timestamp past what Energy-Charts had actually published.
+        """
+        fixed_fees_amt_kwh: float = (
+            0.0205  # electricity_tax
+            + 0.0132  # concession_fee
+            + 0.00446  # kwkg_levy
+            + 0.01559  # section_19_levy
+            + 0.00941  # offshore_grid_levy
+        )
+        amt_kwh: list[float] = [  # includes dynamic network fees
+            0.0095 + fixed_fees_amt_kwh,
+            0.0953 + fixed_fees_amt_kwh,
+            0.1565 + fixed_fees_amt_kwh,
+            0.0953 + fixed_fees_amt_kwh,
+        ]
+        percent_amt: float = 19.0  # VAT %
+        config_eos.merge_settings_from_dict(
+            {
+                "prediction": {
+                    "hours": 48,
+                },
+                "elecfee": {
+                    "provider": "ElecFeeFixed",
+                    "elecfeefixed": {
+                        "consumption_amt_kwh": {
+                            "windows": [
+                                {"start_time": "00:00", "duration": "7 hours", "value": amt_kwh[0]},
+                                {"start_time": "07:00", "duration": "8 hours", "value": amt_kwh[1]},
+                                {"start_time": "15:00", "duration": "5 hours", "value": amt_kwh[2]},
+                                {"start_time": "20:00", "duration": "4 hours", "value": amt_kwh[3]},
+                            ],
+                        },
+                        "consumption_percent_amt": {
+                            "windows": [
+                                {"start_time": "00:00", "duration": "24 hours", "value": percent_amt},
+                            ],
+                        },
+                    },
+                },
+                "elecprice": {
+                    "provider": "ElecPriceEnergyCharts",
+                },
+            },
+        )
+        ems_eos = get_ems()
+        start = to_datetime("2026-01-15 00:00:00", in_timezone="Europe/Berlin")
+        ems_eos.set_start_datetime(start)
+        await elecfee_provider._update_data(force_update=True)
+
+        # Only 4 known market-price points, spanning just 20 hours of day 1.
+        # With a 48h prediction horizon, everything from hour 21 onward has to
+        # come from the median/ETS fallback rather than from the mocked API data.
+        timestamps = [start, start.add(hours=7), start.add(hours=15), start.add(hours=20)]
+        energy_charts_data = EnergyChartsElecPrice(
+            license_info="",
+            unix_seconds=[int(timestamp.timestamp()) for timestamp in timestamps],
+            price=[100.0] * len(timestamps),  # 100 EUR/MWh = 0.1 EUR/kWh
+            unit="EUR/MWh",
+            deprecated=False,
+        )
+        with patch.object(provider, "_request_forecast", return_value=energy_charts_data):
+            await provider._update_data(force_update=True)
+
+        # Day 2, 06:00 - inside the predicted (non-fetched) range, and inside the
+        # same 00:00-07:00 fee window as amt_kwh[0] on day 1.
+        predicted_timestamp = start.add(hours=30)
+        assert predicted_timestamp <= start.add(hours=provider.config.prediction.hours)
+
+        raw_result = await provider.key_to_series(
+            key="elecprice_marketprice_raw_wh",
+            start_datetime=predicted_timestamp,
+            end_datetime=predicted_timestamp.add(minutes=15),
+            interval=to_duration("15 minutes"),
+        )
+        raw_result_kwh = raw_result * 1000
+        # All four known market prices were equal (0.1 EUR/kWh); ETS on a flat
+        # series should stay close to that, allowing for optimizer noise.
+        assert raw_result_kwh.iloc[0] == pytest.approx(0.1, abs=0.01)
+
+        result = await provider.key_to_series(
+            key="elecprice_marketprice_wh",
+            start_datetime=predicted_timestamp,
+            end_datetime=predicted_timestamp.add(minutes=15),
+            interval=to_duration("15 minutes"),
+        )
+        result_kwh = result * 1000
+        rate_amt = 1.0 + percent_amt / 100.0
+        # Derived from the actually-measured raw value above, not a hardcoded
+        # 0.1, so this checks fee application on the real predicted price
+        # rather than re-asserting what the ETS prediction should be.
+        assert result_kwh.iloc[0] == pytest.approx((raw_result_kwh.iloc[0] + amt_kwh[0]) * rate_amt)
+
+    @pytest.mark.asyncio
+    async def test_update_data_covers_full_horizon_after_stale_fetch_outage(self, provider):
+        """Regression test: needed_slots must include the gap when a fetch outage
+        leaves highest_orig_datetime behind the current ems_start_datetime.
+
+        Before the fix, `covered_slots` was clamped to 0 whenever
+        highest_orig_datetime was older than ems_start_datetime, instead of
+        being allowed to go negative. That left `needed_slots` at only
+        `prediction.hours * slots_per_hour`, so the predicted tail only
+        reached `highest_orig_datetime + prediction.hours` - ending before
+        the actually-requested `ems_start_datetime + prediction.hours`
+        whenever an outage persisted long enough for the two to diverge.
+        """
+        provider.config.prediction.hours = 48
+
+        start = to_datetime("2026-01-15 00:00:00", in_timezone="Europe/Berlin")
+        get_ems().set_start_datetime(start)
+
+        # Seed enough 15-minute history for the weekly-ETS branch of _predict.
+        raw_start = start.subtract(days=35)
+        raw_slots = int((start - raw_start).total_seconds() // 900) + 1
+        energy_charts_data = EnergyChartsElecPrice(
+            license_info="",
+            unix_seconds=[int(raw_start.add(minutes=15 * i).timestamp()) for i in range(raw_slots)],
+            price=[50.0 + float(i % 96) for i in range(raw_slots)],
+            unit="EUR/MWh",
+            deprecated=False,
+        )
+
+        def fake_ets(history, seasonal_periods, hours):
+            return np.full(hours, 0.00005)
+
+        with (
+            patch.object(provider, "_request_forecast", return_value=energy_charts_data),
+            patch.object(ElecPriceEnergyCharts, "_predict_ets", side_effect=fake_ets),
+        ):
+            await provider.update_data(force_enable=True, force_update=True)
+
+        last_good = provider.highest_orig_datetime
+        assert last_good is not None
+
+        # Advance ems_start_datetime well past the last known data point, as
+        # if a fetch outage has persisted for a while - highest_orig_datetime
+        # is now *before* ems_start_datetime, not just close behind it.
+        outage_gap_hours = 20
+        new_start = to_datetime(last_good).add(hours=outage_gap_hours)
+        get_ems().set_start_datetime(new_start)
+
+        with (
+            patch.object(
+                provider, "_request_forecast", side_effect=requests.exceptions.ReadTimeout("boom")
+            ),
+            patch.object(ElecPriceEnergyCharts, "_predict_ets", side_effect=fake_ets),
+        ):
+            await provider.update_data(force_enable=True, force_update=True)
+
+        # Fallback kept the stale history rather than raising (cold-start
+        # fatality only applies when there's no history at all).
+        assert provider.highest_orig_datetime == last_good
+
+        # The predicted series must reach the end of the horizon measured
+        # from the *current* ems_start_datetime - i.e. it must also backfill
+        # the outage_gap_hours gap, not just prediction.hours beyond the
+        # stale highest_orig_datetime.
+        horizon_end = new_start.add(hours=provider.config.prediction.hours)
+        raw_result = await provider.key_to_series(
+            key="elecprice_marketprice_raw_wh",
+            start_datetime=horizon_end.subtract(minutes=15),
+            end_datetime=horizon_end,
+            interval=to_duration("15 minutes"),
+        )
+        assert len(raw_result) == 1
+        assert not raw_result.isna().any()
 
     @pytest.mark.parametrize(
         "status_code, exception",
@@ -226,8 +549,8 @@ class TestElecPriceEnergyCharts:
             f"Bidding zone in URL looks like an enum repr: '{bzn_value}'. "
             f"Use .value when building the URL, not str(enum)."
         )
-        assert bzn_value == provider.config.elecprice.energycharts.bidding_zone.value, (
-            f"Expected bzn='{provider.config.elecprice.energycharts.bidding_zone.value}' "
+        assert bzn_value == provider.config.elecprice.energycharts.bidding_zone, (
+            f"Expected bzn='{provider.config.elecprice.energycharts.bidding_zone}' "
             f"but got bzn='{bzn_value}' in URL: {actual_url}"
         )
 

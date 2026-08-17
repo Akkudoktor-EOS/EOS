@@ -12,19 +12,23 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
 @pytest.fixture
 def provider(config_eos):
-    """Fixture to create a ElecPriceProvider instance."""
+    """Fixture to create a FeedInTariffProvider instance."""
     settings = {
         "feedintariff": {
             "provider": "FeedInTariffFixed",
             "feedintarifffixed": {
-                "feed_in_tariff_kwh": 0.078,
+                "feed_in_tariff_amt_kwh": {
+                    "windows": [
+                        {"start_time": "00:00", "duration": "24 hours", "value": 0.078},
+                    ],
+                },
             },
         }
     }
     config_eos.merge_settings_from_dict(settings)
-    assert config_eos.feedintariff.provider == "FeedInTariffFixed"
     provider = FeedInTariffFixed()
     assert provider.enabled()
+    provider._db_reset_state()
     return provider
 
 
