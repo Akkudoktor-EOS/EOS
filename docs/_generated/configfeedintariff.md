@@ -26,7 +26,10 @@
        "feedintariff": {
            "provider": "FeedInTariffFixed",
            "feedintarifffixed": {
-               "feed_in_tariff_kwh": null
+               "apply_fees": false,
+               "feed_in_tariff_amt_kwh": {
+                   "windows": []
+               }
            },
            "feedintariffimport": {
                "import_file_path": null,
@@ -54,7 +57,10 @@
        "feedintariff": {
            "provider": "FeedInTariffFixed",
            "feedintarifffixed": {
-               "feed_in_tariff_kwh": null
+               "apply_fees": false,
+               "feed_in_tariff_amt_kwh": {
+                   "windows": []
+               }
            },
            "feedintariffimport": {
                "import_file_path": null,
@@ -120,7 +126,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| feed_in_tariff_kwh | `float | None` | `rw` | `None` | Electricity price feed in tariff [amount/kWh]. |
+| apply_fees | `bool` | `rw` | `False` | Apply electricity fees as given by the ElecFee provider to the feed-in tariff. Electricity fees are subtracted from the feed-in energy prices. |
+| feed_in_tariff_amt_kwh | `ValueTimeWindowSequence` | `rw` | `required` | Sequence of time windows defining the electricity feed in tariff [amount/kWh]. If not provided, no fixed feed in tariff is applied. |
 :::
 <!-- pyml enable line-length -->
 
@@ -133,7 +140,27 @@
    {
        "feedintariff": {
            "feedintarifffixed": {
-               "feed_in_tariff_kwh": 0.078
+               "apply_fees": false,
+               "feed_in_tariff_amt_kwh": {
+                   "windows": [
+                       {
+                           "start_time": "00:00:00.000000",
+                           "duration": "8 hours",
+                           "day_of_week": null,
+                           "date": null,
+                           "locale": null,
+                           "value": 0.028
+                       },
+                       {
+                           "start_time": "08:00:00.000000",
+                           "duration": "16 hours",
+                           "day_of_week": null,
+                           "date": null,
+                           "locale": null,
+                           "value": 0.034
+                       }
+                   ]
+               }
            }
        }
    }

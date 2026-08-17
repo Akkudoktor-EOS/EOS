@@ -95,12 +95,35 @@
            "home_appliances": [],
            "max_home_appliances": 1
        },
+       "elecfee": {
+           "provider": "ElecFeeFixed",
+           "elecfeefixed": {
+               "consumption_amt_kwh": {
+                   "windows": []
+               },
+               "consumption_percent_amt": {
+                   "windows": []
+               },
+               "feedin_amt_kwh": {
+                   "windows": []
+               },
+               "feedin_percent_amt": {
+                   "windows": []
+               }
+           },
+           "elecfeeimport": {
+               "import_file_path": null,
+               "import_json": null
+           }
+       },
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
-           "charges_kwh": 0.21,
-           "vat_rate": 1.19,
+           "akkudoktor": {
+               "apply_fees": false
+           },
            "elecpricefixed": {
-               "time_windows": {
+               "apply_fees": false,
+               "elecprice_marketprice_amt_kwh": {
                    "windows": []
                }
            },
@@ -109,6 +132,7 @@
                "import_json": null
            },
            "energycharts": {
+               "apply_fees": false,
                "bidding_zone": "DE-LU"
            },
            "tibber": {
@@ -124,7 +148,10 @@
        "feedintariff": {
            "provider": "FeedInTariffFixed",
            "feedintarifffixed": {
-               "feed_in_tariff_kwh": null
+               "apply_fees": false,
+               "feed_in_tariff_amt_kwh": {
+                   "windows": []
+               }
            },
            "feedintariffimport": {
                "import_file_path": null,

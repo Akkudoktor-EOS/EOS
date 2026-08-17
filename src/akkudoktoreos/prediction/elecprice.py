@@ -5,6 +5,9 @@ from pydantic import Field, computed_field, field_validator
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.coreabc import get_prediction
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
+from akkudoktoreos.prediction.elecpriceakkudoktor import (
+    ElecPriceAkkudoktorCommonSettings,
+)
 from akkudoktoreos.prediction.elecpriceenergycharts import (
     ElecPriceEnergyChartsCommonSettings,
 )
@@ -45,22 +48,9 @@ class ElecPriceCommonSettings(SettingsBaseModel):
         },
     )
 
-    charges_kwh: Optional[float] = Field(
-        default=None,
-        ge=0,
-        json_schema_extra={
-            "description": "Electricity price charges [amount/kWh]. Will be added to variable market price.",
-            "examples": [0.21],
-        },
-    )
-
-    vat_rate: Optional[float] = Field(
-        default=1.19,
-        ge=0,
-        json_schema_extra={
-            "description": "VAT rate factor applied to electricity price when charges are used.",
-            "examples": [1.19],
-        },
+    akkudoktor: ElecPriceAkkudoktorCommonSettings = Field(
+        default_factory=ElecPriceAkkudoktorCommonSettings,
+        json_schema_extra={"description": "Akkudoktor electricity price provider settings."},
     )
 
     elecpricefixed: ElecPriceFixedCommonSettings = Field(

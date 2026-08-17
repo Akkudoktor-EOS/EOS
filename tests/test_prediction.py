@@ -2,6 +2,8 @@ import pytest
 from pydantic import ValidationError
 
 from akkudoktoreos.core.coreabc import get_prediction
+from akkudoktoreos.prediction.elecfeefixed import ElecFeeFixed
+from akkudoktoreos.prediction.elecfeeimport import ElecFeeImport
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
@@ -50,6 +52,8 @@ def forecast_providers():
         WeatherClearOutside(),
         WeatherImport(),
         WeatherOpenMeteo(),
+        ElecFeeFixed(),
+        ElecFeeImport(),
         ElecPriceAkkudoktor(),
         ElecPriceEnergyCharts(),
         ElecPriceFixed(),
@@ -108,28 +112,30 @@ def test_provider_sequence(prediction):
     assert isinstance(prediction.providers[1], WeatherClearOutside)
     assert isinstance(prediction.providers[2], WeatherImport)
     assert isinstance(prediction.providers[3], WeatherOpenMeteo)
-    assert isinstance(prediction.providers[4], ElecPriceAkkudoktor)
-    assert isinstance(prediction.providers[5], ElecPriceEnergyCharts)
-    assert isinstance(prediction.providers[6], ElecPriceFixed)
-    assert isinstance(prediction.providers[7], ElecPriceImport)
-    assert isinstance(prediction.providers[8], ElecPriceTibber)
-    assert isinstance(prediction.providers[9], FeedInTariffAkkudoktor)
-    assert isinstance(prediction.providers[10], FeedInTariffDvhubOnline)
-    assert isinstance(prediction.providers[11], FeedInTariffEnergyCharts)
-    assert isinstance(prediction.providers[12], FeedInTariffFixed)
-    assert isinstance(prediction.providers[13], FeedInTariffImport)
-    assert isinstance(prediction.providers[14], FeedInTariffTibber)
-    assert isinstance(prediction.providers[15], LoadAkkudoktor)
-    assert isinstance(prediction.providers[16], LoadAkkudoktorAdjusted)
-    assert isinstance(prediction.providers[17], LoadImport)
-    assert isinstance(prediction.providers[18], LoadVrm)
-    assert isinstance(prediction.providers[19], PVForecastAkkudoktor)
-    assert isinstance(prediction.providers[20], PVForecastForecastSolar)
-    assert isinstance(prediction.providers[21], PVForecastImport)
-    assert isinstance(prediction.providers[22], PVForecastPVLib)
-    assert isinstance(prediction.providers[23], PVForecastPVNode)
-    assert isinstance(prediction.providers[24], PVForecastSolcast)
-    assert isinstance(prediction.providers[25], PVForecastVrm)
+    assert isinstance(prediction.providers[4], ElecFeeFixed)
+    assert isinstance(prediction.providers[5], ElecFeeImport)
+    assert isinstance(prediction.providers[6], ElecPriceAkkudoktor)
+    assert isinstance(prediction.providers[7], ElecPriceEnergyCharts)
+    assert isinstance(prediction.providers[8], ElecPriceFixed)
+    assert isinstance(prediction.providers[9], ElecPriceImport)
+    assert isinstance(prediction.providers[10], ElecPriceTibber)
+    assert isinstance(prediction.providers[11], FeedInTariffAkkudoktor)
+    assert isinstance(prediction.providers[12], FeedInTariffDvhubOnline)
+    assert isinstance(prediction.providers[13], FeedInTariffEnergyCharts)
+    assert isinstance(prediction.providers[14], FeedInTariffFixed)
+    assert isinstance(prediction.providers[15], FeedInTariffImport)
+    assert isinstance(prediction.providers[16], FeedInTariffTibber)
+    assert isinstance(prediction.providers[17], LoadAkkudoktor)
+    assert isinstance(prediction.providers[18], LoadAkkudoktorAdjusted)
+    assert isinstance(prediction.providers[19], LoadImport)
+    assert isinstance(prediction.providers[20], LoadVrm)
+    assert isinstance(prediction.providers[21], PVForecastAkkudoktor)
+    assert isinstance(prediction.providers[22], PVForecastForecastSolar)
+    assert isinstance(prediction.providers[23], PVForecastImport)
+    assert isinstance(prediction.providers[24], PVForecastPVLib)
+    assert isinstance(prediction.providers[25], PVForecastPVNode)
+    assert isinstance(prediction.providers[26], PVForecastSolcast)
+    assert isinstance(prediction.providers[27], PVForecastVrm)
 
 
 def test_provider_by_id(prediction, forecast_providers):
@@ -142,6 +148,8 @@ def test_prediction_repr(prediction):
     """Test that the Prediction instance's representation is correct."""
     result = repr(prediction)
     assert "Prediction([" in result
+    assert "ElecFeeFixed" in result
+    assert "ElecFeeImport" in result
     assert "ElecPriceAkkudoktor" in result
     assert "ElecPriceEnergyCharts" in result
     assert "ElecPriceFixed" in result

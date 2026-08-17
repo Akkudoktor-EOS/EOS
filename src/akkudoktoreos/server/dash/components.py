@@ -410,6 +410,86 @@ def make_config_update_list_form(available_values: list[str]) -> Callable[[str, 
     return ConfigUpdateListForm
 
 
+def make_config_update_lazy_select_form(options_source: str) -> Callable[[str, str], Grid]:
+    """Factory for a form that sets a value via a server-filtered select.
+
+    Unlike make_config_update_value_form, the <select> is never populated
+    with the full candidate list up front. A search Input drives an HTMX
+    GET against /eosdash/configuration/options/{options_source} which
+    returns a capped, filtered <select> fragment — safe for lists with
+    thousands of entries (e.g. the pvlib CEC module/inverter database).
+
+    Args:
+        options_source: Registry key into uihints.LAZY_OPTIONS_SOURCES.
+
+    Returns:
+        A function (config_name: str, value: str) -> Grid
+    """
+
+    def ConfigUpdateLazySelectForm(config_name: str, value: str) -> Grid:
+        config_id = config_name.lower().replace(".", "-")
+        select_id = f"{config_id}-lazy-select"
+        select_name = f"{config_id}_lazy_selected_value"
+
+        # value arrives JSON-encoded (e.g. '"SomeModule"') same as the
+        # other form factories receive it from ConfigCard.
+        try:
+            parsed = json.loads(value) if value else None
+        except (TypeError, ValueError):
+            parsed = value
+        current = "" if parsed is None else str(parsed)
+
+        return Grid(
+            DivRAligned(P("update value")),
+            DivHStacked(
+                ConfigButton(
+                    "Set",
+                    hx_put=request_url_for("/eosdash/configuration"),
+                    hx_target="#page-content",
+                    hx_swap="innerHTML",
+                    hx_vals=f"""js:{{
+                        action: "update",
+                        key: "{config_name}",
+                        value: document.querySelector("#{select_id}").value
+                    }}""",
+                    hx_include=HTMX_INCLUDE,
+                ),
+                Div(
+                    Input(
+                        placeholder="Type to search…",
+                        id=f"{config_id}-lazy-search",
+                        autocomplete="off",
+                        hx_get=request_url_for(f"/eosdash/configuration/options/{options_source}"),
+                        hx_trigger="load, keyup delay:300ms",
+                        # hx_trigger="load, keyup",
+                        hx_target=f"#{select_id}",
+                        hx_swap="outerHTML",
+                        hx_vals=f"""js:{{
+                            search: this.value,
+                            select_id: {json.dumps(select_id)},
+                            name: {json.dumps(select_name)},
+                            current: {json.dumps(current)}
+                        }}""",
+                        cls="border rounded px-3 py-2 mb-1 w-full",
+                    ),
+                    Select(
+                        Option(current, value=current, selected=True)
+                        if current
+                        else Option("Select a value...", value="", selected=True, disabled=True),
+                        id=select_id,
+                        name=select_name,
+                        required=True,
+                        cls="border rounded px-3 py-2 w-full",
+                    ),
+                    cls="col-span-4",
+                ),
+            ),
+            id=f"{config_id}-update-lazy-select-form",
+        )
+
+    return ConfigUpdateLazySelectForm
+
+
 def make_config_update_map_form(
     available_keys: list[str] | None = None,
     available_values: list[str] | None = None,

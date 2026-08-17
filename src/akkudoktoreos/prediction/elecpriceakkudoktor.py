@@ -12,13 +12,28 @@ import numpy as np
 import pandas as pd
 import requests
 from loguru import logger
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
+from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.core.cache import cache_in_file
 from akkudoktoreos.core.pydantic import PydanticBaseModel
 from akkudoktoreos.prediction.elecpriceabc import ElecPriceProvider
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
+
+
+class ElecPriceAkkudoktorCommonSettings(SettingsBaseModel):
+    """Common configuration settings for Akkodoktor electricity pricing."""
+
+    apply_fees: bool = Field(
+        default=False,
+        json_schema_extra={
+            "description": (
+                "Apply electricity fees as given by the ElecFee provider to the electricity prices. "
+                "Electricity fees are added to the consumed energy prices."
+            ),
+        },
+    )
 
 
 class AkkudoktorElecPriceMeta(PydanticBaseModel):
@@ -153,24 +168,25 @@ class ElecPriceAkkudoktor(ElecPriceProvider):
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
 
-        # Get charges_kwh in wh
-        charges_wh = (self.config.elecprice.charges_kwh or 0) / 1000
-
         highest_orig_datetime = None  # newest datetime from the api after that we want to update.
-        series_data = pd.Series(dtype=float)  # Initialize an empty series
+        prices_wh = pd.Series(dtype=float)  # Initialize an empty series
 
         for value in akkudoktor_data.values:
             orig_datetime = to_datetime(value.start, in_timezone=self.config.general.timezone)
             if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
                 highest_orig_datetime = orig_datetime
 
-            price_wh = value.marketpriceEurocentPerKWh / (100 * 1000) + charges_wh
+            price_wh = value.marketpriceEurocentPerKWh / (100 * 1000)
 
             # Collect all values into the Pandas Series
-            series_data.at[orig_datetime] = price_wh
+            prices_wh.at[orig_datetime] = price_wh
+
+        if self.config.elecprice.akkudoktor.apply_fees:
+            # Apply fees
+            prices_wh = await self.apply_fees(prices_wh)
 
         # Update values using key_from_series
-        await self.key_from_series("elecprice_marketprice_wh", series_data)
+        await self.key_from_series("elecprice_marketprice_wh", prices_wh)
 
         # Generate history array for prediction
         history = await self.key_to_array(

@@ -56,6 +56,16 @@ class EnergyChartsElecPrice(PydanticBaseModel):
 class ElecPriceEnergyChartsCommonSettings(SettingsBaseModel):
     """Common settings for Energy Charts electricity price provider."""
 
+    apply_fees: bool = Field(
+        default=False,
+        json_schema_extra={
+            "description": (
+                "Apply electricity fees as given by the ElecFee provider to the electricity prices. "
+                "Electricity fees are added to the consumed energy prices."
+            ),
+        },
+    )
+
     bidding_zone: EnergyChartsBiddingZones = Field(
         default=EnergyChartsBiddingZones.DE_LU,
         json_schema_extra={
@@ -143,16 +153,13 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
         return energy_charts_data
 
-    def _parse_data(self, energy_charts_data: EnergyChartsElecPrice) -> pd.Series:
+    async def _parse_data(self, energy_charts_data: EnergyChartsElecPrice) -> pd.Series:
         # Assumption that all lists are the same length and are ordered chronologically
         # in ascending order and have the same timestamps.
 
-        # Get charges_kwh in wh
-        charges_wh = (self.config.elecprice.charges_kwh or 0) / 1000
-
         # Initialize
         highest_orig_datetime = None  # newest datetime from the api after that we want to update.
-        series_data = pd.Series(dtype=float)  # Initialize an empty series
+        prices_wh = pd.Series(dtype=float)  # Initialize an empty series
 
         # Iterate over timestamps and prices together
         for unix_sec, price_eur_per_mwh in zip(
@@ -164,17 +171,17 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
                 highest_orig_datetime = orig_datetime
 
-            # Convert EUR/MWh to EUR/Wh, apply charges and VAT if charges > 0
-            if charges_wh > 0:
-                vat_rate = self.config.elecprice.vat_rate or 1.19
-                price_wh = ((price_eur_per_mwh / 1_000_000) + charges_wh) * vat_rate
-            else:
-                price_wh = price_eur_per_mwh / 1_000_000
+            # Convert EUR/MWh to EUR/Wh
+            price_wh = price_eur_per_mwh / 1_000_000
 
             # Store in series
-            series_data.at[orig_datetime] = price_wh
+            prices_wh.at[orig_datetime] = price_wh
 
-        return series_data
+        if self.config.elecprice.energycharts.apply_fees:
+            # Apply fees
+            prices_wh = await self.apply_fees(prices_wh)
+
+        return prices_wh
 
     def _cap_outliers(self, data: np.ndarray, sigma: int = 2) -> np.ndarray:
         mean = data.mean()
@@ -242,7 +249,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             )  # type: ignore
 
             # Parse and store data
-            series_data = self._parse_data(energy_charts_data)
+            series_data = await self._parse_data(energy_charts_data)
             self.highest_orig_datetime = series_data.index.max()
             await self.key_from_series("elecprice_marketprice_wh", series_data)
         else:

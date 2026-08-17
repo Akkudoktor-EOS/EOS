@@ -12,12 +12,16 @@ DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
 @pytest.fixture
 def provider(config_eos):
-    """Fixture to create a ElecPriceProvider instance."""
+    """Fixture to create a FeedInTariffProvider instance."""
     settings = {
         "feedintariff": {
             "provider": "FeedInTariffFixed",
             "feedintarifffixed": {
-                "feed_in_tariff_kwh": 0.078,
+                "feed_in_tariff_amt_kwh": {
+                    "windows": [
+                        {"start_time": "00:00", "duration": "24 hours", "value": 0.078},
+                    ],
+                },
             },
         }
     }

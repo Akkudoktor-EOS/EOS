@@ -302,6 +302,67 @@ class Genetic0OptimizationParameters(
                 cls.config.weather.provider = "OpenMeteo"
                 # Retry
                 continue
+            try:  # Try electricity fees next - predition is also needed by the default electricity price
+                array = await cls.prediction.key_to_array(
+                    key="elecfee_consumption_amt_kwh",
+                    start_datetime=parameter_start_datetime,
+                    end_datetime=parameter_end_datetime,
+                    interval=interval,
+                    fill_method="ffill",
+                )
+            except Exception as e:
+                logger.info(
+                    "No electricity fee data available - defaulting to demo data. Parameter preparation attempt {}: {}",
+                    attempt,
+                    e,
+                )
+                cls.config.merge_settings_from_dict(
+                    {
+                        "elecfee": {
+                            "provider": "ElecFeeFixed",
+                            "elecfeefixed": {
+                                "consumption_amt_kwh": {
+                                    "windows": [
+                                        {
+                                            "start_time": "00:00",
+                                            "duration": "24 hours",
+                                            "value": 0.21,
+                                        },
+                                    ]
+                                },
+                                "consumption_percent_amt": {
+                                    "windows": [
+                                        {
+                                            "start_time": "00:00",
+                                            "duration": "24 hours",
+                                            "value": 19.0,
+                                        },
+                                    ]
+                                },
+                                "feedin_amt_kwh": {
+                                    "windows": [
+                                        {
+                                            "start_time": "00:00",
+                                            "duration": "24 hours",
+                                            "value": 0.0,
+                                        },
+                                    ]
+                                },
+                                "feedin_percent_amt": {
+                                    "windows": [
+                                        {
+                                            "start_time": "00:00",
+                                            "duration": "24 hours",
+                                            "value": 0.0,
+                                        },
+                                    ]
+                                },
+                            },
+                        },
+                    }
+                )
+                # Retry
+                continue
             try:
                 array = await cls.prediction.key_to_array(
                     key="pvforecast_ac_power",
@@ -455,7 +516,15 @@ class Genetic0OptimizationParameters(
                         "feedintariff": {
                             "provider": "FeedInTariffFixed",
                             "feedintarifffixed": {
-                                "feed_in_tariff_kwh": 0.078,
+                                "feed_in_tariff_amt_kwh": {
+                                    "windows": [
+                                        {
+                                            "start_time": "00:00",
+                                            "duration": "24 hours",
+                                            "value": 0.078,
+                                        },
+                                    ],
+                                },
                             },
                         },
                     }
