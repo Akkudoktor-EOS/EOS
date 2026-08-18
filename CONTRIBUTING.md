@@ -27,13 +27,10 @@ message style checks.
 
 ### Setup development environment
 
-Setup virtual environment, then activate virtual environment and install development dependencies.
+Use `uv` to create the virtual environment and install development dependencies.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-pip install -e .
+uv sync --extra dev
 ```
 
 Install make to get access to helpful shortcuts (documentation generation, manual formatting, etc.).
@@ -89,7 +86,3 @@ You may use [`commitizen`](https://commitizen-tools.github.io/commitizen) also t
 commit message and commit your change.
 
 ## Thank you!
-
-And last but not least thanks to all our contributors
-
-[![Contributors](https://contrib.rocks/image?repo=Akkudoktor-EOS/EOS)](https://github.com/Akkudoktor-EOS/EOS/graphs/contributors)
