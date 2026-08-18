@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2608010961051894"
+    "version": "v0.3.0.dev2608160647074704"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -2391,6 +2391,58 @@
         }
       }
     },
+    "/v1/prediction/pvforecast/pvlib/modules": {
+      "get": {
+        "tags": [
+          "prediction"
+        ],
+        "summary": "Fastapi Prediction Pvforecast Modules Get",
+        "description": "Get module names supported by PVForecast PVLib provider.",
+        "operationId": "fastapi_prediction_pvforecast_modules_get_v1_prediction_pvforecast_pvlib_modules_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response Fastapi Prediction Pvforecast Modules Get V1 Prediction Pvforecast Pvlib Modules Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/prediction/pvforecast/pvlib/inverters": {
+      "get": {
+        "tags": [
+          "prediction"
+        ],
+        "summary": "Fastapi Prediction Pvforecast Inverters Get",
+        "description": "Get inverter names supported by PVForecast PVLib provider.",
+        "operationId": "fastapi_prediction_pvforecast_inverters_get_v1_prediction_pvforecast_pvlib_inverters_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array",
+                  "title": "Response Fastapi Prediction Pvforecast Inverters Get V1 Prediction Pvforecast Pvlib Inverters Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/energy-management/optimization/solution": {
       "get": {
         "tags": [
@@ -2427,8 +2479,7 @@
             "in": "path",
             "required": true,
             "schema": {
-              "type": "string",
-              "title": "Algorithm"
+              "$ref": "#/components/schemas/OptimizationAlgorithm"
             }
           }
         ],
@@ -2828,7 +2879,6 @@
             "type": "string",
             "title": "Device Id",
             "description": "ID of device",
-            "default": "<unknown>",
             "examples": [
               "battery1",
               "ev1",
@@ -2982,7 +3032,6 @@
             "type": "string",
             "title": "Device Id",
             "description": "ID of device",
-            "default": "<unknown>",
             "examples": [
               "battery1",
               "ev1",
@@ -3242,7 +3291,7 @@
             "$ref": "#/components/schemas/DatabaseCommonSettings-Output"
           },
           "ems": {
-            "$ref": "#/components/schemas/EnergyManagementCommonSettings"
+            "$ref": "#/components/schemas/EnergyManagementCommonSettings-Output"
           },
           "logging": {
             "$ref": "#/components/schemas/LoggingCommonSettings-Output"
@@ -4524,7 +4573,7 @@
         "title": "EnergyChartsBiddingZones",
         "description": "Energy Charts Bidding Zones."
       },
-      "EnergyManagementCommonSettings": {
+      "EnergyManagementCommonSettings-Input": {
         "properties": {
           "startup_delay": {
             "type": "number",
@@ -4545,14 +4594,56 @@
           },
           "mode": {
             "$ref": "#/components/schemas/EnergyManagementMode",
-            "description": "Energy management mode [DISABLED | OPTIMIZATION | PREDICTION].",
+            "description": "Energy management mode [DISABLED | PREDICTION | OPTIMIZATION]. Defaults to DISABLED.",
             "examples": [
-              "OPTIMIZATION",
-              "PREDICTION"
+              "OPTIMIZATION"
             ]
           }
         },
         "type": "object",
+        "title": "EnergyManagementCommonSettings",
+        "description": "Energy Management Configuration."
+      },
+      "EnergyManagementCommonSettings-Output": {
+        "properties": {
+          "startup_delay": {
+            "type": "number",
+            "minimum": 1.0,
+            "title": "Startup Delay",
+            "description": "Startup delay in seconds for EOS energy management runs.",
+            "default": 5
+          },
+          "interval": {
+            "type": "number",
+            "minimum": 60.0,
+            "title": "Interval",
+            "description": "Intervall between EOS energy management runs [seconds].",
+            "default": 300.0,
+            "examples": [
+              "300"
+            ]
+          },
+          "mode": {
+            "$ref": "#/components/schemas/EnergyManagementMode",
+            "description": "Energy management mode [DISABLED | PREDICTION | OPTIMIZATION]. Defaults to DISABLED.",
+            "examples": [
+              "OPTIMIZATION"
+            ]
+          },
+          "modes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Modes",
+            "description": "Available energy management modes.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "modes"
+        ],
         "title": "EnergyManagementCommonSettings",
         "description": "Energy Management Configuration."
       },
@@ -8181,7 +8272,6 @@
             "type": "string",
             "title": "Device Id",
             "description": "ID of device",
-            "default": "<unknown>",
             "examples": [
               "battery1",
               "ev1",
@@ -8244,7 +8334,6 @@
             "type": "string",
             "title": "Device Id",
             "description": "ID of device",
-            "default": "<unknown>",
             "examples": [
               "battery1",
               "ev1",
@@ -8782,7 +8871,6 @@
             "type": "string",
             "title": "Device Id",
             "description": "ID of device",
-            "default": "<unknown>",
             "examples": [
               "battery1",
               "ev1",
@@ -8876,7 +8964,6 @@
             "type": "string",
             "title": "Device Id",
             "description": "ID of device",
-            "default": "<unknown>",
             "examples": [
               "battery1",
               "ev1",
@@ -9664,7 +9751,7 @@
         },
         "type": "object",
         "title": "NodeREDAdapterCommonSettings",
-        "description": "Common settings for the NodeRED adapter.\n\nThe Node-RED adapter sends to HTTP IN nodes.\n\nThis is the example flow:\n\n[HTTP In \\\\<URL\\\\>] -> [Function (parse payload)] -> [Debug] -> [HTTP Response]\n\nThere are two URLs that are used:\n\n- GET /eos/data_aquisition\n  The GET is issued before the optimization.\n- POST /eos/control_dispatch\n  The POST is issued after the optimization."
+        "description": "Common settings for the NodeRED adapter.\n\nThe Node-RED adapter sends to HTTP IN nodes.\n\nThis is the example flow:\n\n`[HTTP In <URL>] -> [Function (parse payload)] -> [Debug] -> [HTTP Response]`\n\nThere are two URLs that are used:\n\n- GET /eos/data_aquisition\n  The GET is issued before the optimization.\n- POST /eos/control_dispatch\n  The POST is issued after the optimization."
       },
       "OMBCInstruction": {
         "properties": {
@@ -9781,13 +9868,20 @@
         "title": "OMBCStatus",
         "description": "Reports the current operational status of an Operation Mode Based Control system.\n\nThis model provides real-time status information about an OMBC-controlled device,\nincluding which operation mode is currently active, how it is configured,\nand information about recent mode transitions. It enables monitoring of the\ndevice's operational state and tracking mode transition history."
       },
+      "OptimizationAlgorithm": {
+        "type": "string",
+        "enum": [
+          "GENETIC",
+          "GENETIC0"
+        ],
+        "title": "OptimizationAlgorithm",
+        "description": "Optimization Algorithm."
+      },
       "OptimizationCommonSettings-Input": {
         "properties": {
           "algorithm": {
-            "type": "string",
-            "title": "Algorithm",
-            "description": "The optimization algorithm. Defaults to GENETIC",
-            "default": "GENETIC",
+            "$ref": "#/components/schemas/OptimizationAlgorithm",
+            "description": "Optimization algorithm [GENETIC | GENETIC0]. Defaults to GENETIC.",
             "examples": [
               "GENETIC",
               "GENETIC0"
@@ -9825,10 +9919,8 @@
       "OptimizationCommonSettings-Output": {
         "properties": {
           "algorithm": {
-            "type": "string",
-            "title": "Algorithm",
-            "description": "The optimization algorithm. Defaults to GENETIC",
-            "default": "GENETIC",
+            "$ref": "#/components/schemas/OptimizationAlgorithm",
+            "description": "Optimization algorithm [GENETIC | GENETIC0]. Defaults to GENETIC.",
             "examples": [
               "GENETIC",
               "GENETIC0"
@@ -10412,6 +10504,10 @@
             "$ref": "#/components/schemas/PVForecastVrmCommonSettings",
             "description": "Victron Remote Management (VRM) provider settings"
           },
+          "pvlib": {
+            "$ref": "#/components/schemas/PVForecastPVLibCommonSettings",
+            "description": "PVLib provider settings"
+          },
           "pvnode": {
             "$ref": "#/components/schemas/PVForecastPVNodeCommonSettings",
             "description": "PVNode provider settings"
@@ -10528,6 +10624,10 @@
           "vrm": {
             "$ref": "#/components/schemas/PVForecastVrmCommonSettings",
             "description": "Victron Remote Management (VRM) provider settings"
+          },
+          "pvlib": {
+            "$ref": "#/components/schemas/PVForecastPVLibCommonSettings",
+            "description": "PVLib provider settings"
           },
           "pvnode": {
             "$ref": "#/components/schemas/PVForecastPVNodeCommonSettings",
@@ -10740,6 +10840,12 @@
         "title": "PVForecastImportCommonSettings",
         "description": "Common settings for pvforecast data import from file or JSON string."
       },
+      "PVForecastPVLibCommonSettings": {
+        "properties": {},
+        "type": "object",
+        "title": "PVForecastPVLibCommonSettings",
+        "description": "Common settings for pvforecast data calculation with PVLib."
+      },
       "PVForecastPVNodeCommonSettings": {
         "properties": {
           "api_key": {
@@ -10889,7 +10995,7 @@
             ],
             "title": "Mountingplace",
             "description": "Type of mounting for PV system. Options are 'free' for free-standing and 'building' for building-integrated.",
-            "default": "free"
+            "default": "building"
           },
           "loss": {
             "anyOf": [
@@ -10969,6 +11075,7 @@
             ],
             "title": "Albedo",
             "description": "Proportion of the light hitting the ground that it reflects back.",
+            "default": 0.2,
             "examples": [
               null
             ]
@@ -11455,7 +11562,7 @@
           "ems": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/EnergyManagementCommonSettings"
+                "$ref": "#/components/schemas/EnergyManagementCommonSettings-Input"
               },
               {
                 "type": "null"

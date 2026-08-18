@@ -164,6 +164,7 @@ markers = [
 
 [tool.mypy]
 mypy_path= "src"
+platform = "linux"
 files = ["src", "tests"]
 exclude = "class_soc_calc\\.py$"
 check_untyped_defs = true

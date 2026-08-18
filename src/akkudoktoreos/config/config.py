@@ -509,6 +509,8 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         def lazy_config_file_settings() -> dict:
             """Config file settings.
 
+            Resolves/ creates config file path.
+
             This function runs at **instance creation**, not class definition. Ensures if ConfigEOS
             is recreated this function is run.
             """
@@ -552,13 +554,13 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             is recreated this function is run.
             """
             # Updates path to the data directory.
-            data_folder_settings = {
+            settings = {
                 "general": {
                     "data_folder_path": default_data_folder_path(),
                 },
             }
 
-            return data_folder_settings
+            return settings
 
         def lazy_init_settings() -> dict:
             """Init settings.
@@ -584,7 +586,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 logger.debug("Config initialisation with env settings is disabled.")
                 return {}
 
-            return env_settings()
+            settings = env_settings()
+
+            return settings
 
         def lazy_dotenv_settings() -> dict:
             """Dotenv settings.
@@ -596,7 +600,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 logger.debug("Config initialisation with dotenv settings is disabled.")
                 return {}
 
-            return dotenv_settings()
+            settings = dotenv_settings()
+
+            return settings
 
         def lazy_file_settings() -> dict:
             """File settings.
@@ -640,18 +646,20 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 logger.debug("Config initialisation with file secret settings is disabled.")
                 return {}
 
-            return file_secret_settings()
+            settings = file_secret_settings()
+
+            return settings
 
         # All the settings sources in priority sequence
         # The settings are all lazyly evaluated at instance creation time to allow for
         # runtime configuration.
         setting_sources = [
             lazy_config_cli_settings,  # Prio high
-            lazy_config_file_settings,
-            lazy_init_settings,
             lazy_env_settings,
             lazy_dotenv_settings,
-            lazy_file_settings,
+            lazy_config_file_settings,  # resolves/creates config file path
+            lazy_file_settings,  # actually loads JSON config values
+            lazy_init_settings,
             lazy_data_folder_path_settings,
             lazy_file_secret_settings,  # Prio low
         ]
@@ -697,7 +705,7 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         SettingsEOSDefaults.__init__(self, *args, **kwargs)
 
         self._initialized = True
-        logger.debug(f"Config setup:\n{self}")
+        logger.trace(f"Config setup:\n{self}")
 
     def merge_settings(self, settings: SettingsEOS) -> None:
         """Merges the provided settings into the global settings for EOS, with optional overwrite.
@@ -713,7 +721,11 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        self.merge_settings_from_dict(settings.model_dump(exclude_none=True, exclude_unset=True))
+        # Exclude None, unset and computed fields from generating settings.
+        # Pydantic may use even provided computed field values instead of recalculating.
+        self.merge_settings_from_dict(
+            settings.model_dump(exclude_none=True, exclude_unset=True, exclude_computed_fields=True)
+        )
 
     def merge_settings_from_dict(self, data: dict) -> None:
         """Merges the provided dictionary data into the current instance.
@@ -737,7 +749,12 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 config.merge_settings_from_dict(new_data)
 
         """
-        self._setup(**merge_models(self, data))
+        merged = merge_models(
+            self,
+            data,
+        )
+
+        self._setup(**merged)
 
     def reset_settings(self) -> None:
         """Reset all changed settings to environment/config file defaults.

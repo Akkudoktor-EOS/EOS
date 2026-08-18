@@ -440,11 +440,11 @@ def write_to_file(file_path: Optional[Union[str, Path]], config_md: str):
     if os.name == "nt":
        config_md = config_md.replace("\\\\", "/")
 
-    # Assure log path does not leak to documentation
+    # Assure log path does not leak to documentation. Covers Linux and Windows path.
     config_md = re.sub(
-        r'(?<=["\'])/[^"\']*/output/eos\.log(?=["\'])',
+        r'(?<=["\'])[^"\']*/output/eos\.log(?=["\'])',
         '/home/user/.local/share/net.akkudoktor.eos/output/eos.log',
-        config_md
+        config_md,
     )
     # Assure pathes are set to default for documentation
     replacements = [

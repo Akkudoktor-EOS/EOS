@@ -97,7 +97,8 @@ def update_version_in_file(file_path: Path, new_version: str) -> bool:
         new_content = pattern.sub(repl, new_content)
 
     if file_would_be_updated:
-        file_path.write_text(new_content)
+        with file_path.open("w", encoding="utf-8", newline="\n") as file:
+            file.write(new_content)
 
     return file_would_be_updated
 
@@ -114,7 +115,8 @@ def update_version_date_file() -> str:
         print(f"No change to {VERSION_DATE_FILE}")
         return str(VERSION_DATE_FILE)
 
-    VERSION_DATE_FILE.write_text(new_content, encoding="utf-8")
+    with VERSION_DATE_FILE.open("w", encoding="utf-8", newline="\n") as file:
+        file.write(new_content)
     print(f"Updated {VERSION_DATE_FILE} with UTC date {version_date_str}")
     return str(VERSION_DATE_FILE)
 

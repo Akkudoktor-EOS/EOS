@@ -47,8 +47,8 @@
            "providers": [
                "BrightSky",
                "ClearOutside",
-               "OpenMeteo",
-               "WeatherImport"
+               "WeatherImport",
+               "OpenMeteo"
            ]
        }
    }

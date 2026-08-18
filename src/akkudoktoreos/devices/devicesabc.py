@@ -1,5 +1,7 @@
 """Abstract and base classes for devices."""
 
+import secrets
+import string
 from enum import StrEnum
 
 from pydantic import Field
@@ -7,11 +9,18 @@ from pydantic import Field
 from akkudoktoreos.config.configabc import SettingsBaseModel
 
 
+def device_default_id() -> str:
+    """Provide random default device id."""
+    alphabet = string.ascii_letters + string.digits
+    device_id = "".join(secrets.choice(alphabet) for _ in range(10))
+    return device_id
+
+
 class DevicesBaseSettings(SettingsBaseModel):
     """Base devices setting."""
 
     device_id: str = Field(
-        default="<unknown>",
+        default_factory=device_default_id,
         json_schema_extra={
             "description": "ID of device",
             "examples": ["battery1", "ev1", "inverter1", "dishwasher"],

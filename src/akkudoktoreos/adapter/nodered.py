@@ -21,7 +21,7 @@ class NodeREDAdapterCommonSettings(SettingsBaseModel):
 
     This is the example flow:
 
-    [HTTP In \\<URL\\>] -> [Function (parse payload)] -> [Debug] -> [HTTP Response]
+    `[HTTP In <URL>] -> [Function (parse payload)] -> [Debug] -> [HTTP Response]`
 
     There are two URLs that are used:
 

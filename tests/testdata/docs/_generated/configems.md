@@ -8,13 +8,14 @@
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
 | interval | `EOS_EMS__INTERVAL` | `float` | `rw` | `300.0` | Intervall between EOS energy management runs [seconds]. |
-| mode | `EOS_EMS__MODE` | `<enum 'EnergyManagementMode'>` | `rw` | `required` | Energy management mode [DISABLED | OPTIMIZATION | PREDICTION]. |
+| mode | `EOS_EMS__MODE` | `<enum 'EnergyManagementMode'>` | `rw` | `required` | Energy management mode [DISABLED | PREDICTION | OPTIMIZATION]. Defaults to DISABLED. |
+| modes | | `list[str]` | `ro` | `N/A` | Available energy management modes. |
 | startup_delay | `EOS_EMS__STARTUP_DELAY` | `float` | `rw` | `5` | Startup delay in seconds for EOS energy management runs. |
 :::
 <!-- pyml enable line-length -->
 
 <!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
+**Example Input**
 <!-- pyml enable no-emphasis-as-heading -->
 
 <!-- pyml disable line-length -->
@@ -24,6 +25,27 @@
            "startup_delay": 5.0,
            "interval": 300.0,
            "mode": "OPTIMIZATION"
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "ems": {
+           "startup_delay": 5.0,
+           "interval": 300.0,
+           "mode": "OPTIMIZATION",
+           "modes": [
+               "DISABLED",
+               "PREDICTION",
+               "OPTIMIZATION"
+           ]
        }
    }
 ```
