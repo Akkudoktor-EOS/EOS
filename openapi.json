@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2608190987990514"
+    "version": "v0.3.0.dev2608191736749052"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -4352,6 +4352,10 @@
             "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
             "description": "Energy Charts provider settings."
           },
+          "smard": {
+            "$ref": "#/components/schemas/ElecPriceSMARDCommonSettings",
+            "description": "SMARD electricity price provider settings."
+          },
           "tibber": {
             "$ref": "#/components/schemas/ElecPriceTibberCommonSettings",
             "description": "Tibber electricity price provider settings."
@@ -4393,6 +4397,10 @@
           "energycharts": {
             "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
             "description": "Energy Charts provider settings."
+          },
+          "smard": {
+            "$ref": "#/components/schemas/ElecPriceSMARDCommonSettings",
+            "description": "SMARD electricity price provider settings."
           },
           "tibber": {
             "$ref": "#/components/schemas/ElecPriceTibberCommonSettings",
@@ -4543,6 +4551,39 @@
         "type": "object",
         "title": "ElecPriceImportCommonSettings",
         "description": "Common settings for elecprice data import from file or JSON String."
+      },
+      "ElecPriceSMARDCommonSettings": {
+        "properties": {
+          "apply_fees": {
+            "type": "boolean",
+            "title": "Apply Fees",
+            "description": "Apply electricity fees as given by the ElecFee provider to the electricity prices. Electricity fees are added to the consumed energy prices.",
+            "default": false
+          },
+          "filter_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Filter Id",
+            "description": "SMARD filter id for the German/Luxembourg day-ahead price.",
+            "default": 4169,
+            "examples": [
+              4169
+            ]
+          },
+          "region": {
+            "type": "string",
+            "minLength": 2,
+            "title": "Region",
+            "description": "SMARD market region used in the chart-data endpoint.",
+            "default": "DE",
+            "examples": [
+              "DE"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecPriceSMARDCommonSettings",
+        "description": "Common settings for the direct SMARD electricity-price provider."
       },
       "ElecPriceTibberCommonSettings": {
         "properties": {
@@ -5292,6 +5333,10 @@
           "energycharts": {
             "$ref": "#/components/schemas/FeedInTariffEnergyChartsCommonSettings",
             "description": "EnergyCharts feed in tariff provider settings."
+          },
+          "smard": {
+            "$ref": "#/components/schemas/FeedInTariffSMARDCommonSettings",
+            "description": "SMARD feed in tariff provider settings."
           }
         },
         "type": "object",
@@ -5331,6 +5376,10 @@
           "energycharts": {
             "$ref": "#/components/schemas/FeedInTariffEnergyChartsCommonSettings",
             "description": "EnergyCharts feed in tariff provider settings."
+          },
+          "smard": {
+            "$ref": "#/components/schemas/FeedInTariffSMARDCommonSettings",
+            "description": "SMARD feed in tariff provider settings."
           },
           "providers": {
             "items": {
@@ -5496,6 +5545,19 @@
         "type": "object",
         "title": "FeedInTariffImportCommonSettings",
         "description": "Common settings for feed in tariff data import from file or JSON string."
+      },
+      "FeedInTariffSMARDCommonSettings": {
+        "properties": {
+          "apply_fees": {
+            "type": "boolean",
+            "title": "Apply Fees",
+            "description": "Apply electricity fees as given by the ElecFee provider to the feed-in tariff. Electricity fees are subtracted from the feed-in energy prices.",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffSMARDCommonSettings",
+        "description": "Settings for SMARD feed-in prices shared with ``elecprice.smard``."
       },
       "ForecastResponse": {
         "properties": {

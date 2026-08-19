@@ -13,6 +13,7 @@
 | energycharts | `EOS_ELECPRICE__ENERGYCHARTS` | `ElecPriceEnergyChartsCommonSettings` | `rw` | `required` | Energy Charts provider settings. |
 | provider | `EOS_ELECPRICE__PROVIDER` | `str | None` | `rw` | `None` | Electricity price provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available electricity price provider ids. |
+| smard | `EOS_ELECPRICE__SMARD` | `ElecPriceSMARDCommonSettings` | `rw` | `required` | SMARD electricity price provider settings. |
 | tibber | `EOS_ELECPRICE__TIBBER` | `ElecPriceTibberCommonSettings` | `rw` | `required` | Tibber electricity price provider settings. |
 :::
 <!-- pyml enable line-length -->
@@ -42,6 +43,11 @@
            "energycharts": {
                "apply_fees": false,
                "bidding_zone": "DE-LU"
+           },
+           "smard": {
+               "apply_fees": false,
+               "filter_id": 4169,
+               "region": "DE"
            },
            "tibber": {
                "access_token": null,
@@ -78,6 +84,11 @@
                "apply_fees": false,
                "bidding_zone": "DE-LU"
            },
+           "smard": {
+               "apply_fees": false,
+               "filter_id": 4169,
+               "region": "DE"
+           },
            "tibber": {
                "access_token": null,
                "home_id": null
@@ -87,6 +98,7 @@
                "ElecPriceEnergyCharts",
                "ElecPriceFixed",
                "ElecPriceImport",
+               "ElecPriceSMARD",
                "ElecPriceTibber"
            ]
        }
@@ -119,6 +131,39 @@
            "tibber": {
                "access_token": "tibber_pat_...",
                "home_id": "00000000-0000-0000-0000-000000000000"
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the direct SMARD electricity-price provider
+
+<!-- pyml disable line-length -->
+:::{table} elecprice::smard
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| apply_fees | `bool` | `rw` | `False` | Apply electricity fees as given by the ElecFee provider to the electricity prices. Electricity fees are added to the consumed energy prices. |
+| filter_id | `int` | `rw` | `4169` | SMARD filter id for the German/Luxembourg day-ahead price. |
+| region | `str` | `rw` | `DE` | SMARD market region used in the chart-data endpoint. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "elecprice": {
+           "smard": {
+               "apply_fees": false,
+               "filter_id": 4169,
+               "region": "DE"
            }
        }
    }

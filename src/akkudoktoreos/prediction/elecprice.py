@@ -13,6 +13,7 @@ from akkudoktoreos.prediction.elecpriceenergycharts import (
 )
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixedCommonSettings
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImportCommonSettings
+from akkudoktoreos.prediction.elecpricesmard import ElecPriceSMARDCommonSettings
 from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibberCommonSettings
 
 
@@ -26,6 +27,7 @@ def elecprice_provider_ids() -> list[str]:
             "ElecPriceAkkudoktor",
             "ElecPriceEnergyCharts",
             "ElecPriceFixed",
+            "ElecPriceSMARD",
             "ElecPriceImport",
             "ElecPriceTibber",
         ]
@@ -66,6 +68,11 @@ class ElecPriceCommonSettings(SettingsBaseModel):
     energycharts: ElecPriceEnergyChartsCommonSettings = Field(
         default_factory=ElecPriceEnergyChartsCommonSettings,
         json_schema_extra={"description": "Energy Charts provider settings."},
+    )
+
+    smard: ElecPriceSMARDCommonSettings = Field(
+        default_factory=ElecPriceSMARDCommonSettings,
+        json_schema_extra={"description": "SMARD electricity price provider settings."},
     )
 
     tibber: ElecPriceTibberCommonSettings = Field(

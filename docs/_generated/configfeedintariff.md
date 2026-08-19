@@ -13,6 +13,7 @@
 | feedintariffimport | `EOS_FEEDINTARIFF__FEEDINTARIFFIMPORT` | `FeedInTariffImportCommonSettings` | `rw` | `required` | Feed in tarif import provider settings. |
 | provider | `EOS_FEEDINTARIFF__PROVIDER` | `str | None` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available feed in tariff provider ids. |
+| smard | `EOS_FEEDINTARIFF__SMARD` | `FeedInTariffSMARDCommonSettings` | `rw` | `required` | SMARD feed in tariff provider settings. |
 :::
 <!-- pyml enable line-length -->
 
@@ -41,6 +42,9 @@
            },
            "energycharts": {
                "bidding_zone": "DE-LU"
+           },
+           "smard": {
+               "apply_fees": false
            }
        }
    }
@@ -73,14 +77,47 @@
            "energycharts": {
                "bidding_zone": "DE-LU"
            },
+           "smard": {
+               "apply_fees": false
+           },
            "providers": [
                "FeedInTariffAkkudoktor",
                "FeedInTariffDvhubOnline",
                "FeedInTariffEnergyCharts",
                "FeedInTariffFixed",
                "FeedInTariffImport",
+               "FeedInTariffSMARD",
                "FeedInTariffTibber"
            ]
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Settings for SMARD feed-in prices shared with ``elecprice.smard``
+
+<!-- pyml disable line-length -->
+:::{table} feedintariff::smard
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| apply_fees | `bool` | `rw` | `False` | Apply electricity fees as given by the ElecFee provider to the feed-in tariff. Electricity fees are subtracted from the feed-in energy prices. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "feedintariff": {
+           "smard": {
+               "apply_fees": false
+           }
        }
    }
 ```

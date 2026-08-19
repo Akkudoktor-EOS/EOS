@@ -1125,7 +1125,7 @@ def to_duration(
         '15 minutes'
 
         >>> to_duration("90 seconds", as_string="pandas")
-        '90S'
+        '90s'
 
         >>> to_duration("15 minutes", as_string="{M}m")
         '15m'
@@ -1170,14 +1170,18 @@ def to_duration(
                 logger.error(error_msg)
                 raise ValueError(error_msg)
 
-            # Handle strings like "2 days 5 hours 30 minutes"
-            matches = re.findall(r"(\d+)\s*(days?|hours?|minutes?|seconds?)", input_value)
+            # Handle strings like "2 days 5 hours 30 minutes" or "900.0 seconds".
+            # NOTE: the numeric group must match decimals (e.g. "900.0"), not just
+            # integers -- otherwise a run like "900.0 seconds" mismatches on the
+            # "." after "900" and the regex instead matches only the trailing
+            # "0 seconds", silently truncating the value.
+            matches = re.findall(r"(\d+(?:\.\d+)?)\s*(days?|hours?|minutes?|seconds?)", input_value)
             if not matches:
                 error_msg = f"Invalid time string format '{input_value}'"
                 logger.error(error_msg)
                 raise ValueError(error_msg)
 
-            total_seconds = 0
+            total_seconds = 0.0
             time_units = {
                 "day": 86400,
                 "hour": 3600,
@@ -1187,7 +1191,7 @@ def to_duration(
             for value, unit in matches:
                 unit = unit.lower().rstrip("s")  # Normalize unit
                 if unit in time_units:
-                    total_seconds += int(value) * time_units[unit]
+                    total_seconds += float(value) * time_units[unit]
                 else:
                     error_msg = f"Unsupported time unit: {unit}"
                     logger.error(error_msg)
@@ -1216,6 +1220,13 @@ def to_duration(
 
     # Pandas frequency
     if as_string == "pandas":
+        if total_seconds <= 0:
+            error_msg = (
+                f"Cannot express a non-positive duration ({total_seconds} seconds) "
+                "as a pandas frequency string."
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         # hours?
         if total_seconds % 3600 == 0:
             return f"{total_seconds // 3600}h"

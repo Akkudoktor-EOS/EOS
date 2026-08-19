@@ -55,6 +55,10 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
         """Return the unique identifier for the Energy-Charts feed-in tariff provider."""
         return "FeedInTariffEnergyCharts"
 
+    def _apply_fees_enabled(self) -> bool:
+        """Application of fees by apply_fees() enabled."""
+        return self.config.feedintariff.energycharts.apply_fees
+
     def _bidding_zone(self) -> str:
         settings = self.config.feedintariff.energycharts
         if settings is None:

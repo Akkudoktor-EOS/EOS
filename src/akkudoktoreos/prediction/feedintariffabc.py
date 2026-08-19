@@ -5,7 +5,7 @@ Notes:
 """
 
 from abc import abstractmethod
-from typing import List, Optional
+from typing import List, Optional, cast
 
 import pandas as pd
 from pydantic import Field, computed_field
@@ -64,22 +64,36 @@ class FeedInTariffProvider(PredictionMixin, PredictionProvider):
         return self.provider_id() == self.config.feedintariff.provider
 
     # --- helper ---
+    def _apply_fees_enabled(self) -> bool:
+        """Application of fees by apply_fees() enabled.
+
+        Can be overwritten by derived classes.
+        """
+        return False
+
     async def apply_fees(self, raw_price_amt_wh: pd.Series) -> pd.Series:
         """Apply the predicted feed-in fees to a raw energy market price time data series.
 
+        If `raw_price_amt_wh` has a non-uniform interval, it is first
+        resampled to the shortest interval found in the index, forward-filling
+        the gaps, before fees are applied.
+
         Args:
             raw_price_amt_wh: Raw market price series (amount/Wh), indexed by a
-                uniformly-spaced, timezone-aware DatetimeIndex.
+                timezone-aware DatetimeIndex.
 
         Returns:
-            pd.Series: Market price plus consumption fees (amount/Wh), same
-            index as `raw_price_amt_wh`.
+            pd.Series: Market price plus consumption fees (amount/Wh). If the
+            input index was uniform, the returned index matches it; otherwise
+            the returned index is the shortest-interval, forward-filled
+            resampling of the input index.
 
         Raises:
-            ValueError: If `raw_price_amt_wh` is empty, has fewer than two
-                entries (so no interval can be derived), or its index is not
-                evenly spaced.
+            ValueError: If `raw_price_amt_wh` is empty, or has fewer than two
+                entries (so no interval can be derived).
         """
+        if not self.apply_fees_enabled():
+            return raw_price_amt_wh
         if raw_price_amt_wh.empty:
             raise ValueError("raw_price_amt_wh must not be empty.")
         if len(raw_price_amt_wh.index) < 2:
@@ -88,17 +102,35 @@ class FeedInTariffProvider(PredictionMixin, PredictionProvider):
             )
 
         index = raw_price_amt_wh.index.sort_values()
+        if not isinstance(index, pd.DatetimeIndex):
+            raise TypeError("raw_price_amt_wh must have a DatetimeIndex")
+        index = cast(pd.DatetimeIndex, index)  # Make mypy happy
+
+        raw_price_amt_wh = raw_price_amt_wh.reindex(index)
+        # Drop duplicate timestamps (keep the last value for each).
+        raw_price_amt_wh = raw_price_amt_wh[~raw_price_amt_wh.index.duplicated(keep="last")]
+        index = cast(pd.DatetimeIndex, raw_price_amt_wh.index)  # Make mypy happy
         diffs = index.to_series().diff().dropna().unique()
         if len(diffs) != 1:
-            raise ValueError(
-                f"raw_price_amt_wh must have a uniform interval; found varying spacing: {diffs}"
+            # Non-uniform spacing: resample onto a fixed 15-minute grid,
+            # forward-filling the gaps.
+            diff0 = pd.Timedelta(minutes=15)
+            uniform_index = pd.date_range(start=index[0], end=index[-1], freq=diff0, tz=index.tz)
+            raw_price_amt_wh = (
+                raw_price_amt_wh.reindex(raw_price_amt_wh.index.union(uniform_index))
+                .sort_index()
+                .ffill()
+                .reindex(uniform_index)
             )
-
-        diff0 = pd.Timedelta(diffs[0])
+            index = uniform_index
+        else:
+            diff = diffs[0]
+            if not isinstance(diff, pd.Timedelta):  # Make mypy happy
+                raise TypeError("Expected a Timedelta")
+            diff0 = diff
         start_datetime = to_datetime(index[0].to_pydatetime())
         end_datetime = to_datetime(index[-1].to_pydatetime() + diff0.to_pytimedelta())
         interval = to_duration(f"{diff0.total_seconds()} seconds")
-
         # Prepare electricty feed-in fee data for the feed-in tariff calculation
         #
         # We need a dataframe with the following columns:
@@ -123,7 +155,6 @@ class FeedInTariffProvider(PredictionMixin, PredictionProvider):
         )
         # Guard against any boundary/resample mismatch with the raw price index
         df_elecfee = df_elecfee.reindex(raw_price_amt_wh.index).fillna(0.0)
-
         price_amt_wh = (
             raw_price_amt_wh * (100.0 - df_elecfee["elecfee_feedin_percent_amt"]) / 100.0
             - df_elecfee["elecfee_feedin_amt_wh"]

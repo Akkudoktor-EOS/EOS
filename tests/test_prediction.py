@@ -8,12 +8,14 @@ from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
+from akkudoktoreos.prediction.elecpricesmard import ElecPriceSMARD
 from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibber
 from akkudoktoreos.prediction.feedintariffakkudoktor import FeedInTariffAkkudoktor
 from akkudoktoreos.prediction.feedintariffdvhubonline import FeedInTariffDvhubOnline
 from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
+from akkudoktoreos.prediction.feedintariffsmard import FeedInTariffSMARD
 from akkudoktoreos.prediction.feedintarifftibber import FeedInTariffTibber
 from akkudoktoreos.prediction.loadakkudoktor import (
     LoadAkkudoktor,
@@ -58,12 +60,14 @@ def forecast_providers():
         ElecPriceEnergyCharts(),
         ElecPriceFixed(),
         ElecPriceImport(),
+        ElecPriceSMARD(),
         ElecPriceTibber(),
         FeedInTariffAkkudoktor(),
         FeedInTariffDvhubOnline(),
         FeedInTariffEnergyCharts(),
         FeedInTariffFixed(),
         FeedInTariffImport(),
+        FeedInTariffSMARD(),
         FeedInTariffTibber(),
         LoadAkkudoktor(),
         LoadAkkudoktorAdjusted(),
@@ -118,24 +122,26 @@ def test_provider_sequence(prediction):
     assert isinstance(prediction.providers[7], ElecPriceEnergyCharts)
     assert isinstance(prediction.providers[8], ElecPriceFixed)
     assert isinstance(prediction.providers[9], ElecPriceImport)
-    assert isinstance(prediction.providers[10], ElecPriceTibber)
-    assert isinstance(prediction.providers[11], FeedInTariffAkkudoktor)
-    assert isinstance(prediction.providers[12], FeedInTariffDvhubOnline)
-    assert isinstance(prediction.providers[13], FeedInTariffEnergyCharts)
-    assert isinstance(prediction.providers[14], FeedInTariffFixed)
-    assert isinstance(prediction.providers[15], FeedInTariffImport)
-    assert isinstance(prediction.providers[16], FeedInTariffTibber)
-    assert isinstance(prediction.providers[17], LoadAkkudoktor)
-    assert isinstance(prediction.providers[18], LoadAkkudoktorAdjusted)
-    assert isinstance(prediction.providers[19], LoadImport)
-    assert isinstance(prediction.providers[20], LoadVrm)
-    assert isinstance(prediction.providers[21], PVForecastAkkudoktor)
-    assert isinstance(prediction.providers[22], PVForecastForecastSolar)
-    assert isinstance(prediction.providers[23], PVForecastImport)
-    assert isinstance(prediction.providers[24], PVForecastPVLib)
-    assert isinstance(prediction.providers[25], PVForecastPVNode)
-    assert isinstance(prediction.providers[26], PVForecastSolcast)
-    assert isinstance(prediction.providers[27], PVForecastVrm)
+    assert isinstance(prediction.providers[10], ElecPriceSMARD)
+    assert isinstance(prediction.providers[11], ElecPriceTibber)
+    assert isinstance(prediction.providers[12], FeedInTariffAkkudoktor)
+    assert isinstance(prediction.providers[13], FeedInTariffDvhubOnline)
+    assert isinstance(prediction.providers[14], FeedInTariffEnergyCharts)
+    assert isinstance(prediction.providers[15], FeedInTariffFixed)
+    assert isinstance(prediction.providers[16], FeedInTariffImport)
+    assert isinstance(prediction.providers[17], FeedInTariffSMARD)
+    assert isinstance(prediction.providers[18], FeedInTariffTibber)
+    assert isinstance(prediction.providers[19], LoadAkkudoktor)
+    assert isinstance(prediction.providers[20], LoadAkkudoktorAdjusted)
+    assert isinstance(prediction.providers[21], LoadImport)
+    assert isinstance(prediction.providers[22], LoadVrm)
+    assert isinstance(prediction.providers[23], PVForecastAkkudoktor)
+    assert isinstance(prediction.providers[24], PVForecastForecastSolar)
+    assert isinstance(prediction.providers[25], PVForecastImport)
+    assert isinstance(prediction.providers[26], PVForecastPVLib)
+    assert isinstance(prediction.providers[27], PVForecastPVNode)
+    assert isinstance(prediction.providers[28], PVForecastSolcast)
+    assert isinstance(prediction.providers[29], PVForecastVrm)
 
 
 def test_provider_by_id(prediction, forecast_providers):
@@ -154,12 +160,14 @@ def test_prediction_repr(prediction):
     assert "ElecPriceEnergyCharts" in result
     assert "ElecPriceFixed" in result
     assert "ElecPriceImport" in result
+    assert "ElecPriceSMARD" in result
     assert "ElecPriceTibber" in result
     assert "FeedInTariffAkkudoktor" in result
     assert "FeedInTariffDvhubOnline" in result
     assert "FeedInTariffEnergyCharts" in result
     assert "FeedInTariffFixed" in result
     assert "FeedInTariffImport" in result
+    assert "FeedInTariffSMARD" in result
     assert "FeedInTariffTibber" in result
     assert "LoadAkkudoktor" in result
     assert "LoadAkkudoktorAdjusted" in result

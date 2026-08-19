@@ -135,6 +135,11 @@
                "apply_fees": false,
                "bidding_zone": "DE-LU"
            },
+           "smard": {
+               "apply_fees": false,
+               "filter_id": 4169,
+               "region": "DE"
+           },
            "tibber": {
                "access_token": null,
                "home_id": null
@@ -163,6 +168,9 @@
            },
            "energycharts": {
                "bidding_zone": "DE-LU"
+           },
+           "smard": {
+               "apply_fees": false
            }
        },
        "general": {

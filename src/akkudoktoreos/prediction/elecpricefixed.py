@@ -69,6 +69,10 @@ class ElecPriceFixed(ElecPriceProvider):
         """Return the unique identifier for the ElecPriceFixed provider."""
         return "ElecPriceFixed"
 
+    def _apply_fees_enabled(self) -> bool:
+        """Application of fees by apply_fees() enabled."""
+        return self.config.elecprice.elecpricefixed.apply_fees
+
     async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update electricity price data from fixed schedule.
 
@@ -119,9 +123,8 @@ class ElecPriceFixed(ElecPriceProvider):
         # Convert kWh → Wh
         prices_wh = prices_kwh / 1000.0
 
-        if self.config.elecprice.elecpricefixed.apply_fees:
-            # Apply fees
-            prices_wh = await self.apply_fees(prices_wh)
+        # Apply fees
+        prices_wh = await self.apply_fees(prices_wh)
 
         await self.key_from_series(prediction_key, prices_wh)
 

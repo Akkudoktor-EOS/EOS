@@ -106,6 +106,10 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         """Return the unique identifier for the Energy-Charts provider."""
         return "ElecPriceEnergyCharts"
 
+    def _apply_fees_enabled(self) -> bool:
+        """Application of fees by apply_fees() enabled."""
+        return self.config.elecprice.energycharts.apply_fees
+
     @classmethod
     def _validate_data(cls, json_str: Union[bytes, Any]) -> EnergyChartsElecPrice:
         """Validate Energy-Charts Electricity Price forecast data."""
@@ -177,9 +181,8 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
             # Store in series
             prices_wh.at[orig_datetime] = price_wh
 
-        if self.config.elecprice.energycharts.apply_fees:
-            # Apply fees
-            prices_wh = await self.apply_fees(prices_wh)
+        # Apply fees
+        prices_wh = await self.apply_fees(prices_wh)
 
         return prices_wh
 
@@ -191,10 +194,25 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         capped_data = data.clip(min=lower_bound, max=upper_bound)
         return capped_data
 
-    def _predict_ets(self, history: np.ndarray, seasonal_periods: int, hours: int) -> np.ndarray:
+    def _predict_ets(
+        self,
+        history: np.ndarray,
+        seasonal_periods: int,
+        hours: int,
+    ) -> np.ndarray:
+        required_observations = 2 * seasonal_periods
+        if len(history) < required_observations:
+            raise ValueError(
+                f"Not enough history for ETS with seasonal_periods="
+                f"{seasonal_periods}: got {len(history)}, "
+                f"need at least {required_observations}"
+            )
+
         clean_history = self._cap_outliers(history)
         model = ExponentialSmoothing(
-            clean_history, seasonal="add", seasonal_periods=seasonal_periods
+            clean_history,
+            seasonal="add",
+            seasonal_periods=seasonal_periods,
         ).fit()
         return model.forecast(hours)
 
@@ -260,7 +278,7 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         # Generate history array for prediction
         history = await self.key_to_array(
             key="elecprice_marketprice_wh",
-            end_datetime=self.highest_orig_datetime,
+            end_datetime=self.highest_orig_datetime + to_duration("1 second"),
             fill_method="linear",
         )
 
@@ -277,16 +295,24 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         )
 
         if needed_hours <= 0:
+            # this might keep data longer than
+            # self.ems_start_datetime + self.config.prediction.hours in the records
             logger.warning(
-                f"No prediction needed. needed_hours={needed_hours}, hours={self.config.prediction.hours},highest_orig_datetime {self.highest_orig_datetime}, start_datetime {self.ems_start_datetime}"
-            )  # this might keep data longer than self.ems_start_datetime + self.config.prediction.hours in the records
+                f"No prediction needed. needed_hours={needed_hours}, "
+                f"hours={self.config.prediction.hours}, "
+                f"highest_orig_datetime {self.highest_orig_datetime}, "
+                f"start_datetime {self.ems_start_datetime}"
+            )
             return
 
-        if amount_datasets > 800:  # we do the full ets with seasons of 1 week
+        history_length = len(history)
+        if history_length >= 2 * 168:  # we do the full ets with seasons of 1 week
             prediction = self._predict_ets(history, seasonal_periods=168, hours=needed_hours)
-        elif amount_datasets > 168:  # not enough data to do seasons of 1 week, but enough for 1 day
+        elif (
+            history_length >= 2 * 24
+        ):  # not enough data to do seasons of 1 week, but enough for 1 day
             prediction = self._predict_ets(history, seasonal_periods=24, hours=needed_hours)
-        elif amount_datasets > 0:  # not enough data for ets, do median
+        elif history_length > 0:  # not enough data for ets, do median
             prediction = self._predict_median(history, hours=needed_hours)
         else:
             logger.error("No data available for prediction")

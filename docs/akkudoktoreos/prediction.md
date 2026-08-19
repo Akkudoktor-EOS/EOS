@@ -318,6 +318,25 @@ from the configuration may be reloaded. To avoid these issues, use the **PUT** e
 data and rely on file/JSON imports only for initial setup.
 :::
 
+### ElecPriceSMARD Provider
+
+The `ElecPriceSMARD` provider retrieves quarter-hourly German/Luxembourg day-ahead prices directly
+from the public SMARD chart-data endpoint. It requests the required weekly chunks only and caches
+the combined response for one hour. Missing quarter-hour slots beyond the published day-ahead
+horizon are generated with the same daily or weekly seasonal ETS forecast as the Energy-Charts
+provider.
+
+Fees:
+
+- If the `apply_fees` configuration option is true, the electricity fees are added to the market
+  price. The resulting price is calculated as:
+  `(raw market price + elecfee_consumption_amt_wh) * (100 + elecfee_consumption_percent_amt) / 100`
+  where `elecfee_consumption_amt_wh` and `elecfee_consumption_percent_amt` are given by the
+  ElecFee prediction.
+
+The same raw SMARD series is also available as `FeedInTariffSMARD` for direct-marketing feed-in
+revenue.
+
 ## Feed In Tariff Prediction
 
 Prediction keys:
