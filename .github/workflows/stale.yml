@@ -16,7 +16,7 @@ jobs:
       issues: write        # to comment on stale issues
 
     steps:
-    - uses: actions/stale@5bef64f19d7facfb25b37b414482c7164d639639 # v9.1.0
+    - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
       with:
         stale-pr-message: 'This pull request has been marked as stale because it has been open (more
           than) 90 days with no activity. Remove the stale label or add a comment saying that you
