@@ -4,7 +4,7 @@
 # Support both Home Assistant builds and standalone builds
 # Only Debian based images are supported (no Alpine)
 ARG BUILD_FROM
-ARG PYTHON_VERSION=3.13.9
+ARG PYTHON_VERSION=3.13.15
 
 # If BUILD_FROM is set (Home Assistant), use it; otherwise use python-slim
 FROM ${BUILD_FROM:-python:${PYTHON_VERSION}-slim}
