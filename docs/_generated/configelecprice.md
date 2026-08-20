@@ -7,14 +7,14 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `Optional[float]` | `rw` | `None` | Electricity price charges [amount/kWh]. Will be added to variable market price. |
+| charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `float | None` | `rw` | `None` | Electricity price charges [amount/kWh]. Will be added to variable market price. |
 | elecpricefixed | `EOS_ELECPRICE__ELECPRICEFIXED` | `ElecPriceFixedCommonSettings` | `rw` | `required` | Fixed electricity price provider settings. |
 | elecpriceimport | `EOS_ELECPRICE__ELECPRICEIMPORT` | `ElecPriceImportCommonSettings` | `rw` | `required` | Electricity price import provider settings. |
 | energycharts | `EOS_ELECPRICE__ENERGYCHARTS` | `ElecPriceEnergyChartsCommonSettings` | `rw` | `required` | Energy Charts provider settings. |
-| provider | `EOS_ELECPRICE__PROVIDER` | `Optional[str]` | `rw` | `None` | Electricity price provider id of provider to be used. |
+| provider | `EOS_ELECPRICE__PROVIDER` | `str | None` | `rw` | `None` | Electricity price provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available electricity price provider ids. |
 | tibber | `EOS_ELECPRICE__TIBBER` | `ElecPriceTibberCommonSettings` | `rw` | `required` | Tibber electricity price provider settings. |
-| vat_rate | `EOS_ELECPRICE__VAT_RATE` | `Optional[float]` | `rw` | `1.19` | VAT rate factor applied to electricity price when charges are used. |
+| vat_rate | `EOS_ELECPRICE__VAT_RATE` | `float | None` | `rw` | `1.19` | VAT rate factor applied to electricity price when charges are used. |
 :::
 <!-- pyml enable line-length -->
 
@@ -98,8 +98,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| access_token | `Optional[str]` | `rw` | `None` | Tibber API access token. |
-| home_id | `Optional[str]` | `rw` | `None` | Optional Tibber home id. If omitted, the first home with a subscription is used. |
+| access_token | `str | None` | `rw` | `None` | Tibber API access token. |
+| home_id | `str | None` | `rw` | `None` | Optional Tibber home id. If omitted, the first home with a subscription is used. |
 :::
 <!-- pyml enable line-length -->
 
@@ -158,8 +158,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import elecprice data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of electricity price forecast value lists. |
+| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import elecprice data from. |
+| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of electricity price forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 
@@ -191,12 +191,12 @@ This model extends `TimeWindow` by associating a value with the defined time int
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| date | `Optional[pydantic_extra_types.pendulum_dt.Date]` | `rw` | `None` | Optional specific calendar date for the time window. Naive — matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set. |
-| day_of_week | `Union[int, str, NoneType]` | `rw` | `None` | Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set. |
+| date | `pydantic_extra_types.pendulum_dt.Date | None` | `rw` | `None` | Optional specific calendar date for the time window. Naive — matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set. |
+| day_of_week | `int | str | None` | `rw` | `None` | Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set. |
 | duration | `Duration` | `rw` | `required` | Duration of the time window starting from `start_time`. |
-| locale | `Optional[str]` | `rw` | `None` | Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc. |
+| locale | `str | None` | `rw` | `None` | Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc. |
 | start_time | `Time` | `rw` | `required` | Naive start time of the time window (time of day, no timezone). Interpreted in the timezone of the datetime passed to contains() or earliest_start_time(). |
-| value | `Optional[float]` | `rw` | `None` | Value applicable during this time window. |
+| value | `float | None` | `rw` | `None` | Value applicable during this time window. |
 :::
 <!-- pyml enable line-length -->
 

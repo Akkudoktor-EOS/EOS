@@ -8,16 +8,16 @@ import subprocess
 import sys
 import traceback
 from contextlib import asynccontextmanager
+from enum import Enum
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Union
 
 import psutil
 import uvicorn
 from fastapi import Body, FastAPI
 from fastapi import Path as FastapiPath
-from fastapi import Query, Request, status
+from fastapi import Query, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import (
-    FileResponse,
     HTMLResponse,
     JSONResponse,
     RedirectResponse,
@@ -46,18 +46,38 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeDataFrame,
     PydanticDateTimeSeries,
 )
+from akkudoktoreos.core.types import (
+    BoundaryMode,
+    FillMethod,
+    ResampleMethod,
+)
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.devices.devices import ResourceKey
-from akkudoktoreos.optimization.genetic.geneticparams import (
-    GeneticOptimizationParameters,
+from akkudoktoreos.optimization.genetic0.genetic0params import (
+    Genetic0OptimizationParameters,
+)
+from akkudoktoreos.optimization.genetic0.genetic0solution import (
+    Genetic0Solution,
+    Genetic0SolutionLegacy,
+)
+from akkudoktoreos.optimization.genetic0.genetic0visualize import (
+    genetic0_prepare_visualize,
 )
 from akkudoktoreos.optimization.genetic.geneticsolution import GeneticSolution
-from akkudoktoreos.optimization.optimization import OptimizationSolution
+from akkudoktoreos.optimization.optimization import (
+    OptimizationAlgorithm,
+    OptimizationSolution,
+)
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
 from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
-from akkudoktoreos.server.rest.error import create_error_page
+from akkudoktoreos.prediction.pvforecastpvlib import _cec_inverters, _cec_modules
+from akkudoktoreos.server.rest.error import (
+    EOSProblem,
+    create_error_page,
+    register_problem_handlers,
+)
 from akkudoktoreos.server.rest.starteosdash import supervise_eosdash
 from akkudoktoreos.server.retentionmanager import RetentionManager
 from akkudoktoreos.server.server import (
@@ -230,8 +250,21 @@ The genetic optimization API fields were renamed from German to English. For bac
 )
 
 
-class PdfResponse(FileResponse):
-    media_type = "application/pdf"
+# ----------------------
+# Application generic exception handling
+# ----------------------
+
+register_problem_handlers(app)
+
+
+# ----------------------
+# Application API
+# ----------------------
+
+
+class SeriesProcessing(str, Enum):
+    RAW = "raw"
+    RESAMPLED = "resampled"
 
 
 @app.post("/v1/admin/cache/clear", tags=["admin"])
@@ -247,7 +280,7 @@ def fastapi_admin_cache_clear_post() -> dict:
         cache_clear(clear_all=True)
         data = CacheFileStore().current_store()
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on cache clear: {e}")
+        raise EOSProblem(status=400, title="Error on cache clear", detail=str(e), cause=e) from e
     return data
 
 
@@ -264,7 +297,9 @@ def fastapi_admin_cache_clear_expired_post() -> dict:
         cache_clear(clear_all=False)
         data = CacheFileStore().current_store()
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on cache clear expired: {e}")
+        raise EOSProblem(
+            status=400, title="Error on cache clear expired", detail=str(e), cause=e
+        ) from e
     return data
 
 
@@ -278,7 +313,7 @@ def fastapi_admin_cache_save_post() -> dict:
     try:
         data = cache_save()
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on cache save: {e}")
+        raise EOSProblem(status=400, title="Error on cache save", detail=str(e), cause=e) from e
     return data
 
 
@@ -292,7 +327,7 @@ def fastapi_admin_cache_load_post() -> dict:
     try:
         data = cache_save()
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on cache load: {e}")
+        raise EOSProblem(status=400, title="Error on cache load", detail=str(e), cause=e) from e
     return data
 
 
@@ -306,7 +341,9 @@ def fastapi_admin_cache_get() -> dict:
     try:
         data = CacheFileStore().current_store()
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on cache data retrieval: {e}")
+        raise EOSProblem(
+            status=400, title="Error on cache data retrieval", detail=str(e), cause=e
+        ) from e
     return data
 
 
@@ -323,10 +360,9 @@ async def fastapi_admin_database_stats_get() -> dict:
         data[get_measurement().db_namespace()] = await get_measurement().db_get_stats()
         data[get_prediction().__class__.__name__] = await get_prediction().db_get_stats()
     except Exception as e:
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        raise HTTPException(
-            status_code=400, detail=f"Error on database statistic retrieval:\n{e}\n{trace}"
-        )
+        raise EOSProblem(
+            status=400, title="Error on database statistic retrieval", detail=str(e), cause=e
+        ) from e
     return data
 
 
@@ -345,8 +381,7 @@ async def fastapi_admin_database_save_post() -> dict:
         data[get_measurement().db_namespace()] = await get_measurement().db_get_stats()
         data[get_prediction().__class__.__name__] = await get_prediction().db_get_stats()
     except Exception as e:
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        raise HTTPException(status_code=400, detail=f"Error on database save: {e}\n{trace}")
+        raise EOSProblem(status=400, title="Error on database save", detail=str(e), cause=e) from e
     return data
 
 
@@ -367,8 +402,9 @@ async def fastapi_admin_database_vacuum_post() -> dict:
         prediction_stats = await get_prediction().db_get_stats()
         data[get_prediction().__class__.__name__] = prediction_stats
     except Exception as e:
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        raise HTTPException(status_code=400, detail=f"Error on database vacuum: {e}\n{trace}")
+        raise EOSProblem(
+            status=400, title="Error on database vacuum", detail=str(e), cause=e
+        ) from e
     return data
 
 
@@ -467,13 +503,7 @@ def fastapi_config_reset_post() -> ConfigEOS:
     Returns:
         configuration (ConfigEOS): The current configuration after update.
     """
-    try:
-        get_config().reset_settings()
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Cannot reset configuration: {e}",
-        )
+    get_config().reset_settings()
     return get_config()
 
 
@@ -484,14 +514,7 @@ def fastapi_config_backup_get() -> dict[str, dict[str, Any]]:
     Returns:
         dict[str, dict[str, Any]]: Mapping of backup identifiers to metadata.
     """
-    try:
-        result = get_config().list_backups()
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Can not list configuration backups: {e}",
-        )
-    return result
+    return get_config().list_backups()
 
 
 @app.put("/v1/config/revert", tags=["config"])
@@ -503,14 +526,8 @@ def fastapi_config_revert_put(
     Returns:
         configuration (ConfigEOS): The current configuration after revert.
     """
-    try:
-        get_config().revert_settings(backup_id)
-        return get_config()
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Error on reverting of configuration: {e}",
-        )
+    get_config().revert_settings(backup_id)
+    return get_config()
 
 
 @app.put("/v1/config/file", tags=["config"])
@@ -520,14 +537,8 @@ def fastapi_config_file_put() -> ConfigEOS:
     Returns:
         configuration (ConfigEOS): The current configuration that was saved.
     """
-    try:
-        get_config().to_config_file()
-        return get_config()
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Cannot save configuration to file '{get_config().config_file_path}': {e}",
-        )
+    get_config().to_config_file()
+    return get_config()
 
 
 @app.get("/v1/config", tags=["config"])
@@ -537,10 +548,7 @@ def fastapi_config_get() -> ConfigEOS:
     Returns:
         configuration (ConfigEOS): The current configuration.
     """
-    try:
-        return get_config()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error on configuration retrieval: {e}")
+    return get_config()
 
 
 @app.put("/v1/config", tags=["config"])
@@ -561,11 +569,12 @@ def fastapi_config_put(settings: SettingsEOS) -> ConfigEOS:
         get_config().merge_settings(settings)
         return get_config()
     except Exception as e:
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        raise HTTPException(
-            status_code=400,
-            detail=f"Error on update of configuration '{settings}':\n{e}\n{trace}",
-        )
+        raise EOSProblem(
+            status=400,
+            title="Error on update of configuration",
+            detail=f"{str(e)}, {str(settings)}",
+            cause=e,
+        ) from e
 
 
 @app.put("/v1/config/{path:path}", tags=["config"])
@@ -590,11 +599,12 @@ def fastapi_config_put_key(
         get_config().set_nested_value(path, value)
         return get_config()
     except Exception as e:
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        raise HTTPException(
-            status_code=400,
-            detail=f"Error on update of configuration '{path}','{value}':\n{e}\n{trace}",
-        )
+        raise EOSProblem(
+            status=400,
+            title="Error on update of configuration",
+            detail=f"{str(e)},'{path}','{value}'",
+            cause=e,
+        ) from e
 
 
 @app.get("/v1/config/{path:path}", tags=["config"])
@@ -613,12 +623,20 @@ def fastapi_config_get_key(
     """
     try:
         return get_config().get_nested_value(path)
-    except IndexError as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except KeyError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise EOSProblem(
+            status=404,
+            title="Error on config value retrieval",
+            detail=f"{str(e)},'{path}', ",
+            cause=e,
+        ) from e
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise EOSProblem(
+            status=400,
+            title="Error on config value retrieval",
+            detail=f"{str(e)},'{path}', ",
+            cause=e,
+        ) from e
 
 
 @app.get("/v1/logging/log", tags=["logging"])
@@ -663,8 +681,13 @@ async def fastapi_logging_get_log(
             tail=tail,
         )
         return JSONResponse(content=logs)
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+    except ValueError as e:
+        raise EOSProblem(
+            status=400,
+            title="Error on log retrieval",
+            detail=str(e),
+            cause=e,
+        ) from e
 
 
 @app.get("/v1/resource/status", tags=["resource"])
@@ -713,40 +736,166 @@ def fastapi_devices_status_put(
 
 @app.get("/v1/measurement/keys", tags=["measurement"])
 def fastapi_measurement_keys_get() -> list[str]:
-    try:
-        """Get a list of available measurement keys."""
-        return sorted(get_measurement().record_keys)
-    except Exception as e:
-        # Log unexpected errors
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        logger.exception("Unexpected error retieving measurement keys")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error:\n{e}\n{trace}",
-        )
+    """Get a list of available measurement keys."""
+    return sorted(get_measurement().record_keys)
 
 
 @app.get("/v1/measurement/series", tags=["measurement"])
 async def fastapi_measurement_series_get(
     key: Annotated[str, Query(description="Measurement key.")],
+    start_datetime: Annotated[
+        Optional[str],
+        Query(description="Starting datetime (inclusive)."),
+    ] = None,
+    end_datetime: Annotated[
+        Optional[str],
+        Query(description="Ending datetime (exclusive)."),
+    ] = None,
+    interval: Annotated[
+        Optional[str],
+        Query(description="Time duration for each interval. Defaults to 1 hour."),
+    ] = None,
+    fill_method: Annotated[
+        Optional[FillMethod],
+        Query(description="Method to handle missing values during resampling."),
+    ] = None,
+    resample_method: Annotated[
+        ResampleMethod,
+        Query(description="Method used to aggregate values within a resampling interval."),
+    ] = "mean",
+    dropna: Annotated[
+        bool,
+        Query(description="Drop NAN/ None values before processing."),
+    ] = True,
+    boundary: Annotated[
+        BoundaryMode,
+        Query(description="Resampling boundary mode."),
+    ] = "context",
+    align_to_interval: Annotated[
+        bool,
+        Query(
+            description="Snap resample origin to the nearest UTC epoch-aligned boundary of interval."
+        ),
+    ] = False,
+    processing: Annotated[
+        SeriesProcessing,
+        Query(
+            description="Processing mode. 'raw' returns original measurement data without resampling or filling."
+        ),
+    ] = SeriesProcessing.RAW,
 ) -> PydanticDateTimeSeries:
-    """Get the measurements of given key as series."""
-    try:
-        if key not in get_measurement().record_keys:
-            raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
-        pdseries = await get_measurement().key_to_series(key=key)
-        return PydanticDateTimeSeries.from_series(pdseries)
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
-    except Exception as e:
-        # Log unexpected errors
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        logger.exception(f"Unexpected error retieving measurement: {key}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error:\n{e}\n{trace}",
+    """Get measurements for given key within given date range as series.
+
+    Args:
+        key (str): Measurement key
+        start_datetime (Optional[str]): Starting datetime (inclusive).
+            Defaults to datetime of first measurement.
+        end_datetime (Optional[str]: Ending datetime (exclusive).
+            Defaults to datetime after latest measurement.
+        interval (Optional[str]): Time duration for each interval.
+            Defaults to 1 hour.
+        fill_method (str): Method to handle missing values during resampling.
+
+            - 'linear': Linearly interpolate missing values (for numeric data only).
+            - 'time': Interpolate missing values (for numeric data only).
+            - 'ffill': Forward fill missing values.
+            - 'bfill': Backward fill missing values.
+            - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+        resample_method (str):
+            Method used to aggregate values within a resampling interval.
+
+            - "first": Use the first value in each interval.
+            - "mean": Compute the arithmetic mean of all samples in each interval.
+            - "interval_mean": Compute the time-weighted mean assuming each
+                value remains valid until the next timestamp (piecewise-constant
+                signal).
+
+        dropna: (bool): Whether to drop NAN/ None values before processing.
+            Defaults to True.
+        boundary (Literal["strict", "context"]): resampling boundary
+            "strict"  → only values inside [start, end)
+            "context" → include one value before and after for proper resampling
+        align_to_interval (bool): When True, snap the resample origin to the nearest
+            UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+            that bucket timestamps always fall on wall-clock-round times regardless of
+            when ``start_datetime`` falls:
+
+            - 15-minute interval → buckets on :00, :15, :30, :45
+            - 1-hour interval    → buckets on the hour
+
+            When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+            no start is given), preserving the existing behaviour where buckets are
+            aligned to the query window rather than the clock.
+
+            Set to True when storing compacted records back to the database so that the
+            resulting timestamps are predictable and human-readable.  Leave False for
+            forecast or reporting queries where alignment to the exact query window is
+            more important than clock-round boundaries.
+        processing (SeriesProcessing):
+            Processing mode for the returned series.
+
+            - ``SeriesProcessing.RESAMPLED``: Return a processed series.
+                Measurements are first filtered by ``start_datetime``,
+                ``end_datetime``, and ``dropna``, then resampled according to
+                ``interval`` and ``resample_method``, and finally missing values
+                are filled using ``fill_method``.
+            - ``SeriesProcessing.RAW``: Return the original measurement series.
+                Measurements are filtered by ``start_datetime``,
+                ``end_datetime``, and ``dropna`` only. No resampling or filling is
+                performed, and ``interval``, ``fill_method``,
+                ``resample_method``, ``boundary``, and
+                ``align_to_interval`` are ignored.
+
+            Defaults to ``SeriesProcessing.RAW``.
+
+    Returns:
+        Series
+    """
+    if key not in get_measurement().record_keys:
+        raise EOSProblem(
+            status=404,
+            title="Measurement series retrieval failed",
+            detail=f"Key '{key}' not found in measurementss",
         )
+
+    try:
+        if processing == SeriesProcessing.RAW:
+            pdseries = await get_measurement().key_to_raw_series(
+                key=key,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                dropna=dropna,
+            )
+        else:
+            pdseries = await get_measurement().key_to_series(
+                key=key,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval=interval,
+                fill_method=fill_method,
+                resample_method=resample_method,
+                dropna=dropna,
+                boundary=boundary,
+                align_to_interval=align_to_interval,
+            )
+        return PydanticDateTimeSeries.from_series(pdseries)
+    except KeyError as e:
+        raise EOSProblem(
+            status=404,
+            title="Measurement series retrieval failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+    except (TypeError, ValueError) as e:
+        raise EOSProblem(
+            status=400,
+            title="Measurement series retrieval failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+
+    return PydanticDateTimeSeries.from_series(pdseries)
 
 
 @app.put("/v1/measurement/value", tags=["measurement"])
@@ -756,42 +905,53 @@ async def fastapi_measurement_value_put(
     value: Union[float | str],
 ) -> PydanticDateTimeSeries:
     """Merge the measurement of given key and value into EOS measurements at given datetime."""
-    try:
-        if isinstance(value, str):
-            try:
-                value = float(value)
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Value '{value}' cannot be converted to float",
-                )
-
-        if key not in get_measurement().record_keys:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Key '{key}' not found in measurements",
-            )
-
+    if isinstance(value, str):
         try:
-            dt = to_datetime(datetime)
+            value = float(value)
         except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid datetime '{datetime}': {e}",
-            )
+            raise EOSProblem(
+                status=400,
+                title="Measurement value merge failed",
+                detail=f"Value '{value}' cannot be converted to float",
+                cause=e,
+            ) from e
 
-        await get_measurement().update_value(dt, key, value)
-        pdseries = await get_measurement().key_to_series(key=key)
-        return PydanticDateTimeSeries.from_series(pdseries)
-    except HTTPException:
-        raise
-    except Exception as e:
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        logger.exception(f"Unexpected error updating measurement: {datetime}, {key}, {value}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error:\n{e}\n{trace}",
+    if key not in get_measurement().record_keys:
+        raise EOSProblem(
+            status=404,
+            title="Measurement value merge failed",
+            detail=f"Key '{key}' not found in measurements",
         )
+
+    try:
+        dt = to_datetime(datetime)
+    except Exception as e:
+        raise EOSProblem(
+            status=400,
+            title="Measurement value merge failed",
+            detail=f"Invalid datetime '{datetime}'",
+            cause=e,
+        ) from e
+
+    try:
+        await get_measurement().update_value(dt, key, value)
+        pdseries = await get_measurement().key_to_raw_series(key=key)
+    except KeyError as e:
+        raise EOSProblem(
+            status=400,
+            title="Measurement value merge failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+    except (TypeError, ValueError) as e:
+        raise EOSProblem(
+            status=400,
+            title="Measurement value merge failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+
+    return PydanticDateTimeSeries.from_series(pdseries)
 
 
 @app.put("/v1/measurement/series", tags=["measurement"])
@@ -799,24 +959,32 @@ async def fastapi_measurement_series_put(
     key: Annotated[str, Query(description="Measurement key.")], series: PydanticDateTimeSeries
 ) -> PydanticDateTimeSeries:
     """Merge measurement given as series into given key."""
+    if key not in get_measurement().record_keys:
+        raise EOSProblem(
+            status=404,
+            title="Measurement series merge failed",
+            detail=f"Key '{key}' not found in measurements",
+        )
+
     try:
-        if key not in get_measurement().record_keys:
-            raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
         pdseries = series.to_series()  # make pandas series from PydanticDateTimeSeries
         await get_measurement().key_from_series(key=key, series=pdseries)
-        pdseries = await get_measurement().key_to_series(key=key)
+        pdseries = await get_measurement().key_to_raw_series(key=key)
         return PydanticDateTimeSeries.from_series(pdseries)
-    except HTTPException:
-        # Re-raise HTTP exceptions
-        raise
-    except Exception as e:
-        # Log unexpected errors
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        logger.exception(f"Unexpected error updating measurement: {key}, {series}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error:\n{e}\n{trace}",
-        )
+    except KeyError as e:
+        raise EOSProblem(
+            status=404,
+            title="Measurement series merge failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+    except (TypeError, ValueError) as e:
+        raise EOSProblem(
+            status=400,
+            title="Measurement series merge failed",
+            detail=str(e),
+            cause=e,
+        ) from e
 
 
 @app.put("/v1/measurement/dataframe", tags=["measurement"])
@@ -824,15 +992,30 @@ async def fastapi_measurement_dataframe_put(data: PydanticDateTimeDataFrame) -> 
     """Merge the measurement data given as dataframe into EOS measurements."""
     try:
         dataframe = data.to_dataframe()
-        await get_measurement().import_from_dataframe(dataframe)
     except Exception as e:
-        # Log unexpected errors
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        logger.exception(f"Unexpected error updating measurement: {data}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error:\n{e}\n{trace}",
-        )
+        raise EOSProblem(
+            status=400,
+            title="Measurement dataframe merge failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+
+    try:
+        await get_measurement().import_from_dataframe(dataframe)
+    except KeyError as e:
+        raise EOSProblem(
+            status=404,
+            title="Measurement dataframe merge failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+    except (TypeError, ValueError) as e:
+        raise EOSProblem(
+            status=400,
+            title="Measurement dataframe merge failed",
+            detail=str(e),
+            cause=e,
+        ) from e
 
 
 @app.put("/v1/measurement/data", tags=["measurement"])
@@ -840,15 +1023,30 @@ async def fastapi_measurement_data_put(data: PydanticDateTimeData) -> None:
     """Merge the measurement data given as datetime data into EOS measurements."""
     try:
         datetimedata = data.to_dict()
-        await get_measurement().import_from_dict(datetimedata)
     except Exception as e:
-        # Log unexpected errors
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        logger.exception(f"Unexpected error updating measurement: {data}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error:\n{e}\n{trace}",
-        )
+        raise EOSProblem(
+            status=400,
+            title="Measurement data merge failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+
+    try:
+        await get_measurement().import_from_dict(datetimedata)
+    except KeyError as e:
+        raise EOSProblem(
+            status=404,
+            title="Measurement data merge failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+    except (TypeError, ValueError) as e:
+        raise EOSProblem(
+            status=400,
+            title="Measurement data merge failed",
+            detail=str(e),
+            cause=e,
+        ) from e
 
 
 @app.delete("/v1/measurement/range", tags=["measurement"])
@@ -858,40 +1056,56 @@ async def fastapi_measurement_range_delete(
     end_datetime: Annotated[Optional[str], Query(description="End datetime.")] = None,
 ) -> PydanticDateTimeSeries:
     """Delete measurement values for a key within a datetime range."""
+    if key not in get_measurement().record_keys:
+        raise EOSProblem(
+            status=404,
+            title="Measurement value delete range failed",
+            detail=f"Key '{key}' not found in measurements",
+        )
+
     try:
-        if key not in get_measurement().record_keys:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Key '{key}' not found in measurements",
-            )
+        start_dt = to_datetime(start_datetime) if start_datetime else None
+    except Exception as e:
+        raise EOSProblem(
+            status=400,
+            title="Measurement value delete range failed",
+            detail=f"Invalid start datetime '{start_datetime}'",
+            cause=e,
+        ) from e
 
-        try:
-            start_dt = to_datetime(start_datetime) if start_datetime else None
-            end_dt = to_datetime(end_datetime) if end_datetime else None
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid datetime: {e}",
-            )
+    try:
+        end_dt = to_datetime(end_datetime) if end_datetime else None
+    except Exception as e:
+        raise EOSProblem(
+            status=400,
+            title="Measurement value delete range failed",
+            detail=f"Invalid end datetime '{end_datetime}'",
+            cause=e,
+        ) from e
 
+    try:
         await get_measurement().key_delete_by_datetime(
             key=key,
             start_datetime=start_dt,
             end_datetime=end_dt,
         )
 
-        pdseries = await get_measurement().key_to_series(key=key)
+        pdseries = await get_measurement().key_to_raw_series(key=key)
         return PydanticDateTimeSeries.from_series(pdseries)
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        logger.exception(f"Unexpected error deleting measurement range: {key}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error:\n{e}\n{trace}",
-        )
+    except KeyError as e:
+        raise EOSProblem(
+            status=404,
+            title="Measurement value delete range failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+    except (TypeError, ValueError) as e:
+        raise EOSProblem(
+            status=400,
+            title="Measurement value delete range failed",
+            detail=str(e),
+            cause=e,
+        ) from e
 
 
 @app.get("/v1/prediction/providers", tags=["prediction"])
@@ -931,6 +1145,38 @@ async def fastapi_prediction_series_get(
         Optional[str],
         Query(description="Ending datetime (exclusive)."),
     ] = None,
+    interval: Annotated[
+        Optional[str],
+        Query(description="Time duration for each interval. Defaults to 1 hour."),
+    ] = None,
+    fill_method: Annotated[
+        Optional[FillMethod],
+        Query(description="Method to handle missing values during resampling."),
+    ] = None,
+    resample_method: Annotated[
+        ResampleMethod,
+        Query(description="Method used to aggregate values within a resampling interval."),
+    ] = "mean",
+    dropna: Annotated[
+        bool,
+        Query(description="Drop NAN/ None values before processing."),
+    ] = True,
+    boundary: Annotated[
+        BoundaryMode,
+        Query(description="Resampling boundary mode."),
+    ] = "context",
+    align_to_interval: Annotated[
+        bool,
+        Query(
+            description="Snap resample origin to the nearest UTC epoch-aligned boundary of interval."
+        ),
+    ] = False,
+    processing: Annotated[
+        SeriesProcessing,
+        Query(
+            description="Processing mode. 'raw' returns original measurement data without resampling or filling."
+        ),
+    ] = SeriesProcessing.RAW,
 ) -> PydanticDateTimeSeries:
     """Get prediction for given key within given date range as series.
 
@@ -940,21 +1186,147 @@ async def fastapi_prediction_series_get(
             Defaults to start datetime of latest prediction.
         end_datetime (Optional[str]: Ending datetime (exclusive).
             Defaults to end datetime of latest prediction.
+        interval (Optional[str]): Time duration for each interval.
+            Defaults to 1 hour.
+        fill_method (str): Method to handle missing values during resampling.
+
+            - 'linear': Linearly interpolate missing values (for numeric data only).
+            - 'time': Interpolate missing values (for numeric data only).
+            - 'ffill': Forward fill missing values.
+            - 'bfill': Backward fill missing values.
+            - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+        resample_method (str):
+            Method used to aggregate values within a resampling interval.
+
+            - "first": Use the first value in each interval.
+            - "mean": Compute the arithmetic mean of all samples in each interval.
+            - "interval_mean": Compute the time-weighted mean assuming each
+                value remains valid until the next timestamp (piecewise-constant
+                signal).
+
+        dropna: (bool): Whether to drop NAN/ None values before processing.
+            Defaults to True.
+        boundary (Literal["strict", "context"]): resampling boundary
+            "strict"  → only values inside [start, end)
+            "context" → include one value before and after for proper resampling
+        align_to_interval (bool): When True, snap the resample origin to the nearest
+            UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+            that bucket timestamps always fall on wall-clock-round times regardless of
+            when ``start_datetime`` falls:
+
+            - 15-minute interval → buckets on :00, :15, :30, :45
+            - 1-hour interval    → buckets on the hour
+
+            When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+            no start is given), preserving the existing behaviour where buckets are
+            aligned to the query window rather than the clock.
+
+            Set to True when storing compacted records back to the database so that the
+            resulting timestamps are predictable and human-readable.  Leave False for
+            forecast or reporting queries where alignment to the exact query window is
+            more important than clock-round boundaries.
+        processing (SeriesProcessing):
+            Processing mode for the returned series.
+
+            - ``SeriesProcessing.RESAMPLED``: Return a processed series.
+                Measurements are first filtered by ``start_datetime``,
+                ``end_datetime``, and ``dropna``, then resampled according to
+                ``interval`` and ``resample_method``, and finally missing values
+                are filled using ``fill_method``.
+            - ``SeriesProcessing.RAW``: Return the original measurement series.
+                Measurements are filtered by ``start_datetime``,
+                ``end_datetime``, and ``dropna`` only. No resampling or filling is
+                performed, and ``interval``, ``fill_method``,
+                ``resample_method``, ``boundary``, and
+                ``align_to_interval`` are ignored.
+
+            Defaults to ``SeriesProcessing.RAW``.
+
+    Returns:
+        Array
     """
     if key not in get_prediction().record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
+        raise EOSProblem(
+            status=404,
+            title="Prediction datetime range series retrieval failed",
+            detail=f"Key '{key}' not found in predictions",
+        )
+
     if start_datetime is None:
         start_datetime = get_prediction().ems_start_datetime
     else:
-        start_datetime = to_datetime(start_datetime)
+        try:
+            start_datetime = to_datetime(start_datetime)
+        except Exception as e:
+            raise EOSProblem(
+                status=400,
+                title="Prediction datetime range series retrieval failed",
+                detail=f"Invalid start datetime '{start_datetime}'",
+                cause=e,
+            ) from e
+
     if end_datetime is None:
         end_datetime = get_prediction().end_datetime
     else:
-        end_datetime = to_datetime(end_datetime)
-    pdseries = await get_prediction().key_to_series(
-        key=key, start_datetime=start_datetime, end_datetime=end_datetime
-    )
-    return PydanticDateTimeSeries.from_series(pdseries)
+        try:
+            end_datetime = to_datetime(end_datetime)
+        except Exception as e:
+            raise EOSProblem(
+                status=400,
+                title="Prediction datetime range series retrieval failed",
+                detail=f"Invalid end datetime '{end_datetime}'",
+                cause=e,
+            ) from e
+
+    if interval is None:
+        interval = to_duration("1 hour")
+    else:
+        try:
+            interval = to_duration(interval)
+        except Exception as e:
+            raise EOSProblem(
+                status=400,
+                title="Prediction datetime range series retrieval failed",
+                detail=f"Invalid interval '{interval}'",
+                cause=e,
+            ) from e
+
+    try:
+        if processing == SeriesProcessing.RAW:
+            pdseries = await get_prediction().key_to_raw_series(
+                key=key,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                dropna=dropna,
+            )
+        else:
+            pdseries = await get_prediction().key_to_series(
+                key=key,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval=interval,
+                fill_method=fill_method,
+                resample_method=resample_method,
+                dropna=dropna,
+                boundary=boundary,
+                align_to_interval=align_to_interval,
+            )
+        return PydanticDateTimeSeries.from_series(pdseries)
+    except KeyError as e:
+        raise EOSProblem(
+            status=404,
+            title="Prediction datetime range series retrieval failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+    except (TypeError, ValueError) as e:
+        raise EOSProblem(
+            status=400,
+            title="Prediction datetime range series retrieval failed",
+            detail=str(e),
+            cause=e,
+        ) from e
 
 
 @app.get("/v1/prediction/dataframe", tags=["prediction"])
@@ -972,16 +1344,77 @@ async def fastapi_prediction_dataframe_get(
         Optional[str],
         Query(description="Time duration for each interval. Defaults to 1 hour."),
     ] = None,
+    fill_method: Annotated[
+        Optional[FillMethod],
+        Query(description="Method to handle missing values during resampling."),
+    ] = None,
+    resample_method: Annotated[
+        ResampleMethod,
+        Query(description="Method used to aggregate values within a resampling interval."),
+    ] = "mean",
+    dropna: Annotated[
+        bool,
+        Query(description="Drop NAN/ None values before processing."),
+    ] = True,
+    boundary: Annotated[
+        BoundaryMode,
+        Query(description="Resampling boundary mode."),
+    ] = "context",
+    align_to_interval: Annotated[
+        bool,
+        Query(
+            description="Snap resample origin to the nearest UTC epoch-aligned boundary of interval."
+        ),
+    ] = False,
 ) -> PydanticDateTimeDataFrame:
-    """Get prediction for given key within given date range as series.
+    """Get prediction for given keys within given date range as dataframe.
 
     Args:
-        key (str): Prediction key
+        key (list[str]): Prediction keys
         start_datetime (Optional[str]): Starting datetime (inclusive).
             Defaults to start datetime of latest prediction.
         end_datetime (Optional[str]: Ending datetime (exclusive).
+            Defaults to end datetime of latest prediction.
+        interval (Optional[str]): Time duration for each interval.
+            Defaults to 1 hour.
+        fill_method (str): Method to handle missing values during resampling.
 
-    Defaults to end datetime of latest prediction.
+            - 'linear': Linearly interpolate missing values (for numeric data only).
+            - 'time': Interpolate missing values (for numeric data only).
+            - 'ffill': Forward fill missing values.
+            - 'bfill': Backward fill missing values.
+            - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+        resample_method (str):
+            Method used to aggregate values within a resampling interval.
+
+            - "first": Use the first value in each interval.
+            - "mean": Compute the arithmetic mean of all samples in each interval.
+            - "interval_mean": Compute the time-weighted mean assuming each
+                value remains valid until the next timestamp (piecewise-constant
+                signal).
+
+        dropna: (bool): Whether to drop NAN/ None values before processing.
+            Defaults to True.
+        boundary (Literal["strict", "context"]): resampling boundary
+            "strict"  → only values inside [start, end)
+            "context" → include one value before and after for proper resampling
+        align_to_interval (bool): When True, snap the resample origin to the nearest
+            UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+            that bucket timestamps always fall on wall-clock-round times regardless of
+            when ``start_datetime`` falls:
+
+            - 15-minute interval → buckets on :00, :15, :30, :45
+            - 1-hour interval    → buckets on the hour
+
+            When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+            no start is given), preserving the existing behaviour where buckets are
+            aligned to the query window rather than the clock.
+
+            Set to True when storing compacted records back to the database so that the
+            resulting timestamps are predictable and human-readable.  Leave False for
+            forecast or reporting queries where alignment to the exact query window is
+            more important than clock-round boundaries.
     """
     for key in keys:
         if key not in get_prediction().record_keys:
@@ -994,10 +1427,25 @@ async def fastapi_prediction_dataframe_get(
         end_datetime = get_prediction().end_datetime
     else:
         end_datetime = to_datetime(end_datetime)
-    df = await get_prediction().keys_to_dataframe(
-        keys=keys, start_datetime=start_datetime, end_datetime=end_datetime, interval=interval
-    )
-    return PydanticDateTimeDataFrame.from_dataframe(df, tz=get_config().general.timezone)
+
+    try:
+        prediction_df = await get_prediction().keys_to_dataframe(
+            keys=keys,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval=interval,
+            fill_method=fill_method,
+            resample_method=resample_method,
+            dropna=dropna,
+            boundary=boundary,
+            align_to_interval=align_to_interval,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Error on prediction dataframe for '{key}': {e}"
+        )
+
+    return PydanticDateTimeDataFrame.from_dataframe(prediction_df, tz=get_config().general.timezone)
 
 
 @app.get("/v1/prediction/list", tags=["prediction"])
@@ -1015,6 +1463,28 @@ async def fastapi_prediction_list_get(
         Optional[str],
         Query(description="Time duration for each interval. Defaults to 1 hour."),
     ] = None,
+    fill_method: Annotated[
+        Optional[FillMethod],
+        Query(description="Method to handle missing values during resampling."),
+    ] = None,
+    resample_method: Annotated[
+        ResampleMethod,
+        Query(description="Method used to aggregate values within a resampling interval."),
+    ] = "mean",
+    dropna: Annotated[
+        bool,
+        Query(description="Drop NAN/ None values before processing."),
+    ] = True,
+    boundary: Annotated[
+        BoundaryMode,
+        Query(description="Resampling boundary mode."),
+    ] = "context",
+    align_to_interval: Annotated[
+        bool,
+        Query(
+            description="Snap resample origin to the nearest UTC epoch-aligned boundary of interval."
+        ),
+    ] = False,
 ) -> List[Any]:
     """Get prediction for given key within given date range as value list.
 
@@ -1026,29 +1496,118 @@ async def fastapi_prediction_list_get(
             Defaults to end datetime of latest prediction.
         interval (Optional[str]): Time duration for each interval.
             Defaults to 1 hour.
+        fill_method (str): Method to handle missing values during resampling.
+
+            - 'linear': Linearly interpolate missing values (for numeric data only).
+            - 'time': Interpolate missing values (for numeric data only).
+            - 'ffill': Forward fill missing values.
+            - 'bfill': Backward fill missing values.
+            - Defaults to 'linear' for numeric values, otherwise 'ffill'.
+
+        resample_method (str):
+            Method used to aggregate values within a resampling interval.
+
+            - "first": Use the first value in each interval.
+            - "mean": Compute the arithmetic mean of all samples in each interval.
+            - "interval_mean": Compute the time-weighted mean assuming each
+                value remains valid until the next timestamp (piecewise-constant
+                signal).
+
+        dropna: (bool): Whether to drop NAN/ None values before processing.
+            Defaults to True.
+        boundary (Literal["strict", "context"]): resampling boundary
+            "strict"  → only values inside [start, end)
+            "context" → include one value before and after for proper resampling
+        align_to_interval (bool): When True, snap the resample origin to the nearest
+            UTC epoch-aligned boundary of ``interval`` before resampling.  This ensures
+            that bucket timestamps always fall on wall-clock-round times regardless of
+            when ``start_datetime`` falls:
+
+            - 15-minute interval → buckets on :00, :15, :30, :45
+            - 1-hour interval    → buckets on the hour
+
+            When False (default), the origin is ``query_start`` (or ``"start_day"`` when
+            no start is given), preserving the existing behaviour where buckets are
+            aligned to the query window rather than the clock.
+
+            Set to True when storing compacted records back to the database so that the
+            resulting timestamps are predictable and human-readable.  Leave False for
+            forecast or reporting queries where alignment to the exact query window is
+            more important than clock-round boundaries.
     """
     if key not in get_prediction().record_keys:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
+        raise EOSProblem(
+            status=404,
+            title="Prediction list retrieval failed",
+            detail=f"Key '{key}' not found in predictions",
+        )
+
     if start_datetime is None:
         start_datetime = get_prediction().ems_start_datetime
     else:
-        start_datetime = to_datetime(start_datetime)
+        try:
+            start_datetime = to_datetime(start_datetime)
+        except Exception as e:
+            raise EOSProblem(
+                status=400,
+                title="Prediction list retrieval failed",
+                detail=f"Invalid start datetime '{start_datetime}'",
+                cause=e,
+            ) from e
+
     if end_datetime is None:
         end_datetime = get_prediction().end_datetime
     else:
-        end_datetime = to_datetime(end_datetime)
+        try:
+            end_datetime = to_datetime(end_datetime)
+        except Exception as e:
+            raise EOSProblem(
+                status=400,
+                title="Prediction list retrieval failed",
+                detail=f"Invalid end datetime '{end_datetime}'",
+                cause=e,
+            ) from e
+
     if interval is None:
         interval = to_duration("1 hour")
     else:
-        interval = to_duration(interval)
-    prediction_array = await get_prediction().key_to_array(
-        key=key,
-        start_datetime=start_datetime,
-        end_datetime=end_datetime,
-        interval=interval,
-    )
-    prediction_list = prediction_array.tolist()
-    return prediction_list
+        try:
+            interval = to_duration(interval)
+        except Exception as e:
+            raise EOSProblem(
+                status=400,
+                title="Prediction list retrieval failed",
+                detail=f"Invalid interval '{interval}'",
+                cause=e,
+            ) from e
+
+    try:
+        prediction_array = await get_prediction().key_to_array(
+            key=key,
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval=interval,
+            fill_method=fill_method,
+            resample_method=resample_method,
+            dropna=dropna,
+            boundary=boundary,
+            align_to_interval=align_to_interval,
+        )
+        return prediction_array.tolist()
+    except KeyError as e:
+        raise EOSProblem(
+            status=404,
+            title="Prediction list retrieval failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+    except (TypeError, ValueError) as e:
+        raise EOSProblem(
+            status=400,
+            title="Prediction list retrieval failed",
+            detail=str(e),
+            cause=e,
+        ) from e
 
 
 @app.put("/v1/prediction/import/{provider_id}", tags=["prediction"])
@@ -1067,21 +1626,37 @@ async def fastapi_prediction_import_provider(
     """
     try:
         provider = get_prediction().provider_by_id(provider_id)
-    except ValueError:
-        raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not found.")
+    except Exception as e:
+        raise EOSProblem(
+            status=404,
+            title="Prediction import failed",
+            detail=f"Provider '{provider_id}' not found.",
+            cause=e,
+        ) from e
+
     if not provider.enabled() and not force_enable:
-        raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not enabled.")
+        raise EOSProblem(
+            status=400,
+            title="Prediction import failed",
+            detail=f"Provider '{provider_id}' not enabled.",
+        )
+
     try:
         if isinstance(data, BaseModel):
             json_str = data.model_dump_json()
         else:
             json_str = json.dumps(data)
-        await provider.import_from_json(json_str=json_str)
-        provider.update_datetime = to_datetime(in_timezone=get_config().general.timezone)
     except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Error on import for provider '{provider_id}': {e}"
-        )
+        raise EOSProblem(
+            status=400,
+            title="Prediction import failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+
+    await provider.import_from_json(json_str=json_str)
+    provider.update_datetime = to_datetime(in_timezone=get_config().general.timezone)
+
     return Response()
 
 
@@ -1098,18 +1673,11 @@ async def fastapi_prediction_update(
             Defaults to False.
     """
     # Ensure there is only one optimization/ energy management run at a time
-    try:
-        await get_ems().run(
-            mode=EnergyManagementMode.PREDICTION,
-            force_update=force_update,
-            force_enable=force_enable,
-        )
-    except Exception as e:
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        raise HTTPException(
-            status_code=400,
-            detail=f"Error on prediction update:\n{e}\n{trace}",
-        )
+    await get_ems().run(
+        mode=EnergyManagementMode.PREDICTION,
+        force_update=force_update,
+        force_enable=force_enable,
+    )
 
     return Response()
 
@@ -1129,24 +1697,93 @@ async def fastapi_prediction_update_provider(
     """
     try:
         provider = get_prediction().provider_by_id(provider_id)
-    except ValueError:
-        raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not found.")
+    except Exception as e:
+        raise EOSProblem(
+            status=404,
+            title="Prediction update failed",
+            detail=f"Provider '{provider_id}' not found.",
+            cause=e,
+        ) from e
 
     # Ensure there is only one optimization/ energy management run at a time
-    try:
-        await get_ems().run(
-            mode=EnergyManagementMode.PREDICTION,
-            force_update=force_update,
-            force_enable=force_enable,
-        )
-    except Exception as e:
-        trace = "".join(traceback.TracebackException.from_exception(e).format())
-        raise HTTPException(
-            status_code=400,
-            detail=f"Error on prediction update:\n{e}\n{trace}",
-        )
+    await get_ems().run(
+        mode=EnergyManagementMode.PREDICTION,
+        force_update=force_update,
+        force_enable=force_enable,
+    )
 
     return Response()
+
+
+@app.delete("/v1/prediction/range", tags=["prediction"])
+async def fastapi_prediction_range_delete(
+    key: Annotated[str, Query(description="Prediction key.")],
+    start_datetime: Annotated[Optional[str], Query(description="Start datetime.")] = None,
+    end_datetime: Annotated[Optional[str], Query(description="End datetime.")] = None,
+) -> PydanticDateTimeSeries:
+    """Delete prediction values for a key within a datetime range."""
+    if key not in get_prediction().record_keys:
+        raise EOSProblem(
+            status=404,
+            title="Prediction value delete range failed",
+            detail=f"Key '{key}' not found in predictions",
+        )
+
+    try:
+        start_dt = to_datetime(start_datetime) if start_datetime else None
+    except Exception as e:
+        raise EOSProblem(
+            status=400,
+            title="Prediction value delete range failed",
+            detail=f"Invalid start datetime '{start_datetime}'",
+            cause=e,
+        ) from e
+
+    try:
+        end_dt = to_datetime(end_datetime) if end_datetime else None
+    except Exception as e:
+        raise EOSProblem(
+            status=400,
+            title="Prediction value delete range failed",
+            detail=f"Invalid end datetime '{end_datetime}'",
+            cause=e,
+        ) from e
+
+    try:
+        await get_prediction().key_delete_by_datetime(
+            key=key,
+            start_datetime=start_dt,
+            end_datetime=end_dt,
+        )
+
+        pdseries = await get_prediction().key_to_raw_series(key=key)
+        return PydanticDateTimeSeries.from_series(pdseries)
+    except KeyError as e:
+        raise EOSProblem(
+            status=404,
+            title="Prediction value delete range failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+    except (TypeError, ValueError) as e:
+        raise EOSProblem(
+            status=400,
+            title="Prediction value delete range failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+
+
+@app.get("/v1/prediction/pvforecast/pvlib/modules", tags=["prediction"])
+def fastapi_prediction_pvforecast_modules_get() -> list[str]:
+    """Get module names supported by PVForecast PVLib provider."""
+    return _cec_modules().columns.tolist()
+
+
+@app.get("/v1/prediction/pvforecast/pvlib/inverters", tags=["prediction"])
+def fastapi_prediction_pvforecast_inverters_get() -> list[str]:
+    """Get inverter names supported by PVForecast PVLib provider."""
+    return _cec_inverters().columns.tolist()
 
 
 @app.get("/v1/energy-management/optimization/solution", tags=["energy-management"])
@@ -1154,10 +1791,53 @@ def fastapi_energy_management_optimization_solution_get() -> OptimizationSolutio
     """Get the latest solution of the optimization."""
     solution = get_ems().optimization_solution()
     if solution is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Can not get the optimization solution.\nDid you configure automatic optimization?",
+        raise EOSProblem(
+            status=404,
+            title="Optimization solution retrieval failed",
+            detail=(
+                "Can not get the optimization solution.\n"
+                "Did you configure automatic optimization?\n"
+                "Did you run the optimization/ energy management?"
+            ),
         )
+
+    return solution
+
+
+@app.get("/v1/energy-management/optimization/solution/{algorithm}", tags=["energy-management"])
+async def fastapi_energy_management_optimization_solution_algorithm_get(
+    algorithm: OptimizationAlgorithm,
+) -> Union[GeneticSolution, Genetic0Solution]:
+    """Get the latest algorithm specific solution of the optimization.
+
+    Args:
+        algorithm: Optimization algorithm
+    """
+    solution: Optional[Union[GeneticSolution, Genetic0Solution]] = None
+
+    if algorithm not in get_config().optimization.algorithms:
+        raise EOSProblem(
+            status=404,
+            title="Algorithm specific optimization solution retrieval failed",
+            detail=f"Optimization algorithm '{algorithm}' unknown.",
+        )
+
+    if algorithm == OptimizationAlgorithm.GENETIC:
+        solution = get_ems().genetic_solution()
+    elif algorithm == OptimizationAlgorithm.GENETIC0:
+        solution = get_ems().genetic0_solution()
+
+    if solution is None:
+        raise EOSProblem(
+            status=404,
+            title="Algorithm specific optimization solution retrieval failed",
+            detail=(
+                f"Can not get the '{algorithm}' optimization solution.\n"
+                f"Did you configure automatic '{algorithm}' optimization?\n"
+                "Did you run the optimization/ energy management?"
+            ),
+        )
+
     return solution
 
 
@@ -1166,10 +1846,16 @@ def fastapi_energy_management_plan_get() -> EnergyManagementPlan:
     """Get the latest energy management plan."""
     plan = get_ems().plan()
     if plan is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Can not get the energy management plan.\nDid you configure automatic optimization?",
+        raise EOSProblem(
+            status=404,
+            title="Optimization plan retrieval failed",
+            detail=(
+                "Can not get the optimization plan.\n"
+                "Did you configure automatic optimization?\n"
+                "Did you run the optimization/ energy management?"
+            ),
         )
+
     return plan
 
 
@@ -1177,9 +1863,9 @@ def fastapi_energy_management_plan_get() -> EnergyManagementPlan:
 async def fastapi_strompreis() -> list[float]:
     """Deprecated: Electricity Market Price Prediction per Wh [amount/Wh].
 
-    Electricity prices start at 00.00.00 today and are provided for 48 hours.
-    If no prices are available the missing ones at the start of the series are
-    filled with the first available price.
+    Electricity prices start at 00.00.00 today and are provided for 48 hours
+    in 1-hour intervals. If no prices are available the missing ones at the
+    start of the series are filled with the first available price.
 
     Note:
         Electricity price charges are added.
@@ -1199,35 +1885,24 @@ async def fastapi_strompreis() -> list[float]:
     get_config().merge_settings(settings=settings)
 
     # Ensure there is only one optimization/ energy management run at a time
-    try:
-        await get_ems().run(
-            mode=EnergyManagementMode.PREDICTION,
-            force_update=True,
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Can not update predictions: {e}",
-        )
+    await get_ems().run(
+        mode=EnergyManagementMode.PREDICTION,
+        force_update=True,
+    )
+
     # Get the current date and the end date based on prediction hours
     # Fetch prices for the specified date range
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
-    try:
-        elecprice_array = await get_prediction().key_to_array(
-            key="elecprice_marketprice_wh",
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-            fill_method="ffill",
-        )
-        elecprice_list = elecprice_array.tolist()
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Can not get the electricity price forecast: {e}.\nDid you configure the electricity price forecast provider?",
-        )
-
-    return elecprice_list
+    elecprice_array = await get_prediction().key_to_array(
+        key="elecprice_marketprice_wh",
+        start_datetime=start_datetime,
+        end_datetime=end_datetime,
+        interval=to_duration("1 hour"),
+        fill_method="ffill",
+        resample_method="interval_mean",
+    )
+    return elecprice_array.tolist()
 
 
 class GesamtlastRequest(PydanticBaseModel):
@@ -1242,9 +1917,9 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
 
     Endpoint to handle total load prediction adjusted by latest measured data.
 
-    Total load prediction starts at 00.00.00 today and is provided for 48 hours.
-    If no prediction values are available the missing ones at the start of the series are
-    filled with the first available prediction value.
+    Total load prediction starts at 00.00.00 today and is provided for 48 hours
+    in 1-hour intervals. If no prediction values are available the missing ones
+    at the start of the series are filled with the first available prediction value.
 
     Note:
         Use '/v1/prediction/list?key=loadforecast_power_w' instead.
@@ -1282,11 +1957,21 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
             dt_str = to_datetime(data_dict["time"], as_string=True)
             value = float(data_dict["Last"])
             energy[dt_str] = value
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Invalid measured data: {e}.",
-        )
+    except KeyError as e:
+        raise EOSProblem(
+            status=404,
+            title="Total load prediction failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+    except (TypeError, ValueError) as e:
+        raise EOSProblem(
+            status=400,
+            title="Total load prediction failed",
+            detail=str(e),
+            cause=e,
+        ) from e
+
     energy_mr_dates = []
     energy_mr_values = []
     energy_mr = 0.0
@@ -1303,34 +1988,26 @@ async def fastapi_gesamtlast(request: GesamtlastRequest) -> list[float]:
     await get_measurement().key_from_lists(measurement_key, energy_mr_dates, energy_mr_values)
 
     # Ensure there is only one optimization/ energy management run at a time
-    try:
-        await get_ems().run(
-            mode=EnergyManagementMode.PREDICTION,
-            force_update=True,
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Can not update predictions: {e}",
-        )
+    await get_ems().run(
+        mode=EnergyManagementMode.PREDICTION,
+        force_update=True,
+    )
 
     # Get the forecast starting at start of day
     start_datetime = to_datetime().start_of("day")
     end_datetime = start_datetime.add(days=2)
-    try:
-        prediction_array = await get_prediction().key_to_array(
-            key="loadforecast_power_w",
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-        )
-        prediction_list = prediction_array.tolist()
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Can not get the total load forecast: {e}.\nDid you configure the load forecast provider?",
-        )
+    prediction_array = await get_prediction().key_to_array(
+        key="loadforecast_power_w",
+        start_datetime=start_datetime,
+        end_datetime=end_datetime,
+        interval=to_duration("1 hour"),
+        fill_method="ffill",
+        resample_method="interval_mean",
+        dropna=True,
+        boundary="context",
+    )
 
-    return prediction_list
+    return prediction_array.tolist()
 
 
 @app.get("/gesamtlast_simple", tags=["prediction"], deprecated=True)
@@ -1339,9 +2016,9 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
 
     Endpoint to handle total load prediction.
 
-    Total load prediction starts at 00.00.00 today and is provided for 48 hours.
-    If no prediction values are available the missing ones at the start of the series are
-    filled with the first available prediction value.
+    Total load prediction starts at 00.00.00 today and is provided for 48 hours
+    in 1-hour intervals. If no prediction values are available the missing ones
+    at the start of the series are filled with the first available prediction value.
 
     Args:
         year_energy (float): Yearly energy consumption in Wh.
@@ -1382,6 +2059,11 @@ async def fastapi_gesamtlast_simple(year_energy: float) -> list[float]:
             key="loadforecast_power_w",
             start_datetime=start_datetime,
             end_datetime=end_datetime,
+            interval=to_duration("1 hour"),
+            fill_method="ffill",
+            resample_method="interval_mean",
+            dropna=True,
+            boundary="context",
         )
         prediction_list = prediction_array.tolist()
     except Exception as e:
@@ -1404,9 +2086,9 @@ async def fastapi_pvforecast() -> ForecastResponse:
 
     Endpoint to handle PV forecast prediction.
 
-    PVForecast starts at 00.00.00 today and is provided for 48 hours.
-    If no forecast values are available the missing ones at the start of the series are
-    filled with the first available forecast value.
+    PVForecast starts at 00.00.00 today and is provided for 48 hours
+    in 1-hour intervals. If no forecast values are available the missing ones
+    at the start of the series are filled with the first available forecast value.
 
     Note:
         Set PVForecastAkkudoktor as provider, then update data with
@@ -1438,12 +2120,22 @@ async def fastapi_pvforecast() -> ForecastResponse:
             key="pvforecast_ac_power",
             start_datetime=start_datetime,
             end_datetime=end_datetime,
+            interval=to_duration("1 hour"),
+            fill_method="ffill",
+            resample_method="interval_mean",
+            dropna=True,
+            boundary="context",
         )
         ac_power_list = ac_power_array.tolist()
         temp_air_array = await get_prediction().key_to_array(
             key="pvforecastakkudoktor_temp_air",
             start_datetime=start_datetime,
             end_datetime=end_datetime,
+            interval=to_duration("1 hour"),
+            fill_method="ffill",
+            resample_method="interval_mean",
+            dropna=True,
+            boundary="context",
         )
         temp_air_list = temp_air_array.tolist()
     except Exception as e:
@@ -1458,20 +2150,23 @@ async def fastapi_pvforecast() -> ForecastResponse:
 
 @app.post("/optimize", tags=["optimize"])
 async def fastapi_optimize(
-    parameters: GeneticOptimizationParameters,
+    parameters: Genetic0OptimizationParameters,
     start_hour: Annotated[
         Optional[int], Query(description="Defaults to current hour of the day.")
     ] = None,
     ngen: Annotated[
         Optional[int], Query(description="Number of indivuals to generate for genetic algorithm.")
     ] = None,
-) -> GeneticSolution:
+) -> Genetic0SolutionLegacy:
     """Deprecated: Optimize.
 
     Endpoint to handle optimization.
 
+    Uses the `classic` GENETIC0 optimisation algorithm (__NO__ 15-minutes slots).
+
     Note:
         Use automatic optimization instead.
+        "v1/energy-management/optimization/solution/GENETIC0"
     """
     if start_hour is None:
         start_datetime = None
@@ -1479,33 +2174,56 @@ async def fastapi_optimize(
         start_datetime = to_datetime().set(hour=start_hour)
 
     # Ensure there is only one optimization/ energy management run at a time
-    try:
-        await get_ems().run(
-            start_datetime=start_datetime,
-            mode=EnergyManagementMode.OPTIMIZATION,
-            genetic_parameters=parameters,
-            genetic_individuals=ngen,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Optimize error: {e}.")
+    await get_ems().run(
+        start_datetime=start_datetime,
+        mode=EnergyManagementMode.OPTIMIZATION,
+        algorithm=OptimizationAlgorithm.GENETIC0,
+        genetic0_parameters=parameters,
+        genetic0_generations=ngen,
+    )
 
-    solution = get_ems().genetic_solution()
+    solution = get_ems().genetic0_solution()
     if solution is None:
-        raise HTTPException(status_code=400, detail="Optimize error: no solution stored by run.")
+        raise EOSProblem(
+            status=404,
+            title="Optimization solution retrieval failed",
+            detail="Can not get the 'GENETIC0' optimization solution.",
+        )
 
-    return solution
+    # Create compatible solution.
+    legacy_solution = Genetic0SolutionLegacy(
+        **{
+            "ac_charge": solution.ac_charge,
+            "dc_charge": solution.dc_charge,
+            "discharge_allowed": solution.discharge_allowed,
+            "ev_charge_hours_float": solution.ev_charge_hours_float,
+            "result": solution.result,
+            "ev_obj": solution.ev_obj,
+            "start_solution": solution.start_solution,
+            "washingstart": solution.washingstart,
+        }
+    )
+    return legacy_solution
 
 
-@app.get("/visualization_results.pdf", response_class=PdfResponse, tags=["optimize"])
-def get_pdf() -> PdfResponse:
+@app.get("/visualization_results.pdf", tags=["optimize"])
+def get_pdf() -> Response:
     # Endpoint to serve the generated PDF with visualization results
-    output_path = get_config().general.data_output_path
-    if output_path is None or not output_path.is_dir():
-        raise HTTPException(status_code=404, detail=f"Output path does not exist: {output_path}.")
-    file_path = output_path / "visualization_results.pdf"
-    if not file_path.is_file():
-        raise HTTPException(status_code=404, detail="No visualization result available.")
-    return PdfResponse(file_path)
+    genetic0_solution = get_ems().genetic0_solution()
+    if genetic0_solution is None:
+        raise EOSProblem(
+            status=404,
+            title="Optimization solution report retrieval failed",
+            detail="Can not get the 'GENETIC0' optimization solution.",
+        )
+
+    pdf = genetic0_prepare_visualize(solution=genetic0_solution)
+
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="optimization-report.pdf"'},
+    )
 
 
 @app.get("/site-map", include_in_schema=False)

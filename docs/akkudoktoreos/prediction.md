@@ -208,21 +208,79 @@ data and rely on file/JSON imports only for initial setup.
 
 Prediction keys:
 
-- `feed_in_tarif_wh`: Feed in tarif per Wh (€/Wh).
-- `feed_in_tarif_kwh`: Feed in tarif per kWh (€/kWh)
+- `feed_in_tariff_wh`: Feed in tarif per Wh (€/Wh).
+- `feed_in_tariff_kwh`: Feed in tarif per kWh (€/kWh)
 
 Configuration options:
 
-- `feedintarif`: Feed in tariff configuration.
+- `feedintariff`: Feed in tariff configuration.
 
   - `provider`: Feed in tariff provider id of provider to be used.
 
+    - `FeedInTariffAkkudoktor`: Retrieves raw day-ahead market prices from the public
+      Akkudoktor API without
+    - `FeedInTariffEnergyCharts`: Retrieves Energy-Charts day-ahead market prices and extends
+      them to the configured prediction horizon when necessary.
     - `FeedInTariffFixed`: Provides fixed feed in tariff values.
     - `FeedInTariffImport`: Imports from a file or JSON string or by endpoint data provision.
+    - `FeedInTariffTibber`: Retrieves Tibber's native quarter-hour energy-price component.
 
+  - `energycharts.bidding_zone`: Bidding zone Energy Charts shall provide feed-in tariff for.
   - `feedintarifffixed.feed_in_tariff_kwh`: Fixed feed in tariff (€/kWh).
   - `feedintariffimport.import_file_path`: Path to the file to import feed in tariff forecast data from.
   - `feedintariffimport.import_json`: JSON string, dictionary of feed in tariff value lists.
+
+### FeedInTariffAkkudoktor Provider
+
+The `FeedInTariffAkkudoktor` provider uses raw day-ahead market prices from
+`https://api.akkudoktor.net/prices` as `feed_in_tariff_wh`. It does not add electricity import
+charges or VAT. Published prices are extended to the configured prediction horizon with the same
+seasonal ETS or median fallback used by the Akkudoktor electricity-price provider.
+
+The Akkudoktor endpoint currently forwards hourly market prices from aWATTar. With a 15-minute
+optimization interval, EOS holds each hourly price constant for its four quarter-hour slots. This
+keeps the slot grid consistent but does not create genuine quarter-hour market prices.
+
+```json
+{
+  "feedintariff": {
+    "provider": "FeedInTariffAkkudoktor"
+  }
+}
+```
+
+### FeedInTariffEnergyCharts Provider
+
+The `FeedInTariffEnergyCharts` provider uses the raw Energy-Charts day-ahead market price as the
+feed-in tariff. It stores prices in `feed_in_tariff_wh` without adding electricity import charges
+or VAT. The data is loaded from the Energy-Charts `/price` endpoint for the configured bidding
+zone. The native Energy-Charts resolution, including quarter-hour data, is retained.
+
+Energy-Charts usually supplies prices only for the published day-ahead period. If that data does
+not cover the complete configured prediction horizon, the provider extends it as follows:
+
+- With more than 800 hours of history, an ETS (Holt-Winters exponential smoothing) forecast with
+  weekly seasonality is used.
+- With more than 168 hours of history, an ETS forecast with daily seasonality is used.
+- With less history, the median of the available values is used as a constant fallback.
+
+The seasonal periods are adjusted to the source resolution. For example, quarter-hour data uses
+four values per hour. Values already supplied by Energy-Charts are kept unchanged; only missing
+future slots after the last published price are forecast. Consequently, a 15-minute optimization
+uses four forecast values per hour without converting them to hourly averages.
+
+Example configuration:
+
+```json
+{
+  "feedintariff": {
+    "provider": "FeedInTariffEnergyCharts",
+    "energycharts": {
+      "bidding_zone": "DE-LU"
+    }
+  }
+}
+```
 
 ### FeedInTariffImport Provider
 
@@ -250,6 +308,25 @@ sources** can lead to unintended data overwrites. Moreover, after a restart, eve
 from the configuration may be reloaded. To avoid these issues, use the **PUT** endpoint for live
 data and rely on file/JSON imports only for initial setup.
 :::
+
+### FeedInTariffTibber Provider
+
+The `FeedInTariffTibber` provider requests `priceInfo` and `priceInfoRange` with
+`resolution: QUARTER_HOURLY` and preserves the native 15-minute timestamps. It uses Tibber's
+`energy` spot-price component without the `tax` part or EOS electricity-price charges. The
+end-customer `total` component is deliberately ignored.
+
+The provider deliberately rejects hourly API responses instead of silently repeating them. It
+reuses `elecprice.tibber.access_token` and `elecprice.tibber.home_id`, so no duplicate credentials
+are needed.
+
+```json
+{
+  "feedintariff": {
+    "provider": "FeedInTariffTibber"
+  }
+}
+```
 
 ## Load Prediction
 
@@ -615,6 +692,30 @@ The PV forecast data must be provided in one of the formats described in
 
 The data may additionally or solely be provided by the
 **PUT** `/v1/prediction/import/PVForecastImport` endpoint.
+
+### PVForecastPVLib Provider
+
+The `PVForecastPVLib` provider calculates PV power forecasts locally using the
+[PVLib](https://pvlib-python.readthedocs.io/) simulation library. Unlike the
+API-based providers, no external forecast service is required. The provider
+uses the configured PV system geometry together with the weather prediction
+(`weather_ghi`, `weather_dni`, `weather_dhi`, `weather_temp_air`, etc.) to
+simulate the expected DC module power and AC inverter output.
+
+The provider supports multiple PV planes and automatically sums their power.
+Module and inverter models are selected from the CEC database by name or by
+their nominal power rating. AkkudoktorEOS automatically generates and caches
+the required CEC databases on first use by combining the current SAM database,
+legacy PVLib entries, and the additional EMHASS models.
+
+The following prediction keys are provided:
+
+- `pvforecast_ac_power`: Total AC power (W).
+- `pvforecast_dc_power`: Total DC power (W).
+
+Currently, the configuration options `userhorizon`, `optimalangles`, and
+tracking systems (`trackingtype != 0`) are ignored. If no `albedo` is
+configured, a default value of `0.2` is used.
 
 ### PVForecastPVNode Provider
 

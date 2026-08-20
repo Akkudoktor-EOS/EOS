@@ -6,12 +6,12 @@ from bokeh.models import ColumnDataSource, LinearAxis, Range1d
 from bokeh.plotting import figure
 from monsterui.franken import FT, Grid, P
 
-from akkudoktoreos.core.pydantic import PydanticDateTimeDataFrame
+from akkudoktoreos.core.pydantic import PydanticDateTimeSeries
 from akkudoktoreos.server.dash.bokeh import Bokeh, bokey_apply_theme_to_plot
 from akkudoktoreos.server.dash.components import Error
 
-# bar width for 1 hour bars (time given in millseconds)
-BAR_WIDTH_1HOUR = 1000 * 60 * 60
+# bar width for 15 minutes bars (time given in millseconds)
+BAR_WIDTH_15MIN = 1000 * 60 * 15
 
 
 def PVForecast(predictions: pd.DataFrame, config: dict, date_time_tz: str, dark: bool) -> FT:
@@ -30,7 +30,7 @@ def PVForecast(predictions: pd.DataFrame, config: dict, date_time_tz: str, dark:
         x="date_time",
         top="pvforecast_ac_power",
         source=source,
-        width=BAR_WIDTH_1HOUR * 0.8,
+        width=BAR_WIDTH_15MIN * 0.8,
         legend_label="AC Power",
         color="lightblue",
     )
@@ -54,7 +54,7 @@ def ElectricityPriceForecast(
         ),
         title=f"Electricity Price Prediction ({provider})",
         x_axis_label=f"Datetime [localtime {date_time_tz}]",
-        y_axis_label="Price [amount/kWh]",
+        y_axis_label="Price [Amt./kWh]",
         sizing_mode="stretch_width",
         height=400,
     )
@@ -62,7 +62,7 @@ def ElectricityPriceForecast(
         x="date_time",
         top="elecprice_marketprice_kwh",
         source=source,
-        width=BAR_WIDTH_1HOUR * 0.8,
+        width=BAR_WIDTH_15MIN * 0.8,
         legend_label="Market Price",
         color="lightblue",
     )
@@ -208,7 +208,9 @@ def Prediction(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = 
     if data and data.get("dark", None) == "true":
         dark = True
 
-    # Get current configuration from server
+    # ---------------------------------------------------------------------
+    # Get configuration
+    # ---------------------------------------------------------------------
     try:
         result = requests.get(f"{server}/v1/config", timeout=10)
         result.raise_for_status()
@@ -220,30 +222,62 @@ def Prediction(eos_host: str, eos_port: Union[str, int], data: Optional[dict] = 
         )
     config = result.json()
 
-    # Get Forecasts
+    # ---------------------------------------------------------------------
+    # Describe how every prediction should be retrieved.
+    # ---------------------------------------------------------------------
+    prediction_requests = [
+        ("pvforecast_ac_power", "first", "ffill"),
+        ("elecprice_marketprice_kwh", "first", "ffill"),
+        ("weather_relative_humidity", "mean", "linear"),
+        ("weather_temp_air", "mean", "linear"),
+        ("weather_ghi", "mean", "linear"),
+        ("weather_dni", "mean", "linear"),
+        ("weather_dhi", "mean", "linear"),
+        ("loadforecast_power_w", "first", "ffill"),
+        ("loadakkudoktor_std_power_w", "first", "ffill"),
+        ("loadakkudoktor_mean_power_w", "first", "ffill"),
+    ]
+
+    # ---------------------------------------------------------------------
+    # Fetch all series
+    # ---------------------------------------------------------------------
+    series_list = []
+
     try:
-        params = {
-            "keys": [
-                "pvforecast_ac_power",
-                "elecprice_marketprice_kwh",
-                "weather_relative_humidity",
-                "weather_temp_air",
-                "weather_ghi",
-                "weather_dni",
-                "weather_dhi",
-                "loadforecast_power_w",
-                "loadakkudoktor_std_power_w",
-                "loadakkudoktor_mean_power_w",
-            ],
-        }
-        result = requests.get(f"{server}/v1/prediction/dataframe", params=params, timeout=10)
-        result.raise_for_status()
-        predictions = PydanticDateTimeDataFrame(**result.json()).to_dataframe()
+        for options in prediction_requests:
+            key = options[0]
+            resample_method = options[1]
+            fill_method = options[2]
+
+            params = {
+                "key": key,
+                "interval": "15 minutes",
+                "processing": "resampled",
+                "resample_method": resample_method,
+                "fill_method": fill_method,
+            }
+
+            result = requests.get(
+                f"{server}/v1/prediction/series",
+                params=params,
+                timeout=10,
+            )
+            result.raise_for_status()
+
+            series = PydanticDateTimeSeries(**result.json()).to_series().rename(key)
+            series_list.append(series)
+
     except requests.exceptions.HTTPError as err:
         detail = result.json()["detail"]
         return Error(f"Can not retrieve predictions from {server}: {err}, {detail}")
     except Exception as err:
         return Error(f"Can not retrieve predictions from {server}: {err}")
+
+    # ---------------------------------------------------------------------
+    # Merge into dataframe
+    # ---------------------------------------------------------------------
+    predictions = pd.concat(series_list, axis=1).reset_index()
+    predictions.rename(columns={"index": "date_time"}, inplace=True)
 
     # Remove time offset from UTC to get naive local time and make bokeh plot in local time
     date_time_tz = predictions["date_time"].dt.tz

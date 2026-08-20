@@ -1,4 +1,5 @@
-from typing import Optional, Union
+from enum import StrEnum
+from typing import Optional
 
 from pydantic import Field, computed_field
 
@@ -8,92 +9,61 @@ from akkudoktoreos.core.pydantic import (
     PydanticBaseModel,
     PydanticDateTimeDataFrame,
 )
+from akkudoktoreos.optimization.genetic0.genetic0settings import Genetic0CommonSettings
+from akkudoktoreos.optimization.genetic.geneticsettings import GeneticCommonSettings
 from akkudoktoreos.utils.datetimeutil import DateTime
 
 
-class GeneticCommonSettings(SettingsBaseModel):
-    """General Genetic Optimization Algorithm Configuration."""
+class OptimizationAlgorithm(StrEnum):
+    """Optimization Algorithm."""
 
-    individuals: Optional[int] = Field(
-        default=300,
-        ge=10,
-        json_schema_extra={
-            "description": "Number of individuals (solutions) in the population [>= 10]. Defaults to 300.",
-            "examples": [300],
-        },
-    )
+    GENETIC = "GENETIC"
+    GENETIC0 = "GENETIC0"
 
-    generations: Optional[int] = Field(
-        default=400,
-        ge=10,
-        json_schema_extra={
-            "description": "Number of generations to evolve [>= 10]. Defaults to 400.",
-            "examples": [400],
-        },
-    )
 
-    seed: Optional[int] = Field(
-        default=None,
-        ge=0,
-        json_schema_extra={
-            "description": "Random seed for reproducibility. None = random.",
-            "examples": [None, 42],
-        },
-    )
-
-    # --- Penalties (existing) -------------------------------------------------
-
-    penalties: dict[str, Union[float, int, str]] = Field(
-        default_factory=lambda: {
-            "ev_soc_miss": 10,
-            "ac_charge_break_even": 1.0,
-        },
-        json_schema_extra={
-            "description": "Penalty parameters used in fitness evaluation.",
-            "examples": [{"ev_soc_miss": 10}],
-        },
-    )
+def optimization_default_algorithm() -> OptimizationAlgorithm:
+    """Provide default optimization algorithm."""
+    return OptimizationAlgorithm.GENETIC
 
 
 class OptimizationCommonSettings(SettingsBaseModel):
     """General Optimization Configuration."""
 
-    horizon_hours: int = Field(
-        default=24,
-        ge=0,
+    algorithm: OptimizationAlgorithm = Field(
+        default_factory=optimization_default_algorithm,
         json_schema_extra={
-            "description": "The general time window within which the energy optimization goal shall be achieved [h]. Defaults to 24 hours.",
-            "examples": [24],
-        },
-    )
-
-    interval: int = Field(
-        default=3600,
-        ge=15 * 60,
-        le=60 * 60,
-        json_schema_extra={
-            "description": "The optimization interval [sec]. Defaults to 3600 seconds (1 hour)",
-            "examples": [60 * 60, 15 * 60],
-        },
-    )
-
-    algorithm: str = Field(
-        default="GENETIC",
-        json_schema_extra={
-            "description": "The optimization algorithm. Defaults to GENETIC",
-            "examples": ["GENETIC"],
+            "description": (
+                f"Optimization algorithm "
+                f"[{' | '.join(mode.value for mode in OptimizationAlgorithm)}]. "
+                f"Defaults to {optimization_default_algorithm()}."
+            ),
+            "examples": ["GENETIC", "GENETIC0"],
         },
     )
 
     genetic: GeneticCommonSettings = Field(
         default_factory=GeneticCommonSettings,
         json_schema_extra={
-            "description": "Genetic optimization algorithm configuration.",
+            "description": "GENETIC optimization algorithm configuration.",
+            "examples": [{"individuals": 400, "seed": None, "penalties": {"ev_soc_miss": 10}}],
+        },
+    )
+
+    genetic0: Genetic0CommonSettings = Field(
+        default_factory=Genetic0CommonSettings,
+        json_schema_extra={
+            "description": "GENETIC0 optimization algorithm configuration.",
             "examples": [{"individuals": 400, "seed": None, "penalties": {"ev_soc_miss": 10}}],
         },
     )
 
     # Computed fields
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def algorithms(self) -> list[str]:
+        """Available optimization algorithms."""
+        return [algo.value for algo in OptimizationAlgorithm]
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def keys(self) -> list[str]:
@@ -111,15 +81,6 @@ class OptimizationCommonSettings(SettingsBaseModel):
             df = optimization_solution.solution.to_dataframe()
             key_list = df.columns.tolist()
         return sorted(set(key_list))
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def horizon(self) -> int:
-        """Number of optimization steps."""
-        if self.interval is None or self.interval == 0 or self.horizon_hours is None:
-            return 0
-        num_steps = int(float(self.horizon_hours * 3600) / self.interval)
-        return num_steps
 
 
 class OptimizationSolution(PydanticBaseModel):

@@ -31,7 +31,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
         {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
     )
     assert config_eos.prediction.hours == 48
-    assert config_eos.optimization.horizon_hours == 24
+    assert config_eos.optimization.genetic.horizon_hours == 24
 
     # Initialize the battery and the inverter
     akku = Battery(
@@ -58,7 +58,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
             duration_h=2,
             time_windows=None,
         ),
-        optimization_hours = config_eos.optimization.horizon_hours,
+        optimization_hours = config_eos.optimization.genetic.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
     )
 
@@ -238,7 +238,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
             preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
             gesamtlast=gesamtlast,
         ),
-        optimization_hours = config_eos.optimization.horizon_hours,
+        optimization_hours = config_eos.optimization.genetic.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
         inverter=inverter,
         ev=eauto,

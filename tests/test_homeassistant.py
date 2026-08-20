@@ -48,7 +48,7 @@ class TestHomeAssistantAddon:
         readme_path = self.root / "README.md"
         assert readme_path.is_file(), "README.md must exist in the repository root."
 
-        content = readme_path.read_text()
+        content = readme_path.read_text(encoding="utf-8")
         assert len(content.strip()) > 0, "README.md is empty"
 
         print(f"✓ README.md exists ({len(content)} bytes)")
@@ -58,7 +58,7 @@ class TestHomeAssistantAddon:
         docs_path = self.root / "DOCS.md"
         assert docs_path.is_file(), "DOCS.md must exist in the repository root for add-on documentation."
 
-        content = docs_path.read_text()
+        content = docs_path.read_text(encoding="utf-8")
         assert len(content.strip()) > 0, "DOCS.md is empty"
 
         print(f"✓ DOCS.md exists ({len(content)} bytes)")

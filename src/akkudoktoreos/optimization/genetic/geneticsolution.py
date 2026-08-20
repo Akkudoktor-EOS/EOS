@@ -1,6 +1,6 @@
 """Genetic algorithm optimisation solution."""
 
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -18,12 +18,18 @@ from akkudoktoreos.core.emplan import (
     FRBCInstruction,
 )
 from akkudoktoreos.core.pydantic import PydanticDateTimeDataFrame
+from akkudoktoreos.core.types import (
+    FillMethod,
+)
 from akkudoktoreos.devices.devicesabc import (
     ApplianceOperationMode,
     BatteryOperationMode,
 )
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.optimization.genetic.geneticdevices import GeneticParametersBaseModel
+from akkudoktoreos.optimization.genetic.geneticparams import (
+    GeneticOptimizationParameters,
+)
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 from akkudoktoreos.utils.utils import NumpyEncoder
@@ -244,6 +250,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
 
     model_config = ConfigDict(populate_by_name=True, extra="ignore")
 
+    parameters: GeneticOptimizationParameters = Field(
+        json_schema_extra={"description": "Optimization parameters used to generate solution."}
+    )
     ac_charge: list[float] = Field(
         json_schema_extra={
             "description": "Array with AC charging values as relative power (0.0-1.0), other values set to 0."
@@ -270,6 +279,10 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         validation_alias=AliasChoices("ev_obj", "eauto_obj"),
         json_schema_extra={"description": "Electric vehicle state after optimization."},
     )
+    start_hour: int = Field(
+        default=0,
+        json_schema_extra={"description": "Start hour."},
+    )
     start_solution: Optional[list[float]] = Field(
         default=None,
         json_schema_extra={
@@ -281,6 +294,28 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         json_schema_extra={
             "description": "Can be `null` or contain an object representing the start of washing (if applicable)."
         },
+    )
+    extra_data: Optional[dict[str, Union[list[int], list[float]]]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": ("Dictionary of balance: TBD, losses: TBD, constraints: TBD.")
+        },
+    )
+    fitness_history: Optional[dict[str, Union[list[int], list[float]]]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "Dictionary of "
+                "gen: Generation numbers (X-axis), "
+                "avg: Average fitness for each generation (Y-axis), "
+                "max: Maximum fitness for each generation (Y-axis), "
+                "min: Minimum fitness for each generation (Y-axis)."
+            )
+        },
+    )
+    fixed_seed: Optional[int] = Field(
+        default=None,
+        json_schema_extra={"description": "Fixed seed."},
     )
 
     # Computed fields for backward compatibility (deprecated German names)
@@ -673,7 +708,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         )
         pred = get_prediction()
 
-        for pred_key, pred_fill_method, pred_solution_key, pred_solution_factor in [
+        prediction_specs: list[tuple[str, FillMethod, str, float]] = [
             (
                 "pvforecast_ac_power",
                 "linear",
@@ -722,7 +757,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 "loadakkudoktor_mean_energy_wh",
                 power_to_energy_per_interval_factor,
             ),
-        ]:
+        ]
+
+        for pred_key, pred_fill_method, pred_solution_key, pred_solution_factor in prediction_specs:
             if pred_key in pred.record_keys:
                 array = await pred.key_to_array(
                     key=pred_key,
@@ -740,7 +777,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             generated_at=to_datetime(),
             comment="Optimization solution derived from GeneticSolution.",
             valid_from=start_datetime,
-            valid_until=start_datetime.add(hours=self.config.optimization.horizon_hours),
+            valid_until=start_datetime.add(hours=self.config.optimization.genetic.horizon_hours),
             total_losses_energy_wh=self.result.total_losses,
             total_revenues_amt=self.result.total_revenue,
             total_costs_amt=self.result.total_costs,

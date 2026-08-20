@@ -27,6 +27,11 @@ from akkudoktoreos.core.databaseabc import (
     DatabaseTimestamp,
     _DatabaseTimestampUnbound,
 )
+from akkudoktoreos.core.types import (
+    BoundaryMode,
+    FillMethod,
+    ResampleMethod,
+)
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
     Duration,
@@ -258,9 +263,10 @@ class SampleSequence(DatabaseRecordProtocolMixin[SampleRecord]):
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
         interval: Optional[Duration] = None,
-        fill_method: Optional[str] = None,
-        dropna: Optional[bool] = True,
-        boundary: Literal["strict", "context"] = "context",
+        fill_method: Optional[FillMethod] = None,
+        resample_method: ResampleMethod = "mean",
+        dropna: bool = True,
+        boundary: BoundaryMode = "context",
         align_to_interval: bool = False,
     ) -> NDArray[Shape["*"], Any]:
         """Minimal resampling stub sufficient for compaction tests."""

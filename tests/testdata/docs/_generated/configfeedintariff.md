@@ -7,9 +7,11 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
+| dvhubonline | `EOS_FEEDINTARIFF__DVHUBONLINE` | `FeedInTariffDvhubOnlineCommonSettings` | `rw` | `required` | DvhubOnline feed in tariff provider settings. |
+| energycharts | `EOS_FEEDINTARIFF__ENERGYCHARTS` | `FeedInTariffEnergyChartsCommonSettings` | `rw` | `required` | EnergyCharts feed in tariff provider settings. |
 | feedintarifffixed | `EOS_FEEDINTARIFF__FEEDINTARIFFFIXED` | `FeedInTariffFixedCommonSettings` | `rw` | `required` | Fixed feed in tariff provider settings. |
 | feedintariffimport | `EOS_FEEDINTARIFF__FEEDINTARIFFIMPORT` | `FeedInTariffImportCommonSettings` | `rw` | `required` | Feed in tarif import provider settings. |
-| provider | `EOS_FEEDINTARIFF__PROVIDER` | `Optional[str]` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
+| provider | `EOS_FEEDINTARIFF__PROVIDER` | `str | None` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available feed in tariff provider ids. |
 :::
 <!-- pyml enable line-length -->
@@ -29,6 +31,13 @@
            "feedintariffimport": {
                "import_file_path": null,
                "import_json": null
+           },
+           "dvhubonline": {
+               "base_url": "https://dvhub.online",
+               "zone": "DE-LU"
+           },
+           "energycharts": {
+               "bidding_zone": "DE-LU"
            }
        }
    }
@@ -51,9 +60,20 @@
                "import_file_path": null,
                "import_json": null
            },
+           "dvhubonline": {
+               "base_url": "https://dvhub.online",
+               "zone": "DE-LU"
+           },
+           "energycharts": {
+               "bidding_zone": "DE-LU"
+           },
            "providers": [
+               "FeedInTariffAkkudoktor",
+               "FeedInTariffDvhubOnline",
+               "FeedInTariffEnergyCharts",
                "FeedInTariffFixed",
-               "FeedInTariffImport"
+               "FeedInTariffImport",
+               "FeedInTariffTibber"
            ]
        }
    }
@@ -69,8 +89,8 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| import_file_path | `Union[str, pathlib.Path, NoneType]` | `rw` | `None` | Path to the file to import feed in tariff data from. |
-| import_json | `Optional[str]` | `rw` | `None` | JSON string, dictionary of feed in tariff forecast value lists. |
+| import_file_path | `str | pathlib.Path | None` | `rw` | `None` | Path to the file to import feed in tariff data from. |
+| import_json | `str | None` | `rw` | `None` | JSON string, dictionary of feed in tariff forecast value lists. |
 :::
 <!-- pyml enable line-length -->
 
@@ -100,7 +120,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| feed_in_tariff_kwh | `Optional[float]` | `rw` | `None` | Electricity price feed in tariff [amount/kWh]. |
+| feed_in_tariff_kwh | `float | None` | `rw` | `None` | Electricity price feed in tariff [amount/kWh]. |
 :::
 <!-- pyml enable line-length -->
 
@@ -114,6 +134,66 @@
        "feedintariff": {
            "feedintarifffixed": {
                "feed_in_tariff_kwh": 0.078
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for Energy-Charts feed-in tariff provider
+
+<!-- pyml disable line-length -->
+:::{table} feedintariff::energycharts
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| bidding_zone | `<enum 'EnergyChartsBiddingZones'>` | `rw` | `DE-LU` | Bidding Zone: 'AT', 'BE', 'CH', 'CZ', 'DE-LU', 'DE-AT-LU', 'DK1', 'DK2', 'FR', 'HU', 'IT-NORTH', 'NL', 'NO2', 'PL', 'SE4' or 'SI' |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "feedintariff": {
+           "energycharts": {
+               "bidding_zone": "DE-LU"
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the dvhub.online feed-in tariff provider
+
+<!-- pyml disable line-length -->
+:::{table} feedintariff::dvhubonline
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| base_url | `str` | `rw` | `https://dvhub.online` | Base URL of the dvhub.online price API. |
+| zone | `str` | `rw` | `DE-LU` | Bidding zone passed to the dvhub.online price API. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "feedintariff": {
+           "dvhubonline": {
+               "base_url": "https://dvhub.online",
+               "zone": "DE-LU"
            }
        }
    }

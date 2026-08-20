@@ -180,11 +180,11 @@ class TestDataSequence:
         retrieved_record = await sequence.get_by_datetime(dt1)
         assert retrieved_record.data_value == 0.9  # Record should have merged with new value
 
-    async def test_key_to_series(self, sequence):
+    async def test_key_to_raw_series(self, sequence):
         dt = to_datetime(datetime(2023, 11, 6))
         record = self.create_test_record(dt, 0.8)
         await sequence.insert_by_datetime(record)
-        series = await sequence.key_to_series("data_value")
+        series = await sequence.key_to_raw_series("data_value")
         assert isinstance(series, pd.Series)
 
         retrieved_record = await sequence.get_by_datetime(dt)
@@ -228,7 +228,7 @@ class TestDataSequence:
         assert retrieved_record2 is not None
         assert retrieved_record2.data_value == 8.0
 
-        series = await sequence.key_to_series(
+        series = await sequence.key_to_raw_series(
             key="data_value", start_datetime=start_datetime, end_datetime=end_datetime
         )
         assert len(series) == 2
@@ -427,6 +427,34 @@ class TestDataSequence:
                 fill_method="invalid",
             )
 
+    async def test_key_to_array_resample_first(self, sequence):
+        """Test that resample_method='first' returns the first sample in each interval."""
+        interval = to_duration("1 hour")
+
+        for minute, value in (
+            (0, 1.0),
+            (15, 2.0),
+            (30, 3.0),
+            (45, 4.0),
+        ):
+            await sequence.insert_by_datetime(
+                self.create_test_record(
+                    pendulum.datetime(2023, 11, 6, 0, minute),
+                    value,
+                )
+            )
+
+        array = await sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6, 0),
+            end_datetime=pendulum.datetime(2023, 11, 6, 1),
+            interval=interval,
+            resample_method="first",
+        )
+
+        assert len(array) == 1
+        assert array[0] == 1.0
+
     async def test_key_to_array_resample_mean(self, sequence):
         """Test that numeric resampling uses mean when multiple values fall into one interval."""
         interval = to_duration("1 hour")
@@ -447,12 +475,77 @@ class TestDataSequence:
             start_datetime=pendulum.datetime(2023, 11, 6, 0),
             end_datetime=pendulum.datetime(2023, 11, 6, 1),
             interval=interval,
+            resample_method="mean",
         )
 
         assert isinstance(array, np.ndarray)
         assert len(array) == 1  # one interval: 0:00-1:00
         # The first interval mean = (1+2+3+4)/4 = 2.5
         assert array[0] == pytest.approx(2.5)
+
+    async def test_key_to_array_resample_interval_mean(self, sequence):
+        """Test that interval_mean computes a time-weighted mean."""
+
+        interval = to_duration("1 hour")
+
+        await sequence.insert_by_datetime(
+            self.create_test_record(
+                pendulum.datetime(2023, 11, 6, 0, 0),
+                10.0,
+            )
+        )
+        await sequence.insert_by_datetime(
+            self.create_test_record(
+                pendulum.datetime(2023, 11, 6, 0, 45),
+                20.0,
+            )
+        )
+        await sequence.insert_by_datetime(
+            self.create_test_record(
+                pendulum.datetime(2023, 11, 6, 1, 0),
+                20.0,
+            )
+        )
+
+        array = await sequence.key_to_array(
+            key="data_value",
+            start_datetime=pendulum.datetime(2023, 11, 6, 0),
+            end_datetime=pendulum.datetime(2023, 11, 6, 1),
+            interval=interval,
+            resample_method="interval_mean",
+            fill_method="none",
+        )
+
+        assert len(array) == 1
+
+        # 10 for 45 min, 20 for 15 min
+        expected = (10 * 45 + 20 * 15) / 60
+
+        assert array[0] == pytest.approx(expected)
+
+    async def test_key_to_array_invalid_resample_method(self, sequence):
+        """Test invalid resample_method raises an error."""
+
+        interval = to_duration("1 hour")
+
+        await sequence.insert_by_datetime(
+            self.create_test_record(
+                pendulum.datetime(2023, 11, 6),
+                1.0,
+            )
+        )
+
+        with pytest.raises(
+            ValueError,
+            match="Unsupported resample method: invalid",
+        ):
+            await sequence.key_to_array(
+                key="data_value",
+                start_datetime=pendulum.datetime(2023, 11, 6),
+                end_datetime=pendulum.datetime(2023, 11, 6, 1),
+                interval=interval,
+                resample_method="invalid",
+            )
 
     # ------------------------------------------------------------------
     # key_to_array — align_to_interval parameter
@@ -881,6 +974,44 @@ class TestDataSequence:
         dates, values = await sequence.key_to_lists("data_value")
         assert dates == [to_datetime(datetime(2023, 11, 5)), to_datetime(datetime(2023, 11, 6))]
         assert values == [0.8, 0.9]
+
+    async def test_key_to_dict_dropna_removes_nan(self, sequence):
+        """`dropna=True` (default) must drop records whose value is NaN, not just None."""
+        record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
+        record2 = self.create_test_record(datetime(2023, 11, 6), float("nan"))
+        record3 = self.create_test_record(datetime(2023, 11, 7), 0.9)
+        await sequence.insert_by_datetime(record1)
+        await sequence.insert_by_datetime(record2)
+        await sequence.insert_by_datetime(record3)
+
+        # Default dropna=True must drop the NaN record.
+        data_dict = await sequence.key_to_dict("data_value")
+        assert to_datetime(datetime(2023, 11, 6), as_string=True) not in data_dict
+        assert data_dict[to_datetime(datetime(2023, 11, 5), as_string=True)] == 0.8
+        assert data_dict[to_datetime(datetime(2023, 11, 7), as_string=True)] == 0.9
+
+        # With dropna=False the NaN record must be kept.
+        data_dict_keep = await sequence.key_to_dict("data_value", dropna=False)
+        assert pd.isna(data_dict_keep[to_datetime(datetime(2023, 11, 6), as_string=True)])
+
+    async def test_key_to_lists_dropna_removes_nan(self, sequence):
+        """`dropna=True` (default) must drop records whose value is NaN, not just None."""
+        record1 = self.create_test_record(datetime(2023, 11, 5), 0.8)
+        record2 = self.create_test_record(datetime(2023, 11, 6), float("nan"))
+        record3 = self.create_test_record(datetime(2023, 11, 7), 0.9)
+        await sequence.insert_by_datetime(record1)
+        await sequence.insert_by_datetime(record2)
+        await sequence.insert_by_datetime(record3)
+
+        # Default dropna=True must drop the NaN record.
+        dates, values = await sequence.key_to_lists("data_value")
+        assert dates == [to_datetime(datetime(2023, 11, 5)), to_datetime(datetime(2023, 11, 7))]
+        assert values == [0.8, 0.9]
+
+        # With dropna=False the NaN record must be kept.
+        dates_keep, values_keep = await sequence.key_to_lists("data_value", dropna=False)
+        assert len(values_keep) == 3
+        assert pd.isna(values_keep[1])
 
     async def test_to_dataframe_full_data(self, sequence):
         """Test conversion of all records to a DataFrame without filtering."""

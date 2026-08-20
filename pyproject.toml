@@ -84,6 +84,7 @@ dev = [
     "pytest-cov==7.1.0",
     "pytest-xprocess==1.0.2",
     "coverage==7.15.2",
+    "pypdf==6.14.2",
 ]
 
 [project.urls]
@@ -163,6 +164,7 @@ markers = [
 
 [tool.mypy]
 mypy_path= "src"
+platform = "linux"
 files = ["src", "tests"]
 exclude = "class_soc_calc\\.py$"
 check_untyped_defs = true

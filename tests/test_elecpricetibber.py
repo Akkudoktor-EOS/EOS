@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pandas as pd
 import pytest
+import pytest_asyncio
 
 from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.prediction.elecprice import ElecPriceCommonSettings
@@ -392,7 +393,7 @@ class TestElecPriceTibber:
         assert forecast_call["forecast_slots"] == 22
 
         # (a)+(c) Stored records keep the native 15-min grid across today and the forecast.
-        stored = await tibber_provider.key_to_series(
+        stored = await tibber_provider.key_to_raw_series(
             "elecprice_marketprice_wh",
             start_datetime=to_datetime("2026-07-09T00:00:00+00:00"),
             end_datetime=to_datetime("2026-07-09T06:15:00+00:00"),

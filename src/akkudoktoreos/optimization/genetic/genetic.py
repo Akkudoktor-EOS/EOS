@@ -435,7 +435,9 @@ class GeneticOptimization(OptimizationBase):
     ):
         """Initialize the optimization problem with the required parameters."""
         self.opti_param: dict[str, Any] = {}
-        self.fixed_ev_hours = self.config.prediction.hours - self.config.optimization.horizon_hours
+        self.fixed_ev_hours = (
+            self.config.prediction.hours - self.config.optimization.genetic.horizon_hours
+        )
         self.ev_possible_charge_values: list[float] = [1.0]
         # Separate charge-level list for battery AC charging (independent of EV rates).
         # Populated from parameters.pv_battery.charge_rates in optimize_ems.
@@ -1148,7 +1150,7 @@ class GeneticOptimization(OptimizationBase):
         dishwasher = (
             HomeAppliance(
                 parameters=parameters.dishwasher,
-                optimization_hours=self.config.optimization.horizon_hours,
+                optimization_hours=self.config.optimization.genetic.horizon_hours,
                 prediction_hours=self.config.prediction.hours,
             )
             if parameters.dishwasher is not None
@@ -1166,7 +1168,7 @@ class GeneticOptimization(OptimizationBase):
         # Prepare device simulation
         self.simulation.prepare(
             parameters=parameters.ems,
-            optimization_hours=self.config.optimization.horizon_hours,
+            optimization_hours=self.config.optimization.genetic.horizon_hours,
             prediction_hours=self.config.prediction.hours,
             inverter=inverter,  # battery is part of inverter
             ev=ev,
@@ -1219,39 +1221,20 @@ class GeneticOptimization(OptimizationBase):
         else:
             discharge = discharge.tolist()
 
-        # Visualize the results in PDF
-        try:
-            from akkudoktoreos.utils.visualize import prepare_visualize
-
-            visualize = {
-                "ac_charge": ac_charge_hours,
-                "dc_charge": dc_charge_hours,
-                "discharge_allowed": discharge,
-                "ev_charge_hours_float": ev_charge_hours_float,
-                "result": GeneticSimulationResult(**simulation_result).model_dump(),
-                "ev_obj": self.simulation.ev.to_dict() if self.simulation.ev else None,
-                "start_solution": start_solution,
-                "washingstart": washingstart_int,
-                "extra_data": extra_data,
-                "fitness_history": self.fitness_history,
-                "fixed_seed": self.fix_seed,
-            }
-
-            prepare_visualize(parameters, visualize, start_hour=start_hour)
-
-        except Exception as ex:
-            error_msg = f"Visualization failed: {ex}"
-            logger.error(error_msg)
-
         return GeneticSolution(
             **{
+                "parameters": parameters,
                 "ac_charge": ac_charge_hours,
                 "dc_charge": dc_charge_hours,
                 "discharge_allowed": discharge,
                 "ev_charge_hours_float": ev_charge_hours_float,
                 "result": GeneticSimulationResult(**simulation_result),
                 "ev_obj": self.simulation.ev,
+                "start_hour": start_hour,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,
+                "extra_data": extra_data,
+                "fitness_history": self.fitness_history,
+                "fixed_seed": self.fix_seed,
             }
         )

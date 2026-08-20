@@ -45,7 +45,13 @@ class TestSystem:
             result = requests.post(f"{server}/v1/prediction/update/BrightSky")
             assert result.status_code == HTTPStatus.OK
 
-            result = requests.get(f"{server}/v1/prediction/series?key=weather_temp_air")
+            result = requests.get(
+                f"{server}/v1/prediction/series",
+                params={
+                    "key": "weather_temp_air",
+                    "processing": "raw",
+                }
+            )
             assert result.status_code == HTTPStatus.OK
 
             data = result.json()
@@ -72,7 +78,13 @@ class TestSystem:
             result = requests.post(f"{server}/v1/prediction/update/ClearOutside")
             assert result.status_code == HTTPStatus.OK, f"Failed: {result.headers} {result.text}"
 
-            result = requests.get(f"{server}/v1/prediction/series?key=weather_temp_air")
+            result = requests.get(
+                f"{server}/v1/prediction/series",
+                params={
+                    "key": "weather_temp_air",
+                    "processing": "raw",
+                }
+            )
             assert result.status_code == HTTPStatus.OK
 
             data = result.json()
@@ -103,7 +115,13 @@ class TestSystem:
             result = requests.post(f"{server}/v1/prediction/update/PVForecastAkkudoktor")
             assert result.status_code == HTTPStatus.OK, f"Failed: {result.headers} {result.text}"
 
-            result = requests.get(f"{server}/v1/prediction/series?key=pvforecast_ac_power")
+            result = requests.get(
+                f"{server}/v1/prediction/series",
+                params={
+                    "key": "pvforecast_ac_power",
+                    "processing": "raw",
+                }
+            )
             assert result.status_code == HTTPStatus.OK
 
             data = result.json()
@@ -134,7 +152,13 @@ class TestSystem:
             result = requests.post(f"{server}/v1/prediction/update/ElecPriceAkkudoktor")
             assert result.status_code == HTTPStatus.OK
 
-            result = requests.get(f"{server}/v1/prediction/series?key=elecprice_marketprice_wh")
+            result = requests.get(
+                f"{server}/v1/prediction/series",
+                params={
+                    "key": "elecprice_marketprice_wh",
+                    "processing": "raw",
+                }
+            )
             assert result.status_code == HTTPStatus.OK
 
             data = result.json()
@@ -161,7 +185,13 @@ class TestSystem:
             result = requests.post(f"{server}/v1/prediction/update/LoadAkkudoktor")
             assert result.status_code == HTTPStatus.OK
 
-            result = requests.get(f"{server}/v1/prediction/series?key=loadforecast_power_w")
+            result = requests.get(
+                f"{server}/v1/prediction/series",
+                params={
+                    "key": "loadforecast_power_w",
+                    "processing": "raw",
+                }
+            )
             assert result.status_code == HTTPStatus.OK
 
             data = result.json()
@@ -318,7 +348,13 @@ class TestSystem:
         # ----------------------------------------------------------------------
         # 4. GET /v1/measurement/series
         # ----------------------------------------------------------------------
-        result = requests.get(f"{server}/v1/measurement/series", params={"key": "pv1_emr"})
+        result = requests.get(
+            f"{server}/v1/measurement/series",
+            params={
+                "key": "pv1_emr",
+                "processing": "raw",
+            }
+        )
         assert result.status_code == HTTPStatus.OK, f"Failed to GET series: {result.text}"
 
         series_response = result.json()
@@ -330,7 +366,11 @@ class TestSystem:
 
         # Non-existent key must be rejected
         result = requests.get(
-            f"{server}/v1/measurement/series", params={"key": "non_existent_key"}
+            f"{server}/v1/measurement/series",
+            params={
+                "key": "non_existent_key",
+                "processing": "raw",
+            }
         )
         assert result.status_code == HTTPStatus.NOT_FOUND, (
             f"Expected 404 for unknown series key, got {result.status_code}"
@@ -362,7 +402,13 @@ class TestSystem:
         assert len(series_response["data"]) >= 3
 
         # Verify the data round-trips correctly
-        result = requests.get(f"{server}/v1/measurement/series", params={"key": "pv2_emr"})
+        result = requests.get(
+            f"{server}/v1/measurement/series",
+            params={
+                "key": "pv2_emr",
+                "processing": "raw",
+            }
+        )
         assert result.status_code == HTTPStatus.OK
         fetched = result.json()
         fetched_values = list(fetched["data"].values())
@@ -400,7 +446,13 @@ class TestSystem:
 
         # Verify data was loaded for both columns
         for key in ("pv1_emr", "load1_emr"):
-            result = requests.get(f"{server}/v1/measurement/series", params={"key": key})
+            result = requests.get(
+                f"{server}/v1/measurement/series",
+                params={
+                    "key": key,
+                    "processing": "raw",
+                }
+            )
             assert result.status_code == HTTPStatus.OK, f"Failed to verify series for {key}"
             series_response = result.json()
             assert len(series_response["data"]) >= 3, f"Expected >=3 data points for {key}"
@@ -443,7 +495,13 @@ class TestSystem:
             ("load1_emr", [60.5, 55.3]),
             ("pv2_emr", [150.8, 175.2]),
         ):
-            result = requests.get(f"{server}/v1/measurement/series", params={"key": key})
+            result = requests.get(
+                f"{server}/v1/measurement/series",
+                params={
+                    "key": key,
+                    "processing": "raw",
+                }
+            )
             assert result.status_code == HTTPStatus.OK, f"Failed to verify {key} after data PUT"
             fetched = result.json()
             fetched_values = list(fetched["data"].values())
@@ -581,7 +639,10 @@ class TestSystem:
         # ----------------------------------------------------------------------
         result = requests.get(
             f"{server}/v1/measurement/series",
-            params={"key": "pv1_emr_kwh"},
+            params={
+                "key": "pv1_emr_kwh",
+                "processing": "raw",
+            },
         )
         assert result.status_code == HTTPStatus.OK
 
@@ -727,7 +788,10 @@ class TestSystem:
         # ----------------------------------------------------------------------
         result = requests.get(
             f"{server}/v1/measurement/series",
-            params={"key": "pv1_emr_kwh"},
+            params={
+                "key": "pv1_emr_kwh",
+                "processing": "raw",
+            },
         )
         assert result.status_code == HTTPStatus.OK
 
@@ -786,3 +850,49 @@ class TestSystem:
             assert result.status_code == HTTPStatus.OK
             cache = result.json()
             assert cache == {}
+
+    def test_deprecated_strompreis(self, server_setup_for_class, is_system_test):
+        """Test deprecated /strompreis endpoint.
+
+        Deprecated /strompreis aggregates 15-minute spot prices to hourly means.
+        """
+        server = server_setup_for_class["server"]
+        eos_dir = server_setup_for_class["eos_dir"]
+        start_datetime = to_datetime().start_of("day")
+        end_datetime = start_datetime.add(days=2)
+
+        # Reset electricity market price
+        result = requests.delete(
+            f"{server}/v1/prediction/range",
+            params = {
+                "key": "elecprice_marketprice_wh",
+            }
+        )
+        assert result.status_code in (HTTPStatus.OK, HTTPStatus.NOT_FOUND)
+
+        if not is_system_test:
+            return
+
+        # Call /strompreis
+        result = requests.get(f"{server}/strompreis")
+        assert result.status_code == HTTPStatus.OK
+
+        strompreis_data = result.json()
+        assert len(strompreis_data) == 48
+
+        # Get the same data by v1 interface
+        result = requests.get(
+            f"{server}/v1/prediction/list",
+            params = {
+                "key": "elecprice_marketprice_wh",
+                "start_datetime": to_datetime(start_datetime, as_string=True),
+                "end_datetime": to_datetime(end_datetime, as_string=True),
+                "interval" : "1 hour",
+                "fill_method" : "ffill",
+                "resample_method" : "interval_mean",
+            }
+        )
+        assert result.status_code == HTTPStatus.OK
+
+        v1_data = result.json()
+        assert strompreis_data == pytest.approx(v1_data)

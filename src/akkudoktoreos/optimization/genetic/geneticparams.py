@@ -247,17 +247,18 @@ class GeneticOptimizationParameters(
             logger.info("Prediction historic hours unknown - defaulting to 24 hours.")
             cls.config.prediction.historic_hours = 24
         # Check optimization definitions
-        if cls.config.optimization.horizon_hours is None:
+        if cls.config.optimization.genetic.horizon_hours is None:
             logger.info("Optimization horizon unknown - defaulting to 24 hours.")
-            cls.config.optimization.horizon_hours = 24
-        if cls.config.optimization.interval is None:
+            cls.config.optimization.genetic.horizon_hours = 24
+        if cls.config.optimization.genetic.interval_sec is None:
             logger.info("Optimization interval unknown - defaulting to 3600 seconds.")
-            cls.config.optimization.interval = 3600
-        if cls.config.optimization.interval != 3600:
+            cls.config.optimization.genetic.interval_sec = 3600
+        if cls.config.optimization.genetic.interval_sec != 3600:
             logger.info(
-                "Optimization interval '{}' seconds not supported - forced to 3600 seconds."
+                f"Optimization interval '{cls.config.optimization.genetic.interval_sec}' seconds "
+                "not supported - forced to 3600 seconds."
             )
-            cls.config.optimization.interval = 3600
+            cls.config.optimization.genetic.interval_sec = 3600
         # Check genetic algorithm definitions
         if cls.config.optimization.genetic.individuals is None:
             logger.info("Genetic individuals unknown - defaulting to 300.")
@@ -276,8 +277,8 @@ class GeneticOptimizationParameters(
             start_solution = last_solution.start_solution
 
         # Add forecast and device data
-        interval = to_duration(cls.config.optimization.interval)
-        power_to_energy_per_interval_factor = cls.config.optimization.interval / 3600
+        interval = to_duration(cls.config.optimization.genetic.interval_sec)
+        power_to_energy_per_interval_factor = cls.config.optimization.genetic.interval_sec / 3600
         parameter_start_datetime = ems.start_datetime.set(hour=0, second=0, microsecond=0)
         parameter_end_datetime = parameter_start_datetime.add(hours=cls.config.prediction.hours)
         max_retries = 10
@@ -292,6 +293,24 @@ class GeneticOptimizationParameters(
             # Assure predictions are uptodate
             await cls.prediction.update_data()
 
+            try:  # Try first - predition is also needed by the default PV forecast
+                array = await cls.prediction.key_to_array(
+                    key="weather_temp_air",
+                    start_datetime=parameter_start_datetime,
+                    end_datetime=parameter_end_datetime,
+                    interval=interval,
+                    fill_method="ffill",
+                )
+                weather_temp_air = array.tolist()
+            except Exception as e:
+                logger.info(
+                    "No weather forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
+                    attempt,
+                    e,
+                )
+                cls.config.weather.provider = "OpenMeteo"
+                # Retry
+                continue
             try:
                 array = await cls.prediction.key_to_array(
                     key="pvforecast_ac_power",
@@ -310,36 +329,52 @@ class GeneticOptimizationParameters(
                 cls.config.merge_settings_from_dict(
                     {
                         "pvforecast": {
-                            "provider": "PVForecastAkkudoktor",
+                            "provider": "PVForecastPVLib",
                             "max_planes": 4,
                             "planes": [
                                 {
-                                    "peakpower": 5.0,
+                                    "surface_tilt": 7,
                                     "surface_azimuth": 170,
-                                    "surface_tilt": 7,
                                     "userhorizon": [20, 27, 22, 20],
+                                    "peakpower": 5.0,
+                                    "module_model": "AXITEC_AC_410MH_144S",
+                                    "inverter_model": "Sungrow__SH25T",
                                     "inverter_paco": 10000,
+                                    "modules_per_string": 12,
+                                    "strings_per_inverter": 1,
                                 },
                                 {
-                                    "peakpower": 4.8,
-                                    "surface_azimuth": 90,
                                     "surface_tilt": 7,
+                                    "surface_azimuth": 90,
                                     "userhorizon": [30, 30, 30, 50],
+                                    "peakpower": 4.8,
+                                    "module_model": "AXITEC_AC_410MH_144S",
+                                    "inverter_model": "Sungrow__SH25T",
                                     "inverter_paco": 10000,
+                                    "modules_per_string": 12,
+                                    "strings_per_inverter": 1,
                                 },
                                 {
-                                    "peakpower": 1.4,
-                                    "surface_azimuth": 140,
                                     "surface_tilt": 60,
+                                    "surface_azimuth": 140,
                                     "userhorizon": [60, 30, 0, 30],
+                                    "peakpower": 1.4,
+                                    "module_model": "AXITEC_AC_410MH_144S",
+                                    "inverter_model": "Sungrow__SH25T",
                                     "inverter_paco": 2000,
+                                    "modules_per_string": 5,
+                                    "strings_per_inverter": 1,
                                 },
                                 {
-                                    "peakpower": 1.6,
-                                    "surface_azimuth": 185,
                                     "surface_tilt": 45,
+                                    "surface_azimuth": 185,
                                     "userhorizon": [45, 25, 30, 60],
+                                    "peakpower": 1.6,
+                                    "module_model": "AXITEC_AC_410MH_144S",
+                                    "inverter_model": "Sungrow__SH25T",
                                     "inverter_paco": 1400,
+                                    "modules_per_string": 4,
+                                    "strings_per_inverter": 1,
                                 },
                             ],
                         },
@@ -362,7 +397,24 @@ class GeneticOptimizationParameters(
                     attempt,
                     e,
                 )
-                cls.config.elecprice.provider = "ElecPriceAkkudoktor"
+                cls.config.merge_settings_from_dict(
+                    {
+                        "elecprice": {
+                            "elecpricefixed": {
+                                "time_windows": {
+                                    "windows": [
+                                        {
+                                            "duration": "1 day",
+                                            "start_time": "00:00:00.000000",
+                                            "value": 0.288,
+                                        }
+                                    ]
+                                }
+                            },
+                            "provider": "ElecPriceFixed",
+                        },
+                    },
+                )
                 # Retry
                 continue
             try:
@@ -417,24 +469,6 @@ class GeneticOptimizationParameters(
                         },
                     }
                 )
-                # Retry
-                continue
-            try:
-                array = await cls.prediction.key_to_array(
-                    key="weather_temp_air",
-                    start_datetime=parameter_start_datetime,
-                    end_datetime=parameter_end_datetime,
-                    interval=interval,
-                    fill_method="ffill",
-                )
-                weather_temp_air = array.tolist()
-            except Exception as e:
-                logger.info(
-                    "No weather forecast data available - defaulting to demo data. Parameter preparation attempt {}: {}",
-                    attempt,
-                    e,
-                )
-                cls.config.weather.provider = "BrightSky"
                 # Retry
                 continue
 

@@ -45,15 +45,15 @@ help:
 	@echo "  prepare-version - Prepare a version defined in setup.py."
 
 # Target to create a version.txt
+# Uses pure python write to version.txt to circumvent Windows specific echo handling (which fails).
+.PHONY: version-txt
 version-txt:
-	# Get the version from the package for setuptools (and pip)
-	VERSION=$$(${PYTHON} scripts/get_version.py)
-	@echo "$(VERSION)" > version.txt
+	@$(PYTHON) -c "from pathlib import Path; Path('version.txt').write_text('$(VERSION)', encoding='utf-8')"
 	@echo "version.txt set to '$(VERSION)'."
 
 # Target to install EOS in editable form (development mode) into virtual environment.
+# Upgrades installation and dependencies
 install: version-txt
-	# Upgrade installation and dependencies
 	$(UV) sync --extra dev
 	@echo "EOS version $(VERSION) installed in editable form (development mode)."
 

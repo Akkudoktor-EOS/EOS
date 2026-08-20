@@ -266,7 +266,7 @@ class TestAcChargingInSimulation:
                     preis_euro_pro_wh_akku=0.0001,
                     gesamtlast=[1000.0] * prediction_hours,  # 1 kW constant load
                 ),
-                optimization_hours=config_eos.optimization.horizon_hours,
+                optimization_hours=config_eos.optimization.genetic.horizon_hours,
                 prediction_hours=prediction_hours,
                 inverter=inverter,
                 ev=None,

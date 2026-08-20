@@ -7,9 +7,10 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| console_level | `EOS_LOGGING__CONSOLE_LEVEL` | `Optional[str]` | `rw` | `None` | Logging level when logging to console. |
-| file_level | `EOS_LOGGING__FILE_LEVEL` | `Optional[str]` | `rw` | `None` | Logging level when logging to file. |
-| file_path | | `Optional[pathlib.Path]` | `ro` | `N/A` | Computed log file path based on data output path. |
+| api_level | `EOS_LOGGING__API_LEVEL` | `str | None` | `rw` | `None` | Logging level for API response. |
+| console_level | `EOS_LOGGING__CONSOLE_LEVEL` | `str | None` | `rw` | `None` | Logging level for logging to console. |
+| file_level | `EOS_LOGGING__FILE_LEVEL` | `str | None` | `rw` | `None` | Logging level for logging to file. |
+| file_path | | `pathlib.Path | None` | `ro` | `N/A` | Computed log file path based on data output path. |
 :::
 <!-- pyml enable line-length -->
 
@@ -21,6 +22,7 @@
 ```json
    {
        "logging": {
+           "api_level": "TRACE",
            "console_level": "TRACE",
            "file_level": "TRACE"
        }
@@ -36,6 +38,7 @@
 ```json
    {
        "logging": {
+           "api_level": "TRACE",
            "console_level": "TRACE",
            "file_level": "TRACE",
            "file_path": "/home/user/.local/share/net.akkudoktor.eos/output/eos.log"

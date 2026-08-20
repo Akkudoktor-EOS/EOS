@@ -129,6 +129,13 @@
            "feedintariffimport": {
                "import_file_path": null,
                "import_json": null
+           },
+           "dvhubonline": {
+               "base_url": "https://dvhub.online",
+               "zone": "DE-LU"
+           },
+           "energycharts": {
+               "bidding_zone": "DE-LU"
            }
        },
        "general": {
@@ -155,6 +162,7 @@
            }
        },
        "logging": {
+           "api_level": "TRACE",
            "console_level": "TRACE",
            "file_level": "TRACE"
        },
@@ -174,10 +182,19 @@
            ]
        },
        "optimization": {
-           "horizon_hours": 24,
-           "interval": 3600,
            "algorithm": "GENETIC",
            "genetic": {
+               "interval_sec": 3600,
+               "horizon_hours": 24,
+               "individuals": 400,
+               "generations": 400,
+               "seed": null,
+               "penalties": {
+                   "ev_soc_miss": 10
+               }
+           },
+           "genetic0": {
+               "horizon_hours": 24,
                "individuals": 400,
                "generations": 400,
                "seed": null,
@@ -200,6 +217,7 @@
                "token": "your-token",
                "site_id": 12345
            },
+           "pvlib": {},
            "pvnode": {
                "api_key": "",
                "site_id": null,

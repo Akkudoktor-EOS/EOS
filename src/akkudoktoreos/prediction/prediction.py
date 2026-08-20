@@ -36,8 +36,12 @@ from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibber
+from akkudoktoreos.prediction.feedintariffakkudoktor import FeedInTariffAkkudoktor
+from akkudoktoreos.prediction.feedintariffdvhubonline import FeedInTariffDvhubOnline
+from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
+from akkudoktoreos.prediction.feedintarifftibber import FeedInTariffTibber
 from akkudoktoreos.prediction.loadakkudoktor import (
     LoadAkkudoktor,
     LoadAkkudoktorAdjusted,
@@ -48,6 +52,7 @@ from akkudoktoreos.prediction.predictionabc import PredictionContainer
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
+from akkudoktoreos.prediction.pvforecastpvlib import PVForecastPVLib
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNode
 from akkudoktoreos.prediction.pvforecastsolcast import PVForecastSolcast
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
@@ -81,14 +86,19 @@ elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
 elecprice_tibber = ElecPriceTibber()
+feedintariff_akkudoktor = FeedInTariffAkkudoktor()
+feedintariff_dvhubonline = FeedInTariffDvhubOnline()
+feedintariff_energy_charts = FeedInTariffEnergyCharts()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
+feedintariff_tibber = FeedInTariffTibber()
 loadforecast_akkudoktor = LoadAkkudoktor()
 loadforecast_akkudoktor_adjusted = LoadAkkudoktorAdjusted()
 loadforecast_vrm = LoadVrm()
 loadforecast_import = LoadImport()
 pvforecast_akkudoktor = PVForecastAkkudoktor()
 pvforecast_vrm = PVForecastVrm()
+pvforecast_pvlib = PVForecastPVLib()
 pvforecast_pvnode = PVForecastPVNode()
 pvforecast_forecastsolar = PVForecastForecastSolar()
 pvforecast_solcast = PVForecastSolcast()
@@ -106,22 +116,27 @@ def prediction_providers() -> list[
         ElecPriceFixed,
         ElecPriceImport,
         ElecPriceTibber,
+        FeedInTariffAkkudoktor,
+        FeedInTariffDvhubOnline,
+        FeedInTariffEnergyCharts,
         FeedInTariffFixed,
         FeedInTariffImport,
+        FeedInTariffTibber,
         LoadAkkudoktor,
         LoadAkkudoktorAdjusted,
-        LoadVrm,
         LoadImport,
+        LoadVrm,
         PVForecastAkkudoktor,
-        PVForecastVrm,
-        PVForecastPVNode,
         PVForecastForecastSolar,
-        PVForecastSolcast,
         PVForecastImport,
+        PVForecastPVLib,
+        PVForecastPVNode,
+        PVForecastSolcast,
+        PVForecastVrm,
         WeatherBrightSky,
         WeatherClearOutside,
-        WeatherOpenMeteo,
         WeatherImport,
+        WeatherOpenMeteo,
     ]
 ]:
     """Return list of prediction providers.
@@ -134,14 +149,19 @@ def prediction_providers() -> list[
         elecprice_fixed, \
         elecprice_import, \
         elecprice_tibber, \
+        feedintariff_akkudoktor, \
+        feedintariff_dvhubonline, \
+        feedintariff_energy_charts, \
         feedintariff_fixed, \
         feedintariff_import, \
+        feedintariff_tibber, \
         loadforecast_akkudoktor, \
         loadforecast_akkudoktor_adjusted, \
         loadforecast_vrm, \
         loadforecast_import, \
         pvforecast_akkudoktor, \
         pvforecast_vrm, \
+        pvforecast_pvlib, \
         pvforecast_pvnode, \
         pvforecast_forecastsolar, \
         pvforecast_solcast, \
@@ -152,28 +172,36 @@ def prediction_providers() -> list[
         weather_import
 
     # Care for provider sequence as providers may rely on others to be updated before.
+    #
+    # Inter provider dependencies:
+    # - pvforecast_pvlib depends on weather
     return [
+        weather_brightsky,  # weather maybe needed by the pvforcast, keep it before
+        weather_clearoutside,
+        weather_import,
+        weather_openmeteo,
         elecprice_akkudoktor,
         elecprice_energy_charts,
         elecprice_fixed,
         elecprice_import,
         elecprice_tibber,
+        feedintariff_akkudoktor,
+        feedintariff_dvhubonline,
+        feedintariff_energy_charts,
         feedintariff_fixed,
         feedintariff_import,
+        feedintariff_tibber,
         loadforecast_akkudoktor,
         loadforecast_akkudoktor_adjusted,
-        loadforecast_vrm,
         loadforecast_import,
+        loadforecast_vrm,
         pvforecast_akkudoktor,
-        pvforecast_vrm,
-        pvforecast_pvnode,
         pvforecast_forecastsolar,
-        pvforecast_solcast,
         pvforecast_import,
-        weather_brightsky,
-        weather_clearoutside,
-        weather_openmeteo,
-        weather_import,
+        pvforecast_pvlib,
+        pvforecast_pvnode,
+        pvforecast_solcast,
+        pvforecast_vrm,
     ]
 
 
@@ -187,22 +215,27 @@ class Prediction(PredictionContainer):
             ElecPriceFixed,
             ElecPriceImport,
             ElecPriceTibber,
+            FeedInTariffAkkudoktor,
+            FeedInTariffDvhubOnline,
+            FeedInTariffEnergyCharts,
             FeedInTariffFixed,
             FeedInTariffImport,
+            FeedInTariffTibber,
             LoadAkkudoktor,
             LoadAkkudoktorAdjusted,
-            LoadVrm,
             LoadImport,
+            LoadVrm,
             PVForecastAkkudoktor,
-            PVForecastVrm,
-            PVForecastPVNode,
             PVForecastForecastSolar,
-            PVForecastSolcast,
             PVForecastImport,
+            PVForecastPVLib,
+            PVForecastPVNode,
+            PVForecastSolcast,
+            PVForecastVrm,
             WeatherBrightSky,
             WeatherClearOutside,
-            WeatherOpenMeteo,
             WeatherImport,
+            WeatherOpenMeteo,
         ]
     ] = Field(
         default_factory=prediction_providers,

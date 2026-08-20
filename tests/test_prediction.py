@@ -7,8 +7,12 @@ from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
 from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibber
+from akkudoktoreos.prediction.feedintariffakkudoktor import FeedInTariffAkkudoktor
+from akkudoktoreos.prediction.feedintariffdvhubonline import FeedInTariffDvhubOnline
+from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
+from akkudoktoreos.prediction.feedintarifftibber import FeedInTariffTibber
 from akkudoktoreos.prediction.loadakkudoktor import (
     LoadAkkudoktor,
     LoadAkkudoktorAdjusted,
@@ -22,6 +26,7 @@ from akkudoktoreos.prediction.prediction import (
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
+from akkudoktoreos.prediction.pvforecastpvlib import PVForecastPVLib
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNode
 from akkudoktoreos.prediction.pvforecastsolcast import PVForecastSolcast
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
@@ -41,27 +46,32 @@ def prediction():
 def forecast_providers():
     """Fixture for singleton forecast provider instances."""
     return [
+        WeatherBrightSky(),
+        WeatherClearOutside(),
+        WeatherImport(),
+        WeatherOpenMeteo(),
         ElecPriceAkkudoktor(),
         ElecPriceEnergyCharts(),
         ElecPriceFixed(),
         ElecPriceImport(),
         ElecPriceTibber(),
+        FeedInTariffAkkudoktor(),
+        FeedInTariffDvhubOnline(),
+        FeedInTariffEnergyCharts(),
         FeedInTariffFixed(),
         FeedInTariffImport(),
+        FeedInTariffTibber(),
         LoadAkkudoktor(),
         LoadAkkudoktorAdjusted(),
-        LoadVrm(),
         LoadImport(),
+        LoadVrm(),
         PVForecastAkkudoktor(),
-        PVForecastVrm(),
-        PVForecastPVNode(),
         PVForecastForecastSolar(),
-        PVForecastSolcast(),
         PVForecastImport(),
-        WeatherBrightSky(),
-        WeatherClearOutside(),
-        WeatherOpenMeteo(),
-        WeatherImport(),
+        PVForecastPVLib(),
+        PVForecastPVNode(),
+        PVForecastSolcast(),
+        PVForecastVrm(),
     ]
 
 
@@ -94,27 +104,32 @@ def test_initialization(prediction, forecast_providers):
 
 def test_provider_sequence(prediction):
     """Test the provider sequence is maintained in the Prediction instance."""
-    assert isinstance(prediction.providers[0], ElecPriceAkkudoktor)
-    assert isinstance(prediction.providers[1], ElecPriceEnergyCharts)
-    assert isinstance(prediction.providers[2], ElecPriceFixed)
-    assert isinstance(prediction.providers[3], ElecPriceImport)
-    assert isinstance(prediction.providers[4], ElecPriceTibber)
-    assert isinstance(prediction.providers[5], FeedInTariffFixed)
-    assert isinstance(prediction.providers[6], FeedInTariffImport)
-    assert isinstance(prediction.providers[7], LoadAkkudoktor)
-    assert isinstance(prediction.providers[8], LoadAkkudoktorAdjusted)
-    assert isinstance(prediction.providers[9], LoadVrm)
-    assert isinstance(prediction.providers[10], LoadImport)
-    assert isinstance(prediction.providers[11], PVForecastAkkudoktor)
-    assert isinstance(prediction.providers[12], PVForecastVrm)
-    assert isinstance(prediction.providers[13], PVForecastPVNode)
-    assert isinstance(prediction.providers[14], PVForecastForecastSolar)
-    assert isinstance(prediction.providers[15], PVForecastSolcast)
-    assert isinstance(prediction.providers[16], PVForecastImport)
-    assert isinstance(prediction.providers[17], WeatherBrightSky)
-    assert isinstance(prediction.providers[18], WeatherClearOutside)
-    assert isinstance(prediction.providers[19], WeatherOpenMeteo)
-    assert isinstance(prediction.providers[20], WeatherImport)
+    assert isinstance(prediction.providers[0], WeatherBrightSky)
+    assert isinstance(prediction.providers[1], WeatherClearOutside)
+    assert isinstance(prediction.providers[2], WeatherImport)
+    assert isinstance(prediction.providers[3], WeatherOpenMeteo)
+    assert isinstance(prediction.providers[4], ElecPriceAkkudoktor)
+    assert isinstance(prediction.providers[5], ElecPriceEnergyCharts)
+    assert isinstance(prediction.providers[6], ElecPriceFixed)
+    assert isinstance(prediction.providers[7], ElecPriceImport)
+    assert isinstance(prediction.providers[8], ElecPriceTibber)
+    assert isinstance(prediction.providers[9], FeedInTariffAkkudoktor)
+    assert isinstance(prediction.providers[10], FeedInTariffDvhubOnline)
+    assert isinstance(prediction.providers[11], FeedInTariffEnergyCharts)
+    assert isinstance(prediction.providers[12], FeedInTariffFixed)
+    assert isinstance(prediction.providers[13], FeedInTariffImport)
+    assert isinstance(prediction.providers[14], FeedInTariffTibber)
+    assert isinstance(prediction.providers[15], LoadAkkudoktor)
+    assert isinstance(prediction.providers[16], LoadAkkudoktorAdjusted)
+    assert isinstance(prediction.providers[17], LoadImport)
+    assert isinstance(prediction.providers[18], LoadVrm)
+    assert isinstance(prediction.providers[19], PVForecastAkkudoktor)
+    assert isinstance(prediction.providers[20], PVForecastForecastSolar)
+    assert isinstance(prediction.providers[21], PVForecastImport)
+    assert isinstance(prediction.providers[22], PVForecastPVLib)
+    assert isinstance(prediction.providers[23], PVForecastPVNode)
+    assert isinstance(prediction.providers[24], PVForecastSolcast)
+    assert isinstance(prediction.providers[25], PVForecastVrm)
 
 
 def test_provider_by_id(prediction, forecast_providers):
@@ -132,18 +147,27 @@ def test_prediction_repr(prediction):
     assert "ElecPriceFixed" in result
     assert "ElecPriceImport" in result
     assert "ElecPriceTibber" in result
+    assert "FeedInTariffAkkudoktor" in result
+    assert "FeedInTariffDvhubOnline" in result
+    assert "FeedInTariffEnergyCharts" in result
     assert "FeedInTariffFixed" in result
     assert "FeedInTariffImport" in result
+    assert "FeedInTariffTibber" in result
     assert "LoadAkkudoktor" in result
-    assert "LoadVrm" in result
+    assert "LoadAkkudoktorAdjusted" in result
     assert "LoadImport" in result
+    assert "LoadVrm" in result
     assert "PVForecastAkkudoktor" in result
-    assert "PVForecastVrm" in result
+    assert "PVForecastForecastSolar" in result
     assert "PVForecastImport" in result
+    assert "PVForecastPVLib" in result
+    assert "PVForecastPVNode" in result
+    assert "PVForecastSolcast" in result
+    assert "PVForecastVrm" in result
     assert "WeatherBrightSky" in result
     assert "WeatherClearOutside" in result
-    assert "WeatherOpenMeteo" in result
     assert "WeatherImport" in result
+    assert "WeatherOpenMeteo" in result
 
 
 @pytest.mark.asyncio

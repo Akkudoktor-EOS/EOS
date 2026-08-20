@@ -55,6 +55,7 @@ Clone your fork locally and add the EOS upstream remote to track updates.
         git clone https://github.com/<YOURUSERNAME>/EOS.git
         cd EOS
         git remote add eos https://github.com/Akkudoktor-EOS/EOS.git
+        git config --global core.autocrlf false
 
   .. tab:: Linux
 
