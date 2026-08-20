@@ -77,9 +77,6 @@ repos:
         pass_filenames: false
 
       # Validate new commit messages before push (using Python wrapper)
-      - repo: local
-    hooks:
-      # Validate new commit messages before push (using Python wrapper)
       - id: commitizen-new-commits
         name: Commitizen (check new commits only, .venv aware)
         entry: scripts/cz_check_new_commits.py
