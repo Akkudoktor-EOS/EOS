@@ -295,6 +295,8 @@ def iter_docstrings(package_name: str):
                 # Methods of classes
                 if inspect.isclass(obj):
                     for _, meth in inspect.getmembers(obj, inspect.isfunction):
+                        if not getattr(meth, "__module__", "").startswith(package_name + "."):
+                            continue
                         if meth.__doc__:
                             yield f"{module.__name__}.{obj.__name__}.{meth.__name__}", inspect.getdoc(meth)
 
