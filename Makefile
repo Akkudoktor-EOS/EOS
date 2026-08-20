@@ -168,13 +168,13 @@ mypy:
 docker-run:
 	@echo "Build and run EOS docker container locally."
 	@echo "Persistent data (and config) in ${HOME}/.local/share/net.akkudoktor.eos"
-	@docker pull python:3.13.9-slim
+	@docker pull python:3.13.15-slim
 	@docker compose up --remove-orphans
 
 docker-build:
 	@echo "Build EOS docker container locally."
 	@echo "Persistent data (and config) in ${HOME}/.local/share/net.akkudoktor.eos"
-	@docker pull python:3.13.9-slim
+	@docker pull python:3.13.15-slim
 	@docker compose build
 
 # Propagete version info to all version files
