@@ -27,13 +27,10 @@ message style checks.
 
 ### Setup development environment
 
-Setup virtual environment, then activate virtual environment and install development dependencies.
+Use `uv` to create the virtual environment and install development dependencies.
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-pip install -e .
+uv sync --extra dev
 ```
 
 Install make to get access to helpful shortcuts (documentation generation, manual formatting, etc.).
@@ -61,14 +58,14 @@ Our code style checks use [`pre-commit`](https://pre-commit.com).
 To run formatting automatically before every commit:
 
 ```bash
-pre-commit install
-pre-commit install --hook-type commit-msg --hook-type pre-push
+uv run pre-commit install
+uv run pre-commit install --hook-type commit-msg --hook-type pre-push
 ```
 
 Or run them manually:
 
 ```bash
-pre-commit run --all-files
+uv run pre-commit run --all-files
 ```
 
 ### Tests
@@ -76,7 +73,7 @@ pre-commit run --all-files
 Use `pytest` to run tests locally:
 
 ```bash
-python -m pytest -vs --cov src --cov-report term-missing tests/
+uv run python -m pytest -vs --cov src --cov-report term-missing tests/
 ```
 
 ### Commit message style
