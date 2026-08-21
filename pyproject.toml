@@ -161,6 +161,11 @@ testpaths = [ "tests", ]
 markers = [
     "docker: marks tests that require a local Docker engine"
 ]
+filterwarnings = [
+    # pvlib may exercise SciPy's root solver at night/zero irradiance; the resulting
+    # PV output is explicitly verified as zero by integration tests.
+    "ignore:invalid value encountered in divide:RuntimeWarning:scipy\\.optimize\\._chandrupatla",
+]
 
 [tool.mypy]
 mypy_path= "src"
