@@ -21,7 +21,7 @@ repos:
 
   # --- Linting + Formatting via Ruff ---
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.21
+    rev: v0.16.3
     hooks:
       # Run the linter and fix simple isssues automatically
       - id: ruff
@@ -36,10 +36,10 @@ repos:
       - id: mypy
         additional_dependencies:
           - types-requests==2.33.0.20260712
-          - pandas-stubs==3.0.3.260530
+          - pandas-stubs==3.0.5.260730
           - tokenize-rt==6.2.0
-          - types-docutils==0.22.3.20260518
-          - types-PyYaml==6.0.12.20260518
+          - types-docutils==0.22.3.20260712
+          - types-PyYaml==6.0.12.20260724
         pass_filenames: false
 
   # --- Markdown linter ---
