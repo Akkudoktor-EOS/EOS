@@ -339,7 +339,7 @@ def test_bump_dev_version_appends_dev(tmp_path):
 # --- 4️⃣ Full workflow simulation with git ---
 def test_workflow_git(tmp_path):
     # Create git repo
-    subprocess.run(["git", "init"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "init", "--initial-branch=main"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.name", "test"], cwd=tmp_path, check=True)
     subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=tmp_path, check=True)
 

@@ -35,7 +35,9 @@ jobs:
           uv run pytest --finalize --check-config-side-effect -vs --cov src --cov-report term-missing
 
       - name: Upload test artifacts
+        if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: optimize-results
-          path: tests/testdata/new_optimize_result*
+          path: tests/testdata/**/new_optimize_result*
+          if-no-files-found: ignore
