@@ -59,13 +59,13 @@ dev = [
     # - commitizen - sync with requirements-dev.txt (if on pypi)
     #
     # !!! Sync .pre-commit-config.yaml with these dependencies !!!
-    "pre-commit==4.6.1",
+    "pre-commit==4.6.2",
     "mypy==2.3.1",
     "types-requests==2.33.0.20260712", # for mypy
     "pandas-stubs==3.0.5.260730", # for mypy
     "tokenize-rt==6.2.0", # for mypy
     "types-docutils==0.22.3.20260712", # for mypy
-    "types-PyYaml==6.0.12.20260724", # for mypy
+    "types-PyYaml==6.0.12.20260815", # for mypy
     "commitizen==4.17.1",
     "deprecated==1.3.1", # for commitizen
 
@@ -73,7 +73,7 @@ dev = [
     "sphinx==9.0.4",
     "sphinx_rtd_theme==3.1.0",
     "sphinx-tabs==3.5.0",
-    "GitPython==3.1.58",
+    "GitPython==3.1.59",
     "myst-parser==5.1.0",
     "docutils==0.21.2",
     "sphinxcontrib-mermaid==2.1.0   ",
@@ -145,7 +145,7 @@ ignore = [
     "D102",   # undocumented-public-method: Missing docstring in public method
     "D103",   # undocumented-public-function: Missing docstring in public function
     "D104",   # undocumented-public-package: Missing docstring in public package
-    "D105",   # undocumented-magic-method: Missing docstring in magic method
+    "D105",   # undocumented-magic-method: Missing docstring in public method
     "D106",   # undocumented-public-nested-class: Missing docstring in public nested class
     "D107",   # undocumented-public-init: Missing docstring in __init__
     "D417",   # undocumented-param: Missing argument description in the docstring for {definition}: {name}
