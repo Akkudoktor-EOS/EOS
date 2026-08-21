@@ -145,7 +145,7 @@ ignore = [
     "D102",   # undocumented-public-method: Missing docstring in public method
     "D103",   # undocumented-public-function: Missing docstring in public function
     "D104",   # undocumented-public-package: Missing docstring in public package
-    "D105",   # undocumented-magic-method: Missing docstring in public method
+    "D105",   # undocumented-magic-method: Missing docstring in magic method
     "D106",   # undocumented-public-nested-class: Missing docstring in public nested class
     "D107",   # undocumented-public-init: Missing docstring in __init__
     "D417",   # undocumented-param: Missing argument description in the docstring for {definition}: {name}
