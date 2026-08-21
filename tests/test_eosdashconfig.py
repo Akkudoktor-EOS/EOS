@@ -83,7 +83,7 @@ class TestEOSdashConfig:
         """Test extracting EOS configuration details from EOS config based on provided values."""
         with FILE_TESTDATA_EOSSERVER_CONFIG_1.open("r", encoding="utf-8", newline=None) as fd:
             values = json.load(fd)
-        config_details = create_config_details(config_eos, values)
+        config_details = create_config_details(type(config_eos), values)
         assert any(
             item["name"] == "server.eosdash_port" and item["value"] == "8504"
             for key, item in config_details.items()
@@ -98,7 +98,7 @@ class TestEOSdashConfig:
         with FILE_TESTDATA_EOSSERVER_CONFIG_1.open("r", encoding="utf-8", newline=None) as fd:
             values = json.load(fd)
         config_details = create_config_details(
-            PVForecastPlaneSetting(), values, values_prefix=["pvforecast", "planes", "0"]
+            PVForecastPlaneSetting, values, values_prefix=["pvforecast", "planes", "0"]
         )
         assert any(
             item["name"] == "pvforecast.planes.0.surface_azimuth" and item["value"] == "170"
