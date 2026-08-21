@@ -6,8 +6,9 @@ import re
 import sys
 from difflib import SequenceMatcher
 from pathlib import Path
+from typing import cast
 
-from docutils import nodes
+from docutils import SettingsSpec, nodes
 from docutils.core import publish_parts
 from docutils.frontend import get_default_settings
 from docutils.parsers.rst import Directive, Parser, directives
@@ -256,8 +257,10 @@ def validate_rst(text: str) -> list[tuple[int, str]]:
             warnings.append((line or 0, message))
             return nodes.system_message(message, level=level, type=self.levels[level], *children, **kwargs)
 
-    # Create default parser settings without the deprecated Docutils OptionParser.
-    settings = get_default_settings(Parser)
+    # Docutils expects the SettingsSpec subclass itself here. The stubs bundled with
+    # our current docutils/types-docutils pins still describe this argument as an
+    # instance; upstream fixed that annotation in 2026.
+    settings = get_default_settings(cast(SettingsSpec, Parser))
 
     document = new_document("<docstring>", settings=settings)
 
