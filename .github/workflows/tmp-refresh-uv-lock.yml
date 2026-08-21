@@ -1,13 +1,16 @@
 name: Temporary refresh uv lock
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - chore/dependabot-combined-2026-08-21
 
 permissions:
   contents: write
 
 jobs:
   refresh:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
