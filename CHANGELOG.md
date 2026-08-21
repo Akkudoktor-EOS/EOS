@@ -14,6 +14,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `PVForecastForecastSolar` — forecasts from the free Forecast.Solar API.
   - `PVForecastSolcast` — forecasts from the Solcast rooftop-site API.
 
+### Fixed
+
+- Config migration: legacy `elecprice.charges_kwh`/`vat_rate` are now migrated to the new
+  `elecprice.charges` component list per provider, reproducing each provider's exact old
+  price calculation instead of always adding a 19% VAT component. `ElecPriceAkkudoktor`
+  never applied VAT and now migrates to a `fixed` charge only; `ElecPriceEnergyCharts`
+  keeps the `fixed` + `percent` (VAT) combination, but only when `charges_kwh > 0`, matching
+  the old behavior; providers that never read these fields (`ElecPriceFixed`,
+  `ElecPriceTibber`, `ElecPriceImport`) no longer gain a `charges` list at all. This avoids
+  silently changing already configured electricity prices after upgrade.
+
 ## 0.3.0 (2026-03-17)
 
 Akkudoktor-EOS can now be run as Home Assistant add-on and standalone.

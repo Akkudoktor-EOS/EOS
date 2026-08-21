@@ -97,8 +97,26 @@
        },
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
-           "charges_kwh": 0.21,
-           "vat_rate": 1.19,
+           "charges": [
+               {
+                   "name": "Netzentgelt",
+                   "type": "fixed",
+                   "amount": 0.1153,
+                   "basis": null
+               },
+               {
+                   "name": "Stromsteuer",
+                   "type": "fixed",
+                   "amount": 0.0205,
+                   "basis": null
+               },
+               {
+                   "name": "MwSt",
+                   "type": "percent",
+                   "amount": 0.19,
+                   "basis": null
+               }
+           ],
            "elecpricefixed": {
                "time_windows": {
                    "windows": []
