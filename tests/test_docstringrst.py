@@ -9,7 +9,7 @@ from pathlib import Path
 
 from docutils import nodes
 from docutils.core import publish_parts
-from docutils.frontend import OptionParser
+from docutils.frontend import get_default_settings
 from docutils.parsers.rst import Directive, Parser, directives
 from docutils.utils import Reporter, new_document
 from sphinx.ext.napoleon import Config as NapoleonConfig
@@ -230,6 +230,7 @@ def prepare_docutils_for_sphinx():
         required_arguments = 0
         optional_arguments = 100
         final_argument_whitespace = True
+
         def run(self):
             return []
 
@@ -249,13 +250,14 @@ def validate_rst(text: str) -> list[tuple[int, str]]:
 
     class RecordingReporter(Reporter):
         """Capture warnings/errors instead of halting."""
+
         def system_message(self, level, message, *children, **kwargs):
             line = kwargs.get("line", None)
             warnings.append((line or 0, message))
             return nodes.system_message(message, level=level, type=self.levels[level], *children, **kwargs)
 
-    # Create default settings
-    settings = OptionParser(components=(Parser,)).get_default_values()
+    # Create default parser settings without the deprecated Docutils OptionParser.
+    settings = get_default_settings(Parser)
 
     document = new_document("<docstring>", settings=settings)
 
@@ -265,7 +267,7 @@ def validate_rst(text: str) -> list[tuple[int, str]]:
         report_level=1,  # capture warnings and above
         halt_level=100,  # never halt
         stream=None,
-        debug=False
+        debug=False,
     )
 
     parser = Parser()
@@ -275,7 +277,7 @@ def validate_rst(text: str) -> list[tuple[int, str]]:
 
 
 def iter_docstrings(package_name: str):
-    """Yield docstrings of modules, classes, functions in the given package."""
+    """Yield project-owned docstrings of modules, classes, and functions in a package."""
 
     package = importlib.import_module(package_name)
 
@@ -286,22 +288,26 @@ def iter_docstrings(package_name: str):
         if module.__doc__:
             yield f"Module {module.__name__}", inspect.getdoc(module)
 
-        # Classes + methods
+        # Classes + functions defined by this module. Imported objects and inherited
+        # methods are validated where they are defined, not repeatedly under every alias.
         for _, obj in inspect.getmembers(module):
-            if inspect.isclass(obj) or inspect.isfunction(obj):
-                if obj.__doc__:
-                    yield f"{module.__name__}.{obj.__name__}", inspect.getdoc(obj)
+            if not (inspect.isclass(obj) or inspect.isfunction(obj)):
+                continue
+            if getattr(obj, "__module__", None) != module.__name__:
+                continue
 
-                # Methods of classes
-                if inspect.isclass(obj):
-                    for _, meth in inspect.getmembers(obj, inspect.isfunction):
-                        if not getattr(meth, "__module__", "").startswith(package_name + "."):
-                            continue
-                        if meth.__doc__:
-                            yield f"{module.__name__}.{obj.__name__}.{meth.__name__}", inspect.getdoc(meth)
+            if obj.__doc__:
+                yield f"{module.__name__}.{obj.__name__}", inspect.getdoc(obj)
+
+            if inspect.isclass(obj):
+                for _, meth in inspect.getmembers(obj, inspect.isfunction):
+                    if meth.__name__ not in obj.__dict__:
+                        continue
+                    if meth.__doc__:
+                        yield f"{module.__name__}.{obj.__name__}.{meth.__name__}", inspect.getdoc(meth)
 
 
-def map_converted_to_original(orig: str, conv: str) -> dict[int,int]:
+def map_converted_to_original(orig: str, conv: str) -> dict[int, int]:
     """Map original docstring line to converted docstring line.
 
     Returns:
@@ -353,10 +359,10 @@ def test_all_docstrings_rst_compliant():
                 ignore_msg_patterns.extend(patterns)
 
         for conv_line, msg_text in messages:
-                orig_line = line_map.get(conv_line - 1, conv_line - 1) + 1
-                if any(re.search(pat, msg_text) for pat in ignore_msg_patterns):
-                    continue
-                filtered_messages.append((orig_line, msg_text))
+            orig_line = line_map.get(conv_line - 1, conv_line - 1) + 1
+            if any(re.search(pat, msg_text) for pat in ignore_msg_patterns):
+                continue
+            filtered_messages.append((orig_line, msg_text))
 
         if filtered_messages:
             failures.append((location, filtered_messages, doc, doc_converted))
