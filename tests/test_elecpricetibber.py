@@ -56,14 +56,14 @@ def _tibber_payload(
 @pytest.fixture
 def provider(config_eos):
     """Create a fresh Tibber electricity price provider."""
-    ElecPriceTibber.reset_instance()
     config_eos.elecprice = ElecPriceCommonSettings(
         provider="ElecPriceTibber",
         tibber=ElecPriceTibberCommonSettings(access_token="token-123", home_id="home-1"),
     )
     config_eos.prediction.hours = 6
     provider = ElecPriceTibber()
-    provider.records.clear()
+    assert provider.enabled()
+    provider._db_reset_state()
     return provider
 
 

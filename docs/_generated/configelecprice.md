@@ -7,14 +7,14 @@
 
 | Name | Environment Variable | Type | Read-Only | Default | Description |
 | ---- | -------------------- | ---- | --------- | ------- | ----------- |
-| charges_kwh | `EOS_ELECPRICE__CHARGES_KWH` | `float | None` | `rw` | `None` | Electricity price charges [amount/kWh]. Will be added to variable market price. |
+| akkudoktor | `EOS_ELECPRICE__AKKUDOKTOR` | `ElecPriceAkkudoktorCommonSettings` | `rw` | `required` | Akkudoktor electricity price provider settings. |
 | elecpricefixed | `EOS_ELECPRICE__ELECPRICEFIXED` | `ElecPriceFixedCommonSettings` | `rw` | `required` | Fixed electricity price provider settings. |
 | elecpriceimport | `EOS_ELECPRICE__ELECPRICEIMPORT` | `ElecPriceImportCommonSettings` | `rw` | `required` | Electricity price import provider settings. |
 | energycharts | `EOS_ELECPRICE__ENERGYCHARTS` | `ElecPriceEnergyChartsCommonSettings` | `rw` | `required` | Energy Charts provider settings. |
 | provider | `EOS_ELECPRICE__PROVIDER` | `str | None` | `rw` | `None` | Electricity price provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available electricity price provider ids. |
+| smard | `EOS_ELECPRICE__SMARD` | `ElecPriceSMARDCommonSettings` | `rw` | `required` | SMARD electricity price provider settings. |
 | tibber | `EOS_ELECPRICE__TIBBER` | `ElecPriceTibberCommonSettings` | `rw` | `required` | Tibber electricity price provider settings. |
-| vat_rate | `EOS_ELECPRICE__VAT_RATE` | `float | None` | `rw` | `1.19` | VAT rate factor applied to electricity price when charges are used. |
 :::
 <!-- pyml enable line-length -->
 
@@ -27,10 +27,9 @@
    {
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
-           "charges_kwh": 0.21,
-           "vat_rate": 1.19,
+           "akkudoktor": {},
            "elecpricefixed": {
-               "time_windows": {
+               "elecprice_marketprice_amt_kwh": {
                    "windows": []
                }
            },
@@ -40,6 +39,10 @@
            },
            "energycharts": {
                "bidding_zone": "DE-LU"
+           },
+           "smard": {
+               "filter_id": 4169,
+               "region": "DE"
            },
            "tibber": {
                "access_token": null,
@@ -59,10 +62,9 @@
    {
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
-           "charges_kwh": 0.21,
-           "vat_rate": 1.19,
+           "akkudoktor": {},
            "elecpricefixed": {
-               "time_windows": {
+               "elecprice_marketprice_amt_kwh": {
                    "windows": []
                }
            },
@@ -73,6 +75,10 @@
            "energycharts": {
                "bidding_zone": "DE-LU"
            },
+           "smard": {
+               "filter_id": 4169,
+               "region": "DE"
+           },
            "tibber": {
                "access_token": null,
                "home_id": null
@@ -82,6 +88,7 @@
                "ElecPriceEnergyCharts",
                "ElecPriceFixed",
                "ElecPriceImport",
+               "ElecPriceSMARD",
                "ElecPriceTibber"
            ]
        }
@@ -114,6 +121,37 @@
            "tibber": {
                "access_token": "tibber_pat_...",
                "home_id": "00000000-0000-0000-0000-000000000000"
+           }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the direct SMARD electricity-price provider
+
+<!-- pyml disable line-length -->
+:::{table} elecprice::smard
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| filter_id | `int` | `rw` | `4169` | SMARD filter id for the German/Luxembourg day-ahead price. |
+| region | `str` | `rw` | `DE` | SMARD market region used in the chart-data endpoint. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "elecprice": {
+           "smard": {
+               "filter_id": 4169,
+               "region": "DE"
            }
        }
    }
@@ -180,89 +218,6 @@
 ```
 <!-- pyml enable line-length -->
 
-### Value applicable during a specific time window
-
-This model extends `TimeWindow` by associating a value with the defined time interval.
-
-<!-- pyml disable line-length -->
-:::{table} elecprice::elecpricefixed::time_windows::windows::list
-:widths: 10 10 5 5 30
-:align: left
-
-| Name | Type | Read-Only | Default | Description |
-| ---- | ---- | --------- | ------- | ----------- |
-| date | `pydantic_extra_types.pendulum_dt.Date | None` | `rw` | `None` | Optional specific calendar date for the time window. Naive — matched against the local date of the datetime passed to contains(). Overrides `day_of_week` if set. |
-| day_of_week | `int | str | None` | `rw` | `None` | Optional day of the week restriction. Can be specified as integer (0=Monday to 6=Sunday) or localized weekday name. If None, applies every day unless `date` is set. |
-| duration | `Duration` | `rw` | `required` | Duration of the time window starting from `start_time`. |
-| locale | `str | None` | `rw` | `None` | Locale used to parse weekday names in `day_of_week` when given as string. If not set, Pendulum's default locale is used. Examples: 'en', 'de', 'fr', etc. |
-| start_time | `Time` | `rw` | `required` | Naive start time of the time window (time of day, no timezone). Interpreted in the timezone of the datetime passed to contains() or earliest_start_time(). |
-| value | `float | None` | `rw` | `None` | Value applicable during this time window. |
-:::
-<!-- pyml enable line-length -->
-
-<!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
-<!-- pyml enable no-emphasis-as-heading -->
-
-<!-- pyml disable line-length -->
-```json
-   {
-       "elecprice": {
-           "elecpricefixed": {
-               "time_windows": {
-                   "windows": [
-                       {
-                           "start_time": "00:00:00.000000",
-                           "duration": "2 hours",
-                           "day_of_week": null,
-                           "date": null,
-                           "locale": null,
-                           "value": 0.288
-                       }
-                   ]
-               }
-           }
-       }
-   }
-```
-<!-- pyml enable line-length -->
-
-### Sequence of value time windows
-
-This model specializes `TimeWindowSequence` to ensure that all
-contained windows are instances of `ValueTimeWindow`.
-It provides the full set of sequence operations (containment checks,
-availability, start time calculations) for value windows.
-
-<!-- pyml disable line-length -->
-:::{table} elecprice::elecpricefixed::time_windows
-:widths: 10 10 5 5 30
-:align: left
-
-| Name | Type | Read-Only | Default | Description |
-| ---- | ---- | --------- | ------- | ----------- |
-| windows | `list[akkudoktoreos.config.configabc.ValueTimeWindow]` | `rw` | `required` | Ordered list of value time windows. Each window defines a time interval and an associated value. |
-:::
-<!-- pyml enable line-length -->
-
-<!-- pyml disable no-emphasis-as-heading -->
-**Example Input/Output**
-<!-- pyml enable no-emphasis-as-heading -->
-
-<!-- pyml disable line-length -->
-```json
-   {
-       "elecprice": {
-           "elecpricefixed": {
-               "time_windows": {
-                   "windows": []
-               }
-           }
-       }
-   }
-```
-<!-- pyml enable line-length -->
-
 ### Common configuration settings for fixed electricity pricing
 
 This model defines a fixed electricity price schedule using a sequence
@@ -276,7 +231,7 @@ price applicable during that interval.
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| time_windows | `ValueTimeWindowSequence` | `rw` | `required` | Sequence of time windows defining the fixed price schedule. If not provided, no fixed pricing is applied. |
+| elecprice_marketprice_amt_kwh | `ValueTimeWindowSequence` | `rw` | `required` | Sequence of time windows defining the fixed price schedule. If not provided, no fixed pricing is applied. |
 :::
 <!-- pyml enable line-length -->
 
@@ -289,7 +244,7 @@ price applicable during that interval.
    {
        "elecprice": {
            "elecpricefixed": {
-               "time_windows": {
+               "elecprice_marketprice_amt_kwh": {
                    "windows": [
                        {
                            "start_time": "00:00:00.000000",
@@ -310,6 +265,32 @@ price applicable during that interval.
                    ]
                }
            }
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common configuration settings for Akkodoktor electricity pricing
+
+<!-- pyml disable line-length -->
+:::{table} elecprice::akkudoktor
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "elecprice": {
+           "akkudoktor": {}
        }
    }
 ```

@@ -7,6 +7,7 @@ from enum import StrEnum
 from typing import Any, ClassVar, Iterator, Optional, Union
 
 import numpy as np
+import pandas as pd
 import pendulum
 from babel.dates import get_day_names
 from pydantic import Field, field_serializer, field_validator, model_validator
@@ -668,6 +669,76 @@ class TimeWindowSequence(SettingsBaseModel):
 
         return np.array(result, dtype=np.float64)
 
+    def to_series(
+        self,
+        start_datetime: DateTime,
+        end_datetime: DateTime,
+        interval: Duration,
+        dropna: bool = True,
+        boundary: str = "context",
+        align_to_interval: bool = True,
+    ) -> pd.Series:
+        """Return a pandas Series indicating window coverage over a time grid.
+
+        The time grid is constructed from ``start_datetime`` to ``end_datetime``
+        (exclusive) in steps of ``interval``. Each element is ``1.0`` when the
+        corresponding step falls inside any window in this sequence, and ``0.0``
+        otherwise.
+
+        Args:
+            start_datetime: First step of the time grid (inclusive).
+            end_datetime: Upper bound of the time grid (exclusive).
+            interval: Fixed step size between consecutive grid points.
+            dropna: Unused for ``TimeWindowSequence`` (no NaN values are
+                produced). Accepted for signature compatibility.
+            boundary: Controls range enforcement. Only ``"context"`` is
+                currently supported.
+            align_to_interval: When ``True``, ``start_datetime`` is floored to
+                the nearest interval boundary in wall-clock time before
+                generating the grid. The timezone (or naivety) of
+                ``start_datetime`` is preserved exactly.
+
+        Returns:
+            ``pd.Series`` with a ``DatetimeIndex`` and ``float64`` values.
+            ``1.0`` means the timestamp is inside a window; ``0.0`` means it
+            is not.
+
+        Raises:
+            ValueError: If ``boundary`` is not ``"context"``.
+        """
+        if boundary != "context":
+            raise ValueError(f"Unsupported boundary {boundary!r}. Only 'context' is supported.")
+
+        interval_s = interval.total_seconds()
+
+        if align_to_interval and interval_s > 0:
+            # Floor purely in wall-clock seconds so the timezone (or naivety)
+            # of start_datetime is never touched and no UTC conversion occurs.
+            wall_s = (
+                start_datetime.hour * 3600
+                + start_datetime.minute * 60
+                + start_datetime.second
+                + start_datetime.microsecond / 1_000_000
+            )
+            remainder_s = wall_s % interval_s
+            if remainder_s:
+                start_datetime = start_datetime.subtract(seconds=remainder_s)
+
+        timestamps: list[DateTime] = []
+        values: list[float] = []
+
+        current = start_datetime
+        while current < end_datetime:
+            timestamps.append(current)
+            values.append(1.0 if self.contains(current) else 0.0)
+            current = current.add(seconds=interval_s)
+
+        return pd.Series(
+            values,
+            index=pd.DatetimeIndex(timestamps),
+            dtype=np.float64,
+        )
+
     def add_window(self, window: TimeWindow) -> None:
         """Add a new time window to the sequence.
 
@@ -861,3 +932,102 @@ class ValueTimeWindowSequence(TimeWindowSequence):
             current = current.add(seconds=interval_s)
 
         return np.array(result, dtype=np.float64)
+
+    def to_series(
+        self,
+        start_datetime: DateTime,
+        end_datetime: DateTime,
+        interval: Duration,
+        dropna: bool = True,
+        boundary: str = "context",
+        align_to_interval: bool = True,
+    ) -> pd.Series:
+        """Return a pandas Series of window values over a time grid.
+
+        The time grid is constructed from ``start_datetime`` to ``end_datetime``
+        (exclusive) in steps of ``interval``, matching the ``key_to_series``
+        signature used by the prediction store. Each element holds the
+        ``value`` of the first matching window at that step, ``0.0`` when no
+        window matches, or ``NaN`` when the matching window has ``value=None``
+        and ``dropna=False``.
+
+        When ``dropna=True``, steps whose matching window has ``value=None`` are
+        omitted from the resulting Series entirely, including their timestamps.
+
+        Args:
+            start_datetime: First step of the time grid (inclusive).
+            end_datetime: Upper bound of the time grid (exclusive).
+            interval: Fixed step size between consecutive grid points.
+            dropna: When ``True``, steps whose matching window carries
+                ``value=None`` are dropped from the Series. When ``False``,
+                those steps emit ``NaN``.
+            boundary: Controls range enforcement. Only ``"context"`` is
+                currently supported; the output is always clipped to
+                ``[start_datetime, end_datetime)``.
+            align_to_interval: When ``True``, ``start_datetime`` is floored to
+                the nearest interval boundary in wall-clock time before
+                generating the grid. The timezone (or naivety) of
+                ``start_datetime`` is preserved exactly — no UTC conversion
+                is performed. When ``False``, ``start_datetime`` is used as-is.
+
+        Returns:
+            ``pd.Series`` with a ``DatetimeIndex`` and ``float64`` values.
+            Positive values are window values; ``0.0`` means no window matched;
+            ``NaN`` means a window matched but its value was ``None`` (only when
+            ``dropna=False``).
+
+        Raises:
+            ValueError: If ``boundary`` is not ``"context"``.
+        """
+        if boundary != "context":
+            raise ValueError(f"Unsupported boundary {boundary!r}. Only 'context' is supported.")
+
+        interval_s = interval.total_seconds()
+
+        if align_to_interval and interval_s > 0:
+            # Floor purely in wall-clock seconds so the timezone (or naivety)
+            # of start_datetime is never touched and no UTC conversion occurs.
+            # This is correct regardless of the machine's local timezone.
+            wall_s = (
+                start_datetime.hour * 3600
+                + start_datetime.minute * 60
+                + start_datetime.second
+                + start_datetime.microsecond / 1_000_000
+            )
+            remainder_s = wall_s % interval_s
+            if remainder_s:
+                start_datetime = start_datetime.subtract(seconds=remainder_s)
+
+        timestamps: list[DateTime] = []
+        result: list[float] = []
+
+        current = start_datetime
+        while current < end_datetime:
+            step_value: Optional[float] = None
+            matched = False
+
+            for window in self.windows:
+                if window.contains(current):
+                    step_value = window.value
+                    matched = True
+                    break
+
+            if not matched:
+                timestamps.append(current)
+                result.append(0.0)
+            elif step_value is None:
+                if not dropna:
+                    timestamps.append(current)
+                    result.append(float("nan"))
+                # else: omit this step and its timestamp
+            else:
+                timestamps.append(current)
+                result.append(step_value)
+
+            current = current.add(seconds=interval_s)
+
+        return pd.Series(
+            result,
+            index=pd.DatetimeIndex(timestamps),
+            dtype=np.float64,
+        )

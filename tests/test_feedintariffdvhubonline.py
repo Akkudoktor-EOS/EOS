@@ -25,7 +25,10 @@ def provider(config_eos):
     config_eos.merge_settings_from_dict(
         {"feedintariff": {"provider": "FeedInTariffDvhubOnline"}}
     )
-    return FeedInTariffDvhubOnline()
+    provider = FeedInTariffDvhubOnline()
+    assert provider.enabled()
+    provider._db_reset_state()
+    return provider
 
 
 class TestFeedInTariffDvhubOnline:

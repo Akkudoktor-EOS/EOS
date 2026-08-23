@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2608160647074704"
+    "version": "v0.3.0.dev2608221553448643"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -3308,6 +3308,9 @@
           "prediction": {
             "$ref": "#/components/schemas/PredictionCommonSettings"
           },
+          "elecfee": {
+            "$ref": "#/components/schemas/ElecFeeCommonSettings-Output"
+          },
           "elecprice": {
             "$ref": "#/components/schemas/ElecPriceCommonSettings-Output"
           },
@@ -4035,6 +4038,280 @@
         "title": "DevicesCommonSettings",
         "description": "Base configuration for devices simulation settings."
       },
+      "ElecFeeCommonSettings-Input": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "Electricity fee provider id of provider to be used.",
+            "examples": [
+              "ElecFeeFixed"
+            ]
+          },
+          "elecfeefixed": {
+            "$ref": "#/components/schemas/ElecFeeFixedCommonSettings-Input",
+            "description": "Fixed electricity fees provider settings."
+          },
+          "elecfeeimport": {
+            "$ref": "#/components/schemas/ElecFeeImportCommonSettings",
+            "description": "Electricity fees import provider settings."
+          }
+        },
+        "type": "object",
+        "title": "ElecFeeCommonSettings",
+        "description": "Electricity Price Prediction Configuration."
+      },
+      "ElecFeeCommonSettings-Output": {
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "Electricity fee provider id of provider to be used.",
+            "examples": [
+              "ElecFeeFixed"
+            ]
+          },
+          "elecfeefixed": {
+            "$ref": "#/components/schemas/ElecFeeFixedCommonSettings-Output",
+            "description": "Fixed electricity fees provider settings."
+          },
+          "elecfeeimport": {
+            "$ref": "#/components/schemas/ElecFeeImportCommonSettings",
+            "description": "Electricity fees import provider settings."
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Providers",
+            "description": "Available electricity fee provider ids.",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "providers"
+        ],
+        "title": "ElecFeeCommonSettings",
+        "description": "Electricity Price Prediction Configuration."
+      },
+      "ElecFeeFixedCommonSettings-Input": {
+        "properties": {
+          "consumption_amt_kwh": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Input",
+            "description": "Sequence of time windows defining the total fixed per-kWh electricty fee charged for consumed energy, accumulating all applicable fixed per-kWh charges (e.g. network charge, metering fee, concession fee) into a single amount [amount/kWh]. If not provided, no fixed per-kWh consumption fee is applied.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "8 hours",
+                    "start_time": "00:00",
+                    "value": 0.00288
+                  },
+                  {
+                    "duration": "16 hours",
+                    "start_time": "08:00",
+                    "value": 0.0034
+                  }
+                ]
+              }
+            ]
+          },
+          "consumption_percent_amt": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Input",
+            "description": "Sequence of time windows defining the total fixed electricity surcharge applied as a percentage of the monetary amount already charged for consumed energy, accumulating all applicable percentage-based surcharges (e.g. VAT, electricity tax) into a single percentage [%]. This is a percentage of the fee amount, not a per-kWh rate. If not provided, no percentage-based consumption surcharge is applied.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "24 hours",
+                    "start_time": "00:00",
+                    "value": 19.0
+                  }
+                ]
+              }
+            ]
+          },
+          "feedin_amt_kwh": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Input",
+            "description": "Sequence of time windows defining the total deduction from feed-in energy per Wh [amount/Wh]. This is the accumulation of all fixed per-Wh charges deducted from feed-in energy - such as metering fees or grid-operator handling charges - into a single amount. Applied after the percentage-based deduction, i.e. it reduces the price by a flat amount per Wh rather than by a share of the raw price. If not provided, no fixed per-kWh feed-in fee is applied.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "8 hours",
+                    "start_time": "00:00",
+                    "value": 0.00288
+                  },
+                  {
+                    "duration": "16 hours",
+                    "start_time": "08:00",
+                    "value": 0.0034
+                  }
+                ]
+              }
+            ]
+          },
+          "feedin_percent_amt": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Input",
+            "description": "Sequence of time windows defining the total percentage deducted from the raw feed-in price (spot price) [%]. This is the accumulation of all percentage-based deductions payable on the feed-in tariff - such as a marketing or balancing fee retained by the aggregator - into a single percentage. It is applied as `raw_price * (100 - percent) / 100`, i.e. it scales down the raw price rather than adding a surcharge to it. If not provided, no percentage-based feed-in deduction is applied.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "24 hours",
+                    "start_time": "00:00",
+                    "value": 19.0
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecFeeFixedCommonSettings",
+        "description": "Common settings for fixed electricity fees.\n\nThis model defines a fixed electricity fee schedule using a sequence\nof time windows. Each window specifies a time interval and the electricity\nfee applicable during that interval."
+      },
+      "ElecFeeFixedCommonSettings-Output": {
+        "properties": {
+          "consumption_amt_kwh": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Output",
+            "description": "Sequence of time windows defining the total fixed per-kWh electricty fee charged for consumed energy, accumulating all applicable fixed per-kWh charges (e.g. network charge, metering fee, concession fee) into a single amount [amount/kWh]. If not provided, no fixed per-kWh consumption fee is applied.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "8 hours",
+                    "start_time": "00:00",
+                    "value": 0.00288
+                  },
+                  {
+                    "duration": "16 hours",
+                    "start_time": "08:00",
+                    "value": 0.0034
+                  }
+                ]
+              }
+            ]
+          },
+          "consumption_percent_amt": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Output",
+            "description": "Sequence of time windows defining the total fixed electricity surcharge applied as a percentage of the monetary amount already charged for consumed energy, accumulating all applicable percentage-based surcharges (e.g. VAT, electricity tax) into a single percentage [%]. This is a percentage of the fee amount, not a per-kWh rate. If not provided, no percentage-based consumption surcharge is applied.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "24 hours",
+                    "start_time": "00:00",
+                    "value": 19.0
+                  }
+                ]
+              }
+            ]
+          },
+          "feedin_amt_kwh": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Output",
+            "description": "Sequence of time windows defining the total deduction from feed-in energy per Wh [amount/Wh]. This is the accumulation of all fixed per-Wh charges deducted from feed-in energy - such as metering fees or grid-operator handling charges - into a single amount. Applied after the percentage-based deduction, i.e. it reduces the price by a flat amount per Wh rather than by a share of the raw price. If not provided, no fixed per-kWh feed-in fee is applied.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "8 hours",
+                    "start_time": "00:00",
+                    "value": 0.00288
+                  },
+                  {
+                    "duration": "16 hours",
+                    "start_time": "08:00",
+                    "value": 0.0034
+                  }
+                ]
+              }
+            ]
+          },
+          "feedin_percent_amt": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Output",
+            "description": "Sequence of time windows defining the total percentage deducted from the raw feed-in price (spot price) [%]. This is the accumulation of all percentage-based deductions payable on the feed-in tariff - such as a marketing or balancing fee retained by the aggregator - into a single percentage. It is applied as `raw_price * (100 - percent) / 100`, i.e. it scales down the raw price rather than adding a surcharge to it. If not provided, no percentage-based feed-in deduction is applied.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "24 hours",
+                    "start_time": "00:00",
+                    "value": 19.0
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecFeeFixedCommonSettings",
+        "description": "Common settings for fixed electricity fees.\n\nThis model defines a fixed electricity fee schedule using a sequence\nof time windows. Each window specifies a time interval and the electricity\nfee applicable during that interval."
+      },
+      "ElecFeeImportCommonSettings": {
+        "properties": {
+          "import_file_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string",
+                "format": "path"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import File Path",
+            "description": "Path to the file to import elecfee data from.",
+            "examples": [
+              null,
+              "/path/to/prices.json"
+            ]
+          },
+          "import_json": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Import Json",
+            "description": "JSON string, dictionary of electricity fee forecast value lists.",
+            "examples": [
+              "{\"elecfee_consumption_amt_wh\": [0.0003384, 0.0003318, 0.0003284]}"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecFeeImportCommonSettings",
+        "description": "Common settings for elecfee data import from file or JSON String."
+      },
+      "ElecPriceAkkudoktorCommonSettings": {
+        "properties": {},
+        "type": "object",
+        "title": "ElecPriceAkkudoktorCommonSettings",
+        "description": "Common configuration settings for Akkodoktor electricity pricing."
+      },
       "ElecPriceCommonSettings-Input": {
         "properties": {
           "provider": {
@@ -4052,38 +4329,9 @@
               "ElecPriceAkkudoktor"
             ]
           },
-          "charges_kwh": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charges Kwh",
-            "description": "Electricity price charges [amount/kWh]. Will be added to variable market price.",
-            "examples": [
-              0.21
-            ]
-          },
-          "vat_rate": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vat Rate",
-            "description": "VAT rate factor applied to electricity price when charges are used.",
-            "default": 1.19,
-            "examples": [
-              1.19
-            ]
+          "akkudoktor": {
+            "$ref": "#/components/schemas/ElecPriceAkkudoktorCommonSettings",
+            "description": "Akkudoktor electricity price provider settings."
           },
           "elecpricefixed": {
             "$ref": "#/components/schemas/ElecPriceFixedCommonSettings-Input",
@@ -4096,6 +4344,10 @@
           "energycharts": {
             "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
             "description": "Energy Charts provider settings."
+          },
+          "smard": {
+            "$ref": "#/components/schemas/ElecPriceSMARDCommonSettings",
+            "description": "SMARD electricity price provider settings."
           },
           "tibber": {
             "$ref": "#/components/schemas/ElecPriceTibberCommonSettings",
@@ -4123,38 +4375,9 @@
               "ElecPriceAkkudoktor"
             ]
           },
-          "charges_kwh": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Charges Kwh",
-            "description": "Electricity price charges [amount/kWh]. Will be added to variable market price.",
-            "examples": [
-              0.21
-            ]
-          },
-          "vat_rate": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vat Rate",
-            "description": "VAT rate factor applied to electricity price when charges are used.",
-            "default": 1.19,
-            "examples": [
-              1.19
-            ]
+          "akkudoktor": {
+            "$ref": "#/components/schemas/ElecPriceAkkudoktorCommonSettings",
+            "description": "Akkudoktor electricity price provider settings."
           },
           "elecpricefixed": {
             "$ref": "#/components/schemas/ElecPriceFixedCommonSettings-Output",
@@ -4167,6 +4390,10 @@
           "energycharts": {
             "$ref": "#/components/schemas/ElecPriceEnergyChartsCommonSettings",
             "description": "Energy Charts provider settings."
+          },
+          "smard": {
+            "$ref": "#/components/schemas/ElecPriceSMARDCommonSettings",
+            "description": "SMARD electricity price provider settings."
           },
           "tibber": {
             "$ref": "#/components/schemas/ElecPriceTibberCommonSettings",
@@ -4206,7 +4433,7 @@
       },
       "ElecPriceFixedCommonSettings-Input": {
         "properties": {
-          "time_windows": {
+          "elecprice_marketprice_amt_kwh": {
             "$ref": "#/components/schemas/ValueTimeWindowSequence-Input",
             "description": "Sequence of time windows defining the fixed price schedule. If not provided, no fixed pricing is applied.",
             "examples": [
@@ -4233,7 +4460,7 @@
       },
       "ElecPriceFixedCommonSettings-Output": {
         "properties": {
-          "time_windows": {
+          "elecprice_marketprice_amt_kwh": {
             "$ref": "#/components/schemas/ValueTimeWindowSequence-Output",
             "description": "Sequence of time windows defining the fixed price schedule. If not provided, no fixed pricing is applied.",
             "examples": [
@@ -4299,6 +4526,33 @@
         "type": "object",
         "title": "ElecPriceImportCommonSettings",
         "description": "Common settings for elecprice data import from file or JSON String."
+      },
+      "ElecPriceSMARDCommonSettings": {
+        "properties": {
+          "filter_id": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Filter Id",
+            "description": "SMARD filter id for the German/Luxembourg day-ahead price.",
+            "default": 4169,
+            "examples": [
+              4169
+            ]
+          },
+          "region": {
+            "type": "string",
+            "minLength": 2,
+            "title": "Region",
+            "description": "SMARD market region used in the chart-data endpoint.",
+            "default": "DE",
+            "examples": [
+              "DE"
+            ]
+          }
+        },
+        "type": "object",
+        "title": "ElecPriceSMARDCommonSettings",
+        "description": "Common settings for the direct SMARD electricity-price provider."
       },
       "ElecPriceTibberCommonSettings": {
         "properties": {
@@ -5034,7 +5288,7 @@
             ]
           },
           "feedintarifffixed": {
-            "$ref": "#/components/schemas/FeedInTariffFixedCommonSettings",
+            "$ref": "#/components/schemas/FeedInTariffFixedCommonSettings-Input",
             "description": "Fixed feed in tariff provider settings."
           },
           "feedintariffimport": {
@@ -5048,6 +5302,10 @@
           "energycharts": {
             "$ref": "#/components/schemas/FeedInTariffEnergyChartsCommonSettings",
             "description": "EnergyCharts feed in tariff provider settings."
+          },
+          "smard": {
+            "$ref": "#/components/schemas/FeedInTariffSMARDCommonSettings",
+            "description": "SMARD feed in tariff provider settings."
           }
         },
         "type": "object",
@@ -5073,7 +5331,7 @@
             ]
           },
           "feedintarifffixed": {
-            "$ref": "#/components/schemas/FeedInTariffFixedCommonSettings",
+            "$ref": "#/components/schemas/FeedInTariffFixedCommonSettings-Output",
             "description": "Fixed feed in tariff provider settings."
           },
           "feedintariffimport": {
@@ -5087,6 +5345,10 @@
           "energycharts": {
             "$ref": "#/components/schemas/FeedInTariffEnergyChartsCommonSettings",
             "description": "EnergyCharts feed in tariff provider settings."
+          },
+          "smard": {
+            "$ref": "#/components/schemas/FeedInTariffSMARDCommonSettings",
+            "description": "SMARD feed in tariff provider settings."
           },
           "providers": {
             "items": {
@@ -5145,22 +5407,53 @@
         "title": "FeedInTariffEnergyChartsCommonSettings",
         "description": "Common settings for Energy-Charts feed-in tariff provider."
       },
-      "FeedInTariffFixedCommonSettings": {
+      "FeedInTariffFixedCommonSettings-Input": {
         "properties": {
-          "feed_in_tariff_kwh": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Feed In Tariff Kwh",
-            "description": "Electricity price feed in tariff [amount/kWh].",
+          "feed_in_tariff_amt_kwh": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Input",
+            "description": "Sequence of time windows defining the electricity feed in tariff [amount/kWh]. If not provided, no fixed feed in tariff is applied.",
             "examples": [
-              0.078
+              {
+                "windows": [
+                  {
+                    "duration": "8 hours",
+                    "start_time": "00:00",
+                    "value": 0.028
+                  },
+                  {
+                    "duration": "16 hours",
+                    "start_time": "08:00",
+                    "value": 0.034
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "FeedInTariffFixedCommonSettings",
+        "description": "Common settings for elecprice fixed price."
+      },
+      "FeedInTariffFixedCommonSettings-Output": {
+        "properties": {
+          "feed_in_tariff_amt_kwh": {
+            "$ref": "#/components/schemas/ValueTimeWindowSequence-Output",
+            "description": "Sequence of time windows defining the electricity feed in tariff [amount/kWh]. If not provided, no fixed feed in tariff is applied.",
+            "examples": [
+              {
+                "windows": [
+                  {
+                    "duration": "8 hours",
+                    "start_time": "00:00",
+                    "value": 0.028
+                  },
+                  {
+                    "duration": "16 hours",
+                    "start_time": "08:00",
+                    "value": 0.034
+                  }
+                ]
+              }
             ]
           }
         },
@@ -5209,6 +5502,12 @@
         "type": "object",
         "title": "FeedInTariffImportCommonSettings",
         "description": "Common settings for feed in tariff data import from file or JSON string."
+      },
+      "FeedInTariffSMARDCommonSettings": {
+        "properties": {},
+        "type": "object",
+        "title": "FeedInTariffSMARDCommonSettings",
+        "description": "Settings for SMARD feed-in prices shared with ``elecprice.smard``."
       },
       "ForecastResponse": {
         "properties": {
@@ -11624,6 +11923,17 @@
               }
             ],
             "description": "Prediction Settings"
+          },
+          "elecfee": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ElecFeeCommonSettings-Input"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Electricity Fee Settings"
           },
           "elecprice": {
             "anyOf": [

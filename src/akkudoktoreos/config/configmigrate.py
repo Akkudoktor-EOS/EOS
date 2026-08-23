@@ -62,11 +62,18 @@ MIGRATION_MAP: Dict[
     "devices/batteries/0/initial_soc_percentage": None,
     # - electric_vehicles
     "devices/electric_vehicles/0/initial_soc_percentage": None,
+    # elecfee
+    # =======
+    # - ElecFeeFixed
+    # - ElecFeeImport
     # elecprice
     # =========
+    "elecprice/charges_kwh": None,
+    "elecprice/vat_rate": None,
     # - ElecPriceAkkudoktor
     # - ElecPriceEnergyCharts
     # - ElecPriceFixed
+    "elecprice/elecpricefixed/time_windows": "elecprice/elecpricefixed/elecprice_marketprice_amt_kwh",
     # - ElecPriceImport
     "elecprice/provider_settings/ElecPriceImport/import_file_path": "elecprice/elecpriceimport/import_file_path",
     "elecprice/provider_settings/ElecPriceImport/import_json": "elecprice/elecpriceimport/import_json",
@@ -75,7 +82,22 @@ MIGRATION_MAP: Dict[
     # feedintariff
     # ============
     # - FeedInTariffFixed
-    "feedintariff/provider_settings/FeedInTariffFixed/feed_in_tariff_kwh": "feedintariff/feedintarifffixed/feed_in_tariff_kwh",
+    "feedintariff/feedintarifffixed/feed_in_tariff_kwh": (
+        "feedintariff/feedintarifffixed/feed_in_tariff_amt_kwh",
+        lambda v: {
+            "windows": [
+                {"start_time": "00:00", "duration": "24 hours", "value": float(v)},
+            ],
+        },
+    ),
+    "feedintariff/provider_settings/FeedInTariffFixed/feed_in_tariff_kwh": (
+        "feedintariff/feedintarifffixed/feed_in_tariff_amt_kwh",
+        lambda v: {
+            "windows": [
+                {"start_time": "00:00", "duration": "24 hours", "value": float(v)},
+            ],
+        },
+    ),
     # - FeedInTariffImport
     "feedintariff/provider_settings/FeedInTariffImport/import_file_path": "feedintariff/feedintariffimport/import_file_path",
     "feedintariff/provider_settings/FeedInTariffImport/import_json": "feedintariff/feedintariffimport/import_json",

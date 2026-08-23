@@ -45,7 +45,6 @@ def quarter_hour_points() -> list[dict]:
 @pytest.fixture
 def provider(config_eos):
     """Create a fresh Tibber feed-in tariff provider."""
-    FeedInTariffTibber.reset_instance()
     config_eos.merge_settings_from_dict(
         {
             "elecprice": {"tibber": {"access_token": "token-123", "home_id": "home-1"}},
@@ -55,12 +54,13 @@ def provider(config_eos):
             "prediction": {"hours": 2},
         }
     )
-    provider = FeedInTariffTibber()
-    provider.records.clear()
-    provider.highest_orig_datetime = None
     get_ems().set_start_datetime(
         to_datetime("2026-07-15T00:00:00+02:00", in_timezone="Europe/Berlin")
     )
+    provider = FeedInTariffTibber()
+    provider.highest_orig_datetime = None
+    assert provider.enabled()
+    provider._db_reset_state()
     return provider
 
 

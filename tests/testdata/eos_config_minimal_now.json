@@ -11,8 +11,7 @@
         }
     },
     "elecprice": {
-        "provider": "ElecPriceImport",
-        "charges_kwh": 0.21
+        "provider": "ElecPriceImport"
     },
     "server": {
         "host": "0.0.0.0",

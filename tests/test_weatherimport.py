@@ -27,6 +27,7 @@ def provider(sample_import_1_json, config_eos):
     }
     config_eos.merge_settings_from_dict(settings)
     provider = WeatherImport()
+    provider._db_reset_state()
     assert provider.enabled() == True
     return provider
 

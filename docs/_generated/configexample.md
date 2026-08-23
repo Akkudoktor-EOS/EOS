@@ -95,12 +95,32 @@
            "home_appliances": [],
            "max_home_appliances": 1
        },
+       "elecfee": {
+           "provider": "ElecFeeFixed",
+           "elecfeefixed": {
+               "consumption_amt_kwh": {
+                   "windows": []
+               },
+               "consumption_percent_amt": {
+                   "windows": []
+               },
+               "feedin_amt_kwh": {
+                   "windows": []
+               },
+               "feedin_percent_amt": {
+                   "windows": []
+               }
+           },
+           "elecfeeimport": {
+               "import_file_path": null,
+               "import_json": null
+           }
+       },
        "elecprice": {
            "provider": "ElecPriceAkkudoktor",
-           "charges_kwh": 0.21,
-           "vat_rate": 1.19,
+           "akkudoktor": {},
            "elecpricefixed": {
-               "time_windows": {
+               "elecprice_marketprice_amt_kwh": {
                    "windows": []
                }
            },
@@ -110,6 +130,10 @@
            },
            "energycharts": {
                "bidding_zone": "DE-LU"
+           },
+           "smard": {
+               "filter_id": 4169,
+               "region": "DE"
            },
            "tibber": {
                "access_token": null,
@@ -124,7 +148,9 @@
        "feedintariff": {
            "provider": "FeedInTariffFixed",
            "feedintarifffixed": {
-               "feed_in_tariff_kwh": null
+               "feed_in_tariff_amt_kwh": {
+                   "windows": []
+               }
            },
            "feedintariffimport": {
                "import_file_path": null,
@@ -136,7 +162,8 @@
            },
            "energycharts": {
                "bidding_zone": "DE-LU"
-           }
+           },
+           "smard": {}
        },
        "general": {
            "config_save_mode": "AUTOMATIC",

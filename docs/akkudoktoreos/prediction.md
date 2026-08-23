@@ -121,12 +121,107 @@ If no keys are displayed, or if the ones you need are missing, it indicates that
 lacks the necessary prediction provider settings. You can configure prediction providers by using
 the **PUT** `/v1/config` endpoint. You may save your configuration to the EOS configuration file.
 
+## Electricity Fee Prediction
+
+Prediction keys:
+
+- `elecfee_consumption_amt_wh`: Total fixed fee for consumed energy per Wh (amount/Wh),
+  accumulating all fixed per-Wh fees payable on consumed energy - such as network charge,
+  concession fee, and electricity charge - into a single amount.
+- `elecfee_consumption_amt_kwh`: Total fixed fee for consumed energy per kWh (amount/kWh),
+  calculated from `elecfee_consumption_amt_wh`.
+- `elecfee_consumption_percent_amt`: Total fixed surcharge on consumed energy, given as a
+  percentage of the monetary amount already charged for that energy (%), accumulating all
+  percentage-based surcharges - such as VAT - into a single percentage. Applied after
+  `elecfee_consumption_amt_wh`, i.e. it is calculated on the raw price plus the per-Wh fee.
+- `elecfee_feedin_amt_wh`: Total fixed fee for feed-in energy per Wh (amount/Wh), accumulating
+  all fixed per-Wh fees payable on feed-in energy - such as network charge and concession fee -
+  into a single amount. Applied after `elecfee_feedin_percent_amt`, i.e. it is deducted from
+  the price as a flat per-Wh amount once the percentage deduction has already been applied.
+- `elecfee_feedin_amt_kwh`: Total fixed fee for feed-in energy per kWh (amount/kWh),
+  calculated from `elecfee_feedin_amt_wh`.
+- `elecfee_feedin_percent_amt`: Total fixed deduction on feed-in energy, given as a percentage
+  of the raw feed-in price (spot price) for that energy (%), accumulating all percentage-based
+  deductions - such as a marketing or balancing fee retained by the aggregator - into a single
+  percentage. Applied to the raw price before `elecfee_feedin_amt_wh` is subtracted.
+
+Configuration options:
+
+- `elecfee`: Electricity fee configuration.
+
+  - `provider`: Electricity fee provider id of provider to be used.
+
+    - `ElecFeeFixed`: Caluclates from configured time window fees.
+    - `ElecFeeImport`: Imports from a file or JSON string or by endpoint data provision.
+
+  - `elecfeefixed.consumption_amt_kwh.windows`: Time windows defining the total fixed per-kWh
+    fee for consumed energy, accumulating fees such as network charge, metering fee, and
+    concession fee into a single amount (amount/kWh).
+  - `elecfeefixed.consumption_percent_amt.windows`: Time windows defining the total fixed
+    surcharge on consumed energy, given as a percentage of the amount already charged,
+    accumulating surcharges such as VAT into a single percentage (%).
+  - `elecfeefixed.feedin_amt_kwh.windows`: Time windows defining the total fixed per-kWh fee
+    or credit for feed-in energy, accumulating fees such as network charge and metering fee
+    into a single amount (amount/kWh).
+  - `elecfeefixed.feedin_percent_amt.windows`: Time windows defining the total fixed
+    deduction on feed-in energy, given as a percentage of the raw feed-in price (spot price),
+    accumulating deductions such as a service charge into a single percentage (%).
+  - `elecfeeimport.import_file_path`: Path to the file to import electricity fee forecast data from.
+  - `elecfeeimport.import_json`: JSON string, dictionary of electricity fee forecast value lists.
+
+### ElecFeeFixed Provider
+
+The `ElecFeeFixed` provider calculates the electricity fees from the configuration
+of electricity fee time windows set up by the user.
+
+### ElecFeeImport Provider
+
+The `ElecFeeImport` provider is designed to import electricity prices from:
+
+- A file or a JSON string (primarily for initialization). The data source can be given in the
+  `import_file_path` or `import_json` configuration option.
+- The **PUT** `/v1/prediction/import/ElecFeeImport` endpoint (recommended for dynamic updates).
+
+The prediction keys for the electricity fee forecast data are:
+
+- `elecfee_consumption_amt_wh`: Total fixed fee for consumed energy per Wh (amount/Wh),
+  accumulating all fixed per-Wh fees payable on consumed energy - such as network charge,
+  concession fee, and electricity charge - into a single amount.
+- `elecfee_consumption_percent_amt`: Total fixed surcharge on consumed energy, given as a
+  percentage of the monetary amount already charged for that energy (%), accumulating all
+  percentage-based surcharges - such as VAT - into a single percentage.
+- `elecfee_feedin_amt_wh`: Total fixed fee for feed-in energy per Wh (amount/Wh), accumulating
+  all fixed per-Wh fees payable on feed-in energy - such as network charge and concession fee -
+  into a single amount.
+- `elecfee_feedin_percent_amt`: Total fixed deduction on feed-in energy, given as a percentage
+  of the raw feed-in price (spot price) for that energy (%), accumulating all percentage-based
+  deductions into a single percentage.
+
+The electricity fee forecast data must be provided in one of the formats described in
+<project:#prediction-import-providers>.
+
+An external entity may update the file or JSON string whenever new prediction data becomes
+available. However, for production use or regular updates, you should prefer the **PUT** endpoint
+over file or JSON string based imports.
+
+:::{admonition} Warning
+:class: warning
+Be aware that providing dynamic values via a file and/or JSON string **alongside other value
+sources** can lead to unintended data overwrites. Moreover, after a restart, even outdated values
+from the configuration may be reloaded. To avoid these issues, use the **PUT** endpoint for live
+data and rely on file/JSON imports only for initial setup.
+:::
+
 ## Electricity Price Prediction
 
 Prediction keys:
 
-- `elecprice_marketprice_wh`: Electricity market price per Wh (€/Wh).
-- `elecprice_marketprice_kwh`: Electricity market price per kWh (€/kWh).
+- `elecprice_marketprice_raw_wh`: Raw electricity market price per Wh, always excluding fees
+  (amount/Wh).
+- `elecprice_marketprice_wh`: Electricity market price per Wh, including fees if configured
+  (amount/Wh).
+- `elecprice_marketprice_kwh`: Electricity market price per kWh (amount/kWh), calculated from
+  `elecprice_marketprice_wh`.
 
 Configuration options:
 
@@ -139,20 +234,29 @@ Configuration options:
     - `ElecPriceFixed`: Caluclates from configured time window prices.
     - `ElecPriceImport`: Imports from a file or JSON string or by endpoint data provision.
 
-  - `charges_kwh`: Electricity price charges (€/kWh).
-  - `vat_rate`: VAT rate factor applied to electricity price when charges are used (default: 1.19).
-  - `elecpricefixed.time_windows.windows`: The time windows with associated electricity prices.
+  - `elecpricefixed.elecprice_marketprice_amt_kwh.windows`: The time windows with associated
+    electricity prices.
   - `elecpriceimport.import_file_path`: Path to the file to import electricity price forecast data from.
   - `elecpriceimport.import_json`: JSON string, dictionary of electricity price forecast value lists.
   - `energycharts.bidding_zone`: Bidding zone Energy Charts shall provide price data for.
+
+Fees:
+
+- If `fees` are given by the  ElecFee prediction, the electricity fees are added to the raw market
+  price and stored in `elecprice_marketprice_wh`.
+- The resulting price is calculated as:
+  `(raw market price + elecfee_consumption_amt_wh) * (100 + elecfee_consumption_percent_amt) / 100`
+  where `elecfee_consumption_amt_wh` and `elecfee_consumption_percent_amt` are given by the
+  ElecFee prediction.
 
 ### ElecPriceAkkudoktor Provider
 
 The `ElecPriceAkkudoktor` provider retrieves electricity prices directly from **Akkudoktor.net**,
 which supplies price data for the next 24 hours. For periods beyond 24 hours, the provider generates
 prices by extrapolating historical price data combined with the most recent actual prices obtained
-from Akkudoktor.net. Electricity price charges given in the `charges_kwh` configuration
-option are added.
+from Akkudoktor.net.
+
+Fees are applied if given by the `ElecFee` prediction.
 
 ### ElecPriceEnergyCharts Provider
 
@@ -164,18 +268,19 @@ forecasting by combining real-time market data with historical price trends.
 - For periods beyond 24 hours, prices are estimated using extrapolation based on historical data
   and the latest available market values.
 
-Charges and VAT
+Fees are applied if given by the `ElecFee` prediction.
 
-- If `charges_kwh` configuration option is greater than 0, the electricity price is calculated as:
-  `(market price + charges_kwh) * vat_rate` where `vat_rate` is configurable (default: 1.19 for 19% VAT).
-- If `charges_kwh` is set to 0, the electricity price is simply: `market_price` (no VAT applied).
-
-**Note:** For the most accurate forecasts, it is recommended to set the `historic_hours` parameter to 840.
+:::{admonition} Note
+:class: note
+For the most accurate forecasts, it is recommended to set the `historic_hours` parameter to 840.
+:::
 
 ### ElecPriceFixed Provider
 
 The `ElecPriceFixed` provider calculates the day-ahead electricity market prices from the configuration
 of electricity price time windows set up by the user.
+
+Fees are applied if given by the `ElecFee` prediction.
 
 ### ElecPriceImport Provider
 
@@ -185,9 +290,11 @@ The `ElecPriceImport` provider is designed to import electricity prices from:
   `import_file_path` or `import_json` configuration option.
 - The **PUT** `/v1/prediction/import/ElecPriceImport` endpoint (recommended for dynamic updates).
 
-The prediction key for the electricity price forecast data is:
+The prediction keys for the electricity price forecast data are:
 
-- `elecprice_marketprice_wh`: Electricity market price per Wh (€/Wh).
+- `elecprice_marketprice_raw_wh`: Raw electricity market price per Wh, always excluding fees
+  (amount/Wh).
+- `elecprice_marketprice_wh`: Electricity market price per Wh, including fees if wished (amount/Wh).
 
 The electricity price forecast data must be provided in one of the formats described in
 <project:#prediction-import-providers>.
@@ -204,12 +311,38 @@ from the configuration may be reloaded. To avoid these issues, use the **PUT** e
 data and rely on file/JSON imports only for initial setup.
 :::
 
+:::{admonition} Note
+:class: note
+No fees are applied, even if given by the `ElecFee` prediction.
+:::
+
+### ElecPriceSMARD Provider
+
+The `ElecPriceSMARD` provider retrieves quarter-hourly German/Luxembourg day-ahead prices directly
+from the public SMARD chart-data endpoint. It requests the required weekly chunks only and caches
+the combined response for one hour. Missing quarter-hour slots beyond the published day-ahead
+horizon are generated with the same daily or weekly seasonal ETS forecast as the Energy-Charts
+provider.
+
+Fees are applied if given by the ElecFee prediction.
+
+The same raw SMARD series is also available as `FeedInTariffSMARD` for direct-marketing feed-in
+revenue.
+
+### ElecPriceTibber Provider
+
+:::{admonition} Warning
+:class: warning
+`elecprice_marketprice_raw_wh` is currently not filled by the `ElecPriceTibber` prediction.
+:::
+
 ## Feed In Tariff Prediction
 
 Prediction keys:
 
-- `feed_in_tariff_wh`: Feed in tarif per Wh (€/Wh).
-- `feed_in_tariff_kwh`: Feed in tarif per kWh (€/kWh)
+- `feed_in_tariff_raw_wh`: Feed in tarif per Wh, always excluding fees (€/Wh).
+- `feed_in_tariff_wh`: Feed in tarif per Wh, including fees if configured (€/Wh).
+- `feed_in_tariff_kwh`: Feed in tarif per kWh (€/kWh), calculated from `feed_in_tariff_wh`.
 
 Configuration options:
 
@@ -226,16 +359,26 @@ Configuration options:
     - `FeedInTariffTibber`: Retrieves Tibber's native quarter-hour energy-price component.
 
   - `energycharts.bidding_zone`: Bidding zone Energy Charts shall provide feed-in tariff for.
-  - `feedintarifffixed.feed_in_tariff_kwh`: Fixed feed in tariff (€/kWh).
+  - `feedintarifffixed.feed_in_tariff_amt_kwh.windows`: The time windows with associated
+    fixed feed-in tariff (Amount/kWh).
   - `feedintariffimport.import_file_path`: Path to the file to import feed in tariff forecast data from.
   - `feedintariffimport.import_json`: JSON string, dictionary of feed in tariff value lists.
+
+Fees:
+
+- If `fees` are given by the  ElecFee prediction, the electricity fees are subtracted from the
+  raw feed-in tariff and stored in `feed_in_tariff_wh`.
+- The resulting tariff is calculated as:
+  `raw feed in tariff * (100 - elecfee_feedin_percent_amt) / 100 - elecfee_feedin_amt_wh`
+  where `elecfee_feedin_amt_wh` and `elecfee_feedin_percent_amt` are given by the
+  ElecFee prediction.
 
 ### FeedInTariffAkkudoktor Provider
 
 The `FeedInTariffAkkudoktor` provider uses raw day-ahead market prices from
-`https://api.akkudoktor.net/prices` as `feed_in_tariff_wh`. It does not add electricity import
-charges or VAT. Published prices are extended to the configured prediction horizon with the same
-seasonal ETS or median fallback used by the Akkudoktor electricity-price provider.
+`https://api.akkudoktor.net/prices` as `feed_in_tariff_wh`. Published prices are extended to
+the configured prediction horizon with the same seasonal ETS or median fallback used by the
+Akkudoktor electricity-price provider.
 
 The Akkudoktor endpoint currently forwards hourly market prices from aWATTar. With a 15-minute
 optimization interval, EOS holds each hourly price constant for its four quarter-hour slots. This
@@ -249,11 +392,25 @@ keeps the slot grid consistent but does not create genuine quarter-hour market p
 }
 ```
 
+:::{admonition} Warning
+:class: warning
+`feed_in_tariff_raw_wh` is currently not filled by the `FeedInTariffAkkudoktor` prediction.
+:::
+
+:::{admonition} Note
+:class: note
+No fees are applied, even if given by the `ElecFee` prediction.
+:::
+
+### FeedInTariffDvhubOnline Provider
+
+TBD
+
 ### FeedInTariffEnergyCharts Provider
 
 The `FeedInTariffEnergyCharts` provider uses the raw Energy-Charts day-ahead market price as the
-feed-in tariff. It stores prices in `feed_in_tariff_wh` without adding electricity import charges
-or VAT. The data is loaded from the Energy-Charts `/price` endpoint for the configured bidding
+feed-in tariff. It stores raw prices in `feed_in_tariff_raw_wh` without adding electricity fees.
+The data is loaded from the Energy-Charts `/price` endpoint for the configured bidding
 zone. The native Energy-Charts resolution, including quarter-hour data, is retained.
 
 Energy-Charts usually supplies prices only for the published day-ahead period. If that data does
@@ -269,6 +426,8 @@ four values per hour. Values already supplied by Energy-Charts are kept unchange
 future slots after the last published price are forecast. Consequently, a 15-minute optimization
 uses four forecast values per hour without converting them to hourly averages.
 
+Fees are applied if given by the `ElecFee` prediction.
+
 Example configuration:
 
 ```json
@@ -282,6 +441,13 @@ Example configuration:
 }
 ```
 
+### FeedInTariffFixed Provider
+
+The `FeedInTariffFixed` provider calculates the day-ahead feed-in tariffs from the configuration
+of feed-in tariff time windows set up by the user.
+
+Fees are applied if given by the `ElecFee` prediction.
+
 ### FeedInTariffImport Provider
 
 The `FeedInTariffImport` provider is designed to import feed in tariff prices from:
@@ -290,9 +456,10 @@ The `FeedInTariffImport` provider is designed to import feed in tariff prices fr
   `import_file_path` or `import_json` configuration option.
 - The **PUT** `/v1/prediction/import/FeedInTariffImport` endpoint (recommended for dynamic updates).
 
-The prediction key for the feed in tariff price forecast data is:
+The prediction keys for the feed in tariff price forecast data are:
 
-- `feed_in_tariff_wh`: Feed in tariff price per Wh (€/Wh).
+- `feed_in_tariff_raw_wh`: Feed in tarif per Wh, always excluding fees (€/Wh).
+- `feed_in_tariff_wh`: Feed in tarif per Wh, including fees if wished (€/Wh).
 
 The feed in tariff price forecast data must be provided in one of the formats described in
 <project:#prediction-import-providers>.
@@ -308,6 +475,21 @@ sources** can lead to unintended data overwrites. Moreover, after a restart, eve
 from the configuration may be reloaded. To avoid these issues, use the **PUT** endpoint for live
 data and rely on file/JSON imports only for initial setup.
 :::
+
+:::{admonition} Note
+:class: note
+No fees are applied, even if given by the `ElecFee` prediction.
+:::
+
+### FeedInTariffSMARD Provider
+
+he `FeedInTariffSMARD` provider retrieves quarter-hourly German/Luxembourg day-ahead prices directly
+from the public SMARD chart-data endpoint. It requests the required weekly chunks only and caches
+the combined response for one hour. Missing quarter-hour slots beyond the published day-ahead
+horizon are generated with the same daily or weekly seasonal ETS forecast as the Energy-Charts
+provider.
+
+Fees are applied if given by the `ElecFee` prediction.
 
 ### FeedInTariffTibber Provider
 
@@ -327,6 +509,11 @@ are needed.
   }
 }
 ```
+
+:::{admonition} Warning
+:class: warning
+`feed_in_tariff_raw_wh` is currently not filled by the `FeedInTariffTibber` prediction.
+:::
 
 ## Load Prediction
 

@@ -95,21 +95,6 @@ class FeedInTariffAkkudoktor(FeedInTariffProvider):
             series.at[timestamp] = value.marketprice / 1_000_000
         return series
 
-    def _predict_prices(self, history: np.ndarray, hours: int) -> np.ndarray:
-        """Extend published prices to the configured prediction horizon."""
-        predictor = ElecPriceAkkudoktor()
-        if len(history) > 800:
-            return predictor._predict_ets(history, seasonal_periods=168, hours=hours)
-        if len(history) > 168:
-            return predictor._predict_ets(history, seasonal_periods=24, hours=hours)
-        if len(history) > 0:
-            logger.warning(
-                "Using median fallback for Akkudoktor feed-in tariff with only {} values.",
-                len(history),
-            )
-            return predictor._predict_median(history, hours=hours)
-        raise ValueError("No Akkudoktor feed-in tariff data available")
-
     async def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Update raw prices and extrapolate any missing horizon values."""
         if not self.ems_start_datetime:
@@ -150,7 +135,8 @@ class FeedInTariffAkkudoktor(FeedInTariffProvider):
         if needed_hours <= 0:
             return
 
-        prediction = self._predict_prices(history, needed_hours)
+        prediction = self._predict(history, needed_hours)
+
         prediction_series = pd.Series(
             data=prediction,
             index=[

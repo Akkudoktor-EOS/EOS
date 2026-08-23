@@ -31,16 +31,20 @@ from typing import Optional, Union
 from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
+from akkudoktoreos.prediction.elecfeefixed import ElecFeeFixed
+from akkudoktoreos.prediction.elecfeeimport import ElecFeeImport
 from akkudoktoreos.prediction.elecpriceakkudoktor import ElecPriceAkkudoktor
 from akkudoktoreos.prediction.elecpriceenergycharts import ElecPriceEnergyCharts
 from akkudoktoreos.prediction.elecpricefixed import ElecPriceFixed
 from akkudoktoreos.prediction.elecpriceimport import ElecPriceImport
+from akkudoktoreos.prediction.elecpricesmard import ElecPriceSMARD
 from akkudoktoreos.prediction.elecpricetibber import ElecPriceTibber
 from akkudoktoreos.prediction.feedintariffakkudoktor import FeedInTariffAkkudoktor
 from akkudoktoreos.prediction.feedintariffdvhubonline import FeedInTariffDvhubOnline
 from akkudoktoreos.prediction.feedintariffenergycharts import FeedInTariffEnergyCharts
 from akkudoktoreos.prediction.feedintarifffixed import FeedInTariffFixed
 from akkudoktoreos.prediction.feedintariffimport import FeedInTariffImport
+from akkudoktoreos.prediction.feedintariffsmard import FeedInTariffSMARD
 from akkudoktoreos.prediction.feedintarifftibber import FeedInTariffTibber
 from akkudoktoreos.prediction.loadakkudoktor import (
     LoadAkkudoktor,
@@ -81,16 +85,20 @@ class PredictionCommonSettings(SettingsBaseModel):
 
 
 # Initialize forecast providers, all are singletons.
+elecfee_fixed = ElecFeeFixed()
+elecfee_import = ElecFeeImport()
 elecprice_akkudoktor = ElecPriceAkkudoktor()
 elecprice_energy_charts = ElecPriceEnergyCharts()
 elecprice_fixed = ElecPriceFixed()
 elecprice_import = ElecPriceImport()
+elecprice_smard = ElecPriceSMARD()
 elecprice_tibber = ElecPriceTibber()
 feedintariff_akkudoktor = FeedInTariffAkkudoktor()
 feedintariff_dvhubonline = FeedInTariffDvhubOnline()
 feedintariff_energy_charts = FeedInTariffEnergyCharts()
 feedintariff_fixed = FeedInTariffFixed()
 feedintariff_import = FeedInTariffImport()
+feedintariff_smard = FeedInTariffSMARD()
 feedintariff_tibber = FeedInTariffTibber()
 loadforecast_akkudoktor = LoadAkkudoktor()
 loadforecast_akkudoktor_adjusted = LoadAkkudoktorAdjusted()
@@ -111,16 +119,20 @@ weather_import = WeatherImport()
 
 def prediction_providers() -> list[
     Union[
+        ElecFeeFixed,
+        ElecFeeImport,
         ElecPriceAkkudoktor,
         ElecPriceEnergyCharts,
         ElecPriceFixed,
         ElecPriceImport,
+        ElecPriceSMARD,
         ElecPriceTibber,
         FeedInTariffAkkudoktor,
         FeedInTariffDvhubOnline,
         FeedInTariffEnergyCharts,
         FeedInTariffFixed,
         FeedInTariffImport,
+        FeedInTariffSMARD,
         FeedInTariffTibber,
         LoadAkkudoktor,
         LoadAkkudoktorAdjusted,
@@ -144,16 +156,20 @@ def prediction_providers() -> list[
     Factory for prediction container.
     """
     global \
+        elecfee_fixed, \
+        elecfee_import, \
         elecprice_akkudoktor, \
         elecprice_energy_charts, \
         elecprice_fixed, \
         elecprice_import, \
+        elecprice_smard, \
         elecprice_tibber, \
         feedintariff_akkudoktor, \
         feedintariff_dvhubonline, \
         feedintariff_energy_charts, \
         feedintariff_fixed, \
         feedintariff_import, \
+        feedintariff_smard, \
         feedintariff_tibber, \
         loadforecast_akkudoktor, \
         loadforecast_akkudoktor_adjusted, \
@@ -176,20 +192,24 @@ def prediction_providers() -> list[
     # Inter provider dependencies:
     # - pvforecast_pvlib depends on weather
     return [
-        weather_brightsky,  # weather maybe needed by the pvforcast, keep it before
+        weather_brightsky,  # weather maybe needed by the pvforcast, keep before
         weather_clearoutside,
         weather_import,
         weather_openmeteo,
+        elecfee_fixed,  # elecfee maybe needed by elecprice and feedintariff, keep before
+        elecfee_import,
         elecprice_akkudoktor,
         elecprice_energy_charts,
         elecprice_fixed,
         elecprice_import,
+        elecprice_smard,
         elecprice_tibber,
         feedintariff_akkudoktor,
         feedintariff_dvhubonline,
         feedintariff_energy_charts,
         feedintariff_fixed,
         feedintariff_import,
+        feedintariff_smard,
         feedintariff_tibber,
         loadforecast_akkudoktor,
         loadforecast_akkudoktor_adjusted,
@@ -210,16 +230,20 @@ class Prediction(PredictionContainer):
 
     providers: list[
         Union[
+            ElecFeeFixed,
+            ElecFeeImport,
             ElecPriceAkkudoktor,
             ElecPriceEnergyCharts,
             ElecPriceFixed,
             ElecPriceImport,
+            ElecPriceSMARD,
             ElecPriceTibber,
             FeedInTariffAkkudoktor,
             FeedInTariffDvhubOnline,
             FeedInTariffEnergyCharts,
             FeedInTariffFixed,
             FeedInTariffImport,
+            FeedInTariffSMARD,
             FeedInTariffTibber,
             LoadAkkudoktor,
             LoadAkkudoktorAdjusted,

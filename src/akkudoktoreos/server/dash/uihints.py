@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Literal, Optional
 
 from akkudoktoreos.server.dash.components import (
+    make_config_update_lazy_select_form,
     make_config_update_list_form,
     make_config_update_map_form,
     make_config_update_time_windows_windows_form,
@@ -40,6 +41,7 @@ UiFormType = Literal[
     "text",  # plain text input (default)
     "select",  # single-value dropdown
     "select_list",  # add/delete multi-value list
+    "select_lazy",  # server-filtered select for large option sets
     "map",  # key/value pair editor
     "time_windows",  # time-window sequence editor
     "items",  # expandable list of sub-model cards
@@ -67,6 +69,12 @@ class UiHint:
             Dotted config-field path whose runtime value provides the
             option list (JSON-encoded ``list[str]``).  Takes precedence
             over ``options`` when both are set.
+
+        options_source:
+            ``select_lazy`` only. Key into LAZY_OPTIONS_SOURCES identifying the
+            callable that lazily returns the full (potentially huge) candidate
+            list, e.g. "pvforecast.cec_modules". Distinct from options_from, which
+            reads a small already-resolved list out of config_details.
 
         param_from:
             Dotted config-field path for a secondary runtime parameter.
@@ -108,6 +116,7 @@ class UiHint:
     # select / select_list / map
     options: list[str] = field(default_factory=list)
     options_from: Optional[str] = None
+    options_source: Optional[str] = None
     param_from: Optional[str] = None
     append_none: bool = False
 
@@ -121,13 +130,39 @@ class UiHint:
 
 
 # ---------------------------------------------------------------------------
+# Lazy Registry
+# ---------------------------------------------------------------------------
+
+LazyOptionsSource = Callable[[], list[str]]
+
+LAZY_OPTIONS_SOURCES: dict[str, LazyOptionsSource] = {}
+
+
+def register_lazy_options_source(key: str, source: LazyOptionsSource) -> None:
+    """Register a lazy options callable that provides the options list.
+
+    The callable shall provide the full candidate list for a "select_lazy" hint's
+    options_source.
+
+    The callable should be cheap to call repeatedly (e.g. wrapped in
+    caching) since it is invoked once per keystroke-driven search request —
+    filtering happens in this process, not inside the callable itself.
+    """
+    LAZY_OPTIONS_SOURCES[key] = source
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
 UI_HINTS: dict[str, UiHint] = {
     # ------------------------------------------------------------------
-    # Adapter - Home Assistant adapter
+    # Adapter
     # ------------------------------------------------------------------
+    "adapter.provider": UiHint(
+        form="select_list",
+        options_from="adapter.providers",
+    ),
     "adapter.homeassistant.config_entity_ids": UiHint(
         form="map",
         options_from="adapter.homeassistant.homeassistant_entity_ids",
@@ -162,6 +197,14 @@ UI_HINTS: dict[str, UiHint] = {
         options_from="adapter.homeassistant.eos_solution_entity_ids",
     ),
     # ------------------------------------------------------------------
+    # Database
+    # ------------------------------------------------------------------
+    "database.provider": UiHint(
+        form="select",
+        options_from="database.providers",
+        append_none=True,
+    ),
+    # ------------------------------------------------------------------
     # Devices
     # ------------------------------------------------------------------
     "devices.batteries": UiHint(
@@ -182,16 +225,40 @@ UI_HINTS: dict[str, UiHint] = {
         value_description="cycle index (0-based)",
     ),
     # ------------------------------------------------------------------
-    # Electricity price — fixed time windows
+    # Electricity fee
+    # ------------------------------------------------------------------
+    "elecfee.provider": UiHint(
+        form="select",
+        options_from="elecfee.providers",
+        append_none=True,
+    ),
+    "elecfee.elecfeefixed.consumption_amt_kwh.windows": UiHint(
+        form="time_windows",
+        value_description="consumption_amt_kwh [Amt/kWh]",
+    ),
+    "elecfee.elecfeefixed.consumption_percent_amt.windows": UiHint(
+        form="time_windows",
+        value_description="consumption_percent_amt [%]",
+    ),
+    "elecfee.elecfeefixed.feedin_amt_kwh.windows": UiHint(
+        form="time_windows",
+        value_description="feedin_amt_kwh [Amt/kWh]",
+    ),
+    "elecfee.elecfeefixed.feedin_percent_amt.windows": UiHint(
+        form="time_windows",
+        value_description="feedin_percent_amt [%]",
+    ),
+    # ------------------------------------------------------------------
+    # Electricity price
     # ------------------------------------------------------------------
     "elecprice.provider": UiHint(
         form="select",
         options_from="elecprice.providers",
         append_none=True,
     ),
-    "elecprice.elecpricefixed.time_windows.windows": UiHint(
+    "elecprice.elecpricefixed.elecprice_marketprice_amt_kwh.windows": UiHint(
         form="time_windows",
-        value_description="electricity_price_kwh [Amt/kWh]",
+        value_description="elecprice_marketprice_amt_kwh [Amt/kWh]",
     ),
     # ------------------------------------------------------------------
     # EMS
@@ -199,6 +266,18 @@ UI_HINTS: dict[str, UiHint] = {
     "ems.mode": UiHint(
         form="select",
         options_from="ems.modes",
+    ),
+    # ------------------------------------------------------------------
+    # Feed-in Tariff
+    # ------------------------------------------------------------------
+    "feedintariff.provider": UiHint(
+        form="select",
+        options_from="feedintariff.providers",
+        append_none=True,
+    ),
+    "feedintariff.feedintarifffixed.feed_in_tariff_amt_kwh.windows": UiHint(
+        form="time_windows",
+        value_description="feed_in_tariff_amt_kwh [Amt/kWh]",
     ),
     # ------------------------------------------------------------------
     # Load
@@ -237,6 +316,14 @@ UI_HINTS: dict[str, UiHint] = {
     "pvforecast.planes.mountingplace": UiHint(
         form="select",
         options=["free", "building"],
+    ),
+    "pvforecast.planes.inverter_model": UiHint(
+        form="select_lazy",
+        options_source="pvlib.inverters",
+    ),
+    "pvforecast.planes.module_model": UiHint(
+        form="select_lazy",
+        options_source="pvlib.modules",
     ),
     # ------------------------------------------------------------------
     # Weather
@@ -361,6 +448,9 @@ def resolve_form_factory(
         if not options:
             options = list(hint.options)
         return make_config_update_list_form(options)
+
+    if hint.form == "select_lazy":
+        return make_config_update_lazy_select_form(hint.options_source or "")
 
     if hint.form == "map":
         available_values: Optional[list[str]] = None

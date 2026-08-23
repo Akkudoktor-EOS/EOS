@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from typing import Any, Dict, List, Optional, TypeVar, Union
 
 import requests
+from fasthtml.common import Select
 from loguru import logger
 from monsterui.franken import (
     Card,
@@ -11,6 +12,7 @@ from monsterui.franken import (
     Div,
     Grid,
     LabelCheckboxX,
+    Option,
 )
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
@@ -24,10 +26,13 @@ from akkudoktoreos.server.dash.components import (
     Input,
 )
 from akkudoktoreos.server.dash.context import request_url_for
+from akkudoktoreos.server.dash.eosstatus import eos_pvlib_cec_names, eos_server_address
 from akkudoktoreos.server.dash.itemscard import ConfigItemsCard
 from akkudoktoreos.server.dash.mapcard import ConfigMapCard
 from akkudoktoreos.server.dash.uihints import (
+    LAZY_OPTIONS_SOURCES,
     UI_HINTS,
+    register_lazy_options_source,
     resolve_form_factory,
 )
 
@@ -258,73 +263,68 @@ def create_config_details(
         dict[dict]: A dictionary of configuration details, each represented as a dictionary.
     """
     config_details: dict[str, dict] = {}
-    inner_types: set[type[PydanticBaseModel]] = set()
+
+    def extract_nested_models(
+        subfield_info: Union[ComputedFieldInfo, FieldInfo],
+        parent_types: list[str],
+        visited: frozenset,
+    ) -> None:
+        nonlocal values, values_prefix
+        regular_field = isinstance(subfield_info, FieldInfo)
+        subtype = subfield_info.annotation if regular_field else subfield_info.return_type
+
+        nested_types = resolve_nested_types(subtype, [])
+        found_basic = False
+        for nested_type, nested_parent_types in nested_types:
+            if not isinstance(nested_type, type) or not issubclass(nested_type, PydanticBaseModel):
+                if found_basic:
+                    continue
+                extra = get_field_extra_dict(subfield_info)
+
+                config: dict[str, Optional[Any]] = {}
+                config["name"] = ".".join(values_prefix + parent_types)
+                config["value"] = json.dumps(
+                    get_nested_value(values, values_prefix + parent_types, "<unknown>")
+                )
+                config["default"] = json.dumps(get_default_value(subfield_info, regular_field))
+                config["description"] = get_description(subfield_info, extra)
+                config["deprecated"] = get_deprecated(subfield_info, extra)
+                config["scope"] = get_scope(extra)
+                if isinstance(subfield_info, ComputedFieldInfo):
+                    config["read-only"] = "ro"
+                    type_description = str(subfield_info.return_type)
+                else:
+                    config["read-only"] = "rw"
+                    type_description = str(subfield_info.annotation)
+                config["type"] = (
+                    type_description.replace("typing.", "")
+                    .replace("pathlib.", "")
+                    .replace("NoneType", "None")
+                    .replace("<class 'float'>", "float")
+                )
+                config_details[str(config["name"])] = config
+                found_basic = True
+            else:
+                if nested_type in visited:
+                    # Genuine cycle along this path (self-referential model) — stop
+                    # recursing here, but do NOT block sibling branches elsewhere.
+                    continue
+                new_parent_types = parent_types + nested_parent_types
+                new_visited = visited | {nested_type}
+                for nested_field_name, nested_field_info in list(
+                    nested_type.model_fields.items()
+                ) + list(nested_type.model_computed_fields.items()):
+                    extract_nested_models(
+                        nested_field_info,
+                        new_parent_types + [nested_field_name],
+                        new_visited,
+                    )
 
     for field_name, field_info in list(model.model_fields.items()) + list(
         model.model_computed_fields.items()
     ):
+        extract_nested_models(field_info, [field_name], frozenset())
 
-        def extract_nested_models(
-            subfield_info: Union[ComputedFieldInfo, FieldInfo], parent_types: list[str]
-        ) -> None:
-            """Extract nested models from the given subfield information.
-
-            Args:
-                subfield_info (Union[ComputedFieldInfo, FieldInfo]): Field metadata from Pydantic.
-                parent_types (list[str]): A list of parent type names for hierarchical representation.
-            """
-            nonlocal values, values_prefix
-            regular_field = isinstance(subfield_info, FieldInfo)
-            subtype = subfield_info.annotation if regular_field else subfield_info.return_type
-
-            if subtype in inner_types:
-                return
-
-            nested_types = resolve_nested_types(subtype, [])
-            found_basic = False
-            for nested_type, nested_parent_types in nested_types:
-                if not isinstance(nested_type, type) or not issubclass(
-                    nested_type, PydanticBaseModel
-                ):
-                    if found_basic:
-                        continue
-                    extra = get_field_extra_dict(subfield_info)
-
-                    config: dict[str, Optional[Any]] = {}
-                    config["name"] = ".".join(values_prefix + parent_types)
-                    config["value"] = json.dumps(
-                        get_nested_value(values, values_prefix + parent_types, "<unknown>")
-                    )
-                    config["default"] = json.dumps(get_default_value(subfield_info, regular_field))
-                    config["description"] = get_description(subfield_info, extra)
-                    config["deprecated"] = get_deprecated(subfield_info, extra)
-                    config["scope"] = get_scope(extra)
-                    if isinstance(subfield_info, ComputedFieldInfo):
-                        config["read-only"] = "ro"
-                        type_description = str(subfield_info.return_type)
-                    else:
-                        config["read-only"] = "rw"
-                        type_description = str(subfield_info.annotation)
-                    config["type"] = (
-                        type_description.replace("typing.", "")
-                        .replace("pathlib.", "")
-                        .replace("NoneType", "None")
-                        .replace("<class 'float'>", "float")
-                    )
-                    config_details[str(config["name"])] = config
-                    found_basic = True
-                else:
-                    new_parent_types = parent_types + nested_parent_types
-                    inner_types.add(nested_type)
-                    for nested_field_name, nested_field_info in list(
-                        nested_type.model_fields.items()
-                    ) + list(nested_type.model_computed_fields.items()):
-                        extract_nested_models(
-                            nested_field_info,
-                            new_parent_types + [nested_field_name],
-                        )
-
-        extract_nested_models(field_info, [field_name])
     return config_details
 
 
@@ -366,6 +366,93 @@ def config_matches_search(config: dict, search: str) -> bool:
     )
 
 
+# ---------------------
+# Lazy Options Handling
+# ---------------------
+
+
+def _fetch_cec_names(kind: str) -> tuple[str, ...]:
+    """Fetch CEC module or inverter names from the EOS server.
+
+    Cached per kind for the EOSdash process lifetime — the CEC database
+    is static.
+
+    Args:
+        kind: "modules" or "inverters".
+    """
+    global eos_server_address, eos_pvlib_cec_names
+
+    if kind in eos_pvlib_cec_names:
+        # Already cached
+        return eos_pvlib_cec_names[kind]
+
+    if eos_server_address is None:
+        logger.warning(
+            f"EOS server address not yet known: `{eos_server_address}`; cannot fetch CEC {kind}"
+        )
+        return ()
+    host, port = eos_server_address
+    # host = "127.0.0.1"
+    # port = 8503
+    server = f"http://{host}:{port}"
+    path = f"/v1/prediction/pvforecast/pvlib/{kind}"
+    try:
+        result = requests.get(f"{server}{path}", timeout=10)
+        result.raise_for_status()
+        data = result.json()
+        names = tuple(data) if isinstance(data, list) else tuple(data.keys())
+        eos_pvlib_cec_names[kind] = names
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Can not retrieve CEC {kind} from {server}: {e}")
+        return ()
+
+    logger.info(f"Fetched CEC {kind}")
+
+    return names
+
+
+def _cec_modules_source() -> list[str]:
+    return list(_fetch_cec_names("modules"))
+
+
+def _cec_inverters_source() -> list[str]:
+    return list(_fetch_cec_names("inverters"))
+
+
+register_lazy_options_source("pvlib.modules", _cec_modules_source)
+register_lazy_options_source("pvlib.inverters", _cec_inverters_source)
+
+
+def config_options(
+    options_source: str, search: str, select_id: str, name: str, current: str
+) -> Select:
+    """Return a filtered, capped <select> fragment for a select_lazy field."""
+    source = LAZY_OPTIONS_SOURCES.get(options_source)
+    all_values = source() if source else []
+
+    search_l = (search or "").strip().lower()
+    matches = [v for v in all_values if search_l in v.lower()] if search_l else all_values
+    matches = matches[:50]  # hard cap regardless of source size
+
+    if current and current not in matches:
+        # keep the current selection visible even if it doesn't match
+        # the active filter, so switching searches never silently loses it
+        matches = [current] + matches
+
+    return Select(
+        *[Option(v, value=v, selected=(v == current)) for v in matches],
+        id=select_id,
+        name=name,
+        required=True,
+        cls="border rounded px-3 py-2 w-full",
+    )
+
+
+# -----------------------------------
+# Configuration Visual Representation
+# -----------------------------------
+
+
 def Configuration(
     eos_host: str,
     eos_port: Union[str, int],
@@ -381,8 +468,11 @@ def Configuration(
     Returns:
         rows:  Rows of configuration details.
     """
-    global config_visible
+    global config_visible, eos_server_address
     dark = False
+
+    # Remember for usage
+    eos_server_address = (eos_host, int(eos_port))
 
     if data and data.get("action", None):
         if data.get("dark", None) == "true":
@@ -526,11 +616,13 @@ def Configuration(
     logger.debug(f"devices_measurement_keys {devices_measurement_keys}")
 
     # build visual representation
-    sections: dict[str, list[Any]] = {}
+    sections: dict[str, dict[str, Any]] = {}
 
+    # Fill sections with config cards
     for config_key in sorted(config_details.keys()):
         config = config_details[config_key]
         category = config["name"].split(".")[0]
+        sections.setdefault(category, {})
 
         update_error = config_update_latest.get(config["name"], {}).get("error")
         update_value = config_update_latest.get(config["name"], {}).get("value")
@@ -594,22 +686,33 @@ def Configuration(
         else:
             continue
 
-        sections.setdefault(category, []).append(card)
+        sections[category][config["name"]] = card
 
     section_components = []
 
     for category in sorted(sections.keys()):
-        cards = sections[category]
-
-        # Open if searching OR if last update was here
+        # Open if searching OR if last update touched this category — including
+        # updates on deeply nested sub-fields (e.g. pvforecast.planes.2.module_model)
+        # whose full dotted name never appears as a key in the outer config_details
+        # dict, since that dict only holds top-level model fields. ConfigItemsCard
+        # resolves per-item sub-fields internally via its own create_config_details
+        # call, so we must match against config_update_latest's own keys instead.
         open_section = bool(search_value)
 
         if not open_section:
             open_section = any(
-                config_update_latest.get(c["name"], {}).get("open")
-                for c in config_details.values()
-                if c["name"].startswith(category)
+                info.get("open")
+                for key, info in config_update_latest.items()
+                if key == category or key.startswith(f"{category}.")
             )
+
+        cards: list[Card] = []
+        for name, card in sections[category].items():
+            if name.rsplit(".", 1)[-1] == "provider":
+                # Make provider the first config item in category
+                cards.insert(0, card)
+            else:
+                cards.append(card)
 
         section_components.append(ConfigSection(category, *cards, open=open_section))
 

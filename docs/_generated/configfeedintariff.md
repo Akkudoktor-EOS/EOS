@@ -13,6 +13,7 @@
 | feedintariffimport | `EOS_FEEDINTARIFF__FEEDINTARIFFIMPORT` | `FeedInTariffImportCommonSettings` | `rw` | `required` | Feed in tarif import provider settings. |
 | provider | `EOS_FEEDINTARIFF__PROVIDER` | `str | None` | `rw` | `None` | Feed in tariff provider id of provider to be used. |
 | providers | | `list[str]` | `ro` | `N/A` | Available feed in tariff provider ids. |
+| smard | `EOS_FEEDINTARIFF__SMARD` | `FeedInTariffSMARDCommonSettings` | `rw` | `required` | SMARD feed in tariff provider settings. |
 :::
 <!-- pyml enable line-length -->
 
@@ -26,7 +27,9 @@
        "feedintariff": {
            "provider": "FeedInTariffFixed",
            "feedintarifffixed": {
-               "feed_in_tariff_kwh": null
+               "feed_in_tariff_amt_kwh": {
+                   "windows": []
+               }
            },
            "feedintariffimport": {
                "import_file_path": null,
@@ -38,7 +41,8 @@
            },
            "energycharts": {
                "bidding_zone": "DE-LU"
-           }
+           },
+           "smard": {}
        }
    }
 ```
@@ -54,7 +58,9 @@
        "feedintariff": {
            "provider": "FeedInTariffFixed",
            "feedintarifffixed": {
-               "feed_in_tariff_kwh": null
+               "feed_in_tariff_amt_kwh": {
+                   "windows": []
+               }
            },
            "feedintariffimport": {
                "import_file_path": null,
@@ -67,14 +73,42 @@
            "energycharts": {
                "bidding_zone": "DE-LU"
            },
+           "smard": {},
            "providers": [
                "FeedInTariffAkkudoktor",
                "FeedInTariffDvhubOnline",
                "FeedInTariffEnergyCharts",
                "FeedInTariffFixed",
                "FeedInTariffImport",
+               "FeedInTariffSMARD",
                "FeedInTariffTibber"
            ]
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Settings for SMARD feed-in prices shared with ``elecprice.smard``
+
+<!-- pyml disable line-length -->
+:::{table} feedintariff::smard
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "feedintariff": {
+           "smard": {}
        }
    }
 ```
@@ -120,7 +154,7 @@
 
 | Name | Type | Read-Only | Default | Description |
 | ---- | ---- | --------- | ------- | ----------- |
-| feed_in_tariff_kwh | `float | None` | `rw` | `None` | Electricity price feed in tariff [amount/kWh]. |
+| feed_in_tariff_amt_kwh | `ValueTimeWindowSequence` | `rw` | `required` | Sequence of time windows defining the electricity feed in tariff [amount/kWh]. If not provided, no fixed feed in tariff is applied. |
 :::
 <!-- pyml enable line-length -->
 
@@ -133,7 +167,26 @@
    {
        "feedintariff": {
            "feedintarifffixed": {
-               "feed_in_tariff_kwh": 0.078
+               "feed_in_tariff_amt_kwh": {
+                   "windows": [
+                       {
+                           "start_time": "00:00:00.000000",
+                           "duration": "8 hours",
+                           "day_of_week": null,
+                           "date": null,
+                           "locale": null,
+                           "value": 0.028
+                       },
+                       {
+                           "start_time": "08:00:00.000000",
+                           "duration": "16 hours",
+                           "day_of_week": null,
+                           "date": null,
+                           "locale": null,
+                           "value": 0.034
+                       }
+                   ]
+               }
            }
        }
    }

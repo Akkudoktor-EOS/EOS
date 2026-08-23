@@ -33,7 +33,10 @@ def provider(config_eos):
         },
     }
     config_eos.merge_settings_from_dict(settings)
-    return WeatherClearOutside()
+    provider = WeatherClearOutside()
+    assert provider.enabled()
+    provider._db_reset_state()
+    return provider
 
 
 @pytest.fixture

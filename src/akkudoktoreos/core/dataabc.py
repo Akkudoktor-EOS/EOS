@@ -1272,6 +1272,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
 
         Raises:
             KeyError: If the specified key is not found in any of the DataRecords.
+            ValueError: If the fill_method, resample_method or boundary values are invalid
         """
         # Validate fill method
         if fill_method not in ("ffill", "bfill", "linear", "time", "none", None):

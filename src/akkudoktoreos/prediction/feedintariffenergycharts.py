@@ -4,7 +4,6 @@ import time
 from datetime import datetime
 from typing import Optional
 
-import numpy as np
 import pandas as pd
 import requests
 from loguru import logger
@@ -40,8 +39,9 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
     """Fetch Energy-Charts market prices as feed-in tariff data.
 
     This provider stores the raw Energy-Charts day-ahead market price as
-    ``feed_in_tariff_wh``. Unlike ``ElecPriceEnergyCharts`` it intentionally
-    does not add electricity import charges or VAT.
+    ``feed_in_tariff_raw_wh``, and derives ``feed_in_tariff_wh`` from it by
+    applying any configured feed-in fees (unconditionally; a fee-free result
+    requires leaving the ElecFee provider unconfigured).
     """
 
     highest_orig_datetime: Optional[datetime] = None
@@ -66,7 +66,17 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
 
     @cache_in_file(with_ttl="1 hour")
     def _request_forecast(self, start_date: Optional[str] = None) -> EnergyChartsElecPrice:
-        """Fetch market price forecast data from Energy-Charts."""
+        """Fetch electricity price forecast data from Energy-Charts API.
+
+        This method sends a request to Energy-Charts API to retrieve forecast data for a specified
+        date range. The response data is parsed and returned as JSON for further processing.
+
+        Returns:
+            dict: The parsed JSON response from Energy-Charts API containing forecast data.
+
+        Raises:
+            ValueError: If the API response does not include expected `electricity price` data.
+        """
         source = "https://api.energy-charts.info"
         if start_date is None:
             start_date = to_datetime(
@@ -105,58 +115,41 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
         raise last_exc  # type: ignore[misc]
 
     def _parse_data(self, energy_charts_data: EnergyChartsElecPrice) -> pd.Series:
-        series_data = pd.Series(dtype=float)
+        # Assumption that all lists are the same length and are ordered chronologically
+        # in ascending order and have the same timestamps.
+
+        # Initialize
+        highest_orig_datetime = None  # newest datetime from the api after that we want to update.
+        prices_wh = pd.Series(dtype=float)  # Initialize an empty series
+
+        # Iterate over timestamps and prices together
         for unix_sec, price_eur_per_mwh in zip(
-            energy_charts_data.unix_seconds, energy_charts_data.price, strict=False
+            energy_charts_data.unix_seconds, energy_charts_data.price
         ):
             orig_datetime = to_datetime(unix_sec, in_timezone=self.config.general.timezone)
-            series_data.at[orig_datetime] = price_eur_per_mwh / 1_000_000
-        return series_data
 
-    def _resolution_seconds(self, series: pd.Series) -> int:
-        """Infer the current native market interval from recent timestamps."""
-        if len(series) < 2:
-            return 3600
-        index = pd.DatetimeIndex(series.sort_index().index).drop_duplicates()
-        deltas = index.to_series().diff().dropna().dt.total_seconds()
-        deltas = deltas[deltas > 0].tail(96)
-        if deltas.empty:
-            return 3600
-        resolution = int(round(float(deltas.median())))
-        return resolution if resolution > 0 and 3600 % resolution == 0 else 3600
+            # Track the latest datetime
+            if highest_orig_datetime is None or orig_datetime > highest_orig_datetime:
+                highest_orig_datetime = orig_datetime
 
-    def _predict_prices(self, history: np.ndarray, slots: int, slots_per_hour: int) -> np.ndarray:
-        energycharts = ElecPriceEnergyCharts()
-        if len(history) > 800 * slots_per_hour:
-            logger.info(
-                "Using weekly seasonal ETS forecast for Energy-Charts feed-in tariff "
-                "with {} historical values.",
-                len(history),
-            )
-            return energycharts._predict_ets(
-                history, seasonal_periods=168 * slots_per_hour, hours=slots
-            )
-        if len(history) > 168 * slots_per_hour:
-            logger.info(
-                "Using daily seasonal ETS forecast for Energy-Charts feed-in tariff "
-                "with {} historical values.",
-                len(history),
-            )
-            return energycharts._predict_ets(
-                history, seasonal_periods=24 * slots_per_hour, hours=slots
-            )
-        if len(history) > 0:
-            logger.warning(
-                "Using constant median fallback for Energy-Charts feed-in tariff "
-                "with only {} historical values.",
-                len(history),
-            )
-            return energycharts._predict_median(history, hours=slots)
-        logger.error("No feed-in tariff data available for Energy-Charts prediction")
-        raise ValueError("No data available")
+            # Convert EUR/MWh to EUR/Wh
+            price_wh = price_eur_per_mwh / 1_000_000
+
+            # Store in series
+            prices_wh.at[orig_datetime] = price_wh
+
+        # Always raw here — fees are applied once, later, over the complete
+        # raw+predicted series in _store_gross_series().
+        return prices_wh
 
     async def _update_data(self, force_update: Optional[bool] = False) -> None:
-        """Update feed-in tariff forecast data from Energy-Charts."""
+        """Update feed-in tariff forecast data from Energy-Charts.
+
+        Retrieves data from Energy-Charts, maps each Energy-Charts field to the corresponding
+        `FeedInTariffDataRecord` and applies any necessary scaling.
+
+        The final mapped and processed data is inserted into the sequence as `FeedInTariffDataRecord`.
+        """
         # New prices are available every day at 14:00
         now = pd.Timestamp.now(tz=self.config.general.timezone)
         midnight = now.normalize()
@@ -166,65 +159,79 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
         if not self.ems_start_datetime:
             raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
 
-        # Determine if update is needed and how many days
+        # Lower bound for the gross-series recompute at the end of this method:
+        # defaults to "from now", widened to the fetched window's start if a
+        # fetch actually happens below.
+        gross_start_datetime = self.ems_start_datetime
+
+        # Set default start_datetime - try to take data from 5 weeks back for prediction
         past_days = 35
-        needs_history_refresh = False
+        start_datetime = self.ems_start_datetime - to_duration(f"{past_days} days")
+
+        # Determine if update is needed and what start date is really necessary
+        needs_update = False
         if self.highest_orig_datetime:
             raw_history = await self.key_to_raw_series(
-                key="feed_in_tariff_wh",
-                end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
+                key="feed_in_tariff_raw_wh",
+                start_datetime=start_datetime,
+                end_datetime=gross_start_datetime,
             )
 
-            # A later update must not mistake the current forecast window for
-            # sufficient ETS history. Require the same amount of data that the
-            # weekly prediction branch below needs; otherwise fetch 35 days
-            # again and repair an already-truncated in-memory history.
-            if not raw_history.empty:
+            if raw_history.empty:
+                # We need the default start date (35 days in past)
+                needs_update = True
+            else:
+                # A later update must not mistake the current forecast window for
+                # sufficient ETS history. Require the same amount of data that the
+                # weekly prediction branch in _predict needs; otherwise fetch 35
+                # days again and repair an already-truncated in-memory history.
                 resolution_seconds = self._resolution_seconds(raw_history)
                 slots_per_hour = 3600 // resolution_seconds
-                needs_history_refresh = len(raw_history) <= 800 * slots_per_hour
-            else:
-                needs_history_refresh = True
-
-            if not needs_history_refresh and not force_update:
-                past_days = 0
-            needs_update = (
-                bool(force_update) or end > self.highest_orig_datetime or needs_history_refresh
-            )
+                if len(raw_history) <= 2 * 168 * slots_per_hour:
+                    # Not enough slots in history, default start date
+                    needs_update = True
+                elif force_update:
+                    # Use default start date in case of forced update
+                    needs_update = True
+                elif end > self.highest_orig_datetime:
+                    # We got enough history, but still not enough data to prediction end
+                    start_datetime = gross_start_datetime
+                    needs_update = True
         else:
             needs_update = True
 
         if needs_update:
             logger.info(
                 "Update FeedInTariffEnergyCharts is needed, last in history: {}, "
-                "force_update={}, history_refresh={}",
+                "force_update={}, start_datetime={}",
                 self.highest_orig_datetime,
                 bool(force_update),
-                needs_history_refresh,
+                start_datetime,
             )
+            # Set start_date try to take data from 5 weeks back for prediction
             start_date = to_datetime(
                 self.ems_start_datetime - to_duration(f"{past_days} days"),
                 as_string="YYYY-MM-DD",
             )
+            # Get Energy-Charts electricity price data
             try:
                 energy_charts_data = self._request_forecast(
-                    start_date=start_date, force_update=force_update
+                    start_date=to_datetime(start_datetime, as_string="YYYY-MM-DD"),
+                    force_update=force_update,
                 )  # type: ignore
+
+                # Parse and store data
                 series_data = self._parse_data(energy_charts_data)
                 if series_data.empty:
                     raise ValueError("No Energy-Charts feed-in tariff data available")
-                self.highest_orig_datetime = series_data.index.max()
-                await self.key_from_series("feed_in_tariff_wh", series_data)
+                self.highest_orig_datetime = to_datetime(series_data.index.max())
+                await self.key_from_series("feed_in_tariff_raw_wh", series_data)
+                # Newly fetched data widens the window that needs its gross
+                # (fee-inclusive) values recomputed.
+                gross_start_datetime = to_datetime(series_data.index.min())
             except Exception as exc:
                 if self.highest_orig_datetime is None:
-                    # Cold start: no cached/historical data to fall back to, so a
-                    # failed fetch is fatal.
                     raise
-                # Transient API outage with existing history available: do not
-                # abort the whole prediction update. Keep the existing history
-                # and let the ETS/median branch below extrapolate the remaining
-                # slots, so downstream (e.g. /gesamtlast, optimization) still
-                # gets a usable feed-in tariff series.
                 logger.warning(
                     "Energy-Charts feed-in tariff update failed ({}); keeping "
                     "existing history until {} and extrapolating the remaining "
@@ -244,32 +251,36 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             raise ValueError(error_msg)
 
         raw_series = await self.key_to_raw_series(
-            key="feed_in_tariff_wh",
+            key="feed_in_tariff_raw_wh",
             end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
         )
         resolution_seconds = self._resolution_seconds(raw_series)
         slots_per_hour = 3600 // resolution_seconds
+
+        # Raw history only. Guaranteed fee-free regardless of which branch ran
+        # above, so ETS/median always trains on the true wholesale-price signal.
         history = await self.key_to_array(
-            key="feed_in_tariff_wh",
+            key="feed_in_tariff_raw_wh",
             end_datetime=self.highest_orig_datetime,
             interval=to_duration(f"{resolution_seconds} seconds"),
             fill_method="linear",
         )
 
-        # some of our data is already in the future, so we need to predict less.
-        # If we got less data we increase the prediction hours
-        covered_slots = 0
-        if self.highest_orig_datetime >= self.ems_start_datetime:
-            covered_slots = (
-                int(
-                    (self.highest_orig_datetime - self.ems_start_datetime).total_seconds()
-                    // resolution_seconds
-                )
-                + 1
-            )
+        # Signed gap: positive when existing raw data already reaches past
+        # ems_start_datetime (fewer slots left to predict); negative when the
+        # newest known data point (highest_orig_datetime) is older than
+        # ems_start_datetime, e.g. after a fetch outage - in that case we need
+        # extra slots to also backfill the gap up to ems_start_datetime, on top
+        # of the full prediction.hours horizon beyond it.
+        covered_slots = int(
+            (self.highest_orig_datetime - self.ems_start_datetime).total_seconds()
+            // resolution_seconds
+        )
         needed_slots = self.config.prediction.hours * slots_per_hour - covered_slots
 
         if needed_slots <= 0:
+            # This might keep data longer than
+            # self.ems_start_datetime + self.config.prediction.hours in the records
             logger.warning(
                 "No feed-in tariff prediction needed. needed_slots={}, hours={}, "
                 "resolution_seconds={}, highest_orig_datetime={}, start_datetime={}",
@@ -279,9 +290,18 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
                 self.highest_orig_datetime,
                 self.ems_start_datetime,
             )
+            # Fee schedule may have changed since the last run even without new
+            # market data; recompute gross only for the window that was
+            # actually touched (or is still forward-looking) this cycle.
+            await self._store_gross_series(
+                start_datetime=gross_start_datetime,
+                end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
+            )
             return
 
-        prediction = self._predict_prices(history, needed_slots, slots_per_hour)
+        prediction = self._predict(history, needed_slots, slots_per_hour=slots_per_hour)
+
+        # write predictions into the records, update if exist.
         prediction_series = pd.Series(
             data=prediction,
             index=[
@@ -289,4 +309,12 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
                 for i in range(len(prediction))
             ],
         )
-        await self.key_from_series("feed_in_tariff_wh", prediction_series)
+        await self.key_from_series("feed_in_tariff_raw_wh", prediction_series)
+
+        # Bounded to [gross_start_datetime, end of the freshly predicted tail) -
+        # covers exactly what was fetched and/or predicted this cycle, not the
+        # entire (potentially multi-year) retained history.
+        await self._store_gross_series(
+            start_datetime=gross_start_datetime,
+            end_datetime=to_datetime(prediction_series.index.max()) + to_duration("1 second"),
+        )

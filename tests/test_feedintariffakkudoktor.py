@@ -15,15 +15,14 @@ from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
 def provider(config_eos):
     config_eos.merge_settings_from_dict(
         {
-            "elecprice": {"charges_kwh": 0.30},
             "feedintariff": {"provider": "FeedInTariffAkkudoktor"},
         }
     )
-    value = FeedInTariffAkkudoktor()
-    value.highest_orig_datetime = None
-    value.records.clear()
-    assert value.enabled()
-    return value
+    provider = FeedInTariffAkkudoktor()
+    provider.highest_orig_datetime = None
+    assert provider.enabled()
+    provider._db_reset_state()
+    return provider
 
 
 @pytest.fixture
