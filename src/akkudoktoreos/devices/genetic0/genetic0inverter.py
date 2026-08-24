@@ -1,14 +1,63 @@
 from typing import Optional
 
 from loguru import logger
+from pydantic import Field
 
 from akkudoktoreos.devices.genetic0.genetic0battery import Genetic0Battery
-from akkudoktoreos.optimization.genetic0.genetic0devices import (
-    Genetic0InverterParameters,
-)
+from akkudoktoreos.optimization.genetic0.genetic0devices import Genetic0DeviceParameters
 from akkudoktoreos.optimization.genetic0.genetic0loadinterpolator import (
     get_genetic0_load_interpolator,
 )
+
+
+class Genetic0InverterParameters(Genetic0DeviceParameters):
+    """Inverter Device Simulation Configuration."""
+
+    device_id: str = Field(
+        json_schema_extra={"description": "ID of inverter", "examples": ["inverter1"]}
+    )
+    max_power_wh: float = Field(gt=0, json_schema_extra={"examples": [10000]})
+    battery_id: Optional[str] = Field(
+        default=None,
+        json_schema_extra={"description": "ID of battery", "examples": [None, "battery1"]},
+    )
+    ac_to_dc_efficiency: float = Field(
+        default=1.0,
+        ge=0,
+        le=1,
+        json_schema_extra={
+            "description": (
+                "Efficiency of AC to DC conversion (for AC/grid charging of battery). "
+                "Set to 0 to disable AC charging via inverter. "
+                "Default 1.0 for backward compatibility (no additional inverter loss)."
+            ),
+            "examples": [0.95, 1.0, 0.0],
+        },
+    )
+    dc_to_ac_efficiency: float = Field(
+        default=1.0,
+        gt=0,
+        le=1,
+        json_schema_extra={
+            "description": (
+                "Efficiency of DC to AC conversion (for battery discharging to AC load/grid). "
+                "Default 1.0 for backward compatibility (no additional inverter loss)."
+            ),
+            "examples": [0.95, 1.0],
+        },
+    )
+    max_ac_charge_power_w: Optional[float] = Field(
+        default=None,
+        ge=0,
+        json_schema_extra={
+            "description": (
+                "Maximum AC charging power in watts. "
+                "None means no additional limit (battery's own max_charge_power_w applies). "
+                "Set to 0 to disable AC charging."
+            ),
+            "examples": [None, 0, 5000],
+        },
+    )
 
 
 class Genetic0Inverter:

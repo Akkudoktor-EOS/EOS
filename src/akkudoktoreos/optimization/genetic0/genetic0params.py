@@ -27,13 +27,15 @@ from akkudoktoreos.core.coreabc import (
     PredictionMixin,
     get_ems,
 )
-from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
-from akkudoktoreos.optimization.genetic0.genetic0devices import (
+from akkudoktoreos.devices.genetic0.genetic0battery import (
     Genetic0ElectricVehicleParameters,
-    Genetic0HomeApplianceParameters,
-    Genetic0InverterParameters,
     Genetic0SolarPanelBatteryParameters,
 )
+from akkudoktoreos.devices.genetic0.genetic0homeappliance import (
+    Genetic0HomeApplianceParameters,
+)
+from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0InverterParameters
+from akkudoktoreos.optimization.genetic0.genetic0abc import Genetic0ParametersBaseModel
 from akkudoktoreos.utils.datetimeutil import to_duration
 
 # Do not import directly from akkudoktoreos.core.coreabc
@@ -260,6 +262,11 @@ class Genetic0OptimizationParameters(
         if "ev_soc_miss" not in cls.config.optimization.genetic0.penalties:
             logger.info("Genetic penalties unknown - defaulting to ev_soc_miss = 10.")
             cls.config.optimization.genetic0.penalties["ev_soc_miss"] = 10
+        # Setup some basic providers if not set
+        if not cls.config.weather.provider:
+            cls.config.weather.provider = "OpenMeteo"
+        if not cls.config.load.provider:
+            cls.config.load.provider = "LoadAkkudoktor"
 
         # Get start solution from last run
         start_solution = None
@@ -548,36 +555,38 @@ class Genetic0OptimizationParameters(
             else:
                 if cls.config.devices.batteries is None:
                     logger.info("No battery device data available - defaulting to demo data.")
-                    cls.config.devices.batteries = [{"device_id": "battery1", "capacity_wh": 8000}]
+                    cls.config.devices.batteries = {
+                        "battery1": {
+                            "device_id": "battery1",
+                            "capacity_wh": 8000,
+                        },
+                    }
                 try:
-                    battery_config = cls.config.devices.batteries[0]
-                    battery_params = Genetic0SolarPanelBatteryParameters(
-                        device_id=battery_config.device_id,
-                        capacity_wh=battery_config.capacity_wh,
-                        charging_efficiency=battery_config.charging_efficiency,
-                        discharging_efficiency=battery_config.discharging_efficiency,
-                        max_charge_power_w=battery_config.max_charge_power_w,
-                        min_soc_percentage=battery_config.min_soc_percentage,
-                        max_soc_percentage=battery_config.max_soc_percentage,
-                        charge_rates=battery_config.charge_rates,
-                    )
+                    # Take first battery
+                    battery_config = list(cls.config.devices.batteries.values())[0]
+                    battery_params = battery_config.to_genetic0_pv_bat_param()
                 except Exception as e:
                     logger.info(
                         "No battery device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                         attempt,
                         e,
                     )
-                    cls.config.devices.batteries = [{"device_id": "battery1", "capacity_wh": 8000}]
+                    cls.config.devices.batteries = {
+                        "battery1": {
+                            "device_id": "battery1",
+                            "capacity_wh": 8000,
+                        },
+                    }
                     # Retry
                     continue
                 # Levelized cost of ownership
-                if battery_config.levelized_cost_of_storage_kwh is None:
+                if battery_config.levelized_cost_of_storage_amt_kwh is None:
                     logger.info(
                         "No battery device LCOS data available - defaulting to 0 [amount/kWh]. Parameter preparation attempt {}.",
                         attempt,
                     )
-                    battery_config.levelized_cost_of_storage_kwh = 0
-                battery_lcos_kwh = battery_config.levelized_cost_of_storage_kwh
+                    battery_config.levelized_cost_of_storage_amt_kwh = 0
+                battery_lcos_kwh = battery_config.levelized_cost_of_storage_amt_kwh
                 # Initial SOC
                 try:
                     initial_soc_factor = await cls.measurement.key_to_value(
@@ -614,26 +623,18 @@ class Genetic0OptimizationParameters(
                         "No electric vehicle device data available - defaulting to demo data."
                     )
                     cls.config.devices.max_electric_vehicles = 1
-                    cls.config.devices.electric_vehicles = [
-                        {
-                            "device_id": "ev11",
+                    cls.config.devices.electric_vehicles = {
+                        "ev1": {
+                            "device_id": "ev1",
                             "capacity_wh": 50000,
                             "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
                             "min_soc_percentage": 70,
-                        }
-                    ]
+                        },
+                    }
                 try:
-                    electric_vehicle_config = cls.config.devices.electric_vehicles[0]
-                    electric_vehicle_params = Genetic0ElectricVehicleParameters(
-                        device_id=electric_vehicle_config.device_id,
-                        capacity_wh=electric_vehicle_config.capacity_wh,
-                        charging_efficiency=electric_vehicle_config.charging_efficiency,
-                        discharging_efficiency=electric_vehicle_config.discharging_efficiency,
-                        charge_rates=electric_vehicle_config.charge_rates,
-                        max_charge_power_w=electric_vehicle_config.max_charge_power_w,
-                        min_soc_percentage=electric_vehicle_config.min_soc_percentage,
-                        max_soc_percentage=electric_vehicle_config.max_soc_percentage,
-                    )
+                    # Take first electric_vehicle
+                    electric_vehicle_config = list(cls.config.devices.electric_vehicles.values())[0]
+                    electric_vehicle_params = electric_vehicle_config.to_genetic0_ev_bat_param()
                 except Exception as e:
                     logger.info(
                         "No electric_vehicle device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
@@ -641,14 +642,14 @@ class Genetic0OptimizationParameters(
                         e,
                     )
                     cls.config.devices.max_electric_vehicles = 1
-                    cls.config.devices.electric_vehicles = [
-                        {
-                            "device_id": "ev12",
+                    cls.config.devices.electric_vehicles = {
+                        "ev1": {
+                            "device_id": "ev1",
                             "capacity_wh": 50000,
                             "charge_rates": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
                             "min_soc_percentage": 70,
-                        }
-                    ]
+                        },
+                    }
                     # Retry
                     continue
                 # Initial SOC
@@ -684,36 +685,30 @@ class Genetic0OptimizationParameters(
             else:
                 if cls.config.devices.inverters is None:
                     logger.info("No inverter device data available - defaulting to demo data.")
-                    cls.config.devices.inverters = [
-                        {
+                    cls.config.devices.inverters = {
+                        "inverter1": {
                             "device_id": "inverter1",
                             "max_power_w": 10000,
                             "battery_id": battery_config.device_id,
-                        }
-                    ]
+                        },
+                    }
                 try:
-                    inverter_config = cls.config.devices.inverters[0]
-                    inverter_params = Genetic0InverterParameters(
-                        device_id=inverter_config.device_id,
-                        max_power_wh=inverter_config.max_power_w,
-                        battery_id=inverter_config.battery_id,
-                        ac_to_dc_efficiency=inverter_config.ac_to_dc_efficiency,
-                        dc_to_ac_efficiency=inverter_config.dc_to_ac_efficiency,
-                        max_ac_charge_power_w=inverter_config.max_ac_charge_power_w,
-                    )
+                    # Take first inverter
+                    inverter_config = list(cls.config.devices.inverters.values())[0]
+                    inverter_params = inverter_config.to_genetic0_param()
                 except Exception as e:
                     logger.info(
                         "No inverter device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                         attempt,
                         e,
                     )
-                    cls.config.devices.inverters = [
-                        {
+                    cls.config.devices.inverters = {
+                        "inverter1": {
                             "device_id": "inverter1",
                             "max_power_w": 10000,
                             "battery_id": battery_config.device_id,
-                        }
-                    ]
+                        },
+                    }
                     # Retry
                     continue
 
@@ -730,12 +725,12 @@ class Genetic0OptimizationParameters(
                     logger.info(
                         "No home appliance device data available - defaulting to demo data."
                     )
-                    cls.config.devices.home_appliances = [
-                        {
+                    cls.config.devices.home_appliances = {
+                        "dishwasher1": {
                             "device_id": "dishwasher1",
                             "consumption_wh": 2000,
                             "duration_h": 3.0,
-                            "time_windows": {
+                            "cycle_time_windows": {
                                 "windows": [
                                     {
                                         "start_time": "08:00",
@@ -747,30 +742,26 @@ class Genetic0OptimizationParameters(
                                     },
                                 ],
                             },
-                        }
-                    ]
+                        },
+                    }
                 try:
-                    home_appliance_config = cls.config.devices.home_appliances[0]
-                    home_appliance_params = Genetic0HomeApplianceParameters(
-                        device_id=home_appliance_config.device_id,
-                        consumption_wh=home_appliance_config.consumption_wh,
-                        duration_h=home_appliance_config.duration_h,
-                        time_windows=home_appliance_config.time_windows,
-                    )
+                    # Take first appliance
+                    home_appliance_config = list(cls.config.devices.home_appliances.values())[0]
+                    home_appliance_params = home_appliance_config.to_genetic0_param()
                 except Exception as e:
                     logger.info(
                         "No home appliance device data available - defaulting to demo data. Parameter preparation attempt {}: {}",
                         attempt,
                         e,
                     )
-                    cls.config.devices.home_appliances = [
-                        {
+                    cls.config.devices.home_appliances = {
+                        "dishwasher1": {
                             "device_id": "dishwasher1",
                             "consumption_wh": 2000,
                             "duration_h": 3.0,
-                            "time_windows": None,
-                        }
-                    ]
+                            "cycle_time_windows": None,
+                        },
+                    }
                     # Retry
                     continue
 

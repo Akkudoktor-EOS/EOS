@@ -1,354 +1,131 @@
 """General configuration settings for simulated devices for optimization."""
 
 import json
-import re
 from typing import Any, Optional, TextIO, cast
 
-import numpy as np
 from loguru import logger
-from numpydantic import NDArray, Shape
-from pydantic import Field, computed_field, field_validator, model_validator
+from pydantic import Field, computed_field, model_validator
 
-from akkudoktoreos.config.configabc import SettingsBaseModel, TimeWindowSequence
+from akkudoktoreos.config.configabc import ConfigScope, SettingsBaseModel
 from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.coreabc import ConfigMixin, SingletonMixin
 from akkudoktoreos.core.emplan import ResourceStatus
 from akkudoktoreos.core.pydantic import ConfigDict, PydanticBaseModel
-from akkudoktoreos.devices.devicesabc import DevicesBaseSettings
+from akkudoktoreos.devices.settings.batterysettings import BatteriesCommonSettings
+from akkudoktoreos.devices.settings.homeappliancesettings import (
+    HomeApplianceCommonSettings,
+)
+from akkudoktoreos.devices.settings.invertersettings import InverterCommonSettings
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
-
-# Default charge rates for battery
-BATTERY_DEFAULT_CHARGE_RATES: list[float] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-
-
-class BatteriesCommonSettings(DevicesBaseSettings):
-    """Battery devices base settings."""
-
-    capacity_wh: int = Field(
-        default=8000, gt=0, json_schema_extra={"description": "Capacity [Wh].", "examples": [8000]}
-    )
-
-    charging_efficiency: float = Field(
-        default=0.88,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": "Charging efficiency [0.01 ... 1.00].",
-            "examples": [0.88],
-        },
-    )
-
-    discharging_efficiency: float = Field(
-        default=0.88,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": "Discharge efficiency [0.01 ... 1.00].",
-            "examples": [0.88],
-        },
-    )
-
-    levelized_cost_of_storage_kwh: float = Field(
-        default=0.0,
-        json_schema_extra={
-            "description": "Levelized cost of storage (LCOS), the average lifetime cost of delivering one kWh [amount/kWh].",
-            "examples": [0.12],
-        },
-    )
-
-    max_charge_power_w: Optional[float] = Field(
-        default=5000,
-        gt=0,
-        json_schema_extra={"description": "Maximum charging power [W].", "examples": [5000]},
-    )
-
-    min_charge_power_w: Optional[float] = Field(
-        default=50,
-        gt=0,
-        json_schema_extra={"description": "Minimum charging power [W].", "examples": [50]},
-    )
-
-    charge_rates: Optional[list[float]] = Field(
-        default=BATTERY_DEFAULT_CHARGE_RATES,
-        json_schema_extra={
-            "description": (
-                "Charge rates as factor of maximum charging power [0.00 ... 1.00]. "
-                "None triggers fallback to default charge-rates."
-            ),
-            "examples": [[0.0, 0.25, 0.5, 0.75, 1.0], None],
-        },
-    )
-
-    min_soc_percentage: int = Field(
-        default=0,
-        ge=0,
-        le=100,
-        json_schema_extra={
-            "description": (
-                "Minimum state of charge (SOC) as percentage of capacity [%]. "
-                "This is the target SoC for charging"
-            ),
-            "examples": [10],
-        },
-    )
-
-    max_soc_percentage: int = Field(
-        default=100,
-        ge=0,
-        le=100,
-        json_schema_extra={
-            "description": "Maximum state of charge (SOC) as percentage of capacity [%].",
-            "examples": [100],
-        },
-    )
-
-    @field_validator("charge_rates", mode="before")
-    def validate_and_sort_charge_rates(cls, v: Any) -> NDArray[Shape["*"], float]:
-        # None means fallback to default values
-        if v is None:
-            return BATTERY_DEFAULT_CHARGE_RATES.copy()
-
-        # Convert to numpy array
-        if isinstance(v, str):
-            # Remove brackets and split by comma or whitespace
-            numbers = re.split(r"[,\s]+", v.strip("[]"))
-
-            # Filter out any empty strings and convert to floats
-            arr = np.array([float(x) for x in numbers if x])
-        else:
-            arr = np.array(v, dtype=float)
-
-        # Must not be empty
-        if arr.size == 0:
-            raise ValueError("charge_rates must contain at least one value.")
-
-        # Enforce bounds: 0.0 ≤ x ≤ 1.0
-        if (arr < 0.0).any() or (arr > 1.0).any():
-            raise ValueError("charge_rates must be within [0.0, 1.0].")
-
-        # Remove duplicates + sort
-        arr = np.unique(arr)
-        arr.sort()
-
-        return arr
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def measurement_key_soc_factor(self) -> str:
-        """Measurement key for the battery state of charge (SoC) as factor of total capacity [0.0 ... 1.0]."""
-        return f"{self.device_id}-soc-factor"
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def measurement_key_power_l1_w(self) -> str:
-        """Measurement key for the L1 power the battery is charged or discharged with [W]."""
-        return f"{self.device_id}-power-l1-w"
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def measurement_key_power_l2_w(self) -> str:
-        """Measurement key for the L2 power the battery is charged or discharged with [W]."""
-        return f"{self.device_id}-power-l2-w"
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def measurement_key_power_l3_w(self) -> str:
-        """Measurement key for the L3 power the battery is charged or discharged with [W]."""
-        return f"{self.device_id}-power-l3-w"
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def measurement_key_power_3_phase_sym_w(self) -> str:
-        """Measurement key for the symmetric 3 phase power the battery is charged or discharged with [W]."""
-        return f"{self.device_id}-power-3-phase-sym-w"
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def measurement_keys(self) -> Optional[list[str]]:
-        """Measurement keys for the battery stati that are measurements."""
-        keys: list[str] = [
-            self.measurement_key_soc_factor,
-            self.measurement_key_power_l1_w,
-            self.measurement_key_power_l2_w,
-            self.measurement_key_power_l3_w,
-            self.measurement_key_power_3_phase_sym_w,
-        ]
-        return keys
-
-
-class InverterCommonSettings(DevicesBaseSettings):
-    """Inverter devices base settings."""
-
-    max_power_w: Optional[float] = Field(
-        default=None,
-        gt=0,
-        json_schema_extra={"description": "Maximum power [W].", "examples": [10000]},
-    )
-
-    battery_id: Optional[str] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "ID of battery controlled by this inverter.",
-            "examples": [None, "battery1"],
-        },
-    )
-
-    ac_to_dc_efficiency: float = Field(
-        default=1.0,
-        ge=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Efficiency of AC to DC conversion for grid-to-battery AC charging (0-1). "
-                "Set to 0 to disable AC charging. Default 1.0 (no additional inverter loss)."
-            ),
-            "examples": [0.95, 1.0, 0.0],
-        },
-    )
-
-    dc_to_ac_efficiency: float = Field(
-        default=1.0,
-        gt=0,
-        le=1,
-        json_schema_extra={
-            "description": (
-                "Efficiency of DC to AC conversion for battery discharging to AC load/grid (0-1). "
-                "Default 1.0 (no additional inverter loss)."
-            ),
-            "examples": [0.95, 1.0],
-        },
-    )
-
-    max_ac_charge_power_w: Optional[float] = Field(
-        default=None,
-        ge=0,
-        json_schema_extra={
-            "description": (
-                "Maximum AC charging power in watts. "
-                "null means no additional limit. Set to 0 to disable AC charging."
-            ),
-            "examples": [None, 0, 5000],
-        },
-    )
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def measurement_keys(self) -> Optional[list[str]]:
-        """Measurement keys for the inverter stati that are measurements."""
-        keys: list[str] = []
-        return keys
-
-
-class HomeApplianceCommonSettings(DevicesBaseSettings):
-    """Home Appliance devices base settings."""
-
-    consumption_wh: int = Field(
-        gt=0, json_schema_extra={"description": "Energy consumption [Wh].", "examples": [2000]}
-    )
-
-    duration_h: int = Field(
-        gt=0,
-        le=24,
-        json_schema_extra={"description": "Usage duration in hours [0 ... 24].", "examples": [1]},
-    )
-
-    time_windows: Optional[TimeWindowSequence] = Field(
-        default=None,
-        json_schema_extra={
-            "description": "Sequence of allowed time windows. Defaults to optimization general time window.",
-            "examples": [
-                {
-                    "windows": [
-                        {"start_time": "10:00", "duration": "2 hours"},
-                    ],
-                },
-            ],
-        },
-    )
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def measurement_keys(self) -> Optional[list[str]]:
-        """Measurement keys for the home appliance stati that are measurements."""
-        keys: list[str] = []
-        return keys
 
 
 class DevicesCommonSettings(SettingsBaseModel):
-    """Base configuration for devices simulation settings."""
+    """Configuration for all controllable devices in the simulation.
 
-    batteries: Optional[list[BatteriesCommonSettings]] = Field(
+    Every device collection is a ``dict[str, <Settings>]`` keyed by
+    ``device_id``.  This makes config paths stable regardless of
+    declaration order and lets each device settings class build its own
+    config path from ``self.device_id`` without needing an external index.
+    """
+
+    # ---- Batteries ----
+    batteries: Optional[dict[str, BatteriesCommonSettings]] = Field(
         default=None,
         json_schema_extra={
-            "description": "List of battery devices",
-            "examples": [[{"device_id": "battery1", "capacity_wh": 8000}]],
+            "description": "Stationary battery storage devices, keyed by device_id.",
+            "examples": [{"bat0": {"device_id": "bat0", "capacity_wh": 8000, "ports": []}}],
+            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
-
     max_batteries: Optional[int] = Field(
         default=None,
         ge=0,
         json_schema_extra={
-            "description": "Maximum number of batteries that can be set",
-            "examples": [1, 2],
+            "description": "Maximum number of batteries allowed.",
+            "examples": [1],
+            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
 
-    electric_vehicles: Optional[list[BatteriesCommonSettings]] = Field(
+    # ---- Electric vehicles ----
+    electric_vehicles: Optional[dict[str, BatteriesCommonSettings]] = Field(
         default=None,
         json_schema_extra={
-            "description": "List of electric vehicle devices",
-            "examples": [[{"device_id": "battery1", "capacity_wh": 8000}]],
+            "description": "Electric vehicle battery packs, keyed by device_id.",
+            "examples": [{"ev0": {"device_id": "ev0", "capacity_wh": 60000, "ports": []}}],
+            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
-
     max_electric_vehicles: Optional[int] = Field(
         default=None,
         ge=0,
         json_schema_extra={
-            "description": "Maximum number of electric vehicles that can be set",
-            "examples": [1, 2],
+            "description": "Maximum number of EVs allowed.",
+            "examples": [1],
+            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
 
-    inverters: Optional[list[InverterCommonSettings]] = Field(
-        default=None, json_schema_extra={"description": "List of inverters", "examples": [[]]}
+    # ---- Inverters ----
+    inverters: Optional[dict[str, InverterCommonSettings]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Inverter devices, keyed by device_id.",
+            "examples": [{}],
+            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+        },
     )
-
     max_inverters: Optional[int] = Field(
         default=None,
         ge=0,
         json_schema_extra={
-            "description": "Maximum number of inverters that can be set",
-            "examples": [1, 2],
+            "description": "Maximum number of inverters allowed.",
+            "examples": [1],
+            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
 
-    home_appliances: Optional[list[HomeApplianceCommonSettings]] = Field(
-        default=None, json_schema_extra={"description": "List of home appliances", "examples": [[]]}
+    # ---- Controllable home appliances ----
+    home_appliances: dict[str, HomeApplianceCommonSettings] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "description": "Shiftable home appliance devices, keyed by device_id.",
+            "examples": [
+                {
+                    "dishwasher": {
+                        "device_id": "dishwasher",
+                        "consumption_wh": 1500,
+                        "duration_h": 2.0,  # required field
+                        "ports": [{"bus_id": "bus_ac", "port_id": "p_ac", "direction": "sink"}],
+                    },
+                },
+            ],
+            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
+        },
     )
-
     max_home_appliances: Optional[int] = Field(
         default=None,
         ge=0,
         json_schema_extra={
-            "description": "Maximum number of home_appliances that can be set",
-            "examples": [1, 2],
+            "description": "Maximum number of home appliances allowed.",
+            "examples": [3],
+            "x-scope": [str(ConfigScope.GENETIC), str(ConfigScope.GENETIC0)],
         },
     )
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def measurement_keys(self) -> Optional[list[str]]:
-        """Return the measurement keys for the resource/ device stati that are measurements."""
+    def measurement_keys(self) -> list[str]:
+        """All measurement keys across all configured devices."""
         keys: list[str] = []
-
-        if self.max_batteries and self.batteries:
-            for battery in self.batteries:
-                keys.extend(battery.measurement_keys)
-        if self.max_electric_vehicles and self.electric_vehicles:
-            for electric_vehicle in self.electric_vehicles:
-                keys.extend(electric_vehicle.measurement_keys)
+        for device_dict in [
+            self.batteries,
+            self.electric_vehicles,
+            self.inverters,
+            self.home_appliances,
+        ]:
+            for device in (device_dict or {}).values():
+                keys.extend(device.measurement_keys)
         return keys
 
 

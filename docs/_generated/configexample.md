@@ -36,13 +36,13 @@
            "batch_size": 100
        },
        "devices": {
-           "batteries": [
-               {
-                   "device_id": "battery1",
+           "batteries": {
+               "bat0": {
+                   "device_id": "bat0",
                    "capacity_wh": 8000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
-                   "levelized_cost_of_storage_kwh": 0.0,
+                   "levelized_cost_of_storage_amt_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
                    "charge_rates": [
@@ -61,15 +61,15 @@
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100
                }
-           ],
+           },
            "max_batteries": 1,
-           "electric_vehicles": [
-               {
-                   "device_id": "battery1",
-                   "capacity_wh": 8000,
+           "electric_vehicles": {
+               "ev0": {
+                   "device_id": "ev0",
+                   "capacity_wh": 60000,
                    "charging_efficiency": 0.88,
                    "discharging_efficiency": 0.88,
-                   "levelized_cost_of_storage_kwh": 0.0,
+                   "levelized_cost_of_storage_amt_kwh": 0.0,
                    "max_charge_power_w": 5000,
                    "min_charge_power_w": 50,
                    "charge_rates": [
@@ -88,12 +88,22 @@
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100
                }
-           ],
+           },
            "max_electric_vehicles": 1,
-           "inverters": [],
+           "inverters": {},
            "max_inverters": 1,
-           "home_appliances": [],
-           "max_home_appliances": 1
+           "home_appliances": {
+               "dishwasher": {
+                   "device_id": "dishwasher",
+                   "consumption_wh": 1500,
+                   "duration_h": 2,
+                   "num_cycles": 1,
+                   "cycle_time_windows": null,
+                   "min_cycle_gap_h": 0,
+                   "cycles_completed_measurement_key": null
+               }
+           },
+           "max_home_appliances": 3
        },
        "elecfee": {
            "provider": "ElecFeeFixed",

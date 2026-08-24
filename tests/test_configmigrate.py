@@ -214,18 +214,20 @@ class TestConfigMigration:
 
                 # Verify the migrated value matches the expected one
                 new_value = configmigrate._get_json_nested_value(new_data, new_path)
-                if new_value != expected_value:
+                value_errors = _dict_contains(new_value, expected_value, new_path)
+
+                if value_errors:
                     # Check if this mapping uses _KEEP_DEFAULT and the old value was None/missing
                     old_value = configmigrate._get_json_nested_value(old_data, old_path)
                     keep_default = (
                         isinstance(mapping, tuple)
                         and configmigrate._KEEP_DEFAULT in mapping
                     )
+
                     if keep_default and old_value is None:
                         continue  # acceptable: old was None, new model keeps its default
-                    mismatched_values.append(
-                        f"{old_path} → {new_path}: expected {expected_value!r}, got {new_value!r}"
-                    )
+
+                    mismatched_values.extend(value_errors)
 
             assert not missing_migrations, (
                 "Some expected migration map entries were not migrated:\n"
