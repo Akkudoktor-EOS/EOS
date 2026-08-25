@@ -90,7 +90,10 @@ RUN --mount=type=bind,source=scripts/get_version.py,target=${EOS_DIR}/scripts/ge
     && apt-get purge -y --auto-remove \
         gcc g++ gfortran \
         libopenblas-dev liblapack-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    # EOS never needs setuid/setgid binaries. Stripping them keeps the unprivileged
+    # eos user from regaining root after the server drops privileges.
+    && find / -xdev \( -perm -4000 -o -perm -2000 \) -type f -exec chmod a-s {} +
 
 ENTRYPOINT []
 

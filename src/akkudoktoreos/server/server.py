@@ -320,7 +320,10 @@ def fix_data_directories_permissions(run_as_user: Optional[str] = None) -> None:
             for name in dirs + files:
                 path = os.path.join(root, name)
                 try:
-                    os.chown(path, uid, gid)
+                    # follow_symlinks=False is a security requirement: this runs as root, and a
+                    # symlink planted in the data directory would otherwise let an unprivileged
+                    # user hand themselves ownership of any file on the system.
+                    os.chown(path, uid, gid, follow_symlinks=False)
                 except PermissionError as e:
                     error_msg = f"Permission denied while updating ownership of '{path}' to user '{run_as_user}'"
                     logger.error(error_msg)
@@ -331,14 +334,12 @@ def fix_data_directories_permissions(run_as_user: Optional[str] = None) -> None:
                     logger.error(error_msg)
         # Also fix the base directory itself
         try:
-            os.chown(base_dir, uid, gid)
+            os.chown(base_dir, uid, gid, follow_symlinks=False)
         except PermissionError as e:
-            error_msg = (
-                f"Permission denied while updating ownership of '{path}' to user '{run_as_user}'"
-            )
+            error_msg = f"Permission denied while updating ownership of '{base_dir}' to user '{run_as_user}'"
             logger.error(error_msg)
         except Exception as e:
-            error_msg = f"Updating ownership failed of '{path}' to user '{run_as_user}': {e}"
+            error_msg = f"Updating ownership failed of '{base_dir}' to user '{run_as_user}': {e}"
             logger.error(error_msg)
 
     if error_msg is None:

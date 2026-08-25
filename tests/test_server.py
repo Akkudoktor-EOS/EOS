@@ -17,6 +17,7 @@ from akkudoktoreos.config.configabc import is_home_assistant_addon
 from akkudoktoreos.core.version import __version__
 from akkudoktoreos.server.server import (
     ServerCommonSettings,
+    fix_data_directories_permissions,
     get_default_host,
     get_default_port,
     wait_for_port_free,
@@ -393,3 +394,29 @@ class TestServerWithEnv:
 
         # Assure config got configuration from environment
         assert config_json["server"]["eosdash_port"] == int(self.eos_env["EOS_SERVER__EOSDASH_PORT"])
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Ownership fixes are POSIX only")
+class TestFixDataDirectoriesPermissions:
+    """The ownership fix runs as root before EOS drops privileges."""
+
+    def test_chown_never_follows_symlinks(self, config_eos, monkeypatch, tmp_path):
+        """A symlink in the data directory must not redirect the root chown.
+
+        Following it would hand ownership of an arbitrary file to the unprivileged user.
+        """
+        follow_symlinks_args = []
+
+        def fake_chown(path, uid, gid, *, follow_symlinks=True):
+            follow_symlinks_args.append(follow_symlinks)
+
+        monkeypatch.setattr(os, "chown", fake_chown)
+
+        data_dir = Path(config_eos.general.data_folder_path)
+        data_dir.mkdir(parents=True, exist_ok=True)
+        (data_dir / "escape").symlink_to(tmp_path / "sensitive")
+
+        fix_data_directories_permissions()
+
+        assert follow_symlinks_args, "expected at least one ownership change"
+        assert all(follow is False for follow in follow_symlinks_args)

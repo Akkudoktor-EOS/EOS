@@ -31,8 +31,19 @@ services:
     ulimits:
       nproc: 65535
       nofile: 65535
+    # EOS starts as root only to fix ownership of the mounted data directory, then
+    # drops to the unprivileged "eos" user. Keep the root phase as small as possible.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
     security_opt:
-      - seccomp:unconfined
+      # Prevents the unprivileged eos user from regaining root via setuid binaries.
+      - no-new-privileges:true
     restart: unless-stopped
     ports:
       # Configure what ports to expose on host
