@@ -308,6 +308,10 @@ UI_HINTS: dict[str, UiHint] = {
         item_path="pvforecast.planes",
         max_items_from="pvforecast.max_planes",
     ),
+    "pvforecast.homeassistant.entity_id": UiHint(
+        form="select",
+        options_from="adapter.homeassistant.homeassistant_entity_ids",
+    ),
     # Per-plane sub-fields; resolved by hint_for_indexed_field()
     "pvforecast.planes.pvtechchoice": UiHint(
         form="select",

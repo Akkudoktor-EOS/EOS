@@ -29,6 +29,7 @@ from akkudoktoreos.prediction.prediction import (
 )
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
+from akkudoktoreos.prediction.pvforecasthomeassistant import PVForecastHomeAssistant
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
 from akkudoktoreos.prediction.pvforecastpvlib import PVForecastPVLib
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNode
@@ -75,6 +76,7 @@ def forecast_providers():
         LoadVrm(),
         PVForecastAkkudoktor(),
         PVForecastForecastSolar(),
+        PVForecastHomeAssistant(),
         PVForecastImport(),
         PVForecastPVLib(),
         PVForecastPVNode(),
@@ -137,11 +139,12 @@ def test_provider_sequence(prediction):
     assert isinstance(prediction.providers[22], LoadVrm)
     assert isinstance(prediction.providers[23], PVForecastAkkudoktor)
     assert isinstance(prediction.providers[24], PVForecastForecastSolar)
-    assert isinstance(prediction.providers[25], PVForecastImport)
-    assert isinstance(prediction.providers[26], PVForecastPVLib)
-    assert isinstance(prediction.providers[27], PVForecastPVNode)
-    assert isinstance(prediction.providers[28], PVForecastSolcast)
-    assert isinstance(prediction.providers[29], PVForecastVrm)
+    assert isinstance(prediction.providers[25], PVForecastHomeAssistant)
+    assert isinstance(prediction.providers[26], PVForecastImport)
+    assert isinstance(prediction.providers[27], PVForecastPVLib)
+    assert isinstance(prediction.providers[28], PVForecastPVNode)
+    assert isinstance(prediction.providers[29], PVForecastSolcast)
+    assert isinstance(prediction.providers[30], PVForecastVrm)
 
 
 def test_provider_by_id(prediction, forecast_providers):
@@ -175,6 +178,7 @@ def test_prediction_repr(prediction):
     assert "LoadVrm" in result
     assert "PVForecastAkkudoktor" in result
     assert "PVForecastForecastSolar" in result
+    assert "PVForecastHomeAssistant" in result
     assert "PVForecastImport" in result
     assert "PVForecastPVLib" in result
     assert "PVForecastPVNode" in result
