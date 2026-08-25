@@ -59,6 +59,15 @@ def runtime_environment() -> str:
     return f"Standalone Python (Python {python_version})"
 
 
+class ConfigScope(StrEnum):
+    """Configuration scope for x-scope json_schema_extra."""
+
+    GENERAL = "GENERAL"
+    GENETIC = "GENETIC"
+    GENETIC0 = "GENETIC0"
+    UNUSED = "UNUSED"
+
+
 class SettingsBaseModel(PydanticBaseModel):
     """Base model class for all settings configurations."""
 
@@ -1031,3 +1040,212 @@ class ValueTimeWindowSequence(TimeWindowSequence):
             index=pd.DatetimeIndex(timestamps),
             dtype=np.float64,
         )
+
+
+class CycleTimeWindowSequence(ValueTimeWindowSequence):
+    """Sequence of time windows associated to cycles.
+
+    This model specializes ``ValueTimeWindowSequence`` so that the ``value``
+    field of each ``ValueTimeWindow`` encodes the **cycle index** (0-based
+    integer) the window belongs to.
+
+    Typical use: an appliance that must run ``n`` times per day, each run
+    constrained to a distinct time window.  Assign ``value=0`` to windows
+    for the first cycle, ``value=1`` for the second, and so on.  Multiple
+    windows may share the same cycle index (their allowed regions are unioned).
+    Windows with ``value=None`` are silently ignored by all cycle-aware methods.
+    """
+
+    def num_cycles(self) -> int:
+        """Return the number of distinct cycles defined in the sequence.
+
+        Cycles are derived from the integer part of the window values.
+        Windows without a value are ignored.
+
+        Returns:
+            int: Number of unique cycles.
+        """
+        cycles = {int(window.value) for window in self.windows if window.value is not None}
+        return len(cycles)
+
+    def cycle_to_array(
+        self,
+        cycle: int,
+        start_datetime: DateTime,
+        end_datetime: DateTime,
+        interval: Duration,
+        dropna: bool = True,
+        boundary: str = "context",
+        align_to_interval: bool = True,
+    ) -> np.ndarray:
+        """Return a binary 1-D array indicating when *cycle* is active.
+
+        The time grid and alignment semantics are identical to
+        ``TimeWindowSequence.to_array``: ``start_datetime`` is floored to the
+        nearest interval boundary in wall-clock time when
+        ``align_to_interval=True``, and the timezone (or naivety) of
+        ``start_datetime`` is preserved without any UTC conversion.
+
+        The step count uses ``math.ceil`` so that a partially-covered final
+        interval is included, consistent with ``to_array``'s while-loop
+        termination condition.
+
+        Args:
+            cycle: Integer cycle index to query.
+            start_datetime: First step of the time grid (inclusive).
+            end_datetime: Upper bound of the time grid (exclusive).
+            interval: Fixed step size.
+            dropna: Accepted for signature compatibility; has no effect.
+            boundary: Accepted for signature compatibility; has no effect.
+            align_to_interval: When ``True`` (default), floor
+                ``start_datetime`` to the nearest interval boundary in
+                wall-clock time before building the grid.
+
+        Returns:
+            ``np.ndarray`` of shape ``(n_steps,)`` with ``dtype=float64``.
+            ``1.0`` at step ``t`` means step ``t`` falls inside a window
+            belonging to ``cycle``; ``0.0`` otherwise.
+        """
+        import math
+
+        interval_s = interval.total_seconds()
+
+        if align_to_interval and interval_s > 0:
+            # Floor purely in wall-clock seconds — identical to to_array's
+            # alignment so all three methods produce consistent grids.
+            wall_s = (
+                start_datetime.hour * 3600
+                + start_datetime.minute * 60
+                + start_datetime.second
+                + start_datetime.microsecond / 1_000_000
+            )
+            remainder_s = wall_s % interval_s
+            if remainder_s:
+                start_datetime = start_datetime.subtract(seconds=remainder_s)
+
+        # Use ceil so a partially-covered final step is included, matching the
+        # while-loop semantics of to_array.
+        steps = (
+            math.ceil((end_datetime - start_datetime).total_seconds() / interval_s)
+            if interval_s > 0
+            else 0
+        )
+        result = np.zeros(steps, dtype=np.float64)
+
+        # Anchor window start times to the calendar day of the (aligned) grid start.
+        base_day = start_datetime.start_of("day")
+
+        for window in self.windows:
+            if window.value is None:
+                continue
+            if int(window.value) != cycle:
+                continue
+
+            t = window.start_time
+            win_start = base_day.replace(
+                hour=t.hour,
+                minute=t.minute,
+                second=t.second,
+                microsecond=t.microsecond,
+            )
+            win_end = win_start + window.duration
+
+            # Convert to step indices relative to the aligned grid start.
+            idx_start = int((win_start - start_datetime).total_seconds() / interval_s)
+            idx_end = math.ceil((win_end - start_datetime).total_seconds() / interval_s)
+
+            idx_start = max(idx_start, 0)
+            idx_end = min(idx_end, steps)
+
+            if idx_start < idx_end:
+                result[idx_start:idx_end] = 1.0
+
+        return result
+
+    def cycles_to_matrix(
+        self,
+        start_datetime: DateTime,
+        end_datetime: DateTime,
+        interval: Duration,
+    ) -> tuple[list[int], np.ndarray]:
+        """Return a ``(cycle_indices, matrix)`` pair over the simulation horizon.
+
+        The matrix encodes, for each cycle and each time step, whether that
+        step falls inside a window belonging to that cycle.  It is the
+        vectorised equivalent of calling ``cycle_to_array`` for every cycle.
+
+        Alignment and step-count semantics are identical to ``to_array`` and
+        ``cycle_to_array``: ``start_datetime`` is floored to the nearest
+        interval boundary in wall-clock time, and the step count uses
+        ``math.ceil`` for consistency with ``to_array``'s while-loop.
+
+        Args:
+            start_datetime: First step of the time grid (inclusive).
+                end_datetime: Upper bound of the time grid (exclusive).
+                interval: Fixed step size.
+
+        Returns:
+            ``(cycle_indices, matrix)`` where
+
+            * ``cycle_indices`` is a sorted ``list[int]`` of the distinct
+              cycle numbers found in the sequence (e.g. ``[0, 1, 2]``).
+            * ``matrix`` is a ``np.ndarray`` of shape
+              ``(len(cycle_indices), n_steps)`` with ``dtype=float64``.
+              ``matrix[k, t] == 1.0`` iff step ``t`` falls inside a window
+              belonging to ``cycle_indices[k]``; ``0.0`` otherwise.
+        """
+        import math
+
+        interval_s = interval.total_seconds()
+
+        if interval_s > 0:
+            # Apply the same wall-clock floor as to_array and cycle_to_array.
+            wall_s = (
+                start_datetime.hour * 3600
+                + start_datetime.minute * 60
+                + start_datetime.second
+                + start_datetime.microsecond / 1_000_000
+            )
+            remainder_s = wall_s % interval_s
+            if remainder_s:
+                start_datetime = start_datetime.subtract(seconds=remainder_s)
+
+        cycles = sorted({int(w.value) for w in self.windows if w.value is not None})
+        steps = (
+            math.ceil((end_datetime - start_datetime).total_seconds() / interval_s)
+            if interval_s > 0
+            else 0
+        )
+        matrix = np.zeros((len(cycles), steps), dtype=np.float64)
+
+        cycle_index = {c: i for i, c in enumerate(cycles)}
+
+        # Anchor window start times to the calendar day of the aligned grid start.
+        base_day = start_datetime.start_of("day")
+
+        for window in self.windows:
+            if window.value is None:
+                continue
+
+            c = int(window.value)
+            row = cycle_index[c]
+
+            t = window.start_time
+            win_start = base_day.replace(
+                hour=t.hour,
+                minute=t.minute,
+                second=t.second,
+                microsecond=t.microsecond,
+            )
+            win_end = win_start + window.duration
+
+            idx_start = int((win_start - start_datetime).total_seconds() / interval_s)
+            idx_end = math.ceil((win_end - start_datetime).total_seconds() / interval_s)
+
+            idx_start = max(idx_start, 0)
+            idx_end = min(idx_end, steps)
+
+            if idx_start < idx_end:
+                matrix[row, idx_start:idx_end] = 1.0
+
+        return cycles, matrix

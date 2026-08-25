@@ -30,6 +30,38 @@ if TYPE_CHECKING:
 
 _KEEP_DEFAULT = object()
 
+
+# -----------------------------
+# Migration helpers
+# -----------------------------
+
+
+def _list_to_device_dict(
+    prefix: str,
+) -> Callable[[Any], Any]:
+    """Return a transform that converts a list of device dicts to a keyed dict.
+
+    Each item must be a dict.  The key is taken from the item's own
+    ``device_id`` field when present; otherwise a key is synthesised
+    from *prefix* + the zero-based index (e.g. ``"bat0"``, ``"bat1"``).
+    """
+
+    def _transform(value: Any) -> Any:
+        if not isinstance(value, list):
+            return value  # already a dict or something unexpected – leave as-is
+        result: Dict[str, Any] = {}
+        for i, item in enumerate(value):
+            if not isinstance(item, dict):
+                continue
+            key = item.get("device_id") or f"{prefix}{i}"
+            # Ensure device_id is stored inside the dict so Pydantic can validate it
+            item.setdefault("device_id", key)
+            result[key] = item
+        return result
+
+    return _transform
+
+
 # -----------------------------
 # Global migration map constant
 # -----------------------------
@@ -58,10 +90,31 @@ MIGRATION_MAP: Dict[
     # - NodeRed
     # devices
     # =======
+    # List → dict migration (all device collections)
+    # These must come *before* any sub-path entries that reference the old list indices,
+    # so the whole collection is moved first; the sub-path None-drops clean up leftovers.
     # - batteries
+    "devices/batteries": (
+        "devices/batteries",
+        _list_to_device_dict("bat"),
+    ),
     "devices/batteries/0/initial_soc_percentage": None,
     # - electric_vehicles
+    "devices/electric_vehicles": (
+        "devices/electric_vehicles",
+        _list_to_device_dict("ev"),
+    ),
     "devices/electric_vehicles/0/initial_soc_percentage": None,
+    # - inverters
+    "devices/inverters": (
+        "devices/inverters",
+        _list_to_device_dict("inv"),
+    ),
+    # - home_appliances
+    "devices/home_appliances": (
+        "devices/home_appliances",
+        _list_to_device_dict("appliance"),
+    ),
     # elecfee
     # =======
     # - ElecFeeFixed

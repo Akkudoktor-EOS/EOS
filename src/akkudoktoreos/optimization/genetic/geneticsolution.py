@@ -350,21 +350,21 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
     def _battery_device_id(self) -> str:
         """Get battery device id."""
         try:
-            return self.config.devices.batteries[0].device_id
+            return list(self.config.devices.batteries.values())[0].device_id
         except Exception:
             return "battery1"
 
     def _ev_device_id(self) -> str:
         """Get electric vehicle device id."""
         try:
-            return self.config.devices.electric_vehicles[0].device_id
+            return self.config.devices.electric_vehicles.values()[0].device_id
         except Exception:
             return "ev1"
 
     def _homeappliance_device_id(self) -> str:
         """Get home appliance device id."""
         try:
-            return self.config.devices.home_appliances[0].device_id
+            return self.config.devices.home_appliances.values()[0].device_id
         except Exception:
             return "homeappliance1"
 
@@ -453,11 +453,11 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             (the inverter curtails automatically, but this makes intent clear).
           - Discharge: blocked when SOC is at or below min SOC.
         """
-        bat_list = self.config.devices.batteries
-        if not bat_list:
+        bat_dict = self.config.devices.batteries
+        if bat_dict is None or len(bat_dict) <= 0:
             return ac_charge, dc_charge, discharge_allowed
 
-        bat = bat_list[0]
+        bat = list(bat_dict.values())[0]
         min_soc = float(bat.min_soc_percentage)
         max_soc = float(bat.max_soc_percentage)
         capacity_wh = float(bat.capacity_wh)

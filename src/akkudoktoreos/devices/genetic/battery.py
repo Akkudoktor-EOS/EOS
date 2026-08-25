@@ -1,12 +1,103 @@
 from typing import Any, Iterator, Optional
 
 import numpy as np
+from pydantic import Field
 
-from akkudoktoreos.devices.devices import BATTERY_DEFAULT_CHARGE_RATES
-from akkudoktoreos.optimization.genetic.geneticdevices import (
-    BaseBatteryParameters,
-    SolarPanelBatteryParameters,
-)
+from akkudoktoreos.devices.settings.batterysettings import BATTERY_DEFAULT_CHARGE_RATES
+from akkudoktoreos.optimization.genetic.geneticdevices import DeviceParameters
+
+
+def max_charging_power_field(description: Optional[str] = None) -> float:
+    if description is None:
+        description = "Maximum charging power in watts."
+    return Field(default=5000, gt=0, json_schema_extra={"description": description})
+
+
+def initial_soc_percentage_field(description: str) -> int:
+    return Field(
+        default=0, ge=0, le=100, json_schema_extra={"description": description, "examples": [42]}
+    )
+
+
+def discharging_efficiency_field(default_value: float) -> float:
+    return Field(
+        default=default_value,
+        gt=0,
+        le=1,
+        json_schema_extra={
+            "description": "A float representing the discharge efficiency of the battery."
+        },
+    )
+
+
+class BaseBatteryParameters(DeviceParameters):
+    """Battery Device Simulation Configuration."""
+
+    device_id: str = Field(
+        json_schema_extra={"description": "ID of battery", "examples": ["battery1"]}
+    )
+    capacity_wh: int = Field(
+        gt=0,
+        json_schema_extra={
+            "description": "An integer representing the capacity of the battery in watt-hours.",
+            "examples": [8000],
+        },
+    )
+    charging_efficiency: float = Field(
+        default=0.88,
+        gt=0,
+        le=1,
+        json_schema_extra={
+            "description": "A float representing the charging efficiency of the battery."
+        },
+    )
+    discharging_efficiency: float = discharging_efficiency_field(0.88)
+    max_charge_power_w: Optional[float] = max_charging_power_field()
+    initial_soc_percentage: int = initial_soc_percentage_field(
+        "An integer representing the state of charge of the battery at the **start** of the current hour (not the current state)."
+    )
+    min_soc_percentage: int = Field(
+        default=0,
+        ge=0,
+        le=100,
+        json_schema_extra={
+            "description": "An integer representing the minimum state of charge (SOC) of the battery in percentage.",
+            "examples": [10],
+        },
+    )
+    max_soc_percentage: int = Field(
+        default=100,
+        ge=0,
+        le=100,
+        json_schema_extra={
+            "description": "An integer representing the maximum state of charge (SOC) of the battery in percentage."
+        },
+    )
+    charge_rates: Optional[list[float]] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Charge rates as factor of maximum charging power [0.00 ... 1.00]. None denotes all charge rates are available.",
+            "examples": [[0.0, 0.25, 0.5, 0.75, 1.0], None],
+        },
+    )
+
+
+class SolarPanelBatteryParameters(BaseBatteryParameters):
+    """PV battery device simulation configuration."""
+
+    max_charge_power_w: Optional[float] = max_charging_power_field()
+
+
+class ElectricVehicleParameters(BaseBatteryParameters):
+    """Battery Electric Vehicle Device Simulation Configuration."""
+
+    device_id: str = Field(
+        json_schema_extra={"description": "ID of electric vehicle", "examples": ["ev1"]}
+    )
+    discharging_efficiency: float = discharging_efficiency_field(1.0)
+    initial_soc_percentage: int = initial_soc_percentage_field(
+        "An integer representing the current state of charge (SOC) of the battery in percentage."
+    )
 
 
 class Battery:

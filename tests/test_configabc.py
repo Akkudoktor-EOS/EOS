@@ -28,6 +28,9 @@ import pendulum
 import pytest
 from pydantic import ValidationError
 
+from akkudoktoreos.config.configabc import (  # noqa — ensure Time is importable
+    CycleTimeWindowSequence,
+)
 from akkudoktoreos.config.configabc import TimeWindow
 from akkudoktoreos.config.configabc import TimeWindow as _TW_check
 from akkudoktoreos.config.configabc import (  # noqa — ensure Time is importable
@@ -1504,3 +1507,491 @@ class TestAlignToIntervalTimezoneInvariance:
         assert series.iloc[0] == pytest.approx(0.25)
         assert series.iloc[1] == pytest.approx(0.25)
         assert series.iloc[2] == pytest.approx(0.0)
+
+
+# ===========================================================================
+# CycleTimeWindowSequence
+# ===========================================================================
+
+class TestCycleTimeWindowSequence:
+    """Tests for CycleTimeWindowSequence.
+
+    Window layout:
+        win1: 08:00–12:00  cycle=0
+        win2: 14:00–18:00  cycle=1
+        win3: 20:00–22:00  cycle=2
+    """
+
+    def setup_method(self, method):
+        self.seq = CycleTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.0),
+                ValueTimeWindow(start_time="14:00:00", duration="4 hours", value=1.0),
+                ValueTimeWindow(start_time="20:00:00", duration="2 hours", value=2.0),
+            ]
+        )
+
+    # ------------------------------------------------------------------
+    # cycle detection
+    # ------------------------------------------------------------------
+
+    def test_num_cycles(self):
+        assert self.seq.num_cycles() == 3
+
+    def test_num_cycles_ignores_none(self):
+        seq = CycleTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=None),
+                ValueTimeWindow(start_time="10:00:00", duration="2 hours", value=1.0),
+            ]
+        )
+        assert seq.num_cycles() == 1
+
+    def test_num_cycles_non_contiguous(self):
+        seq = CycleTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=2.0),
+                ValueTimeWindow(start_time="10:00:00", duration="2 hours", value=5.0),
+            ]
+        )
+        assert seq.num_cycles() == 2
+
+    # ------------------------------------------------------------------
+    # cycle_to_array basic correctness
+    # ------------------------------------------------------------------
+
+    def test_cycle0_array(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end   = naive_dt(2024, 6, 16, 0)
+
+        arr = self.seq.cycle_to_array(
+            0, start, end, pendulum.duration(hours=1)
+        )
+
+        assert arr.shape == (24,)
+        assert arr[8] == pytest.approx(1.0)
+        assert arr[11] == pytest.approx(1.0)
+        assert arr[12] == pytest.approx(0.0)
+
+    def test_cycle1_array(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end   = naive_dt(2024, 6, 16, 0)
+
+        arr = self.seq.cycle_to_array(
+            1, start, end, pendulum.duration(hours=1)
+        )
+
+        assert arr[14] == pytest.approx(1.0)
+        assert arr[17] == pytest.approx(1.0)
+        assert arr[13] == pytest.approx(0.0)
+
+    def test_cycle2_array(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end   = naive_dt(2024, 6, 16, 0)
+
+        arr = self.seq.cycle_to_array(
+            2, start, end, pendulum.duration(hours=1)
+        )
+
+        assert arr[20] == pytest.approx(1.0)
+        assert arr[21] == pytest.approx(1.0)
+        assert arr[22] == pytest.approx(0.0)
+
+    # ------------------------------------------------------------------
+    # cycle not present
+    # ------------------------------------------------------------------
+
+    def test_cycle_not_present_all_zero(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end   = naive_dt(2024, 6, 15, 6)
+
+        arr = self.seq.cycle_to_array(
+            5, start, end, pendulum.duration(hours=1)
+        )
+
+        assert np.all(arr == 0.0)
+
+    # ------------------------------------------------------------------
+    # aware datetime
+    # ------------------------------------------------------------------
+
+    def test_cycle_array_aware_datetime(self):
+        start = aware_dt(2024, 6, 15, 0, tz="Europe/Berlin")
+        end   = aware_dt(2024, 6, 16, 0, tz="Europe/Berlin")
+
+        arr = self.seq.cycle_to_array(
+            1, start, end, pendulum.duration(hours=1)
+        )
+
+        assert arr[14] == pytest.approx(1.0)
+        assert arr[13] == pytest.approx(0.0)
+
+    # ------------------------------------------------------------------
+    # dtype
+    # ------------------------------------------------------------------
+
+    def test_cycle_array_dtype(self):
+        start = naive_dt(2024, 6, 15, 0)
+        end   = naive_dt(2024, 6, 15, 6)
+
+        arr = self.seq.cycle_to_array(
+            0, start, end, pendulum.duration(hours=1)
+        )
+
+        assert arr.dtype == np.float64
+
+    # ------------------------------------------------------------------
+    # dropna propagation
+    # ------------------------------------------------------------------
+
+    def test_cycle_array_dropna_false(self):
+        seq = CycleTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=None),
+                ValueTimeWindow(start_time="10:00:00", duration="2 hours", value=1.0),
+            ]
+        )
+
+        start = naive_dt(2024, 6, 15, 8)
+        end   = naive_dt(2024, 6, 15, 13)
+
+        arr = seq.cycle_to_array(
+            1, start, end, pendulum.duration(hours=1), dropna=False
+        )
+
+        assert arr[2] == pytest.approx(1.0)
+        assert arr[3] == pytest.approx(1.0)
+
+
+# ===========================================================================
+# CycleTimeWindowSequence.cycles_to_matrix
+# ===========================================================================
+
+class TestCyclesToMatrix:
+    """Tests for CycleTimeWindowSequence.cycles_to_matrix.
+
+    The method returns ``(cycle_indices, matrix)`` where:
+
+    * ``cycle_indices`` — sorted list of distinct integer cycle indices
+      (derived from the integer part of each window's ``value``).
+    * ``matrix`` — shape ``(len(cycle_indices), n_steps)`` float64 array;
+      ``matrix[k, t] == 1.0`` iff step ``t`` falls inside a window whose
+      cycle index equals ``cycle_indices[k]``, ``0.0`` otherwise.
+
+    Alignment contract (same as ``to_array`` and ``cycle_to_array``):
+    * ``start_datetime`` is floored to the nearest interval boundary in
+      wall-clock time before building the grid.
+    * The step count uses ``math.ceil`` so that a partially-covered final
+      step is included, consistent with ``to_array``'s while-loop.
+
+    Window layout used in ``setup_method`` unless overridden:
+        cycle 0: 08:00–12:00  (4 h)
+        cycle 1: 14:00–18:00  (4 h)
+        cycle 2: 20:00–22:00  (2 h)
+    All tests use 1-hour steps over a 24-hour horizon unless stated otherwise.
+    """
+
+    def setup_method(self, method):
+        self.seq = CycleTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.0),
+                ValueTimeWindow(start_time="14:00:00", duration="4 hours", value=1.0),
+                ValueTimeWindow(start_time="20:00:00", duration="2 hours", value=2.0),
+            ]
+        )
+        self.start = naive_dt(2024, 6, 15, 0)
+        self.end   = naive_dt(2024, 6, 16, 0)
+        self.interval = pendulum.duration(hours=1)
+
+    # ------------------------------------------------------------------
+    # return-value structure
+    # ------------------------------------------------------------------
+
+    def test_returns_tuple_of_two(self):
+        result = self.seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert isinstance(result, tuple) and len(result) == 2
+
+    def test_cycle_indices_is_sorted_list(self):
+        indices, _ = self.seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert indices == sorted(indices)
+        assert isinstance(indices, list)
+
+    def test_cycle_indices_values(self):
+        indices, _ = self.seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert indices == [0, 1, 2]
+
+    def test_matrix_shape(self):
+        indices, matrix = self.seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert matrix.shape == (len(indices), 24)
+
+    def test_matrix_dtype_float64(self):
+        _, matrix = self.seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert matrix.dtype == np.float64
+
+    # ------------------------------------------------------------------
+    # correctness: cycle-row contents
+    # ------------------------------------------------------------------
+
+    def test_cycle0_row_marks_correct_steps(self):
+        # Cycle 0: 08:00–12:00 → steps 8, 9, 10, 11
+        _, matrix = self.seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert matrix[0, 7]  == pytest.approx(0.0)
+        assert matrix[0, 8]  == pytest.approx(1.0)
+        assert matrix[0, 11] == pytest.approx(1.0)
+        assert matrix[0, 12] == pytest.approx(0.0)
+
+    def test_cycle1_row_marks_correct_steps(self):
+        # Cycle 1: 14:00–18:00 → steps 14, 15, 16, 17
+        _, matrix = self.seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert matrix[1, 13] == pytest.approx(0.0)
+        assert matrix[1, 14] == pytest.approx(1.0)
+        assert matrix[1, 17] == pytest.approx(1.0)
+        assert matrix[1, 18] == pytest.approx(0.0)
+
+    def test_cycle2_row_marks_correct_steps(self):
+        # Cycle 2: 20:00–22:00 → steps 20, 21
+        _, matrix = self.seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert matrix[2, 19] == pytest.approx(0.0)
+        assert matrix[2, 20] == pytest.approx(1.0)
+        assert matrix[2, 21] == pytest.approx(1.0)
+        assert matrix[2, 22] == pytest.approx(0.0)
+
+    def test_cycle_rows_are_mutually_exclusive(self):
+        # No step should be 1.0 in more than one row
+        _, matrix = self.seq.cycles_to_matrix(self.start, self.end, self.interval)
+        overlap = (matrix > 0.5).sum(axis=0)
+        assert np.all(overlap <= 1)
+
+    def test_steps_outside_all_windows_are_zero_in_all_rows(self):
+        _, matrix = self.seq.cycles_to_matrix(self.start, self.end, self.interval)
+        outside = list(range(0, 8)) + [12, 13, 18, 19] + list(range(22, 24))
+        for t in outside:
+            assert matrix[:, t].sum() == pytest.approx(0.0), f"step {t} should be all-zero"
+
+    # ------------------------------------------------------------------
+    # None value windows are skipped
+    # ------------------------------------------------------------------
+
+    def test_none_value_windows_skipped(self):
+        seq = CycleTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=None),
+                ValueTimeWindow(start_time="10:00:00", duration="2 hours", value=1.0),
+            ]
+        )
+        indices, matrix = seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert indices == [1]
+        assert matrix.shape == (1, 24)
+        # The None window (08:00–10:00) must not bleed into cycle 1's row
+        assert matrix[0, 8]  == pytest.approx(0.0)
+        assert matrix[0, 10] == pytest.approx(1.0)
+        assert matrix[0, 11] == pytest.approx(1.0)
+
+    def test_all_none_returns_empty(self):
+        seq = CycleTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=None),
+            ]
+        )
+        indices, matrix = seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert indices == []
+        assert matrix.shape == (0, 24)
+
+    # ------------------------------------------------------------------
+    # row ordering: sorted by cycle index regardless of window order
+    # ------------------------------------------------------------------
+
+    def test_row_order_independent_of_window_order(self):
+        seq = CycleTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(start_time="20:00:00", duration="2 hours", value=2.0),
+                ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.0),
+                ValueTimeWindow(start_time="14:00:00", duration="4 hours", value=1.0),
+            ]
+        )
+        indices, matrix = seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert indices == [0, 1, 2]
+        # Row 0 must be cycle 0 (08:00–12:00)
+        assert matrix[0, 8]  == pytest.approx(1.0)
+        assert matrix[0, 14] == pytest.approx(0.0)
+
+    # ------------------------------------------------------------------
+    # non-contiguous cycle indices
+    # ------------------------------------------------------------------
+
+    def test_non_contiguous_cycle_indices(self):
+        seq = CycleTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(start_time="06:00:00", duration="2 hours", value=3.0),
+                ValueTimeWindow(start_time="16:00:00", duration="2 hours", value=7.0),
+            ]
+        )
+        indices, matrix = seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert indices == [3, 7]
+        assert matrix.shape == (2, 24)
+        assert matrix[0, 6]  == pytest.approx(1.0)
+        assert matrix[0, 7]  == pytest.approx(1.0)
+        assert matrix[1, 16] == pytest.approx(1.0)
+        assert matrix[1, 17] == pytest.approx(1.0)
+
+    # ------------------------------------------------------------------
+    # multiple windows for the same cycle index (union)
+    # ------------------------------------------------------------------
+
+    def test_same_cycle_multiple_windows_union(self):
+        # Cycle 0 appears twice: 06:00–08:00 and 20:00–22:00
+        seq = CycleTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(start_time="06:00:00", duration="2 hours", value=0.0),
+                ValueTimeWindow(start_time="20:00:00", duration="2 hours", value=0.0),
+            ]
+        )
+        indices, matrix = seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert indices == [0]
+        assert matrix[0, 6]  == pytest.approx(1.0)
+        assert matrix[0, 7]  == pytest.approx(1.0)
+        assert matrix[0, 20] == pytest.approx(1.0)
+        assert matrix[0, 21] == pytest.approx(1.0)
+        assert matrix[0, 8]  == pytest.approx(0.0)
+
+    # ------------------------------------------------------------------
+    # sub-hour steps
+    # ------------------------------------------------------------------
+
+    def test_30min_steps(self):
+        # Cycle 0: 08:00–12:00 → 8 half-hour steps starting at step 16 (08:00 / 0.5h)
+        seq = CycleTimeWindowSequence(
+            windows=[
+                ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.0),
+            ]
+        )
+        start = naive_dt(2024, 6, 15, 0)
+        end   = naive_dt(2024, 6, 16, 0)
+        _, matrix = seq.cycles_to_matrix(start, end, pendulum.duration(minutes=30))
+        assert matrix.shape == (1, 48)
+        # Steps 16–23 (08:00–12:00 in 30-min slots)
+        assert matrix[0, 15] == pytest.approx(0.0)
+        assert matrix[0, 16] == pytest.approx(1.0)
+        assert matrix[0, 23] == pytest.approx(1.0)
+        assert matrix[0, 24] == pytest.approx(0.0)
+
+    # ------------------------------------------------------------------
+    # aware datetime
+    # ------------------------------------------------------------------
+
+    def test_aware_datetime_berlin(self):
+        start = aware_dt(2024, 6, 15, 0, tz="Europe/Berlin")
+        end   = aware_dt(2024, 6, 16, 0, tz="Europe/Berlin")
+        indices, matrix = self.seq.cycles_to_matrix(start, end, self.interval)
+        assert indices == [0, 1, 2]
+        assert matrix[0, 8]  == pytest.approx(1.0)
+        assert matrix[0, 11] == pytest.approx(1.0)
+        assert matrix[0, 12] == pytest.approx(0.0)
+
+    def test_aware_datetime_utc(self):
+        start = aware_dt(2024, 6, 15, 0, tz="UTC")
+        end   = aware_dt(2024, 6, 16, 0, tz="UTC")
+        indices, matrix = self.seq.cycles_to_matrix(start, end, self.interval)
+        assert matrix[0, 8]  == pytest.approx(1.0)
+        assert matrix[1, 14] == pytest.approx(1.0)
+
+    # ------------------------------------------------------------------
+    # short horizon — window partially or fully outside
+    # ------------------------------------------------------------------
+
+    def test_window_fully_outside_horizon(self):
+        # Only first 6 hours — all windows are outside
+        start = naive_dt(2024, 6, 15, 0)
+        end   = naive_dt(2024, 6, 15, 6)
+        indices, matrix = self.seq.cycles_to_matrix(start, end, self.interval)
+        assert matrix.shape == (3, 6)
+        assert np.all(matrix == 0.0)
+
+    def test_window_partially_inside_horizon_clipped(self):
+        # Horizon ends at 10:00; cycle 0 window is 08:00–12:00 → only steps 8, 9 inside
+        start = naive_dt(2024, 6, 15, 0)
+        end   = naive_dt(2024, 6, 15, 10)
+        indices, matrix = self.seq.cycles_to_matrix(start, end, self.interval)
+        assert matrix.shape == (3, 10)
+        assert matrix[0, 8] == pytest.approx(1.0)
+        assert matrix[0, 9] == pytest.approx(1.0)
+        assert matrix[0, :8].sum() == pytest.approx(0.0)
+
+    # ------------------------------------------------------------------
+    # empty sequence
+    # ------------------------------------------------------------------
+
+    def test_empty_sequence(self):
+        seq = CycleTimeWindowSequence()
+        indices, matrix = seq.cycles_to_matrix(self.start, self.end, self.interval)
+        assert indices == []
+        assert matrix.shape == (0, 24)
+        assert matrix.dtype == np.float64
+
+    # ------------------------------------------------------------------
+    # alignment: misaligned start_datetime is floored (wall-clock floor)
+    # ------------------------------------------------------------------
+
+    def test_misaligned_start_floored_step_count(self):
+        # start=08:10, end=10:10, interval=1h
+        # floor(08:10) = 08:00 → steps: 08:00, 09:00, 10:00 = 3 steps
+        # (10:00 < 10:10, so it is included by ceil)
+        # Window 08:00–12:00 → all three steps are inside → all 1.0
+        seq = CycleTimeWindowSequence(
+            windows=[ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.0)]
+        )
+        start = naive_dt(2024, 6, 15, 8, 10)
+        end   = naive_dt(2024, 6, 15, 10, 10)
+        _, matrix = seq.cycles_to_matrix(start, end, pendulum.duration(hours=1))
+        assert matrix.shape == (1, 3)
+        np.testing.assert_array_equal(matrix[0], [1.0, 1.0, 1.0])
+
+    def test_misaligned_start_30min_steps(self):
+        # start=08:15, interval=30min → floor to 08:00
+        # Window 08:00–10:00 → steps 08:00(1), 08:30(1), 09:00(1), 09:30(1)
+        seq = CycleTimeWindowSequence(
+            windows=[ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=0.0)]
+        )
+        start = naive_dt(2024, 6, 15, 8, 15)
+        end   = naive_dt(2024, 6, 15, 10, 15)
+        _, matrix = seq.cycles_to_matrix(start, end, pendulum.duration(minutes=30))
+        # floor(08:15, 30min) = 08:00; steps: 08:00,08:30,09:00,09:30,10:00(ceil)
+        # 10:00 is outside [08:00,10:00) → 0.0
+        assert matrix.shape[1] >= 4
+        np.testing.assert_array_equal(matrix[0, :4], [1.0, 1.0, 1.0, 1.0])
+        assert matrix[0, 4] == pytest.approx(0.0)  # 10:00 outside
+
+    # ------------------------------------------------------------------
+    # consistency with cycle_to_array
+    # ------------------------------------------------------------------
+
+    def test_matrix_rows_match_cycle_to_array(self):
+        """Each matrix row must exactly match the corresponding cycle_to_array output.
+
+        Both methods now use the same wall-clock floor alignment and math.ceil
+        step count, so they must produce identical arrays for every cycle.
+        """
+        indices, matrix = self.seq.cycles_to_matrix(self.start, self.end, self.interval)
+        for k, cycle_idx in enumerate(indices):
+            expected = self.seq.cycle_to_array(
+                cycle_idx, self.start, self.end, self.interval
+            )
+            np.testing.assert_array_equal(
+                matrix[k],
+                expected,
+                err_msg=f"Row {k} (cycle {cycle_idx}) differs from cycle_to_array",
+            )
+
+    def test_matrix_rows_match_cycle_to_array_misaligned(self):
+        """Consistency holds even when start_datetime is not on an interval boundary."""
+        start = naive_dt(2024, 6, 15, 8, 20)
+        end   = naive_dt(2024, 6, 15, 14, 20)
+        interval = pendulum.duration(hours=1)
+        indices, matrix = self.seq.cycles_to_matrix(start, end, interval)
+        for k, cycle_idx in enumerate(indices):
+            expected = self.seq.cycle_to_array(cycle_idx, start, end, interval)
+            np.testing.assert_array_equal(
+                matrix[k],
+                expected,
+                err_msg=f"Row {k} (cycle {cycle_idx}) differs from cycle_to_array (misaligned)",
+            )

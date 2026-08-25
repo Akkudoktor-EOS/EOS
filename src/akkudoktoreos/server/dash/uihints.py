@@ -207,22 +207,37 @@ UI_HINTS: dict[str, UiHint] = {
     # ------------------------------------------------------------------
     # Devices
     # ------------------------------------------------------------------
+    # - batteries
     "devices.batteries": UiHint(
-        form="items",
+        form="map_items",
         item_path="devices.batteries",
     ),
     "devices.electric_vehicles": UiHint(
-        form="items",
+        form="map_items",
         item_path="devices.electric_vehicles",
     ),
+    # - home_appliances
     "devices.home_appliances": UiHint(
-        form="items",
+        form="map_items",
         item_path="devices.home_appliances",
     ),
     # Sub-field hint for the time_windows field inside each appliance entry
     "devices.home_appliances.cycle_time_windows.windows": UiHint(
         form="time_windows",
         value_description="cycle index (0-based)",
+    ),
+    # - inverters
+    "devices.inverters": UiHint(
+        form="map_items",
+        item_path="devices.inverters",
+    ),
+    # Sub-field hint for the load_power_w_key field inside each inverter entry
+    "devices.inverters.load_power_w_key": UiHint(
+        form="select", options=["loadforecast_power_w", "null"]
+    ),
+    # Sub-field hint for the pv_power_w_key field inside each inverter entry
+    "devices.inverters.pv_power_w_key": UiHint(
+        form="select", options=["pvforecast_dc_power_w", "null"]
     ),
     # ------------------------------------------------------------------
     # Electricity fee
@@ -356,25 +371,32 @@ def _ensure_item_models() -> None:
         UI_HINTS["pvforecast.planes"].item_model = PVForecastPlaneSetting
 
     if UI_HINTS["devices.batteries"].item_model is None:
-        from akkudoktoreos.devices.devices import (
+        from akkudoktoreos.devices.settings.batterysettings import (
             BatteriesCommonSettings,
         )
 
         UI_HINTS["devices.batteries"].item_model = BatteriesCommonSettings
 
     if UI_HINTS["devices.electric_vehicles"].item_model is None:
-        from akkudoktoreos.devices.devices import (
+        from akkudoktoreos.devices.settings.batterysettings import (
             BatteriesCommonSettings,
         )
 
         UI_HINTS["devices.electric_vehicles"].item_model = BatteriesCommonSettings
 
     if UI_HINTS["devices.home_appliances"].item_model is None:
-        from akkudoktoreos.devices.devices import (
+        from akkudoktoreos.devices.settings.homeappliancesettings import (
             HomeApplianceCommonSettings,
         )
 
         UI_HINTS["devices.home_appliances"].item_model = HomeApplianceCommonSettings
+
+    if UI_HINTS["devices.inverters"].item_model is None:
+        from akkudoktoreos.devices.settings.invertersettings import (
+            InverterCommonSettings,
+        )
+
+        UI_HINTS["devices.inverters"].item_model = InverterCommonSettings
 
 
 def resolve_item_model(hint: UiHint) -> Optional[Any]:

@@ -9,7 +9,7 @@ from loguru import logger
 from pydantic import IPvAnyAddress, ValidationError
 
 from akkudoktoreos.config.config import ConfigEOS, GeneralSettings
-from akkudoktoreos.devices.devices import BATTERY_DEFAULT_CHARGE_RATES
+from akkudoktoreos.devices.settings.batterysettings import BATTERY_DEFAULT_CHARGE_RATES
 
 
 def assert_values_equal(actual, expected):
@@ -285,7 +285,6 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
     assert config_no_coords.timezone is None
 
 
-
 # Test partial assignments and possible side effects
 @pytest.mark.parametrize(
     "path, value, expected, exception",
@@ -348,70 +347,120 @@ def test_config_common_settings_timezone_none_when_coordinates_missing():
         ),
         # Correct value assignment - preparation for list
         (
-            "devices/max_electric_vehicles",
+            "devices/max_home_appliances",
             1,
-            [("devices.max_electric_vehicles", 1), ],
+            [("devices.max_home_appliances", 1), ],
             None,
         ),
-        # Correct value for list
+        # Correct value to generate a windows list
         (
-            "devices/electric_vehicles/0/charge_rates",
-            [0.1, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
+            "devices/home_appliances",
+            {
+                "dishwasher1": {
+                    "device_id": "dishwasher1",
+                    "consumption_wh": 2000,
+                    "duration_h": 3,
+                    "cycle_time_windows": {
+                        "windows": [
+                            {
+                                "start_time": "08:00",
+                                "duration": "5 hours",
+                                "value": 0,
+                            },
+                            {
+                                "start_time": "15:00",
+                                "duration": "3 hours",
+                                "value": 0,
+                            },
+                        ],
+                    },
+                },
+            },
             [
-                (
-                    "devices.electric_vehicles[0].charge_rates",
-                    [0.1, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
-                )
+                ("devices.home_appliances['dishwasher1'].device_id", "dishwasher1"),
+                ("devices.home_appliances['dishwasher1'].consumption_wh", 2000),
+                ("devices.home_appliances['dishwasher1'].duration_h", 3),
             ],
             None,
         ),
         # Invalid value for list
         (
-            "devices/electric_vehicles/0/charge_rates",
+            "devices/home_appliances/dishwasher1/cycle_time_windows/windows",
             "invalid",
             [
                 (
-                    "devices.electric_vehicles[0].charge_rates",
-                    BATTERY_DEFAULT_CHARGE_RATES,
+                    "devices.home_appliances['dishwasher1'].cycle_time_windows",
+                    [
+                        {
+                            "start_time": "08:00",
+                            "duration": "5 hours",
+                            "value": 0,
+                        },
+                        {
+                            "start_time": "15:00",
+                            "duration": "3 hours",
+                            "value": 0,
+                        },
+                    ],
                 )
             ],
             ValueError,
         ),
         # Invalid index (out of bound)
         (
-            "devices/electric_vehicles/0/charge_rates/10",
-            0,
+            "devices/home_appliances/dishwasher1/cycle_time_windows/windows/10",
+            {
+                "start_time": "17:00",
+                "duration": "1 hour",
+                "value": 0,
+            },
             [
                 (
-                    "devices.electric_vehicles[0].charge_rates",
-                    BATTERY_DEFAULT_CHARGE_RATES,
+                    "devices.home_appliances['dishwasher1'].cycle_time_windows.windows[10]",
+                    {
+                        "start_time": "17:00",
+                        "duration": "1 hour",
+                        "value": 0,
+                    },
                 )
             ],
             TypeError,
         ),
         # Invalid index (no number)
         (
-            "devices/electric_vehicles/0/charge_rates/test",
-            0,
+            "devices/home_appliances/dishwasher1/cycle_time_windows/windows/test",
+            {
+                "start_time": "17:00",
+                "duration": "1 hour",
+                "value": 0,
+            },
             [
                 (
-                    "devices.electric_vehicles[0].charge_rates",
-                    BATTERY_DEFAULT_CHARGE_RATES,
+                    "devices.home_appliances['dishwasher1'].cycle_time_windows.windows[0]",
+                    {
+                        "start_time": "08:00",
+                        "duration": "5 hours",
+                        "value": 0,
+                    },
                 )
             ],
             IndexError,
         ),
         # Unset value (set None)
         (
-            "devices/electric_vehicles/0/charge_rates",
+            "devices/home_appliances/dishwasher1/cycle_time_windows/windows/0",
             None,
             [
                 (
-                    "devices.electric_vehicles[0].charge_rates",
-                    BATTERY_DEFAULT_CHARGE_RATES,
+                    "devices.home_appliances['dishwasher1'].cycle_time_windows.windows[0]",
+                    {
+                        "start_time": "08:00",
+                        "duration": "5 hours",
+                        "value": 0,
+                    },
                 )
             ],
-            None,
+            TypeError,
         ),
     ],
 )
@@ -513,30 +562,28 @@ def test_merge_settings_partial(config_eos):
     partial_settings = {
         "devices": {
             "max_electric_vehicles": 1,
-            "electric_vehicles": [
-                {
-                    "charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],
-                }
-            ],
+            "electric_vehicles": {
+                "ev1": {"charge_rates": [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0],}
+            },
         }
     }
 
     config_eos.merge_settings_from_dict(partial_settings)
     assert config_eos.devices.max_electric_vehicles == 1
     assert len(config_eos.devices.electric_vehicles) == 1
-    assert_values_equal(config_eos.devices.electric_vehicles[0].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
+    assert_values_equal(config_eos.devices.electric_vehicles["ev1"].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
 
     # Assure re-apply generates the same config
     config_eos.merge_settings_from_dict(partial_settings)
     assert config_eos.devices.max_electric_vehicles == 1
     assert len(config_eos.devices.electric_vehicles) == 1
-    assert_values_equal(config_eos.devices.electric_vehicles[0].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
+    assert_values_equal(config_eos.devices.electric_vehicles["ev1"].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
 
     # Assure update keeps same values
     config_eos.update()
     assert config_eos.devices.max_electric_vehicles == 1
     assert len(config_eos.devices.electric_vehicles) == 1
-    assert_values_equal(config_eos.devices.electric_vehicles[0].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
+    assert_values_equal(config_eos.devices.electric_vehicles["ev1"].charge_rates, [0.0, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0])
 
 
 def test_merge_settings_empty(config_eos):
