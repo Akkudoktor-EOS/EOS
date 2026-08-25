@@ -20,7 +20,9 @@ services:
       - MKL_NUM_THREADS=1
       - PIP_PROGRESS_BAR=off
       - PIP_NO_COLOR=1
-      - EOS_SERVER__EOSDASH_SESSKEY=s3cr3t
+      # EOSdash session signing key. Left unset on purpose so a random key is
+      # generated per container. Set your own secret only if sessions must
+      # survive a restart - never reuse the well-known "s3cr3t" placeholder.
       - EOS_SERVER__HOST=0.0.0.0
       - EOS_SERVER__PORT=8503
       - EOS_SERVER__EOSDASH_HOST=0.0.0.0

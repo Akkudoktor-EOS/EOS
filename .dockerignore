@@ -13,3 +13,8 @@ Makefile
 NOTICE
 README.md
 .venv/
+tests/
+docs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
