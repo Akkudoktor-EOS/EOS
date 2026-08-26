@@ -1,4 +1,4 @@
-from unittest.mock import call, patch
+from unittest.mock import MagicMock, call, patch
 
 import pendulum
 import pytest
@@ -44,9 +44,9 @@ def pvforecast_instance(config_eos):
 
 
 def mock_response(json_data, status_code=200):
-    mock = requests.Response()
+    mock = MagicMock(spec=requests.Response)
     mock.status_code = status_code
-    mock.json = lambda: json_data
+    mock.json.return_value = json_data
     return mock
 
 
