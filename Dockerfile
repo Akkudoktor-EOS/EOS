@@ -50,7 +50,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM ${BUILD_FROM:-python:${PYTHON_VERSION}-slim} AS runtime
 
-ARG BUILD_VERSION=VERSION
+# Supplied by the Home Assistant builder and by docker-compose; "dev" marks an
+# unversioned local build. CI stamps org.opencontainers.image.version via
+# docker/metadata-action, so it is not set here.
+ARG BUILD_VERSION=dev
 
 LABEL \
     io.hass.version="${BUILD_VERSION}" \
@@ -58,7 +61,6 @@ LABEL \
     io.hass.arch="aarch64|amd64" \
     source="https://github.com/Akkudoktor-EOS/EOS" \
     org.opencontainers.image.source="https://github.com/Akkudoktor-EOS/EOS" \
-    org.opencontainers.image.version="${BUILD_VERSION}" \
     org.opencontainers.image.licenses="Apache-2.0"
 
 ENV EOS_DIR="/opt/eos"
@@ -108,7 +110,9 @@ EXPOSE 8503
 EXPOSE 8504
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8503/v1/health')" || exit 1
+    CMD python -c "import os, urllib.request; \
+urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('EOS_SERVER__PORT', '8503') + '/v1/health', timeout=3)" \
+    || exit 1
 
 # Ensure EOS and EOSdash bind to 0.0.0.0
 # EOS is started with root privileges. EOS will drop root privileges and switch to user eos.
