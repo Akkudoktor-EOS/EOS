@@ -6,6 +6,10 @@ import requests
 
 from akkudoktoreos.prediction.pvforecasthomeassistant import PVForecastHomeAssistant
 
+# Fixed "current" EMS time so tests can assert on the [start_of_day, +prediction.hours)
+# window that _update_data clears before writing, independent of wall-clock time.
+FIXED_EMS_START = pendulum.datetime(2026, 8, 18, 5, 0, tz="Europe/Berlin")
+
 # Trimmed excerpt of a real Home Assistant response, captured live from a
 # Helios Forecast "Power now" sensor (sensor.pv1_power_now).
 REAL_HA_RESPONSE = {
@@ -88,25 +92,84 @@ async def test_update_data_converts_kw_to_w(pvforecast_instance):
 
 
 @pytest.mark.asyncio
-async def test_update_data_skips_missing_attribute(pvforecast_instance):
+async def test_update_data_raises_on_missing_attribute(pvforecast_instance):
     response = {"state": "0.0", "attributes": {}}
     with (
         patch("requests.get", return_value=mock_response(response)),
         patch.object(PVForecastHomeAssistant, "update_value") as mock_update,
     ):
-        await pvforecast_instance._update_data()
+        with pytest.raises(ValueError, match="no 'forecast' attribute"):
+            await pvforecast_instance._update_data()
         mock_update.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_update_data_skips_empty_forecast(pvforecast_instance):
+async def test_update_data_raises_on_empty_forecast(pvforecast_instance):
     response = {"state": "0.0", "attributes": {"forecast": []}}
     with (
         patch("requests.get", return_value=mock_response(response)),
         patch.object(PVForecastHomeAssistant, "update_value") as mock_update,
     ):
-        await pvforecast_instance._update_data()
+        with pytest.raises(ValueError, match="no 'forecast' attribute"):
+            await pvforecast_instance._update_data()
         mock_update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_data_raises_when_all_entries_malformed(pvforecast_instance):
+    """A non-empty but entirely unusable forecast must fail explicitly, not succeed as a no-op."""
+    response = {
+        "state": "0.0",
+        "attributes": {
+            "forecast": [
+                {"datetime": "2026-08-18T06:00:00+02:00"},  # missing "watts"
+                {"watts": "not-a-number", "datetime": "2026-08-18T06:15:00+02:00"},
+            ]
+        },
+    }
+    with (
+        patch("requests.get", return_value=mock_response(response)),
+        patch.object(PVForecastHomeAssistant, "update_value") as mock_update,
+    ):
+        with pytest.raises(ValueError, match="no usable forecast entries"):
+            await pvforecast_instance._update_data()
+        mock_update.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_update_data_clears_stale_entries_missing_from_shorter_forecast(
+    pvforecast_instance,
+):
+    """A shorter refresh must not leave stale values behind at now-omitted timestamps.
+
+    Regression test for a bug where an early return on empty/short responses left
+    previously-written pvforecast_ac_power values in place, letting EOS optimize against
+    a mixture of current and stale forecast data.
+    """
+    with patch("akkudoktoreos.core.coreabc.get_ems") as mock_get_ems:
+        mock_get_ems.return_value.start_datetime = FIXED_EMS_START
+
+        # Seed a value as if a previous, longer forecast had covered this timestamp.
+        stale_dt = pendulum.datetime(2026, 8, 18, 10, 0, tz="Europe/Berlin")
+        await pvforecast_instance.update_value(stale_dt, {"pvforecast_ac_power": 999.0})
+
+        shorter_response = {
+            "state": "0.0",
+            "attributes": {
+                "forecast": [{"datetime": "2026-08-18T06:00:00+02:00", "watts": 12.0}]
+            },
+        }
+        with patch("requests.get", return_value=mock_response(shorter_response)):
+            await pvforecast_instance._update_data()
+
+        values = {
+            pendulum.parse(dt): value
+            for dt, value in (
+                await pvforecast_instance.key_to_dict("pvforecast_ac_power", dropna=False)
+            ).items()
+        }
+        assert values[stale_dt] is None
+        assert values[pendulum.parse("2026-08-18T06:00:00+02:00")] == 12.0
 
 
 @pytest.mark.asyncio

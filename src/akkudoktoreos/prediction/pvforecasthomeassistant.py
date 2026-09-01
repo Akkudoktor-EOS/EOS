@@ -9,7 +9,7 @@ from pydantic import Field
 
 from akkudoktoreos.config.configabc import SettingsBaseModel
 from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
-from akkudoktoreos.utils.datetimeutil import to_datetime
+from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 
 # Supervisor API endpoint (injected automatically when running as a Home Assistant add-on)
 CORE_API = "http://supervisor/core/api"
@@ -127,14 +127,15 @@ class PVForecastHomeAssistant(PVForecastProvider):
         attributes = data.get("attributes", {})
         forecast = attributes.get(settings.attribute)
         if not forecast:
-            logger.warning(
+            error_msg = (
                 f"Entity '{settings.entity_id}' has no '{settings.attribute}' attribute "
                 "or it is empty."
             )
-            return
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         factor = 1000.0 if settings.value_unit == "kW" else 1.0
-        count = 0
+        parsed: list[tuple[DateTime, float]] = []
         for entry in forecast:
             try:
                 dt = to_datetime(
@@ -144,10 +145,29 @@ class PVForecastHomeAssistant(PVForecastProvider):
             except (KeyError, TypeError, ValueError) as e:
                 logger.error(f"Skipping malformed forecast entry {entry!r}: {e}")
                 continue
+            parsed.append((dt, watts))
+
+        if not parsed:
+            error_msg = (
+                f"Entity '{settings.entity_id}' attribute '{settings.attribute}' contained no "
+                "usable forecast entries."
+            )
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        # Clear the whole active forecast window first, so a response that is shorter than a
+        # previous one (or has gaps) can't leave stale pvforecast_ac_power values behind at
+        # timestamps the new data no longer covers.
+        start_date = self.ems_start_datetime.start_of("day")
+        end_date = self.ems_start_datetime.add(hours=self.config.prediction.hours)
+        await self.key_delete_by_datetime(
+            "pvforecast_ac_power", start_datetime=start_date, end_datetime=end_date
+        )
+
+        for dt, watts in parsed:
             await self.update_value(dt, {"pvforecast_ac_power": watts})
-            count += 1
 
         logger.debug(
-            f"Updated pvforecast_ac_power with {count} entries from '{settings.entity_id}'."
+            f"Updated pvforecast_ac_power with {len(parsed)} entries from '{settings.entity_id}'."
         )
         self.update_datetime = to_datetime(in_timezone=self.config.general.timezone)
