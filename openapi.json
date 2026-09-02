@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2608221553448643"
+    "version": "v0.3.0.dev2609011977897641"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -10803,6 +10803,10 @@
             "$ref": "#/components/schemas/PVForecastVrmCommonSettings",
             "description": "Victron Remote Management (VRM) provider settings"
           },
+          "homeassistant": {
+            "$ref": "#/components/schemas/PVForecastHomeAssistantCommonSettings",
+            "description": "Home Assistant provider settings"
+          },
           "pvlib": {
             "$ref": "#/components/schemas/PVForecastPVLibCommonSettings",
             "description": "PVLib provider settings"
@@ -10923,6 +10927,10 @@
           "vrm": {
             "$ref": "#/components/schemas/PVForecastVrmCommonSettings",
             "description": "Victron Remote Management (VRM) provider settings"
+          },
+          "homeassistant": {
+            "$ref": "#/components/schemas/PVForecastHomeAssistantCommonSettings",
+            "description": "Home Assistant provider settings"
           },
           "pvlib": {
             "$ref": "#/components/schemas/PVForecastPVLibCommonSettings",
@@ -11096,6 +11104,93 @@
         "type": "object",
         "title": "PVForecastForecastSolarCommonSettings",
         "description": "Common settings for the Forecast.Solar PV forecast provider."
+      },
+      "PVForecastHomeAssistantCommonSettings": {
+        "properties": {
+          "entity_id": {
+            "type": "string",
+            "title": "Entity Id",
+            "description": "Home Assistant entity providing the PV forecast.",
+            "default": "sensor.pv_forecast",
+            "examples": [
+              "sensor.pv1_power_now"
+            ]
+          },
+          "attribute": {
+            "type": "string",
+            "title": "Attribute",
+            "description": "Entity attribute holding the forecast list.",
+            "default": "forecast",
+            "examples": [
+              "forecast"
+            ]
+          },
+          "datetime_key": {
+            "type": "string",
+            "title": "Datetime Key",
+            "description": "Key for the timestamp in each forecast entry.",
+            "default": "datetime",
+            "examples": [
+              "datetime"
+            ]
+          },
+          "value_key": {
+            "type": "string",
+            "title": "Value Key",
+            "description": "Key for the AC power value in each forecast entry.",
+            "default": "watts",
+            "examples": [
+              "watts"
+            ]
+          },
+          "value_unit": {
+            "type": "string",
+            "enum": [
+              "W",
+              "kW"
+            ],
+            "title": "Value Unit",
+            "description": "Unit of the forecast value. Converted to W internally.",
+            "default": "W",
+            "examples": [
+              "W",
+              "kW"
+            ]
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url",
+            "description": "Base URL of the Home Assistant instance. Only required when EOS is not running as a Home Assistant add-on (no SUPERVISOR_TOKEN available).",
+            "examples": [
+              "http://homeassistant.local:8123"
+            ]
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token",
+            "description": "Long-lived access token for the Home Assistant instance. Only required when EOS is not running as a Home Assistant add-on.",
+            "examples": [
+              null
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PVForecastHomeAssistantCommonSettings",
+        "description": "Common settings for pvforecast data from a Home Assistant entity."
       },
       "PVForecastImportCommonSettings": {
         "properties": {
