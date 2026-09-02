@@ -155,11 +155,17 @@ class PVForecastHomeAssistant(PVForecastProvider):
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        # Clear the whole active forecast window first, so a response that is shorter than a
+        # Clear the active forecast window first, so a response that is shorter than a
         # previous one (or has gaps) can't leave stale pvforecast_ac_power values behind at
-        # timestamps the new data no longer covers.
-        start_date = self.ems_start_datetime.start_of("day")
-        end_date = self.ems_start_datetime.add(hours=self.config.prediction.hours)
+        # timestamps the new data no longer covers. Bounded to [ems_start_datetime,
+        # end_datetime) rather than the start of the day: PredictionProvider deliberately
+        # retains historical records back to keep_datetime (prediction.historic_hours), and
+        # Home Assistant forecasts are future-only, so clearing from midnight would wipe out
+        # that retained history on every refresh.
+        start_date = self.ems_start_datetime
+        end_date = self.end_datetime
+        if start_date is None or end_date is None:
+            raise RuntimeError("Cannot update PV forecast without a valid prediction window")
         await self.key_delete_by_datetime(
             "pvforecast_ac_power", start_datetime=start_date, end_datetime=end_date
         )

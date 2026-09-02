@@ -6,7 +6,7 @@ import requests
 
 from akkudoktoreos.prediction.pvforecasthomeassistant import PVForecastHomeAssistant
 
-# Fixed "current" EMS time so tests can assert on the [start_of_day, +prediction.hours)
+# Fixed "current" EMS time so tests can assert on the [ems_start_datetime, end_datetime)
 # window that _update_data clears before writing, independent of wall-clock time.
 FIXED_EMS_START = pendulum.datetime(2026, 8, 18, 5, 0, tz="Europe/Berlin")
 
@@ -140,14 +140,24 @@ async def test_update_data_raises_when_all_entries_malformed(pvforecast_instance
 async def test_update_data_clears_stale_entries_missing_from_shorter_forecast(
     pvforecast_instance,
 ):
-    """A shorter refresh must not leave stale values behind at now-omitted timestamps.
+    """A shorter refresh must not leave stale values behind at now-omitted timestamps,
+    and must not touch retained historical records before the active forecast window.
 
-    Regression test for a bug where an early return on empty/short responses left
-    previously-written pvforecast_ac_power values in place, letting EOS optimize against
-    a mixture of current and stale forecast data.
+    Regression test for two bugs:
+    - An early return on empty/short responses left previously-written
+      pvforecast_ac_power values in place, letting EOS optimize against a mixture of
+      current and stale forecast data.
+    - The fix for that (clearing from start-of-day) then wiped out historical records
+      PredictionProvider deliberately retains (keep_datetime / prediction.historic_hours),
+      since Home Assistant forecasts are future-only and every refresh would blank
+      everything between midnight and the EMS start.
     """
     with patch("akkudoktoreos.core.coreabc.get_ems") as mock_get_ems:
         mock_get_ems.return_value.start_datetime = FIXED_EMS_START
+
+        # Seed a historical value from before the active window: must survive.
+        historical_dt = FIXED_EMS_START.subtract(hours=1)
+        await pvforecast_instance.update_value(historical_dt, {"pvforecast_ac_power": 321.0})
 
         # Seed a value as if a previous, longer forecast had covered this timestamp.
         stale_dt = pendulum.datetime(2026, 8, 18, 10, 0, tz="Europe/Berlin")
@@ -168,6 +178,7 @@ async def test_update_data_clears_stale_entries_missing_from_shorter_forecast(
                 await pvforecast_instance.key_to_dict("pvforecast_ac_power", dropna=False)
             ).items()
         }
+        assert values[historical_dt] == 321.0
         assert values[stale_dt] is None
         assert values[pendulum.parse("2026-08-18T06:00:00+02:00")] == 12.0
 
