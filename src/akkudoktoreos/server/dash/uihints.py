@@ -308,6 +308,12 @@ UI_HINTS: dict[str, UiHint] = {
         item_path="pvforecast.planes",
         max_items_from="pvforecast.max_planes",
     ),
+    # Plain text: the "select" widget has no manual-entry fallback, but
+    # adapter.homeassistant.homeassistant_entity_ids only resolves when
+    # SUPERVISOR_TOKEN is set, which leaves standalone setups (using this
+    # provider's own base_url/token) with an unusable, permanently empty
+    # dropdown.
+    "pvforecast.homeassistant.entity_id": UiHint(form="text"),
     # Per-plane sub-fields; resolved by hint_for_indexed_field()
     "pvforecast.planes.pvtechchoice": UiHint(
         form="select",
