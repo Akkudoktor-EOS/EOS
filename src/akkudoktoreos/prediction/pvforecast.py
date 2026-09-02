@@ -10,6 +10,9 @@ from akkudoktoreos.prediction.pvforecastabc import PVForecastProvider
 from akkudoktoreos.prediction.pvforecastforecastsolar import (
     PVForecastForecastSolarCommonSettings,
 )
+from akkudoktoreos.prediction.pvforecasthomeassistant import (
+    PVForecastHomeAssistantCommonSettings,
+)
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImportCommonSettings
 from akkudoktoreos.prediction.pvforecastpvlib import PVForecastPVLibCommonSettings
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNodeCommonSettings
@@ -27,6 +30,7 @@ def pvforecast_provider_ids() -> list[str]:
         return [
             "PVForecastAkkudoktor",
             "PVForecastForecastSolar",
+            "PVForecastHomeAssistant",
             "PVForecastImport",
             "PVForecastPVLib",
             "PVForecastPVNode",
@@ -206,6 +210,11 @@ class PVForecastCommonSettings(SettingsBaseModel):
     vrm: PVForecastVrmCommonSettings = Field(
         default_factory=PVForecastVrmCommonSettings,
         json_schema_extra={"description": "Victron Remote Management (VRM) provider settings"},
+    )
+
+    homeassistant: PVForecastHomeAssistantCommonSettings = Field(
+        default_factory=PVForecastHomeAssistantCommonSettings,
+        json_schema_extra={"description": "Home Assistant provider settings"},
     )
 
     pvlib: PVForecastPVLibCommonSettings = Field(
