@@ -240,6 +240,16 @@ the first one.
 Each rate is one more state in the genetic state space, which is why the default is deliberately
 coarse. `[1.0]` restores the previous all-or-nothing behaviour.
 
+When EOS writes its configuration file it omits every value that equals the field default, so a
+`grid_export_rates` of exactly `[0.25, 0.5, 0.75, 1.0]` disappears from `EOS.config.json` on the
+next save. The rates are still active - `GET /v1/config` shows the effective configuration, the
+saved file only shows the deviations from it.
+
+Whether a partial level is ever selected depends on the scenario. Exporting at full power in the
+best-priced slots is optimal whenever the stored energy has no more valuable use; a partial level
+pays when the export competes with a later, more expensive self-consumption and the right amount
+of energy falls between two whole slots.
+
 The exported energy of one slot is bounded by
 
 ```{math}
@@ -372,6 +382,15 @@ the deadline is not forbidden - it simply no longer helps to avoid the penalty.
 The deadline is a target, not a hard constraint: if the remaining time is too short to reach
 `min_soc_percentage`, the optimizer charges as much as it can and accepts the penalty. Check
 `result.EAuto_SoC_pro_Stunde` at the deadline slot to see what was actually achieved.
+
+In practice the target behaves as if it were binding. The default penalty of `10` per missing
+percentage point is roughly forty times the cost of the energy itself (one point of a 60 kWh
+battery is 600 Wh, some 0.25 EUR at 0.40 EUR/kWh), so the optimizer keeps the deadline whenever
+charging power and remaining time allow it. The soft formulation only exists so that an
+unreachable target degrades gracefully instead of failing the whole optimization.
+
+Note that the target is met *tightly*: the optimizer stops at the first SoC that satisfies
+`min_soc_percentage`, because every further kWh only adds cost.
 
 ### Flexible Consumers (Home Appliances)
 
