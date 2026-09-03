@@ -17,6 +17,9 @@ Note on conventions:
       converts via ``az = surface_azimuth - 180``.
     - Response timestamps are local wall-clock; ``message.info.timezone`` is used
       to resolve them to absolute instants before EOS resamples them.
+    - A plane's ``userhorizon`` (PVGIS convention: evenly distributed horizon
+      heights in degrees, starting at north and going clockwise) is passed on as
+      the ``horizon`` query parameter, which uses the same convention.
 """
 
 import re
@@ -94,7 +97,13 @@ class PVForecastForecastSolar(PVForecastProvider):
         api_key = self._api_key
         if api_key:
             base = f"{base}/{api_key}"
-        return f"{base}/estimate/{latitude}/{longitude}/{float(tilt)}/{fs_az}/{float(peakpower)}"
+        url = f"{base}/estimate/{latitude}/{longitude}/{float(tilt)}/{fs_az}/{float(peakpower)}"
+        # Horizon shading: same convention on both sides (evenly distributed
+        # heights in degrees, starting north, clockwise), so pass it through.
+        horizon = getattr(plane, "userhorizon", None)
+        if horizon:
+            url = f"{url}?horizon={','.join(str(float(value)) for value in horizon)}"
+        return url
 
     @cache_in_file(with_ttl="1 hour")
     def _request_forecast(self) -> dict:
