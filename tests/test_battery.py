@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
+from akkudoktoreos.devices.devices import BatteriesCommonSettings
 from akkudoktoreos.devices.genetic.battery import Battery, SolarPanelBatteryParameters
 
 
@@ -343,3 +345,41 @@ def test_quarter_hour_discharge_calls_share_one_power_budget():
     battery.reset()
 
     assert battery.discharged_energy_wh(0) == 0.0
+
+
+def test_grid_export_rates_are_sorted_and_deduplicated():
+    """Export rates are normalized like the charge rates."""
+    settings = BatteriesCommonSettings(
+        device_id="battery1", grid_export_rates=[1.0, 0.5, 0.5, 0.25]
+    )
+    assert list(settings.grid_export_rates) == [0.25, 0.5, 1.0]
+
+
+def test_grid_export_rates_default_and_override():
+    """None falls back to the defaults; [1.0] restores all-or-nothing export."""
+    assert list(BatteriesCommonSettings(device_id="battery1").grid_export_rates) == [
+        0.25,
+        0.5,
+        0.75,
+        1.0,
+    ]
+    assert list(
+        BatteriesCommonSettings(device_id="battery1", grid_export_rates=None).grid_export_rates
+    ) == [0.25, 0.5, 0.75, 1.0]
+    assert list(
+        BatteriesCommonSettings(device_id="battery1", grid_export_rates=[1.0]).grid_export_rates
+    ) == [1.0]
+
+
+@pytest.mark.parametrize("rates", [[0.0, 0.5], [1.5], [-0.25], []])
+def test_grid_export_rates_reject_invalid_values(rates):
+    """0.0 is not an export level, and rates above the rated power are rejected."""
+    with pytest.raises(ValidationError):
+        BatteriesCommonSettings(device_id="battery1", grid_export_rates=rates)
+
+
+def test_rated_discharge_energy_scales_with_slot_duration(setup_pv_battery):
+    """The rate reference is the rated discharge energy of one slot."""
+    battery = setup_pv_battery
+    expected = battery.max_charge_power_w * battery.slot_duration_h * battery.discharging_efficiency
+    assert battery.rated_discharge_energy_wh() == pytest.approx(expected)

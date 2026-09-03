@@ -201,6 +201,18 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             "description": "Array with battery-to-grid export values (1 for export discharge, 0 otherwise)."
         },
     )
+    battery_grid_export_factor: list[float] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "description": (
+                "Array with the battery-to-grid export level per slot as factor "
+                "of the rated discharge power (0.0 for no export). Empty when "
+                "direct marketing is disabled; a solution without this array "
+                "exports at full power wherever "
+                "'battery_grid_export_allowed' is 1."
+            )
+        },
+    )
     eautocharge_hours_float: Optional[list[float]] = Field(json_schema_extra={"description": "TBD"})
     result: GeneticSimulationResult
     eauto_obj: Optional[ElectricVehicleResult]
@@ -226,6 +238,16 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             "description": (
                 "Scheduled run start times per appliance device_id as absolute "
                 "local datetimes."
+            )
+        },
+    )
+    appliance_deadline_missed: dict[str, bool] = Field(
+        default_factory=dict,
+        json_schema_extra={
+            "description": (
+                "Per appliance device_id with a 'deadline_datetime': whether the "
+                "scheduled run misses that deadline (or was not scheduled at "
+                "all). Appliances without a deadline are not listed."
             )
         },
     )
@@ -276,6 +298,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         dc_charge: float,
         discharge_allowed: bool,
         battery_grid_export_allowed: bool = False,
+        battery_grid_export_factor: float = 1.0,
     ) -> tuple[BatteryOperationMode, float]:
         """Maps low-level solution to a representative operation mode and factor.
 
@@ -284,6 +307,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             dc_charge (float): Allowed DC-side charging power (relative units).
             discharge_allowed (bool): Whether discharging to local load is permitted.
             battery_grid_export_allowed (bool): Whether discharge into the grid is permitted.
+            battery_grid_export_factor (float): Export level as factor of the rated
+                discharge power ]0.0 ... 1.0]. Becomes the operation factor of
+                GRID_SUPPORT_EXPORT.
 
         Returns:
             tuple[BatteryOperationMode, float]: A tuple containing
@@ -310,7 +336,9 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 raise ValueError(
                     "Illegal state: battery_grid_export_allowed cannot be combined with charging"
                 )
-            return BatteryOperationMode.GRID_SUPPORT_EXPORT, 1.0
+            return BatteryOperationMode.GRID_SUPPORT_EXPORT, min(
+                max(float(battery_grid_export_factor), 0.0), 1.0
+            )
 
         # (0,0,1) -> Discharge for local load only
         if ac_charge <= 0.0 and dc_charge <= 0.0 and discharge_allowed:
@@ -505,13 +533,20 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 if hour_idx < len(self.battery_grid_export_allowed)
                 else False
             )
+            # Solutions written before graded export carry no factor array; they
+            # exported at full power wherever the signal was set.
+            battery_grid_export_factor_hour = (
+                float(self.battery_grid_export_factor[hour_idx])
+                if hour_idx < len(self.battery_grid_export_factor)
+                else (1.0 if battery_grid_export_allowed_hour else 0.0)
+            )
 
             # Raw genetic gene values — optimizer intent, stored verbatim
             operation["genetic_ac_charge_factor"].append(ac_charge_hour)
             operation["genetic_dc_charge_factor"].append(dc_charge_hour)
             operation["genetic_discharge_allowed_factor"].append(float(discharge_allowed_hour))
             operation["genetic_battery_grid_export_allowed_factor"].append(
-                float(battery_grid_export_allowed_hour)
+                battery_grid_export_factor_hour
             )
 
             # SOC-clamped effective values — what can physically be executed at
@@ -530,7 +565,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
                 battery_grid_export_allowed_hour,
             )
             operation_mode, operation_mode_factor = self._battery_operation_from_solution(
-                eff_ac, eff_dc, eff_dis, eff_grid_export
+                eff_ac, eff_dc, eff_dis, eff_grid_export, battery_grid_export_factor_hour
             )
             for mode in BatteryOperationMode:
                 mode_key = f"{battery_device_id}_{mode.lower()}_op_mode"

@@ -31,6 +31,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   weekday/date restrictions) and the horizon; ONCE without any valid start is rejected.
   Results are reported per device (`result.home_appliance_energy_wh`, `appliance_starts`,
   per-device solution columns and `DDBCInstruction`s emitted only on RUN/OFF transitions).
+- Flexible consumers can be given absolute time bounds: `earliest_start_datetime` and
+  `deadline_datetime`, where the deadline demands that the complete run has *finished* before
+  that moment ("clean dishes by 03:00 tonight"). When no start can meet the deadline,
+  `deadline_policy` decides between `BEST_EFFORT` (run as early as possible, minimizing the
+  delay) and `STRICT` (keep the deadline; a `ONCE` consumer then fails the optimization).
+  The solution reports `appliance_deadline_missed` per device so callers can warn instead of
+  silently trusting a late schedule.
+- Battery-to-grid export (direct marketing) is no longer all-or-nothing: `grid_export_rates`
+  configures the selectable export levels as a factor of the rated discharge power
+  (default `[0.25, 0.5, 0.75, 1.0]`), settable per battery in `devices.batteries[].
+  grid_export_rates` or per request in `pv_akku.grid_export_rates`. The optimizer picks one
+  level per slot and reports it in `battery_grid_export_factor` and as the
+  `GRID_SUPPORT_EXPORT` operation factor. `[1.0]` restores the previous behaviour.
+- The EV charging target can be given a deadline: `min_soc_deadline_datetime` (absolute, e.g.
+  the next departure) and/or `min_soc_max_duration_h` ("full in 6 hours"), the earlier of the
+  two applies. The `ev_soc_miss` penalty is then evaluated at that slot instead of at the end
+  of the horizon, and the seeding heuristics only propose charge slots before it. Without a
+  deadline the behaviour is unchanged.
 - EV Bug (wrong output in genetic.py / no senseful results)
 - Direktvermarktung active / Battery discharge into grid (new state / action battery_grid_export_allowed) + (new simulation output Feed_in_tariff)
 - New PV forecast providers giving operators more cloud forecast sources to choose from in

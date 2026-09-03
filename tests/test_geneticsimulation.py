@@ -528,6 +528,20 @@ def test_direct_marketing_battery_grid_export_uses_separate_signal(config_eos):
     assert simulation.battery.current_soc_percentage() == 50.0
 
 
+def test_direct_marketing_grid_export_rate_limits_exported_energy(config_eos):
+    """A partial export level exports that share of the rated discharge power."""
+    simulation = _direct_marketing_battery_export_simulation(config_eos)
+    assert simulation.bat_grid_export_hours is not None
+    # 500 W rated discharge power over a one hour slot -> 500 Wh at rate 1.0.
+    simulation.bat_grid_export_hours[0] = 0.5
+
+    result = simulation.simulate(start_hour=0)
+
+    assert result["Netzeinspeisung_Wh_pro_Stunde"][0] == pytest.approx(250.0)
+    assert simulation.battery is not None
+    assert simulation.battery.current_soc_percentage() == 75.0
+
+
 def test_battery_lcos_is_charged_once_on_delivered_energy(config_eos):
     simulation = _direct_marketing_battery_export_simulation(
         config_eos,

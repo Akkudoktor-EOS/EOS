@@ -111,6 +111,15 @@ class Battery:
         self._discharged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
         self._charged_raw_wh_per_slot = np.zeros(self.prediction_hours, dtype=float)
 
+    def rated_discharge_energy_wh(self) -> float:
+        """Return the DC energy one full-power discharge slot delivers.
+
+        This is the reference a grid-export rate is applied to: a rate of 0.5
+        exports at most half the battery's rated discharge power, independent of
+        how much of the slot budget self-consumption already used.
+        """
+        return self.max_charge_power_w * self.slot_duration_h * self.discharging_efficiency
+
     def remaining_discharge_energy_wh(self, hour: int) -> float:
         """Return DC energy still deliverable within one optimization slot."""
         raw_power_budget_wh = self.max_charge_power_w * self.slot_duration_h

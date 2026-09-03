@@ -58,6 +58,12 @@
                        0.9,
                        1.0
                    ],
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ],
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100
                }
@@ -83,6 +89,12 @@
                        0.7,
                        0.8,
                        0.9,
+                       1.0
+                   ],
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
                        1.0
                    ],
                    "min_soc_percentage": 0,

@@ -353,3 +353,188 @@ def test_start_solution_layout_mismatch_is_ignored(config_eos):
     assert opt._start_solution_matches_layout(bad_solution) is False
     good_solution = [0] * opt.total_slots + [0]
     assert opt._start_solution_matches_layout(good_solution) is True
+
+
+# --------------------------------------------------------------------------- #
+# Absolute bounds: earliest start and deadline
+# --------------------------------------------------------------------------- #
+def test_deadline_limits_starts_to_completed_runs():
+    """A run has to be finished at (not just started before) the deadline."""
+    slot0 = to_datetime("2026-07-15 00:00:00")
+    appliance = _appliance(
+        48,
+        1.0,
+        device_id="d",
+        consumption_wh=2000,
+        duration_h=2,
+        deadline_datetime=slot0.add(hours=10),
+    )
+    allowed = appliance.allowed_start_slots(
+        slot0_datetime=slot0, earliest_slot=0, horizon_end_slot=48
+    )
+    # 2 h run, deadline 10:00 -> last start 08:00
+    assert allowed == list(range(0, 9))
+    assert appliance.deadline_relaxed is False
+
+
+def test_deadline_on_quarter_hour_grid():
+    """Deadlines are honoured slot-exact on a sub-hourly grid."""
+    slot0 = to_datetime("2026-07-15 00:00:00")
+    appliance = _appliance(
+        48 * 4,
+        0.25,
+        device_id="d",
+        load_profile_power_w=[1000.0, 1000.0, 1000.0],
+        load_profile_interval_seconds=900,
+        deadline_datetime=slot0.add(hours=3),
+    )
+    allowed = appliance.allowed_start_slots(
+        slot0_datetime=slot0, earliest_slot=0, horizon_end_slot=48 * 4
+    )
+    # 45 min run, deadline 03:00 (slot 12) -> last start slot 9 (02:15-03:00)
+    assert allowed[-1] == 9
+
+
+def test_earliest_start_datetime_limits_starts():
+    """An absolute earliest start pushes the first allowed slot back."""
+    slot0 = to_datetime("2026-07-15 00:00:00")
+    appliance = _appliance(
+        48,
+        1.0,
+        device_id="d",
+        consumption_wh=1000,
+        duration_h=1,
+        earliest_start_datetime=slot0.add(hours=20),
+        deadline_datetime=slot0.add(hours=27),
+    )
+    allowed = appliance.allowed_start_slots(
+        slot0_datetime=slot0, earliest_slot=0, horizon_end_slot=48
+    )
+    assert allowed == list(range(20, 27))
+
+
+def test_deadline_best_effort_runs_as_early_as_possible():
+    """An unreachable BEST_EFFORT deadline schedules the run with minimal delay."""
+    slot0 = to_datetime("2026-07-15 00:00:00")
+    appliance = _appliance(
+        48,
+        1.0,
+        device_id="d",
+        consumption_wh=2000,
+        duration_h=2,
+        # "now" is 12:00, so a 10:00 deadline can not be met any more.
+        deadline_datetime=slot0.add(hours=10),
+    )
+    allowed = appliance.allowed_start_slots(
+        slot0_datetime=slot0, earliest_slot=12, horizon_end_slot=48
+    )
+    # Deadline already missed -> the only offered start is the earliest one.
+    assert allowed == [12]
+    assert appliance.deadline_relaxed is True
+    assert appliance.deadline_missed([12], slot0) is True
+
+
+def test_deadline_strict_keeps_empty_result():
+    """A STRICT deadline that can not be met yields no allowed start."""
+    slot0 = to_datetime("2026-07-15 00:00:00")
+    appliance = _appliance(
+        48,
+        1.0,
+        device_id="d",
+        consumption_wh=2000,
+        duration_h=2,
+        deadline_datetime=slot0.add(hours=10),
+        deadline_policy="STRICT",
+    )
+    allowed = appliance.allowed_start_slots(
+        slot0_datetime=slot0, earliest_slot=12, horizon_end_slot=48
+    )
+    assert allowed == []
+    assert appliance.deadline_relaxed is False
+
+
+def test_deadline_strict_once_raises(config_eos):
+    """A ONCE consumer with an unreachable STRICT deadline fails the layout."""
+    opt = _optimizer(config_eos, prediction_hours=48, horizon_hours=48, interval=3600, hour=12)
+    slot0 = opt.ems.start_datetime.set(hour=0, minute=0, second=0, microsecond=0)
+    appliance = _appliance(
+        48,
+        1.0,
+        device_id="d",
+        consumption_wh=2000,
+        duration_h=2,
+        deadline_datetime=slot0.add(hours=10),
+        deadline_policy="STRICT",
+    )
+    with pytest.raises(ValueError, match="no valid start"):
+        opt._build_appliance_layout([appliance], slot0)
+
+
+def test_deadline_scheduled_run_reported_as_kept(config_eos):
+    """A met deadline is reported as not missed."""
+    slot0 = to_datetime("2026-07-15 00:00:00")
+    appliance = _appliance(
+        48,
+        1.0,
+        device_id="d",
+        consumption_wh=1000,
+        duration_h=1,
+        deadline_datetime=slot0.add(hours=10),
+    )
+    assert appliance.deadline_missed([9], slot0) is False
+    assert appliance.deadline_missed([], slot0) is True
+
+
+def test_deadline_before_earliest_start_rejected():
+    with pytest.raises(ValidationError, match="must be after"):
+        HomeApplianceParameters(
+            device_id="d",
+            consumption_wh=1000,
+            duration_h=1,
+            earliest_start_datetime="2026-07-15 20:00:00",
+            deadline_datetime="2026-07-15 18:00:00",
+        )
+
+
+def test_deadline_end_to_end_optimization(config_eos):
+    """The optimizer only picks starts whose run finishes before the deadline."""
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": 48},
+            "optimization": {
+                "horizon_hours": 48,
+                "interval": 3600,
+                "genetic": {
+                    "individuals": 60,
+                    "generations": 10,
+                    "penalties": {"ev_soc_miss": 10, "ac_charge_break_even": 0},
+                },
+            },
+        }
+    )
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+    CacheEnergyManagementStore().clear()
+    deadline = ems_eos.start_datetime.set(hour=0, minute=0).add(hours=8)
+    parameters = GeneticOptimizationParameters(
+        ems=_ems(48),
+        pv_akku=None,
+        inverter=None,
+        eauto=None,
+        home_appliances=[
+            HomeApplianceParameters(
+                device_id="dw",
+                consumption_wh=1000,
+                duration_h=2,
+                deadline_datetime=deadline,
+            )
+        ],
+    )
+    solution = GeneticOptimization(fixed_seed=7).optimierung_ems(
+        parameters=parameters, start_hour=0, ngen=3
+    )
+
+    starts = solution.appliance_starts["dw"]
+    assert len(starts) == 1
+    # 2 h run has to be complete at the deadline.
+    assert starts[0].add(hours=2) <= deadline
+    assert solution.appliance_deadline_missed == {"dw": False}

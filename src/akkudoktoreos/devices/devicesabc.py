@@ -173,6 +173,32 @@ class ConsumerScheduleMode(StrEnum):
     DAILY = "DAILY"
 
 
+class ConsumerDeadlinePolicy(StrEnum):
+    """Behaviour when a flexible consumer's deadline cannot be met.
+
+    A deadline (``deadline_datetime``) demands that a complete run has *finished*
+    before that moment. Depending on "now", the run duration, the optimization
+    horizon and the allowed time windows, no such start may exist.
+
+    Policies
+    --------
+    - BEST_EFFORT:
+        Run as early as the remaining constraints allow, i.e. minimize the
+        delay instead of the cost ("it should have been done by 03:00, so
+        start now"). A warning is logged. This keeps an optimization request
+        answerable instead of failing it - the usual choice for home
+        automation.
+
+    - STRICT:
+        Keep the deadline. A ONCE consumer without a feasible start makes the
+        optimization fail; a DAILY consumer is simply not scheduled on days
+        without a feasible start.
+    """
+
+    BEST_EFFORT = "BEST_EFFORT"
+    STRICT = "STRICT"
+
+
 class ApplianceOperationMode(StrEnum):
     """Appliance operation modes.
 

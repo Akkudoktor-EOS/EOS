@@ -49,6 +49,12 @@
                        0.9,
                        1.0
                    ],
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ],
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100
                }
@@ -74,6 +80,12 @@
                        0.7,
                        0.8,
                        0.9,
+                       1.0
+                   ],
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
                        1.0
                    ],
                    "min_soc_percentage": 0,
@@ -120,6 +132,12 @@
                        0.9,
                        1.0
                    ],
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ],
                    "min_soc_percentage": 0,
                    "max_soc_percentage": 100,
                    "measurement_key_soc_factor": "battery1-soc-factor",
@@ -157,6 +175,12 @@
                        0.7,
                        0.8,
                        0.9,
+                       1.0
+                   ],
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
                        1.0
                    ],
                    "min_soc_percentage": 0,
@@ -470,6 +494,7 @@ of the two must be provided.
 | charging_efficiency | `float` | `rw` | `0.88` | Charging efficiency [0.01 ... 1.00]. |
 | device_id | `str` | `rw` | `<unknown>` | ID of device |
 | discharging_efficiency | `float` | `rw` | `0.88` | Discharge efficiency [0.01 ... 1.00]. |
+| grid_export_rates | `Optional[list[float]]` | `rw` | `[0.25, 0.5, 0.75, 1.0]` | Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. Only used with direct marketing (feedintariff.direct_marketing_enabled). Each rate is one additional optimizer state; [1.0] restores all-or-nothing export. None triggers fallback to default export-rates. |
 | levelized_cost_of_storage_kwh | `float` | `rw` | `0.0` | Levelized cost of storage (LCOS), applied once to each kWh delivered by the battery [€/kWh]. |
 | max_charge_power_w | `Optional[float]` | `rw` | `5000` | Maximum charging power [W]. |
 | max_soc_percentage | `int` | `rw` | `100` | Maximum state of charge (SOC) as percentage of capacity [%]. |
@@ -508,6 +533,12 @@ of the two must be provided.
                        0.75,
                        1.0
                    ],
+                   "grid_export_rates": [
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ],
                    "min_soc_percentage": 10,
                    "max_soc_percentage": 100
                }
@@ -536,6 +567,12 @@ of the two must be provided.
                    "min_charge_power_w": 50.0,
                    "charge_rates": [
                        0.0,
+                       0.25,
+                       0.5,
+                       0.75,
+                       1.0
+                   ],
+                   "grid_export_rates": [
                        0.25,
                        0.5,
                        0.75,

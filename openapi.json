@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2608010951962828"
+    "version": "v0.3.0.dev2609031505836006"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -2313,6 +2313,39 @@
               null
             ]
           },
+          "grid_export_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Rates",
+            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. Only used with direct marketing (feedintariff.direct_marketing_enabled). Each rate is one additional optimizer state; [1.0] restores all-or-nothing export. None triggers fallback to default export-rates.",
+            "default": [
+              0.25,
+              0.5,
+              0.75,
+              1.0
+            ],
+            "examples": [
+              [
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              [
+                1.0
+              ],
+              null
+            ]
+          },
           "min_soc_percentage": {
             "type": "integer",
             "maximum": 100.0,
@@ -2463,6 +2496,39 @@
                 0.25,
                 0.5,
                 0.75,
+                1.0
+              ],
+              null
+            ]
+          },
+          "grid_export_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Rates",
+            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. Only used with direct marketing (feedintariff.direct_marketing_enabled). Each rate is one additional optimizer state; [1.0] restores all-or-nothing export. None triggers fallback to default export-rates.",
+            "default": [
+              0.25,
+              0.5,
+              0.75,
+              1.0
+            ],
+            "examples": [
+              [
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              [
                 1.0
               ],
               null
@@ -2662,6 +2728,15 @@
         ],
         "title": "ConfigSaveMode",
         "description": "Configuration file save mode."
+      },
+      "ConsumerDeadlinePolicy": {
+        "type": "string",
+        "enum": [
+          "BEST_EFFORT",
+          "STRICT"
+        ],
+        "title": "ConsumerDeadlinePolicy",
+        "description": "Behaviour when a flexible consumer's deadline cannot be met.\n\nA deadline (``deadline_datetime``) demands that a complete run has *finished*\nbefore that moment. Depending on \"now\", the run duration, the optimization\nhorizon and the allowed time windows, no such start may exist.\n\nPolicies\n--------\n- BEST_EFFORT:\n    Run as early as the remaining constraints allow, i.e. minimize the\n    delay instead of the cost (\"it should have been done by 03:00, so\n    start now\"). A warning is logged. This keeps an optimization request\n    answerable instead of failing it - the usual choice for home\n    automation.\n\n- STRICT:\n    Keep the deadline. A ONCE consumer without a feasible start makes the\n    optimization fail; a DAILY consumer is simply not scheduled on days\n    without a feasible start."
       },
       "ConsumerScheduleMode": {
         "type": "string",
@@ -3914,6 +3989,67 @@
               ],
               null
             ]
+          },
+          "grid_export_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Rates",
+            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. Only used with direct marketing. None falls back to the configured devices.batteries[0].grid_export_rates.",
+            "examples": [
+              [
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              [
+                1.0
+              ],
+              null
+            ]
+          },
+          "min_soc_deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Soc Deadline Datetime",
+            "description": "Absolute moment by which 'min_soc_percentage' has to be reached (departure time). A date time without timezone is read as local time. None means end of the optimization horizon.",
+            "examples": [
+              null,
+              "2026-07-16T07:00:00+02:00"
+            ]
+          },
+          "min_soc_max_duration_h": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Soc Max Duration H",
+            "description": "Maximum time from the start of the optimization until 'min_soc_percentage' has to be reached [h]. Combined with 'min_soc_deadline_datetime' the earlier of the two applies.",
+            "examples": [
+              null,
+              6.0
+            ]
           }
         },
         "additionalProperties": false,
@@ -3923,7 +4059,7 @@
           "capacity_wh"
         ],
         "title": "ElectricVehicleParameters",
-        "description": "Battery Electric Vehicle Device Simulation Configuration."
+        "description": "Battery Electric Vehicle Device Simulation Configuration.\n\n``min_soc_percentage`` is the charging target. By default it only has to be\nreached by the end of the optimization horizon; a deadline\n(``min_soc_deadline_datetime`` and/or ``min_soc_max_duration_h``) moves that\nrequirement forward, for example to the next departure."
       },
       "ElectricVehicleResult": {
         "properties": {
@@ -5434,6 +5570,14 @@
             "title": "Battery Grid Export Allowed",
             "description": "Array with battery-to-grid export values (1 for export discharge, 0 otherwise)."
           },
+          "battery_grid_export_factor": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Battery Grid Export Factor",
+            "description": "Array with the battery-to-grid export level per slot as factor of the rated discharge power (0.0 for no export). Empty when direct marketing is disabled; a solution without this array exports at full power wherever 'battery_grid_export_allowed' is 1."
+          },
           "eautocharge_hours_float": {
             "anyOf": [
               {
@@ -5500,6 +5644,14 @@
             "type": "object",
             "title": "Appliance Starts",
             "description": "Scheduled run start times per appliance device_id as absolute local datetimes."
+          },
+          "appliance_deadline_missed": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Appliance Deadline Missed",
+            "description": "Per appliance device_id with a 'deadline_datetime': whether the scheduled run misses that deadline (or was not scheduled at all). Appliances without a deadline are not listed."
           }
         },
         "additionalProperties": false,
@@ -5936,6 +6088,49 @@
                 }
               ]
             ]
+          },
+          "earliest_start_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earliest Start Datetime",
+            "description": "Absolute earliest moment the run may start. Starts before it are dropped, in addition to 'time_windows' and the horizon. A date time without timezone is read as local time. This bound is never relaxed.",
+            "examples": [
+              null,
+              "2026-07-15T20:00:00+02:00"
+            ]
+          },
+          "deadline_datetime": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline Datetime",
+            "description": "Absolute deadline: the complete run must have *finished* at or before this moment (e.g. end of the day, or 03:00 tonight). A date time without timezone is read as local time. See 'deadline_policy' for what happens when no start can meet it.",
+            "examples": [
+              null,
+              "2026-07-16T03:00:00+02:00"
+            ]
+          },
+          "deadline_policy": {
+            "$ref": "#/components/schemas/ConsumerDeadlinePolicy",
+            "description": "What to do when 'deadline_datetime' cannot be met: BEST_EFFORT runs as early as possible instead (warning logged), STRICT keeps the deadline (a ONCE consumer then fails the optimization).",
+            "default": "BEST_EFFORT",
+            "examples": [
+              "BEST_EFFORT",
+              "STRICT"
+            ]
           }
         },
         "additionalProperties": false,
@@ -5944,7 +6139,7 @@
           "device_id"
         ],
         "title": "HomeApplianceParameters",
-        "description": "Flexible consumer (home appliance) device simulation configuration.\n\nA consumer's load is defined **either** by an explicit power profile\n(``load_profile_power_w`` with an optional ``load_profile_interval_seconds``)\n**or** by the flat fallback ``consumption_wh`` + ``duration_h``. Exactly one\nof the two must be provided."
+        "description": "Flexible consumer (home appliance) device simulation configuration.\n\nA consumer's load is defined **either** by an explicit power profile\n(``load_profile_power_w`` with an optional ``load_profile_interval_seconds``)\n**or** by the flat fallback ``consumption_wh`` + ``duration_h``. Exactly one\nof the two must be provided.\n\n*When* the run may happen is constrained by three independent mechanisms that\nall have to hold at once:\n\n- ``time_windows``: recurring wall-clock windows (\"only between 10:00 and 13:00\").\n- ``earliest_start_datetime``: absolute lower bound (\"not before I get home\").\n- ``deadline_datetime``: absolute upper bound; the run must be *finished*\n  before that moment (\"clean dishes by 03:00 tonight\")."
       },
       "HomeAssistantAdapterCommonSettings-Input": {
         "properties": {
@@ -9365,6 +9560,33 @@
                 0.25,
                 0.5,
                 0.75,
+                1.0
+              ],
+              null
+            ]
+          },
+          "grid_export_rates": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Export Rates",
+            "description": "Battery-to-grid export rates as factor of maximum discharge power ]0.00 ... 1.00]. Only used with direct marketing. None falls back to the configured devices.batteries[0].grid_export_rates.",
+            "examples": [
+              [
+                0.25,
+                0.5,
+                0.75,
+                1.0
+              ],
+              [
                 1.0
               ],
               null

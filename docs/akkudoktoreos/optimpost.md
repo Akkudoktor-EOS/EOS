@@ -73,7 +73,8 @@ to `DISABLED` in the configuration.
         "levelized_cost_of_storage_kwh": 0.12,
         "max_charge_power_w": 5000,
         "initial_soc_percentage": 80,
-        "min_soc_percentage": 15
+        "min_soc_percentage": 15,
+        "grid_export_rates": [0.25, 0.5, 0.75, 1.0]
     },
     "inverter": {
         "device_id": "inverter1",
@@ -91,7 +92,9 @@ to `DISABLED` in the configuration.
         "discharging_efficiency": 1.0,
         "max_charge_power_w": 11040,
         "initial_soc_percentage": 54,
-        "min_soc_percentage": 0
+        "min_soc_percentage": 0,
+        "min_soc_deadline_datetime": null,
+        "min_soc_max_duration_h": null
     },
     "home_appliances": [
         {
@@ -99,7 +102,10 @@ to `DISABLED` in the configuration.
             "consumption_wh": 2000,
             "duration_h": 3,
             "schedule_mode": "ONCE",
-            "time_windows": null
+            "time_windows": null,
+            "earliest_start_datetime": null,
+            "deadline_datetime": "2026-07-16T03:00:00+02:00",
+            "deadline_policy": "BEST_EFFORT"
         }
     ],
     "temperature_forecast": [
@@ -217,6 +223,32 @@ Verify prices against your local tariffs.
 - `levelized_cost_of_storage_kwh`: LCOS in EUR/kWh, charged once for every kWh of DC energy
   delivered by the battery. Default: `0.0`.
 - `max_charge_power_w`: Maximum charging power in W
+- `charge_rates`: Selectable AC charge levels as factor of `max_charge_power_w`.
+  Defaults to the configured `devices.batteries[0].charge_rates`.
+- `grid_export_rates`: Selectable battery-to-grid export levels, see below.
+  Defaults to the configured `devices.batteries[0].grid_export_rates`.
+
+#### Battery Grid Export Levels (`grid_export_rates`)
+
+With direct marketing enabled (`feedintariff.direct_marketing_enabled`) the battery may discharge
+into the grid. The export is not all-or-nothing: `grid_export_rates` lists the selectable export
+levels as a factor of the battery's rated discharge power, for example
+`[0.25, 0.5, 0.75, 1.0]` (the default). The optimizer picks one level per slot, so it can spread a
+limited amount of stored energy over several expensive slots instead of emptying the battery into
+the first one.
+
+Each rate is one more state in the genetic state space, which is why the default is deliberately
+coarse. `[1.0]` restores the previous all-or-nothing behaviour.
+
+The exported energy of one slot is bounded by
+
+```{math}
+E_{export} \le \min\bigl(P_{inv,free}\,\Delta t,\; E_{bat,remaining},\; r\,P_{bat,rated}\,\Delta t\bigr)
+```
+
+where `r` is the selected rate. The rate applies to the *rated* discharge power, so it stays a plain
+power setpoint: local self-consumption earlier in the same slot lowers `E_bat,remaining`, but it does
+not silently raise the export level.
 
 #### Battery LCOS (`levelized_cost_of_storage_kwh`)
 
@@ -314,8 +346,66 @@ smaller values (e.g. `0.0`) disable the penalty entirely.
 - `discharging_efficiency`: Discharging efficiency (0-1)
 - `max_charge_power_w`: Maximum charging power in W
 - `initial_soc_percentage`: Current charge level (%)
-- `min_soc_percentage`: Minimum allowed SoC (%)
+- `min_soc_percentage`: Charging target; minimum allowed SoC (%)
 - `max_soc_percentage`: Maximum allowed SoC (%)
+- `min_soc_deadline_datetime`: Absolute moment by which `min_soc_percentage` has to be reached
+- `min_soc_max_duration_h`: Maximum time from the start of the optimization until
+  `min_soc_percentage` has to be reached (h)
+
+#### Charging Deadline
+
+By default `min_soc_percentage` only has to be reached by the end of the optimization horizon, so
+the optimizer is free to charge in the cheapest slots anywhere in the horizon. A deadline moves
+that requirement forward - typically to the next departure:
+
+- `min_soc_deadline_datetime`: an absolute instant (`2026-07-16T07:00:00+02:00`). A value without
+  timezone is read as local time.
+- `min_soc_max_duration_h`: the same thing relative to the start of the optimization
+  ("full in 6 hours"), which avoids timestamp arithmetic in the calling automation.
+
+Both may be given; the earlier one applies. A deadline beyond the horizon is ignored, a deadline in
+the past means the target is due immediately. The SoC-miss penalty
+(`optimization.genetic.penalties.ev_soc_miss`) is then evaluated at the deadline instead of at the
+end of the horizon, and the seeding heuristics only propose charge slots before it. Charging after
+the deadline is not forbidden - it simply no longer helps to avoid the penalty.
+
+The deadline is a target, not a hard constraint: if the remaining time is too short to reach
+`min_soc_percentage`, the optimizer charges as much as it can and accepts the penalty. Check
+`result.EAuto_SoC_pro_Stunde` at the deadline slot to see what was actually achieved.
+
+### Flexible Consumers (Home Appliances)
+
+Each entry of `home_appliances` describes one consumer whose run the optimizer may place in time.
+The load of a single complete run is defined **either** by an explicit profile
+(`load_profile_power_w` with `load_profile_interval_seconds`) **or** by the flat fallback
+`consumption_wh` + `duration_h`.
+
+- `device_id`: Unique ID of the consumer, used in all result columns
+- `schedule_mode`: `ONCE` (a single run within the horizon) or `DAILY` (one run per local calendar
+  day that still has a feasible full run)
+
+Three independent constraints decide *when* a run may happen; all of them have to hold at once:
+
+- `time_windows`: recurring wall-clock windows, e.g. "only between 10:00 and 13:00", optionally
+  restricted to a weekday or a date. See {doc}`configtimewindow`.
+- `earliest_start_datetime`: absolute lower bound. The run may not start before this moment.
+- `deadline_datetime`: absolute upper bound. The complete run must have **finished** at or before
+  this moment - with a 3 h program and a deadline of 03:00, the last allowed start is 00:00.
+
+Both datetimes are absolute instants and never roll over into the next day. A value without
+timezone is read as local time; sending an ISO-8601 timestamp with offset
+(`2026-07-16T03:00:00+02:00`) is unambiguous.
+
+#### Missed Deadlines (`deadline_policy`)
+
+Depending on the current time, the run duration, the horizon and the time windows, a deadline can
+be unreachable. `deadline_policy` decides what happens then:
+
+- `BEST_EFFORT` (default): the run is scheduled as early as the remaining constraints allow -
+  minimize the delay instead of the cost ("it should have been done by 03:00, so start now").
+  A warning is logged and `appliance_deadline_missed` reports the miss.
+- `STRICT`: the deadline is kept. A `ONCE` consumer without a feasible start makes the optimization
+  fail; a `DAILY` consumer is simply not scheduled on days without one.
 
 ### Temperature Forecast
 
@@ -334,6 +424,7 @@ smaller values (e.g. `0.0`) disable the penalty entirely.
     "dc_charge": [1, 1, ..., 1, 1],
     "discharge_allowed": [0, 0, 1, ..., 0, 0],
     "battery_grid_export_allowed": [0, 0, 0, ..., 1, 0],
+    "battery_grid_export_factor": [0.0, 0.0, 0.0, ..., 0.5, 0.0],
     "eautocharge_hours_float": [0.625, 0, ..., 0.75, 0],
     "result": {
         "Last_Wh_pro_Stunde": [...],
@@ -356,6 +447,9 @@ smaller values (e.g. `0.0`) disable the penalty entirely.
 - `dc_charge`: DC charging schedule (0-1)
 - `discharge_allowed`: Battery discharge permission for local self-consumption/load coverage (0 or 1)
 - `battery_grid_export_allowed`: Battery discharge permission for grid export/direct marketing (0 or 1)
+- `battery_grid_export_factor`: Export level per slot as factor of the rated discharge power
+  (`0.0` where no export is planned). Empty when direct marketing is disabled. A solution without
+  this array exports at full power wherever `battery_grid_export_allowed` is 1.
 
 With direct marketing enabled, `dc_charge = 1` and `discharge_allowed = 1` may occur together. This
 is the normal self-consumption mode: within a coarse optimization slot, the battery may cover
@@ -371,6 +465,13 @@ power.
 #### EV Charging
 
 - `eautocharge_hours_float`: EV charging schedule (0.0-1.0)
+
+#### Flexible Consumers
+
+- `appliance_starts`: Scheduled run start times per `device_id` as absolute local datetimes
+- `appliance_deadline_missed`: Per `device_id` with a `deadline_datetime`, whether the scheduled run
+  misses that deadline (or was not scheduled at all). Consumers without a deadline are not listed.
+- `result.home_appliance_energy_wh`: Per-device load curve of the scheduled runs in Wh
 
 #### Results
 

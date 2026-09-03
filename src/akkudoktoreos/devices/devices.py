@@ -24,6 +24,12 @@ from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime
 # Default charge rates for battery
 BATTERY_DEFAULT_CHARGE_RATES: list[float] = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
 
+# Default grid export rates for battery (direct marketing). Coarser than the
+# charge rates on purpose: every rate is one more state the genetic optimizer
+# has to explore, and export levels below a quarter of the rated power rarely
+# pay for the extra search effort.
+BATTERY_DEFAULT_GRID_EXPORT_RATES: list[float] = [0.25, 0.5, 0.75, 1.0]
+
 
 class BatteriesCommonSettings(DevicesBaseSettings):
     """Battery devices base settings."""
@@ -87,6 +93,20 @@ class BatteriesCommonSettings(DevicesBaseSettings):
         },
     )
 
+    grid_export_rates: Optional[list[float]] = Field(
+        default=BATTERY_DEFAULT_GRID_EXPORT_RATES,
+        json_schema_extra={
+            "description": (
+                "Battery-to-grid export rates as factor of maximum discharge "
+                "power ]0.00 ... 1.00]. Only used with direct marketing "
+                "(feedintariff.direct_marketing_enabled). Each rate is one "
+                "additional optimizer state; [1.0] restores all-or-nothing "
+                "export. None triggers fallback to default export-rates."
+            ),
+            "examples": [[0.25, 0.5, 0.75, 1.0], [1.0], None],
+        },
+    )
+
     min_soc_percentage: int = Field(
         default=0,
         ge=0,
@@ -135,6 +155,32 @@ class BatteriesCommonSettings(DevicesBaseSettings):
             raise ValueError("charge_rates must be within [0.0, 1.0].")
 
         # Remove duplicates + sort
+        arr = np.unique(arr)
+        arr.sort()
+
+        return arr
+
+    @field_validator("grid_export_rates", mode="before")
+    def validate_and_sort_grid_export_rates(cls, v: Any) -> NDArray[Shape["*"], float]:
+        """Normalize the export rates to a sorted, duplicate-free array in ]0, 1]."""
+        # None means fallback to default values
+        if v is None:
+            return BATTERY_DEFAULT_GRID_EXPORT_RATES.copy()
+
+        if isinstance(v, str):
+            numbers = re.split(r"[,\s]+", v.strip("[]"))
+            arr = np.array([float(x) for x in numbers if x])
+        else:
+            arr = np.array(v, dtype=float)
+
+        if arr.size == 0:
+            raise ValueError("grid_export_rates must contain at least one value.")
+
+        # A rate of 0.0 is not an export level - "no export" is expressed by the
+        # other battery states - so the lower bound is exclusive.
+        if (arr <= 0.0).any() or (arr > 1.0).any():
+            raise ValueError("grid_export_rates must be within ]0.0, 1.0].")
+
         arr = np.unique(arr)
         arr.sort()
 

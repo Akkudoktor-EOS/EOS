@@ -74,3 +74,55 @@ def test_decode_charge_discharge_has_self_consumption_state_after_legacy_export(
     assert dc_charge.tolist() == [1]
     assert discharge.tolist() == [1]
     assert battery_grid_export.tolist() == [0]
+
+
+def test_graded_grid_export_states_decode_to_rates():
+    """Each configured export rate gets its own state; state 5 stays full power."""
+    optimization = GeneticOptimization()
+    optimization.bat_possible_charge_values = [1.0]
+    optimization.bat_possible_grid_export_values = [1.0, 0.5, 0.25]
+    optimization.optimize_dc_charge = True
+    optimization.optimize_battery_grid_export = True
+
+    layout = optimization._battery_state_layout()
+
+    assert layout.grid_export_states == (5, 6, 7)
+    # The full-power state keeps its index, so existing seeds stay valid.
+    assert layout.grid_export_state == 5
+    assert layout.self_consumption_state == 8
+    assert layout.total_states == 9
+
+    _, _, _, battery_grid_export = optimization.decode_charge_discharge(
+        np.array([0, 5, 6, 7])
+    )
+    assert battery_grid_export.tolist() == [0.0, 1.0, 0.5, 0.25]
+
+
+def test_single_export_rate_keeps_all_or_nothing_layout():
+    """Without configured rates the state space is the one from before grading."""
+    optimization = GeneticOptimization()
+    optimization.bat_possible_charge_values = [1.0]
+    optimization.optimize_dc_charge = True
+    optimization.optimize_battery_grid_export = True
+
+    layout = optimization._battery_state_layout()
+
+    assert layout.grid_export_states == (5,)
+    assert layout.total_states == 7
+
+
+def test_battery_grid_export_factor_becomes_operation_factor(config_eos):
+    """A partial export level is reported as the GRID_SUPPORT_EXPORT factor."""
+    config_eos.merge_settings_from_dict({"feedintariff": {"direct_marketing_enabled": True}})
+    solution = GeneticSolution.model_construct()
+
+    operation_mode, operation_mode_factor = solution._battery_operation_from_solution(
+        ac_charge=0.0,
+        dc_charge=0.0,
+        discharge_allowed=False,
+        battery_grid_export_allowed=True,
+        battery_grid_export_factor=0.25,
+    )
+
+    assert operation_mode == BatteryOperationMode.GRID_SUPPORT_EXPORT
+    assert operation_mode_factor == 0.25

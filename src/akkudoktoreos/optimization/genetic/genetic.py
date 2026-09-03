@@ -1,5 +1,6 @@
 """Genetic algorithm."""
 
+import math
 import random
 import time
 from collections import OrderedDict, defaultdict
@@ -87,13 +88,21 @@ class FitnessCacheEntry:
 
 @dataclass(frozen=True)
 class BatteryStateLayout:
-    """Indices of optional battery states appended to the legacy state ranges."""
+    """Indices of optional battery states appended to the legacy state ranges.
+
+    With graded direct-marketing export there is one state per configured export
+    rate. ``grid_export_states`` holds them in the order of
+    ``bat_possible_grid_export_values`` (full power first), and
+    ``grid_export_state`` is that full-power state - the one every seeding
+    heuristic uses when it wants "export in this slot".
+    """
 
     total_states: int
     dc_not_allowed_state: Optional[int] = None
     dc_allowed_state: Optional[int] = None
     grid_export_state: Optional[int] = None
     self_consumption_state: Optional[int] = None
+    grid_export_states: tuple[int, ...] = ()
 
 
 class GeneticSimulation(PydanticBaseModel):
@@ -446,10 +455,14 @@ class GeneticSimulation(PydanticBaseModel):
             if inverter_fast:
                 energy_produced = pv_prediction_wh_fast[hour]
                 hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
+                # bat_grid_export_hours carries the export level per slot:
+                # 0.0 = no export, otherwise the factor of the rated discharge
+                # power the optimizer selected.
+                battery_grid_export_factor = float(bat_grid_export_hours_fast[hour])
                 battery_grid_export_allowed = (
                     direct_marketing_enabled_fast
                     and hourly_feed_in_tariff > 0.0
-                    and bat_grid_export_hours_fast[hour] > 0
+                    and battery_grid_export_factor > 0.0
                 )
                 (
                     energy_feedin_grid_actual,
@@ -461,6 +474,7 @@ class GeneticSimulation(PydanticBaseModel):
                     consumption,
                     hour,
                     allow_battery_grid_export=battery_grid_export_allowed,
+                    battery_grid_export_factor=battery_grid_export_factor,
                 )
             else:
                 hourly_feed_in_tariff = elect_revenue_per_hour_arr_fast[hour]
@@ -648,6 +662,13 @@ class GeneticOptimization(OptimizationBase):
         # Separate charge-level list for battery AC charging (independent of EV rates).
         # Populated from parameters.pv_akku.charge_rates in optimierung_ems.
         self.bat_possible_charge_values: list[float] = [1.0]
+        # Battery-to-grid export levels (direct marketing), full power first.
+        # Populated from parameters.pv_akku.grid_export_rates in optimierung_ems;
+        # the single full-power default keeps the all-or-nothing export.
+        self.bat_possible_grid_export_values: list[float] = [1.0]
+        # Slot by which the EV has to reach its target SoC. None means the SoC is
+        # only required at the end of the horizon (the behaviour without a deadline).
+        self._ev_soc_deadline_slot: Optional[int] = None
         self.verbose = verbose
         self.fix_seed = fixed_seed
         self.optimize_ev = True
@@ -709,9 +730,14 @@ class GeneticOptimization(OptimizationBase):
             dc_allowed_state = next_state + 1
             next_state += 2
 
+        grid_export_states: tuple[int, ...] = ()
         if self.optimize_battery_grid_export:
-            grid_export_state = next_state
-            next_state += 1
+            export_count = max(len(self.bat_possible_grid_export_values), 1)
+            grid_export_states = tuple(range(next_state, next_state + export_count))
+            # The first export state stays the full-power one, so its index does
+            # not move when further rates are configured.
+            grid_export_state = grid_export_states[0]
+            next_state += export_count
 
         if self.optimize_dc_charge:
             self_consumption_state = next_state
@@ -723,6 +749,7 @@ class GeneticOptimization(OptimizationBase):
             dc_allowed_state=dc_allowed_state,
             grid_export_state=grid_export_state,
             self_consumption_state=self_consumption_state,
+            grid_export_states=grid_export_states,
         )
 
     def _appliance_horizon_end_slot(self) -> int:
@@ -735,6 +762,50 @@ class GeneticOptimization(OptimizationBase):
         start_slot = self._start_day_slot()
         horizon_slots = self.config.optimization.horizon_hours * self.slots_per_hour
         return min(self.total_slots, start_slot + horizon_slots)
+
+    def _ev_deadline_slot(self, parameters: GeneticOptimizationParameters) -> Optional[int]:
+        """Slot index by which the EV has to reach ``min_soc_percentage``.
+
+        The deadline may be given as an absolute datetime, as a maximum duration
+        from the start of the optimization, or both - then the earlier one wins.
+        The returned slot is the first one that starts at or after the deadline,
+        so all charging that completes before the deadline still counts.
+
+        Args:
+            parameters: Optimization parameters of this run.
+
+        Returns:
+            Absolute slot index, or None when the target is only required at the
+            end of the horizon (no deadline, or one beyond the horizon).
+        """
+        ev_parameters = parameters.eauto
+        if ev_parameters is None:
+            return None
+
+        start_slot = self._start_day_slot()
+        slot_seconds = self.slot_duration_h * 3600
+        candidates: list[int] = []
+
+        deadline = ev_parameters.min_soc_deadline_datetime
+        if deadline is not None:
+            seconds = (
+                deadline.in_timezone(self._slot0_datetime.timezone) - self._slot0_datetime
+            ).total_seconds()
+            candidates.append(math.ceil(seconds / slot_seconds - 1e-9))
+
+        duration_h = ev_parameters.min_soc_max_duration_h
+        if duration_h is not None:
+            candidates.append(start_slot + math.ceil(duration_h * 3600 / slot_seconds - 1e-9))
+
+        if not candidates:
+            return None
+
+        deadline_slot = min(candidates)
+        if deadline_slot >= self.total_slots:
+            # Beyond the horizon: the end-of-horizon requirement already covers it.
+            return None
+        # A deadline in the past means the target is due right now.
+        return max(deadline_slot, start_slot)
 
     def _build_appliance_layout(
         self, appliances: list[HomeAppliance], slot0_datetime: Any
@@ -762,7 +833,8 @@ class GeneticOptimization(OptimizationBase):
                 if not allowed:
                     raise ValueError(
                         f"Home appliance '{appliance.device_id}' (ONCE) has no valid "
-                        f"start slot within the optimization horizon and its time windows."
+                        f"start slot within the optimization horizon, its time windows "
+                        f"and its deadline."
                     )
                 genes.append(
                     ApplianceGeneSlot(
@@ -1056,10 +1128,17 @@ class GeneticOptimization(OptimizationBase):
         ac_charge = np.zeros_like(discharge_hours_bin_np, dtype=float)
         ac_charge[ac_mask] = [self.bat_possible_charge_values[i] for i in ac_indices]
 
-        battery_grid_export = np.zeros_like(discharge_hours_bin_np, dtype=int)
-        if state_layout.grid_export_state is not None:
+        # Export rate per slot: 0.0 = no export, otherwise the factor of the
+        # rated discharge power the optimizer picked for that slot.
+        battery_grid_export = np.zeros_like(discharge_hours_bin_np, dtype=float)
+        for index, export_state in enumerate(state_layout.grid_export_states):
+            rate = (
+                self.bat_possible_grid_export_values[index]
+                if index < len(self.bat_possible_grid_export_values)
+                else 1.0
+            )
             battery_grid_export = np.where(
-                discharge_hours_bin_np == state_layout.grid_export_state, 1, 0
+                discharge_hours_bin_np == export_state, rate, battery_grid_export
             )
 
         # Idle is just 0, already default.
@@ -1079,8 +1158,8 @@ class GeneticOptimization(OptimizationBase):
             policy_states.append(state_layout.self_consumption_state)
         if state_layout.dc_allowed_state is not None:
             policy_states.append(state_layout.dc_allowed_state)
-        if state_layout.grid_export_state is not None:
-            policy_states.append(state_layout.grid_export_state)
+        # Every export level is a coherent policy for a whole block.
+        policy_states.extend(state_layout.grid_export_states)
 
         block_start = random.randint(start_slot, self.total_slots - 1)  # noqa: S311
         max_length = min(12, self.total_slots - block_start)
@@ -1122,15 +1201,15 @@ class GeneticOptimization(OptimizationBase):
     def _mutate_energy_shift(self, individual: list[int]) -> bool:
         """Move battery energy from a weak export into later expensive self-consumption."""
         state_layout = self._battery_state_layout()
-        export_state = state_layout.grid_export_state
+        export_states = set(state_layout.grid_export_states)
         self_state = state_layout.self_consumption_state
-        if export_state is None or self_state is None:
+        if not export_states or self_state is None:
             return False
 
         start_slot = self._start_day_slot()
         viable: list[tuple[int, list[int]]] = []
         for source_slot in range(start_slot, self.total_slots):
-            if int(individual[source_slot]) != export_state:
+            if int(individual[source_slot]) not in export_states:
                 continue
             targets = self._energy_shift_target_slots(individual, source_slot)
             if targets:
@@ -1420,6 +1499,9 @@ class GeneticOptimization(OptimizationBase):
 
         start_slot = self._start_day_slot()
         end_slot = max(start_slot, self.total_slots - self.fixed_eauto_hours)
+        if getattr(self, "_ev_soc_deadline_slot", None) is not None:
+            # Charging after the deadline does not help to reach the target.
+            end_slot = max(start_slot, min(end_slot, self._ev_soc_deadline_slot))
         prices = np.asarray(self.simulation.elect_price_hourly, dtype=float)
         feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
         pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
@@ -1692,9 +1774,9 @@ class GeneticOptimization(OptimizationBase):
     ) -> list[list[int]]:
         """Build deterministic export-to-self-consumption neighbourhood candidates."""
         state_layout = self._battery_state_layout()
-        export_state = state_layout.grid_export_state
+        export_states = set(state_layout.grid_export_states)
         self_state = state_layout.self_consumption_state
-        if export_state is None or self_state is None:
+        if not export_states or self_state is None:
             return []
 
         start_slot = self._start_day_slot()
@@ -1709,7 +1791,7 @@ class GeneticOptimization(OptimizationBase):
         sources = [
             slot
             for slot in range(start_slot, self.total_slots)
-            if int(individual[slot]) == export_state
+            if int(individual[slot]) in export_states
         ]
         # Search weak and late export decisions first. They are the most likely
         # to compete with later, more valuable avoided grid imports.
@@ -2218,6 +2300,35 @@ class GeneticOptimization(OptimizationBase):
             relevant.extend(individual[-n_appliance_genes:])
         return tuple(int(value) for value in relevant)
 
+    def _ev_soc_at_deadline(self, simulation_result: dict[str, Any], start_slot: int) -> float:
+        """EV state of charge the target is checked against [%].
+
+        Without a deadline this is the SoC after the last slot, which is what the
+        penalty always used. With a deadline it is the SoC at the beginning of
+        the deadline slot, i.e. after every charge that completes in time.
+
+        Args:
+            simulation_result: Result of the simulation run for this individual.
+            start_slot: Slot index the result arrays start at.
+
+        Returns:
+            State of charge in percent.
+        """
+        ev = self.simulation.ev
+        if ev is None:
+            return 0.0
+        # Lightweight callers construct the optimizer without __init__ (see
+        # evaluate()); a missing deadline must behave like no deadline.
+        deadline_slot = getattr(self, "_ev_soc_deadline_slot", None)
+        if deadline_slot is None:
+            return ev.current_soc_percentage()
+
+        soc_per_slot = simulation_result.get("EAuto_SoC_pro_Stunde")
+        index = deadline_slot - start_slot
+        if soc_per_slot is None or index >= len(soc_per_slot):
+            return ev.current_soc_percentage()
+        return float(soc_per_slot[max(index, 0)])
+
     def _evaluate_uncached(
         self,
         individual: list[int],
@@ -2432,7 +2543,7 @@ class GeneticOptimization(OptimizationBase):
                 logger.error(
                     "Penalty function parameter `ev_soc_miss` not configured, using {}.", penalty
                 )
-            ev_soc_percentage = self.simulation.ev.current_soc_percentage()
+            ev_soc_percentage = self._ev_soc_at_deadline(simulation_result, start_hour)
             if ev_soc_percentage < parameters.eauto.min_soc_percentage:
                 gesamtbilanz += (
                     abs(parameters.eauto.min_soc_percentage - ev_soc_percentage) * penalty
@@ -2773,6 +2884,26 @@ class GeneticOptimization(OptimizationBase):
             self.bat_possible_charge_values = [1.0]
         logger.debug("Battery AC charge levels: {}", self.bat_possible_charge_values)
 
+        # Battery-to-grid export levels (direct marketing only). Same resolution
+        # order as the charge rates: request parameters win over the configured
+        # battery, and the fallback is the previous all-or-nothing export.
+        export_rates: Optional[list[float]] = None
+        if parameters.pv_akku and parameters.pv_akku.grid_export_rates:
+            export_rates = list(parameters.pv_akku.grid_export_rates)
+        elif (
+            self.config.devices.batteries
+            and self.config.devices.batteries[0]
+            and self.config.devices.batteries[0].grid_export_rates is not None
+        ):
+            export_rates = list(self.config.devices.batteries[0].grid_export_rates)
+        # Highest rate first so the full-power state keeps the lowest index and
+        # every heuristic that seeds "export here" keeps seeding full power.
+        self.bat_possible_grid_export_values = sorted(
+            (rate for rate in (export_rates or [1.0]) if rate > 0.0), reverse=True
+        ) or [1.0]
+        if self.optimize_battery_grid_export:
+            logger.debug("Battery grid export levels: {}", self.bat_possible_grid_export_values)
+
         # Initialize the flexible consumers (home appliances) and their genome
         # layout. slot0_datetime (midnight of the start day) turns decoded start
         # slots into absolute local timestamps and drives DAILY day grouping.
@@ -2789,6 +2920,18 @@ class GeneticOptimization(OptimizationBase):
             for appliance_params in home_appliance_params
         ]
         self.appliance_layout = self._build_appliance_layout(home_appliances, self._slot0_datetime)
+
+        # EV charging deadline (departure). Resolved once per run; the seeding
+        # heuristic and the SoC penalty both read it.
+        self._ev_soc_deadline_slot = self._ev_deadline_slot(parameters)
+        if self._ev_soc_deadline_slot is not None:
+            logger.debug(
+                "EV target SoC required by slot {} ({}).",
+                self._ev_soc_deadline_slot,
+                self._slot0_datetime.add(
+                    seconds=self._ev_soc_deadline_slot * self.slot_duration_h * 3600
+                ),
+            )
 
         # Initialize the inverter and energy management system. slot_duration_h
         # lets the Inverter scale max_power_wh to a per-slot energy cap.
@@ -2844,6 +2987,7 @@ class GeneticOptimization(OptimizationBase):
         starts_per_appliance = self._decode_appliance_starts(appliance_gene_values)
         home_appliance_energy_wh: dict[str, list[float]] = {}
         appliance_starts: dict[str, list[Any]] = {}
+        appliance_deadline_missed: dict[str, bool] = {}
         timezone = self.config.general.timezone
         for appliance_index, appliance in enumerate(self.simulation.home_appliances):
             device_id = appliance.device_id
@@ -2855,6 +2999,13 @@ class GeneticOptimization(OptimizationBase):
                 ).in_timezone(timezone)
                 for start in starts
             ]
+            # Report a deadline that could not be kept (no run scheduled at all,
+            # or a run that ends late because a BEST_EFFORT deadline was dropped)
+            # so the caller can warn instead of silently trusting the schedule.
+            if appliance.deadline_datetime is not None:
+                appliance_deadline_missed[device_id] = appliance.deadline_missed(
+                    starts, self._slot0_datetime
+                )
         simulation_result["home_appliance_energy_wh"] = home_appliance_energy_wh
 
         # Deprecated single-device hourly start (kept for backward compatibility).
@@ -2888,9 +3039,13 @@ class GeneticOptimization(OptimizationBase):
             discharge = discharge.tolist()
         battery_grid_export = self.simulation.bat_grid_export_hours
         if not direct_marketing_enabled or battery_grid_export is None:
+            battery_grid_export_factor = []
             battery_grid_export = []
         else:
-            battery_grid_export = battery_grid_export.tolist()
+            # The simulation array holds the export level; the legacy signal is
+            # its boolean projection.
+            battery_grid_export_factor = [float(value) for value in battery_grid_export]
+            battery_grid_export = [1 if value > 0.0 else 0 for value in battery_grid_export_factor]
 
         # Visualize the results in PDF. Skippable via config — matplotlib PDF
         # generation costs several seconds per run, which headless setups
@@ -2926,11 +3081,13 @@ class GeneticOptimization(OptimizationBase):
                 "dc_charge": dc_charge_hours,
                 "discharge_allowed": discharge,
                 "battery_grid_export_allowed": battery_grid_export,
+                "battery_grid_export_factor": battery_grid_export_factor,
                 "eautocharge_hours_float": eautocharge_hours_float,
                 "result": GeneticSimulationResult(**simulation_result),
                 "eauto_obj": self.simulation.ev,
                 "start_solution": start_solution,
                 "washingstart": washingstart_int,
                 "appliance_starts": appliance_starts,
+                "appliance_deadline_missed": appliance_deadline_missed,
             }
         )
