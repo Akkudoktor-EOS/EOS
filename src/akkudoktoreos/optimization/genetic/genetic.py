@@ -350,9 +350,13 @@ class GeneticSimulation(PydanticBaseModel):
                 max_ac_charge_w_fast is None or max_ac_charge_w_fast > 0
             )
 
-            # If AC charging is disabled via inverter, zero out AC charge hours
+            # If AC charging is disabled via inverter, zero out AC charge hours.
+            # In place, not by rebinding: the reported plan is read back from
+            # this very array, so a rebind would leave AC charge values in the
+            # solution that the simulation never executed - and a controller
+            # acting on them would grid-charge the battery unplanned.
             if not ac_charging_possible:
-                ac_charge_hours_fast = np.zeros_like(ac_charge_hours_fast)
+                ac_charge_hours_fast[:] = 0.0
 
             # Fill the charge array of the battery
             dc_charge_hours_fast[0:start_hour] = 0

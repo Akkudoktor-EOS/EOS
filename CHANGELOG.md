@@ -49,6 +49,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   two applies. The `ev_soc_miss` penalty is then evaluated at that slot instead of at the end
   of the horizon, and the seeding heuristics only propose charge slots before it. Without a
   deadline the behaviour is unchanged.
+- Fix: with grid charging disabled (`inverter.max_ac_charge_power_w = 0`) the returned
+  `ac_charge` array kept the optimizer's unused gene values. The simulation ignored them, so
+  they were never costed - but a controller acting on the plan would grid-charge the battery
+  anyway. The disabled AC charge is now cleared in the reported plan as well.
 - EV Bug (wrong output in genetic.py / no senseful results)
 - Direktvermarktung active / Battery discharge into grid (new state / action battery_grid_export_allowed) + (new simulation output Feed_in_tariff)
 - New PV forecast providers giving operators more cloud forecast sources to choose from in
