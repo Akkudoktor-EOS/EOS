@@ -85,6 +85,19 @@ def test_export_tail_only_with_direct_marketing():
     assert with_export.marginal_euro_per_kwh[-1] == pytest.approx(0.08)
 
 
+def test_residual_energy_marks_the_knee():
+    """The knee separates load-backed value from the export tail."""
+    without = _curve(grid_export_allowed=False)
+    with_export = _curve(grid_export_allowed=True)
+
+    # 3 kWh of residual load in the window, whether or not export is allowed.
+    assert without.residual_energy_wh == pytest.approx(3000.0)
+    assert with_export.residual_energy_wh == pytest.approx(3000.0)
+    # Only the export tail reaches beyond it.
+    assert without.energy_wh[-1] == pytest.approx(3000.0)
+    assert with_export.energy_wh[-1] == pytest.approx(10000.0)
+
+
 def test_curve_is_capped_by_the_usable_battery_energy():
     """A battery smaller than the residual load ends the curve early."""
     curve = _curve(max_energy_wh=1500.0)

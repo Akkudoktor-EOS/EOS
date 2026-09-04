@@ -510,6 +510,8 @@ be unreachable. `deadline_policy` decides what happens then:
   - `credited_euro`: the credit applied to the total balance
   - `curve.energy_wh` / `curve.value_euro`: breakpoints of the value curve
   - `curve.marginal_euro_per_kwh`: slope of each segment, monotonically decreasing
+  - `curve.residual_energy_wh`: the knee - up to here the value is backed by residual load,
+    beyond it only by an export
   - `curve.window_slots`: how many trailing horizon slots the curve was derived from
   - `reason`: why that mode applied. Empty in `AUTO` mode. In `FIXED` mode it distinguishes a
     configured `FIXED` from an `AUTO` run that found no priced residual load in its window - the

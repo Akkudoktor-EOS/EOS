@@ -59,6 +59,15 @@ class TerminalValueCurve(PydanticBaseModel):
             )
         },
     )
+    residual_energy_wh: float = Field(
+        default=0.0,
+        json_schema_extra={
+            "description": (
+                "Energy up to which the curve is backed by residual load - the "
+                "knee. Everything beyond it is only worth an export."
+            )
+        },
+    )
     window_slots: int = Field(
         default=0,
         json_schema_extra={
@@ -196,6 +205,7 @@ def build_terminal_value_curve(
     # Everything beyond the residual load can only be sold. A median feed-in
     # tariff rather than the best one: exporting all of it in the single best
     # slot is not something the horizon can promise.
+    residual_energy_wh = cumulative_energy
     if grid_export_allowed and cumulative_energy < max_energy_wh:
         positive_feed_in = [
             float(value) for value in feed_in_euro_per_wh[:window] if float(value) > 0.0
@@ -222,6 +232,7 @@ def build_terminal_value_curve(
         energy_wh=energy_points,
         value_euro=value_points,
         marginal_euro_per_kwh=marginals,
+        residual_energy_wh=residual_energy_wh,
         window_slots=window,
     )
 
