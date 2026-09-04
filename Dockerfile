@@ -50,7 +50,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM ${BUILD_FROM:-python:${PYTHON_VERSION}-slim} AS runtime
 
-# Supplied by the Home Assistant builder and by docker-compose; "dev" marks an
+# Supplied by Home Assistant, docker-compose and CI; "dev" marks an
 # unversioned local build. CI stamps org.opencontainers.image.version via
 # docker/metadata-action, so it is not set here.
 ARG BUILD_VERSION=dev
@@ -69,6 +69,8 @@ ENV EOS_DIR="/opt/eos"
 # - MPLCONFIGDIR: user customizations to Mathplotlib
 ENV EOS_DATA_DIR="/data"
 ENV EOS_CACHE_DIR="${EOS_DATA_DIR}/cache"
+# Written by EOS after resolving its startup configuration.
+ENV EOS_HEALTHCHECK_PORT_FILE="${EOS_CACHE_DIR}/eos-healthcheck-port"
 ENV EOS_OUTPUT_DIR="${EOS_DATA_DIR}/output"
 ENV EOS_CONFIG_DIR="${EOS_DATA_DIR}/config"
 ENV MPLCONFIGDIR="${EOS_DATA_DIR}/mplconfigdir"
@@ -110,9 +112,7 @@ EXPOSE 8503
 EXPOSE 8504
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD python -c "import os, urllib.request; \
-urllib.request.urlopen('http://127.0.0.1:' + os.environ.get('EOS_SERVER__PORT', '8503') + '/v1/health', timeout=3)" \
-    || exit 1
+    CMD ["python", "-m", "akkudoktoreos.server.container_healthcheck"]
 
 # Ensure EOS and EOSdash bind to 0.0.0.0
 # EOS is started with root privileges. EOS will drop root privileges and switch to user eos.
