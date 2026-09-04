@@ -55,6 +55,25 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
         """Return the unique identifier for the Energy-Charts feed-in tariff provider."""
         return "FeedInTariffEnergyCharts"
 
+    def _has_complete_published_horizon(
+        self, *, now: pd.Timestamp, resolution_seconds: int
+    ) -> bool:
+        """Return whether stored source data covers all currently published intervals.
+
+        Energy-Charts timestamps identify interval starts. The actual coverage therefore ends one
+        source interval after ``highest_orig_datetime``. Before 14:00, prices through the end of
+        the current day are expected; from 14:00 onward, the following day is expected as well.
+        """
+        if self.highest_orig_datetime is None:
+            return False
+
+        published_days = 1 if now.hour < 14 else 2
+        required_coverage_end = now.normalize() + pd.DateOffset(days=published_days)
+        coverage_end = pd.Timestamp(self.highest_orig_datetime) + pd.Timedelta(
+            seconds=resolution_seconds
+        )
+        return coverage_end >= required_coverage_end
+
     def _bidding_zone(self) -> str:
         settings = self.config.feedintariff.energycharts
         if settings is None:
@@ -150,11 +169,8 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
 
         The final mapped and processed data is inserted into the sequence as `FeedInTariffDataRecord`.
         """
-        # New prices are available every day at 14:00
+        # Tomorrow's prices are available every day at 14:00.
         now = pd.Timestamp.now(tz=self.config.general.timezone)
-        midnight = now.normalize()
-        hours_ahead = 23 if now.time() < pd.Timestamp("14:00").time() else 47
-        end = midnight + pd.Timedelta(hours=hours_ahead)
 
         if not self.ems_start_datetime:
             raise ValueError(f"Start DateTime not set: {self.ems_start_datetime}")
@@ -193,8 +209,10 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
                 elif force_update:
                     # Use default start date in case of forced update
                     needs_update = True
-                elif end > self.highest_orig_datetime:
-                    # We got enough history, but still not enough data to prediction end
+                elif not self._has_complete_published_horizon(
+                    now=now, resolution_seconds=resolution_seconds
+                ):
+                    # We have enough history, but not every expected source interval.
                     start_datetime = gross_start_datetime
                     needs_update = True
         else:
