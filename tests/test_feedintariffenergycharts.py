@@ -79,6 +79,34 @@ class TestFeedInTariffEnergyCharts:
 
         assert series.iloc[0] == pytest.approx(sample_energycharts_json["price"][0] / 1_000_000)
 
+    @pytest.mark.parametrize(
+        ("now", "highest_orig_datetime", "resolution_seconds", "expected"),
+        [
+            ("2026-07-23T10:00:00+02:00", "2026-07-23T23:00:00+02:00", 15 * 60, False),
+            ("2026-07-23T10:00:00+02:00", "2026-07-23T23:45:00+02:00", 15 * 60, True),
+            ("2026-07-23T10:00:00+02:00", "2026-07-23T23:00:00+02:00", 60 * 60, True),
+            ("2026-07-23T15:00:00+02:00", "2026-07-24T23:00:00+02:00", 15 * 60, False),
+            ("2026-07-23T15:00:00+02:00", "2026-07-24T23:45:00+02:00", 15 * 60, True),
+            (
+                pd.Timestamp("2026-03-28 15:00:00", tz="Europe/Berlin"),
+                "2026-03-29T23:45:00+02:00",
+                15 * 60,
+                True,
+            ),
+        ],
+    )
+    def test_published_horizon_requires_complete_last_interval(
+        self, provider, now, highest_orig_datetime, resolution_seconds, expected
+    ):
+        provider.highest_orig_datetime = to_datetime(highest_orig_datetime)
+
+        assert (
+            provider._has_complete_published_horizon(
+                now=pd.Timestamp(now), resolution_seconds=resolution_seconds
+            )
+            is expected
+        )
+
 
     @patch("requests.get")
     def test_request_forecast_uses_feedintariff_bidding_zone(
