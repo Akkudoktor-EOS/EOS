@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from unittest.mock import patch
 
 import pytest
@@ -381,7 +381,9 @@ def test_ev_deadline_charges_before_departure(config_eos: ConfigEOS):
     assert soc_per_hour[6] >= 60.0
 
 
-def _terminal_value_run(config_eos: ConfigEOS, mode: str) -> GeneticSolution:
+def _terminal_value_run(
+    config_eos: ConfigEOS, mode: str, prices: Optional[list[float]] = None
+) -> GeneticSolution:
     """48 h with expensive energy and two dirt-cheap slots at the very end.
 
     Charging in those last slots only pays off when the stored energy keeps a
@@ -403,7 +405,8 @@ def _terminal_value_run(config_eos: ConfigEOS, mode: str) -> GeneticSolution:
     ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
     CacheEnergyManagementStore().clear()
 
-    prices = [0.0004] * (hours - 2) + [0.00002] * 2
+    if prices is None:
+        prices = [0.0004] * (hours - 2) + [0.00002] * 2
     parameters = GeneticOptimizationParameters(
         ems={
             "pv_prognose_wh": [0.0] * hours,
@@ -469,3 +472,20 @@ def test_terminal_value_curve_is_concave_and_reported(config_eos: ConfigEOS):
     # The credit is the curve evaluated at the energy left in the battery.
     expected = curve.value(solution.terminal_value.battery_energy_wh)
     assert solution.terminal_value.credited_euro == pytest.approx(expected)
+
+
+def test_terminal_value_reports_why_it_fell_back_to_fixed(config_eos: ConfigEOS):
+    """AUTO without any prices cannot build a curve - and has to say so.
+
+    A request whose price forecast is all zeros used to be indistinguishable
+    from a run configured for FIXED.
+    """
+    hours = 48
+    solution = _terminal_value_run(config_eos, "AUTO", prices=[0.0] * hours)
+
+    assert solution.terminal_value.mode == "FIXED"
+    assert solution.terminal_value.curve is None
+    assert "no priced residual load" in solution.terminal_value.reason
+
+    configured = _terminal_value_run(config_eos, "FIXED")
+    assert configured.terminal_value.reason == "terminal_value_mode is FIXED"

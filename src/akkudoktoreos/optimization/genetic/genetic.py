@@ -682,6 +682,9 @@ class GeneticOptimization(OptimizationBase):
         # Concave value of the energy left in the battery at the end of the
         # horizon. None means the fixed scalar terminal value is used instead.
         self._terminal_value_curve: Optional[TerminalValueCurve] = None
+        # Why that is - reported with the solution, because a run that silently
+        # falls back to the scalar looks exactly like a run configured for it.
+        self._terminal_value_reason: str = ""
         self.verbose = verbose
         self.fix_seed = fixed_seed
         self.optimize_ev = True
@@ -838,13 +841,16 @@ class GeneticOptimization(OptimizationBase):
             The curve, or None when the fixed scalar terminal value applies.
         """
         if battery is None:
+            self._terminal_value_reason = "no battery in this optimization"
             return None
         try:
             mode = self.config.optimization.terminal_value_mode
             window_hours = self.config.optimization.terminal_value_window_hours
         except Exception:
+            self._terminal_value_reason = "terminal value configuration unavailable"
             return None
         if str(mode) != "AUTO":
+            self._terminal_value_reason = "terminal_value_mode is FIXED"
             return None
 
         dc_to_ac = inverter.dc_to_ac_efficiency if inverter else 1.0
@@ -876,6 +882,7 @@ class GeneticOptimization(OptimizationBase):
             grid_export_allowed=self.optimize_battery_grid_export,
         )
         if curve.energy_wh:
+            self._terminal_value_reason = ""
             logger.debug(
                 "Terminal value curve: {} segments, first {:.3f} EUR/kWh, last {:.3f} EUR/kWh, "
                 "knee at {:.0f} Wh.",
@@ -884,6 +891,16 @@ class GeneticOptimization(OptimizationBase):
                 curve.marginal_euro_per_kwh[-1],
                 curve.energy_wh[-1],
             )
+        else:
+            # Almost always an input problem: an all-zero price forecast, or a
+            # window whose load is fully covered by PV. Falling back to the
+            # scalar is quiet, so say it out loud.
+            self._terminal_value_reason = (
+                "AUTO could not derive a curve: the last "
+                f"{window_slots} slots of the horizon carry no priced residual load "
+                "(check the electricity price forecast) - falling back to the fixed value"
+            )
+            logger.warning(self._terminal_value_reason)
         return curve
 
     def _terminal_value(
@@ -899,7 +916,7 @@ class GeneticOptimization(OptimizationBase):
         """
         battery = self.simulation.battery
         if battery is None:
-            return 0.0, TerminalValueResult(mode="FIXED")
+            return 0.0, TerminalValueResult(mode="FIXED", reason="no battery in this optimization")
 
         # Usable DC energy, converted to the AC energy that can serve a load.
         energy_wh = battery.current_energy_content()
@@ -921,6 +938,7 @@ class GeneticOptimization(OptimizationBase):
             mode="FIXED",
             battery_energy_wh=energy_wh,
             credited_euro=credit,
+            reason=getattr(self, "_terminal_value_reason", "") or "terminal_value_mode is FIXED",
         )
 
     def _build_appliance_layout(

@@ -108,6 +108,17 @@ class TerminalValueResult(PydanticBaseModel):
             "description": "The value curve the credit was read from; None in FIXED mode."
         },
     )
+    reason: str = Field(
+        default="",
+        json_schema_extra={
+            "description": (
+                "Why this mode applied. Empty in AUTO mode; in FIXED mode it "
+                "says whether FIXED was configured or whether AUTO fell back "
+                "because no curve could be derived."
+            ),
+            "examples": ["", "terminal_value_mode is FIXED"],
+        },
+    )
 
 
 def build_terminal_value_curve(

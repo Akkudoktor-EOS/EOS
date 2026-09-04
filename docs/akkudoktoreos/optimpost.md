@@ -511,6 +511,9 @@ be unreachable. `deadline_policy` decides what happens then:
   - `curve.energy_wh` / `curve.value_euro`: breakpoints of the value curve
   - `curve.marginal_euro_per_kwh`: slope of each segment, monotonically decreasing
   - `curve.window_slots`: how many trailing horizon slots the curve was derived from
+  - `reason`: why that mode applied. Empty in `AUTO` mode. In `FIXED` mode it distinguishes a
+    configured `FIXED` from an `AUTO` run that found no priced residual load in its window - the
+    latter is nearly always an all-zero price forecast in the request.
 
 With direct marketing enabled, `dc_charge = 1` and `discharge_allowed = 1` may occur together. This
 is the normal self-consumption mode: within a coarse optimization slot, the battery may cover
