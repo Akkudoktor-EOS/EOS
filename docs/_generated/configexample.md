@@ -240,7 +240,9 @@
            "interval": 3600,
            "algorithm": "GENETIC",
            "visualize_pdf": true,
+           "terminal_value_mode": "AUTO",
            "terminal_value_euro_per_kwh": 0.0,
+           "terminal_value_window_hours": 24,
            "genetic": {
                "individuals": 400,
                "generations": 400,

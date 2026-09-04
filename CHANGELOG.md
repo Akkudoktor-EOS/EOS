@@ -53,6 +53,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `ac_charge` array kept the optimizer's unused gene values. The simulation ignored them, so
   they were never costed - but a controller acting on the plan would grid-charge the battery
   anyway. The disabled AC charge is now cleared in the reported plan as well.
+- The energy left in the battery at the end of the horizon is now valued with a concave curve
+  derived from the trailing horizon window (`optimization.terminal_value_mode = AUTO`, the new
+  default): the first stored kWh replaces the most expensive hour that PV cannot cover, the next
+  one the second most expensive, and energy beyond the residual load is credited only when it can
+  be exported. A single price per kWh could not express this - with the previous default of 0 the
+  optimizer emptied the battery towards the end of the horizon, with a high value it hoarded it.
+  The curve is built once per run and reported as `terminal_value` in the solution.
+  `terminal_value_mode = FIXED` restores the old scalar behaviour.
 - EV Bug (wrong output in genetic.py / no senseful results)
 - Direktvermarktung active / Battery discharge into grid (new state / action battery_grid_export_allowed) + (new simulation output Feed_in_tariff)
 - New PV forecast providers giving operators more cloud forecast sources to choose from in

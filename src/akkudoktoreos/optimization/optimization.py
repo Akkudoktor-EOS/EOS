@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Optional, Union
 
 from pydantic import Field, computed_field
@@ -9,6 +10,28 @@ from akkudoktoreos.core.pydantic import (
     PydanticDateTimeDataFrame,
 )
 from akkudoktoreos.utils.datetimeutil import DateTime
+
+
+class TerminalValueMode(StrEnum):
+    """How the energy left in the battery at the end of the horizon is valued.
+
+    Modes
+    -----
+    - AUTO:
+        Derive a concave value curve from the trailing horizon window: the
+        first stored kWh replaces the most expensive hour that PV cannot
+        cover, the next one the second most expensive, and so on. Needs no
+        configuration and adapts to prices, load and PV of the day.
+
+    - FIXED:
+        Credit every stored kWh with the configured
+        ``terminal_value_euro_per_kwh`` (or ``preis_euro_pro_wh_akku`` of the
+        request). The historical behaviour; a value of 0 makes the optimizer
+        empty the battery towards the end of the horizon.
+    """
+
+    AUTO = "AUTO"
+    FIXED = "FIXED"
 
 
 class GeneticCommonSettings(SettingsBaseModel):
@@ -101,15 +124,42 @@ class OptimizationCommonSettings(SettingsBaseModel):
         },
     )
 
+    terminal_value_mode: TerminalValueMode = Field(
+        default=TerminalValueMode.AUTO,
+        json_schema_extra={
+            "description": (
+                "How to value the energy left in the battery at the end of the "
+                "optimization horizon. AUTO derives a concave value curve from "
+                "the trailing horizon window and needs no configuration; FIXED "
+                "uses 'terminal_value_euro_per_kwh'. Defaults to AUTO."
+            ),
+            "examples": ["AUTO", "FIXED"],
+        },
+    )
+
     terminal_value_euro_per_kwh: float = Field(
         default=0.0,
         json_schema_extra={
             "description": (
                 "Value assigned to usable battery energy remaining at the end of the "
                 "optimization horizon [EUR/kWh]. This terminal value is independent "
-                "of the battery LCOS. Defaults to 0 EUR/kWh."
+                "of the battery LCOS. Only used with terminal_value_mode = FIXED. "
+                "Defaults to 0 EUR/kWh."
             ),
             "examples": [0.0, 0.20],
+        },
+    )
+
+    terminal_value_window_hours: int = Field(
+        default=24,
+        ge=1,
+        json_schema_extra={
+            "description": (
+                "Length of the trailing horizon window the AUTO terminal value "
+                "curve is derived from [h]. One day covers a full load and PV "
+                "cycle. Defaults to 24 hours."
+            ),
+            "examples": [24],
         },
     )
 

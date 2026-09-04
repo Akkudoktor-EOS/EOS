@@ -22,6 +22,12 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
 )
+from akkudoktoreos.optimization.genetic.terminalvalue import (
+    TerminalValueCurve,
+    TerminalValueResult,
+    build_terminal_value_curve,
+    trailing_window,
+)
 from akkudoktoreos.optimization.genetic.geneticsolution import (
     GeneticSimulationResult,
     GeneticSolution,
@@ -673,6 +679,9 @@ class GeneticOptimization(OptimizationBase):
         # Slot by which the EV has to reach its target SoC. None means the SoC is
         # only required at the end of the horizon (the behaviour without a deadline).
         self._ev_soc_deadline_slot: Optional[int] = None
+        # Concave value of the energy left in the battery at the end of the
+        # horizon. None means the fixed scalar terminal value is used instead.
+        self._terminal_value_curve: Optional[TerminalValueCurve] = None
         self.verbose = verbose
         self.fix_seed = fixed_seed
         self.optimize_ev = True
@@ -810,6 +819,109 @@ class GeneticOptimization(OptimizationBase):
             return None
         # A deadline in the past means the target is due right now.
         return max(deadline_slot, start_slot)
+
+    def _build_terminal_value_curve(
+        self,
+        battery: Optional[Battery],
+        inverter: Optional[Inverter],
+    ) -> Optional[TerminalValueCurve]:
+        """Derive the terminal value curve from the trailing horizon window.
+
+        Only built in AUTO mode and only with a battery: the curve describes
+        what the energy left in that battery is worth once the horizon ends.
+
+        Args:
+            battery: The house battery of this run, if any.
+            inverter: The inverter, needed for the DC/AC conversion.
+
+        Returns:
+            The curve, or None when the fixed scalar terminal value applies.
+        """
+        if battery is None:
+            return None
+        try:
+            mode = self.config.optimization.terminal_value_mode
+            window_hours = self.config.optimization.terminal_value_window_hours
+        except Exception:
+            return None
+        if str(mode) != "AUTO":
+            return None
+
+        dc_to_ac = inverter.dc_to_ac_efficiency if inverter else 1.0
+        # A full battery, expressed in the same unit as the curve: AC energy
+        # that can actually leave the house.
+        max_energy_wh = (
+            max(battery.max_soc_wh - battery.min_soc_wh, 0.0)
+            * battery.discharging_efficiency
+            * dc_to_ac
+        )
+        window_slots = max(int(window_hours) * self.slots_per_hour, 1)
+        end_slot = min(
+            self.total_slots,
+            self._start_day_slot() + self.config.optimization.horizon_hours * self.slots_per_hour,
+        )
+
+        curve = build_terminal_value_curve(
+            prices_euro_per_wh=trailing_window(
+                self.simulation.elect_price_hourly, end_slot, window_slots
+            ),
+            load_wh=trailing_window(self.simulation.load_energy_array, end_slot, window_slots),
+            pv_wh=trailing_window(self.simulation.pv_prediction_wh, end_slot, window_slots),
+            feed_in_euro_per_wh=trailing_window(
+                self.simulation.elect_revenue_per_hour_arr, end_slot, window_slots
+            ),
+            max_energy_wh=max_energy_wh,
+            lcos_euro_per_kwh=getattr(battery, "levelized_cost_of_storage_kwh", 0.0),
+            dc_to_ac_efficiency=dc_to_ac,
+            grid_export_allowed=self.optimize_battery_grid_export,
+        )
+        if curve.energy_wh:
+            logger.debug(
+                "Terminal value curve: {} segments, first {:.3f} EUR/kWh, last {:.3f} EUR/kWh, "
+                "knee at {:.0f} Wh.",
+                len(curve.marginal_euro_per_kwh),
+                curve.marginal_euro_per_kwh[0],
+                curve.marginal_euro_per_kwh[-1],
+                curve.energy_wh[-1],
+            )
+        return curve
+
+    def _terminal_value(
+        self, parameters: GeneticOptimizationParameters
+    ) -> tuple[float, TerminalValueResult]:
+        """Credit for the energy left in the battery, plus its report.
+
+        Args:
+            parameters: Optimization parameters, holding the fixed scalar value.
+
+        Returns:
+            The credit in EUR and the result object for the solution.
+        """
+        battery = self.simulation.battery
+        if battery is None:
+            return 0.0, TerminalValueResult(mode="FIXED")
+
+        # Usable DC energy, converted to the AC energy that can serve a load.
+        energy_wh = battery.current_energy_content()
+        if self.simulation.inverter:
+            energy_wh *= self.simulation.inverter.dc_to_ac_efficiency
+
+        curve = getattr(self, "_terminal_value_curve", None)
+        if curve is not None and curve.energy_wh:
+            credit = curve.value(energy_wh)
+            return credit, TerminalValueResult(
+                mode="AUTO",
+                battery_energy_wh=energy_wh,
+                credited_euro=credit,
+                curve=curve,
+            )
+
+        credit = energy_wh * parameters.ems.preis_euro_pro_wh_akku
+        return credit, TerminalValueResult(
+            mode="FIXED",
+            battery_energy_wh=energy_wh,
+            credited_euro=credit,
+        )
 
     def _build_appliance_layout(
         self, appliances: list[HomeAppliance], slot0_datetime: Any
@@ -2433,14 +2545,12 @@ class GeneticOptimization(OptimizationBase):
             else 0,
         )
 
-        # Adjust total balance with battery value and penalties for unmet SOC
+        # Adjust total balance with battery value and penalties for unmet SOC.
+        # The terminal value is concave in AUTO mode: the first stored kWh
+        # replaces the most expensive hour after the horizon, the last one
+        # replaces nothing. A scalar cannot express that (see terminalvalue.py).
         if self.simulation.battery:
-            battery_energy_content = self.simulation.battery.current_energy_content()
-            # Apply DC→AC inverter efficiency to residual battery value
-            # (stored DC energy must pass through inverter to be usable as AC)
-            if self.simulation.inverter:
-                battery_energy_content *= self.simulation.inverter.dc_to_ac_efficiency
-            restwert_akku = battery_energy_content * parameters.ems.preis_euro_pro_wh_akku
+            restwert_akku, _ = self._terminal_value(parameters)
             gesamtbilanz += -restwert_akku
 
         # --- AC charging break-even penalty ---
@@ -2958,6 +3068,11 @@ class GeneticOptimization(OptimizationBase):
             direct_marketing_enabled=direct_marketing_enabled,
         )
 
+        # Terminal value of the energy left in the battery. Built once per run -
+        # it needs the prepared price/load/PV series - so every fitness
+        # evaluation only interpolates on it.
+        self._terminal_value_curve = self._build_terminal_value_curve(akku, inverter)
+
         # Setup the DEAP environment and optimization process. The appliance
         # genome layout (built above) drives the appliance gene block; evaluate
         # gets the slot index (its break-even loop walks the slot arrays from "now").
@@ -2978,6 +3093,8 @@ class GeneticOptimization(OptimizationBase):
 
         # Perform final evaluation on the best solution
         simulation_result = self.evaluate_inner(start_solution)
+        # Read the terminal value off the final battery state, for the solution.
+        _, terminal_value_result = self._terminal_value(parameters)
 
         # Prepare results
         discharge_hours_bin, eautocharge_hours_index, appliance_gene_values = self.split_individual(
@@ -3086,6 +3203,7 @@ class GeneticOptimization(OptimizationBase):
                 "discharge_allowed": discharge,
                 "battery_grid_export_allowed": battery_grid_export,
                 "battery_grid_export_factor": battery_grid_export_factor,
+                "terminal_value": terminal_value_result,
                 "eautocharge_hours_float": eautocharge_hours_float,
                 "result": GeneticSimulationResult(**simulation_result),
                 "eauto_obj": self.simulation.ev,

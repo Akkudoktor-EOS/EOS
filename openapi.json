@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609031505836006"
+    "version": "v0.3.0.dev2609040861878062"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -5570,6 +5570,17 @@
             "title": "Battery Grid Export Allowed",
             "description": "Array with battery-to-grid export values (1 for export discharge, 0 otherwise)."
           },
+          "terminal_value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TerminalValueResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The terminal value applied to the energy left in the battery at the end of the horizon, including the curve it was read from. None when no battery is part of the optimization."
+          },
           "battery_grid_export_factor": {
             "items": {
               "type": "number"
@@ -7533,14 +7544,33 @@
               false
             ]
           },
+          "terminal_value_mode": {
+            "$ref": "#/components/schemas/TerminalValueMode",
+            "description": "How to value the energy left in the battery at the end of the optimization horizon. AUTO derives a concave value curve from the trailing horizon window and needs no configuration; FIXED uses 'terminal_value_euro_per_kwh'. Defaults to AUTO.",
+            "default": "AUTO",
+            "examples": [
+              "AUTO",
+              "FIXED"
+            ]
+          },
           "terminal_value_euro_per_kwh": {
             "type": "number",
             "title": "Terminal Value Euro Per Kwh",
-            "description": "Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Defaults to 0 EUR/kWh.",
+            "description": "Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Only used with terminal_value_mode = FIXED. Defaults to 0 EUR/kWh.",
             "default": 0.0,
             "examples": [
               0.0,
               0.2
+            ]
+          },
+          "terminal_value_window_hours": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Terminal Value Window Hours",
+            "description": "Length of the trailing horizon window the AUTO terminal value curve is derived from [h]. One day covers a full load and PV cycle. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
             ]
           },
           "genetic": {
@@ -7603,14 +7633,33 @@
               false
             ]
           },
+          "terminal_value_mode": {
+            "$ref": "#/components/schemas/TerminalValueMode",
+            "description": "How to value the energy left in the battery at the end of the optimization horizon. AUTO derives a concave value curve from the trailing horizon window and needs no configuration; FIXED uses 'terminal_value_euro_per_kwh'. Defaults to AUTO.",
+            "default": "AUTO",
+            "examples": [
+              "AUTO",
+              "FIXED"
+            ]
+          },
           "terminal_value_euro_per_kwh": {
             "type": "number",
             "title": "Terminal Value Euro Per Kwh",
-            "description": "Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Defaults to 0 EUR/kWh.",
+            "description": "Value assigned to usable battery energy remaining at the end of the optimization horizon [EUR/kWh]. This terminal value is independent of the battery LCOS. Only used with terminal_value_mode = FIXED. Defaults to 0 EUR/kWh.",
             "default": 0.0,
             "examples": [
               0.0,
               0.2
+            ]
+          },
+          "terminal_value_window_hours": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Terminal Value Window Hours",
+            "description": "Length of the trailing horizon window the AUTO terminal value curve is derived from [h]. One day covers a full load and PV cycle. Defaults to 24 hours.",
+            "default": 24,
+            "examples": [
+              24
             ]
           },
           "genetic": {
@@ -9611,6 +9660,94 @@
         ],
         "title": "SolarPanelBatteryParameters",
         "description": "PV battery device simulation configuration."
+      },
+      "TerminalValueCurve": {
+        "properties": {
+          "energy_wh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Energy Wh",
+            "description": "Breakpoints of usable AC energy left in the battery [Wh]."
+          },
+          "value_euro": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Value Euro",
+            "description": "Cumulative credit at each breakpoint [EUR]."
+          },
+          "marginal_euro_per_kwh": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Marginal Euro Per Kwh",
+            "description": "Marginal value of the segment that starts at each breakpoint [EUR/kWh]. Monotonically decreasing."
+          },
+          "window_slots": {
+            "type": "integer",
+            "title": "Window Slots",
+            "description": "Number of trailing horizon slots the curve was derived from. Fewer slots than a full day mean a shorter proxy period.",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TerminalValueCurve",
+        "description": "Piecewise linear, concave value of battery energy left at the horizon.\n\n``energy_wh`` and ``value_euro`` are the breakpoints of the cumulative\nvalue, ``marginal_euro_per_kwh`` the slope of each segment. Both arrays\nstart at the origin; the curve is flat beyond its last breakpoint."
+      },
+      "TerminalValueMode": {
+        "type": "string",
+        "enum": [
+          "AUTO",
+          "FIXED"
+        ],
+        "title": "TerminalValueMode",
+        "description": "How the energy left in the battery at the end of the horizon is valued.\n\nModes\n-----\n- AUTO:\n    Derive a concave value curve from the trailing horizon window: the\n    first stored kWh replaces the most expensive hour that PV cannot\n    cover, the next one the second most expensive, and so on. Needs no\n    configuration and adapts to prices, load and PV of the day.\n\n- FIXED:\n    Credit every stored kWh with the configured\n    ``terminal_value_euro_per_kwh`` (or ``preis_euro_pro_wh_akku`` of the\n    request). The historical behaviour; a value of 0 makes the optimizer\n    empty the battery towards the end of the horizon."
+      },
+      "TerminalValueResult": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "description": "Terminal value mode the run used: AUTO or FIXED.",
+            "examples": [
+              "AUTO",
+              "FIXED"
+            ]
+          },
+          "battery_energy_wh": {
+            "type": "number",
+            "title": "Battery Energy Wh",
+            "description": "Usable AC energy left in the battery at the end of the horizon [Wh].",
+            "default": 0.0
+          },
+          "credited_euro": {
+            "type": "number",
+            "title": "Credited Euro",
+            "description": "Credit applied to the total balance [EUR].",
+            "default": 0.0
+          },
+          "curve": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TerminalValueCurve"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The value curve the credit was read from; None in FIXED mode."
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "TerminalValueResult",
+        "description": "What the optimizer credited for the energy left in the battery."
       },
       "TimeWindow-Input": {
         "properties": {

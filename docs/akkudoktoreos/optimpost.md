@@ -274,8 +274,42 @@ C_{LCOS} = \frac{E_{bat,out}}{1000}\,c_{LCOS}
 ```
 
 where `E_bat,out` is in Wh and `c_LCOS` is in EUR/kWh. This cost is included in
-`Kosten_Euro_pro_Stunde`, `Gesamtkosten_Euro`, and therefore `Gesamtbilanz_Euro`. The terminal value
-`preis_euro_pro_wh_akku`, by contrast, applies only to usable energy remaining after the last slot.
+`Kosten_Euro_pro_Stunde`, `Gesamtkosten_Euro`, and therefore `Gesamtbilanz_Euro`. The terminal value,
+by contrast, applies only to usable energy remaining after the last slot.
+
+#### Terminal Value of Stored Energy
+
+The optimization stops at the horizon, but the energy still in the battery keeps its worth: it
+replaces grid imports that would otherwise be paid for afterwards. How that worth is credited is
+set by `optimization.terminal_value_mode`.
+
+`AUTO` (the default) derives a **concave value curve** instead of using a single price. The value of
+stored energy is not linear in the amount stored:
+
+- The first kWh replaces the most expensive hour that PV cannot cover.
+- The next one replaces the second most expensive hour, and so on.
+- Once every such hour is served, further energy replaces nothing - it is worth an export at best,
+  and nothing at worst.
+
+A single price has to pick one slope for all of it: high enough for the first kWh means hoarding a
+full battery, low enough for the last kWh means running the battery empty by the end of the horizon.
+The latter is what `terminal_value_euro_per_kwh = 0` does, and it is why `AUTO` is the default.
+
+There is no forecast beyond the horizon, so the trailing window of the horizon itself
+(`optimization.terminal_value_window_hours`, 24 h by default) stands in for the day that follows:
+same season, same household rhythm, same tariff structure. Within that window the residual load
+`max(load - PV, 0)` of every slot is priced at its import price, sorted by price and accumulated -
+that is the curve. The battery LCOS is subtracted from every marginal value so stored energy is not
+credited twice, and energy beyond the residual load is only credited when direct marketing allows
+the battery to export.
+
+`FIXED` restores the previous behaviour: every stored kWh is credited with
+`optimization.terminal_value_euro_per_kwh`, or with `preis_euro_pro_wh_akku` of the request. In
+`AUTO` mode that request field is ignored.
+
+The curve is built once per optimization run and only interpolated during the search, so it costs
+nothing per candidate solution. It is a planning aid derived from a proxy day, not a forecast - see
+`terminal_value` in the response to check what a run actually used.
 
 #### State of Charge (SoC)
 
@@ -469,6 +503,14 @@ be unreachable. `deadline_policy` decides what happens then:
 - `battery_grid_export_factor`: Export level per slot as factor of the rated discharge power
   (`0.0` where no export is planned). Empty when direct marketing is disabled. A solution without
   this array exports at full power wherever `battery_grid_export_allowed` is 1.
+- `terminal_value`: What the run credited for the energy left in the battery, and the curve it was
+  read from:
+  - `mode`: `AUTO` or `FIXED`
+  - `battery_energy_wh`: usable AC energy left at the end of the horizon
+  - `credited_euro`: the credit applied to the total balance
+  - `curve.energy_wh` / `curve.value_euro`: breakpoints of the value curve
+  - `curve.marginal_euro_per_kwh`: slope of each segment, monotonically decreasing
+  - `curve.window_slots`: how many trailing horizon slots the curve was derived from
 
 With direct marketing enabled, `dc_charge = 1` and `discharge_allowed = 1` may occur together. This
 is the normal self-consumption mode: within a coarse optimization slot, the battery may cover

@@ -24,6 +24,7 @@ from akkudoktoreos.devices.devicesabc import (
 )
 from akkudoktoreos.devices.genetic.battery import Battery
 from akkudoktoreos.optimization.genetic.geneticdevices import GeneticParametersBaseModel
+from akkudoktoreos.optimization.genetic.terminalvalue import TerminalValueResult
 from akkudoktoreos.optimization.optimization import OptimizationSolution
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
 from akkudoktoreos.utils.utils import NumpyEncoder
@@ -201,6 +202,16 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
             "description": "Array with battery-to-grid export values (1 for export discharge, 0 otherwise)."
         },
     )
+    terminal_value: Optional[TerminalValueResult] = Field(
+        default=None,
+        json_schema_extra={
+            "description": (
+                "The terminal value applied to the energy left in the battery at "
+                "the end of the horizon, including the curve it was read from. "
+                "None when no battery is part of the optimization."
+            )
+        },
+    )
     battery_grid_export_factor: list[float] = Field(
         default_factory=list,
         json_schema_extra={
@@ -236,8 +247,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         default_factory=dict,
         json_schema_extra={
             "description": (
-                "Scheduled run start times per appliance device_id as absolute "
-                "local datetimes."
+                "Scheduled run start times per appliance device_id as absolute " "local datetimes."
             )
         },
     )

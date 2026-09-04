@@ -379,3 +379,93 @@ def test_ev_deadline_charges_before_departure(config_eos: ConfigEOS):
     # Slot 6 is the first slot at or after the deadline, so its start-of-slot SoC
     # is what the target is checked against.
     assert soc_per_hour[6] >= 60.0
+
+
+def _terminal_value_run(config_eos: ConfigEOS, mode: str) -> GeneticSolution:
+    """48 h with expensive energy and two dirt-cheap slots at the very end.
+
+    Charging in those last slots only pays off when the stored energy keeps a
+    value beyond the horizon.
+    """
+    hours = 48
+    config_eos.merge_settings_from_dict(
+        {
+            "prediction": {"hours": hours},
+            "optimization": {
+                "horizon_hours": hours,
+                "interval": 3600,
+                "terminal_value_mode": mode,
+                "terminal_value_euro_per_kwh": 0.0,
+                "genetic": {"individuals": 80, "generations": 20},
+            },
+        }
+    )
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+    CacheEnergyManagementStore().clear()
+
+    prices = [0.0004] * (hours - 2) + [0.00002] * 2
+    parameters = GeneticOptimizationParameters(
+        ems={
+            "pv_prognose_wh": [0.0] * hours,
+            "strompreis_euro_pro_wh": prices,
+            "einspeiseverguetung_euro_pro_wh": [0.00007] * hours,
+            "preis_euro_pro_wh_akku": 0.0,
+            "gesamtlast": [200.0] * hours,
+        },
+        pv_akku={
+            "device_id": "battery1",
+            "capacity_wh": 10000,
+            "initial_soc_percentage": 20,
+            "min_soc_percentage": 0,
+            "max_soc_percentage": 100,
+            "charging_efficiency": 1.0,
+            "discharging_efficiency": 1.0,
+            "max_charge_power_w": 5000,
+        },
+        inverter={
+            "device_id": "inverter1",
+            "max_power_wh": 10000,
+            "battery_id": "battery1",
+            "ac_to_dc_efficiency": 1.0,
+            "dc_to_ac_efficiency": 1.0,
+            "max_ac_charge_power_w": 5000,
+        },
+        eauto=None,
+    )
+    return GeneticOptimization(fixed_seed=7).optimierung_ems(
+        parameters=parameters, start_hour=0, ngen=20
+    )
+
+
+def test_terminal_value_auto_keeps_energy_that_fixed_zero_throws_away(config_eos: ConfigEOS):
+    """AUTO values the energy left in the battery, a fixed zero does not."""
+    auto = _terminal_value_run(config_eos, "AUTO")
+    fixed = _terminal_value_run(config_eos, "FIXED")
+
+    assert auto.terminal_value is not None
+    assert auto.terminal_value.mode == "AUTO"
+    assert auto.terminal_value.curve is not None
+    assert auto.terminal_value.credited_euro > 0.0
+
+    assert fixed.terminal_value is not None
+    assert fixed.terminal_value.mode == "FIXED"
+    assert fixed.terminal_value.credited_euro == 0.0
+
+    # The cheap slots at the end are only worth using with a terminal value.
+    assert auto.result.akku_soc_pro_stunde[-1] > fixed.result.akku_soc_pro_stunde[-1]
+
+
+def test_terminal_value_curve_is_concave_and_reported(config_eos: ConfigEOS):
+    """The reported curve is what the credit was read from."""
+    solution = _terminal_value_run(config_eos, "AUTO")
+    curve = solution.terminal_value.curve
+
+    assert curve.window_slots == 24
+    assert len(curve.energy_wh) == len(curve.value_euro)
+    assert len(curve.marginal_euro_per_kwh) == len(curve.energy_wh) - 1
+    marginals = curve.marginal_euro_per_kwh
+    assert all(a >= b for a, b in zip(marginals, marginals[1:]))
+
+    # The credit is the curve evaluated at the energy left in the battery.
+    expected = curve.value(solution.terminal_value.battery_energy_wh)
+    assert solution.terminal_value.credited_euro == pytest.approx(expected)
