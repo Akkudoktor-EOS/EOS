@@ -157,6 +157,91 @@ class TestElecPriceEnergyCharts:
         assert len(np_price_array) == provider.total_hours
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("now", "last_price", "interval_minutes", "needs_update"),
+        [
+            ("2026-01-15 13:59:59", "2026-01-15 23:00", 15, True),
+            ("2026-01-15 13:59:59", "2026-01-15 23:45", 15, False),
+            ("2026-01-15 13:59:59", "2026-01-15 23:00", 60, False),
+            ("2026-01-15 14:00:00", "2026-01-16 23:00", 15, True),
+            ("2026-01-15 14:00:00", "2026-01-16 23:45", 15, False),
+            ("2026-01-15 14:00:00", "2026-01-16 23:00", 60, False),
+            ("2026-01-15 14:00:00", "2026-01-15 23:45", 15, True),
+            ("2026-03-28 14:00:00", "2026-03-29 23:45", 15, False),
+            ("2026-03-28 14:00:00", "2026-03-29 23:30", 15, True),
+            ("2026-10-24 14:00:00", "2026-10-25 23:45", 15, False),
+            ("2026-10-24 14:00:00", "2026-10-25 23:30", 15, True),
+        ],
+    )
+    async def test_update_data_refreshes_incomplete_published_intervals(
+        self,
+        provider: ElecPriceEnergyCharts,
+        now: str,
+        last_price: str,
+        interval_minutes: int,
+        needs_update: bool,
+    ) -> None:
+        """Fetch missing source intervals without refreshing an already complete day."""
+        provider.config.merge_settings_from_dict(
+            {"general": {"latitude": 52.52, "longitude": 13.405}}
+        )
+        fixed_now = pd.Timestamp(now, tz="Europe/Berlin")
+        start = to_datetime(fixed_now, in_timezone="Europe/Berlin").start_of("day")
+        last_original = to_datetime(
+            pd.Timestamp(last_price, tz="Europe/Berlin"), in_timezone="Europe/Berlin"
+        )
+        get_ems().set_start_datetime(start)
+        raw_index = pd.date_range(
+            start=start.subtract(days=35),
+            end=last_original,
+            freq=f"{interval_minutes}min",
+        )
+        await provider.key_from_series(
+            "elecprice_marketprice_raw_wh", pd.Series(0.0001, index=raw_index)
+        )
+        provider.highest_orig_datetime = last_original
+
+        published_end = start.add(days=1 if fixed_now.hour < 14 else 2)
+        response_index = pd.date_range(
+            start=start, end=published_end, freq=f"{interval_minutes}min", inclusive="left"
+        )
+        response = EnergyChartsElecPrice(
+            license_info="",
+            unix_seconds=[int(timestamp.timestamp()) for timestamp in response_index],
+            price=[200.0] * len(response_index),
+            unit="EUR/MWh",
+            deprecated=False,
+        )
+
+        def predict(history: np.ndarray, hours: int, slots_per_hour: int = 1) -> np.ndarray:
+            return np.full(hours, 0.00005)
+
+        with (
+            patch("akkudoktoreos.prediction.elecpriceenergycharts.pd", wraps=pd) as pandas,
+            patch.object(provider, "_request_forecast", return_value=response) as request,
+            patch.object(provider, "_predict", side_effect=predict),
+        ):
+            pandas.Timestamp.now.return_value = fixed_now
+            await provider._update_data(force_update=False)
+
+        if needs_update:
+            request.assert_called_once_with(start_date=start.format("YYYY-MM-DD"), force_update=False)
+            assert provider.highest_orig_datetime == response_index[-1]
+            fetched = await provider.key_to_raw_series(
+                key="elecprice_marketprice_raw_wh",
+                start_datetime=last_original,
+                end_datetime=published_end,
+            )
+            expected_index = response_index[response_index >= pd.Timestamp(last_original)].tz_convert(
+                "UTC"
+            )
+            assert fetched.index.equals(expected_index)
+            np.testing.assert_allclose(fetched.to_numpy(), 0.0002)
+        else:
+            request.assert_not_called()
+            assert provider.highest_orig_datetime == last_original
+
+    @pytest.mark.asyncio
     @patch("requests.get")
     async def test_update_data_with_incomplete_forecast(self, mock_get, caplog, provider):
         """Test `_update_data` with incomplete or missing forecast data (cold start, fatal)."""
