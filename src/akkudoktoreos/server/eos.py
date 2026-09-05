@@ -73,6 +73,7 @@ from akkudoktoreos.prediction.load import LoadCommonSettings
 from akkudoktoreos.prediction.loadakkudoktor import LoadAkkudoktorCommonSettings
 from akkudoktoreos.prediction.pvforecast import PVForecastCommonSettings
 from akkudoktoreos.prediction.pvforecastpvlib import _cec_inverters, _cec_modules
+from akkudoktoreos.server.container_healthcheck import publish_port
 from akkudoktoreos.server.rest.error import (
     EOSProblem,
     create_error_page,
@@ -2359,6 +2360,9 @@ def run_eos() -> None:
 
     # Switch privileges to run_as_user
     drop_root_privileges(run_as_user=config_eos.server.run_as_user)
+
+    # Publish the effective startup port for the lightweight container probe.
+    publish_port(config_eos.server.port)
 
     # Init the other singletons (besides config_eos)
     singletons_init()
