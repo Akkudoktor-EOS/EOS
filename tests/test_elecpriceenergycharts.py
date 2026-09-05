@@ -159,6 +159,7 @@ class TestElecPriceEnergyCharts:
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("host_timezone", ["UTC", "Europe/Berlin"])
+    @pytest.mark.parametrize("history_interval_minutes", [15, 60])
     @pytest.mark.parametrize(
         ("now", "last_price", "interval_minutes", "needs_update"),
         [
@@ -180,6 +181,7 @@ class TestElecPriceEnergyCharts:
         provider: ElecPriceEnergyCharts,
         set_other_timezone: Callable[[str], str],
         host_timezone: str,
+        history_interval_minutes: int,
         now: str,
         last_price: str,
         interval_minutes: int,
@@ -196,15 +198,34 @@ class TestElecPriceEnergyCharts:
             pd.Timestamp(last_price, tz="Europe/Berlin"), in_timezone="Europe/Berlin"
         )
         get_ems().set_start_datetime(start)
-        raw_index = pd.date_range(
+        history_index = pd.date_range(
             start=start.subtract(days=35),
+            end=start,
+            freq=f"{history_interval_minutes}min",
+            inclusive="left",
+        )
+        source_index = pd.date_range(
+            start=start,
             end=last_original,
             freq=f"{interval_minutes}min",
         )
         await provider.key_from_series(
-            "elecprice_marketprice_raw_wh", pd.Series(0.0001, index=raw_index)
+            "elecprice_marketprice_raw_wh",
+            pd.Series(0.0001, index=history_index.append(source_index)),
         )
         provider.highest_orig_datetime = last_original
+
+        # Predicted values share the raw key but must not determine source coverage.
+        # Use enough slots at a different resolution to dominate an unbounded estimate.
+        predicted_interval_minutes = 60 if interval_minutes == 15 else 15
+        predicted_index = pd.date_range(
+            start=last_original.add(minutes=predicted_interval_minutes),
+            periods=120,
+            freq=f"{predicted_interval_minutes}min",
+        )
+        await provider.key_from_series(
+            "elecprice_marketprice_raw_wh", pd.Series(0.00005, index=predicted_index)
+        )
 
         published_end = start.add(days=1 if fixed_now.hour < 14 else 2)
         response_index = pd.date_range(
