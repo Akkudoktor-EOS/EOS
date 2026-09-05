@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -157,6 +158,7 @@ class TestElecPriceEnergyCharts:
         assert len(np_price_array) == provider.total_hours
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("host_timezone", ["UTC", "Europe/Berlin"])
     @pytest.mark.parametrize(
         ("now", "last_price", "interval_minutes", "needs_update"),
         [
@@ -176,12 +178,15 @@ class TestElecPriceEnergyCharts:
     async def test_update_data_refreshes_incomplete_published_intervals(
         self,
         provider: ElecPriceEnergyCharts,
+        set_other_timezone: Callable[[str], str],
+        host_timezone: str,
         now: str,
         last_price: str,
         interval_minutes: int,
         needs_update: bool,
     ) -> None:
         """Fetch missing source intervals without refreshing an already complete day."""
+        set_other_timezone(host_timezone)
         provider.config.merge_settings_from_dict(
             {"general": {"latitude": 52.52, "longitude": 13.405}}
         )
@@ -225,8 +230,12 @@ class TestElecPriceEnergyCharts:
             await provider._update_data(force_update=False)
 
         if needs_update:
-            request.assert_called_once_with(start_date=start.format("YYYY-MM-DD"), force_update=False)
-            assert provider.highest_orig_datetime == response_index[-1]
+            # Request dates use the host timezone; the publication boundary uses Berlin.
+            request.assert_called_once_with(
+                start_date=start.in_timezone(host_timezone).format("YYYY-MM-DD"),
+                force_update=False,
+            )
+            assert pd.Timestamp(provider.highest_orig_datetime) == response_index[-1]
             fetched = await provider.key_to_raw_series(
                 key="elecprice_marketprice_raw_wh",
                 start_datetime=last_original,
