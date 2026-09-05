@@ -270,12 +270,22 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
                 elif force_update:
                     # Use default start date in case of forced update
                     needs_update = True
-                elif not self._has_complete_published_horizon(
-                    now=now, resolution_seconds=resolution_seconds
-                ):
-                    # We have enough history, but not every expected source interval.
-                    start_datetime = gross_start_datetime
-                    needs_update = True
+                else:
+                    # The latest source data may have a different resolution than
+                    # the history before ems_start_datetime. Use its final 24 hours
+                    # so older, finer intervals cannot dominate the median, and
+                    # exclude the predicted tail.
+                    source_series = await self.key_to_raw_series(
+                        key="elecprice_marketprice_raw_wh",
+                        start_datetime=to_datetime(self.highest_orig_datetime).subtract(hours=24),
+                        end_datetime=to_datetime(self.highest_orig_datetime).add(seconds=1),
+                    )
+                    source_resolution_seconds = self._resolution_seconds(source_series)
+                    if not self._has_complete_published_horizon(
+                        now=now, resolution_seconds=source_resolution_seconds
+                    ):
+                        start_datetime = gross_start_datetime
+                        needs_update = True
         else:
             needs_update = True
 
