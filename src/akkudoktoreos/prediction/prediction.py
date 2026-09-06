@@ -53,6 +53,7 @@ from akkudoktoreos.prediction.predictionabc import PredictionContainer
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
+from akkudoktoreos.prediction.pvforecastakkudoktorlocal import PVForecastAkkudoktorLocal
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNode
 from akkudoktoreos.prediction.pvforecastsolcast import PVForecastSolcast
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
@@ -103,6 +104,7 @@ pvforecast_pvnode = PVForecastPVNode()
 pvforecast_forecastsolar = PVForecastForecastSolar()
 pvforecast_solcast = PVForecastSolcast()
 pvforecast_import = PVForecastImport()
+pvforecast_akkudoktor_local = PVForecastAkkudoktorLocal()
 weather_brightsky = WeatherBrightSky()
 weather_clearoutside = WeatherClearOutside()
 weather_openmeteo = WeatherOpenMeteo()
@@ -134,6 +136,7 @@ def prediction_providers() -> (
             PVForecastForecastSolar,
             PVForecastSolcast,
             PVForecastImport,
+            PVForecastAkkudoktorLocal,
             WeatherBrightSky,
             WeatherClearOutside,
             WeatherOpenMeteo,
@@ -168,6 +171,7 @@ def prediction_providers() -> (
         pvforecast_forecastsolar, \
         pvforecast_solcast, \
         pvforecast_import, \
+        pvforecast_akkudoktor_local, \
         weather_brightsky, \
         weather_clearoutside, \
         weather_openmeteo, \
@@ -197,6 +201,7 @@ def prediction_providers() -> (
         pvforecast_forecastsolar,
         pvforecast_solcast,
         pvforecast_import,
+        pvforecast_akkudoktor_local,
         weather_brightsky,
         weather_clearoutside,
         weather_openmeteo,
@@ -231,6 +236,7 @@ class Prediction(PredictionContainer):
             PVForecastForecastSolar,
             PVForecastSolcast,
             PVForecastImport,
+            PVForecastAkkudoktorLocal,
             WeatherBrightSky,
             WeatherClearOutside,
             WeatherOpenMeteo,

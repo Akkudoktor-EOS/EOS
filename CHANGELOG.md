@@ -98,6 +98,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   day-ahead market prices are retained at their native hourly or quarter-hourly resolution and
   missing slots at the end of the optimization horizon are extended with weekly or daily seasonal
   ETS forecasts. A median fallback is used when the available history is too short for ETS.
+- Add the `PVForecastAkkudoktorLocal` PV forecast provider, which runs the whole modelling chain
+  inside EOS with `pvlib` on raw Open-Meteo irradiance instead of calling a forecast service:
+  solar position, horizon shading, plane transposition, incidence-angle modifier, cell temperature,
+  PVWatts DC and inverter AC. It needs no API key, serves up to 16 days at 15-minute resolution
+  from one hourly request - enough to feed `optimization.tail_horizon_hours` - and exposes albedo,
+  inverter efficiency and the module temperature coefficient as real configuration. Several
+  Open-Meteo models can be listed in `weather_models` and are averaged per variable at no extra
+  request cost.
+- The local provider can calibrate itself against measured PV production (`calibration_enabled`).
+  It compares its own model against `measurement.pv_production_emr_keys` over the past
+  `calibration_days` and fits a global scale factor plus optional per-solar-azimuth factors, each
+  weighted by modelled energy, shrunk toward the global factor by `calibration_prior_kwh` and
+  clamped to `[calibration_min_factor, calibration_max_factor]`. The comparison runs on past
+  intervals, where Open-Meteo serves analysed rather than forecast weather, so it corrects the
+  error of the PV model and not that of the weather forecast. Setting
+  `calibration_azimuth_bin_degrees` to 0 fits the global factor alone, which is what a short
+  window supports.
+- Add `scripts/pvforecast_backtest.py`, which scores PV forecast configuration variants against
+  the stored meter readings straight away instead of waiting for new forecasts to come true, and
+  `Measurement.pv_production_total_kwh()` alongside the existing load total.
 
 ### Changed
 - Replace the fixed DEAP variation loop with adaptive genetic evolution. Crossover offspring may

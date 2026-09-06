@@ -27,6 +27,7 @@ from akkudoktoreos.prediction.prediction import (
 from akkudoktoreos.prediction.pvforecastakkudoktor import PVForecastAkkudoktor
 from akkudoktoreos.prediction.pvforecastforecastsolar import PVForecastForecastSolar
 from akkudoktoreos.prediction.pvforecastimport import PVForecastImport
+from akkudoktoreos.prediction.pvforecastakkudoktorlocal import PVForecastAkkudoktorLocal
 from akkudoktoreos.prediction.pvforecastpvnode import PVForecastPVNode
 from akkudoktoreos.prediction.pvforecastsolcast import PVForecastSolcast
 from akkudoktoreos.prediction.pvforecastvrm import PVForecastVrm
@@ -68,6 +69,7 @@ def forecast_providers():
         PVForecastForecastSolar(),
         PVForecastSolcast(),
         PVForecastImport(),
+        PVForecastAkkudoktorLocal(),
         WeatherBrightSky(),
         WeatherClearOutside(),
         WeatherOpenMeteo(),
@@ -126,10 +128,11 @@ def test_provider_sequence(prediction):
     assert isinstance(prediction.providers[19], PVForecastForecastSolar)
     assert isinstance(prediction.providers[20], PVForecastSolcast)
     assert isinstance(prediction.providers[21], PVForecastImport)
-    assert isinstance(prediction.providers[22], WeatherBrightSky)
-    assert isinstance(prediction.providers[23], WeatherClearOutside)
-    assert isinstance(prediction.providers[24], WeatherOpenMeteo)
-    assert isinstance(prediction.providers[25], WeatherImport)
+    assert isinstance(prediction.providers[22], PVForecastAkkudoktorLocal)
+    assert isinstance(prediction.providers[23], WeatherBrightSky)
+    assert isinstance(prediction.providers[24], WeatherClearOutside)
+    assert isinstance(prediction.providers[25], WeatherOpenMeteo)
+    assert isinstance(prediction.providers[26], WeatherImport)
 
 
 def test_provider_by_id(prediction, forecast_providers):

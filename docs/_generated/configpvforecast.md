@@ -34,7 +34,8 @@
                "PVForecastVrm": null,
                "PVForecastPVNode": null,
                "PVForecastForecastSolar": null,
-               "PVForecastSolcast": null
+               "PVForecastSolcast": null,
+               "PVForecastAkkudoktorLocal": null
            },
            "planes": [
                {
@@ -102,7 +103,8 @@
                "PVForecastVrm": null,
                "PVForecastPVNode": null,
                "PVForecastForecastSolar": null,
-               "PVForecastSolcast": null
+               "PVForecastSolcast": null,
+               "PVForecastAkkudoktorLocal": null
            },
            "planes": [
                {
@@ -157,7 +159,8 @@
                "PVForecastPVNode",
                "PVForecastForecastSolar",
                "PVForecastSolcast",
-               "PVForecastImport"
+               "PVForecastImport",
+               "PVForecastAkkudoktorLocal"
            ],
            "planes_peakpower": [
                5.0,
@@ -187,6 +190,69 @@
                6000.0,
                4000.0
            ]
+       }
+   }
+```
+<!-- pyml enable line-length -->
+
+### Common settings for the local (pvlib) PV forecast provider
+
+<!-- pyml disable line-length -->
+:::{table} pvforecast::provider_settings::PVForecastAkkudoktorLocal
+:widths: 10 10 5 5 30
+:align: left
+
+| Name | Type | Read-Only | Default | Description |
+| ---- | ---- | --------- | ------- | ----------- |
+| albedo | `float` | `rw` | `0.25` | Ground albedo used for planes that do not set their own. |
+| apply_iam | `bool` | `rw` | `True` | Apply the ASHRAE incidence-angle modifier to the beam component. |
+| calibration_azimuth_bin_degrees | `int` | `rw` | `15` | Width of the solar-azimuth bins for the correction. 0 fits a single global factor only. |
+| calibration_days | `int` | `rw` | `30` | Length of the measurement window used to fit the correction. |
+| calibration_enabled | `bool` | `rw` | `False` | Correct systematic model error against measured PV production. Requires `measurement.pv_production_emr_keys` to be configured and fed. Fits a global scale factor plus per-solar-azimuth factors, which is what catches near-field shading the horizon profile misses. |
+| calibration_max_factor | `float` | `rw` | `1.5` | Upper clamp on any fitted correction factor. |
+| calibration_min_factor | `float` | `rw` | `0.5` | Lower clamp on any fitted correction factor. |
+| calibration_prior_kwh | `float` | `rw` | `5.0` | Shrinkage strength: a bin needs this much modelled energy before its own factor outweighs the global one. Higher is more conservative. |
+| forecast_days | `Optional[int]` | `rw` | `None` | Forecast horizon in days (1-16). Leave empty to derive it from `prediction.hours`, which is what keeps the optimizer's tail horizon fed. |
+| inverter_efficiency | `float` | `rw` | `0.96` | Nominal inverter efficiency (PVWatts eta_inv_nom). |
+| past_days | `Optional[int]` | `rw` | `None` | Days of past data to request (0-92). Leave empty to derive it from `prediction.historic_hours`. |
+| resolution_minutes | `int` | `rw` | `15` | Forecast resolution in minutes. 15 requests Open-Meteo's `minutely_15` block (natively resolved over Central Europe and North America, interpolated from hourly elsewhere); 60 requests the `hourly` block. |
+| shift_to_interval_start | `bool` | `rw` | `True` | Open-Meteo stamps an interval mean with the interval END. EOS labels an interval by its START, so records are shifted back by one interval. Disable only to compare like-for-like against a provider that does not. |
+| temperature_coefficient | `float` | `rw` | `-0.36` | Module power temperature coefficient in %/degC (negative). Matches the `cellCoEff` the akkudoktor.net forecast uses. |
+| transposition_model | `str` | `rw` | `perez` | pvlib sky-diffuse transposition model: isotropic, klucher, haydavies, reindl, king or perez. |
+| weather_models | `list[str]` | `rw` | `['best_match']` | Open-Meteo weather models to request. Listing more than one turns the input into a poor-man's ensemble: the members are averaged per variable, which is the cheapest reliable way to cut irradiance forecast error. Costs no extra API calls. |
+:::
+<!-- pyml enable line-length -->
+
+<!-- pyml disable no-emphasis-as-heading -->
+**Example Input/Output**
+<!-- pyml enable no-emphasis-as-heading -->
+
+<!-- pyml disable line-length -->
+```json
+   {
+       "pvforecast": {
+           "provider_settings": {
+               "PVForecastAkkudoktorLocal": {
+                   "resolution_minutes": 15,
+                   "forecast_days": null,
+                   "past_days": null,
+                   "weather_models": [
+                       "best_match"
+                   ],
+                   "transposition_model": "perez",
+                   "albedo": 0.25,
+                   "inverter_efficiency": 0.96,
+                   "temperature_coefficient": -0.36,
+                   "apply_iam": true,
+                   "shift_to_interval_start": true,
+                   "calibration_enabled": true,
+                   "calibration_days": 30,
+                   "calibration_azimuth_bin_degrees": 15,
+                   "calibration_prior_kwh": 5.0,
+                   "calibration_min_factor": 0.5,
+                   "calibration_max_factor": 1.5
+               }
+           }
        }
    }
 ```
@@ -368,6 +434,7 @@
 | ---- | ---- | --------- | ------- | ----------- |
 | PVForecastForecastSolar | `Optional[akkudoktoreos.prediction.pvforecastforecastsolar.PVForecastForecastSolarCommonSettings]` | `rw` | `None` | PVForecastForecastSolar settings |
 | PVForecastImport | `Optional[akkudoktoreos.prediction.pvforecastimport.PVForecastImportCommonSettings]` | `rw` | `None` | PVForecastImport settings |
+| PVForecastAkkudoktorLocal | `Optional[akkudoktoreos.prediction.pvforecastlocal.PVForecastAkkudoktorLocalCommonSettings]` | `rw` | `None` | PVForecastAkkudoktorLocal settings |
 | PVForecastPVNode | `Optional[akkudoktoreos.prediction.pvforecastpvnode.PVForecastPVNodeCommonSettings]` | `rw` | `None` | PVForecastPVNode settings |
 | PVForecastSolcast | `Optional[akkudoktoreos.prediction.pvforecastsolcast.PVForecastSolcastCommonSettings]` | `rw` | `None` | PVForecastSolcast settings |
 | PVForecastVrm | `Optional[akkudoktoreos.prediction.pvforecastvrm.PVForecastVrmCommonSettings]` | `rw` | `None` | PVForecastVrm settings |
@@ -387,7 +454,8 @@
                "PVForecastVrm": null,
                "PVForecastPVNode": null,
                "PVForecastForecastSolar": null,
-               "PVForecastSolcast": null
+               "PVForecastSolcast": null,
+               "PVForecastAkkudoktorLocal": null
            }
        }
    }

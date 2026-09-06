@@ -203,22 +203,25 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             logger.debug(debug_msg)
         return energy_array
 
-    def load_total_kwh(
+    def _total_kwh(
         self,
+        emr_keys: Optional[list[str]],
+        label: str,
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
         interval: Optional[Duration] = None,
     ) -> NDArray[Shape["*"], Any]:
-        """Calculate a total load energy values array indexed by fixed time intervals from load metering data within an optional date range.
+        """Sum the per-interval energy of several meter reading keys.
 
         Args:
-            start_datetime (datetime, optional): The start date for filtering the load data (inclusive).
-            end_datetime (datetime, optional): The end date for filtering the load data (exclusive).
+            emr_keys: The configured energy meter reading keys to sum, or None.
+            label: Name of the summed quantity, used for debug logging only.
+            start_datetime (datetime, optional): The start date for filtering (inclusive).
+            end_datetime (datetime, optional): The end date for filtering (exclusive).
             interval (duration, optional): The fixed time interval. Defaults to 1 hour.
 
         Returns:
-            np.ndarray: A NumPy Array of the total load energy [kWh] per interval values calculated from
-                        the load meter readings.
+            np.ndarray: A NumPy Array of the total energy [kWh] per interval.
         """
         if interval is None:
             interval = to_duration("1 hour")
@@ -236,24 +239,73 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
         if end_datetime is None:
             end_datetime = self.max_datetime.add(seconds=1)
         size = self._interval_count(start_datetime, end_datetime, interval)
-        load_total_kwh_array = np.zeros(size)
+        total_kwh_array = np.zeros(size)
 
-        # Loop through all loads
-        if isinstance(self.config.measurement.load_emr_keys, list):
-            for key in self.config.measurement.load_emr_keys:
-                # Calculate load per interval
-                load_array = self._energy_from_meter_readings(
+        if isinstance(emr_keys, list):
+            for key in emr_keys:
+                # Calculate energy per interval
+                energy_array = self._energy_from_meter_readings(
                     key=key,
                     start_datetime=start_datetime,
                     end_datetime=end_datetime,
                     interval=interval,
                 )
-                # Add calculated load to total load
-                load_total_kwh_array += load_array
-                debug_msg = f"Total load '{key}' calculation: {load_total_kwh_array}"
+                # Add to the total
+                total_kwh_array += energy_array
+                debug_msg = f"Total {label} '{key}' calculation: {total_kwh_array}"
                 logger.debug(debug_msg)
 
-        return load_total_kwh_array
+        return total_kwh_array
+
+    def load_total_kwh(
+        self,
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+    ) -> NDArray[Shape["*"], Any]:
+        """Calculate a total load energy values array indexed by fixed time intervals from load metering data within an optional date range.
+
+        Args:
+            start_datetime (datetime, optional): The start date for filtering the load data (inclusive).
+            end_datetime (datetime, optional): The end date for filtering the load data (exclusive).
+            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
+
+        Returns:
+            np.ndarray: A NumPy Array of the total load energy [kWh] per interval values calculated from
+                        the load meter readings.
+        """
+        return self._total_kwh(
+            emr_keys=self.config.measurement.load_emr_keys,
+            label="load",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval=interval,
+        )
+
+    def pv_production_total_kwh(
+        self,
+        start_datetime: Optional[DateTime] = None,
+        end_datetime: Optional[DateTime] = None,
+        interval: Optional[Duration] = None,
+    ) -> NDArray[Shape["*"], Any]:
+        """Calculate total PV production energy per interval from PV meter readings.
+
+        Args:
+            start_datetime (datetime, optional): The start date for filtering the data (inclusive).
+            end_datetime (datetime, optional): The end date for filtering the data (exclusive).
+            interval (duration, optional): The fixed time interval. Defaults to 1 hour.
+
+        Returns:
+            np.ndarray: A NumPy Array of the total PV production energy [kWh] per interval
+                        calculated from the PV production meter readings.
+        """
+        return self._total_kwh(
+            emr_keys=self.config.measurement.pv_production_emr_keys,
+            label="PV production",
+            start_datetime=start_datetime,
+            end_datetime=end_datetime,
+            interval=interval,
+        )
 
     # ----------------------- Measurement Database Protocol ---------------------
 
