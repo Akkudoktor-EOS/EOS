@@ -167,7 +167,8 @@ def test_get_config_file_path(user_config_dir_patch, config_eos, config_default_
     user_config_dir_patch.return_value = str(config_default_dir_user)
 
     def cfg_file(dir: Path) -> Path:
-        return dir.joinpath(ConfigEOS.CONFIG_FILE_NAME)
+        # Match production directory normalization, including macOS /var aliases.
+        return dir.resolve().joinpath(ConfigEOS.CONFIG_FILE_NAME)
 
     # Config newly created from fixture with fresh user config directory
     assert config_eos._get_config_file_path() == (cfg_file(config_default_dir_user), True)
