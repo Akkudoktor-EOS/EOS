@@ -5,7 +5,7 @@ Notes:
 """
 
 from abc import abstractmethod
-from typing import List, Optional
+from typing import Generic, List, Optional, TypeVar
 
 from loguru import logger
 from pydantic import Field
@@ -24,7 +24,10 @@ class PVForecastDataRecord(PredictionRecord):
     )
 
 
-class PVForecastProvider(PredictionProvider):
+PVForecastDataRecordT = TypeVar("PVForecastDataRecordT", bound=PVForecastDataRecord)
+
+
+class PVForecastProvider(PredictionProvider[PVForecastDataRecordT], Generic[PVForecastDataRecordT]):
     """Abstract base class for pvforecast providers.
 
     PVForecastProvider is a thread-safe singleton, ensuring only one instance of this class is created.
@@ -45,7 +48,7 @@ class PVForecastProvider(PredictionProvider):
     """
 
     # overload
-    records: List[PVForecastDataRecord] = Field(
+    records: List[PVForecastDataRecordT] = Field(
         default_factory=list,
         json_schema_extra={"description": "List of PVForecastDataRecord records"},
     )

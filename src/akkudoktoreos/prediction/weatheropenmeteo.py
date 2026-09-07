@@ -342,12 +342,15 @@ class WeatherOpenMeteo(WeatherProvider):
             return
 
         data = pvlib.atmosphere.gueymard94_pw(temperature, humidity)
+        end_datetime = self.end_datetime
+        if end_datetime is None:
+            raise ValueError("Prediction end datetime is not available")
         pwat = pd.Series(
             data=data,
             index=pd.DatetimeIndex(
                 pd.date_range(
                     start=self.ems_start_datetime,
-                    end=self.end_datetime,
+                    end=end_datetime,
                     freq="1h",
                     inclusive="left",
                 )

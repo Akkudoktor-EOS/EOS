@@ -23,7 +23,7 @@ from akkudoktoreos.prediction.priceabc import PricePredictionProviderBase
 from akkudoktoreos.utils.datetimeutil import to_datetime
 
 
-class _PriceProviderForTest(PricePredictionProviderBase):
+class _PriceProviderForTest(PricePredictionProviderBase[PredictionRecord]):
     """Minimal concrete subclass to exercise PricePredictionProviderBase directly.
 
     Implements `_compute_gross` with the same add-then-percent formula as

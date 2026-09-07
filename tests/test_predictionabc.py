@@ -38,7 +38,7 @@ class DerivedRecord(PredictionRecord):
     prediction_value: Optional[float] = Field(default=None, description="Prediction Value")
 
 
-class DerivedSequence(PredictionSequence):
+class DerivedSequence(PredictionSequence[DerivedRecord]):
     # overload
     records: List[DerivedRecord] = Field(
         default_factory=list, description="List of DerivedRecord records"
@@ -49,7 +49,7 @@ class DerivedSequence(PredictionSequence):
         return DerivedRecord
 
 
-class DerivedPredictionProvider(PredictionProvider):
+class DerivedPredictionProvider(PredictionProvider[DerivedRecord]):
     """A concrete subclass of PredictionProvider for testing purposes."""
 
     # overload

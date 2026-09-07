@@ -16,6 +16,7 @@ from akkudoktoreos.devices.genetic0.genetic0homeappliance import Genetic0HomeApp
 from akkudoktoreos.devices.genetic0.genetic0inverter import Genetic0Inverter
 from akkudoktoreos.optimization.genetic0.genetic0params import (
     Genetic0EnergyManagementParameters,
+    Genetic0OptimizationParameters,
 )
 from akkudoktoreos.optimization.genetic0.genetic0solution import (
     Genetic0SimulationResult,
@@ -128,7 +129,7 @@ class Genetic0Simulation(PydanticBaseModel):
         self.pv_prediction_wh = np.array(parameters.pv_forecast_wh, float)
         self.elect_price_hourly = np.array(parameters.electricity_price_per_wh, float)
         self.elect_revenue_per_hour_arr = (
-            parameters.feed_in_tariff_per_wh
+            np.asarray(parameters.feed_in_tariff_per_wh, dtype=float)
             if isinstance(parameters.feed_in_tariff_per_wh, list)
             else np.full(len(self.load_energy_array), parameters.feed_in_tariff_per_wh, float)
         )
@@ -741,7 +742,7 @@ class Genetic0Optimization(OptimizationBase):
     def evaluate(
         self,
         individual: list[int],
-        parameters: Genetic0EnergyManagementParameters,
+        parameters: Genetic0OptimizationParameters,
         start_hour: int,
         worst_case: bool,
     ) -> tuple[float]:
@@ -1056,7 +1057,7 @@ class Genetic0Optimization(OptimizationBase):
 
     def optimize_ems(
         self,
-        parameters: Genetic0EnergyManagementParameters,
+        parameters: Genetic0OptimizationParameters,
         start_hour: Optional[int] = None,
         worst_case: bool = False,
         ngen: Optional[int] = None,
@@ -1208,21 +1209,21 @@ class Genetic0Optimization(OptimizationBase):
         )
 
         # Simulation may have changed something, use simulation values
-        ac_charge_hours = self.simulation.ac_charge_hours
-        if ac_charge_hours is None:
-            ac_charge_hours = []
-        else:
-            ac_charge_hours = ac_charge_hours.tolist()
-        dc_charge_hours = self.simulation.dc_charge_hours
-        if dc_charge_hours is None:
-            dc_charge_hours = []
-        else:
-            dc_charge_hours = dc_charge_hours.tolist()
-        discharge = self.simulation.bat_discharge_hours
-        if discharge is None:
-            discharge = []
-        else:
-            discharge = discharge.tolist()
+        ac_charge_hours = (
+            self.simulation.ac_charge_hours.tolist()
+            if self.simulation.ac_charge_hours is not None
+            else []
+        )
+        dc_charge_hours = (
+            self.simulation.dc_charge_hours.tolist()
+            if self.simulation.dc_charge_hours is not None
+            else []
+        )
+        discharge = (
+            self.simulation.bat_discharge_hours.tolist()
+            if self.simulation.bat_discharge_hours is not None
+            else []
+        )
 
         return Genetic0Solution(
             **{

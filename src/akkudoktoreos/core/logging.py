@@ -7,7 +7,7 @@ import re
 import sys
 from pathlib import Path
 from types import FrameType
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 
 import pendulum
 from loguru import logger
@@ -176,8 +176,8 @@ def read_file_log(
         raise FileNotFoundError("Log file not found")
 
     try:
-        from_dt = pendulum.parse(from_time) if from_time else None
-        to_dt = pendulum.parse(to_time) if to_time else None
+        from_dt = cast(pendulum.DateTime, pendulum.parse(from_time)) if from_time else None
+        to_dt = cast(pendulum.DateTime, pendulum.parse(to_time)) if to_time else None
     except Exception as e:
         raise ValueError(f"Invalid date/time format: {e}")
 
@@ -192,7 +192,7 @@ def read_file_log(
             return False
         if from_dt or to_dt:
             try:
-                log_time = pendulum.parse(log["time"])
+                log_time = cast(pendulum.DateTime, pendulum.parse(log["time"]))
             except Exception:
                 return False
             if from_dt and log_time < from_dt:

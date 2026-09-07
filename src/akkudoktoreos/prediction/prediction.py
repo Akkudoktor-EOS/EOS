@@ -119,40 +119,42 @@ weather_openmeteo = WeatherOpenMeteo()
 weather_import = WeatherImport()
 
 
-def prediction_providers() -> list[
-    Union[
-        ElecFeeFixed,
-        ElecFeeImport,
-        ElecPriceAkkudoktor,
-        ElecPriceEnergyCharts,
-        ElecPriceFixed,
-        ElecPriceImport,
-        ElecPriceSMARD,
-        ElecPriceTibber,
-        FeedInTariffAkkudoktor,
-        FeedInTariffDvhubOnline,
-        FeedInTariffEnergyCharts,
-        FeedInTariffFixed,
-        FeedInTariffImport,
-        FeedInTariffSMARD,
-        FeedInTariffTibber,
-        LoadAkkudoktor,
-        LoadAkkudoktorAdjusted,
-        LoadImport,
-        LoadVrm,
-        PVForecastAkkudoktor,
-        PVForecastForecastSolar,
-        PVForecastImport,
-        PVForecastPVLib,
-        PVForecastPVNode,
-        PVForecastSolcast,
-        PVForecastVrm,
-        WeatherBrightSky,
-        WeatherClearOutside,
-        WeatherImport,
-        WeatherOpenMeteo,
-    ]
-]:
+PredictionProviderType = Union[
+    ElecFeeFixed,
+    ElecFeeImport,
+    ElecPriceAkkudoktor,
+    ElecPriceEnergyCharts,
+    ElecPriceFixed,
+    ElecPriceImport,
+    ElecPriceSMARD,
+    ElecPriceTibber,
+    FeedInTariffAkkudoktor,
+    FeedInTariffDvhubOnline,
+    FeedInTariffEnergyCharts,
+    FeedInTariffFixed,
+    FeedInTariffImport,
+    FeedInTariffSMARD,
+    FeedInTariffTibber,
+    LoadAkkudoktor,
+    LoadAkkudoktorAdjusted,
+    LoadImport,
+    LoadVrm,
+    PVForecastAkkudoktor,
+    PVForecastForecastSolar,
+    PVForecastHomeAssistant,
+    PVForecastImport,
+    PVForecastPVLib,
+    PVForecastPVNode,
+    PVForecastSolcast,
+    PVForecastVrm,
+    WeatherBrightSky,
+    WeatherClearOutside,
+    WeatherImport,
+    WeatherOpenMeteo,
+]
+
+
+def prediction_providers() -> list[PredictionProviderType]:
     """Return list of prediction providers.
 
     Factory for prediction container.
@@ -229,44 +231,10 @@ def prediction_providers() -> list[
     ]
 
 
-class Prediction(PredictionContainer):
+class Prediction(PredictionContainer[PredictionProviderType]):
     """Prediction container to manage multiple prediction providers."""
 
-    providers: list[
-        Union[
-            ElecFeeFixed,
-            ElecFeeImport,
-            ElecPriceAkkudoktor,
-            ElecPriceEnergyCharts,
-            ElecPriceFixed,
-            ElecPriceImport,
-            ElecPriceSMARD,
-            ElecPriceTibber,
-            FeedInTariffAkkudoktor,
-            FeedInTariffDvhubOnline,
-            FeedInTariffEnergyCharts,
-            FeedInTariffFixed,
-            FeedInTariffImport,
-            FeedInTariffSMARD,
-            FeedInTariffTibber,
-            LoadAkkudoktor,
-            LoadAkkudoktorAdjusted,
-            LoadImport,
-            LoadVrm,
-            PVForecastAkkudoktor,
-            PVForecastForecastSolar,
-            PVForecastHomeAssistant,
-            PVForecastImport,
-            PVForecastPVLib,
-            PVForecastPVNode,
-            PVForecastSolcast,
-            PVForecastVrm,
-            WeatherBrightSky,
-            WeatherClearOutside,
-            WeatherImport,
-            WeatherOpenMeteo,
-        ]
-    ] = Field(
+    providers: list[PredictionProviderType] = Field(
         default_factory=prediction_providers,
         json_schema_extra={"description": "List of prediction providers"},
     )

@@ -7,7 +7,7 @@ including edge cases, error handling, and timezone behavior.
 import datetime
 import json
 import re
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 import babel
@@ -621,7 +621,7 @@ class TestToTime:
     def test_to_time_invalid_input_type(self):
         """Test to_time with invalid input type."""
         with pytest.raises(ValueError, match="Unsupported type"):
-            to_time({"invalid": "input"})
+            to_time(cast(Any, {"invalid": "input"}))
 
     def test_to_time_invalid_hour_integer(self):
         """Test to_time with invalid hour as integer."""
@@ -657,7 +657,7 @@ class TestToTime:
     def test_to_time_invalid_timezone_type(self):
         """Test to_time with invalid timezone type."""
         with pytest.raises(ValueError, match="Invalid timezone"):
-            to_time("14:30", in_timezone=123)
+            to_time("14:30", in_timezone=cast(Any, 123))
 
     def test_to_time_microseconds_precision(self):
         """Test to_time preserves microsecond precision."""
@@ -727,7 +727,7 @@ class TestTimeUtilityIntegration:
             test_time: Time
 
         # Test with string input
-        model = TestModel(test_time="14:30:45")
+        model = TestModel.model_validate(dict(test_time="14:30:45"))
         assert isinstance(model.test_time, Time)
         assert model.test_time.hour == 14
 
@@ -748,8 +748,8 @@ class TestTimeUtilityIntegration:
 
         for case in test_cases:
             # Both should produce the same result
-            direct_result = to_time(case)
-            model_result = TestModel(test_time=case).test_time
+            direct_result = to_time(cast(Any, case))
+            model_result = TestModel.model_validate(dict(test_time=case)).test_time
 
             assert direct_result.hour == model_result.hour
             assert direct_result.minute == model_result.minute
@@ -770,12 +770,12 @@ class ScheduleModel(PydanticBaseModel):
 class TestPendulumTypes:
 
     def test_valid_schedule_model(self):
-        model = ScheduleModel(
+        model = ScheduleModel.model_validate(dict(
             start_time="14:30:00",
             run_duration=to_duration("PT2H"),
             scheduled_at=to_datetime("2025-07-04T09:00:00+02:00"),
             run_on=to_datetime("2025-07-04")
-        )
+        ))
 
         assert isinstance(model.start_time, pendulum.Time)
         assert isinstance(model.run_duration, pendulum.Duration)
@@ -788,12 +788,12 @@ class TestPendulumTypes:
         assert model.run_on.to_date_string() == "2025-07-04"
 
     def test_json_serialization(self):
-        model = ScheduleModel(
+        model = ScheduleModel.model_validate(dict(
             start_time=pendulum.time(6, 15),
             run_duration=pendulum.duration(minutes=45),
             scheduled_at=pendulum.datetime(2025, 7, 4, 6, 15, tz="Europe/Berlin"),
             run_on=pendulum.date(2025, 7, 4)
-        )
+        ))
 
         json_data = model.model_dump(mode="json")
         assert "06:15:00" in json_data["start_time"]
@@ -809,30 +809,30 @@ class TestPendulumTypes:
 
     def test_invalid_start_time(self):
         with pytest.raises(ValidationError):
-            ScheduleModel(
+            ScheduleModel.model_validate(dict(
                 start_time="invalid",
                 run_duration="PT1H",
                 scheduled_at="2025-07-04T09:00:00+02:00",
                 run_on="2025-07-04"
-            )
+            ))
 
     def test_invalid_duration(self):
         with pytest.raises(ValidationError):
-            ScheduleModel(
+            ScheduleModel.model_validate(dict(
                 start_time="10:00:00",
                 run_duration="2 hours",  # invalid ISO 8601 duration
                 scheduled_at="2025-07-04T09:00:00+02:00",
                 run_on="2025-07-04"
-            )
+            ))
 
     def test_type_coercion(self):
         dt = pendulum.datetime(2025, 7, 4, 12, 0)
-        model = ScheduleModel(
+        model = ScheduleModel.model_validate(dict(
             start_time=pendulum.time(12, 0),
             run_duration=pendulum.duration(hours=3),
             scheduled_at=dt,
             run_on=dt.date()
-        )
+        ))
         assert model.scheduled_at.hour == 12
         assert model.run_duration.total_minutes() == 180
 
@@ -1424,7 +1424,7 @@ def test_hours_in_day(set_other_timezone, local_timezone, date, in_timezone, exp
     """Test the `test_hours_in_day` function."""
     set_other_timezone(local_timezone)
     date_input = to_datetime(date, in_timezone=in_timezone)
-    assert date_input.timezone.name == in_timezone
+    assert date_input.timezone_name == in_timezone
     assert hours_in_day(date_input) == expected_hours
 
 

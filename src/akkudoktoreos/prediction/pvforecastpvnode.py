@@ -100,6 +100,8 @@ class PVForecastPVNode(PVForecastProvider):
         tz = iana_tz or str(self.config.general.timezone)
         # Interpret the naive wall-clock string AS local time in tz, then resolve.
         dt = pendulum.parse(s, tz=tz)
+        if not isinstance(dt, pendulum.DateTime):
+            raise ValueError(f"Expected a datetime, got {local_ts!r}")
         return to_datetime(dt.isoformat())
 
     def _extract_values(self, body: Any) -> list[tuple[Any, float]]:

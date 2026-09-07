@@ -6,6 +6,7 @@ from akkudoktoreos.core.emplan import (
     BaseInstruction,
     CommodityQuantity,
     DDBCInstruction,
+    EnergyManagementInstruction,
     EnergyManagementPlan,
     FRBCInstruction,
     OMBCInstruction,
@@ -30,6 +31,7 @@ class TestEnergyManagementPlan:
     # Helpers (only used inside the class)
     # ----------------------------------------------------------------------
     def _make_instr(self, resource_id, execution_time, duration=None):
+        instr: OMBCInstruction | PEBCInstruction
         if duration is None:
             instr = OMBCInstruction(
                 id=resource_id,
@@ -169,7 +171,7 @@ class TestEnergyManagementPlan:
             generated_at=fixed_now,
             instructions=[]
         )
-        instrs = [
+        instrs: list[EnergyManagementInstruction] = [
             DDBCInstruction(
                 id="actuatorA@123",
                 execution_time=fixed_now,

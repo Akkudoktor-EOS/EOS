@@ -3,7 +3,6 @@ from typing import Optional, Union
 import pandas as pd
 import requests
 from bokeh.models import ColumnDataSource, LinearAxis, Range1d
-from bokeh.plotting import figure
 from loguru import logger
 from monsterui.franken import (
     Card,
@@ -28,7 +27,11 @@ from akkudoktoreos.core.emplan import (
     OMBCInstruction,
 )
 from akkudoktoreos.optimization.optimization import OptimizationSolution
-from akkudoktoreos.server.dash.bokeh import Bokeh, bokey_apply_theme_to_plot
+from akkudoktoreos.server.dash.bokeh import (
+    Bokeh,
+    bokey_apply_theme_to_plot,
+    create_figure,
+)
 from akkudoktoreos.server.dash.components import Error
 from akkudoktoreos.server.dash.context import request_url_for
 from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
@@ -259,21 +262,21 @@ def SolutionCard(solution: OptimizationSolution, config: SettingsEOS, data: Opti
         last_run_datetime = "unknown"
         start_datetime = "unknown"
 
-    plot = figure(
+    plot = create_figure(
         title=f"Optimization Solution - last run: {last_run_datetime}",
         x_axis_type="datetime",
         x_axis_label=f"Datetime [localtime {date_time_tz}] - start: {start_datetime}",
         y_axis_label="Power [W]",
         sizing_mode="stretch_width",
-        y_range=Range1d(power_w_min, power_w_max),
+        y_range=Range1d(start=power_w_min, end=power_w_max),
         height=400,
     )
 
     plot.extra_y_ranges = {
-        "energy": Range1d(energy_wh_min, energy_wh_max),  # y2
-        "factor": Range1d(factor_min, factor_max),  # y3
-        "amt_kwh": Range1d(amt_kwh_min, amt_kwh_max),  # y4
-        "amt": Range1d(amt_min, amt_max),  # y5
+        "energy": Range1d(start=energy_wh_min, end=energy_wh_max),  # y2
+        "factor": Range1d(start=factor_min, end=factor_max),  # y3
+        "amt_kwh": Range1d(start=amt_kwh_min, end=amt_kwh_max),  # y4
+        "amt": Range1d(start=amt_min, end=amt_max),  # y5
     }
     # y2 axis
     y2_axis = LinearAxis(y_range_name="energy", axis_label="Energy [Wh]")
@@ -536,7 +539,7 @@ def InstructionCard(
         )
     ):
         # This is a battery
-        if instruction.operation_mode_id in ("CHARGE",):
+        if getattr(instruction, "operation_mode_id", None) in ("CHARGE",):
             icon = "battery-charging"
         else:
             icon = "battery"

@@ -145,7 +145,13 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
         """Entity IDs available at Home Assistant."""
         try:
             adapter_eos = get_adapter()
-            result = adapter_eos.provider_by_id("HomeAssistant").get_homeassistant_entity_ids()
+            provider = adapter_eos.provider_by_id("HomeAssistant")
+        except Exception:
+            return []
+        if not isinstance(provider, HomeAssistantAdapter):
+            raise TypeError("HomeAssistant provider must be a HomeAssistantAdapter")
+        try:
+            result = provider.get_homeassistant_entity_ids()
         except Exception:
             return []
         return result
@@ -156,7 +162,13 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
         """Entity IDs for optimization solution available at EOS."""
         try:
             adapter_eos = get_adapter()
-            result = adapter_eos.provider_by_id("HomeAssistant").get_eos_solution_entity_ids()
+            provider = adapter_eos.provider_by_id("HomeAssistant")
+        except Exception:
+            return []
+        if not isinstance(provider, HomeAssistantAdapter):
+            raise TypeError("HomeAssistant provider must be a HomeAssistantAdapter")
+        try:
+            result = provider.get_eos_solution_entity_ids()
         except Exception:
             return []
         return result
@@ -167,9 +179,13 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
         """Entity IDs for energy management instructions available at EOS."""
         try:
             adapter_eos = get_adapter()
-            result = adapter_eos.provider_by_id(
-                "HomeAssistant"
-            ).get_eos_device_instruction_entity_ids()
+            provider = adapter_eos.provider_by_id("HomeAssistant")
+        except Exception:
+            return []
+        if not isinstance(provider, HomeAssistantAdapter):
+            raise TypeError("HomeAssistant provider must be a HomeAssistantAdapter")
+        try:
+            result = provider.get_eos_device_instruction_entity_ids()
         except Exception:
             return []
         return result

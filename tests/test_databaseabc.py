@@ -18,6 +18,7 @@ from typing import Any, AsyncIterator, Iterator, Literal, Optional, Type, cast
 import pytest
 import pytest_asyncio
 from numpydantic import NDArray, Shape
+from pendulum import UTC
 from pydantic import BaseModel, Field
 
 from akkudoktoreos.core.databaseabc import (
@@ -57,7 +58,7 @@ class SampleRecord(BaseModel):
             return self.value
         raise KeyError(key)
 
-    def model_dump(self) -> dict:
+    def model_dump(self, **kwargs: Any) -> dict:
         return {"date_time": self.date_time, "value": self.value}
 
 
@@ -303,7 +304,7 @@ class SampleSequence(DatabaseRecordProtocolMixin[SampleRecord]):
         if end_datetime is not None:
             resampled = resampled.truncate(after=end_datetime)
 
-        return resampled.values
+        return resampled.to_numpy()
 
 
 # ---------------------------------------------------------------------------
@@ -381,7 +382,7 @@ class TestDatabaseRecordProtocolMixin:
         self, seq, start_str, value_count, interval_seconds
     ):
         start_dt = to_datetime(start_str, in_timezone="Europe/Berlin")
-        assert start_dt.tz.name == "Europe/Berlin"
+        assert start_dt.timezone_name == "Europe/Berlin"
 
         db_start = DatabaseTimestamp.from_datetime(start_dt)
         generated = list(seq.db_generate_timestamps(db_start, value_count))
@@ -390,7 +391,7 @@ class TestDatabaseRecordProtocolMixin:
 
         for db_dt in generated:
             dt = DatabaseTimestamp.to_datetime(db_dt)
-            assert dt.tz.name == "UTC"
+            assert dt.timezone_name == "UTC"
 
         assert len(generated) == len(set(generated)), "Duplicate UTC datetimes found"
 
@@ -1047,7 +1048,9 @@ class TestCompactDataIntegrity:
         interval_sec = 15 * 60
         expected_window_start = DateTime.fromtimestamp(
             (int(base.timestamp()) // interval_sec) * interval_sec,
-            tz="UTC",
+            tz=UTC,
         )
+        assert compacted[0].date_time is not None
+        assert compacted[-1].date_time is not None
         assert compacted[0].date_time >= expected_window_start
         assert compacted[-1].date_time < cutoff

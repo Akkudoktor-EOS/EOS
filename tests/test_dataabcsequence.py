@@ -52,7 +52,7 @@ class DerivedRecord(DataRecord):
         return ["dish_washer_emr", "solar_power", "temp"]
 
 
-class DerivedSequence(DataSequence):
+class DerivedSequence(DataSequence[DerivedRecord]):
     # overload
     records: List[DerivedRecord] = Field(
         default_factory=list, description="List of DerivedRecord records"
@@ -66,7 +66,7 @@ class DerivedSequence(DataSequence):
         return "DerivedSequence"
 
 
-class DerivedSequence2(DataSequence):
+class DerivedSequence2(DataSequence[DerivedRecord]):
     # overload
     records: List[DerivedRecord] = Field(
         default_factory=list, description="List of DerivedRecord records"

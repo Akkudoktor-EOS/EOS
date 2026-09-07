@@ -104,7 +104,7 @@ class ElecFeeDataRecord(PredictionRecord):
         return self.elecfee_feedin_amt_wh * 1000.0
 
 
-class ElecFeeProvider(PredictionProvider):
+class ElecFeeProvider(PredictionProvider[ElecFeeDataRecord]):
     """Abstract base class for electricity fee providers.
 
     Electricity fee providers predict fees on consumed and feed-in electricity to be used by

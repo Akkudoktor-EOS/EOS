@@ -1,7 +1,7 @@
 """Shared base for price-like predictions (electricity price, feed-in tariff)."""
 
 from abc import abstractmethod
-from typing import cast
+from typing import Generic, cast
 
 import numpy as np
 import pandas as pd
@@ -9,11 +9,14 @@ from loguru import logger
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from akkudoktoreos.core.coreabc import PredictionMixin
+from akkudoktoreos.core.dataabc import DataRecordT
 from akkudoktoreos.prediction.predictionabc import PredictionProvider
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
 
 
-class PricePredictionProviderBase(PredictionMixin, PredictionProvider):
+class PricePredictionProviderBase(
+    PredictionMixin, PredictionProvider[DataRecordT], Generic[DataRecordT]
+):
     """Common forecasting + fee-application logic shared by price-like providers.
 
     Subclasses must supply the raw/gross record keys, the fee keys to pull from

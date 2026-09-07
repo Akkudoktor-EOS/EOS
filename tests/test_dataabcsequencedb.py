@@ -111,7 +111,7 @@ class SampleDataRecord(DataRecord):
     pressure: float = Field(default=0.0)
 
 
-class SampleDataSequence(DataSequence):
+class SampleDataSequence(DataSequence[SampleDataRecord]):
     """DataSequence subclass with database support."""
     records: list[SampleDataRecord] = Field(default_factory=list)
 
@@ -123,7 +123,7 @@ class SampleDataSequence(DataSequence):
         return "SampleDataSequence"
 
 
-class SampleDataProvider(DataProvider):
+class SampleDataProvider(DataProvider[SampleDataRecord]):
     """DataProvider subclass with database support."""
     records: list[SampleDataRecord] = Field(default_factory=list)
 
@@ -317,7 +317,7 @@ class TestDataSequenceDatabaseProtocol:
         db_end = DatabaseTimestamp.from_datetime(base_time.add(hours=5))
         records = [record async for record in sequence.db_iterate_records(start_timestamp=db_start, end_timestamp=db_end)]
         assert len(records) == 3
-        assert all(base_time.add(hours=2) <= r.date_time < base_time.add(hours=5) for r in records)
+        assert all(r.date_time is not None and base_time.add(hours=2) <= r.date_time < base_time.add(hours=5) for r in records)
 
     async def test_delete_records(self, async_database_instance):
         sequence = SampleDataSequence()

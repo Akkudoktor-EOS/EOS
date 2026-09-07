@@ -55,11 +55,11 @@ def aware_dt(year, month, day, hour=0, minute=0, second=0, tz="Europe/Berlin"):
 
 def make_window(start_h, duration_h, **kwargs):
     """Build a TimeWindow with a naive start_time at ``start_h:00``."""
-    return TimeWindow(
+    return TimeWindow.model_validate(dict(
         start_time=f"{start_h:02d}:00:00",
         duration=f"{duration_h} hours",
         **kwargs,
-    )
+    ))
 
 
 # ===========================================================================
@@ -73,10 +73,10 @@ class TestTimeWindowConstruction:
 
     def test_aware_start_time_stripped_to_naive(self):
         """An aware start_time is silently stripped to naive (to_time may add a tz)."""
-        w = TimeWindow(
+        w = TimeWindow.model_validate(dict(
             start_time=Time(8, 0, 0, tzinfo=pendulum.timezone("Europe/Berlin")),
             duration="2 hours",
-        )
+        ))
         assert w.start_time.tzinfo is None
         assert w.start_time.hour == 8
 
@@ -375,7 +375,7 @@ class TestFitAndAvailable:
 
 class TestTimeWindowSequence:
     def setup_method(self, method):
-        self.seq = TimeWindowSequence(
+        self.seq = TimeWindowSequence[TimeWindow](
             windows=[
                 make_window(8, 2),   # 08:00–10:00
                 make_window(14, 3),  # 14:00–17:00
@@ -417,15 +417,15 @@ class TestTimeWindowSequence:
         assert result == pendulum.duration(hours=5)
 
     def test_empty_sequence_contains_false(self):
-        seq = TimeWindowSequence()
+        seq = TimeWindowSequence[TimeWindow]()
         assert not seq.contains(naive_dt(2024, 6, 15, 9, 0, 0))
 
     def test_empty_sequence_earliest_none(self):
-        seq = TimeWindowSequence()
+        seq = TimeWindowSequence[TimeWindow]()
         assert seq.earliest_start_time(pendulum.duration(hours=1), naive_dt(2024, 6, 15)) is None
 
     def test_empty_sequence_available_none(self):
-        seq = TimeWindowSequence()
+        seq = TimeWindowSequence[TimeWindow]()
         assert seq.available_duration(naive_dt(2024, 6, 15)) is None
 
     def test_get_applicable_windows(self):
@@ -445,7 +445,7 @@ class TestTimeWindowSequence:
         assert fits[0].start_time.hour == 14
 
     def test_sort_windows_by_start_time(self):
-        seq = TimeWindowSequence(
+        seq = TimeWindowSequence[TimeWindow](
             windows=[make_window(14, 1), make_window(8, 1)]
         )
         ref = naive_dt(2024, 6, 15)
@@ -454,7 +454,7 @@ class TestTimeWindowSequence:
         assert seq.windows[1].start_time.hour == 14
 
     def test_add_and_remove_window(self):
-        seq = TimeWindowSequence()
+        seq = TimeWindowSequence[TimeWindow]()
         w = make_window(10, 1)
         seq.add_window(w)
         assert len(seq) == 1
@@ -463,7 +463,7 @@ class TestTimeWindowSequence:
         assert len(seq) == 0
 
     def test_remove_from_empty_raises(self):
-        seq = TimeWindowSequence()
+        seq = TimeWindowSequence[TimeWindow]()
         with pytest.raises(IndexError):
             seq.remove_window(0)
 
@@ -487,20 +487,20 @@ class TestTimeWindowSequence:
 
 class TestValueTimeWindow:
     def test_value_stored(self):
-        w = ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=0.288)
+        w = ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours", value=0.288))
         assert w.value == pytest.approx(0.288)
 
     def test_value_default_none(self):
-        w = ValueTimeWindow(start_time="08:00:00", duration="2 hours")
+        w = ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours"))
         assert w.value is None
 
     def test_inherits_aware_start_time_stripped(self):
         """ValueTimeWindow inherits the strip-to-naive behaviour from TimeWindow."""
-        w = ValueTimeWindow(
+        w = ValueTimeWindow.model_validate(dict(
             start_time=Time(8, 0, 0, tzinfo=pendulum.timezone("UTC")),
             duration="2 hours",
             value=0.1,
-        )
+        ))
         assert w.start_time.tzinfo is None
         assert w.start_time.hour == 8
 
@@ -509,8 +509,8 @@ class TestValueTimeWindowSequence:
     def setup_method(self, method):
         self.seq = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.25),
-                ValueTimeWindow(start_time="18:00:00", duration="4 hours", value=0.35),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="4 hours", value=0.25)),
+                ValueTimeWindow.model_validate(dict(start_time="18:00:00", duration="4 hours", value=0.35)),
             ]
         )
 
@@ -528,7 +528,7 @@ class TestValueTimeWindowSequence:
 
     def test_get_value_none_value_returns_zero(self):
         seq = ValueTimeWindowSequence(
-            windows=[ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=None)]
+            windows=[ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="4 hours", value=None))]
         )
         assert seq.get_value_for_datetime(naive_dt(2024, 6, 15, 9, 0, 0)) == pytest.approx(0.0)
 
@@ -552,7 +552,7 @@ class TestTimeWindowSequenceToArray:
     """
 
     def setup_method(self, method):
-        self.seq = TimeWindowSequence(
+        self.seq = TimeWindowSequence[TimeWindow](
             windows=[
                 make_window(8, 2),   # 08:00–10:00
                 make_window(14, 3),  # 14:00–17:00
@@ -697,7 +697,7 @@ class TestTimeWindowSequenceToArray:
     # ------------------------------------------------------------------
 
     def test_empty_sequence_all_zeros(self):
-        seq = TimeWindowSequence()
+        seq = TimeWindowSequence[TimeWindow]()
         start = naive_dt(2024, 6, 15, 0)
         end   = naive_dt(2024, 6, 15, 4)
         arr = seq.to_array(start, end, pendulum.duration(hours=1))
@@ -710,7 +710,7 @@ class TestTimeWindowSequenceToArray:
 
     def test_day_of_week_constraint_respected(self):
         # Monday-only window; 2024-06-17 is Monday, 2024-06-18 is Tuesday
-        seq = TimeWindowSequence(windows=[make_window(8, 2, day_of_week=0)])
+        seq = TimeWindowSequence[TimeWindow](windows=[make_window(8, 2, day_of_week=0)])
         monday_start = naive_dt(2024, 6, 17, 7)
         tuesday_start = naive_dt(2024, 6, 18, 7)
         end_offset = pendulum.duration(hours=4)
@@ -737,7 +737,7 @@ class TestTimeWindowSequenceToSeries:
     """
 
     def setup_method(self, method):
-        self.seq = TimeWindowSequence(
+        self.seq = TimeWindowSequence[TimeWindow](
             windows=[
                 make_window(8, 2),
                 make_window(14, 3),
@@ -858,7 +858,7 @@ class TestTimeWindowSequenceToSeries:
             )
 
     def test_empty_sequence_all_zeros(self):
-        seq = TimeWindowSequence()
+        seq = TimeWindowSequence[TimeWindow]()
         start = naive_dt(2024, 6, 15, 0)
         end = naive_dt(2024, 6, 15, 4)
 
@@ -885,8 +885,8 @@ class TestValueTimeWindowSequenceToArray:
     def setup_method(self, method):
         self.seq = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.25),
-                ValueTimeWindow(start_time="18:00:00", duration="4 hours", value=0.35),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="4 hours", value=0.25)),
+                ValueTimeWindow.model_validate(dict(start_time="18:00:00", duration="4 hours", value=0.35)),
             ]
         )
 
@@ -939,8 +939,8 @@ class TestValueTimeWindowSequenceToArray:
     def test_dropna_false_none_value_emits_nan(self):
         seq = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=None),
-                ValueTimeWindow(start_time="12:00:00", duration="2 hours", value=0.5),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours", value=None)),
+                ValueTimeWindow.model_validate(dict(start_time="12:00:00", duration="2 hours", value=0.5)),
             ]
         )
         start = naive_dt(2024, 6, 15, 8)
@@ -956,8 +956,8 @@ class TestValueTimeWindowSequenceToArray:
     def test_dropna_true_none_value_step_omitted(self):
         seq = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=None),
-                ValueTimeWindow(start_time="12:00:00", duration="2 hours", value=0.5),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours", value=None)),
+                ValueTimeWindow.model_validate(dict(start_time="12:00:00", duration="2 hours", value=0.5)),
             ]
         )
         start = naive_dt(2024, 6, 15, 8)
@@ -1018,8 +1018,8 @@ class TestValueTimeWindowSequenceToArray:
     def test_overlapping_windows_first_wins(self):
         seq = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="08:00:00", duration="4 hours", value=0.10),
-                ValueTimeWindow(start_time="09:00:00", duration="4 hours", value=0.99),
+                ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="4 hours", value=0.10)),
+                ValueTimeWindow.model_validate(dict(start_time="09:00:00", duration="4 hours", value=0.99)),
             ]
         )
         start = naive_dt(2024, 6, 15, 9)
@@ -1040,16 +1040,16 @@ class TestValueTimeWindowSequenceToSeries:
     def setup_method(self, method):
         self.seq = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(
+                ValueTimeWindow.model_validate(dict(
                     start_time="08:00:00",
                     duration="4 hours",
                     value=0.25,
-                ),
-                ValueTimeWindow(
+                )),
+                ValueTimeWindow.model_validate(dict(
                     start_time="18:00:00",
                     duration="4 hours",
                     value=0.35,
-                ),
+                )),
             ]
         )
 
@@ -1096,16 +1096,16 @@ class TestValueTimeWindowSequenceToSeries:
     def test_dropna_false_none_value_emits_nan(self):
         seq = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(
+                ValueTimeWindow.model_validate(dict(
                     start_time="08:00:00",
                     duration="2 hours",
                     value=None,
-                ),
-                ValueTimeWindow(
+                )),
+                ValueTimeWindow.model_validate(dict(
                     start_time="12:00:00",
                     duration="2 hours",
                     value=0.5,
-                ),
+                )),
             ]
         )
 
@@ -1134,16 +1134,16 @@ class TestValueTimeWindowSequenceToSeries:
     def test_dropna_true_none_value_omits_timestamp(self):
         seq = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(
+                ValueTimeWindow.model_validate(dict(
                     start_time="08:00:00",
                     duration="2 hours",
                     value=None,
-                ),
-                ValueTimeWindow(
+                )),
+                ValueTimeWindow.model_validate(dict(
                     start_time="12:00:00",
                     duration="2 hours",
                     value=0.5,
-                ),
+                )),
             ]
         )
 
@@ -1254,16 +1254,16 @@ class TestValueTimeWindowSequenceToSeries:
     def test_overlapping_windows_first_wins(self):
         seq = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(
+                ValueTimeWindow.model_validate(dict(
                     start_time="08:00:00",
                     duration="4 hours",
                     value=0.10,
-                ),
-                ValueTimeWindow(
+                )),
+                ValueTimeWindow.model_validate(dict(
                     start_time="09:00:00",
                     duration="4 hours",
                     value=0.99,
-                ),
+                )),
             ]
         )
 
@@ -1452,7 +1452,7 @@ class TestAlignToIntervalTimezoneInvariance:
     def test_vtws_naive_floor_utc(self, set_other_timezone):
         set_other_timezone("UTC")
         seq = ValueTimeWindowSequence(windows=[
-            ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=0.25)
+            ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours", value=0.25))
         ])
         start = naive_dt(2024, 6, 15, 8, 10)
         end   = naive_dt(2024, 6, 15, 10, 10)
@@ -1465,7 +1465,7 @@ class TestAlignToIntervalTimezoneInvariance:
     def test_vtws_naive_floor_non_utc(self, set_other_timezone):
         set_other_timezone()
         seq = ValueTimeWindowSequence(windows=[
-            ValueTimeWindow(start_time="08:00:00", duration="2 hours", value=0.25)
+            ValueTimeWindow.model_validate(dict(start_time="08:00:00", duration="2 hours", value=0.25))
         ])
         start = naive_dt(2024, 6, 15, 8, 10)
         end   = naive_dt(2024, 6, 15, 10, 10)
@@ -1480,11 +1480,11 @@ class TestAlignToIntervalTimezoneInvariance:
 
         seq = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(
+                ValueTimeWindow.model_validate(dict(
                     start_time="08:00:00",
                     duration="2 hours",
                     value=0.25,
-                )
+                ))
             ]
         )
 

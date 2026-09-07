@@ -137,13 +137,13 @@ def genetic_simulation_2(config_eos) -> GeneticSimulation:
     # Initialize the energy management system with the respective parameters
     simulation = GeneticSimulation()
     simulation.prepare(
-        GeneticEnergyManagementParameters(
+        GeneticEnergyManagementParameters.model_validate(dict(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
             preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
             gesamtlast=gesamtlast,
-        ),
+        )),
         optimization_hours = config_eos.optimization.genetic.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
         inverter=inverter,

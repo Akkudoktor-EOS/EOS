@@ -19,7 +19,7 @@ class LoggingCommonSettings(SettingsBaseModel):
         default=None,
         json_schema_extra={
             "description": "Logging level for API response.",
-            "examples": LOGGING_LEVELS,
+            "examples": [*LOGGING_LEVELS],
         },
     )
 
@@ -27,7 +27,7 @@ class LoggingCommonSettings(SettingsBaseModel):
         default=None,
         json_schema_extra={
             "description": "Logging level for logging to console.",
-            "examples": LOGGING_LEVELS,
+            "examples": [*LOGGING_LEVELS],
         },
     )
 
@@ -35,7 +35,7 @@ class LoggingCommonSettings(SettingsBaseModel):
         default=None,
         json_schema_extra={
             "description": "Logging level for logging to file.",
-            "examples": LOGGING_LEVELS,
+            "examples": [*LOGGING_LEVELS],
         },
     )
 

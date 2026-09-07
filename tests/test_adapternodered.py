@@ -62,6 +62,7 @@ class TestNodeREDAdapter:
         await adapter.update_data(force_enable=True)
 
         mock_get.assert_called_once()
+        assert adapter.update_datetime is not None
         assert compare_datetimes(adapter.update_datetime, now).approximately_equal
 
     @pytest.mark.asyncio

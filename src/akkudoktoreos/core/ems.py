@@ -92,7 +92,7 @@ class EnergyManagement(
     def start_datetime(self) -> DateTime:
         """The starting datetime of the current or latest energy management."""
         if EnergyManagement._start_datetime is None:
-            EnergyManagement.set_start_datetime()
+            return EnergyManagement.set_start_datetime()
         return EnergyManagement._start_datetime
 
     @computed_field  # type: ignore[prop-decorator]

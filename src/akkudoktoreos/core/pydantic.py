@@ -20,13 +20,17 @@ import uuid
 import weakref
 from copy import deepcopy
 from typing import (
+    Annotated,
     Any,
     Callable,
     Dict,
     List,
     Optional,
+    Self,
     Type,
+    TypeVar,
     Union,
+    cast,
     get_args,
     get_origin,
 )
@@ -39,6 +43,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    GetPydanticSchema,
     PrivateAttr,
     RootModel,
     ValidationError,
@@ -49,6 +54,7 @@ from pydantic.fields import ComputedFieldInfo, FieldInfo
 
 from akkudoktoreos.utils.datetimeutil import (
     DateTime,
+    Duration,
     to_datetime,
     to_duration,
     to_timezone,
@@ -415,7 +421,7 @@ class PydanticModelNestedValueMixin:
                 # If this is the final key, set the value
                 if is_final_key:
                     try:
-                        model.validate_and_set(key, value)
+                        getattr(model, "validate_and_set")(key, value)
                     except Exception as e:
                         raise ValueError(f"Error updating model: {e}") from e
                     return
@@ -549,10 +555,10 @@ class PydanticModelNestedValueMixin:
         if not inspect.isclass(model):
             raise TypeError(f"Model '{model}' is not of class type.")
 
-        if key not in model.model_fields:  # type: ignore[attr-defined]
+        if key not in model.model_fields:
             raise TypeError(f"Field '{key}' does not exist in model '{model.__name__}'.")
 
-        field_annotation = model.model_fields[key].annotation  # type: ignore[attr-defined]
+        field_annotation = model.model_fields[key].annotation
         if not field_annotation:
             raise TypeError(
                 f"Missing type annotation for field '{key}' in model '{model.__name__}'."
@@ -563,6 +569,8 @@ class PydanticModelNestedValueMixin:
 
         while queue:
             annotation = queue.pop(0)
+            if isinstance(annotation, TypeVar):
+                annotation = annotation.__bound__ or Any
             origin = get_origin(annotation)
             args = get_args(annotation)
 
@@ -679,7 +687,7 @@ class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
         """Resets the fields to their default values."""
         for field_name, field_info in self.__class__.model_fields.items():
             if field_info.default_factory is not None:  # Handle fields with default_factory
-                default_value = field_info.default_factory()
+                default_value = field_info.get_default(call_default_factory=True)
             else:
                 default_value = field_info.default
             try:
@@ -707,7 +715,7 @@ class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
         return self.model_dump()
 
     @classmethod
-    def from_dict(cls: Type["PydanticBaseModel"], data: dict) -> "PydanticBaseModel":
+    def from_dict(cls, data: dict) -> Self:
         """Create a PydanticBaseModel instance from a dictionary.
 
         Args:
@@ -735,7 +743,7 @@ class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
         return self.model_dump_json()
 
     @classmethod
-    def from_json(cls: Type["PydanticBaseModel"], json_str: str) -> "PydanticBaseModel":
+    def from_json(cls, json_str: str) -> Self:
         """Create an instance of the PydanticBaseModel class or its subclass from a JSON string.
 
         Args:
@@ -926,6 +934,10 @@ class PydanticBaseModel(PydanticModelNestedValueMixin, BaseModel):
         return None
 
 
+DateTimeDataInput = dict[str, str | list[float | int | str | None]]
+DateTimeDataValues = dict[str, str | DateTime | Duration | list[float | int | str | None]]
+
+
 class PydanticDateTimeData(RootModel):
     """Pydantic model for time series data with consistent value lengths.
 
@@ -948,13 +960,16 @@ class PydanticDateTimeData(RootModel):
 
     """
 
-    root: Dict[str, Union[str, List[Union[float, int, str, None]]]]
+    # The wire format contains strings; validate_root normalizes the two
+    # indexing values to Pendulum objects. Keep the existing input schema.
+    root: Annotated[
+        DateTimeDataValues,
+        GetPydanticSchema(lambda source_type, handler: handler(DateTimeDataInput)),
+    ]
 
     @field_validator("root", mode="after")
     @classmethod
-    def validate_root(
-        cls, value: Dict[str, Union[str, List[Union[float, int, str, None]]]]
-    ) -> Dict[str, Union[str, List[Union[float, int, str, None]]]]:
+    def validate_root(cls, value: dict[str, Any]) -> DateTimeDataValues:
         # Validate that all keys are strings
         if not all(isinstance(k, str) for k in value.keys()):
             raise ValueError("All keys in the dictionary must be strings.")
@@ -977,7 +992,7 @@ class PydanticDateTimeData(RootModel):
 
         return value
 
-    def to_dict(self) -> Dict[str, Union[str, List[Union[float, int, str, None]]]]:
+    def to_dict(self) -> DateTimeDataValues:
         """Convert the model to a plain dictionary.
 
         Returns:
@@ -1176,8 +1191,8 @@ class PydanticDateTimeDataFrame(PydanticBaseModel):
                 df[col] = df[col].dt.tz_convert(resolved_tz)
 
         return cls(
-            data=df.to_dict(orient="index"),
-            dtypes={col: str(dtype) for col, dtype in df.dtypes.items()},
+            data=cast(dict[str, dict[str, Any]], df.to_dict(orient="index")),
+            dtypes=cast(dict[str, str], {col: str(dtype) for col, dtype in df.dtypes.items()}),
             tz=resolved_tz,
             datetime_columns=datetime_columns,
         )
@@ -1401,10 +1416,10 @@ class PydanticDateTimeSeries(PydanticBaseModel):
         series.index = index
 
         if len(index) > 0:
-            tz = to_datetime(series.index[0]).timezone.name
+            tz = to_datetime(series.index[0]).timezone_name
 
         return cls(
-            data=series.to_dict(),
+            data=cast(dict[str, Any], series.to_dict()),
             dtype=str(series.dtype),
             tz=tz,
         )

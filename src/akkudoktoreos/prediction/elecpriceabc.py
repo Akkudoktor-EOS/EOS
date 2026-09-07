@@ -49,7 +49,7 @@ class ElecPriceDataRecord(PredictionRecord):
         return self.elecprice_marketprice_wh * 1000.0
 
 
-class ElecPriceProvider(PricePredictionProviderBase):
+class ElecPriceProvider(PricePredictionProviderBase[ElecPriceDataRecord]):
     """Abstract base class for electricity price providers.
 
     ElecPriceProvider is a thread-safe singleton, ensuring only one instance of this class is created.

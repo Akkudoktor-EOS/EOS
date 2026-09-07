@@ -192,7 +192,7 @@ def get_default_value(field_info: Union[FieldInfo, ComputedFieldInfo], regular_f
     """
     import pathlib
 
-    if not regular_field:
+    if not regular_field or not isinstance(field_info, FieldInfo):
         return "N/A"
 
     # Resolve the raw default — prefer plain default, fall back to factory
@@ -200,7 +200,7 @@ def get_default_value(field_info: Union[FieldInfo, ComputedFieldInfo], regular_f
         val = field_info.default
     elif field_info.default_factory is not None:
         try:
-            val = field_info.default_factory()
+            val = field_info.get_default(call_default_factory=True)
         except Exception:
             return ""
     else:
@@ -250,12 +250,12 @@ def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple
 
 
 def create_config_details(
-    model: type[PydanticBaseModel], values: dict, values_prefix: list[str] = []
+    model: type[PydanticBaseModel] | type[ConfigEOS], values: dict, values_prefix: list[str] = []
 ) -> dict[str, dict]:
     """Generate configuration details based on provided values and model metadata.
 
     Args:
-        model (type[PydanticBaseModel]): The Pydantic model to extract configuration from.
+        model: An EOS model or the top-level settings class to extract configuration from.
         values (dict): A dictionary containing the current configuration values.
         values_prefix (list[str]): A list of parent type names that prefixes the model values in the values.
 
@@ -271,7 +271,11 @@ def create_config_details(
     ) -> None:
         nonlocal values, values_prefix
         regular_field = isinstance(subfield_info, FieldInfo)
-        subtype = subfield_info.annotation if regular_field else subfield_info.return_type
+        subtype = (
+            subfield_info.annotation
+            if isinstance(subfield_info, FieldInfo)
+            else subfield_info.return_type
+        )
 
         nested_types = resolve_nested_types(subtype, [])
         found_basic = False

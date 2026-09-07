@@ -244,6 +244,15 @@
                "token": "your-token",
                "site_id": 12345
            },
+           "homeassistant": {
+               "entity_id": "sensor.pv_forecast",
+               "attribute": "forecast",
+               "datetime_key": "datetime",
+               "value_key": "watts",
+               "value_unit": "W",
+               "base_url": null,
+               "token": null
+           },
            "pvlib": {},
            "pvnode": {
                "api_key": "",

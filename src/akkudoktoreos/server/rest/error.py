@@ -1,6 +1,7 @@
 import html
 import traceback
 from dataclasses import dataclass
+from typing import cast
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
@@ -54,7 +55,9 @@ def _problem_response(
     )
 
 
-async def eos_problem_handler(request: Request, exc: EOSProblem) -> JSONResponse:
+async def eos_problem_handler(request: Request, exc: Exception) -> JSONResponse:
+    # Starlette dispatches this handler by the registered exception class.
+    exc = cast(EOSProblem, exc)
     return _problem_response(
         request=request,
         status=exc.status,
@@ -65,12 +68,14 @@ async def eos_problem_handler(request: Request, exc: EOSProblem) -> JSONResponse
     )
 
 
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+async def http_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    # Starlette dispatches this handler by the registered exception class.
+    http_exc = cast(HTTPException, exc)
     return _problem_response(
         request=request,
-        status=exc.status_code,
+        status=http_exc.status_code,
         title="HTTP Error",
-        detail=str(exc.detail),
+        detail=str(http_exc.detail),
         cause=exc,
         type="about:blank",
     )
@@ -87,7 +92,9 @@ async def unexpected_exception_handler(request: Request, exc: Exception) -> JSON
     )
 
 
-async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_handler(request: Request, exc: Exception) -> JSONResponse:
+    # Starlette dispatches this handler by the registered exception class.
+    exc = cast(RequestValidationError, exc)
     return _problem_response(
         request=request,
         status=422,
