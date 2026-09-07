@@ -14,7 +14,6 @@ from monsterui.franken import (
     LabelCheckboxX,
     Option,
 )
-from pydantic import BaseModel
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
@@ -251,12 +250,12 @@ def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple
 
 
 def create_config_details(
-    model: type[BaseModel], values: dict, values_prefix: list[str] = []
+    model: type[PydanticBaseModel] | type[ConfigEOS], values: dict, values_prefix: list[str] = []
 ) -> dict[str, dict]:
     """Generate configuration details based on provided values and model metadata.
 
     Args:
-        model (type[PydanticBaseModel]): The Pydantic model to extract configuration from.
+        model: An EOS model or the top-level settings class to extract configuration from.
         values (dict): A dictionary containing the current configuration values.
         values_prefix (list[str]): A list of parent type names that prefixes the model values in the values.
 

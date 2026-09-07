@@ -20,8 +20,8 @@ from akkudoktoreos.core.dataabc import (
     DataImportProvider,
     DataProvider,
     DataRecord,
+    DataRecordT,
     DataSequence,
-    RecordT,
 )
 from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_duration
 
@@ -189,7 +189,9 @@ class PredictionStartEndKeepMixin(PredictionABC):
         return int(duration.total_hours())
 
 
-class PredictionProvider(PredictionStartEndKeepMixin, DataProvider[RecordT], Generic[RecordT]):
+class PredictionProvider(
+    PredictionStartEndKeepMixin, DataProvider[DataRecordT], Generic[DataRecordT]
+):
     """Abstract base class for prediction providers with singleton thread-safety and configurable prediction parameters.
 
     This class serves as a base for managing prediction data, providing an interface for derived
@@ -254,7 +256,7 @@ class PredictionProvider(PredictionStartEndKeepMixin, DataProvider[RecordT], Gen
 
 
 class PredictionImportProvider(
-    PredictionProvider[RecordT], DataImportProvider[RecordT], Generic[RecordT]
+    PredictionProvider[DataRecordT], DataImportProvider[DataRecordT], Generic[DataRecordT]
 ):
     """Abstract base class for prediction providers that import prediction data.
 

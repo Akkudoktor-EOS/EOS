@@ -23,11 +23,11 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    cast,
 )
 
 from loguru import logger
 from numpydantic import NDArray, Shape
-from pendulum import UTC
 
 from akkudoktoreos.core.coreabc import (
     ConfigMixin,
@@ -40,6 +40,7 @@ from akkudoktoreos.core.types import (
     ResampleMethod,
 )
 from akkudoktoreos.utils.datetimeutil import (
+    UTC,
     DateTime,
     Duration,
     to_datetime,
@@ -279,9 +280,10 @@ class DatabaseBackendABC(ABC, ConfigMixin, SingletonMixin):
 
 
 class DataRecordProtocol(Protocol):
+    # Records may be incomplete in memory; database entry points require a timestamp.
     date_time: DateTime | None
 
-    def __init__(self, date_time: Any) -> None: ...
+    def __init__(self, date_time: DateTime) -> None: ...
 
     def __getitem__(self, key: str) -> Any: ...
 
@@ -289,7 +291,7 @@ class DataRecordProtocol(Protocol):
 
 
 def _record_datetime(record: DataRecordProtocol) -> DateTime:
-    """Return the timestamp required by records stored in the database index."""
+    """Validate a record's timestamp when it enters the database index."""
     date_time = record.date_time
     if date_time is None:
         raise ValueError("Database records require a datetime")
@@ -311,7 +313,7 @@ class DatabaseTimestamp(str):
     __slots__ = ()
 
     @classmethod
-    def from_datetime(cls, dt: DateTime | None) -> "DatabaseTimestamp":
+    def from_datetime(cls, dt: DateTime) -> "DatabaseTimestamp":
         if dt is None or dt.tz is None:
             raise ValueError("Timezone-aware datetime required")
 
@@ -1411,11 +1413,12 @@ class DatabaseRecordProtocolMixin(
         if not candidates:
             return None
 
+        # Indexed records have timestamps, validated when inserted or loaded.
         record = min(
             candidates,
             key=lambda r: abs(
                 (
-                    _record_datetime(r) - DatabaseTimestamp.to_datetime(target_timestamp)
+                    cast(DateTime, r.date_time) - DatabaseTimestamp.to_datetime(target_timestamp)
                 ).total_seconds()
             ),
         )
@@ -1426,7 +1429,8 @@ class DatabaseRecordProtocolMixin(
             if (
                 abs(
                     (
-                        _record_datetime(record) - DatabaseTimestamp.to_datetime(target_timestamp)
+                        cast(DateTime, record.date_time)
+                        - DatabaseTimestamp.to_datetime(target_timestamp)
                     ).total_seconds()
                 )
                 > half_seconds
@@ -1445,7 +1449,7 @@ class DatabaseRecordProtocolMixin(
         await self._db_ensure_initialized()
 
         # Ensure normalized to UTC
-        db_record_date_time = DatabaseTimestamp.from_datetime(record.date_time)
+        db_record_date_time = DatabaseTimestamp.from_datetime(_record_datetime(record))
 
         await self._db_ensure_loaded(
             start_timestamp=db_record_date_time,
@@ -1542,7 +1546,7 @@ class DatabaseRecordProtocolMixin(
                 continue
 
             record = self._db_deserialize_record(value)
-            db_record_date_time = DatabaseTimestamp.from_datetime(record.date_time)
+            db_record_date_time = DatabaseTimestamp.from_datetime(_record_datetime(record))
 
             # Do not resurrect explicitly deleted records
             if db_record_date_time in self._db_deleted_timestamps:
@@ -1654,7 +1658,10 @@ class DatabaseRecordProtocolMixin(
             start_idx = bisect.bisect_left(self._db_sorted_timestamps, start_timestamp)
 
         for record in self.records[start_idx:]:
-            record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
+            # Indexed records were validated on insertion or loading.
+            record_date_time_timestamp = DatabaseTimestamp.from_datetime(
+                cast(DateTime, record.date_time)
+            )
 
             if start_timestamp and record_date_time_timestamp < start_timestamp:
                 continue
@@ -1675,7 +1682,7 @@ class DatabaseRecordProtocolMixin(
         # Ensure db in memory data and metadata is initialized
         await self._db_ensure_initialized()
 
-        record_date_time_timestamp = DatabaseTimestamp.from_datetime(record.date_time)
+        record_date_time_timestamp = DatabaseTimestamp.from_datetime(_record_datetime(record))
         self._db_dirty_timestamps.add(record_date_time_timestamp)
 
     # -----------------------------------------------------
@@ -2045,10 +2052,11 @@ class DatabaseRecordProtocolMixin(
                 for r in self.records
                 if r.date_time is not None and window_start_dt <= r.date_time < window_end_dt
             ]
+            # The window filter above excludes records without timestamps.
             misaligned = [
                 r
                 for r in records_in_window
-                if int(_record_datetime(r).timestamp()) % interval_sec != 0
+                if int(cast(DateTime, r.date_time).timestamp()) % interval_sec != 0
             ]
             if not misaligned:
                 logger.debug(
@@ -2076,8 +2084,8 @@ class DatabaseRecordProtocolMixin(
             # Process chronologically so the earliest record's values win when
             # multiple records floor to the same bucket.
             snapped_bucket: dict[int, dict[str, Any]] = {}
-            for r in sorted(records_in_window, key=_record_datetime):
-                ts_epoch = int(_record_datetime(r).timestamp())
+            for r in sorted(records_in_window, key=lambda r: cast(DateTime, r.date_time)):
+                ts_epoch = int(cast(DateTime, r.date_time).timestamp())
                 snapped_epoch = (ts_epoch // interval_sec) * interval_sec
                 bucket = snapped_bucket.setdefault(snapped_epoch, {})
                 for key in self.record_keys_writable:

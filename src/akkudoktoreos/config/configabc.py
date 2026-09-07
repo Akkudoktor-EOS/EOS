@@ -409,23 +409,23 @@ class TimeWindow(SettingsBaseModel):
         return self.duration
 
 
-WindowT = TypeVar("WindowT", bound=TimeWindow)
+TimeWindowT = TypeVar("TimeWindowT", bound=TimeWindow)
 
 
-class TimeWindowSequence(SettingsBaseModel, Generic[WindowT]):
+class TimeWindowSequence(SettingsBaseModel, Generic[TimeWindowT]):
     """Model representing a sequence of time windows with collective operations.
 
     Manages multiple TimeWindow objects and provides methods to work with them
     as a cohesive unit for scheduling and availability checking.
     """
 
-    windows: list[WindowT] = Field(
+    windows: list[TimeWindowT] = Field(
         default_factory=list,
         json_schema_extra={"description": "List of TimeWindow objects that make up this sequence."},
     )
 
     # EOS collections iterate over their elements instead of BaseModel field/value pairs.
-    def __iter__(self) -> Iterator[WindowT]:  # type: ignore[override]
+    def __iter__(self) -> Iterator[TimeWindowT]:  # type: ignore[override]
         """Allow iteration over the time windows."""
         return iter(self.windows)
 
@@ -433,7 +433,7 @@ class TimeWindowSequence(SettingsBaseModel, Generic[WindowT]):
         """Return the number of time windows in the sequence."""
         return len(self.windows)
 
-    def __getitem__(self, index: int) -> WindowT:
+    def __getitem__(self, index: int) -> TimeWindowT:
         """Allow indexing into the time windows."""
         return self.windows[index]
 
@@ -540,7 +540,9 @@ class TimeWindowSequence(SettingsBaseModel, Generic[WindowT]):
             total += d
         return total
 
-    def get_applicable_windows(self, reference_date: Optional[DateTime] = None) -> list[WindowT]:
+    def get_applicable_windows(
+        self, reference_date: Optional[DateTime] = None
+    ) -> list[TimeWindowT]:
         """Get all windows that apply to the given reference date.
 
         Args:
@@ -560,7 +562,7 @@ class TimeWindowSequence(SettingsBaseModel, Generic[WindowT]):
 
     def find_windows_for_duration(
         self, duration: Duration, reference_date: Optional[DateTime] = None
-    ) -> list[WindowT]:
+    ) -> list[TimeWindowT]:
         """Find all windows that can accommodate the given duration.
 
         Args:
@@ -579,7 +581,7 @@ class TimeWindowSequence(SettingsBaseModel, Generic[WindowT]):
 
     def get_all_possible_start_times(
         self, duration: Duration, reference_date: Optional[DateTime] = None
-    ) -> list[tuple[DateTime, DateTime, WindowT]]:
+    ) -> list[tuple[DateTime, DateTime, TimeWindowT]]:
         """Get all possible start time ranges for a duration across all windows.
 
         Args:
@@ -743,7 +745,7 @@ class TimeWindowSequence(SettingsBaseModel, Generic[WindowT]):
             dtype=np.float64,
         )
 
-    def add_window(self, window: WindowT) -> None:
+    def add_window(self, window: TimeWindowT) -> None:
         """Add a new time window to the sequence.
 
         Args:
@@ -751,7 +753,7 @@ class TimeWindowSequence(SettingsBaseModel, Generic[WindowT]):
         """
         self.windows.append(window)
 
-    def remove_window(self, index: int) -> WindowT:
+    def remove_window(self, index: int) -> TimeWindowT:
         """Remove a time window from the sequence by index.
 
         Args:
@@ -785,7 +787,7 @@ class TimeWindowSequence(SettingsBaseModel, Generic[WindowT]):
         if reference_date is None:
             reference_date = pendulum.today()
 
-        def sort_key(window: WindowT) -> tuple[int, DateTime]:
+        def sort_key(window: TimeWindowT) -> tuple[int, DateTime]:
             start_time = window.earliest_start_time(Duration(), reference_date)
             if start_time is None:
                 return (1, reference_date)

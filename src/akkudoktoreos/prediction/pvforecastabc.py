@@ -24,10 +24,10 @@ class PVForecastDataRecord(PredictionRecord):
     )
 
 
-PVRecordT = TypeVar("PVRecordT", bound=PVForecastDataRecord)
+PVForecastDataRecordT = TypeVar("PVForecastDataRecordT", bound=PVForecastDataRecord)
 
 
-class PVForecastProvider(PredictionProvider[PVRecordT], Generic[PVRecordT]):
+class PVForecastProvider(PredictionProvider[PVForecastDataRecordT], Generic[PVForecastDataRecordT]):
     """Abstract base class for pvforecast providers.
 
     PVForecastProvider is a thread-safe singleton, ensuring only one instance of this class is created.
@@ -48,7 +48,7 @@ class PVForecastProvider(PredictionProvider[PVRecordT], Generic[PVRecordT]):
     """
 
     # overload
-    records: List[PVRecordT] = Field(
+    records: List[PVForecastDataRecordT] = Field(
         default_factory=list,
         json_schema_extra={"description": "List of PVForecastDataRecord records"},
     )

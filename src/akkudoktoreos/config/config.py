@@ -799,8 +799,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
             OSError: If reading the backup file fails due to I/O issues.
         """
         config_file_path = self.general.config_file_path
+        # Configuration setup initializes this path; should never raise.
         if config_file_path is None:
-            raise RuntimeError("Configuration file path is not initialized")
+            raise AssertionError("Configuration file path is not initialized")
         backup_file_path = config_file_path.with_suffix(f".{backup_id}")
         if not backup_file_path.exists():
             error_msg = f"Configuration backup `{backup_id}` not found."
@@ -835,8 +836,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         result: dict[str, dict[str, Any]] = {}
 
         base_path = self.general.config_file_path
+        # Configuration setup initializes this path; should never raise.
         if base_path is None:
-            raise RuntimeError("Configuration file path is not initialized")
+            raise AssertionError("Configuration file path is not initialized")
         parent = base_path.parent
         stem = base_path.stem
 

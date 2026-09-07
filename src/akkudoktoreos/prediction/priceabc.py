@@ -9,12 +9,14 @@ from loguru import logger
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from akkudoktoreos.core.coreabc import PredictionMixin
-from akkudoktoreos.core.dataabc import RecordT
+from akkudoktoreos.core.dataabc import DataRecordT
 from akkudoktoreos.prediction.predictionabc import PredictionProvider
 from akkudoktoreos.utils.datetimeutil import DateTime, to_datetime, to_duration
 
 
-class PricePredictionProviderBase(PredictionMixin, PredictionProvider[RecordT], Generic[RecordT]):
+class PricePredictionProviderBase(
+    PredictionMixin, PredictionProvider[DataRecordT], Generic[DataRecordT]
+):
     """Common forecasting + fee-application logic shared by price-like providers.
 
     Subclasses must supply the raw/gross record keys, the fee keys to pull from

@@ -20,10 +20,10 @@ class LoadDataRecord(PredictionRecord):
     )
 
 
-LoadRecordT = TypeVar("LoadRecordT", bound=LoadDataRecord)
+LoadDataRecordT = TypeVar("LoadDataRecordT", bound=LoadDataRecord)
 
 
-class LoadProvider(PredictionProvider[LoadRecordT], Generic[LoadRecordT]):
+class LoadProvider(PredictionProvider[LoadDataRecordT], Generic[LoadDataRecordT]):
     """Abstract base class for load providers.
 
     LoadProvider is a thread-safe singleton, ensuring only one instance of this class is created.
@@ -44,7 +44,7 @@ class LoadProvider(PredictionProvider[LoadRecordT], Generic[LoadRecordT]):
     """
 
     # overload
-    records: List[LoadRecordT] = Field(
+    records: List[LoadDataRecordT] = Field(
         default_factory=list, json_schema_extra={"description": "List of LoadDataRecord records"}
     )
 

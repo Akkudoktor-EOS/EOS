@@ -467,7 +467,8 @@ def write_to_file(file_path: Optional[Union[str, Path]], config_md: str):
 
     # Assure timezone name does not leak to documentation
     tz_name = to_datetime().timezone_name
-    assert tz_name is not None
+    if tz_name is None:
+        raise RuntimeError("Documentation generation requires a timezone name")
     config_md = re.sub(re.escape(tz_name), "Europe/Berlin", config_md, flags=re.IGNORECASE)
     # Also replace UTC, as GitHub CI always is on UTC
     config_md = re.sub(re.escape("UTC"), "Europe/Berlin", config_md, flags=re.IGNORECASE)

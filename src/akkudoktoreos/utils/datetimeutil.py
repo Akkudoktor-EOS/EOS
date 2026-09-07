@@ -61,6 +61,7 @@ from typing import (
 
 import pendulum
 from loguru import logger
+from pendulum import UTC as UTC
 from pendulum.tz.timezone import Timezone
 from pydantic import (
     GetCoreSchemaHandler,

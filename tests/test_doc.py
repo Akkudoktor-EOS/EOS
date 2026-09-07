@@ -3,6 +3,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -14,6 +15,19 @@ DIR_DOCS_GENERATED = DIR_PROJECT_ROOT / "docs" / "_generated"
 DIR_TEST_GENERATED = DIR_TESTDATA / "docs" / "_generated"
 
 GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS")
+
+
+def test_config_documentation_requires_a_timezone_name(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.syspath_prepend(str(DIR_PROJECT_ROOT))
+    from scripts import generate_config_md
+
+    monkeypatch.setattr(generate_config_md, "to_datetime", lambda: SimpleNamespace(timezone_name=None))
+    output = tmp_path / "config.md"
+    with pytest.raises(RuntimeError, match="Documentation generation requires a timezone name"):
+        generate_config_md.write_to_file(output, "Configuration documentation")
+    assert not output.exists()
 
 
 def test_generic_time_windows_keep_nested_documentation(monkeypatch):

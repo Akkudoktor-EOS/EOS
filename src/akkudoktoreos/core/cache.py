@@ -742,8 +742,9 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                 if clear_all:
                     clear_file = True
                 else:
+                    # Initialized above when clear_all is false; should never raise.
                     if before_datetime is None:
-                        raise RuntimeError("Cache expiry threshold is not initialized")
+                        raise AssertionError("Cache expiry threshold is not initialized")
                     clear_file = compare_datetimes(cache_item.until_datetime, before_datetime).lt
 
                 if clear_file:

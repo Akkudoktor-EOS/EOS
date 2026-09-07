@@ -146,8 +146,11 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
         try:
             adapter_eos = get_adapter()
             provider = adapter_eos.provider_by_id("HomeAssistant")
-            if not isinstance(provider, HomeAssistantAdapter):
-                return []
+        except Exception:
+            return []
+        if not isinstance(provider, HomeAssistantAdapter):
+            raise TypeError("HomeAssistant provider must be a HomeAssistantAdapter")
+        try:
             result = provider.get_homeassistant_entity_ids()
         except Exception:
             return []
@@ -160,8 +163,11 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
         try:
             adapter_eos = get_adapter()
             provider = adapter_eos.provider_by_id("HomeAssistant")
-            if not isinstance(provider, HomeAssistantAdapter):
-                return []
+        except Exception:
+            return []
+        if not isinstance(provider, HomeAssistantAdapter):
+            raise TypeError("HomeAssistant provider must be a HomeAssistantAdapter")
+        try:
             result = provider.get_eos_solution_entity_ids()
         except Exception:
             return []
@@ -174,8 +180,11 @@ class HomeAssistantAdapterCommonSettings(SettingsBaseModel):
         try:
             adapter_eos = get_adapter()
             provider = adapter_eos.provider_by_id("HomeAssistant")
-            if not isinstance(provider, HomeAssistantAdapter):
-                return []
+        except Exception:
+            return []
+        if not isinstance(provider, HomeAssistantAdapter):
+            raise TypeError("HomeAssistant provider must be a HomeAssistantAdapter")
+        try:
             result = provider.get_eos_device_instruction_entity_ids()
         except Exception:
             return []
