@@ -51,7 +51,7 @@ class DerivedRecord(DataRecord):
         return ["dish_washer_emr", "solar_power", "temp"]
 
 
-class DerivedSequence(DataSequence):
+class DerivedSequence(DataSequence[DerivedRecord]):
     # overload
     records: List[DerivedRecord] = Field(
         default_factory=list, description="List of DerivedRecord records"
@@ -65,7 +65,7 @@ class DerivedSequence(DataSequence):
         return "DerivedSequence"
 
 
-class DerivedSequence2(DataSequence):
+class DerivedSequence2(DataSequence[DerivedRecord]):
     # overload
     records: List[DerivedRecord] = Field(
         default_factory=list, description="List of DerivedRecord records"
@@ -79,7 +79,7 @@ class DerivedSequence2(DataSequence):
         return "DerivedSequence2"
 
 
-class DerivedDataProvider(DataProvider):
+class DerivedDataProvider(DataProvider[DerivedRecord]):
     """A concrete subclass of DataProvider for testing purposes."""
 
     # overload
@@ -108,7 +108,7 @@ class DerivedDataProvider(DataProvider):
         DerivedDataProvider.provider_updated = True
 
 
-class DerivedDataImportProvider(DataImportProvider):
+class DerivedDataImportProvider(DataImportProvider[DerivedRecord]):
     """A concrete subclass of DataImportProvider for testing purposes."""
 
     # overload

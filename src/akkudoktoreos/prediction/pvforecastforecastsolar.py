@@ -72,6 +72,8 @@ class PVForecastForecastSolar(PVForecastProvider):
             return to_datetime(s)
         tz = iana_tz or str(self.config.general.timezone)
         dt = pendulum.parse(s, tz=tz)
+        if not isinstance(dt, pendulum.DateTime):
+            raise ValueError(f"Expected a datetime, got {local_ts!r}")
         return to_datetime(dt.isoformat())
 
     def _plane_url(self, plane: Any) -> str:

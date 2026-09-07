@@ -124,7 +124,12 @@ def wait_for_port_free(port: int, timeout: int = 0, waiting_app_name: str = "App
 
         try:
             for conn in psutil.net_connections(kind="inet"):
-                if conn.laddr.port == port and conn.pid not in seen_pids:
+                if (
+                    conn.laddr
+                    and conn.laddr.port == port
+                    and conn.pid is not None
+                    and conn.pid not in seen_pids
+                ):
                     try:
                         process = psutil.Process(conn.pid)
                         seen_pids.add(conn.pid)

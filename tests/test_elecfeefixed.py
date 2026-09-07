@@ -36,7 +36,7 @@ class TestElecFeeFixedCommonSettings:
             }
         }
 
-        settings = ElecFeeFixedCommonSettings(**settings_dict)
+        settings = ElecFeeFixedCommonSettings.model_validate(settings_dict)
         assert settings is not None
         assert settings.consumption_amt_kwh is not None
         assert settings.consumption_amt_kwh.windows is not None
@@ -52,7 +52,7 @@ class TestElecFeeFixedCommonSettings:
             }
         }
 
-        settings = ElecFeeFixedCommonSettings(**settings_dict)
+        settings = ElecFeeFixedCommonSettings.model_validate(settings_dict)
         assert settings is not None
         assert settings.consumption_percent_amt is not None
         assert len(settings.consumption_percent_amt.windows) == 1
@@ -68,7 +68,7 @@ class TestElecFeeFixedCommonSettings:
             }
         }
 
-        settings = ElecFeeFixedCommonSettings(**settings_dict)
+        settings = ElecFeeFixedCommonSettings.model_validate(settings_dict)
         assert settings is not None
         assert settings.feedin_amt_kwh is not None
         assert len(settings.feedin_amt_kwh.windows) == 2
@@ -83,7 +83,7 @@ class TestElecFeeFixedCommonSettings:
             }
         }
 
-        settings = ElecFeeFixedCommonSettings(**settings_dict)
+        settings = ElecFeeFixedCommonSettings.model_validate(settings_dict)
         assert settings is not None
         assert settings.feedin_percent_amt is not None
         assert len(settings.feedin_percent_amt.windows) == 1
@@ -111,24 +111,24 @@ def elecfeefixed_settings():
     """
     consumption_amt_kwh = ValueTimeWindowSequence(
         windows=[
-            ValueTimeWindow(start_time="00:00", duration="8 hours", value=0.288),
-            ValueTimeWindow(start_time="08:00", duration="16 hours", value=0.34),
+            ValueTimeWindow.model_validate(dict(start_time="00:00", duration="8 hours", value=0.288)),
+            ValueTimeWindow.model_validate(dict(start_time="08:00", duration="16 hours", value=0.34)),
         ]
     )
     consumption_percent_amt = ValueTimeWindowSequence(
         windows=[
-            ValueTimeWindow(start_time="00:00", duration="24 hours", value=19.0),
+            ValueTimeWindow.model_validate(dict(start_time="00:00", duration="24 hours", value=19.0)),
         ]
     )
     feedin_amt_kwh = ValueTimeWindowSequence(
         windows=[
-            ValueTimeWindow(start_time="00:00", duration="8 hours", value=0.08),
-            ValueTimeWindow(start_time="08:00", duration="16 hours", value=0.10),
+            ValueTimeWindow.model_validate(dict(start_time="00:00", duration="8 hours", value=0.08)),
+            ValueTimeWindow.model_validate(dict(start_time="08:00", duration="16 hours", value=0.10)),
         ]
     )
     feedin_percent_amt = ValueTimeWindowSequence(
         windows=[
-            ValueTimeWindow(start_time="00:00", duration="24 hours", value=5.0),
+            ValueTimeWindow.model_validate(dict(start_time="00:00", duration="24 hours", value=5.0)),
         ]
     )
 
@@ -285,18 +285,18 @@ class TestElecFeeFixed:
         partial_settings = ElecFeeFixedCommonSettings(
             consumption_amt_kwh=ValueTimeWindowSequence(
                 windows=[
-                    ValueTimeWindow(start_time="00:00", duration="24 hours", value=0.3),
+                    ValueTimeWindow.model_validate(dict(start_time="00:00", duration="24 hours", value=0.3)),
                 ]
             ),
             consumption_percent_amt=ValueTimeWindowSequence(windows=[]),
             feedin_amt_kwh=ValueTimeWindowSequence(
                 windows=[
-                    ValueTimeWindow(start_time="00:00", duration="24 hours", value=0.1),
+                    ValueTimeWindow.model_validate(dict(start_time="00:00", duration="24 hours", value=0.1)),
                 ]
             ),
             feedin_percent_amt=ValueTimeWindowSequence(
                 windows=[
-                    ValueTimeWindow(start_time="00:00", duration="24 hours", value=5.0),
+                    ValueTimeWindow.model_validate(dict(start_time="00:00", duration="24 hours", value=5.0)),
                 ]
             ),
         )
@@ -387,24 +387,24 @@ class TestElecFeeFixedIntegration:
         # Configure with realistic German electricity fees (2024)
         consumption_amt_kwh = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="00:00", duration="8 hours", value=0.288),
-                ValueTimeWindow(start_time="08:00", duration="16 hours", value=0.34),
+                ValueTimeWindow.model_validate(dict(start_time="00:00", duration="8 hours", value=0.288)),
+                ValueTimeWindow.model_validate(dict(start_time="08:00", duration="16 hours", value=0.34)),
             ]
         )
         consumption_percent_amt = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="00:00", duration="24 hours", value=19.0),
+                ValueTimeWindow.model_validate(dict(start_time="00:00", duration="24 hours", value=19.0)),
             ]
         )
         feedin_amt_kwh = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="00:00", duration="8 hours", value=0.08),
-                ValueTimeWindow(start_time="08:00", duration="16 hours", value=0.10),
+                ValueTimeWindow.model_validate(dict(start_time="00:00", duration="8 hours", value=0.08)),
+                ValueTimeWindow.model_validate(dict(start_time="08:00", duration="16 hours", value=0.10)),
             ]
         )
         feedin_percent_amt = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(start_time="00:00", duration="24 hours", value=5.0),
+                ValueTimeWindow.model_validate(dict(start_time="00:00", duration="24 hours", value=5.0)),
             ]
         )
 

@@ -44,7 +44,7 @@ class TestElecPriceFixedCommonSettings:
             }
         }
 
-        settings = ElecPriceFixedCommonSettings(**settings_dict)
+        settings = ElecPriceFixedCommonSettings.model_validate(settings_dict)
         assert settings is not None
         assert settings.elecprice_marketprice_amt_kwh is not None
         assert settings.elecprice_marketprice_amt_kwh.windows is not None
@@ -71,16 +71,16 @@ def provider(config_eos):
     # Create time windows
     elecprice_marketprice_amt_kwh = ValueTimeWindowSequence(
         windows=[
-            ValueTimeWindow(
+            ValueTimeWindow.model_validate(dict(
                 start_time="00:00",
                 duration="8 hours",
                 value=0.288
-            ),
-            ValueTimeWindow(
+            )),
+            ValueTimeWindow.model_validate(dict(
                 start_time="08:00",
                 duration="16 hours",
                 value=0.34
-            )
+            ))
         ]
     )
     config_eos.elecprice.elecpricefixed = ElecPriceFixedCommonSettings(elecprice_marketprice_amt_kwh=elecprice_marketprice_amt_kwh)
@@ -238,16 +238,16 @@ class TestElecPriceFixedIntegration:
         # Configure with realistic German electricity prices (2024)
         elecprice_marketprice_amt_kwh = ValueTimeWindowSequence(
             windows=[
-                ValueTimeWindow(
+                ValueTimeWindow.model_validate(dict(
                     start_time="00:00",
                     duration="8 hours",
                     value=0.288  # Night rate
-                ),
-                ValueTimeWindow(
+                )),
+                ValueTimeWindow.model_validate(dict(
                     start_time="08:00",
                     duration="16 hours",
                     value=0.34   # Day rate
-                )
+                ))
             ]
         )
 

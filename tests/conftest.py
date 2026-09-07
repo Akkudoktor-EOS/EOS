@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from fnmatch import fnmatch
 from http import HTTPStatus
 from pathlib import Path
-from typing import Generator, Optional, Union
+from typing import Callable, Generator, Optional, Union, cast
 from unittest.mock import PropertyMock, patch
 
 import pandas as pd
@@ -377,7 +377,7 @@ def config_eos_factory(
         # Check user data directory pathes (config_default_dirs[-1] == data_default_dir_user)
         assert config_eos.general.data_folder_path == data_folder_path
         assert config_eos.general.data_output_subpath == Path("output")
-        assert config_eos.cache.subpath == "cache"
+        assert config_eos.cache.subpath == Path("cache")
         assert config_eos.cache.path() == config_default_dirs[-1] / "data/cache"
         assert config_eos.logging.file_path == config_default_dirs[-1] / "data/output/eos.log"
 
@@ -446,7 +446,7 @@ def cleanup_eos_eosdash(
     pids: list[int] = []
     for _ in range(int(server_timeout / 3)):
         for conn in psutil.net_connections(kind="inet"):
-            if conn.laddr.port == port and conn.pid is not None:
+            if conn.laddr and conn.laddr.port == port and conn.pid is not None:
                 try:
                     process = psutil.Process(conn.pid)
                     cmdline = process.as_dict(attrs=["cmdline"])["cmdline"]
@@ -497,7 +497,7 @@ def cleanup_eos_eosdash(
     pids = []
     for _ in range(int(server_timeout / 3)):
         for conn in psutil.net_connections(kind="inet"):
-            if conn.laddr.port in (eosdash_port, 8504, 8555) and conn.pid is not None:
+            if conn.laddr and conn.laddr.port in (eosdash_port, 8504, 8555) and conn.pid is not None:
                 try:
                     process = psutil.Process(conn.pid)
                     cmdline = process.as_dict(attrs=["cmdline"])["cmdline"]
@@ -766,5 +766,5 @@ def set_other_timezone():
     yield _set_timezone
 
     # Restore the original timezone
-    pendulum.set_local_timezone(original_timezone)
+    cast(Callable[[pendulum.Timezone | pendulum.FixedTimezone], None], pendulum.set_local_timezone)(original_timezone)
     assert pendulum.local_timezone() == original_timezone

@@ -1,6 +1,7 @@
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -12,7 +13,7 @@ from bs4 import BeautifulSoup
 from akkudoktoreos.core.cache import CacheFileStore
 from akkudoktoreos.core.coreabc import get_ems
 from akkudoktoreos.prediction.weatherclearoutside import WeatherClearOutside
-from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime
+from akkudoktoreos.utils.datetimeutil import compare_datetimes, to_datetime, to_timezone
 
 DIR_TESTDATA = Path(__file__).absolute().parent.joinpath("testdata")
 
@@ -269,7 +270,7 @@ def test_clearoutsides_development_scraper(provider, sample_clearout_1_html):
         assert minutes == 0
 
         # Create the timezone object using timedelta for the offset
-        forecast_timezone = timezone(timedelta(hours=hours, minutes=minutes))
+        forecast_timezone = to_timezone(utc_offset=hours + minutes / 60, as_string=False)
     else:
         assert False
 
@@ -315,7 +316,7 @@ def test_clearoutsides_development_scraper(provider, sample_clearout_1_html):
     p_detail_tables.pop(0)
 
     # Create clearout data
-    clearout_data = {}
+    clearout_data: dict[str, Any] = {}
     # Add data values
     for i, detail_name in enumerate(detail_names):
         p_detail_values = p_detail_tables[i].find_all("li")
@@ -326,9 +327,10 @@ def test_clearoutsides_development_scraper(provider, sample_clearout_1_html):
                 and hasattr(p_detail_value, "title")
                 and p_detail_value.title
             ):
-                value_str = p_detail_value.title.string
+                value_str = p_detail_value.title.get_text()
             else:
                 value_str = p_detail_value.get_text()
+            value: float | str
             try:
                 value = float(value_str)
             except ValueError:

@@ -27,6 +27,7 @@ from typing import (
 
 from loguru import logger
 from numpydantic import NDArray, Shape
+from pendulum import UTC
 
 from akkudoktoreos.core.coreabc import (
     ConfigMixin,
@@ -278,13 +279,21 @@ class DatabaseBackendABC(ABC, ConfigMixin, SingletonMixin):
 
 
 class DataRecordProtocol(Protocol):
-    date_time: DateTime
+    date_time: DateTime | None
 
     def __init__(self, date_time: Any) -> None: ...
 
     def __getitem__(self, key: str) -> Any: ...
 
     def model_dump(self) -> dict: ...
+
+
+def _record_datetime(record: DataRecordProtocol) -> DateTime:
+    """Return the timestamp required by records stored in the database index."""
+    date_time = record.date_time
+    if date_time is None:
+        raise ValueError("Database records require a datetime")
+    return date_time
 
 
 T_Record = TypeVar("T_Record", bound=DataRecordProtocol)
@@ -302,16 +311,14 @@ class DatabaseTimestamp(str):
     __slots__ = ()
 
     @classmethod
-    def from_datetime(cls, dt: DateTime) -> "DatabaseTimestamp":
-        if dt.tz is None:
+    def from_datetime(cls, dt: DateTime | None) -> "DatabaseTimestamp":
+        if dt is None or dt.tz is None:
             raise ValueError("Timezone-aware datetime required")
 
         return cls(dt.in_timezone("UTC").format("YYYYMMDDTHHmmss[Z]"))
 
     def to_datetime(self) -> DateTime:
-        from pendulum import parse
-
-        return parse(self)
+        return to_datetime(self, in_timezone="UTC")
 
 
 class _DatabaseTimestampUnbound(str):
@@ -1407,7 +1414,9 @@ class DatabaseRecordProtocolMixin(
         record = min(
             candidates,
             key=lambda r: abs(
-                (r.date_time - DatabaseTimestamp.to_datetime(target_timestamp)).total_seconds()
+                (
+                    _record_datetime(r) - DatabaseTimestamp.to_datetime(target_timestamp)
+                ).total_seconds()
             ),
         )
 
@@ -1417,7 +1426,7 @@ class DatabaseRecordProtocolMixin(
             if (
                 abs(
                     (
-                        record.date_time - DatabaseTimestamp.to_datetime(target_timestamp)
+                        _record_datetime(record) - DatabaseTimestamp.to_datetime(target_timestamp)
                     ).total_seconds()
                 )
                 > half_seconds
@@ -1969,7 +1978,7 @@ class DatabaseRecordProtocolMixin(
         # run — they are inside the age window but straddle an incomplete bucket.
         raw_cutoff_epoch = int(raw_cutoff_dt.timestamp())
         floored_cutoff_epoch = (raw_cutoff_epoch // interval_sec) * interval_sec
-        new_cutoff_dt = DateTime.fromtimestamp(floored_cutoff_epoch, tz="UTC")
+        new_cutoff_dt = DateTime.fromtimestamp(floored_cutoff_epoch, tz=UTC)
         new_cutoff_ts = DatabaseTimestamp.from_datetime(new_cutoff_dt)
 
         # ---- Determine window start (incremental) ------------------------
@@ -2001,7 +2010,7 @@ class DatabaseRecordProtocolMixin(
         # overwritten with the same values).
         raw_start_epoch = int(raw_window_start_dt.timestamp())
         floored_start_epoch = (raw_start_epoch // interval_sec) * interval_sec
-        window_start_dt = DateTime.fromtimestamp(floored_start_epoch, tz="UTC")
+        window_start_dt = DateTime.fromtimestamp(floored_start_epoch, tz=UTC)
         window_start_ts = DatabaseTimestamp.from_datetime(window_start_dt)
 
         window_end_dt = new_cutoff_dt  # exclusive upper bound, already aligned
@@ -2037,7 +2046,9 @@ class DatabaseRecordProtocolMixin(
                 if r.date_time is not None and window_start_dt <= r.date_time < window_end_dt
             ]
             misaligned = [
-                r for r in records_in_window if int(r.date_time.timestamp()) % interval_sec != 0
+                r
+                for r in records_in_window
+                if int(_record_datetime(r).timestamp()) % interval_sec != 0
             ]
             if not misaligned:
                 logger.debug(
@@ -2065,8 +2076,8 @@ class DatabaseRecordProtocolMixin(
             # Process chronologically so the earliest record's values win when
             # multiple records floor to the same bucket.
             snapped_bucket: dict[int, dict[str, Any]] = {}
-            for r in sorted(records_in_window, key=lambda x: x.date_time):
-                ts_epoch = int(r.date_time.timestamp())
+            for r in sorted(records_in_window, key=_record_datetime):
+                ts_epoch = int(_record_datetime(r).timestamp())
                 snapped_epoch = (ts_epoch // interval_sec) * interval_sec
                 bucket = snapped_bucket.setdefault(snapped_epoch, {})
                 for key in self.record_keys_writable:
@@ -2089,7 +2100,7 @@ class DatabaseRecordProtocolMixin(
             for snapped_epoch, values in snapped_bucket.items():
                 if not values:
                     continue
-                snapped_dt = DateTime.fromtimestamp(snapped_epoch, tz="UTC")
+                snapped_dt = DateTime.fromtimestamp(snapped_epoch, tz=UTC)
                 record = self.record_class()(date_time=snapped_dt, **values)
                 await self.db_insert_record(record, mark_dirty=True)
 
@@ -2148,7 +2159,7 @@ class DatabaseRecordProtocolMixin(
                 while first_bucket_epoch < int(window_start_dt.timestamp()):
                     first_bucket_epoch += interval_sec
                 compacted_timestamps = [
-                    DateTime.fromtimestamp(first_bucket_epoch + i * interval_sec, tz="UTC")
+                    DateTime.fromtimestamp(first_bucket_epoch + i * interval_sec, tz=UTC)
                     for i in range(len(array))
                 ]
 

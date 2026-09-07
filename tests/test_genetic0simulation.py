@@ -239,13 +239,13 @@ def genetic0_simulation(config_eos) -> Genetic0Simulation:
     # Initialize the energy management system with the respective parameters
     genetic0_simulation = Genetic0Simulation()
     genetic0_simulation.prepare(
-        Genetic0EnergyManagementParameters(
+        Genetic0EnergyManagementParameters.model_validate(dict(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
             preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
             gesamtlast=gesamtlast,
-        ),
+        )),
         optimization_hours = config_eos.optimization.genetic0.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
         inverter=inverter,
@@ -387,13 +387,13 @@ def genetic0_simulation_2(config_eos) -> Genetic0Simulation:
     # Initialize the energy management system with the respective parameters
     simulation = Genetic0Simulation()
     simulation.prepare(
-        Genetic0EnergyManagementParameters(
+        Genetic0EnergyManagementParameters.model_validate(dict(
             pv_prognose_wh=pv_prognose_wh,
             strompreis_euro_pro_wh=strompreis_euro_pro_wh,
             einspeiseverguetung_euro_pro_wh=einspeiseverguetung_euro_pro_wh,
             preis_euro_pro_wh_akku=preis_euro_pro_wh_akku,
             gesamtlast=gesamtlast,
-        ),
+        )),
         optimization_hours = config_eos.optimization.genetic0.horizon_hours,
         prediction_hours = config_eos.prediction.hours,
         inverter=inverter,

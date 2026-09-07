@@ -1,11 +1,17 @@
 # Module taken from https://github.com/koaning/fh-altair
 # MIT license
-from typing import Optional
+from typing import Callable, Optional, cast
 
 from bokeh.embed import components
 from bokeh.models import Plot
+from bokeh.models.annotations import Title
+from bokeh.plotting import figure
 from bokeh.resources import INLINE
 from monsterui.franken import H4, Card, NotStr
+
+# Bokeh accepts FigureOptions as constructor keywords, but its generated
+# constructor signature only lists model properties. Preserve the typed result.
+create_figure = cast(Callable[..., figure], figure)
 
 # Javascript for bokeh - to be included by the page
 BokehJS = [NotStr(INLINE.render_css()), NotStr(INLINE.render_js())]
@@ -29,7 +35,7 @@ def bokey_apply_theme_to_plot(plot: Plot, dark: bool) -> None:
     if dark:
         plot.background_fill_color = "#1e1e1e"
         plot.border_fill_color = "#1e1e1e"
-        plot.title.text_color = "white"
+        cast(Title, plot.title).text_color = "white"
         for ax in plot.xaxis + plot.yaxis:
             ax.axis_line_color = "white"
             ax.major_tick_line_color = "white"
@@ -44,7 +50,7 @@ def bokey_apply_theme_to_plot(plot: Plot, dark: bool) -> None:
     else:
         plot.background_fill_color = "white"
         plot.border_fill_color = "white"
-        plot.title.text_color = "black"
+        cast(Title, plot.title).text_color = "black"
         for ax in plot.xaxis + plot.yaxis:
             ax.axis_line_color = "black"
             ax.major_tick_line_color = "black"

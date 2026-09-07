@@ -14,8 +14,10 @@ from akkudoktoreos.config.configabc import SettingsBaseModel
 class CacheCommonSettings(SettingsBaseModel):
     """Cache Configuration."""
 
+    # Retain the raw serialized default for exclude_defaults compatibility.
     subpath: Optional[Path] = Field(
         default="cache",
+        validate_default=True,
         json_schema_extra={"description": "Sub-path for the EOS cache data directory."},
     )
 

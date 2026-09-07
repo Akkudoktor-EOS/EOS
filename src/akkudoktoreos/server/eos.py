@@ -35,6 +35,7 @@ from akkudoktoreos.core.coreabc import (
     get_resource_registry,
     singletons_init,
 )
+from akkudoktoreos.core.dataabc import DataImportMixin
 from akkudoktoreos.core.emplan import EnergyManagementPlan, ResourceStatus
 from akkudoktoreos.core.ems import ems_manage_energy
 from akkudoktoreos.core.emsettings import EnergyManagementMode
@@ -87,7 +88,12 @@ from akkudoktoreos.server.server import (
     get_host_ip,
     wait_for_port_free,
 )
-from akkudoktoreos.utils.datetimeutil import to_datetime, to_duration
+from akkudoktoreos.utils.datetimeutil import (
+    DateTime,
+    Duration,
+    to_datetime,
+    to_duration,
+)
 
 # ----------------------
 # EOS REST Server
@@ -670,6 +676,8 @@ async def fastapi_logging_get_log(
     """
     log_path = get_config().logging.file_path
     try:
+        if log_path is None:
+            raise ValueError("Log file path is not configured")
         logs = read_file_log(
             log_path=log_path,
             limit=limit,
@@ -863,16 +871,16 @@ async def fastapi_measurement_series_get(
         if processing == SeriesProcessing.RAW:
             pdseries = await get_measurement().key_to_raw_series(
                 key=key,
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
+                start_datetime=to_datetime(start_datetime) if start_datetime is not None else None,
+                end_datetime=to_datetime(end_datetime) if end_datetime is not None else None,
                 dropna=dropna,
             )
         else:
             pdseries = await get_measurement().key_to_series(
                 key=key,
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
-                interval=interval,
+                start_datetime=to_datetime(start_datetime) if start_datetime is not None else None,
+                end_datetime=to_datetime(end_datetime) if end_datetime is not None else None,
+                interval=to_duration(interval) if interval is not None else None,
                 fill_method=fill_method,
                 resample_method=resample_method,
                 dropna=dropna,
@@ -1246,6 +1254,9 @@ async def fastapi_prediction_series_get(
     Returns:
         Array
     """
+    resolved_end_datetime: DateTime | None
+    resolved_interval: Duration
+    resolved_start_datetime: DateTime | None
     if key not in get_prediction().record_keys:
         raise EOSProblem(
             status=404,
@@ -1254,10 +1265,10 @@ async def fastapi_prediction_series_get(
         )
 
     if start_datetime is None:
-        start_datetime = get_prediction().ems_start_datetime
+        resolved_start_datetime = get_prediction().ems_start_datetime
     else:
         try:
-            start_datetime = to_datetime(start_datetime)
+            resolved_start_datetime = to_datetime(start_datetime)
         except Exception as e:
             raise EOSProblem(
                 status=400,
@@ -1267,10 +1278,10 @@ async def fastapi_prediction_series_get(
             ) from e
 
     if end_datetime is None:
-        end_datetime = get_prediction().end_datetime
+        resolved_end_datetime = get_prediction().end_datetime
     else:
         try:
-            end_datetime = to_datetime(end_datetime)
+            resolved_end_datetime = to_datetime(end_datetime)
         except Exception as e:
             raise EOSProblem(
                 status=400,
@@ -1280,10 +1291,10 @@ async def fastapi_prediction_series_get(
             ) from e
 
     if interval is None:
-        interval = to_duration("1 hour")
+        resolved_interval = to_duration("1 hour")
     else:
         try:
-            interval = to_duration(interval)
+            resolved_interval = to_duration(interval)
         except Exception as e:
             raise EOSProblem(
                 status=400,
@@ -1296,16 +1307,16 @@ async def fastapi_prediction_series_get(
         if processing == SeriesProcessing.RAW:
             pdseries = await get_prediction().key_to_raw_series(
                 key=key,
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
+                start_datetime=resolved_start_datetime,
+                end_datetime=resolved_end_datetime,
                 dropna=dropna,
             )
         else:
             pdseries = await get_prediction().key_to_series(
                 key=key,
-                start_datetime=start_datetime,
-                end_datetime=end_datetime,
-                interval=interval,
+                start_datetime=resolved_start_datetime,
+                end_datetime=resolved_end_datetime,
+                interval=resolved_interval,
                 fill_method=fill_method,
                 resample_method=resample_method,
                 dropna=dropna,
@@ -1416,24 +1427,26 @@ async def fastapi_prediction_dataframe_get(
             forecast or reporting queries where alignment to the exact query window is
             more important than clock-round boundaries.
     """
+    resolved_end_datetime: DateTime | None
+    resolved_start_datetime: DateTime | None
     for key in keys:
         if key not in get_prediction().record_keys:
             raise HTTPException(status_code=404, detail=f"Key '{key}' is not available.")
     if start_datetime is None:
-        start_datetime = get_prediction().ems_start_datetime
+        resolved_start_datetime = get_prediction().ems_start_datetime
     else:
-        start_datetime = to_datetime(start_datetime)
+        resolved_start_datetime = to_datetime(start_datetime)
     if end_datetime is None:
-        end_datetime = get_prediction().end_datetime
+        resolved_end_datetime = get_prediction().end_datetime
     else:
-        end_datetime = to_datetime(end_datetime)
+        resolved_end_datetime = to_datetime(end_datetime)
 
     try:
         prediction_df = await get_prediction().keys_to_dataframe(
             keys=keys,
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-            interval=interval,
+            start_datetime=resolved_start_datetime,
+            end_datetime=resolved_end_datetime,
+            interval=to_duration(interval) if interval is not None else None,
             fill_method=fill_method,
             resample_method=resample_method,
             dropna=dropna,
@@ -1535,6 +1548,9 @@ async def fastapi_prediction_list_get(
             forecast or reporting queries where alignment to the exact query window is
             more important than clock-round boundaries.
     """
+    resolved_end_datetime: DateTime | None
+    resolved_interval: Duration
+    resolved_start_datetime: DateTime | None
     if key not in get_prediction().record_keys:
         raise EOSProblem(
             status=404,
@@ -1543,10 +1559,10 @@ async def fastapi_prediction_list_get(
         )
 
     if start_datetime is None:
-        start_datetime = get_prediction().ems_start_datetime
+        resolved_start_datetime = get_prediction().ems_start_datetime
     else:
         try:
-            start_datetime = to_datetime(start_datetime)
+            resolved_start_datetime = to_datetime(start_datetime)
         except Exception as e:
             raise EOSProblem(
                 status=400,
@@ -1556,10 +1572,10 @@ async def fastapi_prediction_list_get(
             ) from e
 
     if end_datetime is None:
-        end_datetime = get_prediction().end_datetime
+        resolved_end_datetime = get_prediction().end_datetime
     else:
         try:
-            end_datetime = to_datetime(end_datetime)
+            resolved_end_datetime = to_datetime(end_datetime)
         except Exception as e:
             raise EOSProblem(
                 status=400,
@@ -1569,10 +1585,10 @@ async def fastapi_prediction_list_get(
             ) from e
 
     if interval is None:
-        interval = to_duration("1 hour")
+        resolved_interval = to_duration("1 hour")
     else:
         try:
-            interval = to_duration(interval)
+            resolved_interval = to_duration(interval)
         except Exception as e:
             raise EOSProblem(
                 status=400,
@@ -1584,9 +1600,9 @@ async def fastapi_prediction_list_get(
     try:
         prediction_array = await get_prediction().key_to_array(
             key=key,
-            start_datetime=start_datetime,
-            end_datetime=end_datetime,
-            interval=interval,
+            start_datetime=resolved_start_datetime,
+            end_datetime=resolved_end_datetime,
+            interval=resolved_interval,
             fill_method=fill_method,
             resample_method=resample_method,
             dropna=dropna,
@@ -1654,6 +1670,12 @@ async def fastapi_prediction_import_provider(
             cause=e,
         ) from e
 
+    if not isinstance(provider, DataImportMixin):
+        raise EOSProblem(
+            status=400,
+            title="Prediction import failed",
+            detail=f"Provider '{provider_id}' does not support data imports.",
+        )
     await provider.import_from_json(json_str=json_str)
     provider.update_datetime = to_datetime(in_timezone=get_config().general.timezone)
 
@@ -2191,8 +2213,8 @@ async def fastapi_optimize(
         )
 
     # Create compatible solution.
-    legacy_solution = Genetic0SolutionLegacy(
-        **{
+    legacy_solution = Genetic0SolutionLegacy.model_validate(
+        {
             "ac_charge": solution.ac_charge,
             "dc_charge": solution.dc_charge,
             "discharge_allowed": solution.discharge_allowed,
@@ -2392,7 +2414,7 @@ def run_eos() -> None:
             port=config_eos.server.port,
             log_level=uv_log_level,
             access_log=True,  # Fix server access logging to True
-            reload=config_eos.server.reload,
+            reload=bool(config_eos.server.reload),
             proxy_headers=True,
             forwarded_allow_ips="*",
         )

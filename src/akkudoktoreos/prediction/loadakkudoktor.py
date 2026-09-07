@@ -32,7 +32,7 @@ class LoadAkkudoktorDataRecord(LoadDataRecord):
     )
 
 
-class LoadAkkudoktor(LoadProvider):
+class LoadAkkudoktor(LoadProvider[LoadAkkudoktorDataRecord]):
     """Fetch Load forecast data from Akkudoktor load profiles."""
 
     records: list[LoadAkkudoktorDataRecord] = Field(

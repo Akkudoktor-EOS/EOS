@@ -46,7 +46,18 @@ See each function's docstring for detailed argument options and examples.
 
 import datetime
 import re
-from typing import Any, List, Literal, Optional, Tuple, Union, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+    overload,
+)
 
 import pendulum
 from loguru import logger
@@ -55,12 +66,14 @@ from pydantic import (
     GetCoreSchemaHandler,
 )
 from pydantic_core import core_schema
-from pydantic_extra_types.pendulum_dt import (  # make pendulum types pydantic
-    Date,
-    DateTime,
-    Duration,
-)
 from tzfpy import get_tz
+
+if TYPE_CHECKING:
+    # The Pydantic adapters validate Pendulum values; arithmetic and factory
+    # functions return the base types rather than the validation subclasses.
+    from pendulum import Date, DateTime, Duration
+else:
+    from pydantic_extra_types.pendulum_dt import Date, DateTime, Duration
 
 MAX_DURATION_STRING_LENGTH = 350
 
@@ -184,7 +197,7 @@ class Time(pendulum.Time):
         # Bypass __init__ and __new__ by directly casting the type
         time_obj.__class__ = cls  # This is safe since Time inherits from pendulum.Time
 
-        return time_obj
+        return cast(Time, time_obj)
 
     @classmethod
     def _serialize(cls, value: Optional["Time"]) -> str:
@@ -224,7 +237,7 @@ class Time(pendulum.Time):
         if self.tzinfo and other.tzinfo:
             # Convert both to UTC for comparison
             self_utc = self.in_timezone("UTC")
-            other_utc = other.in_timezone("UTC")
+            other_utc = cast(Time, other).in_timezone("UTC")
             return (self_utc.hour, self_utc.minute, self_utc.second, self_utc.microsecond) == (
                 other_utc.hour,
                 other_utc.minute,
@@ -259,7 +272,9 @@ class Time(pendulum.Time):
         """Convert to UTC timezone."""
         return self.in_timezone("UTC")
 
-    def in_timezone(self, timezone: Union[str, pendulum.Timezone]) -> "Time":
+    def in_timezone(
+        self, timezone: Union[str, pendulum.Timezone, pendulum.FixedTimezone]
+    ) -> "Time":
         """Convert to specified timezone."""
         if isinstance(timezone, str):
             timezone = pendulum.timezone(timezone)
@@ -267,7 +282,9 @@ class Time(pendulum.Time):
         if self.is_aware():
             # For timezone conversion, we need a reference date
             # Use today's date as reference
-            today = pendulum.today(self.tzinfo)
+            today = cast(Callable[[datetime.tzinfo | None], pendulum.DateTime], pendulum.today)(
+                self.tzinfo
+            )
             dt = today.at(self.hour, self.minute, self.second, self.microsecond)
             dt = dt.in_timezone(timezone)  # Convert to target timezone
             t = dt.time()  # Extract naiv time component
@@ -316,7 +333,7 @@ class Time(pendulum.Time):
         return self.format(time_format)
 
     @classmethod
-    def now(cls, tz: Union[str, pendulum.Timezone] = None) -> "Time":
+    def now(cls, tz: Union[str, pendulum.Timezone, None] = None) -> "Time":
         """Get current time with optional timezone."""
         if tz:
             if isinstance(tz, str):
@@ -336,7 +353,7 @@ class Time(pendulum.Time):
         )
 
 
-def _parse_time_string(time_str: str, default_date: pendulum.Date = None) -> pendulum.Time:
+def _parse_time_string(time_str: str, default_date: pendulum.Date | None = None) -> pendulum.Time:
     """Parse various time string formats with comprehensive patterns and timezone support.
 
     Supports a wide variety of time formats including:
@@ -387,7 +404,7 @@ def _parse_time_string(time_str: str, default_date: pendulum.Date = None) -> pen
         raise ValueError("Empty time string")
 
     # Extract timezone information first
-    timezone_info = None
+    timezone_info: pendulum.Timezone | pendulum.FixedTimezone | None = None
     time_part = time_str
 
     # Pattern for timezone at the end: +HH:MM, -HH:MM, +HHMM, -HHMM, UTC, GMT, EST, PST, etc.
@@ -703,7 +720,9 @@ def to_time(
                     # Convert from original timezone to selected timezone
                     # For timezone conversion, we need a reference date
                     # Use today's date as reference
-                    today = pendulum.today(t.tzinfo)
+                    today = cast(
+                        Callable[[datetime.tzinfo | None], pendulum.DateTime], pendulum.today
+                    )(t.tzinfo)
                     dt = today.at(t.hour, t.minute, t.second, t.microsecond)
                     dt = dt.in_timezone(timezone)  # Convert to target timezone
                     t = dt.time()  # Extract time component (always naive)
@@ -746,7 +765,7 @@ def to_time(
                 tz_name = value.tzinfo.tzname(value)
                 # Safely get Pendulum timezone
                 try:
-                    timezone = pendulum.timezone(tz_name)
+                    timezone = pendulum.timezone(cast(str, tz_name))
                 except Exception:
                     # fallback to fixed offset if tz_name is something like 'UTC+02:00'
                     utc_offset = value.tzinfo.utcoffset(value)
@@ -754,7 +773,7 @@ def to_time(
                         utc_offset_total_seconds = 0.0
                     else:
                         utc_offset_total_seconds = utc_offset.total_seconds()
-                    timezone = pendulum.FixedTimezone(utc_offset_total_seconds // 60)
+                    timezone = pendulum.FixedTimezone(int(utc_offset_total_seconds // 60))
             pdt = pendulum.instance(value).in_tz(timezone)
             return finalize(pdt.time())
 
@@ -792,21 +811,25 @@ def to_time(
 
             # Fallback to pendulum's parser
             try:
-                dt = pendulum.parse(value, strict=False).in_tz(timezone)
+                dt = cast(pendulum.DateTime, pendulum.parse(value, strict=False)).in_tz(timezone)
                 return finalize(dt.time())
             except Exception as e:
                 logger.trace(f"Pendulum parser failed for '{value}': {e}")
 
             # Try parsing with ISO time prefix
             try:
-                dt = pendulum.parse(f"T{value}", strict=False).in_tz(timezone)
+                dt = cast(pendulum.DateTime, pendulum.parse(f"T{value}", strict=False)).in_tz(
+                    timezone
+                )
                 return finalize(dt.time())
             except Exception as e:
                 logger.trace(f"ISO time parser failed for 'T{value}': {e}")
 
             # Try parsing as part of a full datetime
             try:
-                dt = pendulum.parse(f"2000-01-01 {value}", strict=False).in_tz(timezone)
+                dt = cast(
+                    pendulum.DateTime, pendulum.parse(f"2000-01-01 {value}", strict=False)
+                ).in_tz(timezone)
                 return finalize(dt.time())
             except Exception as e:
                 logger.trace(f"Full datetime parser failed for '2000-01-01 {value}': {e}")
@@ -903,16 +926,19 @@ def to_datetime(
         '2024-10-31 12:00:00'
     """
     # Timezone to convert to
+    timezone: Timezone | pendulum.FixedTimezone
     if in_timezone is None:
-        in_timezone = pendulum.local_timezone()
-    elif not isinstance(in_timezone, Timezone):
-        in_timezone = pendulum.timezone(in_timezone)
+        timezone = pendulum.local_timezone()
+    elif isinstance(in_timezone, Timezone):
+        timezone = in_timezone
+    else:
+        timezone = pendulum.timezone(in_timezone)
 
     if isinstance(date_input, DateTime):
         dt = date_input
     elif isinstance(date_input, Date):
         dt = pendulum.datetime(
-            year=date_input.year, month=date_input.month, day=date_input.day, tz=in_timezone
+            year=date_input.year, month=date_input.month, day=date_input.day, tz=timezone
         )
         if to_maxtime:
             dt = dt.end_of("day")
@@ -937,10 +963,10 @@ def to_datetime(
             # DateTime input without timezone info
             try:
                 fmt_tz = f"{fmt} z"
-                dt_tz = f"{date_input} {in_timezone}"
+                dt_tz = f"{date_input} {timezone}"
                 dt = pendulum.from_format(dt_tz, fmt_tz)
                 logger.trace(
-                    f"Str Fmt converted: {dt}, tz={dt.tz} from {date_input}, tz={in_timezone}"
+                    f"Str Fmt converted: {dt}, tz={dt.tz} from {date_input}, tz={timezone}"
                 )
                 break
             except ValueError as e:
@@ -949,9 +975,9 @@ def to_datetime(
         else:
             # DateTime input with timezone info
             try:
-                dt = pendulum.parse(date_input)
+                dt = cast(pendulum.DateTime, pendulum.parse(date_input))
                 logger.trace(
-                    f"Pendulum Fmt converted: {dt}, tz={dt.tz} from {date_input}, tz={in_timezone}"
+                    f"Pendulum Fmt converted: {dt}, tz={dt.tz} from {date_input}, tz={timezone}"
                 )
             except pendulum.parsing.exceptions.ParserError as e:
                 logger.trace(f"Date string {date_input} does not match any Pendulum formats: {e}")
@@ -971,7 +997,9 @@ def to_datetime(
         if dt is None:
             raise ValueError(f"Date string {date_input} does not match any known formats.")
     elif date_input is None:
-        dt = pendulum.now(tz=in_timezone)
+        dt = cast(Callable[[Timezone | pendulum.FixedTimezone], pendulum.DateTime], pendulum.now)(
+            timezone
+        )
     elif isinstance(date_input, datetime.datetime):
         dt = pendulum.instance(date_input)
     elif isinstance(date_input, datetime.date):
@@ -988,10 +1016,14 @@ def to_datetime(
         logger.error(error_msg)
         raise ValueError(error_msg)
 
+    # Every supported input branch produces a datetime or raises above.
+    if dt is None:
+        raise ValueError("Datetime conversion did not produce a value")
+
     # Represent in target timezone
-    dt_in_tz = dt.in_timezone(in_timezone)
+    dt_in_tz = dt.in_timezone(timezone)
     logger.trace(
-        f"\nTimezone adapted to: {in_timezone}\nfrom: {dt} tz={dt.timezone}\nto:   {dt_in_tz} tz={dt_in_tz.tz}"
+        f"\nTimezone adapted to: {timezone}\nfrom: {dt} tz={dt.timezone}\nto:   {dt_in_tz} tz={dt_in_tz.tz}"
     )
     dt = dt_in_tz
 
@@ -1158,7 +1190,8 @@ def to_duration(
                 duration = parsed  # Already a duration
             else:
                 # It's a DateTime, calculate duration from start of day
-                duration = parsed - parsed.start_of("day")
+                parsed_datetime = cast(pendulum.DateTime, parsed)
+                duration = parsed_datetime - parsed_datetime.start_of("day")
         except pendulum.parsing.exceptions.ParserError as e:
             logger.trace(f"Invalid Pendulum time string format '{input_value}': {e}")
 
@@ -1516,6 +1549,7 @@ def compare_datetimes(
         DatetimesComparisonResult(equal=False, same_instant=True, time_diff=7200, timezone_diff=True, dst_diff=False, approximately_equal=True, ge=False, gt=False, le=True, lt=True)
     """
     # Normalize tolerance to seconds
+    tolerance_seconds: float
     if tolerance is None:
         tolerance_seconds = 0
     elif isinstance(tolerance, pendulum.Duration):

@@ -8,7 +8,7 @@ This module is designed for use in predictive modeling workflows, facilitating t
 and manipulation of configuration and prediction data in a clear, scalable, and structured manner.
 """
 
-from typing import List, Optional
+from typing import Generic, List, Optional, TypeVar
 
 from loguru import logger
 from pydantic import Field, computed_field
@@ -21,6 +21,7 @@ from akkudoktoreos.core.dataabc import (
     DataProvider,
     DataRecord,
     DataSequence,
+    RecordT,
 )
 from akkudoktoreos.utils.datetimeutil import DateTime, Duration, to_duration
 
@@ -52,7 +53,10 @@ class PredictionRecord(DataRecord):
     pass
 
 
-class PredictionSequence(DataSequence):
+PredictionRecordT = TypeVar("PredictionRecordT", bound=PredictionRecord)
+
+
+class PredictionSequence(DataSequence[PredictionRecordT], Generic[PredictionRecordT]):
     """A managed sequence of PredictionRecord instances with list-like behavior.
 
     The PredictionSequence class provides an ordered, mutable collection of PredictionRecord
@@ -90,7 +94,7 @@ class PredictionSequence(DataSequence):
     """
 
     # To be overloaded by derived classes.
-    records: List[PredictionRecord] = Field(
+    records: List[PredictionRecordT] = Field(
         default_factory=list, json_schema_extra={"description": "List of prediction records"}
     )
 
@@ -185,7 +189,7 @@ class PredictionStartEndKeepMixin(PredictionABC):
         return int(duration.total_hours())
 
 
-class PredictionProvider(PredictionStartEndKeepMixin, DataProvider):
+class PredictionProvider(PredictionStartEndKeepMixin, DataProvider[RecordT], Generic[RecordT]):
     """Abstract base class for prediction providers with singleton thread-safety and configurable prediction parameters.
 
     This class serves as a base for managing prediction data, providing an interface for derived
@@ -249,7 +253,9 @@ class PredictionProvider(PredictionStartEndKeepMixin, DataProvider):
         await self._update_data(force_update=force_update)
 
 
-class PredictionImportProvider(PredictionProvider, DataImportProvider):
+class PredictionImportProvider(
+    PredictionProvider[RecordT], DataImportProvider[RecordT], Generic[RecordT]
+):
     """Abstract base class for prediction providers that import prediction data.
 
     This class is designed to handle prediction data provided in the form of a key-value dictionary.
@@ -264,7 +270,12 @@ class PredictionImportProvider(PredictionProvider, DataImportProvider):
     pass
 
 
-class PredictionContainer(PredictionStartEndKeepMixin, DataContainer):
+PredictionProviderT = TypeVar("PredictionProviderT", bound=PredictionProvider)
+
+
+class PredictionContainer(
+    PredictionStartEndKeepMixin, DataContainer[PredictionProviderT], Generic[PredictionProviderT]
+):
     """A container for managing multiple PredictionProvider instances.
 
     This class enables access to data from multiple prediction providers, supporting retrieval and
@@ -277,6 +288,6 @@ class PredictionContainer(PredictionStartEndKeepMixin, DataContainer):
     """
 
     # To be overloaded by derived classes.
-    providers: List[PredictionProvider] = Field(
+    providers: List[PredictionProviderT] = Field(
         default_factory=list, json_schema_extra={"description": "List of prediction providers"}
     )

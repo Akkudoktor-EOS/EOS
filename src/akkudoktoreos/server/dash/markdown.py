@@ -9,6 +9,7 @@ from fasthtml.common import FT, Div, NotStr
 from markdown_it import MarkdownIt
 from markdown_it.renderer import RendererHTML
 from markdown_it.token import Token
+from markdown_it.utils import OptionsDict
 from monsterui.foundations import stringify
 
 # Where to find the static data assets
@@ -42,7 +43,7 @@ def file_to_data_uri(file_path: Path) -> str:
 
 
 def render_heading(
-    self: RendererHTML, tokens: List[Token], idx: int, options: dict, env: dict
+    self: RendererHTML, tokens: List[Token], idx: int, options: OptionsDict, env: dict
 ) -> str:
     """Custom renderer for Markdown headings with MonsterUI styling."""
     if tokens[idx].markup == "#":
@@ -63,7 +64,7 @@ def render_heading(
 
 
 def render_paragraph(
-    self: RendererHTML, tokens: List[Token], idx: int, options: dict, env: dict
+    self: RendererHTML, tokens: List[Token], idx: int, options: OptionsDict, env: dict
 ) -> str:
     """Custom renderer for Markdown paragraphs with MonsterUI styling."""
     tokens[idx].attrSet("class", "leading-7 [&:not(:first-child)]:mt-6")
@@ -71,28 +72,30 @@ def render_paragraph(
 
 
 def render_blockquote(
-    self: RendererHTML, tokens: List[Token], idx: int, options: dict, env: dict
+    self: RendererHTML, tokens: List[Token], idx: int, options: OptionsDict, env: dict
 ) -> str:
     """Custom renderer for Markdown blockquotes with MonsterUI styling."""
     tokens[idx].attrSet("class", "mt-6 border-l-2 pl-6 italic border-primary")
     return self.renderToken(tokens, idx, options, env)
 
 
-def render_list(self: RendererHTML, tokens: List[Token], idx: int, options: dict, env: dict) -> str:
+def render_list(
+    self: RendererHTML, tokens: List[Token], idx: int, options: OptionsDict, env: dict
+) -> str:
     """Custom renderer for lists with MonsterUI styling."""
     tokens[idx].attrSet("class", "my-6 ml-6 list-disc [&>li]:mt-2")
     return self.renderToken(tokens, idx, options, env)
 
 
 def render_image(
-    self: RendererHTML, tokens: List[Token], idx: int, options: dict, env: dict
+    self: RendererHTML, tokens: List[Token], idx: int, options: OptionsDict, env: dict
 ) -> str:
     """Custom renderer for Markdown images with MonsterUI styling."""
     token = tokens[idx]
     src = token.attrGet("src")
     alt = token.content or ""
 
-    if src:
+    if isinstance(src, str) and src:
         pos = src.find(ASSETS_PREFIX)
         if pos != -1:
             asset_rel = src[pos + len(ASSETS_PREFIX) :]
@@ -107,12 +110,14 @@ def render_image(
     return self.renderToken(tokens, idx, options, env)
 
 
-def render_link(self: RendererHTML, tokens: List[Token], idx: int, options: dict, env: dict) -> str:
+def render_link(
+    self: RendererHTML, tokens: List[Token], idx: int, options: OptionsDict, env: dict
+) -> str:
     """Custom renderer for Markdown links with MonsterUI styling."""
     token = tokens[idx]
     href = token.attrGet("href")
 
-    if href:
+    if isinstance(href, str) and href:
         pos = href.find(ASSETS_PREFIX)
         if pos != -1:
             asset_rel = href[pos + len(ASSETS_PREFIX) :]

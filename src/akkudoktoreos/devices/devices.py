@@ -106,7 +106,7 @@ class BatteriesCommonSettings(DevicesBaseSettings):
     def validate_and_sort_charge_rates(cls, v: Any) -> NDArray[Shape["*"], float]:
         # None means fallback to default values
         if v is None:
-            return BATTERY_DEFAULT_CHARGE_RATES.copy()
+            return np.asarray(BATTERY_DEFAULT_CHARGE_RATES, dtype=float)
 
         # Convert to numpy array
         if isinstance(v, str):
@@ -345,10 +345,10 @@ class DevicesCommonSettings(SettingsBaseModel):
 
         if self.max_batteries and self.batteries:
             for battery in self.batteries:
-                keys.extend(battery.measurement_keys)
+                keys.extend(battery.measurement_keys or [])
         if self.max_electric_vehicles and self.electric_vehicles:
             for electric_vehicle in self.electric_vehicles:
-                keys.extend(electric_vehicle.measurement_keys)
+                keys.extend(electric_vehicle.measurement_keys or [])
         return keys
 
 

@@ -94,7 +94,7 @@ class MeasurementDataRecord(DataRecord):
         return keys
 
 
-class Measurement(SingletonMixin, DataImportMixin, DataSequence):
+class Measurement(SingletonMixin, DataImportMixin, DataSequence[MeasurementDataRecord]):
     """Singleton class that holds measurement data records.
 
     Measurements can be provided programmatically or read from JSON string or file.
@@ -168,6 +168,8 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             np.ndarray: A NumPy Array of the energy [kWh] per interval values calculated from
                         the meter readings.
         """
+        if start_datetime is None or end_datetime is None:
+            raise ValueError("Start and end datetimes are required for energy calculation")
         size = self._interval_count(start_datetime, end_datetime, interval)
 
         energy_mr_array = await self.key_to_array(
@@ -237,6 +239,8 @@ class Measurement(SingletonMixin, DataImportMixin, DataSequence):
             end_datetime = await self.max_datetime()
             if end_datetime:
                 end_datetime = end_datetime.add(seconds=1)
+        if start_datetime is None or end_datetime is None:
+            raise ValueError("Start and end datetimes are required for energy calculation")
         size = self._interval_count(start_datetime, end_datetime, interval)
         load_total_kwh_array = np.zeros(size)
 

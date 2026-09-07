@@ -69,7 +69,7 @@ def adapter_providers() -> list[Union["HomeAssistantAdapter", "NodeREDAdapter"]]
     ]
 
 
-class Adapter(AdapterContainer):
+class Adapter(AdapterContainer[HomeAssistantAdapter | NodeREDAdapter]):
     """Adapter container to manage multiple adapter providers."""
 
     providers: list[

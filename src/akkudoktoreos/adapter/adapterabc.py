@@ -2,7 +2,7 @@
 
 import asyncio
 from abc import abstractmethod
-from typing import Any, Optional
+from typing import Any, Generic, Optional, TypeVar
 
 from loguru import logger
 from pydantic import (
@@ -102,18 +102,21 @@ class AdapterProvider(SingletonMixin, ConfigMixin, MeasurementMixin, StartMixin,
             await self._update_data()
 
 
-class AdapterContainer(SingletonMixin, ConfigMixin, PydanticBaseModel):
+AdapterProviderT = TypeVar("AdapterProviderT", bound=AdapterProvider)
+
+
+class AdapterContainer(SingletonMixin, ConfigMixin, PydanticBaseModel, Generic[AdapterProviderT]):
     """A container for managing multiple adapter provider instances.
 
     This class enables to control multiple adapter providers
     """
 
-    providers: list[AdapterProvider] = Field(
+    providers: list[AdapterProviderT] = Field(
         default_factory=list, json_schema_extra={"description": "List of adapter providers"}
     )
 
     @field_validator("providers")
-    def check_providers(cls, value: list[AdapterProvider]) -> list[AdapterProvider]:
+    def check_providers(cls, value: list[AdapterProviderT]) -> list[AdapterProviderT]:
         # Check each item in the list
         for item in value:
             if not isinstance(item, AdapterProvider):
@@ -149,7 +152,7 @@ class AdapterContainer(SingletonMixin, ConfigMixin, PydanticBaseModel):
             return
         super().__init__(*args, **kwargs)
 
-    def provider_by_id(self, provider_id: str) -> AdapterProvider:
+    def provider_by_id(self, provider_id: str) -> AdapterProviderT:
         """Retrieves an adapter provider by its unique identifier.
 
         This method searches through the list of all available providers and

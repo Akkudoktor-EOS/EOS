@@ -5,7 +5,7 @@ Notes:
 """
 
 from abc import abstractmethod
-from typing import List, Optional
+from typing import Generic, List, Optional, TypeVar
 
 from pydantic import Field
 
@@ -20,7 +20,10 @@ class LoadDataRecord(PredictionRecord):
     )
 
 
-class LoadProvider(PredictionProvider):
+LoadRecordT = TypeVar("LoadRecordT", bound=LoadDataRecord)
+
+
+class LoadProvider(PredictionProvider[LoadRecordT], Generic[LoadRecordT]):
     """Abstract base class for load providers.
 
     LoadProvider is a thread-safe singleton, ensuring only one instance of this class is created.
@@ -41,7 +44,7 @@ class LoadProvider(PredictionProvider):
     """
 
     # overload
-    records: List[LoadDataRecord] = Field(
+    records: List[LoadRecordT] = Field(
         default_factory=list, json_schema_extra={"description": "List of LoadDataRecord records"}
     )
 

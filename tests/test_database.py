@@ -680,7 +680,7 @@ class SampleDataRecord(DataRecord):
     pressure: float = Field(default=0.0)
 
 
-class SampleDataSequence(DataSequence):
+class SampleDataSequence(DataSequence[SampleDataRecord]):
     """DataSequence subclass with database support."""
     records: list[SampleDataRecord] = Field(default_factory=list)
 
@@ -692,7 +692,7 @@ class SampleDataSequence(DataSequence):
         return "SampleDataSequence"
 
 
-class SampleDataProvider(DataProvider):
+class SampleDataProvider(DataProvider[SampleDataRecord]):
     """DataProvider subclass with database support."""
     records: list[SampleDataRecord] = Field(default_factory=list)
 

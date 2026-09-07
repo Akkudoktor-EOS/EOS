@@ -49,7 +49,7 @@ class FeedInTariffDataRecord(PredictionRecord):
         return self.feed_in_tariff_wh * 1000.0
 
 
-class FeedInTariffProvider(PricePredictionProviderBase):
+class FeedInTariffProvider(PricePredictionProviderBase[FeedInTariffDataRecord]):
     """Abstract base class for feed in tariff providers.
 
     FeedInTariffProvider is a thread-safe singleton, ensuring only one instance of this class is created.

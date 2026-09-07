@@ -13,7 +13,7 @@ Notes:
 """
 
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 import requests
@@ -232,7 +232,7 @@ class WeatherClearOutside(WeatherProvider):
             p_detail_tables.pop(0)
 
             # Create clearout data
-            clearout_data = {}
+            clearout_data: dict[str, Any] = {}
             # Number of detail values. On last day may be less than 24.
             detail_values_count = None
             # Add data values
@@ -258,7 +258,7 @@ class WeatherClearOutside(WeatherProvider):
                     raise ValueError(error_msg)
 
                 # Scrape the detail values
-                detail_data = []
+                detail_data: list[float | str] = []
                 extra_detail_name = None
                 extra_detail_data = []
                 for p_detail_value in p_detail_values:
@@ -281,9 +281,10 @@ class WeatherClearOutside(WeatherProvider):
                         and hasattr(p_detail_value, "title")
                         and p_detail_value.title
                     ):
-                        value_str = p_detail_value.title.string
+                        value_str = p_detail_value.title.get_text()
                     else:
                         value_str = p_detail_value.get_text()
+                    value: float | str
                     try:
                         value = float(value_str)
                     except ValueError:
@@ -336,9 +337,9 @@ class WeatherClearOutside(WeatherProvider):
                     if key is None:
                         continue
                     if detail_name in clearout_data:
-                        value = clearout_data[detail_name][row_index]
+                        record_value = clearout_data[detail_name][row_index]
                         corr_factor = clearoutside_key_mapping[detail_name][1]
                         if corr_factor:
-                            value = value * corr_factor
-                        setattr(weather_record, key, value)
+                            record_value = record_value * corr_factor
+                        setattr(weather_record, key, record_value)
                 await self.insert_by_datetime(weather_record)

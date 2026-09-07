@@ -123,10 +123,10 @@ class FeedInTariffAkkudoktor(FeedInTariffProvider):
         history = np.asarray(
             await self.key_to_array(
                 key="feed_in_tariff_wh",
-                end_datetime=self.highest_orig_datetime,
+                end_datetime=to_datetime(self.highest_orig_datetime),
                 fill_method="linear",
             ),
-            dtype=float,
+            dtype=np.float64,
         )
         covered_hours = (
             int((self.highest_orig_datetime - self.ems_start_datetime).total_seconds() // 3600) + 1

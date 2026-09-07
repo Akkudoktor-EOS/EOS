@@ -74,6 +74,8 @@ async def measurement_eos():
         load1_mr += 0.05
     min_dt = await measurement.min_datetime()
     max_dt = await measurement.max_datetime()
+    assert min_dt is not None
+    assert max_dt is not None
     assert compare_datetimes(min_dt, to_datetime("2024-01-01T00:00:00")).equal
     assert compare_datetimes(max_dt, to_datetime("2024-01-02T00:00:00")).equal
     return measurement

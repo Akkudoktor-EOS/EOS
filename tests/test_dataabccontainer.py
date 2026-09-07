@@ -37,7 +37,7 @@ class DerivedRecord(DataRecord):
         return ["dish_washer_emr", "solar_power", "temp"]
 
 
-class DerivedDataProvider(DataProvider):
+class DerivedDataProvider(DataProvider[DerivedRecord]):
     """Concrete DataProvider for testing."""
 
     records: List[DerivedRecord] = Field(

@@ -14,7 +14,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, ClassVar, Optional, Type, Union
+from typing import Any, Callable, ClassVar, Optional, Type, Union
 
 import pydantic_settings
 from loguru import logger
@@ -122,6 +122,10 @@ def default_data_folder_path() -> Path:
 class GeneralSettings(SettingsBaseModel):
     """General settings."""
 
+    # Legacy configuration-path metadata populated by ConfigEOS._setup_config_file.
+    _config_file_path: ClassVar[Path | None] = None
+    _config_folder_path: ClassVar[Path | None] = None
+
     config_save_mode: ConfigSaveMode = Field(
         default=ConfigSaveMode.AUTOMATIC,
         json_schema_extra={
@@ -161,8 +165,11 @@ class GeneralSettings(SettingsBaseModel):
         },
     )
 
+    # Validate this raw default to Path. Retain the string so
+    # exclude_defaults preserves the output path in migrated configurations.
     data_output_subpath: Optional[Path] = Field(
         default="output",
+        validate_default=True,
         json_schema_extra={"description": "Sub-path for the EOS output data folder."},
     )
 
@@ -402,14 +409,15 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         return True
 
     @classmethod
-    def settings_customise_sources(
+    # Pydantic Settings accepts zero-argument callables as well as source objects.
+    def settings_customise_sources(  # type: ignore[override]
         cls,
         settings_cls: Type[pydantic_settings.BaseSettings],
         init_settings: pydantic_settings.PydanticBaseSettingsSource,
         env_settings: pydantic_settings.PydanticBaseSettingsSource,
         dotenv_settings: pydantic_settings.PydanticBaseSettingsSource,
         file_secret_settings: pydantic_settings.PydanticBaseSettingsSource,
-    ) -> tuple[pydantic_settings.PydanticBaseSettingsSource, ...]:
+    ) -> tuple[pydantic_settings.PydanticBaseSettingsSource | Callable[[], dict[str, Any]], ...]:
         """Customizes the order and handling of settings sources for a pydantic_settings.BaseSettings subclass.
 
         This method determines the sources for application configuration settings, including
@@ -790,7 +798,10 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 required by ``self._setup()``.
             OSError: If reading the backup file fails due to I/O issues.
         """
-        backup_file_path = self.general.config_file_path.with_suffix(f".{backup_id}")
+        config_file_path = self.general.config_file_path
+        if config_file_path is None:
+            raise RuntimeError("Configuration file path is not initialized")
+        backup_file_path = config_file_path.with_suffix(f".{backup_id}")
         if not backup_file_path.exists():
             error_msg = f"Configuration backup `{backup_id}` not found."
             logger.error(error_msg)
@@ -823,7 +834,9 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
         """
         result: dict[str, dict[str, Any]] = {}
 
-        base_path: Path = self.general.config_file_path
+        base_path = self.general.config_file_path
+        if base_path is None:
+            raise RuntimeError("Configuration file path is not initialized")
         parent = base_path.parent
         stem = base_path.stem
 

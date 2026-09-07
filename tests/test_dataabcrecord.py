@@ -296,13 +296,13 @@ class TestDataRecord:
 
     def test_init_configured_field_like_data_applies_before_model_init(self):
         """Test that keys listed in `_configured_data_keys` are moved to `configured_data` at init time."""
-        record = DerivedRecord(
+        record = DerivedRecord.model_validate(dict(
             date_time="2024-01-03T00:00:00+00:00",
             data_value=42.0,
             dish_washer_emr=111.1,
             solar_power=222.2,
             temp=333.3  # assume `temp` is also a valid configured key
-        )
+        ))
 
         assert record.data_value == 42.0
         assert record.configured_data == {

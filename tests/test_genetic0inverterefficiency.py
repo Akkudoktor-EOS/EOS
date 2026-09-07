@@ -265,13 +265,13 @@ class TestAcChargingInSimulation:
 
             simulation = Genetic0Simulation()
             simulation.prepare(
-                Genetic0EnergyManagementParameters(
+                Genetic0EnergyManagementParameters.model_validate(dict(
                     pv_prognose_wh=[0.0] * prediction_hours,  # No PV
                     strompreis_euro_pro_wh=[0.0003] * prediction_hours,  # ~30ct/kWh
                     einspeiseverguetung_euro_pro_wh=0.00008,
                     preis_euro_pro_wh_akku=0.0001,
                     gesamtlast=[1000.0] * prediction_hours,  # 1 kW constant load
-                ),
+                )),
                 optimization_hours=config_eos.optimization.genetic0.horizon_hours,
                 prediction_hours=prediction_hours,
                 inverter=inverter,

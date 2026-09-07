@@ -14,6 +14,7 @@ from monsterui.franken import (
     LabelCheckboxX,
     Option,
 )
+from pydantic import BaseModel
 from pydantic.fields import ComputedFieldInfo, FieldInfo
 from pydantic_core import PydanticUndefined
 
@@ -192,7 +193,7 @@ def get_default_value(field_info: Union[FieldInfo, ComputedFieldInfo], regular_f
     """
     import pathlib
 
-    if not regular_field:
+    if not regular_field or not isinstance(field_info, FieldInfo):
         return "N/A"
 
     # Resolve the raw default — prefer plain default, fall back to factory
@@ -200,7 +201,7 @@ def get_default_value(field_info: Union[FieldInfo, ComputedFieldInfo], regular_f
         val = field_info.default
     elif field_info.default_factory is not None:
         try:
-            val = field_info.default_factory()
+            val = field_info.get_default(call_default_factory=True)
         except Exception:
             return ""
     else:
@@ -250,7 +251,7 @@ def resolve_nested_types(field_type: Any, parent_types: list[str]) -> list[tuple
 
 
 def create_config_details(
-    model: type[PydanticBaseModel], values: dict, values_prefix: list[str] = []
+    model: type[BaseModel], values: dict, values_prefix: list[str] = []
 ) -> dict[str, dict]:
     """Generate configuration details based on provided values and model metadata.
 
@@ -271,7 +272,11 @@ def create_config_details(
     ) -> None:
         nonlocal values, values_prefix
         regular_field = isinstance(subfield_info, FieldInfo)
-        subtype = subfield_info.annotation if regular_field else subfield_info.return_type
+        subtype = (
+            subfield_info.annotation
+            if isinstance(subfield_info, FieldInfo)
+            else subfield_info.return_type
+        )
 
         nested_types = resolve_nested_types(subtype, [])
         found_basic = False

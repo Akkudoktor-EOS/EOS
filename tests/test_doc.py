@@ -16,6 +16,23 @@ DIR_TEST_GENERATED = DIR_TESTDATA / "docs" / "_generated"
 GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS")
 
 
+def test_generic_time_windows_keep_nested_documentation(monkeypatch):
+    from akkudoktoreos.config.configabc import TimeWindowSequence
+
+    monkeypatch.syspath_prepend(str(DIR_PROJECT_ROOT))
+    from scripts import generate_config_md
+
+    monkeypatch.setattr(generate_config_md, "documented_types", set())
+    monkeypatch.setattr(generate_config_md, "undocumented_types", {})
+    markdown = generate_config_md.generate_config_table_md(
+        TimeWindowSequence, ["time_windows"], "", toplevel=True, extra_config=True
+    )
+    assert "`list[akkudoktoreos.config.configabc.TimeWindow]`" in markdown
+    assert ":::{table} time_windows::windows::list" in markdown
+    assert "| start_time | `Time`" in markdown
+    assert "| duration | `Duration`" in markdown
+
+
 @pytest.mark.skipif(GITHUB_ACTIONS == "true", reason="Skipped on GitHub Actions - TODO!")
 def test_openapi_spec_current(config_eos, set_other_timezone):
     """Verify the openapi spec hasn´t changed."""

@@ -15,6 +15,7 @@ from typing import List, Optional, Type
 import numpy as np
 import pytest
 import pytest_asyncio
+from pendulum import UTC
 from pydantic import Field
 
 from akkudoktoreos.core.coreabc import get_database
@@ -44,7 +45,7 @@ class EnergyRecord(DataRecord):
     )
 
 
-class EnergySequence(DataSequence):
+class EnergySequence(DataSequence[EnergyRecord]):
     records: List[EnergyRecord] = Field(
         default_factory=list,
         json_schema_extra={"description": "List of energy records"},
@@ -58,7 +59,7 @@ class EnergySequence(DataSequence):
         return "energy_test"
 
 
-class PriceSequence(DataSequence):
+class PriceSequence(DataSequence[EnergyRecord]):
     """Price data — overrides tiers to keep 15-min resolution for 2 weeks."""
 
     records: List[EnergyRecord] = Field(
@@ -78,7 +79,7 @@ class PriceSequence(DataSequence):
         return [(to_duration("14 days"), to_duration("1 hour"))]
 
 
-class EnergyProvider(DataProvider):
+class EnergyProvider(DataProvider[EnergyRecord]):
     records: List[EnergyRecord] = Field(
         default_factory=list,
         json_schema_extra={"description": "List of energy records"},
@@ -101,7 +102,7 @@ class EnergyProvider(DataProvider):
         return self.provider_id()
 
 
-class PriceProvider(DataProvider):
+class PriceProvider(DataProvider[EnergyRecord]):
     records: List[EnergyRecord] = Field(
         default_factory=list,
         json_schema_extra={"description": "List of price records"},
@@ -181,7 +182,7 @@ def _reset_singletons() -> None:
     """
     for cls in (EnergySequence, PriceSequence, EnergyProvider, PriceProvider, EnergyContainer):
         try:
-            cls.reset_instance()
+            getattr(cls, "reset_instance")()
         except Exception:
             pass
 
@@ -691,7 +692,7 @@ class TestDataSequenceCompactIntegrity:
         # DatabaseTimestamp already imported at top of file
         db_max_epoch = int(DatabaseTimestamp.to_datetime(db_max_ts).timestamp())
         two_weeks_cutoff_epoch = ((db_max_epoch - 14*24*3600) // 3600) * 3600
-        two_weeks_cutoff_dt = DateTime.fromtimestamp(two_weeks_cutoff_epoch, tz="UTC")
+        two_weeks_cutoff_dt = DateTime.fromtimestamp(two_weeks_cutoff_epoch, tz=UTC)
 
         old_records = [r for r in seq.records if r.date_time and r.date_time < two_weeks_cutoff_dt]
 
@@ -986,7 +987,7 @@ class TestDataSequenceSparseGuard:
         margin_sec = (max_offset + 2 * interval_minutes + 1) * 60
         raw_base_epoch = window_end_epoch - margin_sec
         base_epoch = (raw_base_epoch // interval_sec) * interval_sec
-        base = DateTime.fromtimestamp(base_epoch, tz="UTC")
+        base = DateTime.fromtimestamp(base_epoch, tz=UTC)
 
         dts = []
         for off in offsets_minutes:

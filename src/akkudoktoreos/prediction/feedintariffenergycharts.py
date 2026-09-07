@@ -279,7 +279,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
         # above, so ETS/median always trains on the true wholesale-price signal.
         history = await self.key_to_array(
             key="feed_in_tariff_raw_wh",
-            end_datetime=self.highest_orig_datetime,
+            end_datetime=to_datetime(self.highest_orig_datetime),
             interval=to_duration(f"{resolution_seconds} seconds"),
             fill_method="linear",
         )

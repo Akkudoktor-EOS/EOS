@@ -59,7 +59,7 @@ def item_model_defaults(item_model: Any) -> tuple[dict, list[str]]:
         if field_info.default is not PydanticUndefined:
             kwargs[field_name] = field_info.default
         elif field_info.default_factory is not None:
-            kwargs[field_name] = field_info.default_factory()
+            kwargs[field_name] = field_info.get_default(call_default_factory=True)
         else:
             required_missing.append(field_name)
 

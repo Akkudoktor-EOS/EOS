@@ -742,6 +742,8 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
                 if clear_all:
                     clear_file = True
                 else:
+                    if before_datetime is None:
+                        raise RuntimeError("Cache expiry threshold is not initialized")
                     clear_file = compare_datetimes(cache_item.until_datetime, before_datetime).lt
 
                 if clear_file:
@@ -782,9 +784,11 @@ class CacheFileStore(ConfigMixin, SingletonMixin):
         with self._store_lock:
             store_current = {}
             for key, record in self._store.items():
-                ttl_duration = record.ttl_duration
-                if ttl_duration:
-                    ttl_duration = ttl_duration.total_seconds()
+                ttl_duration = (
+                    record.ttl_duration.total_seconds()
+                    if record.ttl_duration
+                    else record.ttl_duration
+                )
                 store_current[key] = {
                     # Convert file-like objects to file paths for serialization
                     "cache_file": self._get_file_path(record.cache_file),

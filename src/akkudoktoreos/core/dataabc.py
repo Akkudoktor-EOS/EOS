@@ -20,10 +20,12 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Dict,
+    Generic,
     Iterator,
     Optional,
     Tuple,
     Type,
+    TypeVar,
     Union,
     get_args,
     overload,
@@ -289,7 +291,8 @@ class DataRecord(DataABC, MutableMapping):
         except AttributeError:
             raise KeyError(f"'{key}' is not a recognized field.")
 
-    def __iter__(self) -> Iterator[str]:
+    # EOS collections iterate over their elements instead of BaseModel field/value pairs.
+    def __iter__(self) -> Iterator[str]:  # type: ignore[override]
         """Iterate over the field names in the data record.
 
         Returns:
@@ -441,7 +444,10 @@ class DataRecord(DataABC, MutableMapping):
 # ==================== DataSequence ====================
 
 
-class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
+RecordT = TypeVar("RecordT", bound=DataRecord)
+
+
+class DataSequence(DataABC, DatabaseRecordProtocolMixin[RecordT], Generic[RecordT]):
     """A managed sequence of DataRecord instances with time series behavior.
 
     The DataSequence class provides an ordered, mutable collection of DataRecord
@@ -488,7 +494,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
     """
 
     # To be overloaded by derived classes.
-    records: list[DataRecord] = Field(
+    records: list[RecordT] = Field(
         default_factory=list, json_schema_extra={"description": "List of data records"}
     )
 
@@ -553,7 +559,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
                 f"Key '{key}' is not in writable record keys: {self.record_keys_writable}"
             )
 
-    def _validate_record(self, value: DataRecord) -> None:
+    def _validate_record(self, value: RecordT) -> None:
         """Check if the provided value is a valid DataRecord with compatible keys.
 
         Args:
@@ -629,7 +635,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         return self.record_class().record_keys_writable()
 
     @classmethod
-    def record_class(cls) -> Type:
+    def record_class(cls) -> Type[RecordT]:
         """Get the class of the data record handled by this data sequence.
 
         This method determines the class of the data record type associated with
@@ -646,6 +652,8 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         field_info = cls.model_fields["records"]
         # Get the list element type from the 'type_' attribute
         list_element_type = get_args(field_info.annotation)[0]
+        if isinstance(list_element_type, TypeVar):
+            list_element_type = list_element_type.__bound__
         if not isinstance(list_element_type(), DataRecord):
             raise ValueError(
                 f"Data record must be an instance of DataRecord: '{list_element_type}'."
@@ -736,17 +744,18 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
 
     # Sequence methods
 
-    def __iter__(self) -> Iterator[DataRecord]:
+    # EOS collections iterate over their elements instead of BaseModel field/value pairs.
+    def __iter__(self) -> Iterator[RecordT]:  # type: ignore[override]
         """Create an iterator for accessing DataRecords sequentially (memory only).
 
         Returns:
-            Iterator[DataRecord]: An iterator for the records.
+            Iterator[RecordT]: An iterator for the records.
         """
         return iter(self.records)
 
     async def get_by_datetime(
         self, target_datetime: DateTime, *, time_window: Optional[Duration] = None
-    ) -> Optional[DataRecord]:
+    ) -> Optional[RecordT]:
         """Get the record at the specified datetime, with an optional fallback search window.
 
         Args:
@@ -770,7 +779,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
 
     async def get_nearest_by_datetime(
         self, target_datetime: DateTime, time_window: Optional[Duration] = None
-    ) -> Optional[DataRecord]:
+    ) -> Optional[RecordT]:
         """Get the record nearest to the specified datetime within an optional time window.
 
         Args:
@@ -800,7 +809,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
 
     # sync rw write access to data sequence, needs locking in case of use in async.
 
-    async def _insert_by_datetime(self, record: DataRecord) -> None:
+    async def _insert_by_datetime(self, record: RecordT) -> None:
         """Insert or merge a DataRecord into the sequence based on its datetime.
 
         Internal implementation of `insert_by_datetime`. Callers must
@@ -914,7 +923,9 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             avail_record = await self.db_get_record(db_target)
             if avail_record is None:
                 # Create a new DataRecord if none exists
-                new_record = self.record_class()(date_time=date_time, **{key: values[i]})
+                new_record = self.record_class().model_validate(
+                    {"date_time": date_time, key: values[i]}
+                )
                 await self.db_insert_record(new_record)
             else:
                 # Update existing record's specified key
@@ -949,7 +960,9 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
             avail_record = await self.db_get_record(db_target)
             if avail_record is None:
                 # Create a new DataRecord if none exists
-                new_record = self.record_class()(date_time=date_time, **{key: value})
+                new_record = self.record_class().model_validate(
+                    {"date_time": date_time, key: value}
+                )
                 await self.db_insert_record(new_record)
             else:
                 # Update existing record's specified key
@@ -958,7 +971,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
 
     # data sequence access usable also for async access
 
-    async def insert_by_datetime(self, record: DataRecord) -> None:
+    async def insert_by_datetime(self, record: RecordT) -> None:
         """Insert or merge a DataRecord into the sequence based on its date.
 
         If a record with the same date exists, merges new data fields with the existing record.
@@ -1010,7 +1023,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
         start_datetime: Optional[DateTime] = None,
         end_datetime: Optional[DateTime] = None,
         dropna: bool = True,
-    ) -> Dict[DateTime, Any]:
+    ) -> Dict[str, Any]:
         """Extract a dictionary indexed by the date_time field of the DataRecords.
 
         The dictionary will contain values extracted from the specified key attribute of each DataRecord,
@@ -1130,7 +1143,11 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
                 end_timestamp is None or record_date_time_timestamp < end_timestamp
             ):
                 filtered_records.append(record)
-        dates = [record.date_time for record in filtered_records]
+        dates: list[DateTime] = []
+        for record in filtered_records:
+            if record.date_time is None:
+                raise ValueError("Exported records require a datetime")
+            dates.append(record.date_time)
         values = [getattr(record, key, None) for record in filtered_records]
 
         return dates, values
@@ -1378,7 +1395,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
                 start_epoch = int(resample_start.timestamp())
                 floored_epoch = (start_epoch // interval_sec) * interval_sec
 
-                resample_origin: Union[pd.Timestamp, str] = pd.Timestamp(
+                resample_origin: Union[pd.Timestamp, DateTime, str, None] = pd.Timestamp(
                     floored_epoch, unit="s", tz="UTC"
                 )
             else:
@@ -1746,7 +1763,7 @@ class DataSequence(DataABC, DatabaseRecordProtocolMixin[DataRecord]):
 # ==================== DataProvider ====================
 
 
-class DataProvider(SingletonMixin, DataSequence):
+class DataProvider(SingletonMixin, DataSequence[RecordT], Generic[RecordT]):
     """Abstract base class for data providers with singleton thread-safety and configurable data parameters.
 
     This class serves as a base for managing generic data, providing an interface for derived
@@ -2109,8 +2126,8 @@ class DataImportMixin(StartMixin):
 
         # Try dictionary with special keys start_datetime and interval
         try:
-            import_data = PydanticDateTimeData.model_validate_json(json_str)
-            await self._import_from_dict(import_data.to_dict())
+            import_dict = PydanticDateTimeData.model_validate_json(json_str)
+            await self._import_from_dict(import_dict.to_dict())
             return
         except ValidationError as e:
             error_msg = ""
@@ -2332,7 +2349,7 @@ class DataImportMixin(StartMixin):
 # ==================== DataImportProvider ====================
 
 
-class DataImportProvider(DataImportMixin, DataProvider):
+class DataImportProvider(DataImportMixin, DataProvider[RecordT], Generic[RecordT]):
     """Abstract base class for data providers that import generic data.
 
     This class is designed to handle generic data provided in the form of a key-value dictionary.
@@ -2350,7 +2367,10 @@ class DataImportProvider(DataImportMixin, DataProvider):
 # ==================== DataContainer ====================
 
 
-class DataContainer(SingletonMixin, DataABC):
+ProviderT = TypeVar("ProviderT", bound=DataProvider)
+
+
+class DataContainer(SingletonMixin, DataABC, Generic[ProviderT]):
     """A container for managing multiple DataProvider instances.
 
     This class enables access to data from multiple data providers, supporting retrieval and
@@ -2363,7 +2383,7 @@ class DataContainer(SingletonMixin, DataABC):
     """
 
     # To be overloaded by derived classes.
-    providers: list[DataProvider] = Field(
+    providers: list[ProviderT] = Field(
         default_factory=list, json_schema_extra={"description": "List of data providers"}
     )
 
@@ -2381,7 +2401,7 @@ class DataContainer(SingletonMixin, DataABC):
             return lock
 
     @field_validator("providers", mode="after")
-    def check_providers(cls, value: list[DataProvider]) -> list[DataProvider]:
+    def check_providers(cls, value: list[ProviderT]) -> list[ProviderT]:
         # Check each item in the list
         for item in value:
             if not isinstance(item, DataProvider):
@@ -2422,7 +2442,8 @@ class DataContainer(SingletonMixin, DataABC):
             return
         super().__init__(*args, **kwargs)
 
-    def __iter__(self) -> Iterator[str]:
+    # EOS collections iterate over their elements instead of BaseModel field/value pairs.
+    def __iter__(self) -> Iterator[str]:  # type: ignore[override]
         """Return an iterator over all unique keys available across providers.
 
         Returns:
@@ -2894,7 +2915,7 @@ class DataContainer(SingletonMixin, DataABC):
         if key_error:
             raise KeyError(f"key `{key}` is not in predictions")
 
-    def provider_by_id(self, provider_id: str) -> DataProvider:
+    def provider_by_id(self, provider_id: str) -> ProviderT:
         """Retrieves a data provider by its unique identifier.
 
         This method searches through the list of all available providers and

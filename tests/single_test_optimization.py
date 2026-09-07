@@ -171,8 +171,7 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
     print(f"start_solution: {start_solution}")
 
     # Define parameters for the optimization problem
-    return GeneticOptimizationParameters(
-        **{
+    return GeneticOptimizationParameters.model_validate({
             "ems": {
                 "price_per_wh_battery": 0e-05,
                 "feed_in_tariff_per_wh": 7e-05,
@@ -201,8 +200,7 @@ async def prepare_optimization_real_parameters() -> GeneticOptimizationParameter
             },
             "temperature_forecast": temperature_forecast,
             "start_solution": start_solution,
-        }
-    )
+        })
 
 
 def prepare_optimization_parameters() -> GeneticOptimizationParameters:
@@ -367,8 +365,7 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
     start_solution = None
 
     # Define parameters for the optimization problem
-    return GeneticOptimizationParameters(
-        **{
+    return GeneticOptimizationParameters.model_validate({
             "ems": {
                 "price_per_wh_battery": 0e-05,
                 "feed_in_tariff_per_wh": 7e-05,
@@ -397,8 +394,7 @@ def prepare_optimization_parameters() -> GeneticOptimizationParameters:
             },
             "temperature_forecast": temperature_forecast,
             "start_solution": start_solution,
-        }
-    )
+        })
 
 
 def run_optimization(
