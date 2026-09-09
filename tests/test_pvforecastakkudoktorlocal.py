@@ -1,14 +1,15 @@
 """Tests for the native (pvlib) PV forecast provider."""
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
 import pendulum
 import pvlib
 import pytest
+import requests
 
-from akkudoktoreos.core.coreabc import get_measurement
+from akkudoktoreos.core.coreabc import get_ems, get_measurement
 from akkudoktoreos.prediction.pvforecastakkudoktorlocal import (
     PVForecastAkkudoktorLocal,
     PVForecastAkkudoktorLocalCommonSettings,
@@ -491,3 +492,78 @@ def test_forecast_frame_applies_the_calibration(pvforecast_instance):
     calibrated = pvforecast_instance._forecast_frame(synthetic_openmeteo())
     ratio = calibrated["ac_power"].sum() / raw["ac_power"].sum()
     assert ratio == pytest.approx(0.8, abs=0.03)
+
+
+def test_transient_weather_outage_is_retried(pvforecast_instance):
+    """Open-Meteo answers 503 while rotating model runs; that clears in seconds."""
+    error = requests.exceptions.HTTPError("503 Server Error")
+    error.response = Mock(status_code=503)
+    good = Mock()
+    good.url = "https://api.open-meteo.com/v1/forecast"
+    good.raise_for_status.return_value = None
+    good.json.return_value = synthetic_openmeteo()
+
+    failing = Mock()
+    failing.url = good.url
+    failing.raise_for_status.side_effect = error
+
+    with (
+        patch(
+            "akkudoktoreos.prediction.pvforecastakkudoktorlocal.requests.get",
+            side_effect=[failing, good],
+        ) as request,
+        patch("akkudoktoreos.prediction.pvforecastakkudoktorlocal.time.sleep"),
+    ):
+        data = pvforecast_instance._request_forecast(force_update=True)
+
+    assert request.call_count == 2
+    assert "minutely_15" in data
+
+
+def test_weather_outage_keeps_the_previous_forecast(pvforecast_instance):
+    """One dead weather API must not take the whole prediction update down.
+
+    `PredictionContainer.update_data` re-raises whatever an enabled provider
+    raises, so every provider after this one would be skipped and the endpoint
+    would answer 400. A forecast that is one run old still covers the horizon.
+    """
+    # The stored forecast has to reach past the run start for the fallback to be
+    # worth anything, so put the run inside the synthetic window.
+    get_ems().set_start_datetime(WINDOW_START.add(days=1))
+    with patch.object(
+        pvforecast_instance,
+        "_request_forecast",
+        return_value=synthetic_openmeteo(),
+    ):
+        pvforecast_instance._update_data(force_update=True)
+    stored = pvforecast_instance.max_datetime
+    assert stored is not None
+    records_before = len(pvforecast_instance)
+
+    with patch.object(
+        pvforecast_instance,
+        "_request_forecast",
+        side_effect=RuntimeError("Failed to fetch weather from Open-Meteo API"),
+    ):
+        pvforecast_instance._update_data(force_update=True)
+
+    assert pvforecast_instance.max_datetime == stored
+    assert len(pvforecast_instance) == records_before
+
+
+def test_weather_outage_without_any_forecast_still_fails(pvforecast_instance):
+    """A cold start has nothing to fall back to, so the caller must hear about it.
+
+    The stored forecast lives in the backing store, not in `records`, so an empty
+    store is what a cold start actually looks like.
+    """
+    pvforecast_instance.records = []
+    with patch.object(
+        type(pvforecast_instance), "db_timestamp_range", return_value=(None, None)
+    ), patch.object(
+        pvforecast_instance,
+        "_request_forecast",
+        side_effect=RuntimeError("Failed to fetch weather from Open-Meteo API"),
+    ):
+        with pytest.raises(RuntimeError, match="Failed to fetch weather"):
+            pvforecast_instance._update_data(force_update=True)

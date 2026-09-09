@@ -241,6 +241,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `ElecPriceSMARD` now distinguishes a lagging publication from a broken response. A window the
   source cannot serve yet reports the latest value it does have, instead of claiming the response
   contained no usable prices.
+- A weather-API outage no longer takes the whole prediction update with it.
+  `PVForecastAkkudoktorLocal` raised on the first failed Open-Meteo request, and
+  `PredictionContainer.update_data` re-raises whatever an enabled provider raises, so every
+  provider after it was skipped and `/v1/prediction/update` answered 400 - over a 503 that
+  Open-Meteo clears within seconds while rotating its model runs. Retryable responses (429 and
+  5xx) and connection errors are now retried three times with a growing pause, and if the fetch
+  still fails while a stored forecast reaches past the run start, that forecast is kept for one
+  more run instead of failing the update. A cold start with no stored forecast still fails.
 - `cache_in_file` no longer leaves an empty cache entry behind when the wrapped function raises.
   The entry was claimed before the call, so every later call within the TTL first failed to read
   it ("Ran out of input") before refetching. The entry is now created only after the call returns.

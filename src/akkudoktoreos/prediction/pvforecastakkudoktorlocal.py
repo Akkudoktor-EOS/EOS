@@ -30,6 +30,7 @@ Note also that ``direct_radiation`` in the Open-Meteo API is beam irradiance on 
 """
 
 import math
+import time
 from typing import Any, Optional
 
 import numpy as np
@@ -379,13 +380,26 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
             "models": ",".join(settings.weather_models),
         }
 
-        try:
-            response = requests.get(OPENMETEO_URL, params=params, timeout=30)
-            logger.debug(f"Requesting Open-Meteo forecast: {response.url}")
-            response.raise_for_status()
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch weather for local pvforecast: {e}")
-            raise RuntimeError("Failed to fetch weather from Open-Meteo API") from e
+        response = None
+        for attempt in range(1, 4):
+            try:
+                response = requests.get(OPENMETEO_URL, params=params, timeout=(5, 30))
+                logger.debug(f"Requesting Open-Meteo forecast: {response.url}")
+                response.raise_for_status()
+                break
+            except requests.RequestException as e:
+                response = None
+                status = getattr(e.response, "status_code", None)
+                # Open-Meteo answers 503 while it rotates its model runs and 429
+                # when the free tier is briefly saturated. Both clear in seconds.
+                retryable = status is None or status in (429, 500, 502, 503, 504)
+                if not retryable or attempt == 3:
+                    logger.error(f"Failed to fetch weather for local pvforecast: {e}")
+                    raise RuntimeError("Failed to fetch weather from Open-Meteo API") from e
+                logger.warning(
+                    "Open-Meteo request attempt {}/3 failed for local pvforecast: {}", attempt, e
+                )
+                time.sleep(2 * attempt)
 
         data = response.json()
         if block not in data:
@@ -1099,6 +1113,13 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
 
     # ------------------------------------------------------------------ update
 
+    def _holds_usable_forecast(self) -> bool:
+        """Whether the stored forecast still reaches into the optimization horizon."""
+        latest = self.max_datetime
+        if latest is None:
+            return False
+        return compare_datetimes(latest, self.ems_start_datetime).gt
+
     def _update_data(self, force_update: Optional[bool] = False) -> None:
         """Compute the PV forecast and store it as PVForecastDataRecord entries."""
         if not self.enabled():
@@ -1110,7 +1131,24 @@ class PVForecastAkkudoktorLocal(PVForecastProvider):
             logger.error(f"Configuration error: {error_msg}")
             raise ValueError(error_msg)
 
-        data = self._request_forecast(force_update=force_update)  # type: ignore[call-arg]
+        try:
+            data = self._request_forecast(force_update=force_update)  # type: ignore[call-arg]
+        except Exception as exc:
+            if not self._holds_usable_forecast():
+                # Nothing stored that still covers the horizon - the caller has
+                # to know there is no PV forecast at all.
+                raise
+            # A momentary weather-API outage must not fail the whole prediction
+            # update and take every provider after this one down with it. The
+            # forecast from the previous run still covers the horizon; it ages
+            # by one run, which beats having none.
+            logger.warning(
+                "PVForecastAkkudoktorLocal update failed ({}); keeping the forecast from the "
+                "previous run until {}.",
+                exc,
+                self.max_datetime,
+            )
+            return
         frame = self._forecast_frame(data)
         if frame.empty:
             logger.warning("Open-Meteo returned no weather rows for local pvforecast.")
