@@ -18,10 +18,9 @@ class TerminalValueMode(StrEnum):
     Modes
     -----
     - AUTO:
-        Derive a concave value curve from the trailing horizon window: the
-        first stored kWh replaces the most expensive hour that PV cannot
-        cover, the next one the second most expensive, and so on. Needs no
-        configuration and adapts to prices, load and PV of the day.
+        Solve the deterministic forecast tail and apply a conservative
+        continuation proxy at its end. Tail values may decrease with SOC when
+        empty capacity is valuable. With a zero tail, use the proxy directly.
 
     - FIXED:
         Credit every stored kWh with the configured
@@ -81,6 +80,14 @@ class GeneticCommonSettings(SettingsBaseModel):
 class OptimizationCommonSettings(SettingsBaseModel):
     """General Optimization Configuration."""
 
+    tail_horizon_hours: int = Field(
+        default=48,
+        ge=0,
+        json_schema_extra={
+            "description": "Forecast lookahead after the control horizon [h]. No tail commands are issued. Set 0 to disable."
+        },
+    )
+
     horizon_hours: int = Field(
         default=24,
         ge=0,
@@ -129,8 +136,8 @@ class OptimizationCommonSettings(SettingsBaseModel):
         json_schema_extra={
             "description": (
                 "How to value the energy left in the battery at the end of the "
-                "optimization horizon. AUTO derives a concave value curve from "
-                "the trailing horizon window and needs no configuration; FIXED "
+                "control horizon. AUTO solves the forecast tail with an AUTO "
+                "continuation proxy at its end (or only the proxy if tail is zero); FIXED "
                 "uses 'terminal_value_euro_per_kwh'. Defaults to AUTO."
             ),
             "examples": ["AUTO", "FIXED"],
@@ -155,7 +162,7 @@ class OptimizationCommonSettings(SettingsBaseModel):
         ge=1,
         json_schema_extra={
             "description": (
-                "Length of the trailing horizon window the AUTO terminal value "
+                "Length of the trailing window at the effective tail end the AUTO continuation "
                 "curve is derived from [h]. One day covers a full load and PV "
                 "cycle. Defaults to 24 hours."
             ),

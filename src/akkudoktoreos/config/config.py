@@ -19,7 +19,7 @@ from typing import Any, ClassVar, Optional, Type, Union
 import pydantic_settings
 from loguru import logger
 from platformdirs import user_config_dir, user_data_dir
-from pydantic import Field, computed_field, field_validator
+from pydantic import Field, computed_field, field_validator, model_validator
 
 # settings
 from akkudoktoreos.adapter.adapter import AdapterCommonSettings
@@ -320,6 +320,38 @@ class SettingsEOSDefaults(SettingsEOS):
     server: ServerCommonSettings = Field(default_factory=ServerCommonSettings)
     utils: UtilsCommonSettings = Field(default_factory=UtilsCommonSettings)
     adapter: AdapterCommonSettings = Field(default_factory=AdapterCommonSettings)
+
+    @model_validator(mode="after")
+    def validate_optimization_horizons(self) -> "SettingsEOSDefaults":
+        """Report a forecast budget that cannot serve the optimization horizons.
+
+        This never rejects a configuration. ``prediction.hours`` is a general
+        setting that also serves callers with nothing to do with optimization,
+        and refusing it here would stop EOS from starting over a horizon the
+        user may not even optimize on. A tail that does not fit is simply
+        shortened, and a control horizon that does not fit is caught by the
+        optimizer itself, which knows exactly which forecast series ran out.
+        """
+        control = self.optimization.horizon_hours
+        tail = self.optimization.tail_horizon_hours
+        prediction = self.prediction.hours
+        if prediction is None or prediction < control:
+            logger.warning(
+                "Prediction horizon {} h is shorter than the {} h control horizon. Optimization "
+                "runs will fail until prediction.hours covers the control horizon.",
+                prediction,
+                control,
+            )
+        elif prediction < control + tail:
+            logger.info(
+                "Prediction horizon {} h covers the {} h control horizon but not the requested "
+                "{} h tail. The tail is shortened to {} h; raise prediction.hours to use it fully.",
+                prediction,
+                control,
+                tail,
+                prediction - control,
+            )
+        return self
 
     def __hash__(self) -> int:
         # Just for usage in configmigrate, finally overwritten when used by ConfigEOS.
@@ -727,7 +759,11 @@ class ConfigEOS(SingletonMixin, SettingsEOSDefaults):
                 config.merge_settings_from_dict(new_data)
 
         """
-        self._setup(**merge_models(self, data))
+        merged = merge_models(self, data)
+        # Validate a candidate before reinitializing the singleton. A rejected
+        # update must leave the running configuration intact.
+        SettingsEOSDefaults(**merged)
+        self._setup(**merged)
 
     def reset_settings(self) -> None:
         """Reset all changed settings to environment/config file defaults.

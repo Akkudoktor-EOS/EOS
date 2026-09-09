@@ -30,7 +30,7 @@ def genetic_simulation(config_eos) -> GeneticSimulation:
     """Fixture to create an EnergyManagement instance with given test parameters."""
     # Assure configuration holds the correct values
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 48}, "optimization": {"hours": 24}}
+        {"prediction": {"hours": 48}, "optimization": {"tail_horizon_hours": 0, "hours": 24}}
     )
     assert config_eos.prediction.hours == 48
     assert config_eos.optimization.horizon_hours == 24
@@ -381,7 +381,7 @@ def test_simulation(genetic_simulation):
 
 def test_ev_charging_uses_raw_input_energy_for_load_and_grid(config_eos):
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 1}, "optimization": {"horizon_hours": 1}}
+        {"prediction": {"hours": 1}, "optimization": {"tail_horizon_hours": 0, "horizon_hours": 1}}
     )
     ev = Battery(
         ElectricVehicleParameters(
@@ -422,7 +422,7 @@ def test_ev_charging_uses_raw_input_energy_for_load_and_grid(config_eos):
 
 def test_direct_marketing_curtails_negative_feed_in(config_eos, monkeypatch):
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 2}, "optimization": {"horizon_hours": 2}}
+        {"prediction": {"hours": 2}, "optimization": {"tail_horizon_hours": 0, "horizon_hours": 2}}
     )
 
     inverter = Inverter(InverterParameters(device_id="inverter1", max_power_wh=1000.0))
@@ -460,7 +460,7 @@ def _direct_marketing_battery_export_simulation(
     dc_to_ac_efficiency: float = 1.0,
 ) -> GeneticSimulation:
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 2}, "optimization": {"horizon_hours": 2}}
+        {"prediction": {"hours": 2}, "optimization": {"tail_horizon_hours": 0, "horizon_hours": 2}}
     )
 
     battery = Battery(
@@ -571,7 +571,7 @@ def test_disabled_ac_charging_clears_the_reported_plan(config_eos):
     simulated or paid for.
     """
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 2}, "optimization": {"horizon_hours": 2}}
+        {"prediction": {"hours": 2}, "optimization": {"tail_horizon_hours": 0, "horizon_hours": 2}}
     )
 
     battery = Battery(

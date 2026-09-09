@@ -67,7 +67,7 @@ class PredictionCommonSettings(SettingsBaseModel):
     """General Prediction Configuration."""
 
     hours: Optional[int] = Field(
-        default=48,
+        default=72,
         ge=0,
         json_schema_extra={"description": "Number of hours into the future for predictions"},
     )

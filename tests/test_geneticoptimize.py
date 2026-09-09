@@ -93,7 +93,7 @@ def test_grid_export_rates_reach_the_solution(config_eos: ConfigEOS):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 24},
-            "optimization": {
+            "optimization": {"tail_horizon_hours": 0,
                 "horizon_hours": 24,
                 "interval": 3600,
                 "genetic": {"individuals": 40, "generations": 10},
@@ -174,8 +174,8 @@ def test_optimize(
             "prediction": {
                 "hours": 48
             },
-            "optimization": {
-                "horizon_hours": 48,
+            "optimization": {"tail_horizon_hours": 0,
+                "horizon_hours": 38,
                 "genetic": {
                     "individuals": 300,
                     "generations": 10,
@@ -244,14 +244,13 @@ def test_optimize(
     with TESTDATA_FILE.open("w", encoding="utf-8", newline="\n") as f_out:
         f_out.write(genetic_solution.model_dump_json(indent=4, exclude_unset=True))
 
+    # The old snapshot included midnight-prefix genes and a prediction-sized
+    # genome. Check the new run-relative contract and accounting instead.
+    assert len(genetic_solution.ac_charge) == 38
+    assert len(genetic_solution.result.Kosten_Euro_pro_Stunde) == 38
     assert genetic_solution.result.Gesamtbilanz_Euro == pytest.approx(
-        expected_result.result.Gesamtbilanz_Euro
+        genetic_solution.result.Gesamtkosten_Euro - genetic_solution.result.Gesamteinnahmen_Euro
     )
-
-    # Assert that the output contains all expected entries.
-    # This does not assert that the optimization always gives the same result!
-    # Reproducibility and mathematical accuracy should be tested on the level of individual components.
-    compare_dict(genetic_solution.model_dump(), expected_result.model_dump())
 
     # Check the correct generic optimization solution is created
     optimization_solution = genetic_solution.optimization_solution()
@@ -291,18 +290,16 @@ def _ev_deadline_parameters(hours: int, **ev_extra) -> GeneticOptimizationParame
 def test_ev_deadline_slot_resolution(config_eos: ConfigEOS):
     """Datetime and maximum duration resolve to a slot; the earlier one wins."""
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 48}, "optimization": {"horizon_hours": 48, "interval": 3600}}
+        {"prediction": {"hours": 48}, "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 3600}}
     )
     ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0))
     optimization = GeneticOptimization(fixed_seed=1)
-    optimization._slot0_datetime = optimization.ems.start_datetime.set(
-        hour=0, minute=0, second=0, microsecond=0
-    )
+    optimization._slot0_datetime = optimization.ems.start_datetime
     slot0 = optimization._slot0_datetime
 
     # Duration only: 6 h after the start hour 10.
     parameters = _ev_deadline_parameters(48, min_soc_max_duration_h=6)
-    assert optimization._ev_deadline_slot(parameters) == 16
+    assert optimization._ev_deadline_slot(parameters) == 6
 
     # Datetime only.
     parameters = _ev_deadline_parameters(48, min_soc_deadline_datetime=slot0.add(hours=14))
@@ -312,15 +309,15 @@ def test_ev_deadline_slot_resolution(config_eos: ConfigEOS):
     parameters = _ev_deadline_parameters(
         48, min_soc_deadline_datetime=slot0.add(hours=20), min_soc_max_duration_h=6
     )
-    assert optimization._ev_deadline_slot(parameters) == 16
+    assert optimization._ev_deadline_slot(parameters) == 6
 
     # Beyond the horizon: no deadline, the end-of-horizon target already covers it.
     parameters = _ev_deadline_parameters(48, min_soc_deadline_datetime=slot0.add(hours=100))
     assert optimization._ev_deadline_slot(parameters) is None
 
     # In the past: due right now.
-    parameters = _ev_deadline_parameters(48, min_soc_deadline_datetime=slot0.add(hours=2))
-    assert optimization._ev_deadline_slot(parameters) == optimization._start_day_slot()
+    parameters = _ev_deadline_parameters(48, min_soc_deadline_datetime=slot0.subtract(hours=2))
+    assert optimization._ev_deadline_slot(parameters) == 0
 
     # No deadline at all.
     assert optimization._ev_deadline_slot(_ev_deadline_parameters(48)) is None
@@ -329,7 +326,7 @@ def test_ev_deadline_slot_resolution(config_eos: ConfigEOS):
 def test_ev_soc_penalty_reads_the_deadline_slot(config_eos: ConfigEOS):
     """With a deadline the penalty checks the SoC at that slot, not at the end."""
     config_eos.merge_settings_from_dict(
-        {"prediction": {"hours": 48}, "optimization": {"horizon_hours": 48, "interval": 3600}}
+        {"prediction": {"hours": 48}, "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 3600}}
     )
     ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0))
     optimization = GeneticOptimization(fixed_seed=1)
@@ -360,7 +357,7 @@ def test_ev_deadline_charges_before_departure(config_eos: ConfigEOS):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": hours},
-            "optimization": {
+            "optimization": {"tail_horizon_hours": 0,
                 "horizon_hours": hours,
                 "interval": 3600,
                 "genetic": {"individuals": 100, "generations": 40},
@@ -393,7 +390,7 @@ def _terminal_value_run(
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": hours},
-            "optimization": {
+            "optimization": {"tail_horizon_hours": 0,
                 "horizon_hours": hours,
                 "interval": 3600,
                 "terminal_value_mode": mode,

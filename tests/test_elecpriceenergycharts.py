@@ -125,9 +125,9 @@ def test_update_data(mock_get, provider, sample_energycharts_json, cache_store):
 
     # Assert: Verify the result is as expected
     mock_get.assert_called_once()
-    assert len(provider) == 72
     # The final raw timestamp already represents its complete interval. Thus the
-    # 48 API values need 24, rather than 25, additional hourly forecasts.
+    # 48 API values need one hour less of extrapolation than the horizon suggests.
+    assert len(provider) == 48 + provider.config.prediction.hours - 24
 
     # Assert we get hours prioce values by resampling
     np_price_array = provider.key_to_array(

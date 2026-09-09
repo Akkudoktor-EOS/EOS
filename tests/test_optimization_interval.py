@@ -28,6 +28,11 @@ ems_eos = get_ems(init=True)  # init once
 DIR_TESTDATA = Path(__file__).parent / "testdata"
 
 
+@pytest.fixture(autouse=True)
+def start_at_midnight(config_eos):
+    ems_eos.set_start_datetime(to_datetime().set(hour=0, minute=0))
+
+
 def load_hourly_parameters() -> GeneticOptimizationParameters:
     """Load the legacy 48-value API example used by hourly clients."""
     with (DIR_TESTDATA / "optimize_input_1.json").open("r") as f_in:
@@ -51,7 +56,7 @@ def test_slot_helpers(
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": interval},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": interval},
         }
     )
     ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=0))
@@ -60,7 +65,7 @@ def test_slot_helpers(
 
     assert opt.slots_per_hour == exp_slots_per_hour
     assert opt.slot_duration_h == exp_slot_duration_h
-    assert opt.total_slots == 48 * exp_slots_per_hour
+    assert opt.control_slots == 48 * exp_slots_per_hour
     # At minute 0 the start slot is the hour scaled by the slot count.
     assert opt._start_day_slot() == 10 * exp_slots_per_hour
 
@@ -70,7 +75,7 @@ def test_start_day_slot_includes_minute_offset(config_eos: ConfigEOS):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": 900},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 900},
         }
     )
     ems_eos.set_start_datetime(to_datetime().set(hour=10, minute=30))
@@ -88,7 +93,7 @@ def test_ems_start_is_floored_to_quarter_hour(config_eos: ConfigEOS):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": 900},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 900},
         }
     )
 
@@ -101,7 +106,7 @@ def test_ems_start_is_floored_to_quarter_hour(config_eos: ConfigEOS):
 
 def test_unsupported_interval_falls_back_to_hourly(config_eos: ConfigEOS):
     """The genetic optimizer falls back without restricting interval-aware providers."""
-    config_eos.merge_settings_from_dict({"optimization": {"interval": 1800}})
+    config_eos.merge_settings_from_dict({"optimization": {"tail_horizon_hours": 0, "interval": 1800}})
 
     assert config_eos.optimization.interval == 1800
     GeneticOptimization(fixed_seed=42)
@@ -113,7 +118,7 @@ def test_hourly_api_input_is_normalized_to_quarter_hour_slots(config_eos: Config
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": 900},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 900},
         }
     )
     parameters = load_hourly_parameters()
@@ -141,7 +146,7 @@ def test_native_quarter_hour_input_is_not_resampled(config_eos: ConfigEOS):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": 900},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 900},
         }
     )
     parameters = load_hourly_parameters()
@@ -170,7 +175,7 @@ def test_scalar_feed_in_tariff_fills_quarter_hour_grid(config_eos: ConfigEOS):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": 900},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 900},
         }
     )
     parameters = load_hourly_parameters()
@@ -190,7 +195,7 @@ def test_ambiguous_input_length_is_rejected(config_eos: ConfigEOS):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": 900},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 900},
         }
     )
     parameters = load_hourly_parameters()
@@ -214,7 +219,7 @@ def test_hourly_start_solution_is_expanded_to_slots(config_eos: ConfigEOS):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": 900},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 900},
         }
     )
     opt = GeneticOptimization(fixed_seed=42)
@@ -232,35 +237,36 @@ def test_quarter_hour_mutation_targets_three_future_controls(config_eos: ConfigE
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": 900},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 900},
         }
     )
     opt = GeneticOptimization(fixed_seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
 
-    active_slots = opt.total_slots - opt._start_day_slot()
+    active_slots = opt.control_slots
     expected = min(0.10, opt.POINT_MUTATION_EXPECTED_GENES / active_slots)
     assert opt.toolbox.mutate_charge_discharge.keywords["indpb"] == pytest.approx(expected)
 
 
-def test_point_mutation_keeps_elapsed_slots_unchanged(config_eos: ConfigEOS):
+def test_point_mutation_uses_run_relative_controls(config_eos: ConfigEOS):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": 900},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 900},
         }
     )
     get_ems(init=True).set_start_datetime(to_datetime().set(hour=10, minute=0))
     opt = GeneticOptimization(fixed_seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=10)
-    individual = [0] * opt.total_slots
+    individual = [0] * opt.control_slots
 
     changed = opt._mutate_point_controls(individual)
 
     assert changed
-    assert individual[: opt._start_day_slot()] == [0] * opt._start_day_slot()
+    assert len(individual) == opt.control_slots
+    assert any(individual)
 
 
 def test_sub_hourly_home_appliance_is_scheduled(config_eos: ConfigEOS):
@@ -268,7 +274,7 @@ def test_sub_hourly_home_appliance_is_scheduled(config_eos: ConfigEOS):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": 900},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 38, "interval": 900},
         }
     )
     parameters = load_hourly_parameters().model_copy(
@@ -306,8 +312,8 @@ def test_optimize_15min_slot_grid(config_eos: ConfigEOS):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {
-                "horizon_hours": 48,
+            "optimization": {"tail_horizon_hours": 0,
+                "horizon_hours": 38,
                 "interval": 900,
                 "genetic": {
                     "individuals": 300,
@@ -335,7 +341,7 @@ def test_optimize_15min_slot_grid(config_eos: ConfigEOS):
     CacheEnergyManagementStore().clear()
 
     opt = GeneticOptimization(fixed_seed=42)
-    assert opt.total_slots == 192
+    assert opt.control_slots == 152
     assert opt.slot_duration_h == 0.25
 
     visualize_filename = str((DIR_TESTDATA / "new_optimize_15min.json").with_suffix(".pdf"))
@@ -348,10 +354,10 @@ def test_optimize_15min_slot_grid(config_eos: ConfigEOS):
         genetic_solution = opt.optimierung_ems(parameters=input_data, start_hour=10, ngen=3)
 
     # The genetic core emitted a full-day grid at 15-min resolution.
-    assert len(genetic_solution.ac_charge) == 192
-    assert len(genetic_solution.dc_charge) == 192
-    assert len(genetic_solution.discharge_allowed) == 192
-    expected_result_slots = 192 - opt._start_day_slot()
+    assert len(genetic_solution.ac_charge) == 152
+    assert len(genetic_solution.dc_charge) == 152
+    assert len(genetic_solution.discharge_allowed) == 152
+    expected_result_slots = 152
     assert len(genetic_solution.result.Last_Wh_pro_Stunde) == expected_result_slots
     assert len(genetic_solution.result.Electricity_price) == expected_result_slots
 

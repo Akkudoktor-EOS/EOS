@@ -236,6 +236,7 @@
            ]
        },
        "optimization": {
+           "tail_horizon_hours": 48,
            "horizon_hours": 24,
            "interval": 3600,
            "algorithm": "GENETIC",
@@ -253,7 +254,7 @@
            }
        },
        "prediction": {
-           "hours": 48,
+           "hours": 72,
            "historic_hours": 48
        },
        "pvforecast": {
@@ -263,7 +264,8 @@
                "PVForecastVrm": null,
                "PVForecastPVNode": null,
                "PVForecastForecastSolar": null,
-               "PVForecastSolcast": null
+               "PVForecastSolcast": null,
+               "PVForecastAkkudoktorLocal": null
            },
            "planes": [
                {

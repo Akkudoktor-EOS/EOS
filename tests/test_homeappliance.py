@@ -156,7 +156,7 @@ def _optimizer(config_eos, *, prediction_hours: int, horizon_hours: int, interva
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": prediction_hours},
-            "optimization": {"horizon_hours": horizon_hours, "interval": interval},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": horizon_hours, "interval": interval},
         }
     )
     ems_eos.set_start_datetime(to_datetime().set(hour=hour, minute=0))
@@ -165,17 +165,17 @@ def _optimizer(config_eos, *, prediction_hours: int, horizon_hours: int, interva
 
 def test_once_layout_single_gene(config_eos):
     opt = _optimizer(config_eos, prediction_hours=48, horizon_hours=48, interval=3600, hour=10)
-    slot0 = opt.ems.start_datetime.set(hour=0, minute=0, second=0, microsecond=0)
+    slot0 = opt.ems.start_datetime
     appliance = _appliance(48, 1.0, device_id="d", consumption_wh=1000, duration_h=2)
     layout = opt._build_appliance_layout([appliance], slot0)
     assert layout.n_genes == 1
     assert layout.genes[0].run_date is None
-    assert layout.genes[0].allowed_start_slots[0] == opt._start_day_slot()
+    assert layout.genes[0].allowed_start_slots[0] == 0
 
 
 def test_once_no_valid_start_raises(config_eos):
     opt = _optimizer(config_eos, prediction_hours=48, horizon_hours=10, interval=3600, hour=10)
-    slot0 = opt.ems.start_datetime.set(hour=0, minute=0, second=0, microsecond=0)
+    slot0 = opt.ems.start_datetime
     # 02:00 window is in the past (start slot 10) and day 1 is beyond the 10 h horizon.
     windows = TimeWindowSequence(
         windows=[TimeWindow(start_time=to_time("02:00"), duration=to_duration("1 hours"))]
@@ -189,7 +189,7 @@ def test_once_no_valid_start_raises(config_eos):
 
 def test_daily_layout_one_gene_per_calendar_day(config_eos):
     opt = _optimizer(config_eos, prediction_hours=72, horizon_hours=72, interval=3600, hour=0)
-    slot0 = opt.ems.start_datetime.set(hour=0, minute=0, second=0, microsecond=0)
+    slot0 = opt.ems.start_datetime
     windows = TimeWindowSequence(
         windows=[TimeWindow(start_time=to_time("10:00"), duration=to_duration("2 hours"))]
     )
@@ -212,7 +212,7 @@ def test_daily_layout_one_gene_per_calendar_day(config_eos):
 def test_daily_layout_partial_first_day(config_eos):
     """A partial first day (start after the window) produces no gene for that day."""
     opt = _optimizer(config_eos, prediction_hours=48, horizon_hours=48, interval=3600, hour=14)
-    slot0 = opt.ems.start_datetime.set(hour=0, minute=0, second=0, microsecond=0)
+    slot0 = opt.ems.start_datetime
     windows = TimeWindowSequence(
         windows=[TimeWindow(start_time=to_time("10:00"), duration=to_duration("2 hours"))]
     )
@@ -226,9 +226,9 @@ def test_daily_layout_partial_first_day(config_eos):
         time_windows=windows,
     )
     layout = opt._build_appliance_layout([appliance], slot0)
-    # Day 0 window (10:00-12:00) is already in the past at start hour 14 -> only day 1.
-    assert layout.n_genes == 1
-    assert all(slot >= opt._start_day_slot() for slot in layout.genes[0].allowed_start_slots)
+    # Day 0 window (10:00-12:00) is already in the past at start hour 14 -> days 1 and 2 are inside the 48 hours from now.
+    assert layout.n_genes == 2
+    assert all(slot >= 0 for slot in layout.genes[0].allowed_start_slots)
 
 
 # --------------------------------------------------------------------------- #
@@ -238,7 +238,7 @@ def test_multiple_appliances_scheduled_and_aggregate(config_eos):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {
+            "optimization": {"tail_horizon_hours": 0,
                 "horizon_hours": 48,
                 "interval": 3600,
                 "genetic": {
@@ -343,15 +343,15 @@ def test_max_home_appliances_is_upper_bound():
 
 def test_start_solution_layout_mismatch_is_ignored(config_eos):
     opt = _optimizer(config_eos, prediction_hours=48, horizon_hours=48, interval=3600, hour=10)
-    slot0 = opt.ems.start_datetime.set(hour=0, minute=0, second=0, microsecond=0)
+    slot0 = opt.ems.start_datetime
     appliance = _appliance(48, 1.0, device_id="d", consumption_wh=1000, duration_h=1)
     opt.appliance_layout = opt._build_appliance_layout([appliance], slot0)
     opt.optimize_ev = False
     valid_index_count = len(opt.appliance_layout.genes[0].allowed_start_slots)
     # A tail index beyond the allowed range must be rejected.
-    bad_solution = [0] * opt.total_slots + [valid_index_count + 5]
+    bad_solution = [0] * opt.control_slots + [valid_index_count + 5]
     assert opt._start_solution_matches_layout(bad_solution) is False
-    good_solution = [0] * opt.total_slots + [0]
+    good_solution = [0] * opt.control_slots + [0]
     assert opt._start_solution_matches_layout(good_solution) is True
 
 
@@ -456,14 +456,14 @@ def test_deadline_strict_keeps_empty_result():
 def test_deadline_strict_once_raises(config_eos):
     """A ONCE consumer with an unreachable STRICT deadline fails the layout."""
     opt = _optimizer(config_eos, prediction_hours=48, horizon_hours=48, interval=3600, hour=12)
-    slot0 = opt.ems.start_datetime.set(hour=0, minute=0, second=0, microsecond=0)
+    slot0 = opt.ems.start_datetime
     appliance = _appliance(
         48,
         1.0,
         device_id="d",
         consumption_wh=2000,
         duration_h=2,
-        deadline_datetime=slot0.add(hours=10),
+        deadline_datetime=slot0.set(hour=10),
         deadline_policy="STRICT",
     )
     with pytest.raises(ValueError, match="no valid start"):
@@ -501,7 +501,7 @@ def test_deadline_end_to_end_optimization(config_eos):
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {
+            "optimization": {"tail_horizon_hours": 0,
                 "horizon_hours": 48,
                 "interval": 3600,
                 "genetic": {

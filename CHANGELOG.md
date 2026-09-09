@@ -118,6 +118,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Add `scripts/pvforecast_backtest.py`, which scores PV forecast configuration variants against
   the stored meter readings straight away instead of waiting for new forecasts to come true, and
   `Measurement.pv_production_total_kwh()` alongside the existing load total.
+- Separate the control horizon from the battery lookahead. `optimization.horizon_hours` remains
+  the only span that receives control commands; the new `optimization.tail_horizon_hours`
+  (default 48 h) is a forecast lookahead that never produces a command. In `AUTO` terminal-value
+  mode a deterministic dynamic program now solves that tail backwards on a 101-point SoC grid,
+  using the production battery and inverter models with their SoC bounds, power caps, conversion
+  losses, configured charge/export rates and LCOS, and applies the existing AUTO proxy as the
+  continuation value at the tail end. Genetic fitness reads the resulting curve instead of a
+  single price per kWh, so the optimizer stops treating the horizon boundary as the end of the
+  world. `tail_horizon_hours: 0` restores the plain AUTO proxy at the control end; `FIXED` is
+  unchanged. See `docs/akkudoktoreos/optimization_horizons.md`.
+- The `terminal_value` result reports the split explicitly: `mode` (`TAIL`, `AUTO` or `FIXED`),
+  `tail_operating_euro` plus `continuation_value_euro` (which always sum to `credited_euro`),
+  the combined `curve` fitness reads, the `continuation_curve` proxy at the tail end,
+  `requested_tail_hours` versus `effective_tail_hours`, and `tail_diagnostics`. The optional
+  `tail_plan` replays the optimal battery path inside the tail for debugging. None of it is
+  executable - tail actions are never copied into the returned control arrays.
+- Raise the default `prediction.hours` from 48 to 72 so the default control horizon plus the
+  default tail are covered out of the box. A shorter prediction horizon is never rejected: a tail
+  that does not fit is cut to what the forecast covers (logged once and reported as
+  `effective_tail_hours`), and a control horizon that does not fit is warned about at
+  configuration time and rejected by the optimizer at run time, naming the series that ends too
+  early. Existing configurations therefore keep starting after an upgrade.
+- Genetic solutions carry `controls_start_at_now`. Index zero of every returned control array and
+  warm-start genome is now the run timestamp rather than midnight of the run's day. The solution
+  and plan adapters still read older, midnight-indexed solutions, and warm starts with an
+  incompatible genome length are discarded instead of misapplied.
+- The optimization request accepts `forecast_interval_seconds` (900 or 3600), which declares the
+  resolution of shortened native quarter-hour input arrays. Fully sized native arrays are still
+  auto-detected, and a scalar feed-in tariff still means an explicitly constant tariff.
+- Add operator tooling for the split horizon: `docs/akkudoktoreos/grafana_tail_debugging.md`
+  explains how to read control plan versus tail in Grafana, and
+  `scripts/update_nodered_tail_flow.py` plus the `nodered_tail_*`/`nodered_pv_*` helpers build an
+  importable Node-RED flow for it.
 
 ### Changed
 - Replace the fixed DEAP variation loop with adaptive genetic evolution. Crossover offspring may
@@ -142,6 +175,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   failed evaluations and results from previous runs are never reused.
 - `max_home_appliances` is now purely an upper bound. No demo appliance is created when
   no `home_appliances` are configured, and the number is no longer used as an on/off switch.
+- Required forecasts are no longer silently replaced by demo providers. Previously a missing PV,
+  price, load, feed-in or weather forecast rewrote the configured provider to a demo one and
+  retried, so a run could quietly optimize against invented data. Missing values now stay missing:
+  a gap inside the control horizon fails the run with the series that ends too early, and a gap
+  after it shortens the tail. Provider values are held only within their own source interval and
+  the last observed value is never extended indefinitely.
 
 ### Deprecated
 - The single-appliance genetic optimization input `dishwasher` is deprecated in favour of
@@ -180,6 +219,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   provider could 404 the whole load prediction. It now defaults to a cache-aware update and
   accepts an optional `force_update` flag in the request body for callers that still want
   to force.
+- A rejected configuration update no longer damages the running configuration.
+  `merge_settings_from_dict` validated the merged candidate only while reinitializing the
+  singleton, so an invalid update could leave EOS half-updated. The candidate is validated first.
 
 ## 0.3.0 (2026-03-17)
 

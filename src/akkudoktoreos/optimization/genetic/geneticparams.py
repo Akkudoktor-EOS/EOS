@@ -20,6 +20,7 @@ from akkudoktoreos.core.coreabc import (
     PredictionMixin,
     get_ems,
 )
+from akkudoktoreos.optimization.genetic.forecast import bounded_forecast_array
 from akkudoktoreos.optimization.genetic.geneticabc import GeneticParametersBaseModel
 from akkudoktoreos.optimization.genetic.geneticdevices import (
     ElectricVehicleParameters,
@@ -70,25 +71,6 @@ class GeneticEnergyManagementParameters(GeneticParametersBaseModel):
         }
     )
 
-    @model_validator(mode="after")
-    def validate_list_length(self) -> Self:
-        """Validate that all input lists are of the same length.
-
-        Raises:
-            ValueError: If input list lengths differ.
-        """
-        pv_prognose_length = len(self.pv_prognose_wh)
-        if (
-            pv_prognose_length != len(self.strompreis_euro_pro_wh)
-            or pv_prognose_length != len(self.gesamtlast)
-            or (
-                isinstance(self.einspeiseverguetung_euro_pro_wh, list)
-                and pv_prognose_length != len(self.einspeiseverguetung_euro_pro_wh)
-            )
-        ):
-            raise ValueError("Input lists have different lengths")
-        return self
-
 
 class GeneticOptimizationParameters(
     ConfigMixin,
@@ -103,6 +85,18 @@ class GeneticOptimizationParameters(
     Collects all model and configuration parameters necessary to run the
     optimization process, such as forecasts, pricing, battery and appliance models.
     """
+
+    forecast_interval_seconds: Optional[int] = Field(
+        default=None,
+        description="Input interval: 3600 for hourly, or optimization interval for native slots.",
+    )
+
+    @field_validator("forecast_interval_seconds")
+    @classmethod
+    def validate_forecast_interval(cls, value: Optional[int]) -> Optional[int]:
+        if value not in (None, 900, 3600):
+            raise ValueError("forecast_interval_seconds must be 900 or 3600")
+        return value
 
     ems: GeneticEnergyManagementParameters
     pv_akku: Optional[SolarPanelBatteryParameters]
@@ -165,7 +159,7 @@ class GeneticOptimizationParameters(
         dishwasher = self.__dict__.get("dishwasher")
         if dishwasher is not None and self.home_appliances is not None:
             raise ValueError(
-                "Provide either 'home_appliances' or the deprecated 'dishwasher', " "not both."
+                "Provide either 'home_appliances' or the deprecated 'dishwasher', not both."
             )
         appliances = self.home_appliances or []
         device_ids = [appliance.device_id for appliance in appliances]
@@ -240,9 +234,7 @@ class GeneticOptimizationParameters(
             default_longitude = 13.405
             logger.info(f"Longitude unknown - defaulting to {default_longitude}.")
             cls.config.general.longitude = default_longitude
-        if cls.config.prediction.hours is None:
-            logger.info("Prediction hours unknown - defaulting to 48 hours.")
-            cls.config.prediction.hours = 48
+        cls.config.validate_optimization_horizons()
         if cls.config.prediction.historic_hours is None:
             logger.info("Prediction historic hours unknown - defaulting to 24 hours.")
             cls.config.prediction.historic_hours = 24
@@ -287,7 +279,7 @@ class GeneticOptimizationParameters(
         interval = to_duration(cls.config.optimization.interval)
         power_to_energy_per_interval_factor = cls.config.optimization.interval / 3600
         parameter_start_datetime = ems.start_datetime.set(hour=0, minute=0, second=0, microsecond=0)
-        parameter_end_datetime = parameter_start_datetime.add(hours=cls.config.prediction.hours)
+        parameter_end_datetime = ems.start_datetime.add(hours=cls.config.prediction.hours)
         max_retries = 10
 
         for attempt in range(1, max_retries + 1):
@@ -300,171 +292,35 @@ class GeneticOptimizationParameters(
             # Assure predictions are uptodate
             cls.prediction.update_data()
 
-            try:
-                pvforecast_ac_power = (
-                    cls.prediction.key_to_array(
-                        key="pvforecast_ac_power",
-                        start_datetime=parameter_start_datetime,
-                        end_datetime=parameter_end_datetime,
-                        interval=interval,
-                        # Forecast power values represent the mean of their source
-                        # period. Hold them over smaller optimization slots so
-                        # resampling preserves energy (especially hourly and
-                        # Solcast 30-minute forecasts).
-                        fill_method="ffill",
-                    )
-                    * power_to_energy_per_interval_factor
-                ).tolist()
-            except:
-                logger.info(
-                    "No PV forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
-                    attempt,
-                )
-                cls.config.merge_settings_from_dict(
-                    {
-                        "pvforecast": {
-                            "provider": "PVForecastAkkudoktor",
-                            "max_planes": 4,
-                            "planes": [
-                                {
-                                    "peakpower": 5.0,
-                                    "surface_azimuth": 170,
-                                    "surface_tilt": 7,
-                                    "userhorizon": [20, 27, 22, 20],
-                                    "inverter_paco": 10000,
-                                },
-                                {
-                                    "peakpower": 4.8,
-                                    "surface_azimuth": 90,
-                                    "surface_tilt": 7,
-                                    "userhorizon": [30, 30, 30, 50],
-                                    "inverter_paco": 10000,
-                                },
-                                {
-                                    "peakpower": 1.4,
-                                    "surface_azimuth": 140,
-                                    "surface_tilt": 60,
-                                    "userhorizon": [60, 30, 0, 30],
-                                    "inverter_paco": 2000,
-                                },
-                                {
-                                    "peakpower": 1.6,
-                                    "surface_azimuth": 185,
-                                    "surface_tilt": 45,
-                                    "userhorizon": [45, 25, 30, 60],
-                                    "inverter_paco": 1400,
-                                },
-                            ],
-                        },
-                    }
-                )
-                # Retry
-                continue
-            try:
-                elecprice_marketprice_wh = cls.prediction.key_to_array(
-                    key="elecprice_marketprice_wh",
+            # Required forecasts are never replaced with demo providers or
+            # extrapolated prices. Missing intervals remain NaN and are checked
+            # against the control/tail boundary before genetic optimization.
+            def forecast(key: str) -> list[float]:
+                return bounded_forecast_array(
+                    cls.prediction,
+                    key=key,
                     start_datetime=parameter_start_datetime,
                     end_datetime=parameter_end_datetime,
                     interval=interval,
-                    fill_method="ffill",
                 ).tolist()
-            except:
-                logger.info(
-                    "No Electricity Marketprice forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
-                    attempt,
-                )
-                cls.config.elecprice.provider = "ElecPriceAkkudoktor"
-                # Retry
-                continue
-            try:
-                # Load is a power series [W] that the genetic optimizer consumes
-                # as Wh-per-slot. Scale by interval/3600 (mirrors the PV forecast
-                # above) so a 15-min slot sees a quarter of the hourly energy.
-                loadforecast_power_w = (
-                    cls.prediction.key_to_array(
-                        key="loadforecast_power_w",
-                        start_datetime=parameter_start_datetime,
-                        end_datetime=parameter_end_datetime,
-                        interval=interval,
-                        fill_method="ffill",
-                    )
-                    * power_to_energy_per_interval_factor
-                ).tolist()
-            except:
-                logger.info(
-                    "No Load forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
-                    attempt,
-                )
-                cls.config.merge_settings_from_dict(
-                    {
-                        "load": {
-                            "provider": "LoadAkkudoktor",
-                            "loadakkudoktor": {
-                                "loadakkudoktor_year_energy_kwh": "3000",
-                            },
-                        },
-                    }
-                )
-                # Retry
-                continue
-            if cls.config.feedintariff.direct_marketing_enabled:
-                if cls.config.feedintariff.provider in MARKET_PRICE_FEED_IN_TARIFF_PROVIDERS:
-                    try:
-                        feed_in_tariff_wh = cls.prediction.key_to_array(
-                            key="feed_in_tariff_wh",
-                            start_datetime=parameter_start_datetime,
-                            end_datetime=parameter_end_datetime,
-                            interval=interval,
-                            fill_method="ffill",
-                        ).tolist()
-                    except:
-                        feed_in_tariff_wh = list(elecprice_marketprice_wh)
-                else:
-                    feed_in_tariff_wh = list(elecprice_marketprice_wh)
+
+            pvforecast_ac_power = [
+                value * power_to_energy_per_interval_factor
+                for value in forecast("pvforecast_ac_power")
+            ]
+            elecprice_marketprice_wh = forecast("elecprice_marketprice_wh")
+            loadforecast_power_w = [
+                value * power_to_energy_per_interval_factor
+                for value in forecast("loadforecast_power_w")
+            ]
+            if (
+                cls.config.feedintariff.direct_marketing_enabled
+                and cls.config.feedintariff.provider not in MARKET_PRICE_FEED_IN_TARIFF_PROVIDERS
+            ):
+                feed_in_tariff_wh = list(elecprice_marketprice_wh)
             else:
-                try:
-                    feed_in_tariff_wh = cls.prediction.key_to_array(
-                        key="feed_in_tariff_wh",
-                        start_datetime=parameter_start_datetime,
-                        end_datetime=parameter_end_datetime,
-                        interval=interval,
-                        fill_method="ffill",
-                    ).tolist()
-                except:
-                    logger.info(
-                        "No feed in tariff forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
-                        attempt,
-                    )
-                    cls.config.merge_settings_from_dict(
-                        {
-                            "feedintariff": {
-                                "provider": "FeedInTariffFixed",
-                                "provider_settings": {
-                                    "FeedInTariffFixed": {
-                                        "feed_in_tariff_kwh": 0.078,
-                                    },
-                                },
-                            },
-                        }
-                    )
-                    # Retry
-                    continue
-            try:
-                weather_temp_air = cls.prediction.key_to_array(
-                    key="weather_temp_air",
-                    start_datetime=parameter_start_datetime,
-                    end_datetime=parameter_end_datetime,
-                    interval=interval,
-                    fill_method="ffill",
-                ).tolist()
-            except:
-                logger.info(
-                    "No weather forecast data available - defaulting to demo data. Parameter preparation attempt {}.",
-                    attempt,
-                )
-                cls.config.weather.provider = "BrightSky"
-                # Retry
-                continue
+                feed_in_tariff_wh = forecast("feed_in_tariff_wh")
+            weather_temp_air = forecast("weather_temp_air")
 
             # Add device data
 
@@ -673,6 +529,7 @@ class GeneticOptimizationParameters(
             # We got all parameter data
             try:
                 oparams = GeneticOptimizationParameters(
+                    forecast_interval_seconds=cls.config.optimization.interval,
                     ems=GeneticEnergyManagementParameters(
                         pv_prognose_wh=pvforecast_ac_power,
                         strompreis_euro_pro_wh=elecprice_marketprice_wh,

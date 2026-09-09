@@ -33,6 +33,7 @@ develop/update.md
 develop/revert.md
 akkudoktoreos/adapter/adapterhomeassistant.md
 akkudoktoreos/adapter/adapternodered.md
+akkudoktoreos/grafana_tail_debugging.md
 
 ```
 
@@ -43,6 +44,7 @@ akkudoktoreos/adapter/adapternodered.md
 akkudoktoreos/architecture.md
 akkudoktoreos/configuration.md
 akkudoktoreos/configtimewindow.md
+akkudoktoreos/optimization_horizons.md
 akkudoktoreos/optimpost.md
 akkudoktoreos/optimauto.md
 akkudoktoreos/resource.md

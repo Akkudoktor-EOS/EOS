@@ -22,15 +22,17 @@ from akkudoktoreos.optimization.genetic.geneticparams import (
     GeneticEnergyManagementParameters,
     GeneticOptimizationParameters,
 )
+from akkudoktoreos.optimization.genetic.geneticsolution import (
+    GeneticSimulationResult,
+    GeneticSolution,
+)
+from akkudoktoreos.optimization.genetic.tailvalue import TailValueCurve, build_tail_value_curve
 from akkudoktoreos.optimization.genetic.terminalvalue import (
+    TailDiagnostics,
     TerminalValueCurve,
     TerminalValueResult,
     build_terminal_value_curve,
     trailing_window,
-)
-from akkudoktoreos.optimization.genetic.geneticsolution import (
-    GeneticSimulationResult,
-    GeneticSolution,
 )
 from akkudoktoreos.optimization.optimizationabc import OptimizationBase
 
@@ -322,7 +324,9 @@ class GeneticSimulation(PydanticBaseModel):
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        end_hour = len(load_energy_array_fast)
+        end_hour = min(
+            len(load_energy_array_fast), self.prediction_hours or len(load_energy_array_fast)
+        )
         total_hours = end_hour - start_hour
 
         # Pre-allocate arrays for the results, optimized for speed
@@ -382,7 +386,7 @@ class GeneticSimulation(PydanticBaseModel):
                 | (
                     direct_marketing_enabled_fast
                     & (bat_grid_export_hours_fast > 0)
-                    & (elect_revenue_per_hour_arr_fast > 0.0)
+                    & (elect_revenue_per_hour_arr_fast[: len(bat_grid_export_hours_fast)] > 0.0)
                 ),
                 1,
                 0,
@@ -605,11 +609,7 @@ class GeneticOptimization(OptimizationBase):
     SOFT_RESTART_SURVIVOR_FRACTION = 0.20
     POINT_MUTATION_EXPECTED_GENES = 3.0
 
-    # Slot-math helpers — single source of truth for the optimization grid.
-    # At the default optimization interval of 3600 s, slot_duration_h is 1.0 and
-    # total_slots equals prediction.hours, so the established hourly behaviour is
-    # preserved. At 900 s (15 min) slot_duration_h is 0.25 and there are 4x as
-    # many slots.
+    # Independent forecast and control durations on the optimization grid.
     @property
     def slot_duration_h(self) -> float:
         """Length of one optimization slot in hours (1.0 hourly, 0.25 at 15 min)."""
@@ -623,26 +623,41 @@ class GeneticOptimization(OptimizationBase):
         return 3600 // interval
 
     @property
-    def total_slots(self) -> int:
-        """Total number of optimization slots = prediction.hours * slots_per_hour."""
-        # Read prediction.hours directly to avoid recursing through total_slots.
+    def control_slots(self) -> int:
+        """Number of executable control intervals, measured from now."""
+        return self.config.optimization.horizon_hours * self.slots_per_hour
+
+    @property
+    def prediction_slots(self) -> int:
+        """Forecast duration, independent of the control genome."""
         return int(self.config.prediction.hours * self.slots_per_hour)
 
-    def _start_day_slot(self) -> int:
-        """Slot index of ems.start_datetime counted from the start day's midnight.
+    @property
+    def tail_slots(self) -> int:
+        """Requested lookahead, bounded by the forecast the configuration budgets.
 
-        simulate()/evaluate() use the simulation start position as a slot index
-        into the prediction/charge arrays. Those arrays begin at the midnight of
-        ``ems.start_datetime`` (geneticparams sets ``start_datetime.set(hour=0)``),
-        so the index is computed from the same datetime — no timezone conversion —
-        keeping it consistent with how the arrays are built. At interval=3600 s
-        slots_per_hour == 1 and minute // 60 == 0, so this reduces to
-        ``start_datetime.hour`` (the previous hourly behaviour).
+        A prediction horizon that does not cover control plus tail shortens the
+        tail rather than failing the run, so the shortfall is not reported as
+        missing provider data.
         """
+        requested = self.config.optimization.tail_horizon_hours * self.slots_per_hour
+        budget = max(0, self.prediction_slots - self.control_slots)
+        return min(requested, budget)
+
+    @property
+    def control_end_slot(self) -> int:
+        """Exclusive control end in run-relative device arrays."""
+        return self._control_start_slot() + self.control_slots
+
+    def _control_start_slot(self) -> int:
+        """Genomes and device arrays start at now, independently of wall-clock hour."""
+        return 0
+
+    def _start_day_slot(self) -> int:
+        """Offset used only to trim legacy midnight-indexed forecast inputs."""
         sd = self.ems.start_datetime
-        sph = self.slots_per_hour
-        slot_minutes = max(1, 60 // sph)
-        return sd.hour * sph + sd.minute // slot_minutes
+        midnight = sd.set(hour=0, minute=0, second=0, microsecond=0)
+        return int((sd - midnight).total_seconds() // (self.slot_duration_h * 3600))
 
     def __init__(
         self,
@@ -657,17 +672,8 @@ class GeneticOptimization(OptimizationBase):
             )
             self.config.optimization.interval = 3600
         self.opti_param: dict[str, Any] = {}
-        # Number of slots at the tail of the optimization window where EV
-        # charging is fixed to 0. Slot-counted so 15-min runs reserve the right
-        # tail length (at interval=3600 s this equals prediction.hours - horizon).
-        self.fixed_eauto_hours = max(
-            self.total_slots
-            - (
-                self._start_day_slot()
-                + self.config.optimization.horizon_hours * self.slots_per_hour
-            ),
-            0,
-        )
+        # EV genes cover precisely the control horizon; no fixed prediction tail.
+        self.fixed_eauto_hours = 0
         self.ev_possible_charge_values: list[float] = [1.0]
         # Separate charge-level list for battery AC charging (independent of EV rates).
         # Populated from parameters.pv_akku.charge_rates in optimierung_ems.
@@ -679,9 +685,11 @@ class GeneticOptimization(OptimizationBase):
         # Slot by which the EV has to reach its target SoC. None means the SoC is
         # only required at the end of the horizon (the behaviour without a deadline).
         self._ev_soc_deadline_slot: Optional[int] = None
-        # Concave value of the energy left in the battery at the end of the
+        # Value of the energy left in the battery at the end of the
         # horizon. None means the fixed scalar terminal value is used instead.
         self._terminal_value_curve: Optional[TerminalValueCurve] = None
+        self._continuation_value_curve: Optional[TerminalValueCurve] = None
+        self._tail_diagnostics: Optional[TailDiagnostics] = None
         # Why that is - reported with the solution, because a run that silently
         # falls back to the scalar looks exactly like a run configured for it.
         self._terminal_value_reason: str = ""
@@ -714,7 +722,7 @@ class GeneticOptimization(OptimizationBase):
         # optimierung_ems(). Empty by default so setup_deap_environment() can be
         # exercised standalone (e.g. in tests) without appliances.
         self.appliance_layout: ApplianceGeneLayout = ApplianceGeneLayout([])
-        # Local datetime of slot index 0 (midnight of the start day), needed to
+        # Local datetime of slot index 0 (the run start), needed to
         # turn decoded start slots into absolute local timestamps.
         self._slot0_datetime: Optional[Any] = None
 
@@ -775,9 +783,9 @@ class GeneticOptimization(OptimizationBase):
         at the current slot and lasts ``horizon_hours``; the bound is capped to
         the total slot grid.
         """
-        start_slot = self._start_day_slot()
+        start_slot = self._control_start_slot()
         horizon_slots = self.config.optimization.horizon_hours * self.slots_per_hour
-        return min(self.total_slots, start_slot + horizon_slots)
+        return min(self.control_end_slot, start_slot + horizon_slots)
 
     def _ev_deadline_slot(self, parameters: GeneticOptimizationParameters) -> Optional[int]:
         """Slot index by which the EV has to reach ``min_soc_percentage``.
@@ -798,7 +806,7 @@ class GeneticOptimization(OptimizationBase):
         if ev_parameters is None:
             return None
 
-        start_slot = self._start_day_slot()
+        start_slot = self._control_start_slot()
         slot_seconds = self.slot_duration_h * 3600
         candidates: list[int] = []
 
@@ -817,18 +825,53 @@ class GeneticOptimization(OptimizationBase):
             return None
 
         deadline_slot = min(candidates)
-        if deadline_slot >= self.total_slots:
+        if deadline_slot >= self.control_end_slot:
             # Beyond the horizon: the end-of-horizon requirement already covers it.
             return None
         # A deadline in the past means the target is due right now.
         return max(deadline_slot, start_slot)
+
+    def _validate_forecast_availability(self) -> None:
+        """Use only the contiguous finite forecast prefix after now."""
+        start = self._control_start_slot()
+        required = self.control_end_slot
+        requested = required + self.tail_slots
+        available = requested
+        limiting = []
+        for name, values in (
+            ("load", self.simulation.load_energy_array),
+            ("pv", self.simulation.pv_prediction_wh),
+            ("import price", self.simulation.elect_price_hourly),
+            ("feed-in tariff", self.simulation.elect_revenue_per_hour_arr),
+        ):
+            end = min(len(values), requested) if values is not None else 0
+            if values is not None:
+                missing = np.flatnonzero(~np.isfinite(values[start:end]))
+                if missing.size:
+                    end = start + int(missing[0])
+            if end < required:
+                raise ValueError(
+                    f"Incomplete control forecast: {name} ends at slot {end}; control requires slot {required}."
+                )
+            if end < requested:
+                limiting.append(name)
+            available = min(available, end)
+        self._effective_tail_slots = max(0, available - required)
+        self._forecast_reason = ""
+        if available < requested:
+            self._forecast_reason = (
+                f"Tail forecast shortened: requested {self.config.optimization.tail_horizon_hours} h, "
+                f"effective {self._effective_tail_slots * self.slot_duration_h:g} h; "
+                f"limited by {', '.join(limiting)}. Continuation starts at slot {available}."
+            )
+            logger.warning(self._forecast_reason)
 
     def _build_terminal_value_curve(
         self,
         battery: Optional[Battery],
         inverter: Optional[Inverter],
     ) -> Optional[TerminalValueCurve]:
-        """Derive the terminal value curve from the trailing horizon window.
+        """Build continuation at the effective tail end, then solve the tail.
 
         Only built in AUTO mode and only with a battery: the curve describes
         what the energy left in that battery is worth once the horizon ends.
@@ -862,10 +905,7 @@ class GeneticOptimization(OptimizationBase):
             * dc_to_ac
         )
         window_slots = max(int(window_hours) * self.slots_per_hour, 1)
-        end_slot = min(
-            self.total_slots,
-            self._start_day_slot() + self.config.optimization.horizon_hours * self.slots_per_hour,
-        )
+        end_slot = self.control_end_slot + getattr(self, "_effective_tail_slots", 0)
 
         curve = build_terminal_value_curve(
             prices_euro_per_wh=trailing_window(
@@ -881,6 +921,53 @@ class GeneticOptimization(OptimizationBase):
             dc_to_ac_efficiency=dc_to_ac,
             grid_export_allowed=self.optimize_battery_grid_export,
         )
+        self._continuation_value_curve = curve
+        self._tail_diagnostics = None
+        if self.tail_slots and inverter is not None:
+            tail = slice(self.control_end_slot, end_slot)
+            prices = self.simulation.elect_price_hourly
+            loads = self.simulation.load_energy_array
+            pv = self.simulation.pv_prediction_wh
+            tariffs = self.simulation.elect_revenue_per_hour_arr
+            if prices is None or loads is None or pv is None or tariffs is None:
+                raise ValueError("Tail evaluation requires prepared forecasts")
+            tail_prices = prices[tail]
+            tail_tariffs = tariffs[tail]
+            self._tail_diagnostics = TailDiagnostics(
+                slots=len(tail_prices),
+                slot_hours=self.slot_duration_h,
+                soc_grid_points=101,
+                min_import_price_euro_per_kwh=(
+                    float(np.min(tail_prices)) * 1000 if len(tail_prices) else 0.0
+                ),
+                max_import_price_euro_per_kwh=(
+                    float(np.max(tail_prices)) * 1000 if len(tail_prices) else 0.0
+                ),
+                min_feed_in_tariff_euro_per_kwh=(
+                    float(np.min(tail_tariffs)) * 1000 if len(tail_tariffs) else 0.0
+                ),
+                max_feed_in_tariff_euro_per_kwh=(
+                    float(np.max(tail_tariffs)) * 1000 if len(tail_tariffs) else 0.0
+                ),
+                negative_import_price_slots=int(np.count_nonzero(tail_prices < 0.0)),
+                positive_battery_export_slots=(
+                    int(np.count_nonzero(tail_tariffs > 0.0))
+                    if self.optimize_battery_grid_export
+                    else 0
+                ),
+            )
+            return build_tail_value_curve(
+                battery=battery,
+                inverter=inverter,
+                prices_euro_per_wh=prices[tail],
+                load_wh=loads[tail],
+                pv_wh=pv[tail],
+                feed_in_euro_per_wh=tariffs[tail],
+                continuation=curve,
+                charge_rates=self.bat_possible_charge_values,
+                export_rates=self.bat_possible_grid_export_values,
+                direct_marketing=self.optimize_battery_grid_export,
+            )
         if curve.energy_wh:
             self._terminal_value_reason = ""
             logger.debug(
@@ -904,7 +991,10 @@ class GeneticOptimization(OptimizationBase):
         return curve
 
     def _terminal_value(
-        self, parameters: GeneticOptimizationParameters
+        self,
+        parameters: GeneticOptimizationParameters,
+        *,
+        include_tail_plan: bool = False,
     ) -> tuple[float, TerminalValueResult]:
         """Credit for the energy left in the battery, plus its report.
 
@@ -914,9 +1004,17 @@ class GeneticOptimization(OptimizationBase):
         Returns:
             The credit in EUR and the result object for the solution.
         """
+        diagnostics = dict(
+            control_horizon_hours=self.config.optimization.horizon_hours,
+            requested_tail_hours=self.config.optimization.tail_horizon_hours,
+            effective_tail_hours=0.0,
+            tail_end_hour=float(self.config.optimization.horizon_hours),
+        )
         battery = self.simulation.battery
         if battery is None:
-            return 0.0, TerminalValueResult(mode="FIXED", reason="no battery in this optimization")
+            return 0.0, TerminalValueResult(
+                mode="FIXED", reason="no battery in this optimization", **diagnostics
+            )
 
         # Usable DC energy, converted to the AC energy that can serve a load.
         energy_wh = battery.current_energy_content()
@@ -926,11 +1024,34 @@ class GeneticOptimization(OptimizationBase):
         curve = getattr(self, "_terminal_value_curve", None)
         if curve is not None and curve.energy_wh:
             credit = curve.value(energy_wh)
+            if isinstance(curve, TailValueCurve):
+                tail_operating_euro, continuation_value_euro = curve.component_values(energy_wh)
+                tail_plan = (
+                    curve.diagnostic_plan(energy_wh, float(self.config.optimization.horizon_hours))
+                    if include_tail_plan
+                    else []
+                )
+            else:
+                tail_operating_euro, continuation_value_euro = 0.0, credit
+                tail_plan = []
             return credit, TerminalValueResult(
-                mode="AUTO",
+                mode="TAIL" if isinstance(curve, TailValueCurve) else "AUTO",
+                control_horizon_hours=self.config.optimization.horizon_hours,
+                requested_tail_hours=self.config.optimization.tail_horizon_hours,
+                effective_tail_hours=getattr(self, "_effective_tail_slots", 0)
+                * self.slot_duration_h,
+                tail_end_hour=(self.control_end_slot + getattr(self, "_effective_tail_slots", 0))
+                * self.slot_duration_h,
+                continuation_mode="AUTO",
+                reason=getattr(self, "_forecast_reason", ""),
                 battery_energy_wh=energy_wh,
                 credited_euro=credit,
+                tail_operating_euro=tail_operating_euro,
+                continuation_value_euro=continuation_value_euro,
                 curve=curve,
+                continuation_curve=getattr(self, "_continuation_value_curve", None),
+                tail_diagnostics=getattr(self, "_tail_diagnostics", None),
+                tail_plan=tail_plan,
             )
 
         credit = energy_wh * parameters.ems.preis_euro_pro_wh_akku
@@ -938,7 +1059,18 @@ class GeneticOptimization(OptimizationBase):
             mode="FIXED",
             battery_energy_wh=energy_wh,
             credited_euro=credit,
-            reason=getattr(self, "_terminal_value_reason", "") or "terminal_value_mode is FIXED",
+            continuation_value_euro=credit,
+            reason=" ".join(
+                filter(
+                    None,
+                    [
+                        getattr(self, "_terminal_value_reason", "")
+                        or "terminal_value_mode is FIXED",
+                        getattr(self, "_forecast_reason", ""),
+                    ],
+                )
+            ),
+            **diagnostics,
         )
 
     def _build_appliance_layout(
@@ -953,7 +1085,7 @@ class GeneticOptimization(OptimizationBase):
         Raises:
             ValueError: If a ONCE appliance has no valid start within the horizon.
         """
-        start_slot = self._start_day_slot()
+        start_slot = self._control_start_slot()
         horizon_end_slot = self._appliance_horizon_end_slot()
         genes: list[ApplianceGeneSlot] = []
         gene_index = 0
@@ -1069,7 +1201,7 @@ class GeneticOptimization(OptimizationBase):
         individual, which dominated the fitness runtime.) The loops replicate
         the former inline computation exactly, keeping results bit-identical.
         """
-        n = len(prices_arr)
+        n = min(len(prices_arr), self.control_end_slot)
         best_prices = [0.0] * n
         for hour in range(n):
             # Build list of (price, load_wh) for all future hours in the horizon
@@ -1101,10 +1233,9 @@ class GeneticOptimization(OptimizationBase):
             return parameters
 
         feed_in_tariff = parameters.ems.einspeiseverguetung_euro_pro_wh
-        if (
-            isinstance(feed_in_tariff, list)
-            and len(feed_in_tariff) == len(parameters.ems.strompreis_euro_pro_wh)
-            and len(set(feed_in_tariff)) > 1
+        if isinstance(feed_in_tariff, list) and (
+            len(feed_in_tariff) != len(parameters.ems.strompreis_euro_pro_wh)
+            or len(set(feed_in_tariff)) > 1
         ):
             return parameters
 
@@ -1122,25 +1253,34 @@ class GeneticOptimization(OptimizationBase):
         API clients historically provide one value per prediction hour. At a
         sub-hourly interval, energy quantities are distributed across the slots
         while price quantities are held constant. Inputs already matching the
-        native slot grid are preserved exactly. Any other length is ambiguous and
-        rejected instead of silently shortening the simulation horizon.
+        native slot grid are preserved exactly. Short native forecasts must
+        declare their interval; availability is validated separately.
         """
 
         def normalize(values: list[float], name: str, *, energy: bool) -> list[float]:
-            value_count = len(values)
-            if value_count == self.total_slots:
-                return list(values)
-            if value_count != self.config.prediction.hours:
-                raise ValueError(
-                    f"{name} has {value_count} values; expected either "
-                    f"{self.config.prediction.hours} hourly values or "
-                    f"{self.total_slots} optimization-slot values."
+            data = np.asarray(values, dtype=float)
+            # API inputs default to hourly; native callers declare their interval.
+            native = parameters.forecast_interval_seconds == self.config.optimization.interval
+            if parameters.forecast_interval_seconds is None:
+                max_hourly = self.config.prediction.hours + math.ceil(
+                    self._start_day_slot() / self.slots_per_hour
                 )
-
-            normalized = np.repeat(np.asarray(values, dtype=float), self.slots_per_hour)
-            if energy:
-                normalized /= self.slots_per_hour
-            return normalized.tolist()
+                if self.slots_per_hour > 1 and max_hourly < len(data) < self.prediction_slots:
+                    raise ValueError(
+                        f"{name}: ambiguous forecast interval; expected either {self.config.prediction.hours} hourly values or {self.prediction_slots} native values. Set forecast_interval_seconds for shortened native forecasts."
+                    )
+                native = self.slots_per_hour == 1 or len(data) >= self.prediction_slots
+            if parameters.forecast_interval_seconds == 900 and self.slots_per_hour == 1:
+                remainder = len(data) % 4
+                if remainder:
+                    data = np.pad(data, (0, 4 - remainder), constant_values=np.nan)
+                blocks = data.reshape(-1, 4)
+                data = blocks.sum(axis=1) if energy else blocks.mean(axis=1)
+            elif not native:
+                data = np.repeat(data, self.slots_per_hour)
+                if energy:
+                    data /= self.slots_per_hour
+            return data[self._start_day_slot() :].tolist()
 
         ems = parameters.ems
         feed_in_tariff = ems.einspeiseverguetung_euro_pro_wh
@@ -1151,7 +1291,9 @@ class GeneticOptimization(OptimizationBase):
                 energy=False,
             )
         else:
-            normalized_feed_in_tariff = [float(feed_in_tariff)] * self.total_slots
+            normalized_feed_in_tariff = [float(feed_in_tariff)] * (
+                self._control_start_slot() + self.prediction_slots
+            )
 
         normalized_ems = ems.model_copy(
             update={
@@ -1167,17 +1309,15 @@ class GeneticOptimization(OptimizationBase):
             deep=True,
         )
         temperature_forecast = parameters.temperature_forecast
+        if (
+            temperature_forecast is not None
+            and parameters.forecast_interval_seconds != self.config.optimization.interval
+        ):
+            temperature_forecast = [
+                v for v in temperature_forecast for _ in range(self.slots_per_hour)
+            ]
         if temperature_forecast is not None:
-            if len(temperature_forecast) == self.config.prediction.hours:
-                temperature_forecast = [
-                    value for value in temperature_forecast for _ in range(self.slots_per_hour)
-                ]
-            elif len(temperature_forecast) != self.total_slots:
-                raise ValueError(
-                    f"temperature_forecast has {len(temperature_forecast)} values; expected "
-                    f"either {self.config.prediction.hours} hourly values or "
-                    f"{self.total_slots} optimization-slot values."
-                )
+            temperature_forecast = temperature_forecast[self._start_day_slot() :]
         return parameters.model_copy(
             update={"ems": normalized_ems, "temperature_forecast": temperature_forecast},
             deep=True,
@@ -1192,9 +1332,10 @@ class GeneticOptimization(OptimizationBase):
         (incompatible tails cause the whole start solution to be discarded).
         """
         n_appliance_genes = self.appliance_layout.n_genes
-        expected_length = self.total_slots * (2 if self.optimize_ev else 1) + n_appliance_genes
+        expected_length = self.control_end_slot * (2 if self.optimize_ev else 1) + n_appliance_genes
         hourly_length = (
-            self.config.prediction.hours * (2 if self.optimize_ev else 1) + n_appliance_genes
+            self.config.optimization.horizon_hours * (2 if self.optimize_ev else 1)
+            + n_appliance_genes
         )
 
         if len(start_solution) == expected_length or self.slots_per_hour == 1:
@@ -1202,10 +1343,10 @@ class GeneticOptimization(OptimizationBase):
         if len(start_solution) != hourly_length:
             return list(start_solution)
 
-        battery_end = self.config.prediction.hours
+        battery_end = self.config.optimization.horizon_hours
         migrated = np.repeat(start_solution[:battery_end], self.slots_per_hour).tolist()
         if self.optimize_ev:
-            ev_end = battery_end + self.config.prediction.hours
+            ev_end = battery_end + self.config.optimization.horizon_hours
             migrated.extend(
                 np.repeat(start_solution[battery_end:ev_end], self.slots_per_hour).tolist()
             )
@@ -1281,8 +1422,8 @@ class GeneticOptimization(OptimizationBase):
 
     def _mutate_battery_block(self, individual: list[int]) -> None:
         """Mutate a short future block to one coherent operating policy."""
-        start_slot = self._start_day_slot()
-        if start_slot >= self.total_slots:
+        start_slot = self._control_start_slot()
+        if start_slot >= self.control_end_slot:
             return
 
         state_layout = self._battery_state_layout()
@@ -1295,8 +1436,8 @@ class GeneticOptimization(OptimizationBase):
         # Every export level is a coherent policy for a whole block.
         policy_states.extend(state_layout.grid_export_states)
 
-        block_start = random.randint(start_slot, self.total_slots - 1)  # noqa: S311
-        max_length = min(12, self.total_slots - block_start)
+        block_start = random.randint(start_slot, self.control_end_slot - 1)  # noqa: S311
+        max_length = min(12, self.control_end_slot - block_start)
         block_length = random.randint(2, max(2, max_length)) if max_length > 1 else 1  # noqa: S311
         state = random.choice(policy_states)  # noqa: S311
         individual[block_start : block_start + block_length] = [state] * block_length
@@ -1314,14 +1455,14 @@ class GeneticOptimization(OptimizationBase):
             load = np.asarray(self.simulation.load_energy_array, dtype=float)
         except Exception:
             return []
-        if any(values.size < self.total_slots for values in (prices, feed_in, pv, load)):
+        if any(values.size < self.control_end_slot for values in (prices, feed_in, pv, load)):
             return []
 
         len_bat = len(self.bat_possible_charge_values)
         source_tariff = float(feed_in[source_slot])
         candidates = [
             slot
-            for slot in range(source_slot + 1, self.total_slots)
+            for slot in range(source_slot + 1, self.control_end_slot)
             if 0 <= int(individual[slot]) < len_bat
             and load[slot] > pv[slot]
             and prices[slot] > source_tariff
@@ -1340,9 +1481,9 @@ class GeneticOptimization(OptimizationBase):
         if not export_states or self_state is None:
             return False
 
-        start_slot = self._start_day_slot()
+        start_slot = self._control_start_slot()
         viable: list[tuple[int, list[int]]] = []
-        for source_slot in range(start_slot, self.total_slots):
+        for source_slot in range(start_slot, self.control_end_slot):
             if int(individual[source_slot]) not in export_states:
                 continue
             targets = self._energy_shift_target_slots(individual, source_slot)
@@ -1384,20 +1525,20 @@ class GeneticOptimization(OptimizationBase):
     def _mutate_point_controls(self, individual: list[int]) -> bool:
         """Apply a small point mutation only to controls that can still affect fitness."""
         changed = False
-        start_slot = self._start_day_slot()
+        start_slot = self._control_start_slot()
         total_states = self._battery_state_layout().total_states
-        battery_part = list(individual[start_slot : self.total_slots])
+        battery_part = list(individual[start_slot : self.control_end_slot])
         battery_before = list(battery_part)
         (battery_part,) = self.toolbox.mutate_charge_discharge(battery_part)
         if battery_part == battery_before:
             self._force_segment_change(battery_part, 0, total_states - 1)
         if battery_part != battery_before:
-            individual[start_slot : self.total_slots] = battery_part
+            individual[start_slot : self.control_end_slot] = battery_part
             changed = True
 
         if self.optimize_ev and random.random() < 0.40:  # noqa: S311
-            ev_start = self.total_slots + start_slot
-            ev_end = self.total_slots * 2 - self.fixed_eauto_hours
+            ev_start = self.control_end_slot + start_slot
+            ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
             ev_part = list(individual[ev_start:ev_end])
             ev_before = list(ev_part)
             (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
@@ -1413,8 +1554,8 @@ class GeneticOptimization(OptimizationBase):
         """Mutate EV or appliance controls without disturbing a good battery schedule."""
         changed = False
         if self.optimize_ev:
-            ev_start = self.total_slots + self._start_day_slot()
-            ev_end = self.total_slots * 2 - self.fixed_eauto_hours
+            ev_start = self.control_end_slot + self._control_start_slot()
+            ev_end = self.control_end_slot * 2 - self.fixed_eauto_hours
             ev_part = list(individual[ev_start:ev_end])
             ev_before = list(ev_part)
             (ev_part,) = self.toolbox.mutate_ev_charge_index(ev_part)
@@ -1464,7 +1605,7 @@ class GeneticOptimization(OptimizationBase):
             self._mutate_point_controls(individual)
 
         if self.optimize_ev and self.fixed_eauto_hours > 0:
-            ev_end = self.total_slots * 2
+            ev_end = self.control_end_slot * 2
             individual[ev_end - self.fixed_eauto_hours : ev_end] = [0] * self.fixed_eauto_hours
 
         return (individual,)
@@ -1473,12 +1614,14 @@ class GeneticOptimization(OptimizationBase):
     def create_individual(self) -> list[int]:
         # Start with discharge states for the individual
         individual_components = [
-            self.toolbox.attr_discharge_state() for _ in range(self.total_slots)
+            self.toolbox.attr_discharge_state() for _ in range(self.control_end_slot)
         ]
 
         # Add EV charge index values if optimize_ev is True
         if self.optimize_ev:
-            ev_controls = [self.toolbox.attr_ev_charge_index() for _ in range(self.total_slots)]
+            ev_controls = [
+                self.toolbox.attr_ev_charge_index() for _ in range(self.control_end_slot)
+            ]
             if self.fixed_eauto_hours > 0:
                 ev_controls[-self.fixed_eauto_hours :] = [0] * self.fixed_eauto_hours
             individual_components += ev_controls
@@ -1516,7 +1659,7 @@ class GeneticOptimization(OptimizationBase):
             individual.extend(eautocharge_hours_index.tolist())
         elif self.optimize_ev:
             # optimize_ev active but no EV data present: pad with zeros
-            individual.extend([0] * self.total_slots)
+            individual.extend([0] * self.control_end_slot)
 
         # Add appliance start genes (one index per scheduled run).
         n_appliance_genes = self.appliance_layout.n_genes
@@ -1539,13 +1682,13 @@ class GeneticOptimization(OptimizationBase):
         3. Appliance start genes (list of indices, one per scheduled run).
         """
         # Discharge hours as a NumPy array of ints
-        discharge_hours_bin = np.array(individual[: self.total_slots], dtype=int)
+        discharge_hours_bin = np.array(individual[: self.control_end_slot], dtype=int)
 
         # EV charge hours as a NumPy array of ints (if optimize_ev is True)
         eautocharge_hours_index = (
             # append ev charging states to individual
             np.array(
-                individual[self.total_slots : self.total_slots * 2],
+                individual[self.control_end_slot : self.control_end_slot * 2],
                 dtype=int,
             )
             if self.optimize_ev
@@ -1588,8 +1731,8 @@ class GeneticOptimization(OptimizationBase):
             return False
 
         ev_soc = np.asarray(simulation_result.get("EAuto_SoC_pro_Stunde", []), dtype=float)
-        start_slot = self._start_day_slot()
-        result_slots = min(ev_soc.size, self.total_slots - start_slot)
+        start_slot = self._control_start_slot()
+        result_slots = min(ev_soc.size, self.control_end_slot - start_slot)
         if result_slots <= 0:
             return False
 
@@ -1619,7 +1762,7 @@ class GeneticOptimization(OptimizationBase):
             range(len(self.ev_possible_charge_values)),
             key=lambda index: abs(self.ev_possible_charge_values[index]),
         )
-        schedule = [zero_index] * self.total_slots
+        schedule = [zero_index] * self.control_end_slot
         ev = self.simulation.ev
         if ev is None:
             return schedule
@@ -1631,8 +1774,8 @@ class GeneticOptimization(OptimizationBase):
         if required_stored_wh <= 0.0:
             return schedule
 
-        start_slot = self._start_day_slot()
-        end_slot = max(start_slot, self.total_slots - self.fixed_eauto_hours)
+        start_slot = self._control_start_slot()
+        end_slot = max(start_slot, self.control_end_slot - self.fixed_eauto_hours)
         if getattr(self, "_ev_soc_deadline_slot", None) is not None:
             # Charging after the deadline does not help to reach the target.
             end_slot = max(start_slot, min(end_slot, self._ev_soc_deadline_slot))
@@ -1699,8 +1842,8 @@ class GeneticOptimization(OptimizationBase):
         if target_count <= 0:
             return []
 
-        slots = self.total_slots
-        start_slot = self._start_day_slot()
+        slots = self.control_end_slot
+        start_slot = self._control_start_slot()
         len_bat = len(self.bat_possible_charge_values)
         state_layout = self._battery_state_layout()
         idle_state = 0
@@ -1879,7 +2022,7 @@ class GeneticOptimization(OptimizationBase):
     ) -> list[list[int]]:
         """Create unique local variants while preserving already elapsed slots."""
         original = [int(value) for value in start_solution]
-        start_slot = self._start_day_slot()
+        start_slot = self._control_start_slot()
         seen = {tuple(original)}
         neighbors: list[list[int]] = []
         for _ in range(max(count * 10, 1)):
@@ -1887,7 +2030,7 @@ class GeneticOptimization(OptimizationBase):
             self.mutate(neighbor)
             neighbor[:start_slot] = original[:start_slot]
             if self.optimize_ev:
-                ev_start = self.total_slots
+                ev_start = self.control_end_slot
                 neighbor[ev_start : ev_start + start_slot] = original[
                     ev_start : ev_start + start_slot
                 ]
@@ -1913,18 +2056,18 @@ class GeneticOptimization(OptimizationBase):
         if not export_states or self_state is None:
             return []
 
-        start_slot = self._start_day_slot()
+        start_slot = self._control_start_slot()
         try:
             feed_in = np.asarray(self.simulation.elect_revenue_per_hour_arr, dtype=float)
             pv = np.asarray(self.simulation.pv_prediction_wh, dtype=float)
         except Exception:
             return []
-        if feed_in.size < self.total_slots or pv.size < self.total_slots:
+        if feed_in.size < self.control_end_slot or pv.size < self.control_end_slot:
             return []
 
         sources = [
             slot
-            for slot in range(start_slot, self.total_slots)
+            for slot in range(start_slot, self.control_end_slot)
             if int(individual[slot]) in export_states
         ]
         # Search weak and late export decisions first. They are the most likely
@@ -2104,7 +2247,11 @@ class GeneticOptimization(OptimizationBase):
         for _ in range(count):
             child = self.toolbox.clone(random.choice(population))  # noqa: S311
             crossed = False
-            if len(population) > 1 and random.random() < self.CROSSOVER_PROBABILITY:  # noqa: S311
+            if (
+                len(child) > 1
+                and len(population) > 1
+                and random.random() < self.CROSSOVER_PROBABILITY  # noqa: S311
+            ):
                 partner = self.toolbox.clone(random.choice(population))  # noqa: S311
                 child, _ = self.toolbox.mate(child, partner)
                 crossed = True
@@ -2307,7 +2454,7 @@ class GeneticOptimization(OptimizationBase):
         # expected number of changed controls remains close to three regardless
         # of interval and elapsed slots; coherent block/energy moves are handled
         # by separate mutation families.
-        active_slots = max(self.total_slots - self._start_day_slot(), 1)
+        active_slots = max(self.control_end_slot - self._control_start_slot(), 1)
         mutation_probability = min(
             0.10,
             self.POINT_MUTATION_EXPECTED_GENES / active_slots,
@@ -2357,7 +2504,7 @@ class GeneticOptimization(OptimizationBase):
         if self.optimize_dc_charge:
             self.simulation.dc_charge_hours = dc_charge_hours
         else:
-            self.simulation.dc_charge_hours = np.full(self.total_slots, 1)
+            self.simulation.dc_charge_hours = np.full(self.control_end_slot, 1)
         self.simulation.ac_charge_hours = ac_charge_hours
 
         if eautocharge_hours_index is not None:
@@ -2369,12 +2516,12 @@ class GeneticOptimization(OptimizationBase):
             self.simulation.ev_charge_hours = eautocharge_hours_float
         else:
             # discharge is set to 0 by default
-            self.simulation.ev_charge_hours = np.full(self.total_slots, 0)
+            self.simulation.ev_charge_hours = np.full(self.control_end_slot, 0)
 
         # Do the simulation and return result. simulate()'s argument is a slot
         # index into the prediction/charge arrays, not an hour-of-day, so pass
         # the start_day_slot to keep sub-hourly runs aligned.
-        return self.simulation.simulate(self._start_day_slot())
+        return self.simulation.simulate(self._control_start_slot())
 
     def evaluate(
         self,
@@ -2424,11 +2571,11 @@ class GeneticOptimization(OptimizationBase):
 
     def _fitness_key(self, individual: list[int]) -> tuple[int, ...]:
         """Return the fitness-relevant genome, excluding elapsed control slots."""
-        start_slot = self._start_day_slot()
-        relevant = list(individual[start_slot : self.total_slots])
+        start_slot = self._control_start_slot()
+        relevant = list(individual[start_slot : self.control_end_slot])
         if self.optimize_ev:
-            ev_start = self.total_slots + start_slot
-            relevant.extend(individual[ev_start : self.total_slots * 2])
+            ev_start = self.control_end_slot + start_slot
+            relevant.extend(individual[ev_start : self.control_end_slot * 2])
         n_appliance_genes = self.appliance_layout.n_genes
         if n_appliance_genes > 0:
             relevant.extend(individual[-n_appliance_genes:])
@@ -2587,6 +2734,7 @@ class GeneticOptimization(OptimizationBase):
         if (
             self.simulation.battery
             and self.simulation.inverter
+            and not isinstance(getattr(self, "_terminal_value_curve", None), TailValueCurve)
             and self.simulation.ac_charge_hours is not None
             and self.simulation.elect_price_hourly is not None
             and self.simulation.load_energy_array is not None
@@ -2616,7 +2764,7 @@ class GeneticOptimization(OptimizationBase):
                 ac_charge_arr = self.simulation.ac_charge_hours
                 prices_arr = self.simulation.elect_price_hourly
                 load_arr = self.simulation.load_energy_array
-                n = len(prices_arr)
+                n = min(len(prices_arr), self.control_end_slot)
 
                 # Usable AC energy already in battery from prior PV charging (zero grid cost).
                 # This covers the most expensive future hours first, pushing AC charging demand
@@ -2721,7 +2869,9 @@ class GeneticOptimization(OptimizationBase):
         valid_start_solution: Optional[list[float]] = None
         if start_solution is not None:
             n_appliance_genes = self.appliance_layout.n_genes
-            expected_length = self.total_slots * (2 if self.optimize_ev else 1) + n_appliance_genes
+            expected_length = (
+                self.control_end_slot * (2 if self.optimize_ev else 1) + n_appliance_genes
+            )
             start_solution = self._start_solution_for_slot_grid(start_solution)
 
             if len(start_solution) != expected_length:
@@ -2910,6 +3060,7 @@ class GeneticOptimization(OptimizationBase):
         individuals: Optional[int] = None,
     ) -> GeneticSolution:
         """Perform EMS (Energy Management System) optimization and visualize results."""
+        self.config.validate_optimization_horizons()
         direct_marketing_enabled = self._direct_marketing_enabled()
         parameters = self._parameters_for_config(parameters)
         parameters = self._parameters_for_slot_grid(parameters)
@@ -2926,10 +3077,8 @@ class GeneticOptimization(OptimizationBase):
             raise ValueError(
                 f"Start hour not synced. EMS {self.ems.start_datetime.hour} vs. GENETIC {start_hour}."
             )
-        # start_hour stays the hour-of-day for the appliance-start gene bounds
-        # (0..23). Everything that indexes the slot arrays (the simulate offset
-        # and evaluate's break-even loop) uses the slot index instead.
-        start_slot = self._start_day_slot()
+        # Forecasts are trimmed to now; all genome/device indices are run-relative.
+        start_slot = self._control_start_slot()
 
         # Set the number of generations
         generations = ngen
@@ -2951,19 +3100,19 @@ class GeneticOptimization(OptimizationBase):
         if parameters.pv_akku:
             akku = Battery(
                 parameters.pv_akku,
-                prediction_hours=self.total_slots,
+                prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,
             )
-            akku.set_charge_per_hour(np.full(self.total_slots, 0))
+            akku.set_charge_per_hour(np.full(self.control_end_slot, 0))
 
         eauto: Optional[Battery] = None
         if parameters.eauto:
             eauto = Battery(
                 parameters.eauto,
-                prediction_hours=self.total_slots,
+                prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,
             )
-            eauto.set_charge_per_hour(np.full(self.total_slots, 1))
+            eauto.set_charge_per_hour(np.full(self.control_end_slot, 1))
             self.optimize_ev = (
                 parameters.eauto.min_soc_percentage > parameters.eauto.initial_soc_percentage
             )
@@ -3037,16 +3186,14 @@ class GeneticOptimization(OptimizationBase):
             logger.debug("Battery grid export levels: {}", self.bat_possible_grid_export_values)
 
         # Initialize the flexible consumers (home appliances) and their genome
-        # layout. slot0_datetime (midnight of the start day) turns decoded start
+        # layout. slot0_datetime (the run start) turns decoded start
         # slots into absolute local timestamps and drives DAILY day grouping.
-        self._slot0_datetime = self.ems.start_datetime.set(
-            hour=0, minute=0, second=0, microsecond=0
-        )
+        self._slot0_datetime = self.ems.start_datetime
         home_appliances = [
             HomeAppliance(
                 parameters=appliance_params,
                 optimization_hours=self.config.optimization.horizon_hours,
-                prediction_hours=self.total_slots,
+                prediction_hours=self.control_end_slot,
                 slot_duration_h=self.slot_duration_h,
             )
             for appliance_params in home_appliance_params
@@ -3079,17 +3226,30 @@ class GeneticOptimization(OptimizationBase):
         self.simulation.prepare(
             parameters=parameters.ems,
             optimization_hours=self.config.optimization.horizon_hours,
-            prediction_hours=self.total_slots,
+            prediction_hours=self.control_end_slot,
             inverter=inverter,  # battery is part of inverter
             ev=eauto,
             home_appliances=home_appliances,
             direct_marketing_enabled=direct_marketing_enabled,
         )
 
+        self._validate_forecast_availability()
+
         # Terminal value of the energy left in the battery. Built once per run -
         # it needs the prepared price/load/PV series - so every fitness
         # evaluation only interpolates on it.
         self._terminal_value_curve = self._build_terminal_value_curve(akku, inverter)
+
+        # The curve owns all lookahead information from here on. Simulation
+        # and control heuristics receive only equally sized control forecasts,
+        # even when providers supplied different amounts of tail data.
+        for name in (
+            "load_energy_array",
+            "pv_prediction_wh",
+            "elect_price_hourly",
+            "elect_revenue_per_hour_arr",
+        ):
+            setattr(self.simulation, name, getattr(self.simulation, name)[: self.control_slots])
 
         # Setup the DEAP environment and optimization process. The appliance
         # genome layout (built above) drives the appliance gene block; evaluate
@@ -3112,7 +3272,7 @@ class GeneticOptimization(OptimizationBase):
         # Perform final evaluation on the best solution
         simulation_result = self.evaluate_inner(start_solution)
         # Read the terminal value off the final battery state, for the solution.
-        _, terminal_value_result = self._terminal_value(parameters)
+        _, terminal_value_result = self._terminal_value(parameters, include_tail_plan=True)
 
         # Prepare results
         discharge_hours_bin, eautocharge_hours_index, appliance_gene_values = self.split_individual(
@@ -3154,37 +3314,25 @@ class GeneticOptimization(OptimizationBase):
         if self.slots_per_hour == 1 and len(self.simulation.home_appliances) == 1:
             single_starts = starts_per_appliance.get(0, [])
             if single_starts:
-                washingstart_int = int(min(single_starts))
+                washingstart_int = self._start_day_slot() + int(min(single_starts))
 
         eautocharge_hours_float = None
         if eautocharge_hours_index is not None and self.simulation.ev is not None:
             eautocharge_hours_float = self.simulation.ev.charge_array.tolist()
 
-        # Simulation may have changed something, use simulation values
-        ac_charge_hours = self.simulation.ac_charge_hours
-        if ac_charge_hours is None:
-            ac_charge_hours = []
-        else:
-            ac_charge_hours = ac_charge_hours.tolist()
-        dc_charge_hours = self.simulation.dc_charge_hours
-        if dc_charge_hours is None:
-            dc_charge_hours = []
-        else:
-            dc_charge_hours = dc_charge_hours.tolist()
-        discharge = self.simulation.bat_discharge_hours
-        if discharge is None:
-            discharge = []
-        else:
-            discharge = discharge.tolist()
-        battery_grid_export = self.simulation.bat_grid_export_hours
-        if not direct_marketing_enabled or battery_grid_export is None:
-            battery_grid_export_factor = []
-            battery_grid_export = []
-        else:
-            # The simulation array holds the export level; the legacy signal is
-            # its boolean projection.
-            battery_grid_export_factor = [float(value) for value in battery_grid_export]
-            battery_grid_export = [1 if value > 0.0 else 0 for value in battery_grid_export_factor]
+        # Report executed controls, already indexed from the run start.
+        def control_values(values: Optional[np.ndarray]) -> list[float]:
+            return values.tolist() if values is not None else []
+
+        ac_charge_hours = control_values(self.simulation.ac_charge_hours)
+        dc_charge_hours = control_values(self.simulation.dc_charge_hours)
+        discharge = control_values(self.simulation.bat_discharge_hours)
+        battery_grid_export_factor = (
+            control_values(self.simulation.bat_grid_export_hours)
+            if direct_marketing_enabled
+            else []
+        )
+        battery_grid_export = [1 if value > 0 else 0 for value in battery_grid_export_factor]
 
         # Visualize the results in PDF. Skippable via config — matplotlib PDF
         # generation costs several seconds per run, which headless setups
@@ -3194,11 +3342,14 @@ class GeneticOptimization(OptimizationBase):
                 from akkudoktoreos.utils.visualize import prepare_visualize
 
                 visualize = {
+                    "controls_start_at_now": True,
                     "ac_charge": ac_charge_hours,
                     "dc_charge": dc_charge_hours,
                     "discharge_allowed": discharge,
                     "battery_grid_export_allowed": battery_grid_export,
-                    "eautocharge_hours_float": eautocharge_hours_float,
+                    "eautocharge_hours_float": eautocharge_hours_float[start_slot:]
+                    if eautocharge_hours_float is not None
+                    else None,
                     "result": simulation_result,
                     "eauto_obj": self.simulation.ev.to_dict() if self.simulation.ev else None,
                     "start_solution": start_solution,
@@ -3216,13 +3367,16 @@ class GeneticOptimization(OptimizationBase):
 
         return GeneticSolution(
             **{
+                "controls_start_at_now": True,
                 "ac_charge": ac_charge_hours,
                 "dc_charge": dc_charge_hours,
                 "discharge_allowed": discharge,
                 "battery_grid_export_allowed": battery_grid_export,
                 "battery_grid_export_factor": battery_grid_export_factor,
                 "terminal_value": terminal_value_result,
-                "eautocharge_hours_float": eautocharge_hours_float,
+                "eautocharge_hours_float": eautocharge_hours_float[start_slot:]
+                if eautocharge_hours_float is not None
+                else None,
                 "result": GeneticSimulationResult(**simulation_result),
                 "eauto_obj": self.simulation.ev,
                 "start_solution": start_solution,

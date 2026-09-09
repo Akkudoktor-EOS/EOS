@@ -27,9 +27,9 @@ from typing import Optional
 
 import numpy as np
 from loguru import logger
+from pydantic import Field
 
 from akkudoktoreos.core.pydantic import PydanticBaseModel
-from pydantic import Field
 
 
 class TerminalValueCurve(PydanticBaseModel):
@@ -50,12 +50,24 @@ class TerminalValueCurve(PydanticBaseModel):
         default_factory=list,
         json_schema_extra={"description": "Cumulative credit at each breakpoint [EUR]."},
     )
+    operating_value_euro: list[float] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "description": "Tail operating component at each breakpoint [EUR]; empty for a proxy curve."
+        },
+    )
+    continuation_value_euro: list[float] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "description": "Continuation component at each breakpoint [EUR]; empty for a proxy curve."
+        },
+    )
     marginal_euro_per_kwh: list[float] = Field(
         default_factory=list,
         json_schema_extra={
             "description": (
                 "Marginal value of the segment that starts at each breakpoint "
-                "[EUR/kWh]. Monotonically decreasing."
+                "[EUR/kWh]. May be negative or non-monotone in TAIL mode."
             )
         },
     )
@@ -92,13 +104,63 @@ class TerminalValueCurve(PydanticBaseModel):
         return float(np.interp(energy_wh, self.energy_wh, self.value_euro))
 
 
+class TailDiagnostics(PydanticBaseModel):
+    """Forecast summary used by the deterministic tail optimization."""
+
+    slots: int = 0
+    slot_hours: float = 0.0
+    soc_grid_points: int = 0
+    min_import_price_euro_per_kwh: float = 0.0
+    max_import_price_euro_per_kwh: float = 0.0
+    min_feed_in_tariff_euro_per_kwh: float = 0.0
+    max_feed_in_tariff_euro_per_kwh: float = 0.0
+    negative_import_price_slots: int = 0
+    positive_battery_export_slots: int = 0
+
+
+class TailPlanSlot(PydanticBaseModel):
+    """One diagnostic slot of the optimal tail path.
+
+    These values explain the lookahead used for fitness. They are diagnostics
+    only and are never copied into the executable control arrays.
+    """
+
+    slot: int
+    hour_from_start: float
+    action: str
+    alternative_action: str = ""
+    decision_margin_euro: float = 0.0
+    soc_start_percentage: float
+    soc_end_percentage: float
+    pv_wh: float
+    load_wh: float
+    grid_import_wh: float
+    grid_export_wh: float
+    battery_charge_wh: float
+    battery_discharge_wh: float
+    import_price_euro_per_kwh: float
+    feed_in_tariff_euro_per_kwh: float
+    slot_value_euro: float
+    remaining_value_euro: float
+    ac_charge_factor: float
+    dc_charge_allowed: int
+    discharge_allowed: int
+    battery_grid_export_factor: float
+
+
 class TerminalValueResult(PydanticBaseModel):
     """What the optimizer credited for the energy left in the battery."""
 
+    control_horizon_hours: float = 0
+    requested_tail_hours: float = 0
+    effective_tail_hours: float = 0
+    tail_end_hour: float = 0
+    continuation_mode: str = "FIXED"
+
     mode: str = Field(
         json_schema_extra={
-            "description": "Terminal value mode the run used: AUTO or FIXED.",
-            "examples": ["AUTO", "FIXED"],
+            "description": "Terminal value mode the run used: TAIL, AUTO or FIXED.",
+            "examples": ["TAIL", "AUTO", "FIXED"],
         }
     )
     battery_energy_wh: float = Field(
@@ -111,10 +173,46 @@ class TerminalValueResult(PydanticBaseModel):
         default=0.0,
         json_schema_extra={"description": "Credit applied to the total balance [EUR]."},
     )
+    tail_operating_euro: float = Field(
+        default=0.0,
+        json_schema_extra={
+            "description": (
+                "Optimal net cash flow within the effective tail for the selected "
+                "control-end battery state [EUR]."
+            )
+        },
+    )
+    continuation_value_euro: float = Field(
+        default=0.0,
+        json_schema_extra={
+            "description": (
+                "Continuation credit remaining at the end of the optimal tail path [EUR]."
+            )
+        },
+    )
     curve: Optional[TerminalValueCurve] = Field(
         default=None,
         json_schema_extra={
-            "description": "The value curve the credit was read from; None in FIXED mode."
+            "description": (
+                "Combined tail value curve (tail operation plus continuation) read by fitness; "
+                "None in FIXED mode."
+            )
+        },
+    )
+    continuation_curve: Optional[TerminalValueCurve] = Field(
+        default=None,
+        json_schema_extra={
+            "description": "Conservative AUTO proxy constructed at the effective tail end."
+        },
+    )
+    tail_diagnostics: Optional[TailDiagnostics] = None
+    tail_plan: list[TailPlanSlot] = Field(
+        default_factory=list,
+        json_schema_extra={
+            "description": (
+                "Diagnostic optimal battery path inside the tail. It explains the "
+                "lookahead but is never an executable control plan."
+            )
         },
     )
     reason: str = Field(

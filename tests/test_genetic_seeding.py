@@ -16,7 +16,7 @@ def _configure_hourly_grid(config_eos: ConfigEOS, *, start_hour: int = 0) -> Non
     config_eos.merge_settings_from_dict(
         {
             "prediction": {"hours": 48},
-            "optimization": {"horizon_hours": 48, "interval": 3600},
+            "optimization": {"tail_horizon_hours": 0, "horizon_hours": 48, "interval": 3600},
         }
     )
     get_ems(init=True).set_start_datetime(to_datetime().set(hour=start_hour, minute=0))
@@ -58,17 +58,17 @@ def test_ev_repair_is_resimulated_before_fitness_assignment(config_eos: ConfigEO
     opt.optimize_ev = True
     opt.ev_possible_charge_values = [0.0, 1.0]
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
-    individual = creator.Individual([0] * opt.total_slots + [1] * opt.total_slots)
+    individual = creator.Individual([0] * opt.control_slots + [1] * opt.control_slots)
 
     first_result = {
         "Gesamtbilanz_Euro": 10.0,
         "Gesamt_Verluste": 0.0,
-        "EAuto_SoC_pro_Stunde": np.full(opt.total_slots, 100.0),
+        "EAuto_SoC_pro_Stunde": np.full(opt.control_slots, 100.0),
     }
     repaired_result = {
         "Gesamtbilanz_Euro": 1.0,
         "Gesamt_Verluste": 0.0,
-        "EAuto_SoC_pro_Stunde": np.full(opt.total_slots, 100.0),
+        "EAuto_SoC_pro_Stunde": np.full(opt.control_slots, 100.0),
     }
     parameters = SimpleNamespace(
         ems=SimpleNamespace(preis_euro_pro_wh_akku=0.0),
@@ -82,7 +82,7 @@ def test_ev_repair_is_resimulated_before_fitness_assignment(config_eos: ConfigEO
 
     assert evaluate.call_count == 2
     assert fitness == pytest.approx((1.0,))
-    assert individual[opt.total_slots :] == [0] * opt.total_slots
+    assert individual[opt.control_slots :] == [0] * opt.control_slots
 
 
 def test_fitness_cache_restores_canonical_ev_genome(config_eos: ConfigEOS):
@@ -98,9 +98,9 @@ def test_fitness_cache_restores_canonical_ev_genome(config_eos: ConfigEOS):
     result = {
         "Gesamtbilanz_Euro": 1.0,
         "Gesamt_Verluste": 0.0,
-        "EAuto_SoC_pro_Stunde": np.full(opt.total_slots, 100.0),
+        "EAuto_SoC_pro_Stunde": np.full(opt.control_slots, 100.0),
     }
-    first = creator.Individual([0] * opt.total_slots + [1] * opt.total_slots)
+    first = creator.Individual([0] * opt.control_slots + [1] * opt.control_slots)
     duplicate = creator.Individual(first)
     opt._fitness_cache_enabled = True
 
@@ -113,7 +113,7 @@ def test_fitness_cache_restores_canonical_ev_genome(config_eos: ConfigEOS):
     assert evaluate.call_count == 2
     assert first_fitness == duplicate_fitness
     assert duplicate == first
-    assert duplicate[opt.total_slots :] == [0] * opt.total_slots
+    assert duplicate[opt.control_slots :] == [0] * opt.control_slots
     assert duplicate.extra_data == first.extra_data
     assert opt._fitness_cache_hits == 1
     assert opt._fitness_cache_misses == 1
@@ -128,7 +128,7 @@ def test_fitness_cache_never_stores_failed_evaluations(config_eos: ConfigEOS):
         ems=SimpleNamespace(preis_euro_pro_wh_akku=0.0),
         eauto=None,
     )
-    first = creator.Individual([0] * opt.total_slots)
+    first = creator.Individual([0] * opt.control_slots)
     duplicate = creator.Individual(first)
     opt._fitness_cache_enabled = True
 
@@ -142,7 +142,7 @@ def test_fitness_cache_never_stores_failed_evaluations(config_eos: ConfigEOS):
     assert opt._fitness_cache == {}
 
 
-def test_fitness_cache_ignores_elapsed_control_slots(config_eos: ConfigEOS):
+def test_fitness_cache_includes_first_run_relative_control(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos, start_hour=10)
     opt = GeneticOptimization(fixed_seed=42)
     opt.optimize_ev = False
@@ -154,9 +154,9 @@ def test_fitness_cache_ignores_elapsed_control_slots(config_eos: ConfigEOS):
     result = {
         "Gesamtbilanz_Euro": 1.0,
         "Gesamt_Verluste": 0.0,
-        "EAuto_SoC_pro_Stunde": np.zeros(opt.total_slots),
+        "EAuto_SoC_pro_Stunde": np.zeros(opt.control_slots),
     }
-    first = creator.Individual([0] * opt.total_slots)
+    first = creator.Individual([0] * opt.control_slots)
     elapsed_variant = creator.Individual(first)
     elapsed_variant[0] = 1
     opt._fitness_cache_enabled = True
@@ -165,23 +165,23 @@ def test_fitness_cache_ignores_elapsed_control_slots(config_eos: ConfigEOS):
         first_fitness = opt.evaluate(first, parameters, 10, False)  # type: ignore[arg-type]
         variant_fitness = opt.evaluate(elapsed_variant, parameters, 10, False)  # type: ignore[arg-type]
 
-    assert evaluate.call_count == 1
+    assert evaluate.call_count == 2
     assert first_fitness == variant_fitness
-    assert opt._fitness_cache_hits == 1
+    assert opt._fitness_cache_hits == 0
 
 
-def test_mutated_warm_start_neighbors_keep_elapsed_slots(config_eos: ConfigEOS):
+def test_mutated_warm_start_neighbors_stay_within_control_horizon(config_eos: ConfigEOS):
     _configure_hourly_grid(config_eos, start_hour=10)
     opt = GeneticOptimization(fixed_seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=10)
-    start_solution = [0] * opt.total_slots
+    start_solution = [0] * opt.control_slots
 
     neighbors = opt._mutated_warm_start_neighbors(start_solution, count=5)
 
     assert len(neighbors) == 5
     assert len({tuple(neighbor) for neighbor in neighbors}) == 5
-    assert all(neighbor[:10] == start_solution[:10] for neighbor in neighbors)
+    assert all(len(neighbor) == opt.control_slots for neighbor in neighbors)
     assert all(neighbor != start_solution for neighbor in neighbors)
 
 
@@ -193,9 +193,9 @@ def test_initial_population_uses_fixed_seed_budget_and_configured_population(
     opt = GeneticOptimization(fixed_seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
-    start_solution = [5] * opt.total_slots
-    warm_neighbors = [[6] * opt.total_slots for _ in range(50)]
-    educated = [[7] * opt.total_slots for _ in range(100)]
+    start_solution = [5] * opt.control_slots
+    warm_neighbors = [[6] * opt.control_slots for _ in range(50)]
+    educated = [[7] * opt.control_slots for _ in range(100)]
     captured: dict[str, object] = {}
 
     def fake_evolution(population, **kwargs):
@@ -214,7 +214,7 @@ def test_initial_population_uses_fixed_seed_budget_and_configured_population(
         patch.object(
             opt.toolbox,
             "population",
-            side_effect=lambda n: [creator.Individual([9] * opt.total_slots) for _ in range(n)],
+            side_effect=lambda n: [creator.Individual([9] * opt.control_slots) for _ in range(n)],
         ),
         patch.object(opt, "_evolve_population_adaptive", side_effect=fake_evolution),
     ):
@@ -237,16 +237,16 @@ def test_small_population_scales_warm_and_educated_seed_families(config_eos: Con
     opt = GeneticOptimization(fixed_seed=42)
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
-    start_solution = [5] * opt.total_slots
+    start_solution = [5] * opt.control_slots
     captured: dict[str, object] = {}
 
     def warm_neighbors(_solution, count):
         captured["warm_count"] = count
-        return [[6] * opt.total_slots for _ in range(count)]
+        return [[6] * opt.control_slots for _ in range(count)]
 
     def educated(count):
         captured["educated_count"] = count
-        return [[7] * opt.total_slots for _ in range(count)]
+        return [[7] * opt.control_slots for _ in range(count)]
 
     def fake_evolution(population, **kwargs):
         captured["population"] = list(population)
@@ -264,7 +264,7 @@ def test_small_population_scales_warm_and_educated_seed_families(config_eos: Con
         patch.object(
             opt.toolbox,
             "population",
-            side_effect=lambda n: [creator.Individual([9] * opt.total_slots) for _ in range(n)],
+            side_effect=lambda n: [creator.Individual([9] * opt.control_slots) for _ in range(n)],
         ),
         patch.object(opt, "_evolve_population_adaptive", side_effect=fake_evolution),
     ):
@@ -289,14 +289,14 @@ def test_adaptive_evolution_soft_restarts_collapsed_population(config_eos: Confi
     opt.optimize_ev = False
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
     opt.toolbox.register("evaluate", lambda individual: (float(sum(individual)),))
-    population = [creator.Individual([0] * opt.total_slots) for _ in range(20)]
+    population = [creator.Individual([0] * opt.control_slots) for _ in range(20)]
     stats = tools.Statistics(lambda individual: individual.fitness.values)
     stats.register("min", np.min)
     stats.register("avg", np.mean)
     stats.register("max", np.max)
     halloffame = tools.HallOfFame(1)
 
-    fresh = [creator.Individual([value] + [0] * (opt.total_slots - 1)) for value in range(1, 20)]
+    fresh = [creator.Individual([value] + [0] * (opt.control_slots - 1)) for value in range(1, 20)]
     with patch.object(opt, "_fresh_population", return_value=fresh) as create_fresh:
         evolved, log = opt._evolve_population_adaptive(
             population,
@@ -324,7 +324,7 @@ def test_local_search_moves_weak_export_to_later_expensive_import(config_eos: Co
     opt.bat_possible_charge_values = [1.0]
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
 
-    slots = opt.total_slots
+    slots = opt.control_slots
     export_state = 5
     self_consumption_state = 6
     discharge_state = 1
@@ -372,7 +372,7 @@ def test_educated_guesses_encode_high_price_direct_marketing(config_eos: ConfigE
     opt.bat_possible_charge_values = [1.0]
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
 
-    slots = opt.total_slots
+    slots = opt.control_slots
     opt.simulation.elect_price_hourly = np.linspace(0.0001, 0.0004, slots)
     opt.simulation.elect_revenue_per_hour_arr = np.linspace(0.00001, 0.0003, slots)
     opt.simulation.pv_prediction_wh = np.full(slots, 1000.0)
@@ -399,7 +399,7 @@ def test_flat_feed_in_tariff_does_not_seed_direct_marketing(config_eos: ConfigEO
     opt.bat_possible_charge_values = [1.0]
     opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
 
-    slots = opt.total_slots
+    slots = opt.control_slots
     opt.simulation.elect_price_hourly = np.linspace(0.0001, 0.0004, slots)
     opt.simulation.elect_revenue_per_hour_arr = np.full(slots, 0.00005)
     opt.simulation.pv_prediction_wh = np.full(slots, 1000.0)
@@ -409,3 +409,4 @@ def test_flat_feed_in_tariff_does_not_seed_direct_marketing(config_eos: ConfigEO
 
     export_state = 5
     assert all(export_state not in guess for guess in guesses)
+

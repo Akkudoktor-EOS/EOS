@@ -162,7 +162,12 @@ def test_update_data(mock_get, provider, sample_brightsky_1_json, cache_store):
 
     # Assert: Verify the result is as expected
     mock_get.assert_called_once()
-    assert len(provider) == 50
+    # One hourly record per slot from the run start up to, but not including,
+    # the end of the prediction horizon. 2024-10-27 is the DST fall-back, so the
+    # 72 h horizon spans 73 local hours.
+    expected_records = int((provider.end_datetime - provider.ems_start_datetime).total_hours())
+    assert expected_records == 73
+    assert len(provider) == expected_records
 
 
 # ------------------------------------------------

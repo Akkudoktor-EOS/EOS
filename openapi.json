@@ -8,7 +8,7 @@
       "name": "Apache 2.0",
       "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
     },
-    "version": "v0.3.0.dev2609040861878062"
+    "version": "v0.3.0.dev2609090421492067"
   },
   "paths": {
     "/v1/admin/cache/clear": {
@@ -5277,6 +5277,18 @@
       },
       "GeneticOptimizationParameters": {
         "properties": {
+          "forecast_interval_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Interval Seconds",
+            "description": "Input interval: 3600 for hourly, or optimization interval for native slots."
+          },
           "ems": {
             "$ref": "#/components/schemas/GeneticEnergyManagementParameters"
           },
@@ -5538,6 +5550,12 @@
       },
       "GeneticSolution": {
         "properties": {
+          "controls_start_at_now": {
+            "type": "boolean",
+            "title": "Controls Start At Now",
+            "description": "Control arrays start at the run timestamp instead of midnight.",
+            "default": false
+          },
           "ac_charge": {
             "items": {
               "type": "number"
@@ -7503,6 +7521,13 @@
       },
       "OptimizationCommonSettings-Input": {
         "properties": {
+          "tail_horizon_hours": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Tail Horizon Hours",
+            "description": "Forecast lookahead after the control horizon [h]. No tail commands are issued. Set 0 to disable.",
+            "default": 48
+          },
           "horizon_hours": {
             "type": "integer",
             "minimum": 0.0,
@@ -7546,7 +7571,7 @@
           },
           "terminal_value_mode": {
             "$ref": "#/components/schemas/TerminalValueMode",
-            "description": "How to value the energy left in the battery at the end of the optimization horizon. AUTO derives a concave value curve from the trailing horizon window and needs no configuration; FIXED uses 'terminal_value_euro_per_kwh'. Defaults to AUTO.",
+            "description": "How to value the energy left in the battery at the end of the control horizon. AUTO solves the forecast tail with an AUTO continuation proxy at its end (or only the proxy if tail is zero); FIXED uses 'terminal_value_euro_per_kwh'. Defaults to AUTO.",
             "default": "AUTO",
             "examples": [
               "AUTO",
@@ -7567,7 +7592,7 @@
             "type": "integer",
             "minimum": 1.0,
             "title": "Terminal Value Window Hours",
-            "description": "Length of the trailing horizon window the AUTO terminal value curve is derived from [h]. One day covers a full load and PV cycle. Defaults to 24 hours.",
+            "description": "Length of the trailing window at the effective tail end the AUTO continuation curve is derived from [h]. One day covers a full load and PV cycle. Defaults to 24 hours.",
             "default": 24,
             "examples": [
               24
@@ -7592,6 +7617,13 @@
       },
       "OptimizationCommonSettings-Output": {
         "properties": {
+          "tail_horizon_hours": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Tail Horizon Hours",
+            "description": "Forecast lookahead after the control horizon [h]. No tail commands are issued. Set 0 to disable.",
+            "default": 48
+          },
           "horizon_hours": {
             "type": "integer",
             "minimum": 0.0,
@@ -7635,7 +7667,7 @@
           },
           "terminal_value_mode": {
             "$ref": "#/components/schemas/TerminalValueMode",
-            "description": "How to value the energy left in the battery at the end of the optimization horizon. AUTO derives a concave value curve from the trailing horizon window and needs no configuration; FIXED uses 'terminal_value_euro_per_kwh'. Defaults to AUTO.",
+            "description": "How to value the energy left in the battery at the end of the control horizon. AUTO solves the forecast tail with an AUTO continuation proxy at its end (or only the proxy if tail is zero); FIXED uses 'terminal_value_euro_per_kwh'. Defaults to AUTO.",
             "default": "AUTO",
             "examples": [
               "AUTO",
@@ -7656,7 +7688,7 @@
             "type": "integer",
             "minimum": 1.0,
             "title": "Terminal Value Window Hours",
-            "description": "Length of the trailing horizon window the AUTO terminal value curve is derived from [h]. One day covers a full load and PV cycle. Defaults to 24 hours.",
+            "description": "Length of the trailing window at the effective tail end the AUTO continuation curve is derived from [h]. One day covers a full load and PV cycle. Defaults to 24 hours.",
             "default": 24,
             "examples": [
               24
@@ -8200,6 +8232,253 @@
         "title": "PPBCStartInterruptionInstruction",
         "description": "Represents an instruction to interrupt execution of a running power sequence.\n\nThis model defines a control instruction that interrupts the execution of an\nactive power sequence. It enables dynamic control over sequence execution,\nallowing temporary suspension of a sequence in response to changing system conditions\nor requirements, particularly for sequences marked as interruptible."
       },
+      "PVForecastAkkudoktorLocalCommonSettings": {
+        "properties": {
+          "resolution_minutes": {
+            "type": "integer",
+            "title": "Resolution Minutes",
+            "description": "Forecast resolution in minutes. 15 requests Open-Meteo's `minutely_15` block (natively resolved over Central Europe and North America, interpolated from hourly elsewhere); 60 requests the `hourly` block.",
+            "default": 15,
+            "examples": [
+              15,
+              60
+            ]
+          },
+          "forecast_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 16.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forecast Days",
+            "description": "Forecast horizon in days (1-16). Leave empty to derive it from `prediction.hours`, which is what keeps the optimizer's tail horizon fed.",
+            "examples": [
+              null,
+              7
+            ]
+          },
+          "past_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 92.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Past Days",
+            "description": "Days of past data to request (0-92). Leave empty to derive it from `prediction.historic_hours`.",
+            "examples": [
+              null,
+              3
+            ]
+          },
+          "weather_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Weather Models",
+            "description": "Open-Meteo weather models to request. Listing more than one turns the input into a poor-man's ensemble: the members are averaged per variable, which is the cheapest reliable way to cut irradiance forecast error. Costs no extra API calls.",
+            "default": [
+              "best_match"
+            ],
+            "examples": [
+              [
+                "best_match"
+              ],
+              [
+                "icon_seamless",
+                "ecmwf_ifs025",
+                "gfs_seamless"
+              ]
+            ]
+          },
+          "transposition_model": {
+            "type": "string",
+            "title": "Transposition Model",
+            "description": "pvlib sky-diffuse transposition model: isotropic, klucher, haydavies, reindl, king or perez.",
+            "default": "perez",
+            "examples": [
+              "perez",
+              "haydavies"
+            ]
+          },
+          "albedo": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Albedo",
+            "description": "Ground albedo used for planes that do not set their own.",
+            "default": 0.25,
+            "examples": [
+              0.25,
+              0.2
+            ]
+          },
+          "inverter_efficiency": {
+            "type": "number",
+            "maximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Inverter Efficiency",
+            "description": "Nominal inverter efficiency (PVWatts eta_inv_nom).",
+            "default": 0.96,
+            "examples": [
+              0.96,
+              0.94
+            ]
+          },
+          "temperature_coefficient": {
+            "type": "number",
+            "title": "Temperature Coefficient",
+            "description": "Module power temperature coefficient in %/degC (negative). Matches the `cellCoEff` the akkudoktor.net forecast uses.",
+            "default": -0.36,
+            "examples": [
+              -0.36,
+              -0.29
+            ]
+          },
+          "apply_iam": {
+            "type": "boolean",
+            "title": "Apply Iam",
+            "description": "Apply the ASHRAE incidence-angle modifier to the beam component.",
+            "default": true,
+            "examples": [
+              true
+            ]
+          },
+          "shift_to_interval_start": {
+            "type": "boolean",
+            "title": "Shift To Interval Start",
+            "description": "Open-Meteo stamps an interval mean with the interval END. EOS labels an interval by its START, so records are shifted back by one interval. Disable only to compare like-for-like against a provider that does not.",
+            "default": true,
+            "examples": [
+              true
+            ]
+          },
+          "calibration_enabled": {
+            "type": "boolean",
+            "title": "Calibration Enabled",
+            "description": "Correct systematic model error against measured PV production. Requires `measurement.pv_production_emr_keys` to be configured and fed. Fits a global scale factor plus per-solar-azimuth factors, which is what catches near-field shading the horizon profile misses.",
+            "default": false,
+            "examples": [
+              true
+            ]
+          },
+          "calibration_days": {
+            "type": "integer",
+            "maximum": 92.0,
+            "minimum": 1.0,
+            "title": "Calibration Days",
+            "description": "Length of the measurement window used to fit the correction.",
+            "default": 30,
+            "examples": [
+              30,
+              14
+            ]
+          },
+          "calibration_reference_days": {
+            "type": "integer",
+            "maximum": 92.0,
+            "minimum": 3.0,
+            "title": "Calibration Reference Days",
+            "description": "Lookback used to distinguish healthy production from outages or curtailment. If the calibration window contains too few healthy days, the most recent healthy days from this reference window are used.",
+            "default": 30,
+            "examples": [
+              30,
+              14
+            ]
+          },
+          "calibration_outage_filter_enabled": {
+            "type": "boolean",
+            "title": "Calibration Outage Filter Enabled",
+            "description": "Exclude days whose measured production is far below the recent healthy plant level. This prevents inverter, battery and curtailment events from being learned as permanent PV model losses.",
+            "default": true,
+            "examples": [
+              true
+            ]
+          },
+          "calibration_outage_threshold": {
+            "type": "number",
+            "exclusiveMaximum": 1.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Calibration Outage Threshold",
+            "description": "A day is treated as unavailable when its measured/modelled energy ratio is below this fraction of the robust healthy reference ratio.",
+            "default": 0.55,
+            "examples": [
+              0.55,
+              0.5
+            ]
+          },
+          "calibration_min_healthy_days": {
+            "type": "integer",
+            "maximum": 31.0,
+            "minimum": 1.0,
+            "title": "Calibration Min Healthy Days",
+            "description": "Minimum number of healthy days used for a fit. Older healthy days from the reference window are added when the recent window contains fewer.",
+            "default": 3,
+            "examples": [
+              3
+            ]
+          },
+          "calibration_azimuth_bin_degrees": {
+            "type": "integer",
+            "maximum": 180.0,
+            "minimum": 0.0,
+            "title": "Calibration Azimuth Bin Degrees",
+            "description": "Width of the solar-azimuth bins for the correction. 0 fits a single global factor only.",
+            "default": 45,
+            "examples": [
+              45,
+              30,
+              15,
+              0
+            ]
+          },
+          "calibration_prior_kwh": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Calibration Prior Kwh",
+            "description": "Shrinkage strength: a bin needs this much modelled energy before its own factor outweighs the global one. Higher is more conservative.",
+            "default": 5.0,
+            "examples": [
+              5.0,
+              20.0
+            ]
+          },
+          "calibration_min_factor": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Calibration Min Factor",
+            "description": "Lower clamp on any fitted correction factor.",
+            "default": 0.5,
+            "examples": [
+              0.5
+            ]
+          },
+          "calibration_max_factor": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Calibration Max Factor",
+            "description": "Upper clamp on any fitted correction factor.",
+            "default": 1.5,
+            "examples": [
+              1.5
+            ]
+          }
+        },
+        "type": "object",
+        "title": "PVForecastAkkudoktorLocalCommonSettings",
+        "description": "Common settings for the local (pvlib) PV forecast provider."
+      },
       "PVForecastCommonProviderSettings": {
         "properties": {
           "PVForecastImport": {
@@ -8268,6 +8547,20 @@
               }
             ],
             "description": "PVForecastSolcast settings",
+            "examples": [
+              null
+            ]
+          },
+          "PVForecastAkkudoktorLocal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PVForecastAkkudoktorLocalCommonSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "PVForecastAkkudoktorLocal settings",
             "examples": [
               null
             ]
@@ -9033,7 +9326,7 @@
             ],
             "title": "Hours",
             "description": "Number of hours into the future for predictions",
-            "default": 48
+            "default": 72
           },
           "historic_hours": {
             "anyOf": [
@@ -9661,6 +9954,172 @@
         "title": "SolarPanelBatteryParameters",
         "description": "PV battery device simulation configuration."
       },
+      "TailDiagnostics": {
+        "properties": {
+          "slots": {
+            "type": "integer",
+            "title": "Slots",
+            "default": 0
+          },
+          "slot_hours": {
+            "type": "number",
+            "title": "Slot Hours",
+            "default": 0.0
+          },
+          "soc_grid_points": {
+            "type": "integer",
+            "title": "Soc Grid Points",
+            "default": 0
+          },
+          "min_import_price_euro_per_kwh": {
+            "type": "number",
+            "title": "Min Import Price Euro Per Kwh",
+            "default": 0.0
+          },
+          "max_import_price_euro_per_kwh": {
+            "type": "number",
+            "title": "Max Import Price Euro Per Kwh",
+            "default": 0.0
+          },
+          "min_feed_in_tariff_euro_per_kwh": {
+            "type": "number",
+            "title": "Min Feed In Tariff Euro Per Kwh",
+            "default": 0.0
+          },
+          "max_feed_in_tariff_euro_per_kwh": {
+            "type": "number",
+            "title": "Max Feed In Tariff Euro Per Kwh",
+            "default": 0.0
+          },
+          "negative_import_price_slots": {
+            "type": "integer",
+            "title": "Negative Import Price Slots",
+            "default": 0
+          },
+          "positive_battery_export_slots": {
+            "type": "integer",
+            "title": "Positive Battery Export Slots",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "TailDiagnostics",
+        "description": "Forecast summary used by the deterministic tail optimization."
+      },
+      "TailPlanSlot": {
+        "properties": {
+          "slot": {
+            "type": "integer",
+            "title": "Slot"
+          },
+          "hour_from_start": {
+            "type": "number",
+            "title": "Hour From Start"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "alternative_action": {
+            "type": "string",
+            "title": "Alternative Action",
+            "default": ""
+          },
+          "decision_margin_euro": {
+            "type": "number",
+            "title": "Decision Margin Euro",
+            "default": 0.0
+          },
+          "soc_start_percentage": {
+            "type": "number",
+            "title": "Soc Start Percentage"
+          },
+          "soc_end_percentage": {
+            "type": "number",
+            "title": "Soc End Percentage"
+          },
+          "pv_wh": {
+            "type": "number",
+            "title": "Pv Wh"
+          },
+          "load_wh": {
+            "type": "number",
+            "title": "Load Wh"
+          },
+          "grid_import_wh": {
+            "type": "number",
+            "title": "Grid Import Wh"
+          },
+          "grid_export_wh": {
+            "type": "number",
+            "title": "Grid Export Wh"
+          },
+          "battery_charge_wh": {
+            "type": "number",
+            "title": "Battery Charge Wh"
+          },
+          "battery_discharge_wh": {
+            "type": "number",
+            "title": "Battery Discharge Wh"
+          },
+          "import_price_euro_per_kwh": {
+            "type": "number",
+            "title": "Import Price Euro Per Kwh"
+          },
+          "feed_in_tariff_euro_per_kwh": {
+            "type": "number",
+            "title": "Feed In Tariff Euro Per Kwh"
+          },
+          "slot_value_euro": {
+            "type": "number",
+            "title": "Slot Value Euro"
+          },
+          "remaining_value_euro": {
+            "type": "number",
+            "title": "Remaining Value Euro"
+          },
+          "ac_charge_factor": {
+            "type": "number",
+            "title": "Ac Charge Factor"
+          },
+          "dc_charge_allowed": {
+            "type": "integer",
+            "title": "Dc Charge Allowed"
+          },
+          "discharge_allowed": {
+            "type": "integer",
+            "title": "Discharge Allowed"
+          },
+          "battery_grid_export_factor": {
+            "type": "number",
+            "title": "Battery Grid Export Factor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "hour_from_start",
+          "action",
+          "soc_start_percentage",
+          "soc_end_percentage",
+          "pv_wh",
+          "load_wh",
+          "grid_import_wh",
+          "grid_export_wh",
+          "battery_charge_wh",
+          "battery_discharge_wh",
+          "import_price_euro_per_kwh",
+          "feed_in_tariff_euro_per_kwh",
+          "slot_value_euro",
+          "remaining_value_euro",
+          "ac_charge_factor",
+          "dc_charge_allowed",
+          "discharge_allowed",
+          "battery_grid_export_factor"
+        ],
+        "title": "TailPlanSlot",
+        "description": "One diagnostic slot of the optimal tail path.\n\nThese values explain the lookahead used for fitness. They are diagnostics\nonly and are never copied into the executable control arrays."
+      },
       "TerminalValueCurve": {
         "properties": {
           "energy_wh": {
@@ -9679,13 +10138,35 @@
             "title": "Value Euro",
             "description": "Cumulative credit at each breakpoint [EUR]."
           },
+          "operating_value_euro": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Operating Value Euro",
+            "description": "Tail operating component at each breakpoint [EUR]; empty for a proxy curve."
+          },
+          "continuation_value_euro": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Continuation Value Euro",
+            "description": "Continuation component at each breakpoint [EUR]; empty for a proxy curve."
+          },
           "marginal_euro_per_kwh": {
             "items": {
               "type": "number"
             },
             "type": "array",
             "title": "Marginal Euro Per Kwh",
-            "description": "Marginal value of the segment that starts at each breakpoint [EUR/kWh]. Monotonically decreasing."
+            "description": "Marginal value of the segment that starts at each breakpoint [EUR/kWh]. May be negative or non-monotone in TAIL mode."
+          },
+          "residual_energy_wh": {
+            "type": "number",
+            "title": "Residual Energy Wh",
+            "description": "Energy up to which the curve is backed by residual load - the knee. Everything beyond it is only worth an export.",
+            "default": 0.0
           },
           "window_slots": {
             "type": "integer",
@@ -9705,15 +10186,41 @@
           "FIXED"
         ],
         "title": "TerminalValueMode",
-        "description": "How the energy left in the battery at the end of the horizon is valued.\n\nModes\n-----\n- AUTO:\n    Derive a concave value curve from the trailing horizon window: the\n    first stored kWh replaces the most expensive hour that PV cannot\n    cover, the next one the second most expensive, and so on. Needs no\n    configuration and adapts to prices, load and PV of the day.\n\n- FIXED:\n    Credit every stored kWh with the configured\n    ``terminal_value_euro_per_kwh`` (or ``preis_euro_pro_wh_akku`` of the\n    request). The historical behaviour; a value of 0 makes the optimizer\n    empty the battery towards the end of the horizon."
+        "description": "How the energy left in the battery at the end of the horizon is valued.\n\nModes\n-----\n- AUTO:\n    Solve the deterministic forecast tail and apply a conservative\n    continuation proxy at its end. Tail values may decrease with SOC when\n    empty capacity is valuable. With a zero tail, use the proxy directly.\n\n- FIXED:\n    Credit every stored kWh with the configured\n    ``terminal_value_euro_per_kwh`` (or ``preis_euro_pro_wh_akku`` of the\n    request). The historical behaviour; a value of 0 makes the optimizer\n    empty the battery towards the end of the horizon."
       },
       "TerminalValueResult": {
         "properties": {
+          "control_horizon_hours": {
+            "type": "number",
+            "title": "Control Horizon Hours",
+            "default": 0
+          },
+          "requested_tail_hours": {
+            "type": "number",
+            "title": "Requested Tail Hours",
+            "default": 0
+          },
+          "effective_tail_hours": {
+            "type": "number",
+            "title": "Effective Tail Hours",
+            "default": 0
+          },
+          "tail_end_hour": {
+            "type": "number",
+            "title": "Tail End Hour",
+            "default": 0
+          },
+          "continuation_mode": {
+            "type": "string",
+            "title": "Continuation Mode",
+            "default": "FIXED"
+          },
           "mode": {
             "type": "string",
             "title": "Mode",
-            "description": "Terminal value mode the run used: AUTO or FIXED.",
+            "description": "Terminal value mode the run used: TAIL, AUTO or FIXED.",
             "examples": [
+              "TAIL",
               "AUTO",
               "FIXED"
             ]
@@ -9730,6 +10237,18 @@
             "description": "Credit applied to the total balance [EUR].",
             "default": 0.0
           },
+          "tail_operating_euro": {
+            "type": "number",
+            "title": "Tail Operating Euro",
+            "description": "Optimal net cash flow within the effective tail for the selected control-end battery state [EUR].",
+            "default": 0.0
+          },
+          "continuation_value_euro": {
+            "type": "number",
+            "title": "Continuation Value Euro",
+            "description": "Continuation credit remaining at the end of the optimal tail path [EUR].",
+            "default": 0.0
+          },
           "curve": {
             "anyOf": [
               {
@@ -9739,7 +10258,46 @@
                 "type": "null"
               }
             ],
-            "description": "The value curve the credit was read from; None in FIXED mode."
+            "description": "Combined tail value curve (tail operation plus continuation) read by fitness; None in FIXED mode."
+          },
+          "continuation_curve": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TerminalValueCurve"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Conservative AUTO proxy constructed at the effective tail end."
+          },
+          "tail_diagnostics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TailDiagnostics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tail_plan": {
+            "items": {
+              "$ref": "#/components/schemas/TailPlanSlot"
+            },
+            "type": "array",
+            "title": "Tail Plan",
+            "description": "Diagnostic optimal battery path inside the tail. It explains the lookahead but is never an executable control plan."
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Why this mode applied. Empty in AUTO mode; in FIXED mode it says whether FIXED was configured or whether AUTO fell back because no curve could be derived.",
+            "default": "",
+            "examples": [
+              "",
+              "terminal_value_mode is FIXED"
+            ]
           }
         },
         "type": "object",

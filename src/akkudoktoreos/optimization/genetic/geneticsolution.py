@@ -181,6 +181,10 @@ class GeneticSimulationResult(GeneticParametersBaseModel):
 class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
     """**Note**: The first value of "Last_Wh_per_hour", "Netzeinspeisung_Wh_per_hour", and "Netzbezug_Wh_per_hour", will be set to null in the JSON output and represented as NaN or None in the corresponding classes' data returns. This approach is adopted to ensure that the current hour's processing remains unchanged."""
 
+    controls_start_at_now: bool = Field(
+        default=False, description="Control arrays start at the run timestamp instead of midnight."
+    )
+
     ac_charge: list[float] = Field(
         json_schema_extra={
             "description": "Array with AC charging values as relative power (0.0-1.0), other values set to 0."
@@ -247,7 +251,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         default_factory=dict,
         json_schema_extra={
             "description": (
-                "Scheduled run start times per appliance device_id as absolute " "local datetimes."
+                "Scheduled run start times per appliance device_id as absolute local datetimes."
             )
         },
     )
@@ -469,7 +473,7 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         - GRID_SUPPORT_IMPORT: ac_charge  > 0 and discharge_allowed == 0 or 1
         """
         start_datetime = get_ems().start_datetime
-        # The genetic core emits total_slots = prediction.hours * slots_per_hour
+        # New controls use the run-relative control horizon; old payloads retain a midnight prefix.
         # entries indexed by slot (slot 0 == 00:00 local). Index this serializer
         # by slot too. At the default interval of 3600 s slots_per_hour == 1 and
         # this is the established hourly behaviour.
@@ -477,7 +481,11 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         slots_per_hour = max(1, 3600 // interval_s)
         slot_minutes = max(1, interval_s // 60)
         start_local = start_datetime.in_timezone(self.config.general.timezone)
-        start_day_slot = start_local.hour * slots_per_hour + start_local.minute // slot_minutes
+        start_day_slot = (
+            0
+            if self.controls_start_at_now
+            else start_local.hour * slots_per_hour + start_local.minute // slot_minutes
+        )
         # power [W] -> energy per slot [Wh]: multiply by the slot duration in hours.
         power_to_energy_per_interval_factor = interval_s / 3600.0
 
@@ -785,7 +793,11 @@ class GeneticSolution(ConfigMixin, GeneticParametersBaseModel):
         slots_per_hour = max(1, 3600 // interval_s)
         slot_minutes = max(1, interval_s // 60)
         start_local = start_datetime.in_timezone(self.config.general.timezone)
-        start_day_slot = start_local.hour * slots_per_hour + start_local.minute // slot_minutes
+        start_day_slot = (
+            0
+            if self.controls_start_at_now
+            else start_local.hour * slots_per_hour + start_local.minute // slot_minutes
+        )
         plan = EnergyManagementPlan(
             id=f"plan-genetic@{to_datetime(as_string=True)}",
             generated_at=to_datetime(),
