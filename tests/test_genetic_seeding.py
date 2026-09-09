@@ -410,3 +410,94 @@ def test_flat_feed_in_tariff_does_not_seed_direct_marketing(config_eos: ConfigEO
     export_state = 5
     assert all(export_state not in guess for guess in guesses)
 
+
+def _rated(genome: list[int], fitness: float, *, protection: int = 0):
+    """Build an evaluated individual, optionally a protected immigrant."""
+    individual = creator.Individual(genome)
+    individual.fitness.values = (fitness,)
+    if protection:
+        individual.immigrant_protection = protection
+    return individual
+
+
+def test_diversity_boost_threshold_stays_below_selection_floor():
+    # The selection guarantees SELECTION_DIVERSITY_FLOOR unique genomes, so a
+    # boost threshold at or above the floor would fire in every converged
+    # generation and turn the boost into the normal operating state.
+    assert (
+        GeneticOptimization.DIVERSITY_BOOST_THRESHOLD
+        < GeneticOptimization.SELECTION_DIVERSITY_FLOOR
+    )
+
+
+def _immigrant_selection_pool(opt: GeneticOptimization, protection: int):
+    """Converged incumbents plus fresh immigrants that the tournament dislikes.
+
+    The incumbents already carry more unique genomes than
+    ``SELECTION_DIVERSITY_FLOOR`` demands, so the duplicate repair has no reason
+    to reach for an immigrant and only the protection can seat one.
+    """
+    slots = opt.control_slots
+    incumbents = [
+        _rated([1, index] + [0] * (slots - 2), -5.73 + index * 1e-4) for index in range(100)
+    ]
+    offspring = [
+        _rated([2, index] + [0] * (slots - 2), -5.72 + index * 1e-4) for index in range(88)
+    ]
+    offspring.extend(
+        _rated([3, index, index] + [0] * (slots - 3), 3.0 + index, protection=protection)
+        for index in range(12)
+    )
+    return incumbents, offspring
+
+
+def test_protected_immigrants_survive_the_selection(config_eos: ConfigEOS):
+    _configure_hourly_grid(config_eos)
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
+
+    seated = {}
+    for protection in (0, opt.IMMIGRANT_PROTECTION_GENERATIONS):
+        incumbents, offspring = _immigrant_selection_pool(opt, protection)
+        selected = opt._select_diverse(incumbents + offspring, 100)
+        seated[protection] = sum(1 for candidate in selected if candidate[0] == 3)
+        # The incumbent is never evicted to make room for an immigrant.
+        assert min(candidate.fitness.values[0] for candidate in selected) == pytest.approx(-5.73)
+
+    # Without protection the tournament removes every immigrant in the
+    # generation it is born, so its genes never get to recombine.
+    assert seated[0] == 0
+    assert seated[opt.IMMIGRANT_PROTECTION_GENERATIONS] == 12
+
+
+def test_immigrant_protection_expires_after_its_generations(config_eos: ConfigEOS):
+    _configure_hourly_grid(config_eos)
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
+
+    immigrants = [_rated([3, 0, 0], 3.0, protection=opt.IMMIGRANT_PROTECTION_GENERATIONS)]
+    for _ in range(opt.IMMIGRANT_PROTECTION_GENERATIONS):
+        assert immigrants[0].immigrant_protection > 0
+        opt._age_immigrant_protection(immigrants)
+    assert immigrants[0].immigrant_protection == 0
+
+    # Aging is idempotent once the protection is spent.
+    opt._age_immigrant_protection(immigrants)
+    assert immigrants[0].immigrant_protection == 0
+
+
+def test_offspring_do_not_inherit_immigrant_protection(config_eos: ConfigEOS):
+    _configure_hourly_grid(config_eos)
+    opt = GeneticOptimization(fixed_seed=42)
+    opt.optimize_ev = False
+    opt.setup_deap_environment({"home_appliance": 0}, start_hour=0)
+    opt.toolbox.register("evaluate", lambda individual: (float(sum(individual)),))
+
+    parents = [
+        _rated([0] * opt.control_slots, 0.0, protection=opt.IMMIGRANT_PROTECTION_GENERATIONS)
+        for _ in range(4)
+    ]
+    offspring = opt._make_offspring(parents, 8, mutation_probability=1.0)
+    assert all(getattr(child, "immigrant_protection", 0) == 0 for child in offspring)

@@ -184,6 +184,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   failed evaluations and results from previous runs are never reused.
 - `max_home_appliances` is now purely an upper bound. No demo appliance is created when
   no `home_appliances` are configured, and the number is no longer used as an on/off switch.
+- The genetic diversity boost is an intervention again instead of the steady state. Its trigger
+  (`DIVERSITY_BOOST_THRESHOLD`) sat above the floor the selection guarantees
+  (`SELECTION_DIVERSITY_FLOOR`), so on a converged population it was permanently true; it now sits
+  below the floor. Freshly injected immigrants are also the worst individuals in the pool and were
+  removed by the very tournament of the generation that created them, so their genes never
+  recombined - a bounded share of seats is now reserved for them for two selections. The log line
+  is edge-triggered on the boost itself rather than on the last fitness improvement, and the end
+  of a boost is logged too.
 - Required forecasts are no longer silently replaced by demo providers. Previously a missing PV,
   price, load, feed-in or weather forecast rewrote the configured provider to a demo one and
   retried, so a run could quietly optimize against invented data. Missing values now stay missing:

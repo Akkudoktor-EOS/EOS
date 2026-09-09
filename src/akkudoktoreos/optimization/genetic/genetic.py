@@ -602,10 +602,20 @@ class GeneticOptimization(OptimizationBase):
     STAGNATION_MUTATION_PROBABILITY = 0.80
     STAGNATION_GENERATIONS = 8
     SOFT_RESTART_GENERATIONS = 20
-    DIVERSITY_BOOST_THRESHOLD = 0.35
+    # The selection keeps SELECTION_DIVERSITY_FLOOR of the population unique, so a
+    # boost threshold at or above that floor would fire in every converged
+    # generation and make the boost the normal operating state instead of an
+    # intervention. Keep it strictly below the floor.
     SELECTION_DIVERSITY_FLOOR = 0.30
+    DIVERSITY_BOOST_THRESHOLD = 0.25
     SOFT_RESTART_DIVERSITY_THRESHOLD = 0.10
     IMMIGRANT_FRACTION = 0.12
+    # Fresh immigrants are the worst individuals in the pool, so a plain
+    # tournament removes them in the generation they are born and their genes
+    # never get a chance to recombine. Keep a bounded number of them for a few
+    # selections so a boost can actually explore.
+    IMMIGRANT_PROTECTION_GENERATIONS = 2
+    IMMIGRANT_PROTECTION_FRACTION = 0.25
     SOFT_RESTART_SURVIVOR_FRACTION = 0.20
     POINT_MUTATION_EXPECTED_GENES = 3.0
 
@@ -2153,6 +2163,9 @@ class GeneticOptimization(OptimizationBase):
             del individual.fitness.values
         if hasattr(individual, "extra_data"):
             del individual.extra_data
+        # A child of a protected immigrant is an ordinary offspring.
+        if hasattr(individual, "immigrant_protection"):
+            del individual.immigrant_protection
 
     def _evaluate_invalid(self, population: list[Any]) -> int:
         """Evaluate invalid individuals and return the number of cache lookups."""
@@ -2186,6 +2199,62 @@ class GeneticOptimization(OptimizationBase):
                 break
         return selected
 
+    def _reserve_immigrant_slots(
+        self,
+        candidates: list[Any],
+        selected: list[Any],
+        selected_keys: list[tuple[int, ...]],
+        best_key: tuple[int, ...],
+    ) -> bool:
+        """Carry still-protected immigrants into ``selected`` in place.
+
+        The tournament judges immigrants on the fitness they have before any
+        recombination, which they lose. Reserving a bounded share of the seats
+        gives their genes the generations they need to be crossed into the
+        incumbents.
+
+        Returns whether any seat was reassigned.
+        """
+        protected = [
+            candidate
+            for candidate in candidates
+            if getattr(candidate, "immigrant_protection", 0) > 0
+        ]
+        if not protected:
+            return False
+
+        limit = max(1, int(len(selected) * self.IMMIGRANT_PROTECTION_FRACTION))
+        chosen = {id(candidate) for candidate in selected}
+        seated = sum(1 for candidate in protected if id(candidate) in chosen)
+        missing = [candidate for candidate in protected if id(candidate) not in chosen]
+        if seated >= limit or not missing:
+            return False
+
+        # Evict the weakest seats that carry neither the incumbent genome nor a
+        # protection of their own, worst first.
+        evictable = sorted(
+            (
+                index
+                for index, candidate in enumerate(selected)
+                if selected_keys[index] != best_key
+                and getattr(candidate, "immigrant_protection", 0) <= 0
+            ),
+            key=lambda index: selected[index].fitness.values[0],
+            reverse=True,
+        )
+        reassigned = False
+        for immigrant, index in zip(missing[: limit - seated], evictable):
+            selected[index] = immigrant
+            reassigned = True
+        return reassigned
+
+    def _age_immigrant_protection(self, population: list[Any]) -> None:
+        """Spend one generation of the surviving immigrants' protection."""
+        for individual in population:
+            remaining = getattr(individual, "immigrant_protection", 0)
+            if remaining > 0:
+                individual.immigrant_protection = remaining - 1
+
     def _select_diverse(self, candidates: list[Any], count: int) -> list[Any]:
         """Tournament-select while repairing only severe duplicate takeover."""
         if not candidates or count <= 0:
@@ -2202,6 +2271,9 @@ class GeneticOptimization(OptimizationBase):
             )
             selected[worst_index] = best
             selected_keys[worst_index] = best_key
+
+        if self._reserve_immigrant_slots(candidates, selected, selected_keys, best_key):
+            selected_keys = [self._fitness_key(candidate) for candidate in selected]
 
         # Duplicates are useful for exploitation and cache hits. Replace only
         # enough duplicate selections to keep a minimum search breadth.
@@ -2331,6 +2403,7 @@ class GeneticOptimization(OptimizationBase):
                 total_immigrants += immigrants
                 stagnation = 0
                 diversity_boost_active = False
+                self._age_immigrant_protection(population)
                 logger.info(
                     "Genetic soft restart at generation {}: kept {} unique survivors, "
                     "injected {} immigrants (diversity {:.1%}).",
@@ -2352,6 +2425,14 @@ class GeneticOptimization(OptimizationBase):
                         stagnation,
                         diversity,
                     )
+                elif diversity_boost_active and not diversity_boost:
+                    logger.info(
+                        "Genetic diversity boost ended at generation {}: stagnation {}, "
+                        "diversity {:.1%}.",
+                        generation,
+                        stagnation,
+                        diversity,
+                    )
                 diversity_boost_active = diversity_boost
                 mutation_probability = (
                     self.STAGNATION_MUTATION_PROBABILITY
@@ -2365,22 +2446,20 @@ class GeneticOptimization(OptimizationBase):
                     lambda_ - immigrants,
                     mutation_probability=mutation_probability,
                 )
-                offspring.extend(
-                    self._fresh_population(
-                        immigrants,
-                        educated_fraction=0.50,
-                    )
-                )
+                fresh = self._fresh_population(immigrants, educated_fraction=0.50)
+                for immigrant in fresh:
+                    immigrant.immigrant_protection = self.IMMIGRANT_PROTECTION_GENERATIONS
+                offspring.extend(fresh)
                 nevals = self._evaluate_invalid(offspring)
                 halloffame.update(offspring)
                 population = self._select_diverse(population + offspring, mu)
+                self._age_immigrant_protection(population)
                 total_immigrants += immigrants
 
             current_best = float(halloffame[0].fitness.values[0])
             if current_best < best_fitness - 1e-9:
                 best_fitness = current_best
                 stagnation = 0
-                diversity_boost_active = False
             elif not soft_restart:
                 stagnation += 1
 
