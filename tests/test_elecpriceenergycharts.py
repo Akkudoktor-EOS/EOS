@@ -435,3 +435,32 @@ def test_energycharts_development_forecast_data(provider):
         "w", encoding="utf-8", newline="\n"
     ) as f_out:
         json.dump(energy_charts_data, f_out, indent=4)
+
+
+@patch("requests.get")
+def test_forecast_covers_the_horizon_when_the_source_lags(
+    mock_get, provider, sample_energycharts_json, cache_store
+):
+    """A lagging source must not shorten the forecast by its own lag.
+
+    The extrapolation is appended after the last known price, so measuring its
+    length from now leaves exactly the lag uncovered at the end of the horizon -
+    where callers then see the last value held constant.
+    """
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.content = json.dumps(sample_energycharts_json)
+    mock_get.return_value = mock_response
+    cache_store.clear(clear_all=True)
+
+    # The sample ends at 2024-12-11 23:00; start the run more than a day later.
+    start = to_datetime("2024-12-12 13:00:00", in_timezone="Europe/Berlin")
+    get_ems().set_start_datetime(start)
+    provider.highest_orig_datetime = None
+    provider.update_data(force_enable=True, force_update=True)
+
+    assert provider.highest_orig_datetime < start
+
+    horizon_end = start.add(hours=provider.config.prediction.hours)
+    series = provider.key_to_series(key="elecprice_marketprice_wh")
+    assert series.index.max() >= horizon_end.subtract(hours=1)

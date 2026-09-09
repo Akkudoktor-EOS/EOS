@@ -116,8 +116,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
         energycharts = ElecPriceEnergyCharts()
         if len(history) > 800 * slots_per_hour:
             logger.info(
-                "Using weekly seasonal ETS forecast for {} "
-                "with {} historical values.",
+                "Using weekly seasonal ETS forecast for {} " "with {} historical values.",
                 self.provider_id(),
                 len(history),
             )
@@ -126,8 +125,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             )
         if len(history) > 168 * slots_per_hour:
             logger.info(
-                "Using daily seasonal ETS forecast for {} "
-                "with {} historical values.",
+                "Using daily seasonal ETS forecast for {} " "with {} historical values.",
                 self.provider_id(),
                 len(history),
             )
@@ -136,8 +134,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             )
         if len(history) > 0:
             logger.warning(
-                "Using constant median fallback for {} "
-                "with only {} historical values.",
+                "Using constant median fallback for {} " "with only {} historical values.",
                 self.provider_id(),
                 len(history),
             )
@@ -184,8 +181,7 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
 
         if needs_update:
             logger.info(
-                "Update {} is needed, last in history: {}, "
-                "force_update={}, history_refresh={}",
+                "Update {} is needed, last in history: {}, " "force_update={}, history_refresh={}",
                 self.provider_id(),
                 self.highest_orig_datetime,
                 bool(force_update),
@@ -247,16 +243,16 @@ class FeedInTariffEnergyCharts(FeedInTariffProvider):
             fill_method="linear",
         )
 
-        covered_slots = 0
-        if self.highest_orig_datetime >= self.ems_start_datetime:
-            covered_slots = (
-                int(
-                    (self.highest_orig_datetime - self.ems_start_datetime).total_seconds()
-                    // resolution_seconds
-                )
-                + 1
-            )
-        needed_slots = self.config.prediction.hours * slots_per_hour - covered_slots
+        # The forecast is appended after the last known value, so its length has
+        # to be measured from there - not from now. When the source lags behind
+        # (a day-ahead auction that has not been published yet), measuring from
+        # now leaves exactly that lag uncovered at the end of the horizon, where
+        # callers then see the last value held constant.
+        horizon_end = self.ems_start_datetime + to_duration(f"{self.config.prediction.hours} hours")
+        needed_slots = (
+            int((horizon_end - self.highest_orig_datetime).total_seconds() // resolution_seconds)
+            - 1
+        )
 
         if needed_slots <= 0:
             logger.warning(

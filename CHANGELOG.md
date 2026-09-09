@@ -241,6 +241,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `ElecPriceSMARD` now distinguishes a lagging publication from a broken response. A window the
   source cannot serve yet reports the latest value it does have, instead of claiming the response
   contained no usable prices.
+- A day-ahead source that lags no longer shortens the price forecast by its own lag. The ETS
+  extrapolation is appended after the last known price, but its length was measured from the run
+  start, so a source that had not published the current day yet left exactly that lag uncovered at
+  the end of the horizon. Callers reading `elecprice_marketprice_wh` or `feed_in_tariff_wh` past
+  that point saw the last value held constant - a flat price in precisely the trailing window the
+  terminal value curve is derived from. The length is now measured from the last known value
+  through to `ems_start + prediction.hours`.
 - A weather-API outage no longer takes the whole prediction update with it.
   `PVForecastAkkudoktorLocal` raised on the first failed Open-Meteo request, and
   `PredictionContainer.update_data` re-raises whatever an enabled provider raises, so every

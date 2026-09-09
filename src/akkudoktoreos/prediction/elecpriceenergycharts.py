@@ -356,16 +356,16 @@ class ElecPriceEnergyCharts(ElecPriceProvider):
         )
 
         # some of our data is already in the future, so we need to predict less. If we got less data we increase the prediction hours
-        covered_slots = 0
-        if self.highest_orig_datetime >= self.ems_start_datetime:
-            covered_slots = (
-                int(
-                    (self.highest_orig_datetime - self.ems_start_datetime).total_seconds()
-                    // resolution_seconds
-                )
-                + 1
-            )
-        needed_slots = self.config.prediction.hours * slots_per_hour - covered_slots
+        # The forecast is appended after the last known value, so its length has
+        # to be measured from there - not from now. When the source lags behind
+        # (a day-ahead auction that has not been published yet), measuring from
+        # now leaves exactly that lag uncovered at the end of the horizon, where
+        # callers then see the last value held constant.
+        horizon_end = self.ems_start_datetime + to_duration(f"{self.config.prediction.hours} hours")
+        needed_slots = (
+            int((horizon_end - self.highest_orig_datetime).total_seconds() // resolution_seconds)
+            - 1
+        )
 
         if needed_slots <= 0:
             logger.warning(
