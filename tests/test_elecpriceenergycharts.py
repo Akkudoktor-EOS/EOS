@@ -267,9 +267,8 @@ def test_market_price_charge_round_trip(provider):
     )
 
 
-@patch("requests.get")
-def test_update_data_with_incomplete_forecast(mock_get, provider):
-    """Test `_update_data` with incomplete or missing forecast data."""
+def _mock_empty_forecast(mock_get) -> None:
+    """Let the API answer correctly but without any price rows."""
     incomplete_data: dict = {
         "license_info": "",
         "unix_seconds": [],
@@ -281,9 +280,50 @@ def test_update_data_with_incomplete_forecast(mock_get, provider):
     mock_response.status_code = 200
     mock_response.content = json.dumps(incomplete_data)
     mock_get.return_value = mock_response
+
+
+@patch("requests.get")
+def test_update_data_with_incomplete_forecast_is_fatal_on_cold_start(mock_get, provider):
+    """Without any history there is nothing to fall back to."""
+    _mock_empty_forecast(mock_get)
+    provider.highest_orig_datetime = None
     logger.info("The following errors are intentional and part of the test.")
     with pytest.raises(ValueError):
         provider._update_data(force_update=True)
+
+
+@patch("requests.get")
+def test_update_data_with_incomplete_forecast_keeps_existing_history(
+    mock_get, provider, sample_energycharts_json, cache_store
+):
+    """An upstream without new prices must not fail the whole prediction update.
+
+    The horizon always reaches past the last published price, so a day-ahead
+    source that has not published the next day yet is the normal case. The
+    provider keeps its history and extrapolates the remaining slots.
+    """
+    # Establish a history first.
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.content = json.dumps(sample_energycharts_json)
+    mock_get.return_value = mock_response
+    cache_store.clear(clear_all=True)
+    get_ems().set_start_datetime(to_datetime("2024-12-11 00:00:00", in_timezone="Europe/Berlin"))
+    provider.highest_orig_datetime = None
+    provider.update_data(force_enable=True, force_update=True)
+
+    before = provider.highest_orig_datetime
+    assert before is not None
+    records_before = len(provider)
+
+    # The next refresh finds nothing new upstream.
+    _mock_empty_forecast(mock_get)
+    cache_store.clear(clear_all=True)
+    logger.info("The following errors are intentional and part of the test.")
+    provider._update_data(force_update=True)
+
+    assert provider.highest_orig_datetime == before
+    assert len(provider) == records_before
 
 
 @pytest.mark.parametrize(

@@ -154,6 +154,9 @@ class ElecPriceSMARD(ElecPriceEnergyCharts):
 
         values_by_timestamp: dict[int, float] = {}
         latest_created = 0
+        latest_published_ms: Optional[int] = None
+        start_ms = int(start_datetime.timestamp() * 1000)
+        end_ms = int(end_datetime.timestamp() * 1000)
         for chunk_timestamp in chunk_timestamps:
             chunk_url = (
                 f"{SMARD_BASE_URL}/{filter_id}/{region}/"
@@ -164,12 +167,23 @@ class ElecPriceSMARD(ElecPriceEnergyCharts):
             for timestamp_ms, price_eur_mwh in chunk.series:
                 if price_eur_mwh is None:
                     continue
-                if int(start_datetime.timestamp() * 1000) <= timestamp_ms <= int(
-                    end_datetime.timestamp() * 1000
-                ):
+                if latest_published_ms is None or timestamp_ms > latest_published_ms:
+                    latest_published_ms = timestamp_ms
+                if start_ms <= timestamp_ms <= end_ms:
                     values_by_timestamp[timestamp_ms] = price_eur_mwh
 
         if not values_by_timestamp:
+            # SMARD answered correctly; it simply has not published the requested
+            # period yet. Say so, because the caller keeps its history and
+            # extrapolates in that case instead of treating it as a broken API.
+            if latest_published_ms is not None:
+                latest_published = to_datetime(
+                    latest_published_ms / 1000, in_timezone=self.config.general.timezone
+                )
+                raise ValueError(
+                    f"SMARD has not published day-ahead prices for the requested period yet "
+                    f"(from {start_datetime}); latest published value is {latest_published}"
+                )
             raise ValueError("SMARD response contains no usable day-ahead prices")
 
         ordered_values = sorted(values_by_timestamp.items())

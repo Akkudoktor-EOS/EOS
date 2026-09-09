@@ -75,3 +75,46 @@ def test_chunk_selection_includes_preceding_overlapping_chunk(provider):
 
 def test_smard_provider_is_enabled(provider):
     assert provider.enabled()
+
+
+@patch("akkudoktoreos.prediction.elecpricesmard.requests.get")
+def test_unpublished_period_names_the_latest_published_value(mock_get, provider):
+    """A day-ahead source that lags is not a broken response.
+
+    SMARD publishes the next day around midday. Until then a run whose horizon
+    already reaches into that day asks for a window SMARD cannot serve yet. The
+    error has to say that, because the caller keeps its history and extrapolates
+    in that case rather than treating the API as broken.
+    """
+    chunk_start = 1785103200000
+    # The chunk holds prices, but all of them end before the requested window.
+    mock_get.side_effect = [
+        _response({"timestamps": [chunk_start]}),
+        _response(
+            {
+                "meta_data": {"version": 1, "created": 1785500527370},
+                "series": [[chunk_start, 86.04], [chunk_start + 900000, 84.5]],
+            }
+        ),
+    ]
+
+    with pytest.raises(ValueError, match="has not published day-ahead prices"):
+        provider._request_forecast(start_date="2026-07-28", force_update=True)
+
+
+@patch("akkudoktoreos.prediction.elecpricesmard.requests.get")
+def test_empty_series_still_reports_an_unusable_response(mock_get, provider):
+    """A chunk without a single price is a different problem and says so."""
+    chunk_start = 1785103200000
+    mock_get.side_effect = [
+        _response({"timestamps": [chunk_start]}),
+        _response(
+            {
+                "meta_data": {"version": 1, "created": 1785500527370},
+                "series": [[chunk_start, None]],
+            }
+        ),
+    ]
+
+    with pytest.raises(ValueError, match="no usable day-ahead prices"):
+        provider._request_forecast(start_date="2026-07-27", force_update=True)

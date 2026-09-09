@@ -1016,6 +1016,11 @@ def cache_in_file(
                     force_update = True
             if force_update or cache_file is None:
                 # Otherwise, call the function and save its result to the cache
+                # Run first and only then claim a cache entry. Creating the entry
+                # up front left an empty file behind whenever the function raised,
+                # and every later call within the TTL then failed to read it
+                # ("Ran out of input") before refetching anyway.
+                result = func(*args, **kwargs)
                 logger.debug("Created cache file for function: " + func.__name__)
                 cache_file = CacheFileStore().create(
                     key,
@@ -1026,7 +1031,6 @@ def cache_in_file(
                     until_date=until_date,
                     with_ttl=with_ttl,
                 )
-                result = func(*args, **kwargs)
                 try:
                     # Assure we have an empty file
                     cache_file.truncate(0)

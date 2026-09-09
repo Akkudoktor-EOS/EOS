@@ -231,6 +231,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   historical data exists, the existing history is kept and the remaining slots are
   extrapolated via ETS instead of failing. A genuine cold start (no data at all) still
   fails.
+- A day-ahead price source that has not published the next day yet no longer fails the whole
+  prediction update. `ElecPriceEnergyCharts` and its `ElecPriceSMARD` subclass ask for prices
+  starting at the run day, while the optimization horizon always reaches past the last published
+  price, so every morning before the auction is published the request came back empty and the
+  provider raised - answering `/v1/prediction/update` with 400 until the source caught up. The
+  provider now keeps its existing history and extrapolates the remaining slots via ETS, the same
+  way `FeedInTariffEnergyCharts` already did. A cold start with no history at all still fails.
+- `ElecPriceSMARD` now distinguishes a lagging publication from a broken response. A window the
+  source cannot serve yet reports the latest value it does have, instead of claiming the response
+  contained no usable prices.
+- `cache_in_file` no longer leaves an empty cache entry behind when the wrapped function raises.
+  The entry was claimed before the call, so every later call within the TTL first failed to read
+  it ("Ran out of input") before refetching. The entry is now created only after the call returns.
 - The deprecated `/gesamtlast` endpoint no longer forces a full provider refresh on every
   call. Forcing bypassed the provider caches and hammered external APIs, so a single flaky
   provider could 404 the whole load prediction. It now defaults to a cache-aware update and

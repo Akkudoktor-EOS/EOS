@@ -560,6 +560,37 @@ class TestCacheFileDecorators:
         cache_file.seek(0)  # Move to the start of the file
         assert cache_file.read() == "Some expensive computation result"
 
+    def test_cache_in_file_decorator_discards_the_entry_when_the_call_raises(
+        self, cache_file_store
+    ):
+        """A failing call must not leave an empty cache file behind.
+
+        The entry is created before the wrapped function runs, so a raising
+        function used to leave an empty file that every later call within the TTL
+        failed to unpickle ("Ran out of input") before falling back to a refetch.
+        """
+        cache_file_store.clear(clear_all=True)
+        assert len(cache_file_store._store) == 0
+
+        calls = []
+
+        @cache_in_file(mode="w+")
+        def failing_function(until_date=None):
+            calls.append(1)
+            raise ValueError("upstream has nothing to offer yet")
+
+        until = datetime.now() + timedelta(days=1)
+        with pytest.raises(ValueError, match="upstream has nothing"):
+            failing_function(until_date=until)
+
+        assert len(cache_file_store._store) == 0
+
+        # The next call runs the function again and reports the same failure
+        # rather than a confusing unpickling error from an empty file.
+        with pytest.raises(ValueError, match="upstream has nothing"):
+            failing_function(until_date=until)
+        assert len(calls) == 2
+
     def test_cache_in_file_decorator_uses_cache(self, cache_file_store):
         """Test that the cache_in_file decorator reuses cached file on subsequent calls."""
         # Clear store to assure it is empty
